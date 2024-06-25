@@ -8,16 +8,17 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "./_request_id.mdx";
 
-`taospy` is the official Python client library for TDengine. taospy provides a rich API that makes it easy for Python applications to use TDengine. 
+`taospy` is the official Python client library for TDengine. taospy provides a rich API that makes it easy for Python applications to use TDengine.
 
 The source code for the Python client library is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
 ## Connection types
 
 `taospy` mainly provides 3 connection types, among which we recommend using **websocket connection**.
-- **Native connection**, which correspond to the `taos` modules of the `taospy` package, connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface.   
-- **REST connection**, which correspond to the `taosrest` modules of the `taospy` package, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported. 
-- **Websocket connection** `taos-ws-py` is an optional package to enable using WebSocket to connect TDengine, which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.   
+
+- **Native connection**, which correspond to the `taos` modules of the `taospy` package, connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface.
+- **REST connection**, which correspond to the `taosrest` modules of the `taospy` package, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported.
+- **Websocket connection** `taos-ws-py` is an optional package to enable using WebSocket to connect TDengine, which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.
 
 For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
@@ -113,7 +114,7 @@ If you use a native connection, you will also need to [Install Client Driver](..
 
 If you have installed an older version of the Python client library, please uninstall it beforehand.
 
-```
+```bash
 pip3 uninstall taos taospy
 ```
 
@@ -129,20 +130,20 @@ Earlier TDengine client software includes the Python client library. If the Pyth
 
 Install the latest version of:
 
-```
+```bash
 pip3 install taospy
 ```
 
 You can also specify a specific version to install:
 
-```
+```bash
 pip3 install taospy==2.3.0
 ```
 
 </TabItem>
 <TabItem label="Install from GitHub" value="github">
 
-```
+```bash
 pip3 install git+https://github.com/taosdata/taos-connector-python.git
 ```
 
@@ -200,7 +201,7 @@ import taosws
 :::tip
 If you have multiple versions of Python on your system, you may have various `pip` commands. Be sure to use the correct path for the `pip` command. Above, we installed the `pip3` command, which rules out the possibility of using the `pip` corresponding to Python 2.x versions. However, if you have more than one version of Python 3.x on your system, you still need to check that the installation path is correct. The easiest way to verify this is to type `pip3 install taospy` again in the command, and it will print out the exact location of `taospy`, for example, on Windows.
 
-```
+```cmd
 C:\> pip3 install taospy
 Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
 Requirement already satisfied: taospy in c:\users\username\appdata\local\programs\python\python310\lib\site-packages (2.3.0)
@@ -219,13 +220,13 @@ Before establishing a connection with the client library, we recommend testing t
 
 Ensure that the TDengine instance is up and that the FQDN of the machines in the cluster (the FQDN defaults to hostname if you are starting a stand-alone version) can be resolved locally, by testing with the `ping` command.
 
-```
+```bash
 ping <FQDN>
 ```
 
 Then test if the cluster can be appropriately connected with TDengine CLI:
 
-```
+```bash
 taos -h <FQDN> -p <PORT>
 ```
 
@@ -234,9 +235,9 @@ The FQDN above can be the FQDN of any dnode in the cluster, and the PORT is the 
 </TabItem>
 <TabItem value="rest" label="REST connection" groupId="connect">
 
-For REST connections, make sure the cluster and taosAdapter component, are running. This can be tested using the following `curl ` command.
+For REST connections, make sure the cluster and taosAdapter component, are running. This can be tested using the following `curl` command.
 
-```
+```bash
 curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 ```
 
@@ -267,7 +268,7 @@ If the test is successful, it will output the server version information, e.g.
 
 For WebSocket connection, make sure the cluster and taosAdapter component, are running. This can be testetd using the following `curl` command.
 
-```
+```bash
 curl -i -N -d "show databases" -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Host: <FQDN>:<PORT>" -H "Origin: http://<FQDN>:<PORT>" http://<FQDN>:<PORT>/rest/sql
 ```
 
@@ -408,7 +409,7 @@ If the configuration parameters are duplicated in the parameters or client confi
 </TabItem>
 </Tabs>
 
-> NOW is an internal function. The default is the current time of the client's computer. 
+> NOW is an internal function. The default is the current time of the client's computer.
 > `NOW + 1s` represents the current time of the client plus 1 second, followed by the number representing the unit of time: a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks), n (months), y (years).
 
 ### Querying Data
@@ -496,6 +497,7 @@ The Python client library provides a parameter binding api for inserting data. S
 ```python
 {{#include docs/examples/python/stmt_native.py:stmt}}
 ```
+
 </TabItem>
 
 <TabItem value="websocket" label="WebSocket connection">
@@ -503,6 +505,7 @@ The Python client library provides a parameter binding api for inserting data. S
 ```python
 {{#include docs/examples/python/stmt_ws.py:stmt}}
 ```
+
 </TabItem>
 </Tabs>
 
@@ -571,7 +574,7 @@ Client library support data subscription. For more information about subscroptio
 
 #### Assignment subscription Offset
 
-The `assignment` function is used to get the assignment of the topic. 
+The `assignment` function is used to get the assignment of the topic.
 
 ```python
 {{#include docs/examples/python/tmq_native.py:assignment}}
@@ -607,7 +610,7 @@ You should unsubscribe to the topics and close the consumer after consuming.
 | [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py) | Use JSON type tags |
 | [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py) | TMQ subscription |
 
-## Other notes 
+## Other notes
 
 ### About nanoseconds
 

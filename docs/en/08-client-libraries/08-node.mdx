@@ -15,7 +15,7 @@ The source code for the Node.js client library is hosted on [GitHub](https://git
 
 ## Connection types
 
-Node.js connector supports only websocket connection through taosAdapter. 
+Node.js connector supports only websocket connection through taosAdapter.
 
 For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
@@ -75,7 +75,7 @@ The table below despicts the mapping between TDengine data type and Node.js data
 | BIGINT UNSIGNED   | bigint      |
 | FLOAT             | number      |
 | DOUBLE            | number      |
-| BOOL              | boolean     | 
+| BOOL              | boolean     |
 | BINARY            | string      |
 | NCHAR             | string      |
 | JSON              | string      |
@@ -88,7 +88,7 @@ The table below despicts the mapping between TDengine data type and Node.js data
 
 ### Pre-installation preparation
 
-- Install the Node.js development environment, using version 14 or above. Download link: https://nodejs.org/en/download/
+- Install the [Node.js development environment](https://nodejs.org/en/download/), using version 14 or above.
 
 ### Install Node.js client library via npm
 
@@ -268,7 +268,7 @@ The TDengine Node.js client library supports subscription functionality with the
 {{#include docs/examples/node/websocketexample/tmq_example.js:create_consumer}}
 ```
 
-**Parameter Description**
+##### Parameter Description
 
 - taos.TMQConstants.CONNECT_USER: username.
 - taos.TMQConstants.CONNECT_PASS: password.
@@ -278,7 +278,7 @@ The TDengine Node.js client library supports subscription functionality with the
 - taos.TMQConstants.AUTO_OFFSET_RESET: When offset does not exist, where to start consumption, the optional value is earliest or latest, the default is latest.
 - taos.TMQConstants.ENABLE_AUTO_COMMIT: Specifies whether to commit automatically.
 - taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS: Automatic submission interval, the default value is 5000 ms.
-- taos.TMQConstants.CONNECT_MESSAGE_TIMEOUT: socket timeout in milliseconds, the default value is 10000 ms. It only takes effect when using WebSocket type. 
+- taos.TMQConstants.CONNECT_MESSAGE_TIMEOUT: socket timeout in milliseconds, the default value is 10000 ms. It only takes effect when using WebSocket type.
 
 For more information, see [Consumer Parameters](../../develop/tmq). Note that the default value of auto.offset.reset in data subscription on the TDengine server has changed since version 3.2.0.0.
 
@@ -315,14 +315,14 @@ For more information, see [Data Subscription](../../develop/tmq).
 
 ## More sample programs
 
-| Sample Programs | Sample Program Description |
-| ---------------------------------------------------------------------------------------------------------------------------------| -------------------------------------- |
-| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js)                 | Basic operations such as establishing connections and running SQl commands.|
-| [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/stmt_example.js)               | Binding multi-line parameter insertion.               | |
-| [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/line_example.js)               | Schemaless insert              |
-| [telnet_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/telnet_line_example.js) | OpenTSDB Telnet insert                   |
-| [json_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/json_line_example.js)     | OpenTSDB Json insert                 |
-| [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/tmq_example.js)                 | Using data subscription                       |
+| Sample Programs                                              | Sample Program Description                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js) | Basic operations such as establishing connections and running SQl commands. |
+| [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/stmt_example.js) | Binding multi-line parameter insertion.                      |
+| [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/line_example.js) | Schemaless insert                                            |
+| [telnet_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/telnet_line_example.js) | OpenTSDB Telnet insert                                       |
+| [json_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/json_line_example.js) | OpenTSDB Json insert                                         |
+| [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/tmq_example.js) | Using data subscription                                      |
 
 ## Usage limitations
 
@@ -332,6 +332,6 @@ For more information, see [Data Subscription](../../develop/tmq).
 
 ## Frequently Asked Questions
 
-1. "Unable to establish connection" or "Unable to resolve FQDN" 
+1. "Unable to establish connection" or "Unable to resolve FQDN"
 
    **Solution**: Usually, the root cause is an incorrect FQDN configuration. You can refer to this section in the [FAQ](../../train-faq/faq/#2-how-can-i-resolve-the-unable-to-establish-connection-error) to troubleshoot.

@@ -4,34 +4,34 @@ title: Yonghong BI
 description: Use YonghongBI and TDengine to analyze time series data
 ---
 
-# Tools - Yonghong BI
-
 ![Yonghong BI use step](./yonghongbi-step-en.png)
 
 [Yonghong one-stop big data BI platform](https://www.yonghongtech.com/)to provide enterprises of all sizes with flexible and easy-to-use whole-business chain big data analysis solutions, so that every user can use this platform to easily discover the value of big data and obtain deep insight. TDengine can be added to Yonghong BI as a data source via a JDBC connector. Once the data source is configured, Yonghong BI can read data from TDengine and provide functions such as data presentation, analysis and prediction.
 
-### Prerequisite
+## Prerequisite
 
 1. Yonghong Desktop Basic is installed and running (if not,please go to [official download page of Yonghong Technology](https://www.yonghongtech.com/cp/desktop/) download).
 2. The TDengine is installed and running, and ensure that the taosadapter service is started on the TDengine server side.
 
-### Install JDBC Connector
+## Install JDBC Connector
 
 Go to [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver/versions) download the latest TDengine JDBC connector (current version [3.2.7](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar)) and install it on the machine where the BI tool is running.
 
-### Configure JDBC DataSource
+## Configure JDBC DataSource
 
 1. In the Yonghong Desktop BI tool, click "Add data source" and select the "GENERIC" type in the SQL data source.
 2. Click "Select Custom Driver", in the "Driver Management" dialog box, click "+" next to "Driver List", enter the name "MyTDengine". Then click the "upload file" button to upload just download TDengine JDBC connector file "taos-jdbcdriver-3.2.7-dist.jar", and select "com.taosdata.jdbc.rs.RestfulDriver" drive, Finally, click the "OK" button to complete the driver addition.
 3. Then copy the following into the "URL" field:
-```
-jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata
-```
+
+   ```text
+   jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata
+   ```
+
 4. Then select "No identity Authentication" under "Authentication Mode".
 5. In the advanced Settings of the data source, change the value of the Quote symbol to the backquote "`".
 6. Click "Test connection" and the dialog box "Test success" will pop up. Click the "Save" button and enter "tdengine" to save the TDengine data source.
 
-### Create TDengine datasets
+## Create TDengine datasets
 
 1. Click "Add Data Set" in the BI tool, expand the data source you just created, and browse the super table in TDengine.
 2. You can load all the data of the super table into the BI tool, or you can import some data through custom SQL statements.
@@ -49,13 +49,13 @@ Data can be read in real time from TDengine, where:
 
 - `_wstart`: Indicates the start time of the time window.
 - `count(*)`: Indicates the aggregate value in the time window.
--  `?{interval}`: Indicates that the parameter interval is introduced into the SQL statement. When the BI tool queries data, it assigns a value to the parameter interval. If the value is 1m, the sampling data is reduced based on a 1-minute time window.
+- `?{interval}`: Indicates that the parameter interval is introduced into the SQL statement. When the BI tool queries data, it assigns a value to the parameter interval. If the value is 1m, the sampling data is reduced based on a 1-minute time window.
 - `?{metric}`: This parameter is used to specify the name of the data table to be queried. When the ID of a drop-down parameter component is set as metric in the BI tool, the selected items of the drop-down parameter component are bound to this parameter to achieve dynamic selection.
 - `?{from}` `?{to}`:These two parameters are used to represent the time range of the query data set and can be bound with the Text Parameter Component.
 
 You can modify the data type, data range, and default values of parameters in the "Edit Parameters" dialog box of the BI tool, and dynamically set the values of these parameters in the "Visual Report".
 
-### Create a visual report
+## Create a visual report
 
 1. Click "Make Report" in Yonghong BI tool to create a canvas.
 2. Drag visual components, such as Table Components, onto the canvas.

@@ -44,7 +44,7 @@ Regarding how to install TDengine client driver please refer to [Install Client 
 
 ### Install php-tdengine
 
-**Download Source Code Package and Unzip: **
+**Download Source Code Package and Unzip:**
 
 ```shell
 curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
@@ -52,13 +52,13 @@ curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive
 && tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
 ```
 
-**Non-Swoole Environment: **
+**Non-Swoole Environment:**
 
 ```shell
 phpize && ./configure && make -j && make install
 ```
 
-**Specify TDengine location: **
+**Specify TDengine location:**
 
 ```shell
 phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
@@ -67,7 +67,7 @@ phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && 
 > `--with-tdengine-dir=` is followed by TDengine location.
 > It's useful in case TDengine installatio location can't be found automatically or MacOS.
 
-**Swoole Environment: **
+**Swoole Environment:**
 
 ```shell
 phpize && ./configure --enable-swoole && make -j && make install

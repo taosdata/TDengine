@@ -23,11 +23,12 @@ The source code for the Rust client library is located on [GitHub](https://githu
 
 ## Connection types
 
-`taos` provides two ways to establish connections, among which we recommend using **websocket connection**. 
-- **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). 
-- **WebSocket connection**, which connects to TDengine instances via the WebSocket interface provided by taosAdapter. 
+`taos` provides two ways to establish connections, among which we recommend using **websocket connection**.
 
-You can specify a connection type with Cargo features. By default, both types are supported. 
+- **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc).
+- **WebSocket connection**, which connects to TDengine instances via the WebSocket interface provided by taosAdapter.
+
+You can specify a connection type with Cargo features. By default, both types are supported.
 
 For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
@@ -91,8 +92,8 @@ Note: Only TAG supports JSON types
 
 ### Pre-installation preparation
 
-* Install the Rust development toolchain
-* If using the native connection, please install the TDengine client driver. Please refer to [install client driver](../#install-client-driver)
+- Install the Rust development toolchain
+- If using the native connection, please install the TDengine client driver. Please refer to [install client driver](../#install-client-driver)
 
 ### Install the client library
 
@@ -291,6 +292,7 @@ There are two ways to query data: Using built-in types or the [serde](https://se
 ```rust
 {{#include docs/examples/rust/nativeexample/examples/query.rs:insert_data}}
 ```
+
 ### Query data
 
 ```rust
@@ -402,7 +404,7 @@ The following parameters can be configured for the TMQ DSN. Only `group.id` is m
 - `auto.commit.interval.ms`: Interval for automatic commits.
 
 #### Full Sample Code
-  
+
 For more information, see [GitHub sample file](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/rust/nativeexample/examples/tmq.rs).
 
 ### Use with connection pool
@@ -429,7 +431,7 @@ let opts = PoolBuilder::new()
 let pool = TaosBuilder::from_dsn(dsn)?.with_pool_builder(opts)?;
 ```
 
-In the application code, use `pool.get()? ` to get a connection object [Taos].
+In the application code, use `pool.get()?` to get a connection object [Taos].
 
 ```rust
 let taos = pool.get()?;
@@ -514,7 +516,7 @@ The [Taos][struct.Taos] object provides an API to perform operations on multiple
         // binary/varchar to String
         location: String,
     }
-
+    
     let records: Vec<Record> = taos
         .query("select * from `meters`")
         .await?
@@ -602,12 +604,10 @@ stmt.execute()?;
 
 For a working example, see [GitHub](https://github.com/taosdata/taos-connector-rust/blob/main/taos/examples/bind.rs).
 
-
 For information about other structure APIs, see the [Rust documentation](https://docs.rs/taos).
 
 [taos]: https://github.com/taosdata/taos-connector-rust
 [r2d2]: https://crates.io/crates/r2d2
 [TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
-[TaosCfg]: https://docs.rs/taos/latest/taos/struct.TaosCfg.html
 [struct.Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
 [Stmt]: https://docs.rs/taos/latest/taos/struct.Stmt.html
