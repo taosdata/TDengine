@@ -44,6 +44,11 @@ int32_t dmRun();
  */
 void dmStop();
 
+/**
+ * for tests
+ */
+bool dmReadyForTest();
+
 #ifdef __cplusplus
 }
 #endif

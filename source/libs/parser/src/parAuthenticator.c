@@ -265,10 +265,18 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
   FOREACH(pNode, pStmt->pSubTables) {
-    SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
-    code = checkAuth(pCxt, pClause->dbName, NULL, AUTH_TYPE_WRITE, NULL);
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
+    if (pNode->type == QUERY_NODE_CREATE_SUBTABLE_CLAUSE) {
+      SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
+      code = checkAuth(pCxt, pClause->dbName, NULL, AUTH_TYPE_WRITE, NULL);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    } else {
+      SCreateSubTableFromFileClause* pClause = (SCreateSubTableFromFileClause*)pNode;
+      code = checkAuth(pCxt, pClause->useDbName, NULL, AUTH_TYPE_WRITE, NULL);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
     }
   }
   return code;
@@ -351,6 +359,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:

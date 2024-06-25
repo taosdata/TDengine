@@ -557,7 +557,6 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   const int32_t BATCH_LIMIT = 256;
 
   int64_t    st = taosGetTimestampMs();
-  int32_t    numOfElems = listNEles(pSnapshot);
   SListNode* pNode = NULL;
 
   int idx = streamStateGetCfIdx(pFileState->pFileStore, pFileState->cfName);
@@ -589,8 +588,11 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   }
   taosMemoryFree(buf);
 
-  if (streamStateGetBatchSize(batch) > 0) {
+  int32_t numOfElems = streamStateGetBatchSize(batch);
+  if (numOfElems > 0) {
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
+  } else {
+    goto _end;
   }
 
   streamStateClearBatch(batch);
@@ -609,6 +611,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
 
+_end:
   streamStateDestroyBatch(batch);
   return code;
 }

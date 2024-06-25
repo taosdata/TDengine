@@ -373,7 +373,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000  // millisecond
 #define TSDB_DEFAULT_FSYNC_PERIOD       3000    // three second
-#define TSDB_MIN_WAL_LEVEL              1
+#define TSDB_MIN_WAL_LEVEL              0
 #define TSDB_MAX_WAL_LEVEL              2
 #define TSDB_DEFAULT_WAL_LEVEL          1
 #define TSDB_MIN_PRECISION              TSDB_TIME_PRECISION_MILLI
@@ -549,6 +549,7 @@ typedef struct {
   char    dir[TSDB_FILENAME_LEN];
   int32_t level;
   int32_t primary;
+  int8_t  disable;  // disable create new file
 } SDiskCfg;
 
 typedef struct {
@@ -572,7 +573,7 @@ enum {
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64
 #define TSDB_CONFIG_SCOPE_LEN  8
-#define TSDB_CONFIG_NUMBER     8
+#define TSDB_CONFIG_NUMBER     16
 
 #define QUERY_ID_SIZE      20
 #define QUERY_OBJ_ID_SIZE  18

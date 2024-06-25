@@ -280,6 +280,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode      *pMnode = pMsg->info.node;
   SSdb        *pSdb = pMnode->pSdb;
+  int32_t      code = 0;
   int32_t      numOfRows = 0;
   int32_t      cols = 0;
   SClusterObj *pCluster = NULL;
@@ -290,31 +291,31 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCluster->id, false);
+    COL_DATA_SET_VAL_RET((const char *)&pCluster->id, false, pCluster);
 
     char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, buf, false);
+    COL_DATA_SET_VAL_RET(buf, false, pCluster);
 
     int32_t upTime = mndGetClusterUpTimeImp(pCluster);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&upTime, false);
+    COL_DATA_SET_VAL_RET((const char *)&upTime, false, pCluster);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCluster->createdTime, false);
+    COL_DATA_SET_VAL_RET((const char *)&pCluster->createdTime, false, pCluster);
 
     char ver[12] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)ver, false);
+    COL_DATA_SET_VAL_RET((const char *)ver, false, pCluster);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (tsExpireTime <= 0) {
       colDataSetNULL(pColInfo, numOfRows);
     } else {
-      colDataSetVal(pColInfo, numOfRows, (const char *)&tsExpireTime, false);
+      COL_DATA_SET_VAL_RET((const char *)&tsExpireTime, false, pCluster);
     }
 
     sdbRelease(pSdb, pCluster);

@@ -212,10 +212,16 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_COL_PK_TYPE:
       return "primary key column must be of type int, uint, bigint, ubigint, and varchar";
     case TSDB_CODE_PAR_INVALID_PK_OP:
-      return "primary key column can not be added, modified, and dropped";    
+      return "primary key column can not be added, modified, and dropped";
     case TSDB_CODE_TSMA_NAME_TOO_LONG:
       return "Tsma name too long";
-    default:
+    case TSDB_CODE_PAR_TBNAME_ERROR:
+      return "Pseudo tag tbname not set";
+    case TSDB_CODE_PAR_TBNAME_DUPLICATED:
+      return "Table name:%s duplicated";
+    case TSDB_CODE_PAR_TAG_NAME_DUPLICATED:
+      return "Tag name:%s duplicated";
+     default:
       return "Unknown error";
   }
 }

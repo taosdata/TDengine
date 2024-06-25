@@ -29,7 +29,7 @@ extern "C" {
 
 #include "storageapi.h"
 
-SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages);
+SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId);
 void          streamStateClose(SStreamState* pState, bool remove);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
@@ -101,7 +101,7 @@ int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
-int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal);
+int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal, bool onlyCache);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
 

@@ -253,6 +253,7 @@ typedef enum {
   L1_DELTAD,
   L1_DISABLED = 0xFF,
 } TCmprL1Type;
+
 typedef enum {
   L2_UNKNOWN = 0,
   L2_LZ4,

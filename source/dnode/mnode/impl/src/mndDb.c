@@ -495,6 +495,16 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
 #else
   if (pNewCfg->replications != 1 && pNewCfg->replications != 3) return -1;
 #endif
+
+  if (pNewCfg->walLevel == 0 && pOldCfg->replications > 1) {
+    terrno = TSDB_CODE_MND_INVALID_WAL_LEVEL;
+    return -1;
+  }
+  if (pNewCfg->replications > 1 && pOldCfg->walLevel == 0) {
+    terrno = TSDB_CODE_MND_INVALID_WAL_LEVEL;
+    return -1;
+  }
+
   if (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
   if (pNewCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pNewCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
   if (pNewCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pNewCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
@@ -821,8 +831,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
 
 #ifdef TD_ENTERPRISE
   if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
-  if (grantCheck(TSDB_GRANT_DB_ENCRYPTION) != 0) {
-    code = TSDB_CODE_MND_DB_ENCRYPT_GRANT_EXPIRED;
+  if ((code = grantCheck(TSDB_GRANT_DB_ENCRYPTION)) != 0) {
     goto _exit;
   }
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
@@ -875,9 +884,6 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 #endif
   mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
-    goto _OVER;
-  }
 
   pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
@@ -900,6 +906,10 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     } else {  // TSDB_CODE_APP_ERROR
       goto _OVER;
     }
+  }
+
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
+    goto _OVER;
   }
 
   if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
@@ -1121,6 +1131,7 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
             taosArrayDestroy(pArray);
             return -1;
           }
+
         } else {
           SArbGroup arbGroup = {0};
           mndArbGroupInitFromVgObj(pVgroup, &arbGroup);
@@ -1236,7 +1247,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (terrno != 0) code = terrno;
-    mError("db:%s, failed to alter since %s", alterReq.db, terrstr());
+    mError("db:%s, failed to alter since %s", alterReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);

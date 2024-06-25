@@ -278,11 +278,36 @@ class TDTestCase:
         self.checkDropData(False)
 
         return
+    
+    def checkSnapshot1VgroupBtmeta(self):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -bt'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
+        self.checkData()
+        self.checkDropData(False)
+
+        return
 
     def checkSnapshot1VgroupTable(self):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
+        self.checkDataTable()
+
+        return
+    
+    def checkSnapshot1VgroupTableBtmeta(self):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t -bt'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
@@ -301,10 +326,31 @@ class TDTestCase:
         self.checkDropData(False)
 
         return
+    
+    def checkSnapshotMultiVgroupsBtmeta(self):
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -bt'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkData()
+        self.checkDropData(False)
+
+        return
 
     def checkSnapshotMultiVgroupsWithDropTable(self):
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -d'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkDropData(True)
+
+        return
+    
+    def checkSnapshotMultiVgroupsWithDropTableBtmeta(self):
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -d -bt'%(buildPath)
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
@@ -359,7 +405,6 @@ class TDTestCase:
                 index += 1
         finally:
             consumer.close()
-
 
     def consume_TS_4540_Test(self):
         tdSql.execute(f'create database if not exists test')
@@ -423,7 +468,6 @@ class TDTestCase:
         except TmqError:
             tdLog.exit(f"subscribe error")
 
-        print("consume_ts_4544 ok")
         consumer.close()
 
     def consume_ts_4551(self):
@@ -537,6 +581,11 @@ class TDTestCase:
         self.checkWalMultiVgroupsWithDropTable()
 
         self.checkSnapshotMultiVgroupsWithDropTable()
+
+        self.checkSnapshot1VgroupBtmeta()
+        self.checkSnapshot1VgroupTableBtmeta()
+        self.checkSnapshotMultiVgroupsBtmeta()
+        self.checkSnapshotMultiVgroupsWithDropTableBtmeta()
 
     def stop(self):
         tdSql.close()

@@ -249,6 +249,7 @@ class ClusterComCheck:
                     if tdSql.queryResult[0][0] == db_replica:
                         tdLog.success(f"all vgroups with replica {self.db_replica} of {db_name} are leaders in {count} s")
                         return True
+
             elif self.db_replica == 3 :
                 vgroup_status_first=[tdSql.queryResult[0][4],tdSql.queryResult[0][6],tdSql.queryResult[0][8]]
 

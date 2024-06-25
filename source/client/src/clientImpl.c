@@ -147,7 +147,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     }
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
-      destroyAppInst(p);
+      destroyAppInst(&p);
       taosThreadMutexUnlock(&appInfo.mutex);
       taosMemoryFreeClear(key);
       return NULL;
@@ -158,9 +158,6 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
 
     pInst = &p;
-
-    clientSlowQueryMonitorInit(p->instKey);
-    clientSQLReqMonitorInit(p->instKey);
   } else {
     ASSERTS((*pInst) && (*pInst)->pAppHbMgr, "*pInst:%p, pAppHgMgr:%p", *pInst, (*pInst) ? (*pInst)->pAppHbMgr : NULL);
     // reset to 0 in case of conn with duplicated user key but its user has ever been dropped.
@@ -174,14 +171,14 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType);
 }
 
-SAppInstInfo* getAppInstInfo(const char* clusterKey) {
-  SAppInstInfo** ppAppInstInfo = taosHashGet(appInfo.pInstMap, clusterKey, strlen(clusterKey));
-  if (ppAppInstInfo != NULL && *ppAppInstInfo != NULL) {
-    return *ppAppInstInfo;
-  } else {
-    return NULL;
-  }
-}
+//SAppInstInfo* getAppInstInfo(const char* clusterKey) {
+//  SAppInstInfo** ppAppInstInfo = taosHashGet(appInfo.pInstMap, clusterKey, strlen(clusterKey));
+//  if (ppAppInstInfo != NULL && *ppAppInstInfo != NULL) {
+//    return *ppAppInstInfo;
+//  } else {
+//    return NULL;
+//  }
+//}
 
 void freeQueryParam(SSyncQueryParam* param) {
   if (param == NULL) return;
@@ -1711,10 +1708,8 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-    SSchedulerReq   req = {
-          .syncReq = true,
-          .pFetchRes = (void**)&pResInfo->pData,
-    };
+    SSchedulerReq   req = { .syncReq = true, .pFetchRes = (void**)&pResInfo->pData };
+
     pRequest->code = schedulerFetchRows(pRequest->body.queryJob, &req);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
@@ -2065,6 +2060,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
+
   if (numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2195,17 +2191,58 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   taosMemoryFreeClear(pResultInfo->pRspMsg);
   pResultInfo->pRspMsg = (const char*)pRsp;
-  pResultInfo->pData = (void*)pRsp->data;
   pResultInfo->numOfRows = htobe64(pRsp->numOfRows);
   pResultInfo->current = 0;
   pResultInfo->completed = (pRsp->completed == 1);
-  pResultInfo->payloadLen = htonl(pRsp->compLen);
   pResultInfo->precision = pRsp->precision;
+
+  // decompress data if needed
+  int32_t payloadLen = htonl(pRsp->payloadLen);
+
+  if (pRsp->compressed) {
+    if (pResultInfo->decompBuf == NULL) {
+      pResultInfo->decompBuf = taosMemoryMalloc(payloadLen);
+      pResultInfo->decompBufSize = payloadLen;
+    } else {
+      if (pResultInfo->decompBufSize < payloadLen) {
+        char* p = taosMemoryRealloc(pResultInfo->decompBuf, payloadLen);
+        if (p == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          tscError("failed to prepare the decompress buffer, size:%d", payloadLen);
+          return terrno;
+        }
+
+        pResultInfo->decompBuf = p;
+        pResultInfo->decompBufSize = payloadLen;
+      }
+    }
+  }
+
+  if (payloadLen > 0) {
+    int32_t compLen = *(int32_t*)pRsp->data;
+    int32_t rawLen = *(int32_t*)(pRsp->data + sizeof(int32_t));
+
+    char* pStart = (char*)pRsp->data + sizeof(int32_t) * 2;
+
+    if (pRsp->compressed && compLen < rawLen) {
+      int32_t len = tsDecompressString(pStart, compLen, 1, pResultInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
+      ASSERT(len == rawLen);
+
+      pResultInfo->pData = pResultInfo->decompBuf;
+      pResultInfo->payloadLen = rawLen;
+    } else {
+      pResultInfo->pData = pStart;
+      pResultInfo->payloadLen = htonl(pRsp->compLen);
+      ASSERT(pRsp->compLen == pRsp->payloadLen);
+    }
+  }
 
   // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
-  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows,
-                          convertUcs4);
+
+  int32_t code =
+      setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows, convertUcs4);
+  return code;
 }
 
 TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* details, int maxlen) {

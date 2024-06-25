@@ -2,7 +2,7 @@
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
 if(${TD_DARWIN})
-target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
+    target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
 endif(${TD_DARWIN})
 set(
   VNODE_SOURCE_FILES

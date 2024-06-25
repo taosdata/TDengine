@@ -74,7 +74,9 @@ struct SStreamSnapHandle {
   int32_t        currFileIdx;
   char*          metaPath;
 
+  void*   pMeta;
   SArray* pDbSnapSet;
+  SArray* pSnapInfoSet;
   int32_t currIdx;
   int8_t  delFlag;  // 0 : not del, 1: del
 };
@@ -140,7 +142,9 @@ TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
   return taosOpenFile(fullname, opt);
 }
 
-int32_t streamTaskDbGetSnapInfo(void* arg, char* path, SArray* pSnap) { return taskDbBuildSnap(arg, pSnap); }
+int32_t streamCreateTaskDbSnapInfo(void* arg, char* path, SArray* pSnap) { return taskDbBuildSnap(arg, pSnap); }
+
+int32_t streamDestroyTaskDbSnapInfo(void* arg, SArray* snap) { return taskDbDestroySnap(arg, snap); }
 
 void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
   if (qDebugFlag & DEBUG_DEBUG) {
@@ -291,31 +295,27 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
 }
 int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta) {
   // impl later
-  SArray* pSnapSet = taosArrayInit(4, sizeof(SStreamTaskSnap));
-  int32_t code = streamTaskDbGetSnapInfo(pMeta, path, pSnapSet);
+  SArray* pSnapInfoSet = taosArrayInit(4, sizeof(SStreamTaskSnap));
+  int32_t code = streamCreateTaskDbSnapInfo(pMeta, path, pSnapInfoSet);
   if (code != 0) {
-    taosArrayDestroy(pSnapSet);
+    taosArrayDestroy(pSnapInfoSet);
     return -1;
   }
 
   SArray* pDbSnapSet = taosArrayInit(8, sizeof(SBackendSnapFile2));
 
-  for (int32_t i = 0; i < taosArrayGetSize(pSnapSet); i++) {
-    SStreamTaskSnap* pSnap = taosArrayGet(pSnapSet, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pSnapInfoSet); i++) {
+    SStreamTaskSnap* pSnap = taosArrayGet(pSnapInfoSet, i);
 
     SBackendSnapFile2 snapFile = {0};
     code = streamBackendSnapInitFile(path, pSnap, &snapFile);
     ASSERT(code == 0);
     taosArrayPush(pDbSnapSet, &snapFile);
   }
-  for (int32_t i = 0; i < taosArrayGetSize(pSnapSet); i++) {
-    SStreamTaskSnap* pSnap = taosArrayGet(pSnapSet, i);
-    taosMemoryFree(pSnap->dbPrefixPath);
-  }
-  taosArrayDestroy(pSnapSet);
-
   pHandle->pDbSnapSet = pDbSnapSet;
+  pHandle->pSnapInfoSet = pSnapInfoSet;
   pHandle->currIdx = 0;
+  pHandle->pMeta = pMeta;
   return 0;
 
 _err:
@@ -333,6 +333,14 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
       snapFileDestroy(pSnapFile);
     }
     taosArrayDestroy(handle->pDbSnapSet);
+  }
+  streamDestroyTaskDbSnapInfo(handle->pMeta, handle->pSnapInfoSet);
+  if (handle->pSnapInfoSet) {
+    for (int32_t i = 0; i < taosArrayGetSize(handle->pSnapInfoSet); i++) {
+      SStreamTaskSnap* pSnap = taosArrayGet(handle->pSnapInfoSet, i);
+      taosMemoryFree(pSnap->dbPrefixPath);
+    }
+    taosArrayDestroy(handle->pSnapInfoSet);
   }
   taosMemoryFree(handle->metaPath);
   return;

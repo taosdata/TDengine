@@ -29,13 +29,14 @@ int32_t qwMallocFetchRsp(int8_t rpcMalloc, int32_t length, SRetrieveTableRsp **r
   return TSDB_CODE_SUCCESS;
 }
 
-void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete) {
+void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, int32_t rawDataLen, bool qComplete) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
   rsp->useconds = htobe64(input->useconds);
   rsp->completed = qComplete;
   rsp->precision = input->precision;
   rsp->compressed = input->compressed;
+  rsp->payloadLen = htonl(rawDataLen);
   rsp->compLen = htonl(len);
   rsp->numOfRows = htobe64(input->numOfRows);
   rsp->numOfCols = htonl(input->numOfCols);
@@ -154,6 +155,7 @@ int32_t qwBuildAndSendFetchRsp(int32_t rspType, SRpcHandleInfo *pConn, SRetrieve
       .info = *pConn,
   };
 
+  rpcRsp.info.compressed = pRsp->compressed;
   tmsgSendRsp(&rpcRsp);
 
   return TSDB_CODE_SUCCESS;
@@ -370,12 +372,12 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
       if ((TEST_VIEW_MASK(msg.msgMask)) && !taosGranted(TSDB_GRANT_VIEW)) {
         QW_ELOG("query failed cause of view grant expired, msgMask:%d", msg.msgMask);
         tFreeSSubQueryMsg(&msg);
-        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+        QW_ERR_RET(TSDB_CODE_GRANT_VIEW_EXPIRED);
       }
       if ((TEST_AUDIT_MASK(msg.msgMask)) && !taosGranted(TSDB_GRANT_AUDIT)) {
         QW_ELOG("query failed cause of audit grant expired, msgMask:%d", msg.msgMask);
         tFreeSSubQueryMsg(&msg);
-        QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+        QW_ERR_RET(TSDB_CODE_GRANT_AUDIT_EXPIRED);
       }
     }
   }
@@ -452,13 +454,15 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   qwMsg.msgInfo.explain = msg.explain;
   qwMsg.msgInfo.taskType = msg.taskType;
   qwMsg.msgInfo.needFetch = msg.needFetch;
+  qwMsg.msgInfo.compressMsg = msg.compress;
 
-  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, handle:%p, SQL:%s", node, TMSG_INFO(pMsg->msgType),
-                   pMsg->info.handle, msg.sql);
+  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, compress:%d, handle:%p, SQL:%s", node, TMSG_INFO(pMsg->msgType),
+                   msg.compress, pMsg->info.handle, msg.sql);
+
   code = qwProcessQuery(QW_FPARAMS(), &qwMsg, msg.sql);
   msg.sql = NULL;
-  QW_SCH_TASK_DLOG("processQuery end, node:%p, code:%x", node, code);
 
+  QW_SCH_TASK_DLOG("processQuery end, node:%p, code:%x", node, code);
   tFreeSSubQueryMsg(&msg);
 
   return TSDB_CODE_SUCCESS;

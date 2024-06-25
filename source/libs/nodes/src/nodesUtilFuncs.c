@@ -60,7 +60,7 @@ char* getFullJoinTypeString(EJoinType type, EJoinSubType stype) {
     {"LEFT", "LEFT", "LEFT OUTER", "LEFT SEMI", "LEFT ANTI", "LEFT ANY", "LEFT ASOF", "LEFT WINDOW"},
     {"RIGHT", "RIGHT", "RIGHT OUTER", "RIGHT SEMI", "RIGHT ANTI", "RIGHT ANY", "RIGHT ASOF", "RIGHT WINDOW"},
     {"FULL", "FULL", "FULL OUTER", "FULL", "FULL", "FULL ANY", "FULL", "FULL"}
-  };  
+  };
   return joinFullType[type][stype];
 }
 
@@ -89,7 +89,7 @@ int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc) {
       }
       nodesDestroyNode(*ppSrc);
       *ppSrc = NULL;
-      
+
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -422,6 +422,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateTableStmt));
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
       return makeNode(type, sizeof(SCreateSubTableClause));
+    case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
+      return makeNode(type, sizeof(SCreateSubTableFromFileClause));
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return makeNode(type, sizeof(SCreateMultiTablesStmt));
     case QUERY_NODE_DROP_TABLE_CLAUSE:
@@ -524,6 +526,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -1005,7 +1008,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pWin->pStartOffset);
       nodesDestroyNode(pWin->pEndOffset);
       break;
-    }    
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -1086,6 +1089,20 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pSpecificTags);
       nodesDestroyList(pStmt->pValsOfTags);
       nodesDestroyNode((SNode*)pStmt->pOptions);
+      break;
+    }
+    case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
+      SCreateSubTableFromFileClause* pStmt = (SCreateSubTableFromFileClause*)pNode;
+      if (pStmt->aCreateTbData) {
+        taosArrayDestroy(pStmt->aCreateTbData);
+      }
+      if (pStmt->aTagIndexs) {
+        taosArrayDestroy(pStmt->aTagIndexs);
+      }
+      if (pStmt->fp) {
+        taosCloseFile(&pStmt->fp);
+      }
+      nodesDestroyList(pStmt->pSpecificTags);
       break;
     }
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
@@ -1217,6 +1234,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -2674,6 +2692,18 @@ SValueNode* nodesMakeValueNodeFromBool(bool b) {
     pValNode->isNull = false;
   }
   return pValNode;
+}
+
+SNode* nodesMakeValueNodeFromInt32(int32_t value) {
+  SValueNode* pValNode = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pValNode) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_INT;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+    nodesSetValueNodeValue(pValNode, &value);
+    pValNode->translate = true;
+    pValNode->isNull = false;
+  }
+  return (SNode*)pValNode;
 }
 
 bool nodesIsStar(SNode* pNode) {

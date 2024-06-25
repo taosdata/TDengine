@@ -37,10 +37,10 @@ SHOW USERS;
 
 ```sql
 taos> show users;
-           name           | super | enable | sysinfo |       create_time       |
-================================================================================
- test                     |     0 |      1 |       1 | 2022-08-29 15:10:27.315 |
- root                     |     1 |      1 |       1 | 2022-08-29 15:03:34.710 |
+           name           | super | enable | sysinfo | createdb |       create_time      | allowed_host |
+=========================================================================================================
+ test                     |     0 |      1 |       1 |        0 |2022-08-29 15:10:27.315 | 127.0.0.1    |
+ root                     |     1 |      1 |       1 |        1 |2022-08-29 15:03:34.710 | 127.0.0.1    |
 Query OK, 2 rows in database (0.001657s)
 ```
 
@@ -48,10 +48,10 @@ Query OK, 2 rows in database (0.001657s)
 
 ```sql
 taos> select * from information_schema.ins_users;
-           name           | super | enable | sysinfo |       create_time       |
-================================================================================
- test                     |     0 |      1 |       1 | 2022-08-29 15:10:27.315 |
- root                     |     1 |      1 |       1 | 2022-08-29 15:03:34.710 |
+           name           | super | enable | sysinfo | createdb |       create_time      | allowed_host |
+=========================================================================================================
+ test                     |     0 |      1 |       1 |        0 |2022-08-29 15:10:27.315 | 127.0.0.1    |
+ root                     |     1 |      1 |       1 |        1 |2022-08-29 15:03:34.710 | 127.0.0.1    |
 Query OK, 2 rows in database (0.001953s)
 ```
 
@@ -70,12 +70,14 @@ alter_user_clause: {
     PASS 'literal'
   | ENABLE value
   | SYSINFO value
+  | CREATEDB value
 }
 ```
 
 - PASS: 修改密码，后跟新密码
 - ENABLE: 启用或禁用该用户，`1` 表示启用，`0` 表示禁用
 - SYSINFO: 允许或禁止查看系统信息，`1` 表示允许，`0` 表示禁止
+- CREATEDB: 允许或禁止创建数据库，`1` 表示允许，`0` 表示禁止
 
 下面的示例禁用了名为 `test` 的用户:
 
