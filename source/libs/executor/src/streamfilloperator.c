@@ -790,7 +790,7 @@ static void doDeleteFillFinalize(SOperatorInfo* pOperator) {
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SStreamFillInfo*         pFillInfo = pInfo->pFillInfo;
   int32_t                  size = taosArrayGetSize(pFillInfo->delRanges);
-  for (; pFillInfo->delIndex < size; pFillInfo->delIndex++) {
+  while (pFillInfo->delIndex < size) {
     STimeRange* range = taosArrayGet(pFillInfo->delRanges, pFillInfo->delIndex);
     if (pInfo->pRes->info.id.groupId != 0 && pInfo->pRes->info.id.groupId != range->groupId) {
       return;
@@ -801,6 +801,7 @@ static void doDeleteFillFinalize(SOperatorInfo* pOperator) {
       getWindowInfoByKey(pAPI, pOperator->pTaskInfo->streamInfo.pState, realEnd, range->groupId, &pInfo->pFillSup->next);
     }
     setDeleteFillValueInfo(range->skey, range->ekey, pInfo->pFillSup, pInfo->pFillInfo);
+    pFillInfo->delIndex++;
     if (pInfo->pFillInfo->needFill) {
       doStreamFillRange(pInfo->pFillInfo, pInfo->pFillSup, pInfo->pRes);
       pInfo->pRes->info.id.groupId = range->groupId;
