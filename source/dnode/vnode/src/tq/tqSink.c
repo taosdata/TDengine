@@ -696,7 +696,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
       tqTrace("s-task:%s set the dstTable uid from cache:%" PRId64, id, pTableData->uid);
     }
   } else {
-    // The auto-create option will always set to be open for those submit messages, which arrive during the period
+    // The auto-create option will always set to be open for those submit messages, which arrives during the period
     // the creating of the destination table, due to the absence of the user-specified table in TSDB. When scanning
     // data from WAL, those submit messages, with auto-created table option, will be discarded expect the first, for
     // those mismatched table uids. Only the FIRST table has the correct table uid, and those remain all have
@@ -704,7 +704,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
     SMetaReader mr = {0};
     metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
 
-    // table not in cache, let's try the extract it from tsdb meta
+    // table not in cache, let's try to extract it from tsdb meta
     if (metaGetTableEntryByName(&mr, dstTableName) < 0) {
       metaReaderClear(&mr);
 

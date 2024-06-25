@@ -1602,7 +1602,7 @@ class TDTestCase(TDTestCase):
         tdSql.execute('alter stable stable_1 drop column q_binary5;')
         tdSql.execute('alter stable stable_1 drop column q_nchar4;')
         tdSql.execute('alter stable stable_1 drop column q_binary4;')
-       
+
     def testTBNameUseJoin(self):
         tdSql.execute('CREATE STABLE `meter1` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT)')
         tdSql.execute('CREATE STABLE `meter2` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT)')
@@ -1615,7 +1615,7 @@ class TDTestCase(TDTestCase):
         time.sleep(1)
         tdSql.query('select tbname,count(*) from d2')
         tdSql.checkData(0, 1, 0)
-
+ 
         tdSql.execute('insert into `d1` VALUES (now, 1)')
         tdSql.execute('insert into `d1` VALUES (now+1s, 2)')
         tdSql.execute('insert into `d1` VALUES (now+2s, 3)')
@@ -1643,35 +1643,38 @@ class TDTestCase(TDTestCase):
         tdSql.checkData(0, 0, 'd21')
         tdSql.checkData(0, 1, 3)
         # tdSql.checkData(1, 0, 'd22')
-
+        
         tdSql.execute('insert into `d22` select  * from `d1`')
-
+        
         tdSql.query('select meter1.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter1.tbname order by meter1.tbname')
         tdSql.checkData(0, 0, 'd1')
         tdSql.checkData(0, 1, 6)
-
+        
         tdSql.query('select m2.tbname, count(*) from meter1 m1, meter2 m2 where m1.ts = m2.ts partition by m2.tbname order by m2.tbname')
         tdSql.checkData(0, 0, 'd21')
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 0, 'd22')
         tdSql.checkData(1, 1, 3)
-
+        
         tdSql.error('select tbname, count(*) from d1 a, d2 b where a.ts = b.ts group by b.tbname')
         # tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter1.tbname order by meter1.tbname')
         tdSql.error('select tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter2.tbname order by meter2.tbname')
         tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by meter2.tbname order by meter.tbname')
         tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by tbname order by meter2.tbname')
         tdSql.error('select m2.tbname, count(*) from meter1 m1, meter2 m2 where meter1.ts = meter2.ts partition by m2.tbname order by meter2.tbname')
-            
+  
     def run(self):
         tdSql.prepare()
         
         startTime = time.time() 
 
         # self.create_tables()
-        # self.insert_data()   
-         
+        # self.insert_data()
+        
+        #self.testTBNameUseJoin()
         self.dropandcreateDB_random("nested", 1)
+        self.testTBNameUseJoin()
+
         self.modify_tables()
                
         for i in range(1):

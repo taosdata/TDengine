@@ -2002,6 +2002,82 @@ static int32_t pdcOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
   return pdcOptimizeImpl(pCxt, pLogicSubplan->pNode);
 }
 
+
+static bool eliminateNotNullCondMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode)) {
+    return false;
+  }
+  
+  SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+  if (pNode->pChildren->length != 1 || NULL != pAgg->pGroupKeys) {
+    return false;
+  }
+
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return false;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  if (NULL == pScan->node.pConditions || QUERY_NODE_OPERATOR != nodeType(pScan->node.pConditions)) {
+    return false;
+  }
+
+  SOperatorNode* pOp = (SOperatorNode*)pScan->node.pConditions;
+  if (OP_TYPE_IS_NOT_NULL != pOp->opType) {
+    return false;
+  }
+
+  if (QUERY_NODE_COLUMN != nodeType(pOp->pLeft)) {
+    return false;
+  }
+
+  SNode* pTmp = NULL;
+  FOREACH(pTmp, pAgg->pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pTmp;
+    if (!fmIsIgnoreNullFunc(pFunc->funcId)) {
+      return false;
+    }
+    if (fmIsMultiResFunc(pFunc->funcId)) {
+      SNode* pParam = NULL;
+      FOREACH(pParam, pFunc->pParameterList) {
+        if (QUERY_NODE_COLUMN != nodeType(pParam)) {
+          return false;
+        }
+        if (!nodesEqualNode(pParam, pOp->pLeft)) {
+          return false;
+        }
+      }
+    } else {
+      SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      if (QUERY_NODE_COLUMN != nodeType(pParam)) {
+        return false;
+      }
+      if (!nodesEqualNode(pParam, pOp->pLeft)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+static int32_t eliminateNotNullCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pNode = (SLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, eliminateNotNullCondMayBeOptimized);
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  nodesDestroyNode(pScan->node.pConditions);
+  pScan->node.pConditions = NULL;
+
+  pCxt->optimized = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
   if (1 != LIST_LENGTH(pSortKeys)) {
     return false;
@@ -6701,6 +6777,7 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
+  {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},

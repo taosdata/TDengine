@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "streamexecutorInt.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -363,7 +364,7 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
-      code = saveResult(curWin.winInfo, pSeUpdated);
+      saveResult(curWin.winInfo, pSeUpdated);
     }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
@@ -458,13 +459,16 @@ void* doStreamEventDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOperato
 
 void doStreamEventSaveCheckpoint(SOperatorInfo* pOperator) {
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                      len = doStreamEventEncodeOpState(NULL, 0, pOperator);
-  void*                        buf = taosMemoryCalloc(1, len);
-  void*                        pBuf = buf;
-  len = doStreamEventEncodeOpState(&pBuf, len, pOperator);
-  pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_EVENT_OP_CHECKPOINT_NAME,
-                                                     strlen(STREAM_EVENT_OP_CHECKPOINT_NAME), buf, len);
-  taosMemoryFree(buf);
+  if (needSaveStreamOperatorInfo(&pInfo->basic)) {
+    int32_t len = doStreamEventEncodeOpState(NULL, 0, pOperator);
+    void*   buf = taosMemoryCalloc(1, len);
+    void*   pBuf = buf;
+    len = doStreamEventEncodeOpState(&pBuf, len, pOperator);
+    pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_EVENT_OP_CHECKPOINT_NAME,
+                                                       strlen(STREAM_EVENT_OP_CHECKPOINT_NAME), buf, len);
+    taosMemoryFree(buf);
+    saveStreamOperatorStateComplete(&pInfo->basic);
+  }
 }
 
 static SSDataBlock* buildEventResult(SOperatorInfo* pOperator) {
@@ -531,6 +535,7 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       break;
     }
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {

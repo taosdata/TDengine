@@ -822,9 +822,9 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     memcpy(output, input + 1, nelements * longBytes);
     return nelements * longBytes;
   } else if (input[0] == 1) {  // Decompress
-    if (tsSIMDEnable && tsAVX512Enable) {
+    if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
       tsDecompressTimestampAvx512(input, nelements, output, false);
-    } else if (tsSIMDEnable && tsAVX2Enable) {
+    } else if (tsSIMDEnable && tsAVX2Supported) {
       tsDecompressTimestampAvx2(input, nelements, output, false);
     } else {
       int64_t *ostream = (int64_t *)output;
@@ -1198,9 +1198,9 @@ int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, c
     return nelements * FLOAT_BYTES;
   }
 
-  if (tsSIMDEnable && tsAVX2Enable) {
+  if (tsSIMDEnable && tsAVX2Supported) {
     tsDecompressFloatImplAvx2(input, nelements, output);
-  } else if (tsSIMDEnable && tsAVX512Enable) {
+  } else if (tsSIMDEnable && tsAVX512Supported && tsAVX512Enable) {
     tsDecompressFloatImplAvx512(input, nelements, output);
   } else {  // alternative implementation without SIMD instructions.
     tsDecompressFloatHelper(input, nelements, (float *)output);
@@ -2713,7 +2713,7 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
         int8_t alvl = tsGetCompressL2Level(l2, lvl);                                                                  \
         return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, type, alvl);                                          \
       } else {                                                                                                        \
-        uTrace("dencode:%s, dcompress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,               \
+        uTrace("dencode:%s, decompress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,               \
                tDataTypes[type].name);                                                                                \
         return compressL2Dict[l2].decomprFn(pIn, nIn, pOut, nOut, type);                                              \
       }                                                                                                               \

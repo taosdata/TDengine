@@ -126,18 +126,13 @@ class TDTestCase(TBase):
         tdSql.execute("insert into ct2 using t100 tags(2) values('2024-05-17 14:58:52.902', 'a2', '200')")
         tdSql.execute("create view v100 as select * from t100")
         tdSql.execute("create view v200 as select * from ct1")
-        
+
         tdSql.error("show tags from v100", expectErrInfo="Tags can only applied to super table and child table")
         tdSql.error("show tags from v200", expectErrInfo="Tags can only applied to super table and child table")
 
         tdSql.execute("create table t200 (ts timestamp, pk varchar(20) primary key, c1 varchar(100))")
 
         tdSql.error("show tags from t200", expectErrInfo="Tags can only applied to super table and child table")
-
-
-
-
-
 
     def checkShow(self):
         # not support
@@ -182,6 +177,7 @@ class TDTestCase(TBase):
         # do action
         self.doQuery()
 
+        # check show
         self.checkShow()
 
 

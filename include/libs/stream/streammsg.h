@@ -22,17 +22,17 @@
 extern "C" {
 #endif
 
-typedef struct SStreamChildEpInfo {
+typedef struct SStreamUpstreamEpInfo {
   int32_t nodeId;
   int32_t childId;
   int32_t taskId;
   SEpSet  epSet;
   bool    dataAllowed;  // denote if the data from this upstream task is allowed to put into inputQ, not serialize it
   int64_t stage;  // upstream task stage value, to denote if the upstream node has restart/replica changed/transfer
-} SStreamChildEpInfo;
+} SStreamUpstreamEpInfo;
 
-int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
-int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
+int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo);
+int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamUpstreamEpInfo* pInfo);
 
 // mndTrigger: denote if this checkpoint is triggered by mnode or as requested from tasks when transfer-state finished
 typedef struct {
@@ -170,6 +170,39 @@ typedef struct SStreamHbMsg {
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pRsp);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pRsp);
 void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
+
+typedef struct SRetrieveChkptTriggerReq {
+  SMsgHead head;
+  int64_t  streamId;
+  int64_t  checkpointId;
+  int32_t  upstreamNodeId;
+  int32_t  upstreamTaskId;
+  int32_t  downstreamNodeId;
+  int64_t  downstreamTaskId;
+} SRetrieveChkptTriggerReq;
+
+typedef struct SCheckpointTriggerRsp {
+  int64_t streamId;
+  int64_t checkpointId;
+  int32_t upstreamTaskId;
+  int32_t taskId;
+  int32_t transId;
+  int32_t rspCode;
+} SCheckpointTriggerRsp;
+
+typedef struct SCheckpointReport {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t nodeId;
+  int64_t checkpointId;
+  int64_t checkpointVer;
+  int64_t checkpointTs;
+  int32_t transId;
+  int8_t  dropHTask;
+} SCheckpointReport;
+
+int32_t tEncodeStreamTaskChkptReport(SEncoder* pEncoder, const SCheckpointReport* pReq);
+int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq);
 
 typedef struct {
   SMsgHead head;

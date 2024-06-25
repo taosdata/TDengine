@@ -17,21 +17,21 @@
 #include "mndTrans.h"
 
 typedef struct SKeyInfo {
-  void*   pKey;
+  void   *pKey;
   int32_t keyLen;
 } SKeyInfo;
 
-int32_t mndStreamRegisterTrans(STrans* pTrans, const char* pTransName, int64_t streamId) {
+int32_t mndStreamRegisterTrans(STrans *pTrans, const char *pTransName, int64_t streamId) {
   SStreamTransInfo info = {
       .transId = pTrans->id, .startTime = taosGetTimestampMs(), .name = pTransName, .streamId = streamId};
   taosHashPut(execInfo.transMgmt.pDBTrans, &streamId, sizeof(streamId), &info, sizeof(SStreamTransInfo));
   return 0;
 }
 
-int32_t mndStreamClearFinishedTrans(SMnode* pMnode, int32_t* pNumOfActiveChkpt) {
+int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) {
   size_t  keyLen = 0;
-  void*   pIter = NULL;
-  SArray* pList = taosArrayInit(4, sizeof(SKeyInfo));
+  void   *pIter = NULL;
+  SArray *pList = taosArrayInit(4, sizeof(SKeyInfo));
   int32_t num = 0;
 
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
@@ -43,7 +43,8 @@ int32_t mndStreamClearFinishedTrans(SMnode* pMnode, int32_t* pNumOfActiveChkpt) 
       void *pKey = taosHashGetKey(pEntry, &keyLen);
       // key is the name of src/dst db name
       SKeyInfo info = {.pKey = pKey, .keyLen = keyLen};
-      mDebug("transId:%d %s startTs:%" PRId64 " cleared since finished", pEntry->transId, pEntry->name, pEntry->startTime);
+      mDebug("transId:%d %s startTs:%" PRId64 " cleared since finished", pEntry->transId, pEntry->name,
+             pEntry->startTime);
       taosArrayPush(pList, &info);
     } else {
       if (strcmp(pEntry->name, MND_STREAM_CHECKPOINT_NAME) == 0) {
@@ -55,7 +56,7 @@ int32_t mndStreamClearFinishedTrans(SMnode* pMnode, int32_t* pNumOfActiveChkpt) 
 
   int32_t size = taosArrayGetSize(pList);
   for (int32_t i = 0; i < size; ++i) {
-    SKeyInfo* pKey = taosArrayGet(pList, i);
+    SKeyInfo *pKey = taosArrayGet(pList, i);
     taosHashRemove(execInfo.transMgmt.pDBTrans, pKey->pKey, pKey->keyLen);
   }
 
@@ -76,7 +77,7 @@ int32_t mndStreamClearFinishedTrans(SMnode* pMnode, int32_t* pNumOfActiveChkpt) 
 // For a given stream:
 // 1. checkpoint trans is conflict with any other trans except for the drop and reset trans.
 // 2. create/drop/reset/update trans are conflict with any other trans.
-bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamId, const char* pTransName, bool lock) {
+bool mndStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, const char *pTransName, bool lock) {
   if (lock) {
     taosThreadMutexLock(&execInfo.lock);
   }
@@ -127,7 +128,7 @@ bool mndStreamTransConflictCheck(SMnode* pMnode, int64_t streamId, const char* p
   return false;
 }
 
-int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamUid) {
+int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamId) {
   taosThreadMutexLock(&execInfo.lock);
   int32_t num = taosHashGetSize(execInfo.transMgmt.pDBTrans);
   if (num <= 0) {
@@ -135,13 +136,14 @@ int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamUid) {
     return 0;
   }
 
-  mndStreamClearFinishedTrans(pMnode, NULL);
-  SStreamTransInfo* pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
+  clearFinishedTrans(pMnode);
+  SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
   if (pEntry != NULL) {
     SStreamTransInfo tInfo = *pEntry;
     taosThreadMutexUnlock(&execInfo.lock);
 
-    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0 || strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0) {
+    if (strcmp(tInfo.name, MND_STREAM_CHECKPOINT_NAME) == 0 || strcmp(tInfo.name, MND_STREAM_TASK_UPDATE_NAME) == 0 ||
+        strcmp(tInfo.name, MND_STREAM_CHKPT_UPDATE_NAME) == 0) {
       return tInfo.transId;
     }
   } else {
@@ -151,29 +153,8 @@ int32_t mndStreamGetRelTrans(SMnode* pMnode, int64_t streamUid) {
   return 0;
 }
 
-int32_t mndAddtoCheckpointWaitingList(SStreamObj* pStream, int64_t checkpointId) {
-  SCheckpointCandEntry* pEntry = taosHashGet(execInfo.transMgmt.pWaitingList, &pStream->uid, sizeof(pStream->uid));
-  if (pEntry == NULL) {
-    SCheckpointCandEntry entry = {.streamId = pStream->uid,
-                                  .checkpointTs = taosGetTimestampMs(),
-                                  .checkpointId = checkpointId,
-                                  .pName = taosStrdup(pStream->name)};
-
-    taosHashPut(execInfo.transMgmt.pWaitingList, &pStream->uid, sizeof(pStream->uid), &entry, sizeof(entry));
-    int32_t size = taosHashGetSize(execInfo.transMgmt.pWaitingList);
-
-    mDebug("stream:%" PRIx64 " add into waiting list due to conflict, ts:%" PRId64 " , checkpointId: %" PRId64
-           ", total in waitingList:%d",
-           pStream->uid, entry.checkpointTs, checkpointId, size);
-  } else {
-    mDebug("stream:%" PRIx64 " ts:%" PRId64 ", checkpointId:%" PRId64 " already in waiting list, no need to add into",
-           pStream->uid, pEntry->checkpointTs, checkpointId);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, const char *pMsg) {
+STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name,
+                      const char *pMsg) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, conflict, pReq, name);
   if (pTrans == NULL) {
     mError("failed to build trans:%s, reason: %s", name, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
@@ -181,7 +162,7 @@ STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnCo
     return NULL;
   }
 
-  mInfo("s-task:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, pTrans->id);
+  mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, pTrans->id);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetSTbName);
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
@@ -229,7 +210,7 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
 
   terrno = TSDB_CODE_SUCCESS;
 
-  STREAM_ENCODE_OVER:
+STREAM_ENCODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("stream:%s, failed to encode to raw:%p since %s", pStream->name, pRaw, terrstr());
@@ -268,12 +249,17 @@ int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status) 
 }
 
 int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
-                       int32_t retryCode) {
-  STransAction action = {.epSet = *pEpset, .contLen = contLen, .pCont = pCont, .msgType = msgType, .retryCode = retryCode};
+                       int32_t retryCode, int32_t acceptCode) {
+  STransAction action = {.epSet = *pEpset,
+                         .contLen = contLen,
+                         .pCont = pCont,
+                         .msgType = msgType,
+                         .retryCode = retryCode,
+                         .acceptableCode = acceptCode};
   return mndTransAppendRedoAction(pTrans, &action);
 }
 
-static bool identicalName(const char* pDb, const char* pParam, int32_t len) {
+static bool identicalName(const char *pDb, const char *pParam, int32_t len) {
   return (strlen(pDb) == len) && (strncmp(pDb, pParam, len) == 0);
 }
 
@@ -320,5 +306,3 @@ void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
 
   mDebug("complete clear checkpoints in Dbs");
 }
-
-

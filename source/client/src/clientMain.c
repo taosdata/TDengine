@@ -302,7 +302,7 @@ void taos_close(TAOS *taos) {
 }
 
 int taos_errno(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return terrno;
   }
 
@@ -314,7 +314,7 @@ int taos_errno(TAOS_RES *res) {
 }
 
 const char *taos_errstr(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return (const char *)tstrerror(terrno);
   }
 
@@ -355,6 +355,10 @@ void taos_free_result(TAOS_RES *res) {
     SMqMetaRspObj *pRspObj = (SMqMetaRspObj *)res;
     tDeleteMqMetaRsp(&pRspObj->metaRsp);
     taosMemoryFree(pRspObj);
+  } else if (TD_RES_TMQ_BATCH_META(res)) {
+    SMqBatchMetaRspObj *pBtRspObj = (SMqBatchMetaRspObj *)res;
+    tDeleteMqBatchMetaRsp(&pBtRspObj->rsp);
+    taosMemoryFree(pBtRspObj);
   }
 }
 
@@ -372,7 +376,7 @@ void taos_kill_query(TAOS *taos) {
 }
 
 int taos_field_count(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -383,7 +387,7 @@ int taos_field_count(TAOS_RES *res) {
 int taos_num_fields(TAOS_RES *res) { return taos_field_count(res); }
 
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
-  if (taos_num_fields(res) == 0 || TD_RES_TMQ_META(res)) {
+  if (taos_num_fields(res) == 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   }
 
@@ -438,7 +442,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       pResultInfo->current += 1;
       return pResultInfo->row;
     }
-  } else if (TD_RES_TMQ_META(res)) {
+  } else if (TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   } else {
     // assert to avoid un-initialization error
@@ -549,7 +553,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 }
 
 int *taos_fetch_lengths(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   }
 
@@ -558,7 +562,7 @@ int *taos_fetch_lengths(TAOS_RES *res) {
 }
 
 TAOS_ROW *taos_result_block(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -626,7 +630,7 @@ const char *taos_get_client_info() { return version; }
 
 // return int32_t
 int taos_affected_rows(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -637,7 +641,7 @@ int taos_affected_rows(TAOS_RES *res) {
 
 // return int64_t
 int64_t taos_affected_rows64(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -647,7 +651,7 @@ int64_t taos_affected_rows64(TAOS_RES *res) {
 }
 
 int taos_result_precision(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return TSDB_TIME_PRECISION_MILLI;
   }
 
@@ -687,7 +691,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) || TD_RES_TMQ_BATCH_META(res)) {
     return;
   }
 
@@ -695,7 +699,7 @@ void taos_stop_query(TAOS_RES *res) {
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return true;
   }
   SReqResultInfo *pResultInfo = tscGetCurResInfo(res);
@@ -720,7 +724,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 }
 
 int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -762,7 +766,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   *numOfRows = 0;
   *pData = NULL;
 
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -798,7 +802,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
 }
 
 int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
-  if (res == NULL || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -1549,7 +1553,7 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
     return NULL;
   }
 
-  TAOS_STMT *pStmt = stmtInit(pObj, 0);
+  TAOS_STMT *pStmt = stmtInit(pObj, 0, NULL);
 
   releaseTscObj(*(int64_t *)taos);
 
@@ -1564,12 +1568,28 @@ TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
     return NULL;
   }
 
-  TAOS_STMT *pStmt = stmtInit(pObj, reqid);
+  TAOS_STMT *pStmt = stmtInit(pObj, reqid, NULL);
 
   releaseTscObj(*(int64_t *)taos);
 
   return pStmt;
 }
+
+TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    tscError("invalid parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  TAOS_STMT *pStmt = stmtInit(pObj, options->reqId, options);
+
+  releaseTscObj(*(int64_t *)taos);
+
+  return pStmt;
+}
+
 
 int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
   if (stmt == NULL || sql == NULL) {
@@ -1826,4 +1846,8 @@ int taos_set_conn_mode(TAOS* taos, int mode, int value) {
       return TSDB_CODE_INVALID_PARA;
   }
   return 0;
+}
+
+char* getBuildInfo(){
+    return buildinfo;
 }

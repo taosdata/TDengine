@@ -422,7 +422,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // STREAM ============
-  vInfo("vgId:%d stream task start", vgId);
+  vInfo("vgId:%d stream task start to take snapshot", vgId);
   if (!pReader->streamTaskDone) {
     if (pReader->pStreamTaskReader == NULL) {
       code = streamTaskSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamTaskReader);
@@ -622,13 +622,13 @@ extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
   tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
   vnodeSyncCommit(pVnode);
-  vnodeAChannelDestroy(vnodeAsyncHandle[0], pVnode->commitChannel, true);
+  vnodeAChannelDestroy(&pVnode->commitChannel, true);
   return 0;
 }
 
 static int32_t vnodeEnableBgTask(SVnode *pVnode) {
   tsdbEnableBgTask(pVnode->pTsdb);
-  vnodeAChannelInit(vnodeAsyncHandle[0], &pVnode->commitChannel);
+  vnodeAChannelInit(1, &pVnode->commitChannel);
   return 0;
 }
 

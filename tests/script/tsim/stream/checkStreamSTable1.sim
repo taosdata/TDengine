@@ -15,7 +15,37 @@ sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams1 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(a) c2  from st interval(1s) ;
-sleep 500
+
+print ====check task status start
+
+$loop_count = 0
+
+loopCheck:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 1 select * from information_schema.ins_stream_tasks;
+sql select * from information_schema.ins_stream_tasks;
+
+if $rows == 0 then
+  print rows=$rows
+  goto loopCheck
+endi
+
+print 1 select * from information_schema.ins_stream_tasks where status != "ready";
+sql select * from information_schema.ins_stream_tasks where status != "ready";
+
+if $rows != 0 then
+  print rows=$rows
+  goto loopCheck
+endi
+
+print ====check task status end 
 
 sql insert into t1 values(1648791211000,1,2,3);
 sql insert into t1 values(1648791212000,2,2,3);
@@ -46,7 +76,37 @@ sql alter table streamt1 add column c3 double;
 
 print create stream streams1 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(a) c2, avg(b) c3  from st interval(1s) ;
 sql create stream streams1 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(a) c2, avg(b) c3  from st interval(1s) ;
-sleep 500
+
+print ====check task status start
+
+$loop_count = 0
+
+loopCheck1:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+print 1 select * from information_schema.ins_stream_tasks;
+sql select * from information_schema.ins_stream_tasks;
+
+if $rows == 0 then
+  print rows=$rows
+  goto loopCheck1
+endi
+
+print 1 select * from information_schema.ins_stream_tasks where status != "ready";
+sql select * from information_schema.ins_stream_tasks where status != "ready";
+
+if $rows != 0 then
+  print rows=$rows
+  goto loopCheck1
+endi
+
+print ====check task status end 
 
 sql insert into t2 values(1648791213000,1,2,3);
 sql insert into t1 values(1648791214000,1,2,3);
@@ -57,7 +117,7 @@ loop1:
 sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 100 then
   return -1
 endi
 

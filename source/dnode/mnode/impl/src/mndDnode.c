@@ -1149,7 +1149,6 @@ _OVER:
   }
 
   tFreeSShowVariablesRsp(&rsp);
-
   return code;
 }
 

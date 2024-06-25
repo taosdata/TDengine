@@ -110,10 +110,8 @@ static bool dmCheckDiskSpace() {
 
 int32_t dmDiskInit() {
   SDnode  *pDnode = dmInstance();
-  SDiskCfg dCfg = {0};
+  SDiskCfg dCfg = {.level = 0, .primary = 1, .disable = 0};
   tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
-  dCfg.level = 0;
-  dCfg.primary = 1;
   SDiskCfg *pDisks = tsDiskCfg;
   int32_t   numOfDisks = tsDiskCfgNum;
   if (numOfDisks <= 0 || pDisks == NULL) {
@@ -415,3 +413,7 @@ void dmReportStartup(const char *pName, const char *pDesc) {
 }
 
 int64_t dmGetClusterId() { return globalDnode.data.clusterId; }
+
+bool dmReadyForTest() {
+  return dmInstance()->data.dnodeVer > 0;
+}

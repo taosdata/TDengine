@@ -31,6 +31,7 @@ typedef struct SDataDispatchBuf {
 } SDataDispatchBuf;
 
 typedef struct SDataCacheEntry {
+  int32_t rawLen;
   int32_t dataLen;
   int32_t numOfRows;
   int32_t numOfCols;
@@ -48,6 +49,8 @@ typedef struct SDataDispatchHandle {
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  void*               pCompressBuf;
+  int32_t             bufSize;
   TdThreadMutex       mutex;
 } SDataDispatchHandle;
 
@@ -63,22 +66,60 @@ typedef struct SDataDispatchHandle {
 static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   int32_t numOfCols = 0;
   SNode*  pNode;
+
   FOREACH(pNode, pHandle->pSchema->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
     if (pSlotDesc->output) {
       ++numOfCols;
     }
   }
+
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = 0;
   pEntry->numOfRows = pInput->pData->info.rows;
   pEntry->numOfCols = numOfCols;
   pEntry->dataLen = 0;
+  pEntry->rawLen = 0;
 
   pBuf->useSize = sizeof(SDataCacheEntry);
-  pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
-  //  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  //  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
+
+  {
+    if ((pBuf->allocSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pHandle->pManager->cfg.compress) {
+      if (pHandle->pCompressBuf == NULL) {
+        // allocate additional 8 bytes to avoid invalid write if compress failed to reduce the size
+        pHandle->pCompressBuf = taosMemoryMalloc(pBuf->allocSize + 8);
+        pHandle->bufSize = pBuf->allocSize + 8;
+      } else {
+        if (pHandle->bufSize < pBuf->allocSize + 8) {
+          pHandle->bufSize = pBuf->allocSize + 8;
+          void* p = taosMemoryRealloc(pHandle->pCompressBuf, pHandle->bufSize);
+          if (p != NULL) {
+            pHandle->pCompressBuf = p;
+          } else {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            qError("failed to prepare compress buf:%d, code: out of memory", pHandle->bufSize);
+            return;
+          }
+        }
+      }
+
+      int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, numOfCols);
+      int32_t len = tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
+      if (len < dataLen) {
+        pEntry->compressed = 1;
+        pEntry->dataLen = len;
+        pEntry->rawLen = dataLen;
+      } else {  // no need to compress data
+        pEntry->compressed = 0;
+        pEntry->dataLen = dataLen;
+        pEntry->rawLen = dataLen;
+        memcpy(pEntry->data, pHandle->pCompressBuf, dataLen);
+      }
+    } else {
+      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, numOfCols);
+      pEntry->rawLen = pEntry->dataLen;
+    }
+  }
 
   pBuf->useSize += pEntry->dataLen;
 
@@ -163,7 +204,7 @@ static void resetDispatcher(struct SDataSinkHandle* pHandle) {
   taosThreadMutexUnlock(&pDispatcher->mutex);
 }
 
-static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd) {
+static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRowLen, bool* pQueryEnd) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
     *pQueryEnd = pDispatcher->queryEnd;
@@ -180,9 +221,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pDispatcher->nextOutput.pData;
   *pLen = pEntry->dataLen;
-
-  //  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  //  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
+  *pRowLen = pEntry->rawLen;
 
   *pQueryEnd = pDispatcher->queryEnd;
   qDebug("got data len %" PRId64 ", row num %d in sink", *pLen,
@@ -200,6 +239,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
     pOutput->queryEnd = pDispatcher->queryEnd;
     return TSDB_CODE_SUCCESS;
   }
+
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;
@@ -224,6 +264,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDispatcher->cachedSize);
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);
+
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
     taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
@@ -232,7 +273,11 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
       taosFreeQitem(pBuf);
     }
   }
+
   taosCloseQueue(pDispatcher->pDataBlocks);
+  taosMemoryFreeClear(pDispatcher->pCompressBuf);
+  pDispatcher->bufSize = 0;
+
   taosThreadMutexDestroy(&pDispatcher->mutex);
   taosMemoryFree(pDispatcher->pManager);
   return TSDB_CODE_SUCCESS;
@@ -251,6 +296,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
+
   dispatcher->sink.fPut = putDataBlock;
   dispatcher->sink.fEndPut = endPut;
   dispatcher->sink.fReset = resetDispatcher;
@@ -258,22 +304,24 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;
   dispatcher->sink.fGetCacheSize = getCacheSize;
+
   dispatcher->pManager = pManager;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
   dispatcher->pDataBlocks = taosOpenQueue();
   taosThreadMutexInit(&dispatcher->mutex, NULL);
+
   if (NULL == dispatcher->pDataBlocks) {
     taosMemoryFree(dispatcher);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
+
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
 
 _return:
-
   taosMemoryFree(pManager);
   return terrno;
 }

@@ -260,7 +260,7 @@ class TDTestCase:
         tdSql.query('select count(c_1), min(c_1),tbname from d2.can partition by tbname order by tbname desc', queryTimes=1)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, 't3')
+        tdSql.checkData(0, 2, 't1')
 
         tdSql.checkData(1, 0, 15)
         tdSql.checkData(1, 1, 1471617148940980000)
@@ -268,7 +268,7 @@ class TDTestCase:
 
         tdSql.checkData(2, 0, 0)
         tdSql.checkData(2, 1, None)
-        tdSql.checkData(2, 2, 't1')
+        tdSql.checkData(2, 2, 't3')
 
     def run(self):
         self.test_count_with_sma_data()
