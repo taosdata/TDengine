@@ -22,8 +22,6 @@ use super::{super::Select, Parse};
 pub struct Json {
     pub(crate) json: Option<Select>,
     #[serde(default)]
-    pub(crate) flatten: bool,
-    #[serde(default)]
     pub(crate) keep: bool,
 }
 
@@ -42,8 +40,7 @@ impl FromStr for Json {
     ///
     /// - `*`: Extract all fields from the json object.
     /// - `a,b`: Extract selected fields from json object.
-    /// - `[a,b]`: Extract selected fields from json object with flatten enabled
-    /// - `+[a,b]`: Extract selected fields from json object with flatten/keep enabled
+    /// - `+[a,b]`: Extract selected fields from json object with keep enabled
     ///
     /// # Example
     ///
@@ -78,7 +75,6 @@ impl FromStr for Json {
             s = s.trim_start_matches('+');
         }
         if s.starts_with('[') {
-            slf.flatten = true;
             s = s.trim_matches(|c| c == '[' || c == ']');
         }
 
@@ -95,14 +91,6 @@ impl FromStr for Json {
 }
 
 impl Parse for Json {
-    fn num_rows_will_be_changed(&self) -> bool {
-        !self.flatten
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        true
-    }
-
     fn parse_array(
         &self,
         field: &arrow::datatypes::Field,
@@ -112,6 +100,7 @@ impl Parse for Json {
             // Return empty record batch.
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
+        let mut flatten = false;
 
         let array = arrow::compute::cast(array, &DataType::Utf8)?;
 
@@ -120,46 +109,49 @@ impl Parse for Json {
 
         let mut json_data = Vec::with_capacity(num_rows);
         for i in 0..num_rows {
-            if !string.is_null(i) {
-                let s = string.value(i);
-                let value = serde_json::from_str::<serde_json::Value>(&s).map_err(|source| {
-                    super::ParseError::JsonDeserializeError(s.to_string(), source)
-                })?;
-                match value {
-                    JsonValue::Null => (),
-                    JsonValue::Object(object) => {
-                        json_data.push(Ok(JsonValue::Object(object)));
-                    }
-                    JsonValue::Array(array) => {
-                        if !self.flatten {
-                            return Err(super::ParseError::UnsupportedJsonValue(JsonValue::Array(
-                                array,
-                            )));
+            if string.is_null(i) {
+                continue;
+            }
+            let s = string.value(i);
+            let value = serde_json::from_str::<serde_json::Value>(&s);
+            let value = match value {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(
+                        "{:#}",
+                        super::ParseError::JsonDeserializeError(s.to_string(), e)
+                    );
+                    JsonValue::Null
+                }
+            };
+            match value {
+                JsonValue::Null => (),
+                JsonValue::Object(object) => {
+                    json_data.push(Ok(JsonValue::Object(object)));
+                }
+                JsonValue::Array(array) => {
+                    flatten = true;
+                    for value in array {
+                        if value.is_null() {
+                            continue;
+                        } else if value.is_object() {
+                            json_data.push(Ok(value));
                         } else {
-                            for value in array {
-                                if value.is_null() {
-                                    continue;
-                                } else if value.is_object() {
-                                    json_data.push(Ok(value));
-                                } else {
-                                    return Err(super::ParseError::UnsupportedJsonValue(value));
-                                }
-                            }
+                            return Err(super::ParseError::UnsupportedJsonValue(value));
                         }
                     }
-                    v => {
-                        return Err(super::ParseError::UnsupportedJsonValue(v));
-                    }
+                }
+                v => {
+                    return Err(super::ParseError::UnsupportedJsonValue(v));
                 }
             }
         }
         if json_data.len() == 0 {
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
+
         let mut schema =
             arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter())?;
-
-        // dbg!(&schema);
         if let Some(select) = self.json.as_ref() {
             schema = select.schema(&schema);
         }
@@ -168,45 +160,40 @@ impl Parse for Json {
             .enumerate()
             .flat_map(|(n, i)| {
                 if string.is_null(i) {
-                    vec![(n, None)]
-                } else {
-                    let str = string.value(i);
-                    let value = serde_json::from_str::<serde_json::Value>(&str);
+                    return vec![(n, None)];
+                }
 
-                    match value {
-                        Ok(JsonValue::Array(array)) => {
-                            if !self.flatten {
-                                return vec![(n, None)];
-                            }
-                            array
-                                .into_iter()
-                                .map(|v| {
-                                    (n, {
-                                        if v.is_null() {
-                                            None
-                                        } else {
-                                            debug_assert!(v.is_object());
-                                            Some(v)
-                                        }
-                                    })
-                                })
-                                .collect()
-                        }
-                        Ok(JsonValue::Null) => {
-                            vec![(n, None)]
-                        }
-                        Ok(JsonValue::Object(object)) => {
-                            vec![(n, Some(JsonValue::Object(object)))]
-                        }
-                        Err(err) => {
-                            tracing::error!("Parsing json error: {err}, from string: `{str}`");
-                            vec![]
-                        }
-                        Ok(v) => {
-                            tracing::error!("Expect json object or array, found: {v:?}");
-                            vec![]
-                        }
+                let str = string.value(i);
+                let value = serde_json::from_str::<serde_json::Value>(&str);
+
+                match value {
+                    Ok(JsonValue::Array(array)) => array
+                        .into_iter()
+                        .map(|v| {
+                            (n, {
+                                if v.is_null() {
+                                    None
+                                } else {
+                                    debug_assert!(v.is_object());
+                                    Some(v)
+                                }
+                            })
+                        })
+                        .collect(),
+                    Ok(JsonValue::Null) => {
+                        vec![(n, None)]
                     }
+                    Ok(JsonValue::Object(object)) => {
+                        vec![(n, Some(JsonValue::Object(object)))]
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "{:#}",
+                            super::ParseError::JsonDeserializeError(str.to_string(), e)
+                        );
+                        vec![(n, None)]
+                    }
+                    _ => unreachable!(),
                 }
             })
             .collect();
@@ -659,7 +646,7 @@ impl Parse for Json {
         schema.fields = Fields::from(r_fields);
         let records = RecordBatch::try_new(Arc::new(schema), r_arrays)?;
         // let records = records.with_schema(Arc::new(schema)).unwrap();
-        let indices = if self.flatten {
+        let indices = if flatten {
             Some(json_values.iter().map(|(i, _)| *i).collect_vec())
         } else {
             None
@@ -679,14 +666,13 @@ mod tests {
         let extract = Json {
             // select: None,
             json: Some(serde_json::from_str(&r#"["a1=a::nchar(100)", "b1=b1::int"]"#).unwrap()),
-            flatten: true,
             keep: false,
         };
         dbg!(&extract);
 
         let field = Field::new("a", DataType::Utf8, false);
         let array: ArrayRef = Arc::new(StringArray::from(vec![
-            r#"[{"a1": "a1", "b1": 1.2}, {"a1": "a1", "b1": "none"}]"#,
+            r#"[{"a1": "a1", "b1": 1.2, "c1": true, "d1": 18392, "e1": null}, {"a1": "a1", "b1": "none", "e1": 1}]"#,
             r#"{"a1": "a2", "c1": 1}"#,
         ]));
 
@@ -700,12 +686,33 @@ mod tests {
         assert_eq!(records.num_rows(), 3);
         assert_eq!(indices, Some(vec![0, 0, 1]));
     }
+
+    #[test]
+    fn json_extract_object() {
+        let extract = Json::from_str("").unwrap();
+        dbg!(&extract);
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"a1": "a1", "b1": 1.2}"#,
+            r#"{"a1": "a2", "b1": 2.5, "e1": 1}"#,
+            r#"{"a1": "a3", "c1": 1}"#,
+        ]));
+
+        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
+        assert_eq!(records.num_columns(), 4);
+        assert_eq!(records.num_rows(), 3);
+        assert!(indices.is_none());
+    }
+
     #[test]
     fn json_nested() {
         let extract: Json = serde_json::from_str(
             r#"{
-                "json": ["$.nested.a1=a1::nchar(100)", "$.nested.b1=b1::f32", "$.nested.d1=d1::bool"],
-                "flatten": true
+                "json": ["$.nested.a1=a1::nchar(100)", "$.nested.b1=b1::f32", "$.nested.d1=d1::bool"]
             }"#,
         )
         .unwrap();
@@ -756,8 +763,7 @@ mod tests {
     fn json_nested_array_index_without_type() {
         let extract: Json = serde_json::from_str(
             r#"{
-                "json": ["$.nested.a1[0]=a1", "$.nested.b1[1]=b1::i32", "$.nested.d1[0]=d1"],
-                "flatten": true
+                "json": ["$.nested.a1[0]=a1", "$.nested.b1[1]=b1::i32", "$.nested.d1[0]=d1"]
             }"#,
         )
         .unwrap();
@@ -807,8 +813,7 @@ mod tests {
     fn json_nested_array_index() {
         let extract: Json = serde_json::from_str(
             r#"{
-                "json": ["$.nested.a1[0]=a1::nchar(100)", "$.nested.b1[1]=b1::f32", "$.nested.d1[0]=d1::bool"],
-                "flatten": true
+                "json": ["$.nested.a1[0]=a1::nchar(100)", "$.nested.b1[1]=b1::f32", "$.nested.d1[0]=d1::bool"]
             }"#,
         )
         .unwrap();
@@ -858,8 +863,7 @@ mod tests {
     fn json_de() {
         let extract: Json = serde_json::from_str(
             r#"{
-                "json": ["a1=a::nchar(100)", "b1::f32", "d1::bool"],
-                "flatten": true
+                "json": ["a1=a::nchar(100)", "b1::f32", "d1::bool"]
             }"#,
         )
         .unwrap();
@@ -886,8 +890,7 @@ mod tests {
     fn json_de_err() {
         let extract: Json = serde_json::from_str(
             r#"{
-                "json": ["a1=a::nchar(100)", "b1::f32"],
-                "flatten": true
+                "json": ["a1=a::nchar(100)", "b1::f32"]
             }"#,
         )
         .unwrap();

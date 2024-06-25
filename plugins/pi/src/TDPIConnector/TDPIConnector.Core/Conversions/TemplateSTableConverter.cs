@@ -1,7 +1,9 @@
 ﻿using System.Collections.Generic;
+using OSIsoft.AF.Asset;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine.Helper;
+using TDPIConnector.TDEngine;
 
 namespace TDPIConnector.Core.Conversions
 {
@@ -15,13 +17,36 @@ namespace TDPIConnector.Core.Conversions
             };
             return sTable;
         }
+        internal static TDSTable Convert(AFElementWrapper element)
+        {
+            var sTable = new TDSTable(element.Name)
+            {
+                Columns = AttributeColumnConverter.Convert(element.Attributes)
+            };
+            return sTable;
+        }
     }
-    
+
+    internal class ElemenetSTableConverter
+    {
+        internal static TDSTable Convert(AFElementWrapper element)
+        {
+            var sTable = new TDSTable(TableNameConvert.GetSingleElementSuperTableName(element))
+            {
+                Columns = AttributeColumnConverter.Convert(element.Attributes)
+            };
+            return sTable;
+        }
+    }
     internal class ElemenetTableConverter
     {
-        internal static TDTable Convert(AFElementWrapper element, string sTableName, IEnumerable<TDColumn> columns)
+        internal static string GetTDTableNameForElement(in AFElementWrapper element) {
+            return TDEngineProxy.GetFullTableName(element.Name) + "_" + element.ID.ToString();
+        }
+        internal static TDTable Convert(in AFElementWrapper element, in string sTableName, ref IEnumerable<TDColumn> columns)
         {
             var location = getLocation(element.GetPath());
+            var categoriesString = element.CategoriesString;
             Dictionary<string, string> tags = new Dictionary<string, string>();
             var elementColumns = new List<TDColumn>();
             foreach (var c in columns)
@@ -47,10 +72,64 @@ namespace TDPIConnector.Core.Conversions
             var table = new TDTable(element.Name, element.ID.ToString(), sTableName)
             {
                 Columns = elementColumns,
-                Location = location
+                Location = location,
+                Categories = categoriesString
             };
             return table;
         }
+
+        internal static TDTable ConvertV2(AFElementWrapper element, string sTableName, ref IEnumerable<TDColumn> columns, ref List<AFAttribute> attries)
+        {
+            var location = getLocation(element.GetPath());
+            var categoriesString = element.CategoriesString;
+            Dictionary<string, string> tags = new Dictionary<string, string>();
+            var elementColumns = new List<TDColumn>();
+            foreach (var c in columns)
+            {
+                elementColumns.Add(new TDColumn(c));
+            }
+
+            foreach (var attr in element.Attributes)
+            {
+                if (attr.IsTDengineTag())
+                {
+                    var value = attr.ToStringWithUOM();
+                    tags.Add(attr.Name.ToTDEngineNamingPattern(), value);
+                }
+                if (attr.Valid() && attr.signUpValid() && !attr.Unsupported())
+                {
+                    attries.Add(attr.AFSDKObject);
+                }
+                if (attr.HasChild()) {
+                    foreach (var childAttr in attr.childAttributes) {
+                        if (childAttr.IsTDengineTag())
+                        {
+                            var value = childAttr.ToStringWithUOM();
+                            tags.Add(AttributeColumnConverter.GetChildAttrbuteName(attr, childAttr).ToTDEngineNamingPattern(), value);
+                        }
+                        if (childAttr.Valid() && childAttr.signUpValid() && !childAttr.Unsupported())
+                        {
+                            attries.Add(childAttr.AFSDKObject);
+                        }
+                    }
+                }
+            }
+            foreach (var column in elementColumns)
+            {
+                if (tags.ContainsKey(column.Name))
+                {
+                    column.TagValue = tags[column.Name];
+                }
+            }
+            var table = new TDTable(element.Name, element.ID.ToString(), sTableName)
+            {
+                Columns = elementColumns,
+                Location = location,
+                Categories = categoriesString
+            };
+            return table;
+        }
+
         static string getLocation(string path)
         {
             // "\\\\WIN-2OA23UM12TN\\Meters\\California\\San Francisco\\Meter_10001"

@@ -768,7 +768,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
             )
             .await?;
             if csv_header.columns == 0 {
-                anyhow::bail!("CSV file headers are empty");
+                anyhow::bail!("CSV file(s) are empty");
             }
             let column_names = if csv_header.headers.is_empty() {
                 let mut columns_temp = vec![];

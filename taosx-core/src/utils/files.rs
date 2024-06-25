@@ -66,6 +66,20 @@ pub fn get_encode_from_buffer(buffer: &[u8]) -> anyhow::Result<&'static Encoding
     Ok(encoding)
 }
 
+pub fn decompress_and_write_file(
+    path: &std::path::PathBuf,
+    data: &[u8],
+) -> Result<(), std::io::Error> {
+    use std::io::Write;
+    let decode_buf = Vec::new();
+    let mut decoder = flate2::write::GzDecoder::new(decode_buf);
+    decoder.write_all(data)?;
+    let writer = decoder.finish()?;
+    let mut file = File::create(path)?;
+    file.write_all(&writer)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

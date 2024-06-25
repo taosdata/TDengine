@@ -52,7 +52,14 @@ namespace TDPIConnector.TDEngine.TaosxClient
             
                 Dictionary<string, IArrowArray> fieldArrays = new Dictionary<string, IArrowArray>();
                 fieldArrays.Add("ts", messageBuilder.tsArrowArray.Build());
-                fieldArrays.Add(TaosxConstants.TABLENAME, messageBuilder.tableNameArrowArray.Build());
+                if (messageBuilder.mode == PIDataMode.PointMode)
+                {
+                    fieldArrays.Add(TaosxConstants.POINTNAME, messageBuilder.tableUniqKeyArrowArray.Build());
+                }
+                else {
+                    fieldArrays.Add(TaosxConstants.ELEMENTID, messageBuilder.tableUniqKeyArrowArray.Build());
+                }
+
                 foreach (var valarray in messageBuilder.valArrowArrayList)
                 {
                     fieldArrays.Add(valarray.Key, valarray.Value.Build());
@@ -168,36 +175,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public void Visit(StructType type)
         {
-            ArrowBuffer.BitmapBuilder nullBitmap = new ArrowBuffer.BitmapBuilder();
-            if (msgType == MessageType.Children)
+            if (msgType == MessageType.Children && messageBuilder.tagVals.Count > 0)
             {
-                if (messageBuilder.mode == PIDataMode.PointMode)
-                {
-                    int length = messageBuilder.pointIds.Count;
+                ArrowBuffer.BitmapBuilder nullBitmap = new ArrowBuffer.BitmapBuilder();
 
-                    var arrays = new StringArray.Builder[2];
-                    arrays[0] = new StringArray.Builder();
-                    arrays[1] = new StringArray.Builder();
-                    if (length > 0)
-                    {
-                        foreach (var tb in messageBuilder.pointIds)
-                        {
-                            arrays[0].Append(tb.Key);
-                            arrays[1].Append(tb.Value.ToString());
-                        }
-
-                        for (int i = 0; i < length; i++)
-                        {
-                            nullBitmap.Append(true);
-                        }
-                        Array = new StructArray(type, length, arrays.Select(array => array.Build()), nullBitmap.Build());
-                        return;
-                    }
-                    return;
-                }
-                else if (messageBuilder.mode == PIDataMode.AFElementMode && messageBuilder.tagVals.Count > 0)
-                {
-                    int length = messageBuilder.tagVals.Count;
+                int length = messageBuilder.tagVals.Count;
                     int tagNum = messageBuilder.tagStruct.Fields.Count;
 
                     var arrays = new StringArray.Builder[tagNum];
@@ -207,14 +189,16 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     if (tagNum > 0) {
                         foreach (var tb in messageBuilder.tagVals)
                         {
-                            Dictionary<string, string> unsortTag = new Dictionary<string, string>();
-                            unsortTag.Add(TaosxConstants.TABLENAME, tb.Key);
-                            foreach (var tag in tb.Value)
+                        Dictionary<string, string> unsortTag = new Dictionary<string, string>();
+                        foreach (var tag in tb.Value)
+                        {
+                            if (!unsortTag.ContainsKey(tag.Key))
                             {
                                 unsortTag.Add(tag.Key, tag.Value);
                             }
+                        }
 
-                            int i = 0;
+                        int i = 0;
                             foreach (var tagFiled in messageBuilder.tagStruct.Fields) {
                                 if (unsortTag.ContainsKey(tagFiled.Name))
                                 {
@@ -233,11 +217,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
                         }
                         Array = new StructArray(type, length, arrays.Select(array => array.Build()), nullBitmap.Build());
                         return;
-                    }
-                }
-                else
-                {
-
                 }
             }
             var creator = new BlankArrayCreator(length);
@@ -352,7 +331,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             Length = length;
         }
 
-        public void Visit(BooleanType type) => Array = new BooleanArray.Builder().Build();
+        public void Visit(BooleanType type) => GenerateArray(new BooleanArray.Builder(), x => false);
         public void Visit(Int8Type type) => GenerateArray(new Int8Array.Builder(), x => (sbyte)x);
         public void Visit(Int16Type type) => GenerateArray(new Int16Array.Builder(), x => (short)x);
         public void Visit(Int32Type type) => GenerateArray(new Int32Array.Builder(), x => x);

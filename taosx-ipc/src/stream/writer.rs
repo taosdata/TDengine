@@ -8,9 +8,10 @@ use arrow::{
 };
 
 pub use arrow::datatypes::DataType as ArrowDataType;
+use faststr::FastStr;
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use taos_query::prelude::{Itertools, Ty, Value};
+use taos::{Itertools, Ty, Value};
 
 use crate::{
     ack::AckType,
@@ -20,7 +21,6 @@ use crate::{
 use self::attrs_builder::AttrsBuilder;
 
 use super::components::ListOfStructBuilder;
-
 mod attrs_builder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -434,7 +434,7 @@ impl IpcMetadata {
 }
 pub struct LushMessageBuilder {
     metadata: IpcMetadata,
-    table: Option<String>,
+    table: Option<FastStr>,
     columns: Vec<IpcField>,
     tags: Vec<IpcField>,
     schema: Option<Arc<Schema>>,
@@ -499,7 +499,7 @@ pub struct LushField {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct LushMessageInit {
-    name: String,
+    name: FastStr,
     columns: Vec<LushField>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tags: Vec<LushField>,
@@ -591,7 +591,7 @@ impl LushMessageInit {
         }
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &FastStr {
         &self.name
     }
 
@@ -708,7 +708,7 @@ impl LushMessageBuilder {
 
     pub fn with_stable(
         mut self,
-        name: impl Into<String>,
+        name: impl Into<FastStr>,
         columns: Vec<IpcField>,
         tags: Vec<IpcField>,
     ) -> Self {

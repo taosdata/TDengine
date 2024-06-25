@@ -31,8 +31,11 @@ use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::runners::opc::config::OPCConfig;
-use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{get_data_dir, validate_dsn, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
+use taosx_core::QueryDataSourceReq;
+use taosx_core::{
+    get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
+};
 
 use crate::serve::controller::agent::Activity;
 
@@ -144,6 +147,10 @@ pub enum AgentAction {
     Check(String, DsvSender),
     /// get sample data
     GetSample(String, StringSender),
+    /// send file to agent
+    PutFile(PutFileReq, StringSender),
+    /// query data source via connectors
+    QueryDataSource(QueryDataSourceReq, StringSender),
 }
 // pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 // pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
@@ -710,15 +717,39 @@ impl TaskController {
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
-        if let Some(via) = task.via {
-            if !self.agent_alive(via).await {
-                bail!("Agent {} is not alive", via);
-            }
-        }
         let from: Dsn = task
             .from
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+
+        if let Some(via) = task.via {
+            if !self.agent_alive(via).await {
+                bail!("Agent {} is not alive", via);
+            }
+            if from.driver == "pibackfill" || from.driver == "pi" {
+                let file_to_send = from.params.get("transform_config_file");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+                if from.driver == "pibackfill" {
+                    let task_id = task.id.to_string();
+                    let breakpoints_file = export_breakpoints_to_compressed_csv(task_id.as_str())?;
+                    if let Some(breakpoints_file) = breakpoints_file {
+                        tracing::info!("Put file to agent {}: {}", via, breakpoints_file);
+                        self.put_file_to_agent(via, breakpoints_file).await?;
+                    } else {
+                        tracing::info!("No breakpoints file to send");
+                    }
+                }
+            } else {
+                let file_to_send = from.params.get("sasl_kerberos_keytab");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+            }
+        }
 
         let to: Dsn = task
             .to
@@ -981,12 +1012,6 @@ impl TaskController {
 
         sql.push("`via` = ?");
 
-        if sql.len() == 0 {
-            let task = self.get(id).await?.unwrap();
-            self.start_task(&task).await?;
-            return Ok(Some(task));
-        }
-
         let query = format!("UPDATE `tasks` SET {} WHERE `id` = {}", sql.join(","), id);
         let mut query = sqlx::query(&query);
 
@@ -1028,6 +1053,28 @@ impl TaskController {
                 .ok_or_else(|| anyhow!("Task not found: {}", id))?;
             let scheduler = self.scheduler.clone();
             let task_in_spawn = task.task.clone();
+            let from: Dsn = task
+                .from
+                .parse()
+                .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+
+            if let Some(via) = task.via {
+                if !self.agent_alive(via).await {
+                    bail!("Agent {} is not alive", via);
+                }
+                // 检查是否有需要发送到 agent 的文件
+                let file_to_send = from.params.get("transform_config_file");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+                let file_to_send = from.params.get("sasl_kerberos_keytab");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", via, path);
+                    self.put_file_to_agent(via, path.clone()).await?;
+                }
+            }
+
             tokio::spawn(async move {
                 let _ = scheduler.stop_task(id, Duration::from_secs(60)).await;
                 tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1583,6 +1630,49 @@ impl TaskController {
         }
     }
 
+    pub async fn query_data_source_via_agent(
+        &self,
+        request: QueryDataSourceReq,
+        agent_id: i64,
+    ) -> anyhow::Result<String> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+        let scheduler = self.scheduler.clone();
+        scheduler
+            .query_datasource_via_agent(agent_id, request)
+            .await
+    }
+
+    pub async fn put_file_to_agent(&self, agent_id: i64, path: String) -> anyhow::Result<()> {
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
+        let scheduler = self.scheduler.clone();
+        let handle = tokio::spawn(async move {
+            let path = path.trim_start_matches("@");
+            let data = tokio::fs::read(path).await;
+            match data {
+                Ok(data) => {
+                    let res = scheduler.put_file_to_agent(agent_id, path, data).await;
+                    match res {
+                        Ok(_) => Ok(()),
+                        Err(err) => {
+                            tracing::error!("Put file {path} error: {err}");
+                            bail!("Put file {path} error: {err}");
+                        }
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("Read file {path} error: {err}");
+                    bail!("Read file {path} error: {err}");
+                }
+            }
+        });
+        handle.await?
+    }
+
     pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
@@ -1593,6 +1683,19 @@ impl TaskController {
         }
 
         let mut dsn_agent = dsn.clone();
+        // 检查是否有需要发送到 agent 的文件
+        let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+        if let Some(path) = file_to_send {
+            tracing::info!("Put file to agent {}: {}", agent, path);
+            let _ = self.put_file_to_agent(agent, path.clone()).await;
+            let _ = dsn_agent.params.insert(
+                String::from("sasl_kerberos_keytab"),
+                get_data_dir()
+                    .join(path.trim_start_matches("@"))
+                    .display()
+                    .to_string(),
+            );
+        }
         let result = set_file_contents(&mut dsn_agent).await;
         if let Err(err) = result {
             return DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string());
@@ -1627,6 +1730,18 @@ impl TaskController {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
             bail!("Agent {} is not alive", agent);
+        }
+        let dsn_agent = Dsn::from_str(&dsn);
+        match dsn_agent {
+            Ok(dsn_agent) => {
+                // 检查是否有需要发送到 agent 的文件
+                let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+                if let Some(path) = file_to_send {
+                    tracing::info!("Put file to agent {}: {}", agent, path);
+                    let _ = self.put_file_to_agent(agent, path.clone()).await;
+                }
+            }
+            Err(_) => {}
         }
 
         scheduler.get_sample_via_agent(agent, dsn).await
@@ -2122,7 +2237,7 @@ impl TaskActivity {
         Self {
             id,
             at: Utc::now(),
-            level: LevelFilter::Error,
+            level: LevelFilter::Warn,
             activity: message,
             status: "running".to_string(),
             context: None,
@@ -2298,6 +2413,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("mysql");
         include_ds_yaml!("postgres");
         include_ds_yaml!("oracle");
+        include_ds_yaml!("mssql");
         for ds in &mut def {
             ds.compute();
         }
@@ -2335,6 +2451,7 @@ lazy_static::lazy_static! {
         include_ds_yaml!("mysql");
         include_ds_yaml!("postgres");
         include_ds_yaml!("oracle");
+        include_ds_yaml!("mssql");
         for ds in &mut def {
             ds.compute();
         }

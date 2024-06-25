@@ -7,6 +7,7 @@ using TDPIConnector.Core.Conversions;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using TDPIConnector.TDEngine.Models;
+using System.Collections.Concurrent;
 
 namespace TDPIConnector.Core
 {
@@ -37,42 +38,36 @@ namespace TDPIConnector.Core
             this.backfill = new Backfill(tdEngineProxy, piServerManager, piSystemManager);
         }
 
-        public Task BackfillPIPointsFromService(string tdDatabaseName, List<TDTable> piPointTables, DateTime backfillStartLimit)
+        public Task BackfillPIPointsFromService(string tdDatabaseName, List<TDTable> piPointTables, DateTime backfillStartTime, DateTime backfillEndTime)
         {
-            return Task.Run(async () =>
-            {
+            return Task.Run(() => {
                 log.Info("Process backfill, PI Point Mode backfill start...");
                 try
                 {
-                    //backfill points if needed
-                    Dictionary<string, DateTime> pointsTobackfill = await backfill.GetTDTableLastRecordedValueFromPIPoints(tdDatabaseName, piPointTables);
-                    var pointsToBackfillChecked = new Dictionary<PIPointWrapper, DateTime>();
-
-                    DateTime endTime = DateTime.Now;
-
-                    //replace pointsTobackfill with bacfillStartLimit if needed
-                    List<PIPointWrapper> piPointList = piServerManager.FindPIPoints(pointsTobackfill.Keys.ToList());
-                    foreach (var point in pointsTobackfill)
-                    {
-                        PIPointWrapper piPoint = piPointList.Where(p => p.Name.ToLower() == point.Key.ToLower()).Single();
-                        pointsToBackfillChecked.Add(piPoint, point.Value < backfillStartLimit ? backfillStartLimit : point.Value);
-                    }
-
-
-                    if (pointsToBackfillChecked.Count > 0)
-                    {
-                        backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, pointsToBackfillChecked, endTime);
-                    }
+                    // TODO: 从断点开始 backfill
+                    //var pointsToBackfillChecked = new Dictionary<PIPointWrapper, DateTime>();
+                    //List<string> pointNames = piPointTables.Select(p => p.Name).ToList();
+                    //List<PIPointWrapper> piPointList = piServerManager.FindPIPoints(pointNames);
+                    //foreach (var point in piPointList)
+                    //{
+                    //    pointsToBackfillChecked.Add(point, backfillStartTime);
+                    //}
+                    //if (pointsToBackfillChecked.Count > 0)
+                    //{
+                    //    backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, pointsToBackfillChecked, backfillEndTime);
+                    //}
+                    backfill.BackfillPIPoints(tdDatabaseName, backfillStartTime, backfillEndTime, piPointTables);
                 }
                 catch (Exception e)
                 {
                     log.Error($"Error backfilling PI Points...{e.Message}");
                 }
                 log.Info("Process backfill, PI Point Mode backfill finshed");
+                return Task.CompletedTask;
             });
         }
 
-        public Task BackfillAFElementsFromService(string tdDatabaseName, Dictionary<string, AFElementWrapper> elements, DateTime backfillStartLimit)
+        public Task BackfillAFElementsFromService(string tdDatabaseName, ConcurrentDictionary<string, AFElementWrapper> elements, DateTime backfillStartLimit)
         {
             return Task.Run(async () =>
             {
@@ -117,7 +112,7 @@ namespace TDPIConnector.Core
             }
 
             //create tables if needed
-            var piPoints = await tablesCreator.CreatePIPointTables(tdDatabaseName, afDatabaseName, dropTables);
+            var piPoints = await tablesCreator.GetPIPointTables(tdDatabaseName);
 
             if (piPoints == null || piPoints.Count == 0)
             {
@@ -178,25 +173,34 @@ namespace TDPIConnector.Core
 
                 //get all elements based on template
                 IEnumerable<AFElementWrapper> elements = piSystemManager.GetElementTemplateInstances(elementTemplate);
-                List<TDTable> tables = new List<TDTable>();
-                foreach (AFElementWrapper element in elements)
+                if (AppSettings.tomlConfig.ForBackfill)
                 {
-                    //check for associated table, create if needed
-                    var table = ElemenetTableConverter.Convert(element, superTable.Name, templateAttributeColumns);
-                    if (elementLookup.ContainsKey(table.Name))
+                    List<TDTable> tables = new List<TDTable>();
+                    foreach (AFElementWrapper element in elements)
                     {
-                        log.Info($"BackfillAFElement, found duplicate element:{table.Name}");
-                        continue;
-                    }
-                    tables.Add(table);
-                    if (dropTables)
-                    {
-                        await tdEngineProxy.DropTableForAFElement(tdDatabaseName, table);
-                    }
+                        //check for associated table, create if needed
+                        var table = ElemenetTableConverter.Convert(element, superTable.Name, ref templateAttributeColumns);
+                        if (elementLookup.ContainsKey(table.ID))
+                        {
+                            log.Info($"BackfillAFElement, found duplicate element:{table.Name}");
+                            continue;
+                        }
+                        tables.Add(table);
+                        if (dropTables)
+                        {
+                            await tdEngineProxy.DropTableForAFElement(tdDatabaseName, table);
+                        }
 
-                    elementLookup.Add(table.Name, element);
+                        elementLookup.Add(table.ID, element);
+                    }
+                    await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
                 }
-                await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
+                else {
+                    foreach (AFElementWrapper element in elements)
+                    {
+                        elementLookup.Add(element.ID.ToString(), element);
+                    }    
+                }
             }
 
             //backfill elements
@@ -232,8 +236,77 @@ namespace TDPIConnector.Core
                 backfill.BackfillElements(tdDatabaseName, elementLookup.Values.ToList(), startTime, endTime);
             }
         }
+        public async Task BackfillAFElementFromTool(string tdDatabaseName, string afDatabaseName, List<string> elementNames, DateTime startTime, DateTime endTime, bool toFirstRecorded, bool fromLastRecorded, bool dropTables)
+        {
+            IEnumerable<AFElementTemplateWrapper> elementTemplates = piSystemManager.GetElementTemplates(afDatabaseName, elementNames);
 
-        public Backfill GetBackfill() {
+            //get all AF Elements based on templates
+            Dictionary<string, AFElementWrapper> elementLookup = new Dictionary<string, AFElementWrapper>();
+            foreach (string elementName in elementNames)
+            {
+                var wrappers = piSystemManager.GetElementByName(afDatabaseName, elementName);
+                List<TDTable> tables = new List<TDTable>();
+                foreach (AFElementWrapper element in wrappers)
+                {
+                    if (element.hasTemplate()) continue;
+                    var superTable = ElemenetSTableConverter.Convert(element);
+                    if (!superTable.HasValidColumn()) continue;
+                    var resp2 = await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
+
+                    var attributeColumns = AttributeColumnConverter.Convert(element.Attributes);
+
+                    var table = ElemenetTableConverter.Convert(element, superTable.Name, ref attributeColumns);
+                    if (elementLookup.ContainsKey(table.Name))
+                    {
+                        log.Info($"BackfillAFElement, found duplicate element:{table.Name}");
+                        continue;
+                    }
+                    tables.Add(table);
+                    if (dropTables)
+                    {
+                        await tdEngineProxy.DropTableForAFElement(tdDatabaseName, table);
+                    }
+
+                    elementLookup.Add(table.Name, element);
+                    await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
+                }              
+            }
+
+            //backfill elements
+            if (fromLastRecorded || toFirstRecorded)
+            {
+                Dictionary<string, DateTime> elementsTimestamps = new Dictionary<string, DateTime>();
+                var tableNameList = elementLookup.Keys.ToList();
+                if (fromLastRecorded)
+                    elementsTimestamps = await backfill.GetTDPointsLastRecordedValue(tdDatabaseName, tableNameList);
+                else if (toFirstRecorded)
+                    elementsTimestamps = await backfill.GetTDPointsFirstRecordedValue(tdDatabaseName, tableNameList);
+
+                //backfill points if needed
+                if (elementsTimestamps.Count > 0)
+                {
+                    foreach (var elementTimestamp in elementsTimestamps)
+                    {
+                        var element = elementLookup[elementTimestamp.Key];
+                        if (fromLastRecorded)
+                            backfill.BackfillElement(tdDatabaseName, element,
+                                elementTimestamp.Value >= startTime ? elementTimestamp.Value.AddMilliseconds(1) : startTime,
+                                endTime);
+
+                        else if (toFirstRecorded)
+                            backfill.BackfillElement(tdDatabaseName, element,
+                                startTime,
+                                elementTimestamp.Value <= endTime ? elementTimestamp.Value.AddMilliseconds(-1) : endTime);
+                    }
+                }
+            }
+            else
+            {
+                backfill.BackfillElements(tdDatabaseName, elementLookup.Values.ToList(), startTime, endTime);
+            }
+        }
+        public Backfill GetBackfill()
+        {
             return backfill;
         }
     }

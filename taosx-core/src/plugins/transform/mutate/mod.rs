@@ -4,7 +4,7 @@ use super::{filter::Filter, map::Map, parse::ParserImpl, TransformExt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(super) enum Mutate {
+pub enum Mutate {
     Extract(ParserImpl),
     Filter(Filter),
     Map(Map),

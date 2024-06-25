@@ -172,6 +172,7 @@ pub async fn oracle_to_taos(
         &to,
         Some(ORACLE_ID),
         None,
+        None,
         &cancel,
         with_agent,
         transferred,
@@ -318,7 +319,7 @@ fn generate_json_value(
             let val = col.get::<String>();
             match val {
                 Err(_) => Ok(json!(null)),
-                Ok(val) => Ok(json!(format!("{:?}", val))),
+                Ok(val) => Ok(json!(val)),
             }
         }
         // 大文本

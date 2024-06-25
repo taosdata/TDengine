@@ -27,7 +27,7 @@ namespace TDPIConnector.TDEngine.Models
         {
             // || DataReference == "Formula"
             if (DataReference == "Table Lookup" || DataReference == "String Builder"
-                || DataReference == "URI Builder") {
+                || DataReference == "URI Builder" || DataReference == "Formula") {
                 return true;
             }
             return string.IsNullOrEmpty(DataReference);

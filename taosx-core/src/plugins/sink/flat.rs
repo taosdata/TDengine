@@ -29,14 +29,17 @@ use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     plugins::transform::MessageArrowRecords,
     sink::{consume_flat_record, DEFAULT_MAX_RETRIES_FOR_CONNECTION},
-    utils::trace::{create_data_trace_id, get_data_trace_id_str, RequestID},
+    utils::{
+        sql::values_to_sqls,
+        trace::{RequestID, TraceDataId, TraceStreamId},
+    },
     Parser,
 };
 
 use super::{ipc_metric::IpcMetrics, IpcErrorStrategy};
 
 /// All the messages should be in the same stable.
-fn message_to_sql(
+pub(crate) fn message_to_sql(
     messages: &[MessageArrowRecords],
     precision: taos::Precision,
     with_meta: bool,
@@ -45,58 +48,15 @@ fn message_to_sql(
     debug_assert!(
         messages
             .iter()
-            .group_by(|m| m.stable_name())
+            .chunk_by(|m| m.stable_name())
             .into_iter()
             .count()
             == 1,
         "all messages should be in the same stable"
     );
-    const MAX_SQL_LENGTH: usize = 1_000_000;
-
-    fn valid_sql_or_none(
-        slice: &[(
-            String, // One table values SQL
-            usize,  // One table records
-        )],
-    ) -> Option<(
-        String, // SQL to insert into.
-        usize,  // number of tables
-        usize,  // number of records
-    )> {
-        if slice.len() == 1 {
-            return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
-        }
-        let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
-        if len < MAX_SQL_LENGTH - 12 {
-            let mut sql = String::with_capacity(len + 12);
-            sql.push_str("INSERT INTO ");
-            let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
-                sql.push_str(s);
-                (sql, records + n)
-            });
-            Some((sql, slice.len(), records))
-        } else {
-            None
-        }
-    }
-
-    fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> {
-        if slice.len() == 0 {
-            return vec![];
-        }
-        if let Some(sql) = valid_sql_or_none(slice) {
-            return vec![sql];
-        }
-        let p = (slice.len() + 1) / 2;
-        let (left, right) = slice.split_at(p);
-        let mut sqls = values_to_sqls(left);
-        sqls.extend(values_to_sqls(right));
-        sqls
-    }
-
     messages
         .iter()
-        .group_by(|m| m.stable_name())
+        .chunk_by(|m| m.stable_name())
         .into_iter()
         .map(|(key, group)| {
             let values = group
@@ -123,19 +83,26 @@ fn message_to_sql(
 /// and `records` number of records.
 #[derive(Debug)]
 #[allow(dead_code)]
-struct Records {
-    stable: Option<String>,
-    sql: String,
-    tables: usize,
-    records: usize,
+pub(crate) struct Records {
+    pub stable: Option<String>,
+    pub sql: String,
+    pub tables: usize,
+    pub records: usize,
 }
 impl Records {
-    fn sql(&self) -> &str {
+    #[inline]
+    pub fn sql(&self) -> &str {
         self.sql.as_str()
     }
 
-    fn records(&self) -> usize {
+    #[inline]
+    pub fn records(&self) -> usize {
         self.records
+    }
+
+    #[inline]
+    pub fn stable(&self) -> Option<&str> {
+        self.stable.as_deref()
     }
 }
 impl<'a> AsRef<str> for Records {
@@ -1046,12 +1013,12 @@ async fn consume_flat_record_with_sink(
     record: &FlatMessage,
     count: &mut usize,
     parser: &Parser,
-    _data_trace_id: u64,
+    _data_trace_id: TraceDataId,
     trace_id_str: &str,
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let batch = message.record();
-        let batch = parser.parse_message_from_records(batch)?;
+        let batch = parser.parse_message_from_records(batch, true)?;
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -1074,7 +1041,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: u64,
+    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
@@ -1120,8 +1087,8 @@ pub async fn ipc_flat_stream_worker_vgroup(
             let mut worker_written = 0;
             while let Ok(record) = msg_rx.recv_async().await {
                 let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
-                let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
+                let data_trace_id = stream_trace_id.with_data_id(batch_number);
+                let data_trace_id_str: String = data_trace_id.to_string();
                 trace!("Writing batch {}", data_trace_id_str);
                 let mut written = 0;
                 let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
@@ -1243,7 +1210,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: u64,
+    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
@@ -1277,8 +1244,8 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
             Ok(record) => {
                 // msg_tx.send_async(record).await?;
                 let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
-                let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
+                let data_trace_id = stream_trace_id.with_data_id(batch_number);
+                let data_trace_id_str: String = data_trace_id.to_string();
                 trace!("Writing batch {}", data_trace_id_str);
                 let mut written = 0;
                 let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
@@ -1379,7 +1346,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
-    stream_trace_id: u64,
+    stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
 ) -> anyhow::Result<()> {
     tokio::pin!(stream);
@@ -1424,9 +1391,8 @@ pub async fn ipc_flat_stream_worker_concurrent(
             let mut worker_written = 0;
             while let Ok(record) = msg_rx.recv_async().await {
                 let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
-                let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
-                trace!("Writing batch {}", data_trace_id_str);
+                let data_trace_id = stream_trace_id.with_data_id(batch_number);
+                trace!("Writing batch {}", data_trace_id);
                 let mut written = 0;
                 let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
@@ -1440,7 +1406,6 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     &context.parser,
                     context.target_precision,
                     data_trace_id,
-                    &data_trace_id_str,
                     metrics,
                 )
                 .await;
@@ -1449,7 +1414,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 match res {
                     Err(err) => {
                         metrics.add_failed_batches(1);
-                        error!("Writing batch {} error: {err:#}", data_trace_id_str);
+                        error!(trace.id = %data_trace_id, "Writing batch error: {err:#}");
                         let ack = LushAck {
                             code: 0,
                             message: Some(err.to_string()),
@@ -1472,7 +1437,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     }
                     Ok(_) => {
                         metrics.add_processed_batches(1);
-                        trace!(trace.id = data_trace_id_str, written, "Writing batch done");
+                        trace!(trace.id = %data_trace_id, written, "Writing batch done");
                         let ack = LushAck {
                             code: 0,
                             message: None,

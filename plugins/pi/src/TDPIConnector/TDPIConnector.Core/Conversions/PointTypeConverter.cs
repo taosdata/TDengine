@@ -2,6 +2,9 @@
 
 namespace TDPIConnector.Core.Conversions
 {
+    /// <summary>
+    /// Point Type 转 TDengine Type
+    /// </summary>
     public class PointTypeConverter
     {
         internal static string Convert(string pointType)

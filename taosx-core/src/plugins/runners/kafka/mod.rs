@@ -13,6 +13,8 @@ use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use chrono::Utc;
 use futures_util::TryStreamExt;
+use itertools::Itertools;
+use linked_hash_map::LinkedHashMap;
 use rdkafka::client::ClientContext;
 use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
@@ -20,6 +22,8 @@ use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer, ConsumerContext, Reb
 use rdkafka::error::KafkaResult;
 use rdkafka::message::Message;
 use rdkafka::topic_partition_list::TopicPartitionList;
+use rdkafka::Offset;
+use serde_json::json;
 use taos::Dsn;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -29,6 +33,7 @@ use taosx_ipc::ack::AckReaderBuilder;
 use taosx_ipc::prelude::ArrowDataType;
 
 use crate::plugins::dsv::DataSourceValidation;
+use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::kafka::config::connect::KafkaConnectConfig;
 use crate::runners::kafka::config::KafkaTaskConfig;
 use crate::runners::set_tcp_keepalive;
@@ -37,27 +42,175 @@ use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
-pub const KAFKA_ID: &str = "kafka";
+pub const KAFKA_ID: &'static str = "kafka";
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match is_valid_impl(dsn) {
         Ok(()) => DataSourceValidation::valid(KAFKA_ID.to_string(), None),
-        Err(err) => DataSourceValidation::invalid(KAFKA_ID.to_string(), err.to_string()),
+        Err(err) => DataSourceValidation::invalid(KAFKA_ID.to_string(), format!("{err:#}")),
     }
 }
 
 fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
     let config = KafkaTaskConfig::from_dsn(dsn)
-        .map_err(|err| anyhow::anyhow!("invalid dsn: {}, cause: {}", dsn, err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("invalid dsn: {}, cause: {:#}", dsn, err))?;
 
-    let client_config = build_client_config(config.connect);
+    let client_config = build_client_config(config.connect)?;
     let consumer: BaseConsumer = client_config
         .create()
-        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {}", err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {:#}", err))?;
 
-    let _metadata = consumer
+    let metadata = consumer
         .fetch_metadata(None, Duration::from_secs(5))
-        .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))?;
+
+    tracing::info!(
+        brokers = metadata
+            .brokers()
+            .iter()
+            .map(|b| format!("{}={}:{}", b.id(), b.host(), b.port()))
+            .join(","),
+        broker.id = metadata.orig_broker_id(),
+        broker.name = metadata.orig_broker_name(),
+        "kafka metadata"
+    );
+    Ok(())
+}
+
+pub async fn get_sample(dsn: &Dsn, limit: usize, timeout: Duration) -> anyhow::Result<DsSampleIn> {
+    let sample_list: Vec<String> = get_sample_impl(dsn, limit, timeout).await?;
+
+    let mut sample_vec: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
+    for payload in sample_list {
+        let mut p = LinkedHashMap::new();
+        p.insert("payload".to_string(), json!(payload));
+        sample_vec.push(p);
+    }
+
+    let sample_json = json!({
+        "input": sample_vec,
+        "parser": {}
+    });
+
+    let sample: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to parse kafka sample data: {:?}, cause: {:?}",
+            sample_json,
+            err
+        )
+    })?;
+
+    Ok(sample)
+}
+
+async fn get_sample_impl(
+    dsn: &Dsn,
+    limit: usize,
+    timeout: Duration,
+) -> anyhow::Result<Vec<String>> {
+    let connect_config = KafkaConnectConfig::from_dsn(dsn)?;
+    let fallback_offset = KafkaTaskConfig::parse_fallback_offset(dsn)?;
+
+    // create consumer
+    let mut client_config = build_client_config(connect_config).unwrap();
+    let consumer: BaseConsumer = client_config
+        .set("group.id", "test")
+        .set("auto.offset.reset", &fallback_offset)
+        .set("enable.auto.commit", "false")
+        .create()
+        .map_err(|err| anyhow::anyhow!("failed to create client, cause: {:#}", err))?;
+
+    // subscribe topics
+    let topics = KafkaTaskConfig::parse_topics(dsn)?;
+    let topics = topics.iter().map(|p| p.as_str()).collect::<Vec<&str>>();
+    consumer
+        .subscribe(&topics)
+        .expect("Can't subscribe to specified topics");
+
+    let _ = tracing_all_topics(topics, &consumer);
+
+    // assign offset to the beginning or end
+    let mut tp_list = consumer.assignment().unwrap();
+    match fallback_offset.as_str() {
+        "smallest" | "earliest" | "beginning" => {
+            tp_list
+                .set_all_offsets(Offset::Beginning)
+                .expect("failed to set offset");
+        }
+        "largest" | "latest" | "end" => {
+            tp_list
+                .set_all_offsets(Offset::End)
+                .expect("failed to set offset");
+        }
+        _ => {
+            // nothing to do
+        }
+    };
+    consumer.assign(&tp_list).unwrap();
+
+    // polling message from kafka
+    let start = Utc::now().timestamp();
+    let mut count = 0;
+    let mut payload_list: Vec<String> = Vec::new();
+    loop {
+        let message = consumer.poll(Duration::from_secs(1));
+        if let Some(msg) = message {
+            match msg {
+                Ok(m) => {
+                    m.payload().map(|p| {
+                        payload_list.push(String::from_utf8_lossy(p).to_string());
+                    });
+                }
+                Err(err) => {
+                    tracing::error!("Kafka polling error: {:#}", err);
+                    anyhow::bail!("Kafka polling error: {:#}", err);
+                }
+            }
+            count += 1;
+        }
+        let now = Utc::now().timestamp();
+        if now - start > timeout.as_secs() as i64 || count >= limit {
+            break;
+        }
+    }
+
+    Ok(payload_list)
+}
+
+fn tracing_all_topics(topics: Vec<&str>, consumer: &BaseConsumer) -> anyhow::Result<()> {
+    for topic in topics {
+        let metadata = consumer
+            .fetch_metadata(Some(topic), Duration::from_secs(1))
+            .map_err(|err| {
+                anyhow::anyhow!(
+                    "failed to load meta data for topic: {}, cause: {:#}",
+                    topic,
+                    err
+                )
+            })?;
+
+        for topic_meta in metadata.topics() {
+            for partition in topic_meta.partitions() {
+                let (low, high) = consumer
+                    .fetch_watermarks(topic_meta.name(), partition.id(), Duration::from_secs(1))
+                    .map_err(|err| {
+                        anyhow::anyhow!(
+                            "failed to fetch watermarks for topic: {}, partition: {}, cause: {:#}",
+                            topic_meta.name(),
+                            partition.id(),
+                            err
+                        )
+                    })?;
+                tracing::info!(
+                    "topic: {}, partition: {}, low: {}, high: {}",
+                    topic_meta.name(),
+                    partition.id(),
+                    low,
+                    high
+                );
+            }
+        }
+    }
     Ok(())
 }
 
@@ -93,6 +246,7 @@ pub async fn kafka_to_taos(
         parser,
         &to,
         Some(KAFKA_ID),
+        None,
         None,
         &cancel,
         with_agent,
@@ -178,6 +332,7 @@ pub async fn kafka_to_taos(
 }
 
 type KafkaJoinSet = JoinSet<anyhow::Result<()>>;
+
 async fn execute(
     from: Dsn,
     ipc_server_port: u16,
@@ -246,7 +401,7 @@ async fn execute(
     let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
 
     // split into sub tasks
-    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify)?;
+    let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify.clone())?;
     for (idx, task) in sub_tasks.into_iter().enumerate() {
         let tx = tx.clone();
         let aborted = aborted.clone();
@@ -255,7 +410,14 @@ async fn execute(
         let timeout = task.timeout;
 
         consumers.spawn(poll_message(
-            idx, consumer, tx, timeout, aborted, schema, batch_size,
+            idx,
+            consumer,
+            tx,
+            timeout,
+            aborted,
+            schema,
+            batch_size,
+            notify.clone(),
         ));
     }
 
@@ -272,21 +434,30 @@ struct SubTask {
 impl SubTask {
     pub fn build_tasks(
         config: KafkaTaskConfig,
-        notify: crate::TaskNotifySender,
+        _notify: crate::TaskNotifySender,
     ) -> anyhow::Result<Vec<Self>> {
-        let client_config = build_client_config(config.connect.clone());
+        let client_config = build_client_config(config.connect.clone()).unwrap();
 
         // create a base consumer
-        let consumer: BaseConsumer = client_config.create().map_err(|err| {
-            anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string())
-        })?;
+        let consumer: BaseConsumer = client_config
+            .create()
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))?;
 
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
-            .map_err(|err| {
-                anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string())
-            })?;
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))?;
+
+        tracing::info!(
+            brokers = metadata
+                .brokers()
+                .iter()
+                .map(|b| format!("{}={}:{}", b.id(), b.host(), b.port()))
+                .join(","),
+            broker.id = metadata.orig_broker_id(),
+            broker.name = metadata.orig_broker_name(),
+            "kafka metadata"
+        );
 
         let mut topic_partitions: Vec<String> = Vec::new();
 
@@ -298,11 +469,14 @@ impl SubTask {
             .filter(|tp| config.topics.contains(&tp.name().to_string()))
             .collect::<Vec<_>>();
         if topics_readable.len() != config.topics.len() {
-            let _ = notify.send(crate::TaskNotify::error("Some topics are not readable, please check your topic authorization, and then restart the task."));
             tracing::error!(
                 "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
                 config.topics.len(),
-                topics_readable.len())
+                topics_readable.len());
+            anyhow::bail!(
+                    "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
+                    config.topics.len(),
+                    topics_readable.len());
         }
 
         topics_readable.into_iter().for_each(|tp| {
@@ -316,8 +490,11 @@ impl SubTask {
         });
 
         if topic_partitions.is_empty() {
-            let _ = notify.send(crate::TaskNotify::error("Topics is empty, please check your topic authorization, and then restart the task."));
             tracing::error!(
+                "topics is empty, expected: {:?}, please check your topic authorization",
+                config.topics
+            );
+            anyhow::bail!(
                 "topics is empty, expected: {:?}, please check your topic authorization",
                 config.topics
             );
@@ -375,6 +552,7 @@ async fn poll_message(
     aborted: Arc<AtomicBool>,
     schema: Schema,
     batch_size: usize,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut last_polling = chrono::Utc::now().timestamp_millis();
 
@@ -420,15 +598,16 @@ async fn poll_message(
                     consumer
                         .commit_consumer_state(CommitMode::Async)
                         .map_err(|err| {
-                            anyhow::anyhow!(
-                                "failed to commit consumer state, cause: {}",
-                                err.to_string()
-                            )
+                            anyhow::anyhow!("failed to commit consumer state, cause: {:#}", err)
                         })?;
                 }
             }
             Err(err) => {
-                tracing::error!("failed to polling from kafka, cause: {}", err.to_string());
+                let _ = notify.send(crate::TaskNotify::error(format!(
+                    "failed to polling from kafka, cause: {:#}",
+                    err
+                )));
+                tracing::error!("failed to polling from kafka, cause: {:#}", err);
             }
         };
 
@@ -515,7 +694,7 @@ impl ConsumerContext for CustomContext {
 type LoggingConsumer = StreamConsumer<CustomContext>;
 
 fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> {
-    let mut client = build_client_config(config.connect.clone());
+    let mut client = build_client_config(config.connect.clone()).unwrap();
     // Client identifier, default "rdkafka".
     if config.client_id.is_some() {
         client.set("client.id", config.client_id.unwrap());
@@ -572,7 +751,7 @@ fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> 
     Ok(consumer)
 }
 
-fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
+fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfig> {
     let mut client_config = ClientConfig::new();
 
     // set bootstrap servers
@@ -607,24 +786,89 @@ fn build_client_config(config: KafkaConnectConfig) -> ClientConfig {
     // sasl settings
     if config.use_sasl {
         if let Some(sasl_mechanism) = config.sasl_mechanism {
-            client_config.set("sasl.mechanisms", sasl_mechanism);
-        }
-        if let Some(sasl_username) = config.sasl_username {
-            client_config.set("sasl.username", sasl_username);
-        }
-        if let Some(sasl_password) = config.sasl_password {
-            client_config.set("sasl.password", sasl_password);
+            if sasl_mechanism == "GSSAPI" {
+                client_config.set("sasl.mechanisms", "GSSAPI");
+                // get config or use default
+                let sasl_kerberos_service_name =
+                    if let Some(val) = config.sasl_kerberos_service_name {
+                        val
+                    } else {
+                        "".to_string()
+                    };
+                let sasl_kerberos_principal = if let Some(val) = config.sasl_kerberos_principal {
+                    val
+                } else {
+                    "".to_string()
+                };
+                let sasl_kerberos_kinit_cmd = if let Some(val) = config.sasl_kerberos_kinit_cmd {
+                    val
+                } else {
+                    "kinit -R -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal} || kinit -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal}".to_string()
+                };
+                let sasl_kerberos_keytab = if let Some(val) = config.sasl_kerberos_keytab {
+                    val
+                } else {
+                    "".to_string()
+                };
+                // verify the broker's kinit.cmd, keytab and principal
+                let init_cmd = sasl_kerberos_kinit_cmd
+                    .replace("%{sasl.kerberos.keytab}", &sasl_kerberos_keytab.as_str())
+                    .replace(
+                        "%{sasl.kerberos.principal}",
+                        &sasl_kerberos_principal.as_str(),
+                    );
+                let output = std::process::Command::new("bash")
+                    .arg("-c")
+                    .arg(init_cmd)
+                    .output();
+                match output {
+                    Ok(output) => {
+                        if !output.status.success() {
+                            tracing::error!("{}", std::str::from_utf8(&output.stderr).unwrap());
+                            anyhow::bail!(
+                                "{}",
+                                std::str::from_utf8(&output.stderr)
+                                    .unwrap()
+                                    .lines()
+                                    .next()
+                                    .unwrap()
+                            );
+                        }
+                    }
+                    Err(_) => {}
+                }
+                // set to client
+                client_config.set("sasl.kerberos.service.name", sasl_kerberos_service_name);
+                client_config.set("sasl.kerberos.principal", sasl_kerberos_principal);
+                client_config.set("sasl.kerberos.kinit.cmd", sasl_kerberos_kinit_cmd);
+                client_config.set("sasl.kerberos.keytab", sasl_kerberos_keytab);
+                // each entry will be resolved and expanded into a list of canonical names
+                client_config.set(
+                    "client.dns.lookup",
+                    "resolve_canonical_bootstrap_servers_only",
+                );
+            } else {
+                client_config.set("sasl.mechanisms", sasl_mechanism);
+                if let Some(sasl_username) = config.sasl_username {
+                    client_config.set("sasl.username", sasl_username);
+                }
+                if let Some(sasl_password) = config.sasl_password {
+                    client_config.set("sasl.password", sasl_password);
+                }
+            }
         }
     }
 
-    client_config
+    Ok(client_config)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
     use taos::IntoDsn;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_is_valid() {
@@ -653,17 +897,18 @@ mod tests {
         .unwrap();
 
         let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-        let client_config: ClientConfig = build_client_config(config.clone());
+        let client_config: ClientConfig = build_client_config(config.clone()).unwrap();
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
-            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string()))
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))
             .unwrap();
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
-            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))
             .unwrap();
+
         dbg!(metadata.topics().len());
     }
 
@@ -678,16 +923,16 @@ mod tests {
         .unwrap();
 
         let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-        let client_config: ClientConfig = build_client_config(config.clone());
+        let client_config: ClientConfig = build_client_config(config.clone()).unwrap();
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
-            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {}", err.to_string()))
+            .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))
             .unwrap();
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
-            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {}", err.to_string()))
+            .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))
             .unwrap();
         dbg!(metadata.topics().len());
         // filter topics

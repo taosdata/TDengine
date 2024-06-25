@@ -1235,7 +1235,7 @@ mod tests {
                         taos.write_raw_meta(unsafe { &transmute(raw) }).await?;
                     }
                     MessageSet::Meta(data) => {
-                        println!("{target}: {}", data.as_json_meta().await?);
+                        println!("{target}: {:?}", data.as_json_meta().await?);
                         let raw = data.as_raw_meta().await?;
                         taos.write_raw_meta(&raw).await?;
                     }

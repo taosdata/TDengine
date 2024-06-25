@@ -12,6 +12,8 @@ use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
+pub mod migrations;
+
 pub use csv::*;
 pub use legacy::*;
 pub use local_to_taos::local_to_taos;
@@ -26,6 +28,7 @@ use utils::port_pool::PortPool;
 use crate::runners::historian::historian_to_taos;
 use crate::runners::influxdb::influxdb_to_taos;
 use crate::runners::kafka::kafka_to_taos;
+use crate::runners::mssql::mssql_to_taos;
 use crate::runners::mysql::mysql_to_taos;
 use crate::runners::oracle::oracle_to_taos;
 use crate::runners::postgres::postgres_to_taos;
@@ -220,7 +223,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(task.id=self.task_id.as_deref().unwrap_or(&"0")))]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -496,6 +499,23 @@ impl TaskOpts {
                 }
                 (runners::oracle::ORACLE_ID, "taos") => {
                     oracle_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (runners::mssql::MSSQL_ID, "taos") => {
+                    mssql_to_taos(
                         from.clone(),
                         parser.clone(),
                         transform.clone(),

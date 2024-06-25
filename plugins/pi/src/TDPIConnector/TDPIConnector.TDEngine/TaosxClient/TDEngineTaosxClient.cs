@@ -1,16 +1,19 @@
-﻿#define NONLY_PI_TEST
-
-using log4net;
+﻿using log4net;
 using System;
+using System.Diagnostics;
 using Apache.Arrow;
 using Apache.Arrow.Ipc;
 using System.IO;
 using System.Collections.Generic;
+using System.Threading;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.TDEngine.Helper;
 using System.Threading.Tasks;
 using System.Net.Sockets;
 using Newtonsoft.Json;
+using System.Linq;
+using System.Collections;
+using System.Net.Http;
 
 namespace TDPIConnector.TDEngine.TaosxClient
 {
@@ -26,34 +29,57 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         private readonly string hostname;
         private readonly int port;
+        public bool useAFDatabase;
         TcpClient client;
         NetworkStream stream;
         private MessageBuilder builder;
         ArrowStreamWriter writer;
+        ArrowStreamReader reader;
+        Stopwatch stopwatch = new Stopwatch();
+        const long QueueSize = 30;
+        long actualQueueBufferSize = QueueSize;
+        DateTime lastSend = DateTime.UtcNow;
+        List<KeyValuePair<string, string>> columnNameTypes;
+        List<KeyValuePair<string, string>> tags;
+        public string tdColomnType;
+        public int localPort = 0;
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
-            string colomnType, int maxWaitLength) {
+            string tdColomnType, List<KeyValuePair<string, string>> tags, int maxWaitLength, bool useAFDatabase) {
+
+            this.hostname = hostname;
+            this.port = port;
+            this.useAFDatabase = useAFDatabase;
+            this.tdColomnType = tdColomnType;
+            this.tags = tags;
+
             AckType ackType = AckType.None;
             builder = new MessageBuilder(PIDataMode.PointMode, stableName, StreamType.Lush, ackType);
             taosxSocket = new TDEngineTaosSocket(hostname, port, ackType != AckType.None);
 
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
-            builder.tagNames = new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>("pointid", "INT") };
+            // builder.tagNames = tags;
+            builder.tagNames = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>(TaosxConstants.POINTNAME, IpcDataTypes.VarCharType),
+                new KeyValuePair<string, string>(TaosxConstants.POINTID, IpcDataTypes.VarCharType)
+            };
+            builder.tagNames.AddRange(tags); 
+            builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.PointPath, IpcDataTypes.VarCharType));
+            if(useAFDatabase) builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementsPathForPoint,IpcDataTypes.VarCharType));
 
-            builder.tableNameArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();
-            builder.valArrowArrayList.Add(TDEngineTableFormat.PointValColomn(), new StringArray.Builder());
-            builder.statusArrowArrayList.Add(TDEngineTableFormat.PointStatusColomn(), new StringArray.Builder());
+            builder.tableUniqKeyArrowArray = new StringArray.Builder();
+            TDValueType tdType = TDTypeV1Converter.ToTDType(tdColomnType);
+            builder.valArrowArrayList.Add(TDEngineTableFormat.PointValColomn(), new ColumnValueBuilder(tdType));
+            builder.statusArrowArrayList.Add(TDEngineTableFormat.PointStatusColomn(), new Int32Array.Builder());
 
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>("ts", "TIMESTAMP"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.TABLENAME, "NCHAR(100)"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.PointValColomn(), colomnType));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.PointStatusColomn(), "INT"));
-
-            this.hostname = hostname;
-            this.port = port;
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>("ts", TDValueType.Timestamp));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TaosxConstants.POINTNAME, TDValueType.String));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointValColomn(), tdType));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointStatusColomn(), TDValueType.Int));
         }
 
         // For AFElement
@@ -63,202 +89,361 @@ namespace TDPIConnector.TDEngine.TaosxClient
             List<KeyValuePair<string, string>> tags,
             int maxWaitLength)
         {
-            AckType ackType = AckType.None;
+            this.hostname = hostname;
+            this.port = port;
+            this.columnNameTypes = columnNameTypes;
+            this.tags = tags;
+            AckType ackType = AckType.Lush;
             builder = new MessageBuilder(PIDataMode.AFElementMode, stableName, StreamType.Lush, ackType);
             taosxSocket = new TDEngineTaosSocket(hostname, port, ackType != AckType.None);
 
             stopTaosxSend = false;
             TDEngineTaosxClient.maxWaitLength = maxWaitLength;
-            builder.tagNames = tags;
 
-            builder.tableNameArrowArray = new StringArray.Builder();
+            var tagDic = new Dictionary<string, string>();
+            if (tags != null)
+            {
+                tagDic = tags.ToDictionary(pair => pair.Key, pair => pair.Value);
+            }
+            builder.tagNames = new List<KeyValuePair<string, string>> { };
+            if (!tagDic.ContainsKey(TaosxConstants.ELEMENTID))
+            {
+                builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTID, IpcDataTypes.VarCharType));
+            }
+            if (!tagDic.ContainsKey(TaosxConstants.ELEMENTNAME))
+            {
+                builder.tagNames.Add(new KeyValuePair<string, string>(TaosxConstants.ELEMENTNAME, IpcDataTypes.VarCharType));
+            }
+            if (!tagDic.ContainsKey(StaticConfig.Default.AFTreeTagName))
+            {
+                builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.AFTreeTagName, IpcDataTypes.VarCharType));
+            }
+            if (!tagDic.ContainsKey(StaticConfig.Default.ElementCategories))
+            {
+                builder.tagNames.Add(new KeyValuePair<string, string>(StaticConfig.Default.ElementCategories, IpcDataTypes.VarCharType));
+            }
+            builder.tagNames.AddRange(tags);
+
+            builder.tableUniqKeyArrowArray = new StringArray.Builder();
             builder.tsArrowArray = new TimestampArray.Builder();
 
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>("ts", "TIMESTAMP"));
-            builder.columnNameTypes.Add(new KeyValuePair<string, string>(TaosxConstants.TABLENAME, "NCHAR(100)"));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>("ts", TDValueType.Timestamp));
+            builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TaosxConstants.ELEMENTID, TDValueType.String));
             foreach (var column in columnNameTypes) {
-                builder.valArrowArrayList.Add(TDEngineTableFormat.AFValColomn(column.Key), new StringArray.Builder());
-                builder.statusArrowArrayList.Add(TDEngineTableFormat.AFStatusColomn(column.Key), new StringArray.Builder());
-                builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.AFValColomn(column.Key), $"{column.Value}"));
-                builder.columnNameTypes.Add(new KeyValuePair<string, string>(TDEngineTableFormat.AFStatusColomn(column.Key), "INT"));
+                string columnType = column.Value;
+                TDValueType tdType = TDTypeV1Converter.ToTDType(columnType);
+                string tdColName = TDEngineTableFormat.AFValColomn(column.Key);
+                string tdStatusColName = TDEngineTableFormat.AFStatusColomn(column.Key);
+                builder.valArrowArrayList.Add(tdColName, new ColumnValueBuilder(tdType));
+                builder.statusArrowArrayList.Add(tdStatusColName, new Int32Array.Builder());
+                builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(tdColName, tdType));
+                builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(tdStatusColName, TDValueType.Int));
             }
-            this.hostname = hostname;
-            this.port = port;
+        }
+        public TDEngineTaosxClient Clone()
+        {
+            if (builder.mode == PIDataMode.AFElementMode)
+            {
+                var dst = new TDEngineTaosxClient(hostname, port, "", builder.stableName, columnNameTypes, tags, maxWaitLength);
+                return dst;
+            }
+            else {
+                var dst = new TDEngineTaosxClient(hostname, port, "", builder.stableName, tdColomnType, tags, maxWaitLength, useAFDatabase);
+                return dst;
+            }
         }
 
         private void start() {
-            Task task = new Task(work);
-            task.Start();
+            if (!StaticConfig.Default.ForBackfill) {
+                Task task = new Task(work);
+                task.Start();
+            }
+
+            Task responseHandler = new Task(resHandler);
+            responseHandler.Start();
+        }
+
+        private void resHandler()
+        {
+            if (TDEngineClient.OnlyTestConnector) return;
+
+            if (stream == null) {
+                log.Info($"Stream is null, create arrow reader failed!");
+                return;
+            }
+            reader = new ArrowStreamReader(stream);
+            while (!stopTaosxSend && stream.CanRead)
+            {
+                try
+                {
+                    RecordBatch msg = reader.ReadNextRecordBatch();
+                    if (msg != null)
+                    {
+                        if (msg.ColumnCount > 0)
+                        {
+                            IArrowArray array = msg.Column(0);
+                            switch (array)
+                            {
+                                case Int32Array int32Array:
+                                    if (int32Array.Length > 0)
+                                    {
+                                        int? nullableValue = int32Array.GetValue(0);
+                                        if (nullableValue.HasValue)
+                                        {
+                                            int code = nullableValue.Value;
+                                            if (code == 0)
+                                            {
+                                                Interlocked.Increment(ref actualQueueBufferSize);
+                                            }
+                                        }
+                                        log.Debug($"Stable:{builder.stableName},localPort:{localPort}.Arrow response code {nullableValue}, QueueSize {actualQueueBufferSize}");
+                                    }
+                                    break;
+                                default:
+                                    log.Info($"Stable:{builder.stableName},localPort:{localPort}.Unsupported arrow response array type.{array.GetType()}");
+                                    break;
+                            }
+                        }
+
+                        msg.Dispose();
+                    }
+                    else
+                    {
+                        log.Debug($"Stable:{builder.stableName},localPort:{localPort}.no response!");
+                        Thread.Sleep(500);
+                    }
+                }
+                catch (Exception e) {
+                    log.Debug($"Stable:{builder.stableName},localPort:{localPort}.Exception: Arrow response handle! {e.Message}");
+                    Thread.Sleep(500);
+                }
+            }
         }
 
         private void work() {
             while (!stopTaosxSend)
             {
-                if (builder.tableNameArrowArray.Length > 0)
+                if (builder.tableUniqKeyArrowArray.Length > 0)
                 {
                     try
                     {
-                        send();
+                        if ((DateTime.UtcNow - lastSend).TotalSeconds > 1) {
+                            send();
+                        }
+                        Thread.Sleep(1000);
                     }
                     catch (Exception e)
                     {
-                        log.Error($"Send data to taosx failed! {e.ToString()}");
-                        Task.Delay(1000).Wait();
+                        log.Error($"Stable:{builder.stableName},localPort:{localPort}.Send data to taosx failed! {e.Message}");
+                        Thread.Sleep(1000);
                     }
-                    Task.Delay(100).Wait();
+                    Thread.Sleep(1000);
                 }
                 else
                 {
-                    Task.Delay(1000).Wait();
+                    Thread.Sleep(1000);
                 }
             }
         }
 
-        public void AddPointValue(string table, TDValue record) {
+        public void AddPointValue(string tableUniKey, TDValue record) {
             lock (stLock) 
             {
-                builder.tableNameArrowArray.Append(table.ToTDEngineNamingPattern());
+                builder.tableUniqKeyArrowArray.Append(tableUniKey);
                 builder.tsArrowArray.Append(record.Timestamp);
                 if (record.Quality == 0)
                 {
-                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append($"{record.ValueString}");
-                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append("0");
+                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(record.Value);
+                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(0);
                 }
                 else
                 {
-                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(null);
-                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality.ToString());
+                    builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].AppendNull();
+                    builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality);
                 }
-            }
-           
-            if (builder.tsArrowArray.Length > maxWaitLength)
-            {
-                send();
+                if (builder.tsArrowArray.Length > maxWaitLength)
+                {
+                    send();
+                }
             }
         }
 
         // write data
-        public void AddTablesValue(Dictionary<string, Dictionary<string, List<TDValue>>> tablesValue)
+        public void AddTablesValue(in Dictionary<string, Dictionary<string, List<TDValue>>> tablesValue)
         {
             addTablesValue(tablesValue);
-            if (builder.tsArrowArray.Length > maxWaitLength)
-            {
-                send();
-            }
         }
-        public void addTablesValue(Dictionary<string, Dictionary<string, List<TDValue>>> tables)
+        public void addTablesValue(in Dictionary<string, Dictionary<string, List<TDValue>>> tables)
         {
-            lock (stLock)
+            foreach (var table in tables)
             {
-                foreach (var table in tables)
+                Dictionary<string, TDValue> valDic = new Dictionary<string, TDValue> { };
+                Dictionary<string, int> statusDic = new Dictionary<string, int> { };
+                foreach (var row in table.Value)
                 {
-                    foreach (var row in table.Value)
+                    valDic.Clear();
+                    statusDic.Clear();
+                    if (row.Value.Count == 0) continue;
+                    DateTime ts = new DateTime();
+                    foreach (var value in row.Value)
                     {
-                        Dictionary<string, string> valDic = new Dictionary<string, string> { };
-                        Dictionary<string, int> statusDic = new Dictionary<string, int> { };
-                        if (row.Value.Count == 0) continue;
-                        DateTime ts = new DateTime();
-                        foreach (var value in row.Value)
+                        string columnName = value.Name.ToTDEngineNamingPattern();
+                        ts = value.Timestamp;
+                        var colValName = TDEngineTableFormat.AFValColomn(in columnName);
+                        if (valDic.ContainsKey(colValName))
                         {
-                            string columnName = value.Name.ToTDEngineNamingPattern();
-                            ts = value.Timestamp;
-                            if (valDic.ContainsKey($"{columnName}_val"))
+                            if (valDic[colValName] != value)
                             {
-                                if (valDic[$"{columnName}_val"] != value.ValueString)
-                                {
-                                    log.Error($"{table.Key}.{columnName} has duplicate value at time {ts}");
-                                }
-                                continue;
+                                log.Error($"{table.Key}.{columnName} has duplicate value at time {ts}");
                             }
-                            if (value.Quality == 0)
-                            {
-                                valDic.Add($"{columnName}_val", value.ValueString);
-                                statusDic.Add($"{columnName}_status", 0);
-                            }
-                            else
-                            {
-                                valDic.Add($"{columnName}_val", null);
-                                statusDic.Add($"{columnName}_status", value.Quality);
-                            }
+                            continue;
                         }
-                        builder.tableNameArrowArray.Append(TDEngineProxy.GetFullTableName(table.Key).ToTDEngineNamingPattern());
+                        if (value.Quality == 0)
+                        {
+                            valDic.Add(colValName, value);
+                            statusDic.Add(TDEngineTableFormat.AFStatusColomn(in columnName), 0);
+                        }
+                        else
+                        {
+                            valDic.Add(colValName, null);
+                            statusDic.Add(TDEngineTableFormat.AFStatusColomn(in columnName), value.Quality);
+                        }
+                    }
+                    lock (stLock)
+                    {
+                        builder.tableUniqKeyArrowArray.Append(table.Key);
                         builder.tsArrowArray.Append(ts);
                         foreach (var objRow in builder.valArrowArrayList)
                         {
                             if (valDic.ContainsKey(objRow.Key))
                             {
-                                objRow.Value.Append(valDic[objRow.Key]);
+                                TDValue value = valDic[objRow.Key];
+                                if (value == null) {
+                                    objRow.Value.AppendNull();
+                                } else
+                                {
+                                    objRow.Value.Append(value.Value);
+                                }
                             }
                             else
                             {
-                                objRow.Value.Append(null);
+                                objRow.Value.AppendNull();
                             }
                         }
                         foreach (var objRow in builder.statusArrowArrayList)
                         {
                             if (statusDic.ContainsKey(objRow.Key))
                             {
-                                objRow.Value.Append(statusDic[objRow.Key].ToString());
+                                objRow.Value.Append(statusDic[objRow.Key]);
                             }
                             else
                             {
-                                objRow.Value.Append(null);
+                                objRow.Value.AppendNull();
                             }
+                        }
+                        if (builder.tsArrowArray.Length > maxWaitLength)
+                        {
+                            send();
                         }
                     }
                 }
             }
+            if (StaticConfig.Default.ForBackfill && builder.tsArrowArray.Length > 0)
+            {
+                send();
+            }
         }
 
-        internal void AddAFElementTableTag(string tdEngineTableName, List<KeyValuePair<string, string>> tags)
+        /// <summary>
+        /// 限制发送数据到 taosX 的速度。
+        /// actualQueueBufferSize 代表允许继续发送的批数，初始值为 30，每发送一批数据减 1，每收到一个确认消息加 1。
+        /// 当 actualQueueBufferSize 小于等于 0 时，不允许发送数，等待 500ms 再检查 actualQueueBufferSize 的值。
+        /// 如果等待是时间超过 20s，将 actualQueueBufferSize 设置为 1，允许继续发送 1 批数据。
+        /// 
+        /// </summary>
+        internal void ArrowMsgQueueWait()
+        {
+            stopwatch.Reset();
+            stopwatch.Start();
+            while (true) {
+                long buffSize = Interlocked.Read(ref actualQueueBufferSize);
+                if (buffSize <= 0)
+                {
+                    long cost = stopwatch.ElapsedMilliseconds;
+                    if (cost > 20000)
+                    {
+                        log.Info($"Stable:{builder.stableName},localPort:{localPort},wait {cost} ms");
+                        Interlocked.Exchange(ref actualQueueBufferSize, 1);
+                    }
+                    else if (cost > 500)
+                    {
+                        log.Info($"Stable:{builder.stableName},localPort:{localPort},wait {cost} ms");
+                    }
+                    Thread.Sleep(500);
+                }
+                else if (buffSize > QueueSize)
+                {
+                    Interlocked.Exchange(ref actualQueueBufferSize, QueueSize);
+                    break;
+                }
+                else {
+                    break;
+                }
+            }
+        }
+
+        internal void AddAFElementTableTag(string elementId, List<KeyValuePair<string, string>> tags)
+        {
+            lock (stLock)
+            {
+                if (!builder.tagVals.ContainsKey(elementId))
+                {
+                    builder.tagVals[elementId] = tags;
+                }
+                else
+                {
+                    log.Info("Stable:{builder.stableName},Found duplicate elements when add tagVal");
+                }
+            }
+        }
+
+        internal void AddPointTableTag(string tdEngineTableName, List<KeyValuePair<string, string>> tags)
         {
             if (!builder.tagVals.ContainsKey(tdEngineTableName))
             {
                 builder.tagVals[tdEngineTableName] = tags;
-            }
-            else {
-                log.Info("found duplicate elements when add tagVal");
-            }
-        }
-
-        internal void AddPointTableTag(string tdEngineTableName, int pointId)
-        {
-            if (!builder.pointIds.ContainsKey(tdEngineTableName))
-            {
-                //var tag = new KeyValuePair<string, string>($"pointId", "INT");
-                builder.pointIds.Add($"{tdEngineTableName}", pointId);
+                //builder.pointIds.Add($"{tdEngineTableName}", pointId);
             }
             else
             {
-                log.Info("found duplicate elements when add pointId");
+                log.Info("Stable:{builder.stableName},localPort:{localPort},Found duplicate elements when add pointId");
             }
         }
 
         public void InitTables() {
             lock (stLock)
             {
-                if (builder.pointIds.Count == 0 && builder.tagVals.Count == 0) return;
-                log.Debug($"Stable:{builder.stableName} Write tables into stream start...");
-
+                if (builder.tagVals.Count == 0) return;
                 var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
-                log.Debug($"Stable:{builder.stableName} Write tables into stream...");
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},Create tables {recordBatch.Length}");
+                builder.tagVals.Clear();
             }
         }
 
         public void send() {
             lock (stLock) {
-                if (builder.tableNameArrowArray.Length == 0) return;
-                log.Debug($"Stable:{builder.stableName} Write records into stream start...");
+                if (builder.tableUniqKeyArrowArray.Length == 0) return;
                 var recordBatch = builder.BuildInsertMessage();
                 writeRecordBatch(recordBatch);
-                log.Debug($"Stable:{builder.stableName} Write records into stream end.");
+                log.Debug($"Stable:{builder.stableName},localPort:{localPort}, Wrote records {builder.tableUniqKeyArrowArray.Length},QueueSize {actualQueueBufferSize}");
                 clear();
+                lastSend = DateTime.UtcNow;
             }
         }
 
         private void clear() {
-            builder.tableNameArrowArray.Clear();
+            builder.tableUniqKeyArrowArray.Clear();
             builder.tsArrowArray.Clear();
             foreach (var valArray in builder.valArrowArrayList) {
                 valArray.Value.Clear();
@@ -281,31 +466,17 @@ namespace TDPIConnector.TDEngine.TaosxClient
             start();
         }
 
-        private void sendRecordBatch(RecordBatch recordBatch)
-        {
-            MemoryStream stream = new MemoryStream();
-            ArrowStreamWriter writer = new ArrowStreamWriter(stream, recordBatch.Schema);
-            writer.WriteRecordBatch(recordBatch);
-            byte[] buffer = stream.ToArray();
-            //var str = Encoding.UTF8.GetString(buffer);
-            //log.Debug($"send recordbatch: {str}");
-            var response = taosxSocket.SendData(buffer);
-
-            writer.Dispose();
-            // TODO parse response
-            return;
-        }
-
         private void writeRecordBatch(RecordBatch recordBatch) {
-#if ONLY_PI_TEST
-            return;
-#endif
+            if (TDEngineClient.OnlyTestConnector) return;
+
             try
             {
+                Interlocked.Decrement(ref actualQueueBufferSize);
                 writer.WriteRecordBatch(recordBatch);
             }
             catch (Exception e) {
-                log.Error($"write record batch failed!{e}");
+                log.Error($"Stable:{builder.stableName},localPort:{localPort},Write record batch failed!{e.Message}");
+                Thread.Sleep(1000);
                 reconnectTaosx();
             }
         }
@@ -313,7 +484,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         {
             lock (stLock)
             {
-                return builder.tableNameArrowArray.Length > 0;
+                return builder.tableUniqKeyArrowArray.Length > 0;
             }
         }
 
@@ -323,17 +494,18 @@ namespace TDPIConnector.TDEngine.TaosxClient
             try {
                 // taosxSocket.Connect();
                 client = new TcpClient(hostname, port);
+                // 获取本地端口号
+                localPort = ((System.Net.IPEndPoint)client.Client.LocalEndPoint).Port;
                 stream = client.GetStream();
                 writer = new ArrowStreamWriter(stream, builder.Schema);
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},connectTaosx success");
             }
             catch (Exception e) {
-                log.Error($"Connect taosx failed! {e}");
+                log.Error($"Stable:{builder.stableName}, Connect taosx failed! {e}");
             }
-            log.Info($"Stable:{builder.stableName},SchemaMeta:{JsonConvert.SerializeObject(builder.Schema.Metadata, Formatting.Indented)}");
-            log.Info($"Stable:{builder.stableName},connectTaosx success...");
         }
         private void reconnectTaosx() {
-            log.Info($"Stable:{builder.stableName},reconnectTaosx start...");
+            log.Info($"Stable:{builder.stableName},localPort:{localPort},reconnectTaosx start...");
             writer.WriteEnd();
             stream.Close();
             client.Close();
@@ -345,13 +517,21 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         internal void Stop()
-        {
-            if (!stopTaosxSend) {
+        { 
+            log.Info($"Stable:{builder.stableName}, localPort:{localPort},Stop client");
+            if (!stopTaosxSend) { 
                 stopTaosxSend = true;
                 send();
             }
-            stream.Close();
-            client.Close();
+
+            // If this empty message is not sent, the read function of the agent will fail
+            // and consider the task abnormal.
+            // Maybe the new version of Arrow doesn't have this problem. Who knows, I haven't tried it
+            writeRecordBatch(builder.BuildInsertMessage());
+
+            if (null != writer) writer.WriteEnd();
+            if (null != stream) stream.Close();
+            if (null != client) client.Close();
             return;
         }
     }

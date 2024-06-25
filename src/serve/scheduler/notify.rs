@@ -1,4 +1,19 @@
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, Weak},
+    time::Duration,
+};
+
 use crate::serve::{controller::TaskActivity, scheduler::SchedulerNotify};
+use itertools::Itertools;
+use taosx_core::{
+    sink::lush::{self, TableTagCache},
+    utils::breakpoints::BreakpointDb,
+    DataSet,
+};
+use thiserror::Error;
+use tokio::sync::{Mutex, Notify, RwLock};
 
 use super::{
     runner::{GlobalState, MultiIndexTaskJobMapRef},
@@ -15,6 +30,8 @@ pub async fn notify_by_job_id(
     global: &GlobalState,
     job_id: &Uuid,
     job_state: &JobNotification,
+    lush_table_cache: &Arc<RwLock<HashMap<i64, Arc<TableTagCache>>>>,
+    task_breakpoint_db: &Arc<RwLock<HashMap<i64, BreakpointDb>>>,
 ) -> Option<Result<()>> {
     let task_id = { tasks.read().await.get_by_job_id(&job_id).map(|j| j.task_id) }?;
 
@@ -50,6 +67,19 @@ pub async fn notify_by_job_id(
                             global.agent_runtime.remove_task(task_id).await;
                         }
                     }
+                }
+            });
+            // TODO： 只对 PI 任务执行下面的代码
+            let lush_table_cache = lush_table_cache.clone();
+            let task_breakpoint_db = task_breakpoint_db.clone();
+            tokio::task::spawn(async move {
+                let mut lush_table_cache = lush_table_cache.write().await;
+                if let Some(cache) = lush_table_cache.remove(&task_id) {
+                    info!("Removed lush_table_cache task.id={:?}", task_id);
+                }
+                let mut task_breakpoint_db = task_breakpoint_db.write().await;
+                if let Some(cache) = task_breakpoint_db.remove(&task_id) {
+                    info!("Removed task_breakpoint_db task.id={:?}", task_id);
                 }
             });
         }

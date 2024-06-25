@@ -52,14 +52,14 @@ impl KafkaTaskConfig {
             .to_string()
     }
 
-    fn parse_topics(dsn: &Dsn) -> anyhow::Result<Vec<String>> {
+    pub fn parse_topics(dsn: &Dsn) -> anyhow::Result<Vec<String>> {
         Ok(dsn
             .get("topics")
             .map(|s| s.split(",").map(|s| s.to_string()).collect::<Vec<String>>())
             .ok_or(anyhow::anyhow!("topics is required"))?)
     }
 
-    fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<String> {
+    pub fn parse_fallback_offset(dsn: &Dsn) -> anyhow::Result<String> {
         let fallback_offset = dsn.params.get("fallback_offset").map(String::as_str);
 
         match fallback_offset {
@@ -183,8 +183,8 @@ impl KafkaTaskConfig {
             .params
             .get("timeout")
             .map(String::as_str)
-            .unwrap_or("500ms");
-        if timeout.eq("never") {
+            .unwrap_or("0ms");
+        if timeout.eq("never") || timeout.starts_with("0") || timeout.starts_with("-1") {
             return Ok(-1);
         }
 

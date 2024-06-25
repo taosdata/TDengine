@@ -16,14 +16,6 @@ pub struct Split {
 }
 
 impl Parse for Split {
-    fn num_rows_will_be_changed(&self) -> bool {
-        self.split.num_rows_will_be_changed()
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        self.split.num_columns_will_be_changed()
-    }
-
     fn parse_array(
         &self,
         field: &Field,
@@ -52,14 +44,6 @@ pub struct SplitImpl {
 }
 
 impl Parse for SplitImpl {
-    fn num_rows_will_be_changed(&self) -> bool {
-        false
-    }
-
-    fn num_columns_will_be_changed(&self) -> bool {
-        self.names.len() > 1 || !self.keep.unwrap_or(false)
-    }
-
     fn parse_array(
         &self,
         field: &Field,

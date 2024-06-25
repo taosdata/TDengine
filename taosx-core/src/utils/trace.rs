@@ -17,7 +17,7 @@ use tracing_subscriber::{layer, Registry};
 
 const TRACE_STR: &str = "TRACE";
 const DEBUG_STR: &str = "DEBUG";
-const INFO_STR: &str = "";
+const INFO_STR: &str = "INFO";
 const WARN_STR: &str = "WARN";
 const ERROR_STR: &str = "ERROR";
 
@@ -296,13 +296,13 @@ pub fn attach_trace_id(target_span: &Span) {
     });
 }
 
-pub fn set_data_trace_id_for_current_span(trace_id: &str) {
+pub fn set_data_trace_id_for_current_span(trace_id: &TraceStreamId) {
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch
             .downcast_ref::<Registry>()
             .expect("no global default dispatcher found");
         if let Some((id, _meta)) = dispatch.current_span().into_inner() {
-            let hex_trace_id = String::from(trace_id);
+            let hex_trace_id = trace_id.to_string();
             let span = registry.span(&id).unwrap();
             let mut ext = span.extensions_mut();
             ext.replace(DataTraceID { hex: hex_trace_id });
@@ -338,7 +338,7 @@ pub fn get_stream_id_u64(stream_id: &str) -> u64 {
     id << 48
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RequestID {
     inner: std::sync::Arc<AtomicU64>,
 }
@@ -411,13 +411,23 @@ impl TraceStreamId {
     }
 
     #[inline]
-    pub fn with_data_id(self, data_id: u32) -> TraceDataId {
-        TraceDataId((u64::from(self.0) << 48) & (u64::from(data_id) << 16))
+    pub fn with_data_id(&self, data_id: u32) -> TraceDataId {
+        TraceDataId((u64::from(self.0) << 48) | (u64::from(data_id) << 16))
     }
 
     #[inline]
-    pub fn to_data_id(self) -> TraceDataId {
+    pub fn to_data_id(&self) -> TraceDataId {
         TraceDataId((self.0 as u64) << 48)
+    }
+
+    #[inline]
+    pub fn as_u64(&self) -> u64 {
+        (self.0 as u64) << 48
+    }
+
+    #[inline]
+    pub fn to_request_id(&self) -> RequestID {
+        RequestID::new((self.0 as u64) << 48)
     }
 }
 
@@ -439,6 +449,14 @@ impl std::fmt::Debug for TraceDataId {
     }
 }
 
+impl std::ops::Deref for TraceDataId {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl TraceDataId {
     /// Get the stream id from the data trace id.
     pub fn stream_id(self) -> TraceStreamId {
@@ -448,6 +466,11 @@ impl TraceDataId {
     /// Get the data id(or batch id) from the data trace id.
     pub fn data_id(self) -> u32 {
         (self.0 & 0x0000_FFFF_FFFF_FFFF >> 16) as u32
+    }
+
+    #[inline]
+    pub fn as_u64(self) -> u64 {
+        self.0
     }
 
     /// It is used to generate next data id for the same stream id.

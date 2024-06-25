@@ -19,20 +19,22 @@ use arrow::{
     ipc::reader::StreamReader,
     record_batch::RecordBatch,
 };
+use faststr::FastStr;
 use futures::Stream;
-use taos_query::prelude::Itertools;
-use taos_query::prelude::{ColumnView, Ty, Value};
+use taos::{ColumnView, Itertools, Precision, Ty, Value};
 use tracing::error;
 
 use crate::{
     ack::{AckType, AckWriter},
-    constants::{__ATTRS__, __RECORDS__, __TABLES__INDEX__, __TABLE_NAME__, __TYPE__},
+    constants::{__ATTRS__, __RECORDS__, __TABLES_INDEX__, __TABLE_NAME__, __TYPE__},
     prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
     stream::{
         flat::FlatMessage,
         point::{PointMessage, RecordMessage},
     },
 };
+
+use arrow_compute_ext::RecordBatchExt;
 
 #[derive(Debug, Clone)]
 pub struct IpcParser {
@@ -59,15 +61,8 @@ impl IpcParser {
                 match v {
                     LushMessageType::Table => todo!(),
                     LushMessageType::Children => {
-                        let tables = record.column(__TABLES__INDEX__);
-
-                        let tables = (0..tables.len())
-                            .flat_map(|i| {
-                                let tables = tables.slice(i, 1);
-                                self.parse_tables(tables).into_iter()
-                            })
-                            .collect_vec();
-                        return Ok(Box::new(LushMessage::Tables(tables)));
+                        let (tables, full_records) = self.parse_children(record);
+                        return Ok(Box::new(LushMessage::Tables(tables, full_records)));
                     }
                     LushMessageType::Insert => {
                         if let Some(attrs) = record.column_by_name(__ATTRS__) {
@@ -150,6 +145,47 @@ impl IpcParser {
 
     pub fn lush_message_iter(&self) {}
 
+    fn parse_children(&self, record: RecordBatch) -> (Vec<LushInsertAttrs>, Option<RecordBatch>) {
+        let tables = record.column(__TABLES_INDEX__);
+        let tables_clone = tables.clone();
+        let values = record.column_by_name(__RECORDS__).unwrap();
+        let tables = (0..tables.len())
+            .flat_map(|i| {
+                let tables = tables.slice(i, 1);
+                self.parse_tables(tables).into_iter()
+            })
+            .collect_vec();
+        let tables_record = tables_clone.slice(0, 1);
+        let values_record = values.slice(0, 1);
+
+        fn struct_array_to_record_batch(value: Arc<dyn Array>) -> RecordBatch {
+            let s = value
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .expect("parse records list");
+            let v = s.value(0);
+            let s = v
+                .as_any()
+                .downcast_ref::<StructArray>()
+                .expect("parse records struct");
+            let names = s.column_names();
+            let columns = s.columns();
+            RecordBatch::try_from_iter(
+                names
+                    .into_iter()
+                    .zip(columns)
+                    .map(|(name, value)| (name, value.clone())),
+            )
+            .unwrap()
+        }
+        let tables_record = struct_array_to_record_batch(tables_record);
+        let values_record = struct_array_to_record_batch(values_record);
+
+        // 对于 PI， __tables__ 和 __records__ 长度是一样的，其它数据源不能保证，因此可能出错
+        let full_record = tables_record.concat_by_columns(&values_record).ok();
+        (tables, full_record)
+    }
+
     fn parse_tables(&self, arrow: Arc<dyn Array>) -> Vec<LushInsertAttrs> {
         let s = arrow.as_any().downcast_ref::<ListArray>().unwrap().value(0);
         let s = s.as_any().downcast_ref::<StructArray>().unwrap();
@@ -157,7 +193,6 @@ impl IpcParser {
 
         let names = s.column_names();
         let values = s.columns();
-
         (0..s.len())
             .map(|i| {
                 let mut values: Vec<_> = names
@@ -256,15 +291,15 @@ impl IpcParser {
                             DataType::RunEndEncoded(_, _) => todo!(),
                             _ => todo!("Unsupported data type for tag"),
                         };
-                        (name.to_string(), value)
+                        (FastStr::new(name), value)
                     })
                     .collect_vec();
                 // let (name, values) = values.split_at(1);
                 let name = values.remove(0);
 
                 let s = LushInsertAttrs {
-                    name: name.1.strict_as_str().to_string(),
-                    using: Some(using.to_string()),
+                    name: FastStr::new(name.1.strict_as_str()),
+                    using: Some(using.clone()),
                     tags: Some(values),
                 };
                 s
@@ -390,15 +425,15 @@ impl IpcParser {
                             DataType::RunEndEncoded(_, _) => todo!(),
                             _ => todo!("Unsupported data type for tag"),
                         };
-                        (name.to_string(), value)
+                        (FastStr::new(*name), value)
                     })
                     .collect_vec();
                 // let (name, values) = values.split_at(1);
                 let name = values.remove(0);
 
                 let s = LushInsertAttrs {
-                    name: name.1.strict_as_str().to_string(),
-                    using: Some(using.to_string()),
+                    name: FastStr::new(name.1.strict_as_str()),
+                    using: Some(using.clone()),
                     tags: Some(values),
                 };
                 // dbg!(s)
@@ -492,7 +527,7 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::bounded(1024);
+        let (tx, rx) = flume::bounded(64);
         std::thread::spawn(move || {
             for item in self.reader {
                 tx.send(item)?; // send under blocking thread
@@ -510,7 +545,7 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::bounded(1024);
+        let (tx, rx) = flume::bounded(64);
         std::thread::spawn(move || {
             for item in self.reader {
                 tx.send(item)?; // send under blocking thread
@@ -523,33 +558,43 @@ impl<R: Read> IpcReader<R> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LushInsertAttrs {
-    name: String,
-    using: Option<String>,
-    tags: Option<Vec<(String, Value)>>,
+    name: FastStr,
+    using: Option<FastStr>,
+    tags: Option<Vec<(FastStr, Value)>>,
+}
+
+impl Default for LushInsertAttrs {
+    fn default() -> Self {
+        Self {
+            name: FastStr::empty(),
+            using: None,
+            tags: None,
+        }
+    }
 }
 
 impl LushInsertAttrs {
-    pub fn stable_name(&self) -> &Option<String> {
-        &self.using
+    pub fn stable_name(&self) -> Option<&FastStr> {
+        self.using.as_ref()
     }
 
-    pub fn table_name(&self) -> &String {
+    pub fn table_name(&self) -> &FastStr {
         &self.name
     }
 
-    pub fn tags(&self) -> &Option<Vec<(String, Value)>> {
+    pub fn tags(&self) -> &Option<Vec<(FastStr, Value)>> {
         &self.tags
     }
 
-    pub fn to_sql(&self, table_name: Option<String>) -> Option<String> {
+    pub fn to_sql(&self, table_name: Option<&str>) -> Option<String> {
         if let Some(using) = self.using.as_ref() {
             let tags = self.tags.as_ref().unwrap();
             let table = if table_name.is_none() {
                 &self.name
             } else {
-                table_name.as_ref().unwrap()
+                table_name.unwrap()
             };
             let names = tags.iter().map(|(name, _)| format!("`{name}`")).join(",");
             let values = tags.iter().map(|(_, value)| value.to_sql_value()).join(",");
@@ -604,7 +649,7 @@ pub struct LushMessageInsert {
 mod arrow_to_taos {
     use crate::prelude::IpcDataType;
     use arrow::datatypes::TimeUnit;
-    use taos_query::prelude::ColumnView;
+    use taos::ColumnView;
 
     /// parse arrow array to column view, unsupported value will be ignored(as NULL)
     pub fn parse_str_into(ty: &IpcDataType, data: Vec<Option<&str>>) -> ColumnView {
@@ -853,11 +898,15 @@ impl LushMessageInsert {
         }
     }
 
+    pub fn record(&self) -> &RecordBatch {
+        &self.records.record
+    }
+
     pub fn num_rows(&self) -> usize {
         self.records.record.num_rows()
     }
 
-    pub fn meta_sql(&self, table_name: Option<String>) -> Option<String> {
+    pub fn meta_sql(&self, table_name: Option<&str>) -> Option<String> {
         self.attrs.as_ref().and_then(|attr| attr.to_sql(table_name))
     }
 
@@ -1344,7 +1393,7 @@ pub fn parse_column_view_with_types(
 
 pub fn record_batch_to_column_view(
     record: &RecordBatch,
-    target_precision: taos_query::prelude::Precision,
+    target_precision: Precision,
 ) -> Vec<ColumnView> {
     record
         .columns()
@@ -1503,15 +1552,9 @@ pub fn record_batch_to_column_view(
             }
             DataType::Timestamp(_, _) => {
                 let precision = match target_precision {
-                    taos_query::prelude::Precision::Millisecond => {
-                        arrow::datatypes::TimeUnit::Millisecond
-                    }
-                    taos_query::prelude::Precision::Microsecond => {
-                        arrow::datatypes::TimeUnit::Microsecond
-                    }
-                    taos_query::prelude::Precision::Nanosecond => {
-                        arrow::datatypes::TimeUnit::Nanosecond
-                    }
+                    Precision::Millisecond => arrow::datatypes::TimeUnit::Millisecond,
+                    Precision::Microsecond => arrow::datatypes::TimeUnit::Microsecond,
+                    Precision::Nanosecond => arrow::datatypes::TimeUnit::Nanosecond,
                 };
                 let column =
                     arrow::compute::cast(column, &DataType::Timestamp(precision.clone(), None))
@@ -1609,8 +1652,14 @@ pub struct LushMessageTable {}
 
 #[derive(Debug)]
 pub enum LushMessage {
-    Tables(Vec<LushInsertAttrs>),
+    Tables(Vec<LushInsertAttrs>, Option<RecordBatch>),
     Insert(Vec<LushMessageInsert>),
+}
+
+impl LushMessage {
+    pub fn is_tables(&self) -> bool {
+        matches!(self, LushMessage::Tables(_, _))
+    }
 }
 // pub struct LushMessageTables(Vec<LushInsertAttrs>);
 pub trait IpcMessage: Any + Send + Sync {
@@ -1684,7 +1733,7 @@ fn file_reader() -> anyhow::Result<()> {
                     dbg!(&sqls);
                 }
             }
-            LushMessage::Tables(tables) => {
+            LushMessage::Tables(tables, _) => {
                 for record in tables {
                     let map_data = record.to_sql(None);
                     dbg!(&map_data);

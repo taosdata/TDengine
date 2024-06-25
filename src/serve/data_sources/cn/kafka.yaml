@@ -31,6 +31,7 @@ groups:
           choices:
             - PLAIN
             - SCRAM-SHA-256
+            - GSSAPI
       - name: sasl_username
         display: 用户名
         description: 用于 SASL 认证机制的用户名
@@ -43,6 +44,30 @@ groups:
         required: true
         hint:
           type: str
+      - name: sasl_kerberos_service_name
+        display: Kerberos 服务名
+        description: 用于 GSSAPI 认证机制的 Kerberos 服务名
+        required: false
+        hint:
+          type: str
+      - name: sasl_kerberos_principal
+        display: Kerberos 主体
+        description: 用于 GSSAPI 认证机制的 Kerberos 主体
+        required: false
+        hint:
+          type: str
+      - name: sasl_kerberos_kinit_cmd
+        display: Kerberos 初始化命令
+        description: 用于 GSSAPI 认证机制的 Kerberos 初始化命令
+        required: false
+        hint:
+          type: str
+      - name: sasl_kerberos_keytab
+        display: Kerberos 密钥表
+        description: 用于 GSSAPI 认证机制的 Kerberos 密钥表
+        required: false
+        hint:
+          type: file
   - name: SSL 证书
     display_order: 2
     description: 使用证书和私钥建立连接以启用 SSL。

@@ -32,3 +32,9 @@ vendor
 plugins/opentsdb/target/
 plugins/opc/taosx-opc
 targets
+*.csv
+.DS_Store
+tmp.*
+/*.ps1
+.zed/
+.vs

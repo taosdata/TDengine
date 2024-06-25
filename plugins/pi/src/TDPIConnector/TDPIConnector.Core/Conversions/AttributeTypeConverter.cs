@@ -3,6 +3,9 @@ using System;
 
 namespace TDPIConnector.Core.Conversions
 {
+    /// <summary>
+    /// 元素的 value type 转 TDengine 的数据类型
+    /// </summary>
     public class AttributeTypeConverter
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
@@ -44,5 +47,6 @@ namespace TDPIConnector.Core.Conversions
             log.Error($"AttributeType:{attributeType.Name} not supported, please conntact Tdengine");
             return null;
         }
+    
     }
 }

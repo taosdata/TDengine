@@ -147,7 +147,7 @@ fn get_tags_with_condition_sql(top: Option<usize>, tag_conditions: Vec<String>) 
 
     let conditions = tag_conditions
         .iter()
-        .group_by(|t| t.contains('*'))
+        .chunk_by(|t| t.contains('*'))
         .into_iter()
         .map(|(contain_wildcard, group)| {
             if contain_wildcard {

@@ -27,6 +27,12 @@ use super::{
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Modeler(#[serde(deserialize_with = "model_serde::deserialize")] Vec<Table>);
 
+impl Modeler {
+    pub fn new(tables: Vec<Table>) -> Self {
+        Self(tables)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ModeledRecordBatch {
     pub records: RecordBatch,
@@ -340,7 +346,7 @@ impl Table {
                 .with_context(|| format!("Primary key `{primary}` does not exist in data"))?;
 
             if primary_array.null_count() > 0 {
-                return Err(super::Error::NullPrimaryKey(self.name.clone()));
+                return Err(super::Error::NullPrimaryKey(primary.to_string()));
             }
             // Cast primary key column to timestamp.
             let primary_array = arrow_cast_guess_precision::cast(&primary_array, &timestamp)

@@ -2194,7 +2194,7 @@ impl TargetOpts {
                     .try_collect::<_, Vec<_>, _>()?
                     .into_iter()
                     .chain(in_lines)
-                    .group_by(|(table, _)| table.clone())
+                    .chunk_by(|(table, _)| table.clone())
                     .into_iter()
                     .map(|(group, v)| {
                         let map: HashMap<_, _> = v.map(|(_, v)| v).collect();

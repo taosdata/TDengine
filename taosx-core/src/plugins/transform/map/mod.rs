@@ -17,7 +17,7 @@ use super::{constants::META_FIELD_TYPE, TransformExt};
 
 mod cast;
 mod constant;
-mod expr;
+pub(crate) mod expr;
 mod format;
 mod generator;
 mod join;
@@ -26,6 +26,12 @@ mod timestamp;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Map(LinkedHashMap<String, FieldValue>);
+
+impl Map {
+    pub fn new(map: LinkedHashMap<String, FieldValue>) -> Self {
+        Self(map)
+    }
+}
 
 impl TransformExt for Map {
     fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
@@ -137,6 +143,12 @@ pub struct FieldValue {
     #[serde(flatten)]
     builder: FieldValueBuilder,
     r#as: Option<IpcDataType>,
+}
+
+impl FieldValue {
+    pub fn new(builder: FieldValueBuilder, r#as: Option<IpcDataType>) -> Self {
+        Self { builder, r#as }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -86,6 +86,37 @@ pub struct SampleResponse {
     pub res: Response<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PutFileReq {
+    /// 要发送的文件，相对于 data 目录的路径, 例如: "tasks/1/1.csv"
+    pub path: String,
+    pub data: Vec<u8>,
+    /// 写文件到 agent 时，是否自动解压, 默认 false,目前只支持 gzip
+    /// 如果为 true，path 必须以 .gz 结尾, 解压后的文件名为 path 去掉 .gz
+    pub decompress: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PutFileResp {
+    pub req_id: u64,
+    pub path: String,
+    pub res: Response<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueryDataSourceReq {
+    /// from DSN
+    pub from: String,
+    /// 启动参数
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueryDataSourceResp {
+    pub req_id: u64,
+    pub output: Response<String>,
+}
+
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Fail<T> {
@@ -186,7 +217,9 @@ pub enum RespAction {
     ListOk(ListResponse),
     CheckOk(CheckResponse),
     SampleOk(SampleResponse),
+    PutFileOk(PutFileResp),
     AgentActivity(Activity),
     TaskActivity(Activity),
     Metrics(MetricsEvents),
+    QueryDataSourceOk(QueryDataSourceResp),
 }

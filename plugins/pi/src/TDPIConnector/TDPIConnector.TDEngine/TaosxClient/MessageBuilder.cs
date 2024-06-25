@@ -7,6 +7,7 @@ using System.Linq;
 using Apache.Arrow.Types;
 using System.Collections;
 using IpcDataType = System.String;
+using TDPIConnector.TDEngine.Models;
 
 namespace TDPIConnector.TDEngine.TaosxClient
 {
@@ -26,12 +27,200 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
     }
 
+    /// <summary>
+    ///  暂存各种类型的数据，用于构建ArrowArray
+    /// </summary>
+    public class ColumnValueBuilder {
+        public TDValueType ValueType { get; set; }
+        public object ArrowArray;
+        public ColumnValueBuilder(TDValueType valueType) {
+            ValueType = valueType;
+            switch (valueType)
+            {
+                case TDValueType.String:
+                    ArrowArray = new StringArray.Builder();
+                    break;
+                case TDValueType.Int:
+                    ArrowArray = new Int32Array.Builder();
+                    break;
+                case TDValueType.BigInt:
+                    ArrowArray = new Int64Array.Builder();
+                    break;
+                case TDValueType.Float:
+                    ArrowArray = new FloatArray.Builder();
+                    break;
+                case TDValueType.Double:
+                    ArrowArray = new DoubleArray.Builder();
+                    break;
+                case TDValueType.Timestamp:
+                    ArrowArray = new TimestampArray.Builder();
+                    break;
+                case TDValueType.Boolean:
+                    ArrowArray = new BooleanArray.Builder();
+                    break;
+                default:
+                    throw new Exception("Unsupported TDType");
+            }
+        }
+
+        public void AppendNull() {
+            switch (ValueType) { 
+                case TDValueType.String:
+                    ((StringArray.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Int:
+                    ((Int32Array.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.BigInt:
+                    ((Int64Array.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Float:
+                    ((FloatArray.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Double:
+                    ((DoubleArray.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Timestamp:
+                    ((TimestampArray.Builder)ArrowArray).AppendNull();
+                    break;
+                case TDValueType.Boolean:
+                    ((BooleanArray.Builder)ArrowArray).AppendNull();
+                    break;
+                default:
+                    throw new Exception("Unsupported TDType");
+            }
+        }
+
+        public void Append(object value) {
+            switch (ValueType) {
+                case TDValueType.String:
+                    if (value == null)
+                    {
+                        ((StringArray.Builder)ArrowArray).AppendNull();
+                    }
+                    else
+                    {
+                        ((StringArray.Builder)ArrowArray).Append((string)value);
+                    }
+                    break;
+                case TDValueType.Int:
+                    if (value == null)
+                    {
+                        ((Int32Array.Builder)ArrowArray).AppendNull();
+                    }
+                    else {
+                        ((Int32Array.Builder)ArrowArray).Append((int)value);
+                    }
+                    break;
+                case TDValueType.BigInt:
+                    if (value == null)
+                    {
+                        ((Int64Array.Builder)ArrowArray).AppendNull();
+                    }
+                    else {
+                        ((Int64Array.Builder)ArrowArray).Append((long)value);
+                    }
+                    break;
+                case TDValueType.Float:
+                    if (value == null)
+                    {
+                        ((FloatArray.Builder)ArrowArray).AppendNull();
+                    }
+                    else {
+                        ((FloatArray.Builder)ArrowArray).Append((float)value);
+                    }
+                    break;
+                case TDValueType.Double:
+                    if (value == null)
+                    {
+                        ((DoubleArray.Builder)ArrowArray).AppendNull();
+                    }
+                    else {
+                        ((DoubleArray.Builder)ArrowArray).Append((double)value);
+                    }
+                    break;
+                case TDValueType.Timestamp:
+                    if (value == null)
+                    {
+                        ((TimestampArray.Builder)ArrowArray).AppendNull();
+                    }
+                    else {
+                        ((TimestampArray.Builder)ArrowArray).Append((DateTime)value);
+                    }
+                    break;
+                case TDValueType.Boolean:
+                    if (value == null)
+                    {
+                        ((BooleanArray.Builder)ArrowArray).AppendNull();
+                    }
+                    else {
+                        ((BooleanArray.Builder)ArrowArray).Append((bool)value);
+                    }
+                    break;
+                default:
+                    throw new Exception("Failed to append value");
+            }
+        }
+
+        public void Clear() {
+            switch (ValueType) {
+                case TDValueType.String:
+                    ((StringArray.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Int:
+                    ((Int32Array.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.BigInt:
+                    ((Int64Array.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Float:
+                    ((FloatArray.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Double:
+                    ((DoubleArray.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Timestamp:
+                    ((TimestampArray.Builder)ArrowArray).Clear();
+                    break;
+                case TDValueType.Boolean:
+                    ((BooleanArray.Builder)ArrowArray).Clear();
+                    break;
+                default:
+                    throw new Exception("Unsupported TDType");
+            }
+        }
+
+        public IArrowArray Build()
+        {
+            switch (ValueType)
+            {
+                case TDValueType.String:
+                    return ((StringArray.Builder)ArrowArray).Build();
+                case TDValueType.Int:
+                    return ((Int32Array.Builder)ArrowArray).Build();
+                case TDValueType.BigInt:
+                    return ((Int64Array.Builder)ArrowArray).Build();
+                case TDValueType.Float:
+                    return ((FloatArray.Builder)ArrowArray).Build();
+                case TDValueType.Double:
+                    return ((DoubleArray.Builder)ArrowArray).Build();
+                case TDValueType.Timestamp:
+                    return ((TimestampArray.Builder)ArrowArray).Build();
+                case TDValueType.Boolean:
+                    return ((BooleanArray.Builder)ArrowArray).Build();
+                default:
+                    throw new Exception("Unsupported TDType");
+            }
+        }
+
+    }
+
     public class MessageBuilder
     {
         public static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        public List<KeyValuePair<string, string>> columnNameTypes
-            = new List<KeyValuePair<string, string>>();
+        public List<KeyValuePair<string, TDValueType>> columnNameTypes
+            = new List<KeyValuePair<string, TDValueType>>();
         public List<KeyValuePair<string, string>> tagNames;
         public StructType recordType { get; set; }
         public StructType tableType { get; set; }
@@ -40,17 +229,18 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public ArrayList subTables = new ArrayList();
         public List<StructType> records = new List<StructType>();
 
-        public StringArray.Builder tableNameArrowArray;
+        public StringArray.Builder tableUniqKeyArrowArray;
         public TimestampArray.Builder tsArrowArray;
 
-        public Dictionary<string, StringArray.Builder> valArrowArrayList
-            = new Dictionary<string, StringArray.Builder>();
-        public Dictionary<string, StringArray.Builder> statusArrowArrayList
-            = new Dictionary<string, StringArray.Builder>();
+        public Dictionary<string, Int32Array.Builder> statusArrowArrayList
+            = new Dictionary<string, Int32Array.Builder>();
+
+        public Dictionary<string, ColumnValueBuilder> valArrowArrayList
+            = new Dictionary<string, ColumnValueBuilder>();
 
         // pointId is table tag for PI mode 
-        public Dictionary<string, int> pointIds
-            = new Dictionary<string, int>();
+        // public Dictionary<string, int> pointIds
+        //    = new Dictionary<string, int>();
         // AFElement mode tags
         public Dictionary<string, List<KeyValuePair<string, string>>> tagVals
             = new Dictionary<string, List<KeyValuePair<string, string>>>();
@@ -132,8 +322,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public RecordBatch BuildInsertMessage()
         {
-            var recordCounts = tableNameArrowArray.Length;
-            IEnumerable<IArrowArray> arrays = CreateArrays(this, MessageType.Insert, recordCounts);
+            var recordCounts = tableUniqKeyArrowArray.Length;
+            IEnumerable<IArrowArray> arrays = CreateInsertArrays(this, recordCounts);
             var batch = new RecordBatch(
                 Schema,
                 arrays,
@@ -144,10 +334,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public RecordBatch BuildTablesMessage()
         {
-            int length = 0;
+            int length;
             if (mode == PIDataMode.PointMode)
             {
-                length = pointIds.Count;
+                length = tagVals.Count;
             }
             else
             {
@@ -166,19 +356,42 @@ namespace TDPIConnector.TDEngine.TaosxClient
         private IEnumerable<IArrowArray> CreateArrays(MessageBuilder builder, MessageType msgType, int recordCounts)
         {
             var schema = builder.Schema;
-            const int fieldCount = 4;
+            const int fieldCount = 3;
             List<IArrowArray> arrays = new List<IArrowArray>(fieldCount);
+            // 添加 __type__ 列
             Field typeField = schema.GetFieldByName(TaosxConstants.TYPE);
             arrays.Add(CreateTypeArray(typeField, msgType));
+            // 添加 __tables__ 列
             Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
-            arrays.Add(CreateTablesArray(builder, tablesField, msgType, recordCounts));
-            //Field attrsField = schema.GetFieldByName(TaosxConstants.ATTRS);
-            //arrays.Add(CreateAttrsArray(builder, attrsField, msgType));
+            arrays.Add(CreateTablesArray(builder, tablesField, msgType, recordCounts));       
+            // 添加 __records__ 列
             Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
             arrays.Add(CreateRecordsArray(builder, recordsField, msgType, recordCounts));
 
             return arrays;
         }
+
+        /// <summary>
+        /// 针对 Insert 消息，优化 __tables__ 列的构建
+        /// </summary>
+        private IEnumerable<IArrowArray> CreateInsertArrays(MessageBuilder builder, int recordCounts)
+        {
+            var schema = builder.Schema;
+            const int fieldCount = 3;
+            List<IArrowArray> arrays = new List<IArrowArray>(fieldCount);
+            // 添加 __type__ 列
+            Field typeField = schema.GetFieldByName(TaosxConstants.TYPE);
+            arrays.Add(CreateTypeArray(typeField, MessageType.Insert));
+            // 添加 __tables__ 列
+            Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
+            arrays.Add(CreateTablesArray(builder, tablesField, MessageType.Insert, 0));
+            // 添加 __records__ 列
+            Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
+            arrays.Add(CreateRecordsArray(builder, recordsField, MessageType.Insert, recordCounts));
+
+            return arrays;
+        }
+
 
         // type just needs one piece of data
         private IArrowArray CreateTypeArray(Field typeField, MessageType msgType)
@@ -213,35 +426,30 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public void initSchema()
         {
             log.Info($"Stable:{stableName},Init schema");
+            // 用于生成 Metadata.Init 中的数据列
             var colIpcField = new List<IpcField>();
+            // lush 消息 __records__ 列的各字段
             var colField = new List<Field>();
             foreach (var column in columnNameTypes)
             {
-                colIpcField.Add(new IpcField(column.Key, true, TDArrowFormat.GetArrowDataType(column.Value), column.Value));
+                colIpcField.Add(new IpcField(column.Key, true, TDTypeV1Converter.ToArrowType(column.Value), TDTypeV1Converter.ToIpcType(column.Value)));
                 if (column.Key == "ts")
                 {
                     colField.Add(new Field(column.Key, TimestampType.Default, true));
                 }
                 else {
-                    colField.Add(new Field(column.Key, StringType.Default, true));
+                    colField.Add(new Field(column.Key, TDTypeV1Converter.ToArrowType(column.Value), true));
                 }
             }
-
+            // 用于生成 Metadata.Init 中的标签列
             var ipcTagField = new List<IpcField>();
+            // lush 消息 __tables__ 列的各字段
             var tagField = new List<Field>();
-
-            tagField.Add(new Field(TaosxConstants.TABLENAME, StringType.Default, true));
+         
             foreach (var tag in tagNames)
             {
-                string tagType = "NCHAR(100)";
-                if (tag.Value.Contains("NCHAR")) tagType = tag.Value;
-                ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, tagType));
+                ipcTagField.Add(new IpcField(tag.Key.ToLower(), true, StringType.Default, tag.Value));
                 tagField.Add(new Field(tag.Key.ToLower(), StringType.Default, true));
-            }
-
-            if (mode == PIDataMode.AFElementMode) {
-                ipcTagField.Add(new IpcField(StaticConfig.Default.AFTreeTagName, true, StringType.Default, "NCHAR(100)"));
-                tagField.Add(new Field(StaticConfig.Default.AFTreeTagName, StringType.Default, true));
             }
             GenerateMetadata(stableName, colIpcField, ipcTagField);
 

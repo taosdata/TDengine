@@ -1,4 +1,4 @@
-use crate::runners::get_string_from_param_or_file;
+use crate::{get_data_dir, runners::get_string_from_param_or_file};
 use taos::Dsn;
 
 #[derive(Debug, Clone)]
@@ -13,6 +13,10 @@ pub struct KafkaConnectConfig {
     pub sasl_mechanism: Option<String>,
     pub sasl_username: Option<String>,
     pub sasl_password: Option<String>,
+    pub sasl_kerberos_service_name: Option<String>,
+    pub sasl_kerberos_principal: Option<String>,
+    pub sasl_kerberos_kinit_cmd: Option<String>,
+    pub sasl_kerberos_keytab: Option<String>,
 }
 
 impl KafkaConnectConfig {
@@ -28,6 +32,12 @@ impl KafkaConnectConfig {
             sasl_mechanism: dsn.get("sasl_mechanism").map(|s| s.to_string()),
             sasl_username: dsn.get("sasl_username").map(|s| s.to_string()),
             sasl_password: dsn.get("sasl_password").map(|s| s.to_string()),
+            sasl_kerberos_service_name: dsn
+                .get("sasl_kerberos_service_name")
+                .map(|s| s.to_string()),
+            sasl_kerberos_principal: dsn.get("sasl_kerberos_principal").map(|s| s.to_string()),
+            sasl_kerberos_kinit_cmd: dsn.get("sasl_kerberos_kinit_cmd").map(|s| s.to_string()),
+            sasl_kerberos_keytab: Self::parse_sasl_kerberos_keytab(dsn)?,
         })
     }
 
@@ -129,6 +139,25 @@ impl KafkaConnectConfig {
                 }
             }
             None => Ok(false),
+        }
+    }
+
+    fn parse_sasl_kerberos_keytab(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        let sasl_kerberos_keytab = dsn.get("sasl_kerberos_keytab");
+        if sasl_kerberos_keytab.is_none() || sasl_kerberos_keytab.unwrap().is_empty() {
+            return Ok(None);
+        } else {
+            let sasl_kerberos_keytab = sasl_kerberos_keytab.unwrap();
+            if sasl_kerberos_keytab.starts_with('@') {
+                Ok(Some(
+                    get_data_dir()
+                        .join(sasl_kerberos_keytab.trim_start_matches("@"))
+                        .display()
+                        .to_string(),
+                ))
+            } else {
+                Ok(Some(sasl_kerberos_keytab.to_string()))
+            }
         }
     }
 }

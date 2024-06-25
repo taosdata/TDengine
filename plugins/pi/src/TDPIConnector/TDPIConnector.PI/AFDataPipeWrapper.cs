@@ -10,6 +10,7 @@ namespace TDPIConnector.PI
     public class AFDataPipeWrapper : IDisposable
     {
         private AFDataPipe afDataPipe;
+        public int SignupAttrCount = 0;
 
         public AFDataPipeWrapper()
         {

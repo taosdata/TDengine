@@ -8,10 +8,15 @@
 //! - Convert: fields data into other data types.
 //! - Filter: filter one or more rows in the stream.
 
-use std::{borrow::Cow, ops::Range, str::FromStr, sync::Arc};
+use std::{
+    borrow::{Borrow, Cow},
+    ops::Range,
+    str::FromStr,
+    sync::Arc,
+};
 
 use arrow::{
-    array::{Array, BinaryArray, StringArray},
+    array::{Array, BinaryArray, StringArray, TimestampMillisecondArray},
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -43,19 +48,18 @@ use self::{
     parse::{FieldParser, ParserImpl},
 };
 
-mod select;
+pub(crate) mod select;
 
 // mod json;
 pub mod constants;
 
-mod parse;
+pub mod parse;
 
-mod filter;
+pub(crate) mod filter;
 
-mod map;
-
-mod modeler;
-mod mutate;
+pub(crate) mod map;
+pub(crate) mod modeler;
+pub(crate) mod mutate;
 pub mod sample;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -996,6 +1000,15 @@ impl FromStr for Parser {
 }
 
 impl Parser {
+    pub fn new(parse: Option<ParserImpl>, mutate: Vec<Mutate>, model: Modeler) -> Self {
+        Self {
+            global: Arc::new(TableOptions::default()),
+            parse,
+            mutate: mutate,
+            model: model,
+        }
+    }
+
     pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
         let payload = self.parse.as_ref()?.get("payload");
         if payload.is_none() {
@@ -1055,37 +1068,42 @@ impl Parser {
         })
     }
 
-    pub fn parse_message_from_records(&self, records: &RecordBatch) -> Result<Message, Error> {
+    fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
+        batches
+            .iter()
+            .map(|batch| {
+                let schema = batch.schema();
+                let fields = schema.fields();
+
+                RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
+                    |(idx, data)| {
+                        let dt = fields[idx].data_type();
+                        if matches!(dt, DataType::Binary | DataType::LargeBinary) {
+                            arrow::compute::cast(data, &DataType::Utf8)
+                                .ok()
+                                .map(|data| (fields[idx].name(), data))
+                        } else {
+                            Some((fields[idx].name(), data.clone()))
+                        }
+                    },
+                ))
+                .unwrap()
+            })
+            .collect()
+    }
+
+    pub fn parse_message_from_records(
+        &self,
+        records: &RecordBatch,
+        filter_ts: bool,
+    ) -> Result<Message, Error> {
         let batch = self.transform_records(&records)?;
         let schema = batch.schema();
         let batches = vec![batch];
         let batch = &batches[0];
         // tracing::info!("Parse message {:?}", batch);
 
-        fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
-            batches
-                .iter()
-                .map(|batch| {
-                    let schema = batch.schema();
-                    let fields = schema.fields();
-
-                    RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
-                        |(idx, data)| {
-                            let dt = fields[idx].data_type();
-                            if matches!(dt, DataType::Binary | DataType::LargeBinary) {
-                                arrow::compute::cast(data, &DataType::Utf8)
-                                    .ok()
-                                    .map(|data| (fields[idx].name(), data))
-                            } else {
-                                Some((fields[idx].name(), data.clone()))
-                            }
-                        },
-                    ))
-                    .unwrap()
-                })
-                .collect()
-        }
-        let json_batches = to_json_valid_batches(&batches);
+        let json_batches = Parser::to_json_valid_batches(&batches);
 
         let json = arrow::json::writer::record_batches_to_json_rows(
             json_batches.iter().collect_vec().as_slice(),
@@ -1147,27 +1165,57 @@ impl Parser {
                 )
             };
 
-            let tables = (0..batch.num_rows())
-                .filter(|row| {
-                    let is_valid_primary_key = !columns.column(0).is_null(*row);
-                    if !is_valid_primary_key {
-                        let mut str = Vec::new();
-                        let mut cursor = std::io::Cursor::new(&mut str);
-                        let mut writer = arrow::json::writer::LineDelimitedWriter::new(&mut cursor);
-                        let _ = writer.write(&columns.slice(*row, 1));
-
-                        tracing::warn!(
-                            lost = %String::from_utf8_lossy(&str),
-                            "Primary key is null, skip row {}",
-                            row,
-                        );
-                    }
-                    is_valid_primary_key
-                })
-                .map(|row| (template.render("name", &json[row]).unwrap(), row))
-                .into_group_map();
+            let tables = if filter_ts {
+                (0..batch.num_rows())
+                    .filter(|row| {
+                        let is_valid_primary_key = !columns.column(0).is_null(*row);
+                        if !is_valid_primary_key {
+                            let mut str = Vec::new();
+                            let mut cursor = std::io::Cursor::new(&mut str);
+                            let mut writer =
+                                arrow::json::writer::LineDelimitedWriter::new(&mut cursor);
+                            let _ = writer.write(&columns.slice(*row, 1));
+                            tracing::warn!(
+                                lost = %String::from_utf8_lossy(&str),
+                                "Primary key is null, skip row {}",
+                                row,
+                            );
+                        }
+                        is_valid_primary_key
+                    })
+                    .map(|row| {
+                        let result = template.render("name", &json[row]);
+                        match result {
+                            Ok(name) => (name, row),
+                            Err(e) => {
+                                // notice: we should set a useful name for the table
+                                tracing::error!("Error rendering template: {}", e);
+                                (String::new(), row)
+                            }
+                        }
+                    })
+                    .into_group_map()
+            } else {
+                (0..batch.num_rows())
+                    .map(|row| {
+                        let result = template.render("name", &json[row]);
+                        match result {
+                            Ok(name) => (name, row),
+                            Err(e) => {
+                                // notice: we should set a useful name for the table
+                                tracing::error!("Error rendering template: {}", e);
+                                (String::new(), row)
+                            }
+                        }
+                    })
+                    .into_group_map()
+            };
 
             for (name, indices) in tables {
+                // because we did not set a useful name, so we skip it
+                if name.is_empty() || indices.is_empty() {
+                    continue;
+                }
                 let ranges = indices_to_ranges(&indices);
                 let name_row = indices[0];
                 let batches = ranges
@@ -1195,6 +1243,7 @@ impl Parser {
         }
         Ok(Message::Records(data))
     }
+
     pub fn parse(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
         self.self_check()?;
         Ok(self
@@ -1317,12 +1366,31 @@ impl MessageTableMeta {
             tags: tags.into(),
         }
     }
+
+    pub fn get_tag_value_by_name(&self, name: &str) -> Option<&str> {
+        self.tags
+            .as_ref()
+            .and_then(|batch| {
+                let column = batch.column_by_name(name)?;
+                column.as_any().downcast_ref::<StringArray>()
+            })
+            .and_then(|array| Some(array.value(0)))
+    }
 }
 #[derive(Debug)]
 pub struct MessageArrowRecords {
     pub table: MessageTableMeta,
     pub records: RecordBatch,
     pub opts: Arc<TableOptions>,
+}
+
+impl MessageArrowRecords {
+    pub fn get_ts_column(&self) -> Option<&TimestampMillisecondArray> {
+        self.records
+            .column(0)
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
@@ -1345,6 +1413,20 @@ pub enum WrittenMethod {
     Sequential,
 }
 
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum NullValues {
+    #[default]
+    Null,
+    Skip,
+}
+
+impl NullValues {
+    pub fn skip(&self) -> bool {
+        matches!(self, Self::Skip)
+    }
+}
+
 impl FromStr for WrittenMethod {
     type Err = Error;
 
@@ -1356,6 +1438,18 @@ impl FromStr for WrittenMethod {
             "vgroup_sequential" => Ok(Self::VgroupSequential),
             "sequential" => Ok(Self::Sequential),
             _ => Err(Error::InvalidWrittenMethod(s.to_string())),
+        }
+    }
+}
+
+impl FromStr for NullValues {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "null" => Ok(Self::Null),
+            "skip" => Ok(Self::Skip),
+            _ => Err(Error::InvalidNullValues(s.to_string())),
         }
     }
 }
@@ -1395,6 +1489,9 @@ pub struct TableOptions {
     written_concurrent: Option<usize>,
 
     workers_per_vgroup: Option<usize>,
+
+    /// How to deal with null values.
+    null_values: Option<NullValues>,
 }
 
 impl Default for TableOptions {
@@ -1406,6 +1503,7 @@ impl Default for TableOptions {
             written_method: None,
             written_concurrent: None,
             workers_per_vgroup: None,
+            null_values: None,
         }
     }
 }
@@ -1442,6 +1540,15 @@ impl TableOptions {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(4)
+        })
+    }
+
+    pub fn null_values(&self) -> NullValues {
+        self.null_values.unwrap_or_else(|| {
+            std::env::var("TAOSX_NULL_VALUES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_default()
         })
     }
 
@@ -1494,6 +1601,7 @@ impl ArrowFieldExt for Field {
         }
     }
 }
+
 impl MessageArrowRecords {
     pub fn schema(&self) -> Describe {
         let schema = self.records.schema();
@@ -1710,6 +1818,7 @@ impl MessageArrowRecords {
         let col_values = crate::utils::sql::sql_values_from_record_batch(
             &self.records,
             precision,
+            // TODO: with field names in values.
             with_field_names,
         )
         .expect("Sql values should be recognizable");
@@ -1723,7 +1832,9 @@ impl MessageArrowRecords {
                 }
                 let using = self.table.using.as_ref().unwrap();
 
-                if with_field_names {
+                // TODO: with field name in tags.
+                if true {
+                    // with_field_names
                     let names = self
                         .table
                         .tags
@@ -1774,8 +1885,31 @@ impl MessageArrowRecords {
             .collect()
     }
 
+    pub fn sql_insert_part_skip_null(&self, target_precision: taos::Precision) -> Vec<String> {
+        if self.records.num_rows() == 0 {
+            return vec![];
+        }
+
+        let primary_key_null_count = self.records.column(0).null_count();
+        if primary_key_null_count == self.records.num_rows() {
+            return vec![];
+        }
+        let tbname = self.opts.canonical_table_name(self.table.name.as_str());
+        // panic on ArrowError
+        crate::utils::sql::sql_values_from_record_batch_skip_null(
+            tbname.borrow(),
+            &self.records,
+            target_precision,
+        )
+        .expect("Sql values should be recognizable")
+    }
+
     pub fn stable_name(&self) -> Option<&str> {
         self.table.using.as_ref().map(|s| s.as_str())
+    }
+
+    pub fn table_name(&self) -> &str {
+        self.table.name.as_str()
     }
 
     pub fn max_var_length(&self, field: &str) -> Option<usize> {
@@ -1896,6 +2030,8 @@ pub trait TransformExt {
 pub enum Error {
     #[error("Invalid written method: {0}")]
     InvalidWrittenMethod(String),
+    #[error("Invalid null values strategy: {0}")]
+    InvalidNullValues(String),
     #[error(transparent)]
     EvalError(#[from] expr::EvalError),
     #[error("Template {0:?} error: {1:#}")]
@@ -1931,7 +2067,7 @@ pub enum Error {
     MapValueError(#[from] map::ValueBuilderError),
     #[error("Transform error: {0:#}")]
     Other(#[from] anyhow::Error),
-    #[error("Primary key({0}) must be non-null")]
+    #[error("Primary key({0}) value can't be cast to available timestamp")]
     NullPrimaryKey(String),
     #[error("Primary key({0}) must be or could be casted to timestamp: {1:#}")]
     PrimaryKeyCastError(String, arrow_schema::ArrowError),

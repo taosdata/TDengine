@@ -250,16 +250,8 @@ impl TaskConfig {
             time_range_exist = true;
         }
         if sql.contains("${start_no_tz}") && sql.contains("${end_no_tz}") {
-            let query_start = format!(
-                "'{}{}'",
-                start_tz.format("%Y-%m-%d %H:%M:%S"),
-                &self.time_zone
-            );
-            let query_end = format!(
-                "'{}{}'",
-                end_tz.format("%Y-%m-%d %H:%M:%S"),
-                &self.time_zone
-            );
+            let query_start = format!("'{}'", start_tz.format("%Y-%m-%d %H:%M:%S"));
+            let query_end = format!("'{}'", end_tz.format("%Y-%m-%d %H:%M:%S"));
             sql = sql
                 .replace("${start_no_tz}", &query_start)
                 .replace("${end_no_tz}", &query_end);

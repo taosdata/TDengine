@@ -428,30 +428,62 @@ async fn write_meta(
             return Ok(());
         }
     };
-    tracing::debug!(meta.sql = %json_meta, meta.idx = cur, "Start writing meta");
-    match &json_meta {
-        JsonMeta::Delete(meta) => {
-            tracing::debug!("Start writing meta: {meta}");
-            if !with_meta_delete {
-                tracing::debug!("Ignore meta with type delete");
-                return anyhow::Ok(());
+    tracing::debug!(meta.sql = %json_meta.iter().join(";"), meta.idx = cur, "Start writing meta");
+
+    let mut meta_changed = false;
+    match (with_meta_delete, with_meta_drop) {
+        (true, true) => {
+            // do nothing, all kinds of meta are allowed.
+        }
+        (true, false) => {
+            if json_meta
+                .iter()
+                .any(|unit| matches!(unit, MetaUnit::Drop(_)))
+            {
+                // skip drop meta
+                match &mut json_meta {
+                    JsonMeta::Single(_) => return Ok(()),
+                    JsonMeta::Plural { metas, .. } => {
+                        let _ = metas.retain(|unit| matches!(unit, MetaUnit::Drop(_)));
+                    }
+                }
+
+                meta_changed = true;
             }
         }
-        JsonMeta::Drop(meta) => {
-            tracing::debug!("Start writing meta: {meta}");
-            if !with_meta_drop {
-                tracing::debug!("Ignore meta with type drop");
-                return anyhow::Ok(());
+        (false, true) => {
+            if json_meta
+                .iter()
+                .any(|unit| matches!(unit, MetaUnit::Delete(_)))
+            {
+                match &mut json_meta {
+                    JsonMeta::Single(_) => return Ok(()),
+                    JsonMeta::Plural { metas, .. } => {
+                        let _ = metas.retain(|unit| matches!(unit, MetaUnit::Delete(_)));
+                    }
+                }
+
+                meta_changed = true;
             }
         }
-        JsonMeta::Alter(meta) => {
-            tracing::debug!("Start writing meta: {meta}");
-        }
-        JsonMeta::Create(meta) => {
-            tracing::debug!("Start writing meta: {meta}");
+        (false, false) => {
+            if json_meta
+                .iter()
+                .any(|unit| matches!(unit, MetaUnit::Delete(_) | MetaUnit::Drop(_)))
+            {
+                match &mut json_meta {
+                    JsonMeta::Single(_) => return Ok(()),
+                    JsonMeta::Plural { metas, .. } => {
+                        let _ = metas
+                            .retain(|unit| matches!(unit, MetaUnit::Drop(_) | MetaUnit::Delete(_)));
+                    }
+                }
+
+                meta_changed = true;
+            }
         }
     }
-    if actions.is_empty() {
+    if actions.is_empty() || meta_changed {
         if target_is_v3 {
             let raw_meta = meta.as_raw_meta().await?;
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
@@ -462,58 +494,56 @@ async fn write_meta(
                 match code {
                     // Table not exist error codes.
                     0x0218 | 0x2603 | 0x036D | 0x0618 => {
-                        match json_meta {
-                            JsonMeta::Create(create) => match create {
-                                MetaCreate::Super {
-                                    table_name,
-                                    columns: _,
-                                    tags: _,
-                                } => {
-                                    // Stable should never not exist.
-                                    Err(err.context(format!(
-                                        "Write raw meta error with stable {table_name}"
-                                    )))?;
-                                }
-                                MetaCreate::Child {
-                                    table_name,
-                                    using,
-                                    tags: _,
-                                    tag_num: _,
-                                } => {
-                                    // Create child table error means stable not exist.
-                                    tracing::warn!("Table does not exist: {using} while create child {table_name}. Sync super table schema.");
-                                    let from = source.get().await?;
-                                    sync_super_table_schema(
-                                        &from,
-                                        &using,
-                                        &taos,
-                                        None,
-                                        &Default::default(),
-                                        &[],
-                                    )
-                                    .await?;
-                                    if let Err(err) = taos.write_raw_meta(&raw_meta).await {
-                                        metrics.add_write_raw_fails(1);
-                                        Err(err.context(format!(
-                                            "Write raw meta error with table {table_name}"
-                                        )))?;
+                        for json_meta in &json_meta {
+                            match json_meta {
+                                MetaUnit::Create(create) => match create {
+                                    MetaCreate::Super {
+                                        table_name: _,
+                                        columns: _,
+                                        tags: _,
+                                    } => {
+                                        // Stable should never not exist.
+                                        continue;
                                     }
-                                }
-                                MetaCreate::Normal {
-                                    table_name,
-                                    columns: _,
-                                } => {
-                                    // Normal table should never not exist.
-                                    Err(err.context(format!(
-                                        "Write raw meta error with table {table_name}"
-                                    )))?;
-                                }
-                            },
-                            // Do nothing if not create
-                            JsonMeta::Alter(_) | JsonMeta::Drop(_) | JsonMeta::Delete(_) => {
-                                tracing::warn!(
+                                    MetaCreate::Child {
+                                        table_name,
+                                        using,
+                                        tags: _,
+                                        tag_num: _,
+                                    } => {
+                                        // Create child table error means stable not exist.
+                                        tracing::warn!("Table does not exist: {using} while create child {table_name}. Sync super table schema.");
+                                        let from = source.get().await?;
+                                        sync_super_table_schema(
+                                            &from,
+                                            &using,
+                                            &taos,
+                                            None,
+                                            &Default::default(),
+                                            &[],
+                                        )
+                                        .await?;
+                                        if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                                            metrics.add_write_raw_fails(1);
+                                            Err(err.context(format!(
+                                                "Write raw meta error with table {table_name}"
+                                            )))?;
+                                        }
+                                    }
+                                    MetaCreate::Normal {
+                                        table_name: _,
+                                        columns: _,
+                                    } => {
+                                        // Normal table should never not exist.
+                                        continue;
+                                    }
+                                },
+                                // Do nothing if not create
+                                MetaUnit::Alter(_) | MetaUnit::Drop(_) | MetaUnit::Delete(_) => {
+                                    tracing::warn!(
                                     "Unexpected error {err:#} for meta: ```{json_meta}```, do nothing."
                                 );
+                                }
                             }
                         }
                     }
@@ -526,25 +556,28 @@ async fn write_meta(
                 }
             }
         } else {
-            taos.exec(json_meta.to_string()).await?;
+            let sqls = json_meta.iter().map(ToString::to_string).collect_vec();
+            taos.exec_many(&sqls).await?;
         }
     } else {
         for action in actions {
             action.mutate_meta(&mut json_meta)?;
         }
-        let sql = json_meta.to_string();
-        if let Err(err) = taos.exec(&sql).await {
-            metrics.add_write_raw_fails(1);
-            let errstr = err.to_string();
-            if errstr.contains("[0x032C]")
-                || errstr.contains("[0x03D3]")
-                || errstr.contains("[0x0115]")
-                || errstr.contains("[0x0603]")
-                || errstr.contains("[0x03C7]")
-            {
-                tracing::warn!("{errstr}");
-            } else {
-                bail!("[{id}] write raw meta error: {err}");
+        let sqls = json_meta.iter().map(ToString::to_string).collect_vec();
+        for sql in &sqls {
+            if let Err(err) = taos.exec(&sql).await {
+                metrics.add_write_raw_fails(1);
+                let errstr = err.to_string();
+                if errstr.contains("[0x032C]")
+                    || errstr.contains("[0x03D3]")
+                    || errstr.contains("[0x0115]")
+                    || errstr.contains("[0x0603]")
+                    || errstr.contains("[0x03C7]")
+                {
+                    tracing::warn!("{errstr}");
+                } else {
+                    bail!("[{id}] write raw meta error: {err}");
+                }
             }
         }
     }

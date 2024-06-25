@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Context;
 use futures::TryStreamExt;
@@ -12,8 +13,6 @@ use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
-use crate::runners::historian;
-use crate::runners::historian::AVEVA_HISTORIAN_ID;
 use crate::runners::influxdb::influxdb_datasets;
 use crate::runners::opc::config::model::OpcModelConfig;
 use crate::utils::mask_dsn;
@@ -23,7 +22,6 @@ use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
 pub use runners::opentsdb::opentsdb_datasets;
 pub use runners::opentsdb::opentsdb_to_taos;
-use runners::pi::pi_datasets;
 pub use runners::pi::pi_to_taos;
 pub use runners::{
     get_data_dir, get_file_upload_home_dir, get_log_dir, get_log_keep_days, get_plugins_info,
@@ -75,10 +73,11 @@ impl std::ops::Deref for Parser {
     }
 }
 
+use self::sink::lush::LushModelConfig;
 use self::sink::IpcHandler;
 
 mod config;
-mod expr;
+pub(crate) mod expr;
 mod raw_data;
 pub mod runners;
 mod service;
@@ -108,7 +107,8 @@ pub async fn build_ipc(
     parser: Option<Parser>,
     to: &Dsn,
     connector: Option<&'static str>,
-    config: Option<OpcModelConfig>,
+    opc_model_config: Option<OpcModelConfig>,
+    lush_model_config: Option<LushModelConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
@@ -126,7 +126,8 @@ pub async fn build_ipc(
             pool,
             socket,
             // sender,
-            config,
+            opc_model_config,
+            lush_model_config,
             cancel.clone(),
             with_agent,
             parser,
@@ -139,9 +140,14 @@ pub async fn build_ipc(
         .in_current_span()
         .await?
     } else {
-        sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap(), config)
-            .in_current_span()
-            .await?
+        sink::listen_tcp_socket_with_agent(
+            socket,
+            cancel.clone(),
+            with_agent.unwrap(),
+            opc_model_config,
+        )
+        .in_current_span()
+        .await?
     };
     Ok(ipc)
 }
@@ -184,10 +190,6 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
             topics.extend(databases);
             return Ok(topics);
         }
-        "pi" | "pibackfill" => {
-            // pi
-            return pi_datasets(data).await;
-        }
         "opc" | "opcua" | "opcda" => {
             // opc
             return opc_datasets(data).await;
@@ -210,27 +212,24 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
         Err(err) => {
             DataSourceValidation::invalid("unknown".to_string(), format!("invalid dsn: {}", err))
         }
-        Ok(dsn) => {
-            match dsn.driver.as_str() {
-                // TODO: clickhouse
-                AVEVA_HISTORIAN_ID => historian::is_valid(&dsn).await,
-                "influxdb" => runners::influxdb::is_valid(&dsn).await,
-                runners::kafka::KAFKA_ID => runners::kafka::is_valid(&dsn).await,
-                "mqtt" => runners::mqtt::is_valid(&dsn).await,
-                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&dsn).await,
-                "opentsdb" => runners::opentsdb::is_valid(&dsn).await,
-                "pi" => runners::pi::is_pi_valid(&dsn).await,
-                "pibackfill" => runners::pi::is_pi_backfill_valid(&dsn).await,
-                "taos" => crate::taoz::is_taos_valid(&dsn).await,
-                "tmq" => crate::tmq::is_tmq_valid(&dsn).await,
-                "csv" => crate::csv::is_csv_valid(&dsn).await,
-                "local" => crate::local_to_taos::is_local_valid(&dsn).await,
-                runners::mysql::MYSQL_ID => runners::mysql::is_valid(&dsn).await,
-                runners::postgres::POSTGRES_ID => runners::postgres::is_valid(&dsn).await,
-                runners::oracle::ORACLE_ID => runners::oracle::is_valid(&dsn).await,
-                &_ => DataSourceValidation::unknown(),
-            }
-        }
+        Ok(dsn) => match dsn.driver.as_str() {
+            runners::historian::AVEVA_HISTORIAN_ID => runners::historian::is_valid(&dsn).await,
+            "influxdb" => runners::influxdb::is_valid(&dsn).await,
+            runners::kafka::KAFKA_ID => runners::kafka::is_valid(&dsn).await,
+            runners::mqtt::MQTT_ID => runners::mqtt::is_valid(&dsn).await,
+            "opc" | "opcda" | "opcua" => runners::opc::is_valid(&dsn).await,
+            "opentsdb" => runners::opentsdb::is_valid(&dsn).await,
+            "pi" | "pibackfill" => runners::pi::is_pi_valid(&dsn).await,
+            "taos" => crate::taoz::is_taos_valid(&dsn).await,
+            "tmq" => crate::tmq::is_tmq_valid(&dsn).await,
+            "csv" => crate::csv::is_csv_valid(&dsn).await,
+            "local" => crate::local_to_taos::is_local_valid(&dsn).await,
+            runners::mysql::MYSQL_ID => runners::mysql::is_valid(&dsn).await,
+            runners::postgres::POSTGRES_ID => runners::postgres::is_valid(&dsn).await,
+            runners::oracle::ORACLE_ID => runners::oracle::is_valid(&dsn).await,
+            runners::mssql::MSSQL_ID => runners::mssql::is_valid(&dsn).await,
+            &_ => DataSourceValidation::unknown(),
+        },
     }
 }
 
@@ -240,12 +239,93 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
         .map_err(|err| anyhow::format_err!("invalid dsn, cause: {err}"))?;
 
     match dsn.driver.as_str() {
-        AVEVA_HISTORIAN_ID => historian::get_sample(&dsn).await,
+        runners::historian::AVEVA_HISTORIAN_ID => runners::historian::get_sample(&dsn).await,
+        runners::kafka::KAFKA_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            runners::kafka::get_sample(&dsn, limit, timeout).await
+        }
+        runners::mqtt::MQTT_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            runners::mqtt::get_sample(&dsn, limit, timeout).await
+        }
         runners::mysql::MYSQL_ID => runners::mysql::get_sample(&dsn).await,
         runners::postgres::POSTGRES_ID => runners::postgres::get_sample(&dsn).await,
         runners::oracle::ORACLE_ID => runners::oracle::get_sample(&dsn).await,
+        runners::mssql::MSSQL_ID => runners::mssql::get_sample(&dsn).await,
         _ => Err(anyhow::anyhow!(
             "get sample from data source is unsupported"
         )),
+    }
+}
+
+fn parse_sample_limit(dsn: &Dsn) -> usize {
+    dsn.params
+        .get("get_sample_limit")
+        .or(dsn.params.get("sample_data_limit"))
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(5)
+}
+
+pub fn parse_sample_timeout(dsn: &Dsn) -> Duration {
+    dsn.params
+        .get("get_sample_timeout")
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(30))
+}
+
+pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<String> {
+    async fn query_data_source_inner(request: QueryDataSourceReq) -> anyhow::Result<String> {
+        let dsn = request.from.clone().into_dsn()?;
+        match dsn.driver.as_str() {
+            "pi" | "pibackfill" => runners::pi::query_data_source(dsn, request.args).await,
+            _ => unimplemented!(),
+        }
+    }
+
+    let timeout = Duration::from_secs(5 * 59);
+    tokio::time::timeout(timeout, query_data_source_inner(request))
+        .await
+        .map_err(|err| anyhow::anyhow!("query data source timeout, cause: {:?}", err))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_parse_sample_limit() {
+        let dsn = Dsn::from_str("taos://?get_sample_limit=123").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 123);
+
+        let dsn = Dsn::from_str("taos://?get_sample_limit=").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+
+        let dsn = Dsn::from_str("taos://?get_sample_limit=abc").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+
+        let dsn = Dsn::from_str("taos://?sample_data_limit=123").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 123);
+    }
+
+    #[test]
+    fn test_parse_sample_timeout() {
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=123").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(123));
+
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=abc").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
     }
 }

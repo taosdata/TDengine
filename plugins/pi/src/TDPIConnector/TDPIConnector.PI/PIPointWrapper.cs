@@ -1,5 +1,7 @@
 ﻿using OSIsoft.AF.PI;
 using System.Collections.Generic;
+using System.Linq;
+using TDPIConnector.TDEngine.TaosxClient;
 
 namespace TDPIConnector.PI
 {
@@ -47,7 +49,37 @@ namespace TDPIConnector.PI
         {
             this.AFSDKObject.SaveAttributes(piPointAttributes);
         }
+        static public Dictionary<string, string> GetPointSavedAttrsType()
+        {
+            Dictionary<string, string> tags = new Dictionary<string, string>
+            {
+                { "ptclassname", IpcDataTypes.VarCharType },
+                { "sourcetag", IpcDataTypes.VarCharType },
+                { "tag", IpcDataTypes.VarCharType },
+                { "descriptor", IpcDataTypes.VarCharType },
+                { "exdesc", IpcDataTypes.VarCharType },
+                { "engunits", IpcDataTypes.VarCharType },
+                { "pointsource", IpcDataTypes.VarCharType },
+                { "step", IpcDataTypes.VarCharType },
+                { "future", IpcDataTypes.VarCharType }
+            };
+            return tags;
+        }
+        public Dictionary<string, string> GetPointSavedAttrsValue() {
+            // var all = this.AFSDKObject.FindAttributeNames("*");
+            string[] needSaveAttr = {"ptclassname", "sourcetag", "tag", "descriptor", "exdesc", "engunits", "pointsource", "step", "future"};
+            IDictionary<string, object> res = this.AFSDKObject.GetAttributes(needSaveAttr.ToArray());
+            Dictionary<string, string> tags = new Dictionary<string, string> { };
+            foreach (var r in res) {
+                var k = r.Key;
+                var v = r.Value.GetType();
+                tags.Add(r.Key, r.Value.ToString());
+            }
+            return tags;
+        }
 
-
+        public string GetPath() {
+            return this.AFSDKObject.GetPath();
+        }
     }
 }

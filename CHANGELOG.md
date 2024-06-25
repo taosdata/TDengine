@@ -261,7 +261,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *tracing*: Remove mut bound for RequestID::next ([45b9e68](45b9e680f37a536530762b936845683b3d863a3d))
 - *tracing*: Enh: make req_id start with 1 ([8d7eeab](8d7eeab5d7857963dd9f6a1deeb94e284729ed5f))
 - *transform*: Use new_null(n) instead of empty string ([8449966](8449966fe2a1bed6e6392f9314ca3e9937175f81))
-- *transfrom*: Add test case to timestamp expression ([e779875](e779875ae4d9ecc1c8e623fb092b074e60cb9000))
+- *transform*: Add test case to timestamp expression ([e779875](e779875ae4d9ecc1c8e623fb092b074e60cb9000))
 
 - Exception log ([6cca070](6cca070ffddae1d2151a9c8b5ef4605a629cd6a0))
 - Rename a function ([23899b3](23899b3e82a73c9f64d02dd7c5234f64d51cdcee))
@@ -880,7 +880,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add data trace id for tasks via agent ([0d072f3](0d072f3506ff0d1f444391bc47bd73cd98d5b034))
 - Add data trace id for task without agent ([41deae3](41deae39753aae75b3357f41b1a6319f5968382f))
 - Merge some commits to main ([e934d30](e934d306ac877602620fe9a9a9872baa3348ea98))
-- Transfrom data-trace-id via app metadata ([ba23939](ba23939c28d36bd801be2083dccda52618917355))
+- transform data-trace-id via app metadata ([ba23939](ba23939c28d36bd801be2083dccda52618917355))
 
 
 ### Refactor

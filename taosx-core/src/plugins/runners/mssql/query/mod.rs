@@ -1,0 +1,547 @@
+use arrow::array::RecordBatch;
+use futures::TryStreamExt;
+use linked_hash_map::LinkedHashMap;
+use tiberius::{error::Error, AuthMethod, Client, Config};
+use tiberius::{ColumnType, EncryptionLevel, QueryItem, Row};
+use tokio::net::TcpStream;
+use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
+
+use crate::runners::mssql::appender;
+use crate::runners::mssql::config::connect::ConnectConfig;
+
+pub struct MssqlQuery {
+    pub client: Client<Compat<TcpStream>>,
+    time_zone: String,
+}
+
+impl MssqlQuery {
+    pub async fn try_new(config: ConnectConfig, time_zone: String) -> anyhow::Result<Self> {
+        let client = Self::connect(
+            &config.host,
+            config.port,
+            &config.database,
+            &config.instance_name,
+            &config.application_name,
+            config.encryption,
+            config.trust_cert,
+            &config.trust_cert_ca,
+            &config.username,
+            &config.password,
+            time_zone.clone(),
+        )
+        .await
+        .map_err(|err| anyhow::anyhow!("failed to connect to mssql, cause: {}", err.to_string()))?;
+        Ok(Self { client, time_zone })
+    }
+
+    async fn connect(
+        host: &String,
+        port: u16,
+        database: &String,
+        instance_name: &String,
+        application_name: &String,
+        encryption: String,
+        trust_cert: bool,
+        trust_cert_ca: &Option<String>,
+        username: &String,
+        password: &String,
+        _time_zone: String,
+    ) -> anyhow::Result<Client<Compat<TcpStream>>> {
+        let mut config = Config::new();
+        config.host(host);
+        config.port(port);
+        config.database(database);
+        config.instance_name(instance_name);
+        config.application_name(application_name);
+        // The configured encryption level specifying if encryption is required
+        match encryption.as_str() {
+            "Off" => config.encryption(EncryptionLevel::Off),
+            "On" => config.encryption(EncryptionLevel::On),
+            "NotSupported" => config.encryption(EncryptionLevel::NotSupported),
+            "Required" => config.encryption(EncryptionLevel::Required),
+            _ => config.encryption(EncryptionLevel::NotSupported),
+        };
+        // Trust the server certificate
+        if trust_cert {
+            if let Some(ca) = trust_cert_ca {
+                config.trust_cert_ca(ca.as_str());
+            } else {
+                config.trust_cert();
+            }
+        }
+        config.authentication(AuthMethod::sql_server(username, password));
+        // create a tcp connection
+        let tcp = TcpStream::connect(config.get_addr()).await?;
+        tcp.set_nodelay(true)?;
+        // create a client
+        let client = match Client::connect(config.clone(), tcp.compat_write()).await {
+            // Connection successful.
+            Ok(client) => client,
+            // The server wants us to redirect to a different address
+            Err(Error::Routing { host, port }) => {
+                config.host(host);
+                config.port(port);
+                // create a tcp connection
+                let tcp = TcpStream::connect(config.get_addr()).await?;
+                tcp.set_nodelay(true)?;
+                // we should not have more than one redirect, so we'll short-circuit here.
+                Client::connect(config, tcp.compat_write()).await?
+            }
+            Err(e) => Err(e)?,
+        };
+        Ok(client)
+    }
+
+    pub async fn select_for_schema(
+        &mut self,
+        sql: &str,
+    ) -> anyhow::Result<LinkedHashMap<String, ColumnType>> {
+        // select data
+        let result = self.client.query(sql, &[]).await;
+        match result {
+            Ok(mut stream) => {
+                let mut col_map = LinkedHashMap::new();
+                let columns = stream.columns().await;
+                match columns {
+                    Ok(Some(columns)) => {
+                        for column in columns {
+                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                        }
+                    }
+                    Ok(None) => {
+                        anyhow::bail!("no columns");
+                    }
+                    Err(e) => {
+                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
+                    }
+                }
+                Ok(col_map)
+            }
+            Err(e) => {
+                anyhow::bail!("failed to execute query, cause: {}", e.to_string());
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    pub async fn select_all(
+        &mut self,
+        sql: &str,
+    ) -> anyhow::Result<(LinkedHashMap<String, ColumnType>, Vec<Row>)> {
+        // select data
+        let result = self.client.query(sql, &[]).await;
+        match result {
+            Ok(mut stream) => {
+                let mut col_map = LinkedHashMap::new();
+                let mut rows = Vec::new();
+                let columns = stream.columns().await;
+                match columns {
+                    Ok(Some(columns)) => {
+                        for column in columns {
+                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                        }
+                    }
+                    Ok(None) => {
+                        anyhow::bail!("no columns");
+                    }
+                    Err(e) => {
+                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
+                    }
+                }
+                loop {
+                    let item = stream.try_next().await;
+                    match item {
+                        Ok(Some(item)) => match item {
+                            QueryItem::Row(row) => {
+                                rows.push(row);
+                            }
+                            QueryItem::Metadata(_) => {}
+                        },
+                        Ok(None) => {
+                            break;
+                        }
+                        Err(e) => anyhow::bail!("failed to select data, cause: {}", e.to_string()),
+                    }
+                }
+                Ok((col_map, rows))
+            }
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+        }
+    }
+
+    pub async fn select_all_and_to_record_batches(
+        &mut self,
+        sql: &str,
+        batch_size: usize,
+    ) -> anyhow::Result<Vec<RecordBatch>> {
+        // select data
+        let result = self.client.query(sql, &[]).await;
+        match result {
+            Ok(mut stream) => {
+                let mut col_map = LinkedHashMap::new();
+                let mut rows = Vec::new();
+                let columns = stream.columns().await;
+                match columns {
+                    Ok(Some(columns)) => {
+                        for column in columns {
+                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                        }
+                    }
+                    Ok(None) => {
+                        anyhow::bail!("no columns");
+                    }
+                    Err(e) => {
+                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
+                    }
+                }
+                loop {
+                    let item = stream.try_next().await;
+                    match item {
+                        Ok(Some(item)) => match item {
+                            QueryItem::Row(row) => {
+                                rows.push(row);
+                            }
+                            QueryItem::Metadata(_) => {}
+                        },
+                        Ok(None) => {
+                            break;
+                        }
+                        Err(e) => anyhow::bail!("failed to select data, cause: {}", e.to_string()),
+                    }
+                }
+                let batch =
+                    appender::to_record_batches(col_map, rows, batch_size, self.time_zone.clone())?;
+                Ok(batch)
+            }
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+        }
+    }
+
+    pub async fn top_n(
+        &mut self,
+        sql: &str,
+        top_n: u32,
+    ) -> anyhow::Result<(LinkedHashMap<String, ColumnType>, Vec<Row>)> {
+        // select data
+        let result = self.client.query(sql, &[]).await;
+        match result {
+            Ok(mut stream) => {
+                let mut col_map = LinkedHashMap::new();
+                let mut rows = Vec::new();
+                let columns = stream.columns().await;
+                match columns {
+                    Ok(Some(columns)) => {
+                        for column in columns {
+                            col_map.insert(column.name().to_string(), column.column_type().clone());
+                        }
+                    }
+                    Ok(None) => {
+                        anyhow::bail!("no columns");
+                    }
+                    Err(e) => {
+                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
+                    }
+                }
+                loop {
+                    let item = stream.try_next().await;
+                    match item {
+                        Ok(Some(item)) => match item {
+                            QueryItem::Row(row) => {
+                                if rows.len() >= top_n as usize {
+                                    break;
+                                }
+                                rows.push(row);
+                            }
+                            QueryItem::Metadata(_) => {}
+                        },
+                        Ok(None) => {
+                            break;
+                        }
+                        Err(e) => anyhow::bail!("failed to select data, cause: {}", e.to_string()),
+                    }
+                }
+                Ok((col_map, rows))
+            }
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+    use taos::Dsn;
+
+    async fn test_create_database() {
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/master?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let sql_create_database = "create database test_taosx";
+                let _ = query.client.execute(sql_create_database, &[]).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_create_table() {
+        let _ = test_create_database().await;
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let sql_create_table = "create table t_metric (id bigint, name char(10), value float, ts datetimeoffset(7))";
+                let x = query.client.execute(sql_create_table, &[]).await;
+                println!("create table: {:?}", x);
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_insert_data(len: usize) {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                for i in 0..len {
+                    let sql_insert_data = format!("insert into t_metric (id, name, value, ts) values ({}, 'cpu', 0.8, GETDATE())", i);
+                    let _ = query.client.execute(sql_insert_data, &[]).await;
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    async fn test_clear_data() {
+        let _ = test_create_table().await;
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let sql = "delete from t_metric where 1 = 1";
+                let _ = query.client.execute(sql, &[]).await;
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_connect() {
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        );
+        let config = ConnectConfig::from_dsn(&dsn.unwrap()).unwrap();
+        dbg!(&config);
+
+        let query = MssqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .unwrap();
+        dbg!(query.client);
+    }
+
+    #[tokio::test]
+    async fn test_select_for_schema() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(1).await;
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_for_schema("select * from t_metric").await;
+                match query_result {
+                    Ok(col_map) => {
+                        dbg!(&col_map);
+                        assert_eq!(col_map.len(), 4);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
+    async fn test_select_all() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.select_all("select * from t_metric").await;
+                match query_result {
+                    Ok((col_map, rows)) => {
+                        dbg!(col_map);
+                        dbg!(&rows);
+                        assert_eq!(rows.len(), 7);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
+    async fn test_select_all_and_to_record_batches() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(7).await;
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query
+                    .select_all_and_to_record_batches("select * from t_metric", 3)
+                    .await;
+                match query_result {
+                    Ok(batches) => {
+                        dbg!(&batches);
+                        assert_eq!(batches.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
+    async fn test_top_n() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(3).await;
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+08:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.top_n("select * from t_metric", 5).await;
+                match query_result {
+                    Ok((col_map, rows)) => {
+                        dbg!(col_map);
+                        dbg!(&rows);
+                        assert_eq!(rows.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+        // clear data
+        let _ = test_clear_data().await;
+    }
+
+    #[tokio::test]
+    async fn test_top_n_with_tz() {
+        // prepare data
+        let _ = test_create_table().await;
+        let _ = test_insert_data(3).await;
+
+        let dsn = Dsn::from_str(
+            "mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true",
+        )
+        .unwrap();
+        let config = ConnectConfig::from_dsn(&dsn).unwrap();
+
+        let result = MssqlQuery::try_new(config, String::from("+06:00")).await;
+        match result {
+            Ok(mut query) => {
+                let query_result = query.top_n("select * from t_metric", 5).await;
+                match query_result {
+                    Ok((col_map, rows)) => {
+                        dbg!(col_map);
+                        dbg!(&rows);
+                        assert_eq!(rows.len(), 3);
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("error: {:?}", e);
+            }
+        }
+    }
+}

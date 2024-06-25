@@ -6,7 +6,7 @@ use std::{
 };
 
 use taos::sync::*;
-use taos_query::AsyncQueryable;
+use taos::AsyncQueryable;
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
     stream::{flat::FlatMessage, point::PointMessage},
@@ -177,7 +177,7 @@ fn handle_lush_message<R: Read, W: Write>(
             let record = record.as_any().downcast_ref::<LushMessage>().unwrap();
             // dbg!(&record);
             match record {
-                LushMessage::Tables(tables) => {
+                LushMessage::Tables(tables, _) => {
                     for table in tables {
                         let sql = table.to_sql(None).unwrap();
                         taos.exec_sync(&sql)?;
@@ -200,9 +200,7 @@ fn handle_lush_message<R: Read, W: Write>(
                             if let Some(table_name) = table_name {
                                 if let Err(err) = stmt.set_tbname(table_name) {
                                     tracing::warn!("table name `{}` error {err}", table_name);
-                                    if let Some(tb) =
-                                        record.meta_sql(Some(String::from(table_name)))
-                                    {
+                                    if let Some(tb) = record.meta_sql(Some(table_name)) {
                                         info!("sql: {tb}");
                                         // taos.exec_sync(&tb).unwrap();
                                         taos.exec_sync(&tb)?;
@@ -532,7 +530,7 @@ fn handle_point_message<R: Read, W: Write>(
                     insert_sql.push_str(format!(" ({field_names}) VALUES ({})", values).as_str());
                     println!("insert sql: {}", insert_sql);
                     loop {
-                        let sql_res = taos_query::Queryable::exec(&taos, &insert_sql);
+                        let sql_res = taos::taos_query::Queryable::exec(&taos, &insert_sql);
                         match sql_res {
                             Ok(_n) => {
                                 break;
@@ -543,12 +541,12 @@ fn handle_point_message<R: Read, W: Write>(
                                 if errstr.contains("[0x2603]") {
                                     // stable not exists
                                     println!("create stable sql: {}", &stable_sql);
-                                    taos_query::Queryable::exec(&taos, &stable_sql).unwrap();
+                                    taos::taos_query::Queryable::exec(&taos, &stable_sql).unwrap();
                                 } else if errstr.contains("[0x2602]") {
                                     // Illegal number of columns, alter to add columns
                                     // let query_info_sql = format!("select table_comment from information_schema.ins_stables where stable_name = '{}'", &stable_name);
                                     // comment should't be null
-                                    // let res: String = taos_query::Queryable::query_one(&taos, &query_info_sql).unwrap().unwrap();
+                                    // let res: String = taos::taos_query::Queryable::query_one(&taos, &query_info_sql).unwrap().unwrap();
                                     // let res = res.replace("\\", "");
                                     // let old_config: TableConfig = serde_json::from_str(&res).unwrap();
                                     // desc.into_iter().for_each(|column_meta| {
@@ -565,7 +563,7 @@ fn handle_point_message<R: Read, W: Write>(
                                     //     if need_add {
                                     //         let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
                                     //         println!("add_column_sql:{}", add_column_sql);
-                                    //         taos_query::Queryable::exec(&taos, &add_column_sql).unwrap();
+                                    //         taos::taos_query::Queryable::exec(&taos, &add_column_sql).unwrap();
                                     //     }
                                     // });
                                     for column_config in &table_config.column_configs {
@@ -579,9 +577,11 @@ fn handle_point_message<R: Read, W: Write>(
                                         //         }
                                         // }
                                         // }
-                                        let desc =
-                                            taos_query::Queryable::describe(&taos, &stable_name)
-                                                .unwrap();
+                                        let desc = taos::taos_query::Queryable::describe(
+                                            &taos,
+                                            &stable_name,
+                                        )
+                                        .unwrap();
                                         desc.into_iter().for_each(|column_meta| {
                                             if column_name == column_meta.field() {
                                                 need_add = false;
@@ -594,18 +594,18 @@ fn handle_point_message<R: Read, W: Write>(
                                                 column_config.column_type.unwrap()
                                             );
                                             println!("add_column_sql:{}", add_column_sql);
-                                            taos_query::Queryable::exec(&taos, &add_column_sql)
+                                            taos::sync::Queryable::exec(&taos, &add_column_sql)
                                                 .unwrap();
                                         }
                                     }
 
                                     // let update_stable_comment = format!("ALTER TABLE `{stable_name}` COMMENT '{}'", serde_json::to_string(&table_config.column_configs).unwrap());
                                     // println!("update_stable_comment :{}", &update_stable_comment);
-                                    // taos_query::Queryable::exec(&taos, &update_stable_comment).unwrap();
+                                    // taos::taos_query::Queryable::exec(&taos, &update_stable_comment).unwrap();
                                 } else if errstr.contains("[0x2653]") {
                                     // column length not enough
                                     runtime.block_on(async {
-                                        let desc = taos_query::Queryable::describe(&taos, &stable_name.as_str()).unwrap();
+                                        let desc = taos::taos_query::Queryable::describe(&taos, &stable_name.as_str()).unwrap();
                                         desc.into_iter().for_each(|column_meta| {
                                             let column_type;
                                             let length;

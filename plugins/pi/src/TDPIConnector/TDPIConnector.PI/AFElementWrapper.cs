@@ -3,10 +3,29 @@ using System;
 
 namespace TDPIConnector.PI
 {
+    public class ElementWrapperPool
+    {
+       //  private readonly ObjectPool<AFElementWrapper> _pool;
+       // 
+       //  public ElementWrapperPool()
+       //  {
+       //      _pool = new DefaultObjectPool<AFElementWrapper>(new DefaultPooledObjectPolicy<AFElementWrapper>());
+       //  }
+       // 
+       //  public AFElementWrapper Rent()
+       //  {
+       //      return _pool.Get();
+       //  }
+       // 
+       //  public void Return(AFElementWrapper wrapper)
+       //  {
+       //      _pool.Return(wrapper);
+       //  }
+    }
     public class AFElementWrapper
     {
         internal AFElement AFSDKObject { get; private set; }
-        internal AFElementWrapper(AFElement element)
+        internal AFElementWrapper(in AFElement element)
         {
             this.AFSDKObject = element;
         }
@@ -43,6 +62,14 @@ namespace TDPIConnector.PI
             }
         }
 
+        public string CategoriesString
+        {
+            get
+            {
+                return this.AFSDKObject.CategoriesString;
+            }
+        }
+
         public AFDatabaseWrapper Database
         {
             get
@@ -69,6 +96,19 @@ namespace TDPIConnector.PI
                 }
             }
             return false;
+        }
+        public bool hasTemplate() {
+            return Template.AFSDKObject != null;
+        }
+
+        public string TemplateName() {
+            if (hasTemplate())
+            {
+                return Template.AFSDKObject.Name;
+            }
+            else {
+                return this.AFSDKObject.Name;
+            }
         }
     }
 }

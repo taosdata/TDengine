@@ -11,6 +11,8 @@ use anyhow::Result;
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
+use socket2::{Domain, Socket, Type};
+use std::net::SocketAddr;
 use std::{sync::Arc, time::Duration};
 use tracing::info;
 use tracing_actix_web::TracingLogger;
@@ -29,6 +31,7 @@ use crate::serve::controller::agent::{
 };
 use crate::serve::middleware::TaosXRootSpanBuilder;
 
+use self::scheduler::agent::AgentSpawnSender;
 use self::{
     agent::{create_agent, delete_agent, get_agent_activities, get_agents, update_agent},
     routes::cluster::get_cluster_connector_transferred,
@@ -45,6 +48,7 @@ mod data_sources;
 mod metrics;
 mod middleware;
 pub mod monitor;
+mod privileges;
 mod routes;
 mod rpc;
 #[allow(unused)]
@@ -143,6 +147,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(data_source_collection)
             .service(data_source_sample)
             .service(download_all_data_set_file)
+            .service(download_pi_default_config)
             .service(download_point_template_file)
             .service(check_point_file_valid)
             .service(init_download_file_task)
@@ -161,6 +166,9 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_tmq_task_table_progress)
             .service(download_files)
             .service(upload_files)
+            .service(privileges::privileges_migrate)
+            .service(privileges::privileges_export)
+            .service(privileges::privileges_import)
             .service(metrics::profile)
             .service(filemeta)
             .service(health);
@@ -169,7 +177,25 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
 
 #[get("/health")]
 async fn health() -> impl Responder {
-    HttpResponse::Ok().json("ok")
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, None);
+    match socket {
+        Ok(socket) => {
+            let socket_addr = SocketAddr::from(([0, 0, 0, 0], 6055));
+            let bind_result = socket.bind(&socket_addr.into());
+            match bind_result {
+                Ok(_) => {
+                    return HttpResponse::InternalServerError()
+                        .json("The 6055 port provided to the agent is not listening");
+                }
+                Err(_) => {
+                    return HttpResponse::Ok().json("ok");
+                }
+            }
+        }
+        Err(_) => {
+            return HttpResponse::InternalServerError().json("socket error");
+        }
+    }
 }
 
 impl Cli {
@@ -221,10 +247,16 @@ impl Cli {
 
     pub(super) async fn channels(
         &self,
-    ) -> (AgentIntegrationChannel, AgentRpcChannel, SchedulerNotifier) {
+    ) -> (
+        AgentIntegrationChannel,
+        AgentRpcChannel,
+        AgentSpawnSender,
+        SchedulerNotifier,
+    ) {
         let (agent_activity_sender, agent_activity_receiver) =
             tokio::sync::broadcast::channel(1024);
         let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
+        let (agent_spawn_sender, agent_spawn_receiver) = flume::bounded(0);
         let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
         let scheduler_notify_sender = Arc::new(scheduler_notify_sender);
 
@@ -234,6 +266,7 @@ impl Cli {
             agent_activity_sender,
             agent_notify_receiver,
             weak_notify_sender,
+            agent_spawn_receiver,
         )
         .await;
         let agent_integration_channel = AgentIntegrationChannel::Server(agent_worker);
@@ -241,6 +274,7 @@ impl Cli {
         (
             agent_integration_channel,
             agent_rpc_channel,
+            agent_spawn_sender,
             scheduler_notify_sender,
         )
     }
@@ -352,6 +386,10 @@ impl Cli {
                 agent::get_agents,
                 agent::get_agent_activities,
 
+                privileges::privileges_migrate,
+                privileges::privileges_export,
+                privileges::privileges_import,
+
                 routes::cluster::get_cluster_connector_transferred,
 
             ),
@@ -361,6 +399,7 @@ impl Cli {
                 (name = "transform", description = "Transform simulation"),
                 (name = "agents", description = "Agents Management"),
                 (name = "cluster", description = "Cluster Information"),
+                (name = "privileges", description = "Migrate Passwords and Privileges"),
             ),
         )]
         struct ApiDoc;
@@ -426,6 +465,7 @@ impl Cli {
         self,
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
+        spawn_sender: AgentSpawnSender,
         monitor: monitor::Monitor,
     ) -> Result<()> {
         let mut flight = rpc::RpcConfig::default();
@@ -435,7 +475,7 @@ impl Cli {
         }
 
         flight
-            .serve_with_controller(controller, channel, monitor)
+            .serve_with_controller(controller, channel, spawn_sender, monitor)
             .await?;
         Ok(())
     }
