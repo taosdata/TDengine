@@ -1161,22 +1161,7 @@ static int32_t streamWaitComparFn(const void *p1, const void *p2) {
     return 0;
   }
 
-  return pInt1->duration > pInt2->duration ? -1 : 1;
-}
-
-typedef struct {
-  int64_t streamId;
-  int64_t duration;
-} SCheckpointInterval;
-
-static int32_t streamWaitComparFn(const void *p1, const void *p2) {
-  const SCheckpointInterval *pInt1 = p1;
-  const SCheckpointInterval *pInt2 = p2;
-  if (pInt1->duration == pInt2->duration) {
-    return 0;
-  }
-
-  return pInt1->duration > pInt2->duration ? -1 : 1;
+  return pInt1->duration > pInt2->duration? -1:1;
 }
 
 static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {

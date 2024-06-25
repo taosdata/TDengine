@@ -826,31 +826,8 @@ static void checkConsumer(SMnode *pMnode, SMqSubscribeObj *pSub) {
   }
 }
 
-// This function only works when there are dirty consumers
-static void checkConsumer(SMnode *pMnode, SMqSubscribeObj *pSub) {
-  void *pIter = NULL;
-  while (1) {
-    pIter = taosHashIterate(pSub->consumerHash, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SMqConsumerEp  *pConsumerEp = (SMqConsumerEp *)pIter;
-    SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pConsumerEp->consumerId);
-    if (pConsumer != NULL) {
-      mndReleaseConsumer(pMnode, pConsumer);
-      continue;
-    }
-    mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
-    taosArrayAddAll(pSub->unassignedVgs, pConsumerEp->vgs);
-
-    taosArrayDestroy(pConsumerEp->vgs);
-    taosHashRemove(pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t));
-  }
-}
-
-static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOutputObj *rebOutput) {
-  const char      *key = rebInput->pRebInfo->key;
+static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOutputObj *rebOutput){
+  const char *key = rebInput->pRebInfo->key;
   SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, key);
 
   if (pSub == NULL) {

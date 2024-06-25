@@ -312,12 +312,6 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
     ASSERT(code == 0);
     taosArrayPush(pDbSnapSet, &snapFile);
   }
-  for (int32_t i = 0; i < taosArrayGetSize(pSnapSet); i++) {
-    SStreamTaskSnap* pSnap = taosArrayGet(pSnapSet, i);
-    taosMemoryFree(pSnap->dbPrefixPath);
-  }
-  taosArrayDestroy(pSnapSet);
-
   pHandle->pDbSnapSet = pDbSnapSet;
   pHandle->pSnapInfoSet = pSnapInfoSet;
   pHandle->currIdx = 0;

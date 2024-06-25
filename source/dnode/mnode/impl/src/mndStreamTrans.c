@@ -136,8 +136,8 @@ int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamId) {
     return 0;
   }
 
-  clearFinishedTrans(pMnode);
-  SStreamTransInfo *pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamUid, sizeof(streamUid));
+  mndStreamClearFinishedTrans(pMnode, NULL);
+  SStreamTransInfo* pEntry = taosHashGet(execInfo.transMgmt.pDBTrans, &streamId, sizeof(streamId));
   if (pEntry != NULL) {
     SStreamTransInfo tInfo = *pEntry;
     taosThreadMutexUnlock(&execInfo.lock);

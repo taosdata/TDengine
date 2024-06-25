@@ -826,129 +826,284 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
     return code;
   }
 
-  static int32_t uploadCheckpointToS3(char* id, char* path) {
-    TdDirPtr pDir = taosOpenDir(path);
-    if (pDir == NULL) return -1;
+  stDebug("s-task:%s %d/%d not recv checkpoint-trigger from upstream(s), start to send trigger-retrieve", pId, size,
+          numOfUpstream);
 
-    TdDirEntryPtr de = NULL;
-    s3Init();
-    while ((de = taosReadDir(pDir)) != NULL) {
-      char* name = taosGetDirEntryName(de);
-      if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0 || taosDirEntryIsDir(de)) continue;
+  for (int32_t i = 0; i < size; i++) {
+    SStreamUpstreamEpInfo* pUpstreamTask = taosArrayGet(pNotSendList, i);
 
-      char filename[PATH_MAX] = {0};
-      if (path[strlen(path) - 1] == TD_DIRSEP_CHAR) {
-        snprintf(filename, sizeof(filename), "%s%s", path, name);
-      } else {
-        snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
-      }
-
-      char object[PATH_MAX] = {0};
-      snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
-
-      if (s3PutObjectFromFile2(filename, object, 0) != 0) {
-        taosCloseDir(&pDir);
-        return -1;
-      }
-      stDebug("[s3] upload checkpoint:%s", filename);
-      // break;
+    SRetrieveChkptTriggerReq* pReq = rpcMallocCont(sizeof(SRetrieveChkptTriggerReq));
+    if (pReq == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      stError("vgId:%d failed to create msg to retrieve trigger msg for task:%s exec, code:out of memory", vgId, pId);
+      continue;
     }
 
-    taosCloseDir(&pDir);
-    return 0;
+    pReq->head.vgId = htonl(pUpstreamTask->nodeId);
+    pReq->streamId = pTask->id.streamId;
+    pReq->downstreamTaskId = pTask->id.taskId;
+    pReq->downstreamNodeId = vgId;
+    pReq->upstreamTaskId = pUpstreamTask->taskId;
+    pReq->upstreamNodeId = pUpstreamTask->nodeId;
+    pReq->checkpointId = checkpointId;
+
+    SRpcMsg rpcMsg = {0};
+    initRpcMsg(&rpcMsg, TDMT_STREAM_RETRIEVE_TRIGGER, pReq, sizeof(SRetrieveChkptTriggerReq));
+
+    code = tmsgSendReq(&pUpstreamTask->epSet, &rpcMsg);
+    stDebug("s-task:%s vgId:%d send checkpoint-trigger retrieve msg to 0x%x(vgId:%d) checkpointId:%" PRId64, pId, vgId,
+            pUpstreamTask->taskId, pUpstreamTask->nodeId, checkpointId);
   }
 
-  int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
-    int32_t code = 0;
-    char*   buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
-    if (buf == NULL) {
-      code = terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return code;
+  return TSDB_CODE_SUCCESS;
+}
+
+bool streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId) {
+  int64_t                now = taosGetTimestampMs();
+  const char*            id = pTask->id.idStr;
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+  SStreamTaskState*      pStatus = streamTaskGetStatus(pTask);
+
+  if (pStatus->state != TASK_STATUS__CK) {
+    return false;
+  }
+
+  taosThreadMutexLock(&pInfo->lock);
+  if (!pInfo->dispatchTrigger) {
+    taosThreadMutexUnlock(&pInfo->lock);
+    return false;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
+    STaskTriggerSendInfo* pSendInfo = taosArrayGet(pInfo->pDispatchTriggerList, i);
+    if (pSendInfo->nodeId != downstreamNodeId) {
+      continue;
     }
 
-    sprintf(buf, "%s/%s", id, fname);
-    if (s3GetObjectToFile(buf, dstName) != 0) {
-      code = errno;
+    // has send trigger msg to downstream node,
+    double before = (now - pSendInfo->sendTs) / 1000.0;
+    if (pSendInfo->recved) {
+      stWarn("s-task:%s checkpoint-trigger msg already send at:%" PRId64
+             "(%.2fs before) and recv confirmed by downstream:0x%x, checkpointId:%" PRId64 ", transId:%d",
+             id, pSendInfo->sendTs, before, pSendInfo->taskId, pInfo->activeId, pInfo->transId);
+    } else {
+      stWarn("s-task:%s checkpoint-trigger already send at:%" PRId64 "(%.2fs before), checkpointId:%" PRId64
+             ", transId:%d",
+             id, pSendInfo->sendTs, before, pInfo->activeId, pInfo->transId);
     }
 
-    taosMemoryFree(buf);
+    taosThreadMutexUnlock(&pInfo->lock);
+    return true;
+  }
+
+  ASSERT(0);
+  return false;
+}
+
+void streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_t* pTotal) {
+  *pRecved = taosArrayGetSize(pTask->chkInfo.pActiveInfo->pReadyMsgList);
+
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    *pTotal = 1;
+  } else {
+    *pTotal = streamTaskGetNumOfUpstream(pTask);
+  }
+}
+
+// record the dispatch checkpoint trigger info in the list
+void streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
+  int64_t now = taosGetTimestampMs();
+  taosThreadMutexLock(&pInfo->lock);
+
+  // outputQ should be empty here
+  ASSERT(streamQueueGetNumOfUnAccessedItems(pTask->outputq.queue) == 0);
+
+  pInfo->dispatchTrigger = true;
+  if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
+    STaskDispatcherFixed* pDispatch = &pTask->outputInfo.fixedDispatcher;
+
+    STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pDispatch->nodeId, .taskId = pDispatch->taskId};
+    taosArrayPush(pInfo->pDispatchTriggerList, &p);
+  } else {
+    for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
+      SVgroupInfo* pVgInfo = taosArrayGet(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos, i);
+
+      STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pVgInfo->vgId, .taskId = pVgInfo->taskId};
+      taosArrayPush(pInfo->pDispatchTriggerList, &p);
+    }
+  }
+
+  taosThreadMutexUnlock(&pInfo->lock);
+}
+
+int32_t streamTaskGetNumOfConfirmed(SStreamTask* pTask) {
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
+  int32_t num = 0;
+  taosThreadMutexLock(&pInfo->lock);
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
+    STaskTriggerSendInfo* p = taosArrayGet(pInfo->pDispatchTriggerList, i);
+    if (p->recved) {
+      num++;
+    }
+  }
+  taosThreadMutexUnlock(&pInfo->lock);
+  return num;
+}
+
+void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
+  int32_t taskId = 0;
+  taosThreadMutexLock(&pInfo->lock);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
+    STaskTriggerSendInfo* p = taosArrayGet(pInfo->pDispatchTriggerList, i);
+    if (p->nodeId == vgId) {
+      ASSERT(p->recved == false);
+
+      p->recved = true;
+      p->recvTs = taosGetTimestampMs();
+      taskId = p->taskId;
+      break;
+    }
+  }
+
+  taosThreadMutexUnlock(&pInfo->lock);
+
+  int32_t numOfConfirmed = streamTaskGetNumOfConfirmed(pTask);
+  int32_t total = streamTaskGetNumOfDownstream(pTask);
+  stDebug("s-task:%s set downstream:0x%x(vgId:%d) checkpoint-trigger dispatch confirmed, total confirmed:%d/%d",
+          pTask->id.idStr, taskId, vgId, numOfConfirmed, total);
+
+  ASSERT(taskId != 0);
+}
+
+static int32_t uploadCheckpointToS3(const char* id, const char* path) {
+  TdDirPtr pDir = taosOpenDir(path);
+  if (pDir == NULL) return -1;
+
+  TdDirEntryPtr de = NULL;
+  s3Init();
+  while ((de = taosReadDir(pDir)) != NULL) {
+    char* name = taosGetDirEntryName(de);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0 || taosDirEntryIsDir(de)) continue;
+
+    char filename[PATH_MAX] = {0};
+    if (path[strlen(path) - 1] == TD_DIRSEP_CHAR) {
+      snprintf(filename, sizeof(filename), "%s%s", path, name);
+    } else {
+      snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
+    }
+
+    char object[PATH_MAX] = {0};
+    snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
+
+    if (s3PutObjectFromFile2(filename, object, 0) != 0) {
+      taosCloseDir(&pDir);
+      return -1;
+    }
+    stDebug("[s3] upload checkpoint:%s", filename);
+    // break;
+  }
+
+  taosCloseDir(&pDir);
+  return 0;
+}
+
+int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
+  int32_t code = 0;
+  char*   buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
+  if (buf == NULL) {
+    code = terrno = TSDB_CODE_OUT_OF_MEMORY;
     return code;
   }
 
-  ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
-    if (strlen(tsSnodeAddress) != 0) {
-      return DATA_UPLOAD_RSYNC;
-    } else if (tsS3StreamEnabled) {
-      return DATA_UPLOAD_S3;
-    } else {
-      return DATA_UPLOAD_DISABLE;
-    }
+  sprintf(buf, "%s/%s", id, fname);
+  if (s3GetObjectToFile(buf, dstName) != 0) {
+    code = errno;
   }
 
-  int32_t streamTaskBackupCheckpoint(char* id, char* path) {
-    if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
-      stError("invalid parameters in upload checkpoint, %s", id);
-      return -1;
-    }
+  taosMemoryFree(buf);
+  return code;
+}
 
-    if (strlen(tsSnodeAddress) != 0) {
-      return uploadByRsync(id, path);
-    } else if (tsS3StreamEnabled) {
-      return uploadCheckpointToS3(id, path);
-    }
+ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
+  if (strlen(tsSnodeAddress) != 0) {
+    return DATA_UPLOAD_RSYNC;
+  } else if (tsS3StreamEnabled) {
+    return DATA_UPLOAD_S3;
+  } else {
+    return DATA_UPLOAD_DISABLE;
+  }
+}
 
+int32_t streamTaskUploadCheckpoint(const char* id, const char* path) {
+  if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
+    stError("invalid parameters in upload checkpoint, %s", id);
+    return -1;
+  }
+
+  if (strlen(tsSnodeAddress) != 0) {
+    return uploadByRsync(id, path);
+  } else if (tsS3StreamEnabled) {
+    return uploadCheckpointToS3(id, path);
+  }
+
+  return 0;
+}
+
+// fileName:  CURRENT
+int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName) {
+  if (id == NULL || fname == NULL || strlen(id) == 0 || strlen(fname) == 0 || strlen(fname) >= PATH_MAX) {
+    stError("down load checkpoint data parameters invalid");
+    return -1;
+  }
+
+  if (strlen(tsSnodeAddress) != 0) {
     return 0;
+  } else if (tsS3StreamEnabled) {
+    return downloadCheckpointByNameS3(id, fname, dstName);
   }
 
-  // fileName:  CURRENT
-  int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName) {
-    if (id == NULL || fname == NULL || strlen(id) == 0 || strlen(fname) == 0 || strlen(fname) >= PATH_MAX) {
-      stError("down load checkpoint data parameters invalid");
-      return -1;
-    }
+  return 0;
+}
 
-    if (strlen(tsSnodeAddress) != 0) {
-      return 0;
-    } else if (tsS3StreamEnabled) {
-      return downloadCheckpointByNameS3(id, fname, dstName);
-    }
-
-    return 0;
+int32_t streamTaskDownloadCheckpointData(const char* id, char* path) {
+  if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
+    stError("down checkpoint data parameters invalid");
+    return -1;
   }
 
-  int32_t downloadCheckpoint(char* id, char* path) {
-    if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
-      stError("downloadCheckpoint parameters invalid");
-      return -1;
-    }
-
-    if (strlen(tsSnodeAddress) != 0) {
-      return downloadRsync(id, path);
-    } else if (tsS3StreamEnabled) {
-      return s3GetObjectsByPrefix(id, path);
-    }
-
-    return 0;
+  if (strlen(tsSnodeAddress) != 0) {
+    return downloadRsync(id, path);
+  } else if (tsS3StreamEnabled) {
+    return s3GetObjectsByPrefix(id, path);
   }
 
-  int32_t deleteCheckpoint(const char* id) {
-    if (id == NULL || strlen(id) == 0) {
-      stError("deleteCheckpoint parameters invalid");
-      return -1;
-    }
-    if (strlen(tsSnodeAddress) != 0) {
-      return deleteRsync(id);
-    } else if (tsS3StreamEnabled) {
-      s3DeleteObjectsByPrefix(id);
-    }
-    return 0;
-  }
+  return 0;
+}
 
-  int32_t deleteCheckpointFile(const char* id, const char* name) {
-    char object[128] = {0};
-    snprintf(object, sizeof(object), "%s/%s", id, name);
-
-    char* tmp = object;
-    s3DeleteObjects((const char**)&tmp, 1);
-    return 0;
+int32_t deleteCheckpoint(const char* id) {
+  if (id == NULL || strlen(id) == 0) {
+    stError("deleteCheckpoint parameters invalid");
+    return -1;
   }
+  if (strlen(tsSnodeAddress) != 0) {
+    return deleteRsync(id);
+  } else if (tsS3StreamEnabled) {
+    s3DeleteObjectsByPrefix(id);
+  }
+  return 0;
+}
+
+int32_t deleteCheckpointFile(const char* id, const char* name) {
+  char object[128] = {0};
+  snprintf(object, sizeof(object), "%s/%s", id, name);
+
+  char* tmp = object;
+  s3DeleteObjects((const char**)&tmp, 1);
+  return 0;
+}
