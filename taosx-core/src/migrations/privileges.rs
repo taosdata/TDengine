@@ -32,8 +32,7 @@ impl Privilege {
         let mut sql = format!("GRANT {} ON `{}`", self.privilege, self.db_name);
 
         if let Some(table_name) = &self.table_name {
-            // TODO: wait for https://jira.taosdata.com:18080/browse/TD-30642
-            sql.push_str(&format!(".{}", table_name)); // .`{}`", table_name));
+            sql.push_str(&format!(".`{}`", table_name));
         }
 
         if let Some(condition) = &self.condition {

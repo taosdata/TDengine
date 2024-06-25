@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none, NoneAsEmptyString};
 use taos::{AsyncFetchable, AsyncQueryable, TryStreamExt};
@@ -50,6 +52,15 @@ pub async fn get_user_passwords(conn: &taos::Taos) -> Result<Vec<User>, taos::Er
         .try_filter(|obj: &User| std::future::ready(obj.name != "root"))
         .try_collect::<Vec<_>>()
         .await
+        .map_err(|err| {
+            tracing::error!(error = format!("{err:#}"), "Failed to get user passwords");
+            let code = *err.code().deref();
+            if matches!(code, 0x2662 | 0x2603 | 0x039A) {
+                err.context("Current version is not supported, please upgrade to a later one.")
+            } else {
+                err.context("Failed to get user passwords")
+            }
+        })
 }
 
 #[cfg(test)]

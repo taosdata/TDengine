@@ -156,23 +156,23 @@ impl Display for ApplyResults {
                 write!(f, "No users and privileges imported")?;
                 return Ok(());
             }
-            f.write_str("Success: ")?;
+            f.write_str("Success:")?;
             if self.success.passwords != 0 {
-                write!(f, "{} users", self.success.passwords)?;
+                write!(f, " {} users", self.success.passwords)?;
             }
             if self.success.privileges == 0 {
-                write!(f, "{} privileges", self.success.privileges)?;
+                write!(f, " {} privileges", self.success.privileges)?;
             }
             write!(f, " imported successfully")?;
             return Ok(());
         }
 
-        write!(f, "Partially failed: ")?;
+        write!(f, "Partially failed:")?;
         if self.success.passwords != 0 {
-            write!(f, "{} users", self.success.passwords)?;
+            write!(f, " {} users", self.success.passwords)?;
         }
         if self.success.privileges != 0 {
-            write!(f, "{} privileges", self.success.privileges)?;
+            write!(f, " {} privileges", self.success.privileges)?;
         }
         if self.success.passwords != 0 || self.success.privileges != 0 {
             write!(f, " imported successfully, ")?;
