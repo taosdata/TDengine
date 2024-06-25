@@ -530,8 +530,6 @@ export default {
           this.registerValidateForm.ts = this.ts;
           this.registerValidateForm.lang = localStorage.getItem('local_language') || '';
 
-          let res = await getUrls();
-          this.registerValidateForm.taosd_version = res?.taosd_version;
           const result = await getVerificationResult(this.registerValidateForm)
           if (result && result.code == 0) {
             switch (result.data) {
