@@ -204,7 +204,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
 
   // check stream task status in the first place.
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
-  if (pStatus->state != TASK_STATUS__READY && pStatus->state != TASK_STATUS__HALT) {
+  if (pStatus->state != TASK_STATUS__READY && pStatus->state != TASK_STATUS__HALT && pStatus->state != TASK_STATUS__PAUSE) {
     stDebug("s-task:%s not launch related fill-history task:0x%" PRIx64 "-0x%x, status:%s", idStr, hStreamId, hTaskId,
             pStatus->name);
 
@@ -240,7 +240,6 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
         if (code == TSDB_CODE_SUCCESS) {
           checkFillhistoryTaskStatus(pTask, pHisTask);
         }
-
       }
 
       streamMetaReleaseTask(pMeta, pHisTask);
