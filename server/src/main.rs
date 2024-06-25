@@ -338,17 +338,6 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
         }
     }
 
-    match args.query_by_root("select CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster").await {
-        Ok(ok) => {
-            if let Some(version) = ok.data.get(0) {
-                profile.taosd_version.replace(version.get(0).unwrap().as_str().unwrap().into());
-            }
-        }
-        Err(err) => {
-            log::error!("Failed to get taosd version: {:?}", err);
-        }
-    }
-
     HttpResponse::Ok().json(&profile)
 }
 
@@ -359,7 +348,6 @@ struct VerificationReqBody {
     captcha: Option<String>,
     lang: Option<String>,
     name: Option<String>,
-    taosd_version: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -460,19 +448,60 @@ async fn check_verification_code(
             str_phone_email,
             str_verification_code,
             lang_code,
-            body.name.as_ref().unwrap(),
-            body.taosd_version.clone(),
+            body.name.as_ref().unwrap()
         )
         .await;
-        if report_result.is_err() {
-            log::error!(
-                "Failed to upload verification status to cloud: {:?}",
-                report_result.err()
-            );
+
+        match report_result {
+            Ok(200) => {
+                // 尝试用 root 用户获取 taosd 版本信息，上报
+                let taosd_info = query_taosd_info_guess(&args).await;
+                if let Some((cluster_id, taosd_version)) = taosd_info {
+                    let r = verification::report_taosd_info_to_cloud(
+                        args.cloud_open_api.clone(),
+                        str_phone_email,
+                        lang_code,
+                        &cluster_id,
+                        &taosd_version,
+                    ).await;
+                    if r.is_err() {
+                        log::error!("Failed to report the guessed taosd info to cloud: {:?}", r.err());
+                    }
+                }
+            }
+            Ok(code) => {
+                log::error!("Failed to upload verification status, response code: {}", code);
+            }
+            Err(err) => {
+                log::error!("Failed to upload verification status to cloud: {:?}", err);
+            }
         }
     }
 
     HttpResponse::Ok().json(R::success(result))
+}
+
+async fn query_taosd_info_guess(args: &web::Data<Args>) -> Option<(String, String)> {
+    let sql = "select id, CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster";
+    match args.query_by_root(sql).await {
+        Ok(ok) => {
+            if let Some(taosd_info) = ok.data.get(0) {
+                let cluster_id = taosd_info.get(0);
+                let taosd_version = taosd_info.get(1);
+                
+                if cluster_id.is_some() && taosd_version.is_some() {
+                   let cluster_id = cluster_id.unwrap().as_i64().unwrap().to_string();
+                   let taosd_version = taosd_version.unwrap().as_str().unwrap().to_string();
+                   return Some((cluster_id, taosd_version));
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("Failed to execute sql: {}, err:{:?}", sql, err);
+        }
+    }
+
+    None
 }
 
 // restapi: 上报 taosd 信息
@@ -861,7 +890,6 @@ struct Profile {
     #[clap(skip)]
     version: Option<String>,
 
-    taosd_version: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]

@@ -163,7 +163,7 @@ async fn request_cloud(
     let string_to_sign = format!("{}&nonce={}&ts={}", params_to_sign, nonce, ts);
     let sign = sign_string(&string_to_sign);
 
-    log::debug!("post url: {}, request body:{}", url, json_body);
+    log::info!("post url: {}, request body:{}", url, json_body);
 
     // 连接超时时间为30秒，请求超时时间为60秒
     let http_client = reqwest::Client::builder()
@@ -184,7 +184,7 @@ async fn request_cloud(
         .body(json_body)
         .send()
         .await?;
-    log::debug!("response: {:?}", response);
+    log::info!("response: {:?}", response);
 
     Ok(response)
 }
@@ -220,8 +220,7 @@ pub async fn report_verification_status_to_cloud(
     phone_email: &str,
     code: &str,
     lang: &str,
-    name: &str,
-    taosd_version: Option<String>,
+    name: &str
 ) -> anyhow::Result<u32> {
     let mut phone = "";
     let mut email = "";
@@ -245,20 +244,15 @@ pub async fn report_verification_status_to_cloud(
         email: email.to_string(),
         code: code.to_string(),
         name: name.to_string(),
-        taosd_version: taosd_version.unwrap_or("".to_string()),
+        taosd_version: "".to_string(),
         explorer_version,
     };
     let json_body = serde_json::to_string(&body)?;
-    log::debug!("json_body: {}", json_body);
 
     let response = request_cloud(url, Method::POST, json_body, string_to_sign)
         .await?
         .json::<ResponseCloudOpenApi>()
         .await?;
-    log::debug!(
-        "report_verification_status_to_cloud success: {}",
-        response.code
-    );
 
     Ok(response.code)
 }
