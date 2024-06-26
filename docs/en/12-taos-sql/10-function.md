@@ -398,7 +398,7 @@ Conversion functions change the data type of a value.
 CAST(expr AS type_name)
 ```
 
-**Description**: Convert the input data `expr` into the type specified by `type_name`. This function can be used only in SELECT statements.
+**Description**: Convert the input data `expr` into the type specified by `type_name`.
 
 **Return value type**: The type specified by parameter `type_name`
 
@@ -435,8 +435,7 @@ TO_ISO8601(expr [, timezone])
 **More explanations**:
 
 - You can specify a time zone in the following format: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00").
-- If the input is a UNIX timestamp, the precision of the returned value is determined by the digits of the input timestamp
-- If the input is a column of TIMESTAMP type, the precision of the returned value is same as the precision set for the current data base in use
+- The precision of the input timestamp will be recognized automatically according to the precision of the table used, milliseconds will be used if no table is specified.
 
 
 #### TO_JSON
@@ -559,6 +558,7 @@ ignore_timezone: {
 - Time unit specified by `time_unit` can be:
           1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
 - The precision of the returned timestamp is same as the precision set for the current data base in use
+- The precision of the input timestamp will be recognized automatically according to the precision of the table used, milliseconds will be used if no table is specified.
 - If the input data is not formatted as a timestamp, the returned value is null.
 - If `1d` is used as `time_unit` to truncate the timestamp, `ignore_timezone` option can be set to indicate if the returned result is affected by client timezone or not.
   For example, if client timezone is set to UTC+0800, TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) will return '2020-01-01 08:00:00'.
