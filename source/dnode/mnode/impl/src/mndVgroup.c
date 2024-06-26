@@ -1952,6 +1952,10 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "red-vgroup");
   if (pTrans == NULL) goto _OVER;
+
+  mndTransSetDbName(pTrans, pVgroup->dbName, NULL);
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to redistribute vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
 
