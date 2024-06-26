@@ -1261,7 +1261,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     // truncate the timestamp to time_unit precision
     int64_t seconds = timeUnit / TSDB_TICK_PER_SECOND(timePrec);
     if (ignoreTz && (seconds == 604800 || seconds == 86400)) {
-      timeVal = timeVal - (timeVal + offsetFromTz(timezone, TSDB_TICK_PER_SECOND(timePrec))) % (((int64_t)seconds) * TSDB_TICK_PER_SECOND(timePrec));;
+      timeVal = timeVal - (timeVal + offsetFromTz(timezone, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
     } else {
       timeVal = timeVal / timeUnit * timeUnit;
     }
