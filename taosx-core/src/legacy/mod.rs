@@ -1588,7 +1588,7 @@ async fn sync_schema(
     Ok(())
 }
 
-#[instrument(skip_all, fields(task.id = task_id.as_deref()))]
+#[instrument(skip_all)]
 async fn sync_specified_tables_with_workers(
     scheduler: &Scheduler,
     from: &TaosPool,
@@ -1655,28 +1655,31 @@ async fn sync_specified_tables_with_workers(
     let from = from.get().await?;
     let (items_tx, items_rx) = flume::bounded(1024);
     let todo = todo.clone();
-    tokio::task::spawn(async move {
-        tracing::info!(tables = todo.tables.len(), "Scanning new tables ...");
-        let mut scanned = std::collections::HashSet::new();
-        let mut futures = futures::stream::FuturesUnordered::new();
-        todo.tables
-            .scan_async(|item: &LegacyTableItem| {
-                if scanned.contains(item) {
-                    tracing::warn!("table {} is already scanned.", item.table);
-                    return;
-                }
-                scanned.insert(item.clone());
-                futures.push(items_tx.send_async(item.clone()));
-            })
-            .await;
+    tokio::task::spawn(
+        async move {
+            tracing::info!(tables = todo.tables.len(), "Scanning new tables ...");
+            let mut scanned = std::collections::HashSet::new();
+            let mut futures = futures::stream::FuturesUnordered::new();
+            todo.tables
+                .scan_async(|item: &LegacyTableItem| {
+                    if scanned.contains(item) {
+                        tracing::warn!("table {} is already scanned.", item.table);
+                        return;
+                    }
+                    scanned.insert(item.clone());
+                    futures.push(items_tx.send_async(item.clone()));
+                })
+                .await;
 
-        while let Some(res) = futures.next().await {
-            if let Err(err) = res {
-                tracing::trace!("Send table error: {err:#}",);
+            while let Some(res) = futures.next().await {
+                if let Err(err) = res {
+                    tracing::trace!("Send table error: {err:#}",);
+                }
             }
+            tracing::info!(tables = todo.tables.len(), "Scanning tables done");
         }
-        tracing::info!(tables = todo.tables.len(), "Scanning tables done");
-    });
+        .in_current_span(),
+    );
 
     let breakpoints = scheduler.breakpoints_ref();
     while let Ok(item) = items_rx.recv_async().await {
@@ -2819,18 +2822,9 @@ pub async fn legacy_to_taos(
     cancel: CancellationToken,
     task_id: Option<String>,
 ) -> anyhow::Result<()> {
-    let cancellation = cancel.clone();
-    let task = task_id.clone();
-    tokio::select! {
-        res = legacy_to_taos_impl(from, actions, to, concurrency, cancel, task_id) => {
-            res?;
-            Ok(())
-        }
-        _ = cancellation.cancelled() => {
-            tracing::warn!(task.id = task, "legacy task was cancelled");
-            Ok(())
-        }
-    }
+    legacy_to_taos_impl(from, actions, to, concurrency, cancel, task_id)
+        .in_current_span()
+        .await
 }
 
 async fn legacy_to_taos_impl(
@@ -2991,7 +2985,13 @@ async fn legacy_to_taos_impl(
 
     // span.exit();
 
-    let todo = parse_todo_list(&from_pool, &source_opts).await?;
+    let todo = tokio::select! {
+        todo = parse_todo_list(&from_pool, &source_opts) => { todo? },
+        _ = cancel.cancelled() => {
+            tracing::debug!("Parsing table list break by cancellation");
+            return Ok(());
+        }
+    };
     // dbg!(&todo.stables);
     let todo = Arc::new(todo);
 
@@ -3036,31 +3036,51 @@ async fn legacy_to_taos_impl(
 
     let scheduler_clone = scheduler.clone();
     let cancel_clone = cancel.clone();
-    tokio::spawn(async move {
-        if let Err(err) = scheduler_clone.wait().await {
-            tracing::error!(error = %err, "scheduler error");
-            cancel_clone.cancel();
+    tokio::spawn(
+        async move {
+            tokio::select! {
+                _ = cancel_clone.cancelled() => {
+                    tracing::debug!("Abort scheduler task by cancellation");
+                    scheduler_clone.abort();
+                }
+                _ = scheduler_clone.wait() => {
+                    tracing::debug!("Scheduler workers finished, stop task manager");
+                    cancel_clone.cancel();
+                }
+            }
         }
-    });
+        .in_current_span(),
+    );
 
     let metrics_arc_clone = metrics_arc.clone();
     let cancel_clone = cancel.clone();
-    let scheduler_clone = scheduler.clone();
-    tokio::task::spawn_blocking(move || loop {
-        let metrics = metrics_arc_clone.as_ref().legacy();
-        if cancel_clone.is_cancelled() {
-            tracing::debug!("abort handles");
-            scheduler_clone.abort();
-            break;
+    tokio::spawn(
+        async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(5));
+            let metrics_tracing = || {
+                let metrics = metrics_arc_clone.as_ref().legacy();
+                tracing::info!(
+                    "Processed {} parts for total {} tables, metrics detail:\n{}",
+                    metrics.total_finished_tables.load(Ordering::SeqCst),
+                    metrics.total_tables.load(Ordering::SeqCst),
+                    metrics
+                );
+            };
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        metrics_tracing();
+                    }
+                    _ = cancel_clone.cancelled() => {
+                        tracing::debug!("metrics task cancelled");
+                        metrics_tracing();
+                        break;
+                    }
+                }
+            }
         }
-        std::thread::sleep(Duration::from_secs(5));
-        tracing::info!(
-            "Processed {} parts for total {} tables, metrics detail:\n{}",
-            metrics.total_finished_tables.load(Ordering::SeqCst),
-            metrics.total_tables.load(Ordering::SeqCst),
-            metrics
-        );
-    });
+        .in_current_span(),
+    );
 
     if !matches!(source_opts.schema, SchemaMode::None) {
         const BREAKPOINT_KEY_SCHEMA: &str = "...schema...";
@@ -3080,7 +3100,13 @@ async fn legacy_to_taos_impl(
 
         if !schema_synced {
             tracing::info!("synchronize schemas");
-            sync_schema(&scheduler, &todo, source_opts.workers as _).await?;
+            let future = sync_schema(&scheduler, &todo, source_opts.workers as _);
+            let _ = tokio::select! {
+                _ = future => {}
+                _ = cancel.cancelled() => {
+                    tracing::debug!("Schema task queue cancelled");
+                }
+            };
         }
 
         if let Some(breakpoints) = scheduler.breakpoints_ref() {
@@ -3094,6 +3120,7 @@ async fn legacy_to_taos_impl(
     }
 
     if matches!(source_opts.schema, SchemaMode::Only) {
+        println!("{}", metrics);
         return Ok(());
     }
 
@@ -3109,84 +3136,84 @@ async fn legacy_to_taos_impl(
     let schema_polling_task_id = task_id.clone();
     let schema_polling_metrics = metrics_arc.clone();
     let schema_polling_cancellation = cancel.clone();
-    let (schema_polling_done, schema_polling_waiter) = tokio::sync::oneshot::channel::<()>();
-
     let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
         let todo_non_changed = Arc::new(todo.as_ref().clone());
-        let schema_polling_task = tokio::spawn(async move {
-            let handle = async move {
-                let mut interval =
-                    tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
-                loop {
-                    interval.tick().await;
-                    let updates = update_todo_list(
-                        &schema_polling_pool,
-                        &schema_polling_source_opts,
-                        schema_polling_todo.clone(),
-                    )
-                    .await?;
-                    if updates.stables.is_empty() && updates.tables.is_empty() {
-                        continue;
-                    }
-                    let updates = Arc::new(updates);
-                    let schema_polling_pool = schema_polling_pool.clone();
-                    let schema_polling_source_opts = schema_polling_source_opts.clone();
-                    let schema_polling_target_opts = schema_polling_target_opts.clone();
-                    let schema_polling_scheduler = schema_polling_scheduler.clone();
-                    let schema_polling_task_id = schema_polling_task_id.clone();
-                    let schema_polling_metrics = schema_polling_metrics.clone();
-                    tokio::spawn(async move {
-                        tracing::info!(
-                            "Schema updated, spawning sync schema task for {} tables",
-                            updates.tables.len()
-                        );
-                        schema_polling_metrics
-                            .as_ref()
-                            .legacy()
-                            .total_tables
-                            .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
-
-                        if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
-                            // sync schema of the updated stables.
-                            sync_schema(&schema_polling_scheduler, &updates, concurrency)
-                                .await
-                                .context("Spawn schema syncing of the updated stables error")?;
-                        }
-                        if updates.tables.is_empty() {
-                            return Ok::<_, anyhow::Error>(());
-                        }
-                        // sync data of the updated tables.
-                        sync_specified_tables_with_workers(
-                            &schema_polling_scheduler,
+        let schema_polling_task = tokio::spawn(
+            async move {
+                let handle = async move {
+                    let mut interval =
+                        tokio::time::interval(schema_polling_source_opts.schema_polling_interval);
+                    loop {
+                        interval.tick().await;
+                        let updates = update_todo_list(
                             &schema_polling_pool,
-                            schema_polling_source_opts.query.clone(),
-                            &updates,
-                            schema_polling_target_opts.clone(),
-                            schema_polling_source_opts.workers as _,
-                            &schema_polling_task_id,
+                            &schema_polling_source_opts,
+                            schema_polling_todo.clone(),
                         )
+                        .await?;
+                        if updates.stables.is_empty() && updates.tables.is_empty() {
+                            continue;
+                        }
+                        let updates = Arc::new(updates);
+                        let _ = async {
+                            tracing::info!(
+                                "Schema updated, spawning sync schema task for {} tables",
+                                updates.tables.len()
+                            );
+                            schema_polling_metrics
+                                .as_ref()
+                                .legacy()
+                                .total_tables
+                                .fetch_add(updates.tables.len() as _, Ordering::SeqCst);
+
+                            if !matches!(schema_polling_source_opts.schema, SchemaMode::None) {
+                                // sync schema of the updated stables.
+                                sync_schema(&schema_polling_scheduler, &updates, concurrency)
+                                    .await
+                                    .context("Spawn schema syncing of the updated stables error")?;
+                            }
+                            if updates.tables.is_empty() {
+                                return Ok::<_, anyhow::Error>(());
+                            }
+                            // sync data of the updated tables.
+                            sync_specified_tables_with_workers(
+                                &schema_polling_scheduler,
+                                &schema_polling_pool,
+                                schema_polling_source_opts.query.clone(),
+                                &updates,
+                                schema_polling_target_opts.clone(),
+                                schema_polling_source_opts.workers as _,
+                                &schema_polling_task_id,
+                            )
+                            .await
+                            .context("Spawn data syncing of the updated tables error")?;
+                            Ok::<_, anyhow::Error>(())
+                        }
                         .await
-                        .context("Spawn data syncing of the updated tables error")?;
-                        Ok::<_, anyhow::Error>(())
-                    });
+                        .inspect_err(|err| {
+                            tracing::warn!(error = format!("{err:#}"), "Sync updated tables error");
+                        });
+                    }
+                    #[allow(unreachable_code)]
+                    anyhow::Ok(())
+                };
+                tokio::select! {
+                    _ = schema_polling_cancellation.cancelled() => {
+                        tracing::debug!("schema polling task cancelled");
+                    }
+                    res = handle => {
+                        res?;
+                    }
                 }
-                #[allow(unreachable_code)]
                 anyhow::Ok(())
-            };
-            tokio::select! {
-                _ = schema_polling_waiter => {}
-                _ = schema_polling_cancellation.cancelled() => {}
-                res = handle => {
-                    res?;
-                }
             }
-            anyhow::Ok(())
-        });
+            .in_current_span(),
+        );
 
         tracing::info!("synchronize all tables");
 
         // sync all tables
-        sync_specified_tables_with_workers(
+        let future = sync_specified_tables_with_workers(
             &scheduler,
             &from_pool,
             source_opts.query,
@@ -3194,8 +3221,13 @@ async fn legacy_to_taos_impl(
             target_opts,
             source_opts.workers as _,
             &task_id,
-        )
-        .await?;
+        );
+        let _ = tokio::select! {
+            _ = future => {}
+            _ = cancel.cancelled() => {
+                tracing::debug!("Scheduler task queue cancelled");
+            }
+        };
 
         schema_polling_task
     } else {
@@ -3210,19 +3242,15 @@ async fn legacy_to_taos_impl(
                         &schema_polling_source_opts,
                         schema_polling_todo.clone(),
                     )
-                    .await?;
+                    .await
+                    .inspect_err(|err| {
+                        tracing::warn!(error = %err, "update todo list error, break schema polling loop");
+                    })?;
                     if updates.stables.is_empty() && updates.tables.is_empty() {
                         continue;
                     }
                     let updates = Arc::new(updates);
-
-                    let schema_polling_pool = schema_polling_pool.clone();
-                    let schema_polling_source_opts = schema_polling_source_opts.clone();
-                    let schema_polling_target_opts = schema_polling_target_opts.clone();
-                    let schema_polling_scheduler = schema_polling_scheduler.clone();
-                    let schema_polling_task_id = schema_polling_task_id.clone();
-                    let schema_polling_metrics = schema_polling_metrics.clone();
-                    tokio::spawn(async move {
+                    let _ = async {
                         tracing::info!(
                             "Schema updated, spawning sync schema task for {} tables",
                             updates.tables.len()
@@ -3254,20 +3282,25 @@ async fn legacy_to_taos_impl(
                         )
                         .await?;
                         Ok::<_, anyhow::Error>(())
+                    }
+                    .await
+                    .inspect_err(|err| {
+                        tracing::warn!(error = format!("{err:#}"), "Sync updated tables error");
                     });
                 }
                 #[allow(unreachable_code)]
                 anyhow::Ok(())
             };
             tokio::select! {
-                _ = schema_polling_waiter => (),
-                _ = schema_polling_cancellation.cancelled() => {}
+                _ = schema_polling_cancellation.cancelled() => {
+                    tracing::debug!("schema polling task cancelled");
+                }
                 res = handle => {
                     res?;
                 }
             }
             anyhow::Ok(())
-        });
+        }.in_current_span());
         schema_polling_task
     };
 
@@ -3289,12 +3322,14 @@ async fn legacy_to_taos_impl(
             source_is_v3,
             target_is_v3,
             &todo,
-        );
+        )
+        .in_current_span();
         tokio::select! {
             _ = future => {}
-            _ = cancel.cancelled() => {}
+            _ = cancel.cancelled() => {
+                tracing::debug!("Realtime task queue cancelled");
+            }
         };
-        return Ok(());
     }
 
     tracing::info!("close schema monitoring task");
@@ -3302,7 +3337,6 @@ async fn legacy_to_taos_impl(
         tokio::time::sleep(duration).await;
     }
     drop(guard);
-    let _ = schema_polling_done.send(());
     schema_polling_task.await??;
 
     info!("syncing done, wait to release resources");
