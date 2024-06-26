@@ -4230,23 +4230,24 @@ void strArrayDebugInfo(SArray* pArr, char** buf) {
   *buf = p;
 }
 void dbChkpDebugInfo(SDbChkp* pDb) {
-  // stTrace("chkp get file list: curr");
-  char* p[4] = {NULL};
+  if (stDebugFlag & DEBUG_INFO) {
+    char* p[4] = {NULL};
 
-  hashTableToDebug(pDb->pSstTbl[pDb->idx], &p[0]);
-  stTrace("chkp previous file: [%s]", p[0]);
+    hashTableToDebug(pDb->pSstTbl[pDb->idx], &p[0]);
+    stTrace("chkp previous file: [%s]", p[0]);
 
-  hashTableToDebug(pDb->pSstTbl[1 - pDb->idx], &p[1]);
-  stTrace("chkp curr file: [%s]", p[1]);
+    hashTableToDebug(pDb->pSstTbl[1 - pDb->idx], &p[1]);
+    stTrace("chkp curr file: [%s]", p[1]);
 
-  strArrayDebugInfo(pDb->pAdd, &p[2]);
-  stTrace("chkp newly addded file: [%s]", p[2]);
+    strArrayDebugInfo(pDb->pAdd, &p[2]);
+    stTrace("chkp newly addded file: [%s]", p[2]);
 
-  strArrayDebugInfo(pDb->pDel, &p[3]);
-  stTrace("chkp newly deleted file: [%s]", p[3]);
+    strArrayDebugInfo(pDb->pDel, &p[3]);
+    stTrace("chkp newly deleted file: [%s]", p[3]);
 
-  for (int i = 0; i < 4; i++) {
-    taosMemoryFree(p[i]);
+    for (int i = 0; i < 4; i++) {
+      taosMemoryFree(p[i]);
+    }
   }
 }
 int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
