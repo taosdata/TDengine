@@ -1128,7 +1128,7 @@ export default {
         // }
         this.sruleForm.s_name = value.parser.model.using;
         // this.subrule.subname = value.parser.model.name;
-        await this.getSTbaleList();
+        await this.getSTbaleList(true);
         await this.echoFetchMap();
         await this.selectJson();
         // this.$store.commit("app/SET_RESULTTB_SHOW", false);
@@ -1585,69 +1585,6 @@ export default {
       this.dialogForm.st_name = "";
       this.showCreateDIalog = false;
     },
-    //创建或者查询
-    async createST() {
-      this.$refs.createstb.$refs.form.validate(async (valid) => {
-        if (!valid) return false;
-        if (valid) {
-          try {
-            const { ts_field_name, tags, columns } =
-              this.$refs.createstb.stable_form;
-            // if (!ts_field_name) {
-            //   return Message.warning(
-            //     this.$t("dataIn.enterTip") + " " + this.$t("data.columnNameTip")
-            //   );
-            // }
-            for (let i = 0; i < columns.length; i++) {
-              const element = columns[i];
-              if (!element.field) {
-                return Message.warning(
-                  this.$t("dataIn.enterTip") +
-                    " " +
-                    this.$t("data.columnNameTip")
-                );
-              }
-            }
-            for (let i = 0; i < tags.length; i++) {
-              const element = tags[i];
-              if (!element.field) {
-                return Message.warning(
-                  this.$t("dataIn.enterTip") + " " + this.$t("data.tagNameTip")
-                );
-              }
-            }
-            if (!this.version_gt_3300) {
-              this.$refs.createstb.stable_form.columns = this.$refs.createstb.stable_form.columns.map((item) => {
-                return {
-                  ...item,
-                  encode: '',
-                  compress: '',
-                  level: ''
-                }
-              });
-            }
-            
-            let payload = {
-              selected_db: this.$store.state.app.currentDBName,
-              stable_form: this.$refs.createstb.stable_form,
-            };
-            let result = await createStableReq(payload);
-            if (result?.desc) {
-              this.$error(this.$t(result.desc));
-              return;
-            }
-            Message.success(this.$t("operateSucc"));
-            await this.getInitStables();
-            this.sruleForm.s_name = this.$refs.createstb.stable_form.name;
-            this.getSTbaleList();
-            this.closeDialog();
-          } catch (error) {
-            error.desc ? this.$error(error.desc) : "";
-            console.log(error);
-          }
-        }
-      });
-    },
     //获取初始化的stables
     async getInitStables() {
       try {
@@ -1721,7 +1658,7 @@ export default {
         this.caculateMappingResult();
       }
     },
-    async getSTbaleList() {
+    async getSTbaleList(isEcho) {
       try {
         this.currentPage = 1;
         let res = await sendSQLReq(
@@ -1796,7 +1733,7 @@ export default {
               equalindex > -1
                 ? ["mapping", `${defaultmap[equalindex]}`]
                 : ["expression", "value"];
-          tableRow.Expression = equalindex > -1 ? defaultmap[equalindex] : "";
+          tableRow.Expression = (equalindex > -1 && !isEcho) ? defaultmap[equalindex] : "";
           tableRow.PrimaryKey = val[3] == "PRIMARY KEY" || (val[1] == "TIMESTAMP" && !index)
           
           return tableRow;

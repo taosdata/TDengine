@@ -4,7 +4,7 @@
       <el-form
         :model="sourceForm"
         ref="form"
-        label-width="200px"
+        label-width="240px"
         label-position="left"
         size="small"
         :rules="rules"

@@ -50,8 +50,9 @@
             label-width="220px"
             label-position="left"
           >
-            <el-form-item prop="fileurl" :label="$t('datasource.fileurl')">
-              <a @click="handleDownloadFile(fileForm.fileurl)" href="javascript:void(0);">{{ fileForm.fileurl }}</a>
+            <el-form-item prop="fileurl" :label="activeName == 'first' ? $t('datasource.upfile') : $t('datasource.fileurl')">
+              <!-- <a @click="handleDownloadFile(fileForm.fileurl)" href="javascript:void(0);">{{ fileForm.fileurl }}</a> -->
+              <span>{{ fileForm.fileurl }}</span>
             </el-form-item>
           </el-form>
         <CsvParameter ref="param" :echoData="echoData" :isEditable="isEditable">
