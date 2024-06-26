@@ -59,6 +59,10 @@ pub(super) struct Cli {
     ///
     /// - 'rename-child-table:template:prefix_{{ name }}_stb': rename all super tables with prefix 'prefix_' and suffix '_stb'
     ///
+    /// - 'rename-child-table:map:oldname1,newname1|oldname2::newname2': rename all child tables with oldname1 to newname1, oldname2 to newname2
+    ///
+    /// - 'rename-child-table:map:@./rename-old-new.csv': rename all child tables with oldname,newname pairs in csv file
+    ///
     /// - 'rename-replace-with-regex:replace_with_regex:prefix(?<old>)::newprefix_$old': replace all tables prefix with new prefix
     #[clap(short = 'T', long)]
     transform: Vec<Action>,

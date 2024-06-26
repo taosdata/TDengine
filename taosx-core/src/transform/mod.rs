@@ -1,9 +1,11 @@
 use std::{hash::Hash, str::FromStr};
 
+use faststr::FastStr;
 use linked_hash_map::LinkedHashMap as HashMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use taos::{Field, JsonMeta, MetaCreate, MetaDrop, MetaUnit, TagWithValue, Ty};
+use std::sync::Arc;
+use taos::{Field, Itertools, JsonMeta, MetaCreate, MetaDrop, MetaUnit, TagWithValue, Ty};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 #[serde(untagged)]
@@ -168,6 +170,7 @@ pub enum RenameOpts {
     Template { template: String },
     // ReplaceWithRegex { regex: String, replace_with: String, }
     ReplaceWithRegex { config: String },
+    Map { map: Arc<HashMap<FastStr, FastStr>> },
 }
 
 impl RenameOpts {
@@ -187,9 +190,68 @@ impl RenameOpts {
         }
     }
 
-    pub fn replace_with_regex(input: impl Into<String>) -> Self {
-        Self::ReplaceWithRegex {
-            config: input.into(),
+    pub fn replace_with_regex(input: impl Into<String>) -> Result<Self, RenameParseError> {
+        let config = input.into();
+        if config.is_empty() {
+            return Err(RenameParseError::EmptyOptionForVariant(
+                "replace_with_regex",
+            ));
+        }
+        if config.split_once("::").is_none() {
+            return Err(RenameParseError::RegexError(config));
+        }
+        Ok(Self::ReplaceWithRegex { config })
+    }
+
+    pub fn map(map: impl Into<String>) -> Result<Self, RenameParseError> {
+        let map = map.into();
+        if map.is_empty() {
+            return Err(RenameParseError::EmptyOptionForVariant("map"));
+        }
+        if map.starts_with('@') {
+            let map = map.trim_start_matches('@');
+            let mut reader = csv_lib::ReaderBuilder::new()
+                .has_headers(false)
+                .flexible(true)
+                .from_path(map)?;
+            reader.set_headers(csv_lib::StringRecord::from(vec!["old", "new"]));
+            let records = reader.records();
+            let map = records
+                .map(|r| {
+                    let r = r.map_err(RenameParseError::CsvError)?;
+                    if r.len() != 2 {
+                        Err(RenameParseError::CsvContentError(r.as_slice().to_string()))
+                    } else {
+                        Ok(r)
+                    }
+                })
+                .map_ok(|r| (r[0].to_string().into(), r[1].to_string().into()))
+                .try_collect();
+            return Ok(Self::Map {
+                map: Arc::new(map?),
+            });
+        } else {
+            let mut reader = csv_lib::ReaderBuilder::new()
+                .has_headers(false)
+                .flexible(true)
+                .terminator(csv_lib::Terminator::Any(b'|'))
+                .from_reader(map.as_bytes());
+            reader.set_headers(csv_lib::StringRecord::from(vec!["old", "new"]));
+            let records = reader.records();
+            let map = records
+                .map(|r| {
+                    let r = r.map_err(RenameParseError::CsvError)?;
+                    if r.len() != 2 {
+                        Err(RenameParseError::CsvContentError(r.as_slice().to_string()))
+                    } else {
+                        Ok(r)
+                    }
+                })
+                .map_ok(|r| (r[0].to_string().into(), r[1].to_string().into()))
+                .try_collect();
+            return Ok(Self::Map {
+                map: Arc::new(map?),
+            });
         }
     }
 
@@ -212,6 +274,13 @@ impl RenameOpts {
                     .replace_all(name, split.get(1).unwrap().to_string())
                     .to_string())
             }
+            RenameOpts::Map { map } => {
+                if let Some(new) = map.get(name) {
+                    Ok(new.to_string())
+                } else {
+                    Ok(name.to_string())
+                }
+            }
         }
     }
 
@@ -233,6 +302,14 @@ pub enum RenameParseError {
         "Invalid rename option: {0} which should match pattern `<prefix|suffix|template>:<value>`"
     )]
     FormatError(String),
+    #[error("Invalid regex pattern: <regex>::<replace_with>")]
+    RegexError(String),
+    #[error("Invalid file input: {0:#}")]
+    IoError(#[from] std::io::Error),
+    #[error("Invalid csv input: {0:#}")]
+    CsvError(#[from] csv_lib::Error),
+    #[error("Invalid csv content, expect `old,new` pair, but got `{0}`")]
+    CsvContentError(String),
     #[error("Invalid rename variant: {0} while parsing `{1}`")]
     InvalidVariant(String, String),
 }
@@ -272,7 +349,14 @@ impl FromStr for RenameOpts {
                 if option.is_empty() {
                     Err(EmptyOptionForVariant("replace_with_regex"))
                 } else {
-                    Ok(RenameOpts::replace_with_regex(option))
+                    RenameOpts::replace_with_regex(option)
+                }
+            }
+            "map" => {
+                if option.is_empty() {
+                    Err(EmptyOptionForVariant("map"))
+                } else {
+                    RenameOpts::map(option)
                 }
             }
             variant => Err(InvalidVariant(variant.to_string(), s.to_string())),
@@ -630,9 +714,7 @@ impl Action {
                     tags: _,
                     tag_num: _,
                 } => {
-                    let s = action.apply(&using)?;
-                    using.clear();
-                    using.extend(s.chars());
+                    action.apply_in_place(using)?;
                 }
                 _ => (),
             },
