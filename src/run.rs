@@ -174,15 +174,26 @@ impl Cli {
         )
         .await;
         let port_pool = Default::default();
-
+        let task = tokio::spawn(
+            async move { task_opt.run(&port_pool).in_current_span().await }.in_current_span(),
+        );
+        tokio::pin!(task);
         tokio::select! {
-            res = task_opt.run(&port_pool).in_current_span() => {
-                res?;
+            res = &mut task => {
+                res??;
             }
             _ = tokio::signal::ctrl_c() => {
                 tracing::info!("ctrl-c received, exiting...");
                 cancel.cancel();
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                match tokio::time::timeout(std::time::Duration::from_secs(5), task).await {
+                    Ok(Ok(_)) => {}
+                    Ok(Err(e)) => {
+                        tracing::error!("task error: {:?}", e);
+                    }
+                    Err(_) => {
+                        tracing::error!("task timeout after 5s, force exit...");
+                    }
+                }
             }
         }
         timer_run.store(false, Ordering::SeqCst);

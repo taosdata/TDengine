@@ -278,16 +278,15 @@ impl TaskOpts {
                         .await?;
                 }
                 ("taos", "taos") => {
-                    tokio::select! {
-                        _ = cancel.cancelled() => {
-                            tracing::info!("legacy task was cancelled");
-                            return Ok(())
-                        }
-                        rs = legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone(), task_id.clone())
-                        .instrument(tracing::info_span!("legacy_to_taos")) => {
-                            rs?;
-                        }
-                    }
+                    legacy_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        cancel.clone(),
+                        task_id.clone(),
+                    )
+                    .await?;
                 }
                 ("taos", "csv") => {
                     tokio::select! {
