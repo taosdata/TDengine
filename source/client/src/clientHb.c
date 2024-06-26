@@ -18,6 +18,7 @@
 #include "clientLog.h"
 #include "scheduler.h"
 #include "trpc.h"
+#include "tglobal.h"
 
 typedef struct {
   union {
@@ -67,7 +68,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
 }
 
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp) {
-  uint64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
+  int64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
   for (int i = 0; i < TARRAY_SIZE(clientHbMgr.appHbMgrs); ++i) {
     SAppHbMgr *hbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
     if (!hbMgr || hbMgr->pAppInstInfo->clusterId != clusterId) {
@@ -545,6 +546,9 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
+  pInst->monitorParas = pRsp.monitorParas;
+  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
+           pInst->clusterId, pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
@@ -1129,7 +1133,7 @@ int32_t hbGatherAppInfo(void) {
     SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
     if (pAppHbMgr == NULL) continue;
 
-    uint64_t   clusterId = pAppHbMgr->pAppInstInfo->clusterId;
+    int64_t   clusterId = pAppHbMgr->pAppInstInfo->clusterId;
     SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
     if (NULL == pApp) {
       memcpy(&req.summary, &pAppHbMgr->pAppInstInfo->summary, sizeof(req.summary));

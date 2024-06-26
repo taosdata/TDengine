@@ -281,3 +281,113 @@ TEST_F(MndTestMnode, 04_Drop_Mnode_Rollback) {
     ASSERT_NE(retry, retryMax);
   }
 }
+
+#define SLOW_LOG_TYPE_NULL   0x0
+#define SLOW_LOG_TYPE_QUERY  0x1
+#define SLOW_LOG_TYPE_INSERT 0x2
+#define SLOW_LOG_TYPE_OTHERS 0x4
+#define SLOW_LOG_TYPE_ALL    0x7
+void getSlowLogScopeString(int32_t scope, char* result){
+  if(scope == SLOW_LOG_TYPE_NULL) {
+    strcat(result, "NONE");
+    return;
+  }
+  while(scope > 0){
+    if(scope & SLOW_LOG_TYPE_QUERY) {
+      strcat(result, "QUERY");
+      scope &= ~SLOW_LOG_TYPE_QUERY;
+    } else if(scope & SLOW_LOG_TYPE_INSERT) {
+      strcat(result, "INSERT");
+      scope &= ~SLOW_LOG_TYPE_INSERT;
+    } else if(scope & SLOW_LOG_TYPE_OTHERS) {
+      strcat(result, "OTHERS");
+      scope &= ~SLOW_LOG_TYPE_OTHERS;
+    } else{
+      printf("invalid slow log scope:%d", scope);
+      return;
+    }
+
+    if(scope > 0) {
+      strcat(result, "|");
+    }
+  }
+}
+
+// Define test cases
+TEST_F(MndTestMnode, ScopeIsNull) {
+  // Arrange
+  char result[256] = {0};
+
+  // Act
+  getSlowLogScopeString(SLOW_LOG_TYPE_NULL, result);
+
+  // Assert
+  EXPECT_STREQ(result, "NONE");
+}
+
+TEST_F(MndTestMnode, ScopeIsQuery) {
+  // Arrange
+  char result[256] = {0};
+
+  // Act
+  getSlowLogScopeString(SLOW_LOG_TYPE_QUERY, result);
+
+  // Assert
+  EXPECT_STREQ(result, "QUERY");
+}
+
+TEST_F(MndTestMnode, ScopeIsInsert) {
+  // Arrange
+  char result[256] = {0};
+
+  // Act
+  getSlowLogScopeString(SLOW_LOG_TYPE_INSERT, result);
+
+  // Assert
+  EXPECT_STREQ(result, "INSERT");
+}
+
+TEST_F(MndTestMnode, ScopeIsOthers) {
+  // Arrange
+  char result[256] = {0};
+
+  // Act
+  getSlowLogScopeString(SLOW_LOG_TYPE_OTHERS, result);
+
+  // Assert
+  EXPECT_STREQ(result, "OTHERS");
+}
+
+TEST_F(MndTestMnode, ScopeIsMixed) {
+  // Arrange
+  char result[256] = {0};
+
+  // Act
+  getSlowLogScopeString(SLOW_LOG_TYPE_OTHERS|SLOW_LOG_TYPE_INSERT, result);
+
+  // Assert
+  EXPECT_STREQ(result, "INSERT|OTHERS");
+}
+
+TEST_F(MndTestMnode, ScopeIsMixed1) {
+  // Arrange
+  char result[256] = {0};
+
+  // Act
+  getSlowLogScopeString(SLOW_LOG_TYPE_ALL, result);
+
+  // Assert
+  EXPECT_STREQ(result, "QUERY|INSERT|OTHERS");
+}
+
+TEST_F(MndTestMnode, ScopeIsInvalid) {
+  // Arrange
+  char result[256] = {0};
+
+  // Act
+  getSlowLogScopeString(0xF000, result);
+
+  // Assert
+  EXPECT_STREQ(result, ""); // Expect an empty string since the scope is invalid
+  // You may also want to check if the error message is correctly logged
+}

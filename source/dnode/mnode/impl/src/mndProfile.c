@@ -282,7 +282,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     }
   }
 
-_CONNECT:
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
                         pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
@@ -301,6 +300,13 @@ _CONNECT:
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;
   connectRsp.authVer = pUser->authVersion;
+  connectRsp.monitorParas.tsEnableMonitor = tsEnableMonitor;
+  connectRsp.monitorParas.tsMonitorInterval = tsMonitorInterval;
+  connectRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
+  connectRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
+  connectRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
+  connectRsp.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
+  tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
 
   strcpy(connectRsp.sVer, version);
@@ -660,6 +666,13 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   SClientHbBatchRsp batchRsp = {0};
   batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
+  batchRsp.monitorParas.tsEnableMonitor = tsEnableMonitor;
+  batchRsp.monitorParas.tsMonitorInterval = tsMonitorInterval;
+  batchRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
+  batchRsp.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
+  tstrncpy(batchRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
+  batchRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
+  batchRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);
   for (int i = 0; i < sz; i++) {
