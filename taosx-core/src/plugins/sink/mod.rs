@@ -921,6 +921,10 @@ async fn consume_lush_record_with_transform(
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables, full_record) => {
+            tracing::trace!(
+                "Got tables: {}",
+                tables.iter().map(|t| t.table_name()).join(",")
+            );
             // 默认超级表名(transform 前)
             let default_super_table = tables[0].stable_name();
             let default_super_table = default_super_table.unwrap().as_str();
