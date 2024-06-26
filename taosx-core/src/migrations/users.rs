@@ -47,20 +47,21 @@ impl User {
 pub async fn get_user_passwords(conn: &taos::Taos) -> Result<Vec<User>, taos::Error> {
     let sql = "select * from information_schema.ins_users_full";
 
-    let mut set = conn.query(sql).await?;
+    let error = |err: taos::Error| {
+        tracing::error!(error = format!("{err:#}"), "Failed to get user passwords");
+        let code = *err.code().deref();
+        if matches!(code, 0x2662 | 0x2603 | 0x039A) {
+            err.context("Current version is not supported, please upgrade to a later one.")
+        } else {
+            err.context("Failed to get user passwords")
+        }
+    };
+    let mut set = conn.query(sql).await.map_err(error)?;
     set.deserialize()
         .try_filter(|obj: &User| std::future::ready(obj.name != "root"))
         .try_collect::<Vec<_>>()
         .await
-        .map_err(|err| {
-            tracing::error!(error = format!("{err:#}"), "Failed to get user passwords");
-            let code = *err.code().deref();
-            if matches!(code, 0x2662 | 0x2603 | 0x039A) {
-                err.context("Current version is not supported, please upgrade to a later one.")
-            } else {
-                err.context("Failed to get user passwords")
-            }
-        })
+        .map_err(error)
 }
 
 #[cfg(test)]
