@@ -300,5 +300,3 @@ void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
 
   mDebug("complete clear checkpoints in Dbs");
 }
-
-

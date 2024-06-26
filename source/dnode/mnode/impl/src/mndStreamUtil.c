@@ -575,10 +575,12 @@ void mndInitExecInfo() {
   execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
   execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
   execInfo.pChkptStreams = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  execInfo.pStreamConsensus = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   execInfo.pNodeList = taosArrayInit(4, sizeof(SNodeEntry));
 
   taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
   taosHashSetFreeFp(execInfo.pChkptStreams, freeTaskList);
+  taosHashSetFreeFp(execInfo.pStreamConsensus, freeTaskList);
 }
 
 void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
@@ -817,4 +819,80 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
 
   taosArrayDestroy(pDropped);
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doSendRestoreCheckpointInfo(SRestoreCheckpointInfo* pInfo, SRpcMsg* pMsg, int64_t checkpointId) {
+  int32_t code = 0;
+  int32_t blen;
+
+  SRestoreCheckpointInfoRsp req = {.streamId = pInfo->streamId, .taskId = pInfo->taskId, .checkpointId = checkpointId};
+
+  tEncodeSize(tEncodeRestoreCheckpointInfoRsp, &req, blen, code);
+  if (code < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t tlen = sizeof(SMsgHead) + blen;
+  void    *abuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  tEncodeRestoreCheckpointInfoRsp(&encoder, &req);
+
+  SMsgHead *pMsgHead = (SMsgHead *)pMsg->pCont;
+  pMsgHead->contLen = htonl(tlen);
+  pMsgHead->vgId = htonl(pInfo->nodeId);
+  tEncoderClear(&encoder);
+
+  tmsgSendRsp(pMsg);
+  return code;
+}
+
+int32_t mndStreamSetRestoreCheckpointId(SArray* pInfoList, int64_t checkpointId) {
+  for(int32_t i = 0; i < taosArrayGetSize(pInfoList); ++i) {
+    SCheckpointConsensusInfo* pInfo = taosArrayGet(pInfoList, i);
+    doSendRestoreCheckpointInfo(&pInfo->req, &pInfo->rsp, checkpointId);
+  }
+  return 0;
+}
+
+void mndAddConsensusTasks(SArray* pList, const SRestoreCheckpointInfo* pInfo, SRpcMsg* pMsg) {
+  bool existed = false;
+  for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+    STaskChkptInfo* p = taosArrayGet(pList ,i);
+    if (p->taskId == pInfo->taskId) {
+      existed = true;
+      break;
+    }
+  }
+
+  if (!existed) {
+    SCheckpointConsensusInfo info = {0};
+    memcpy(&info.req, pInfo, sizeof(info.req));
+
+    info.rsp.code = 0;
+    info.rsp.info = pMsg->info;
+    info.rsp.contLen = sizeof(SRestoreCheckpointInfoRsp) + sizeof(SMsgHead);
+    info.rsp.pCont = rpcMallocCont(info.rsp.contLen);
+
+    SMsgHead *pHead = info.rsp.pCont;
+    pHead->vgId = htonl(pInfo->nodeId);
+
+    taosArrayPush(pList, &info);
+  }
+}
+
+int64_t mndGetConsensusCheckpointId(SArray* pList, SStreamObj* pStream) {
+  int64_t checkpointId = INT64_MAX;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+    SCheckpointConsensusInfo *pInfo = taosArrayGet(pList, i);
+    if (pInfo->req.checkpointId < checkpointId) {
+      checkpointId = pInfo->req.checkpointId;
+      mTrace("stream:0x%" PRIx64 " %s task:0x%x vgId:%d latest checkpointId:%" PRId64, pStream->uid, pStream->name,
+             pInfo->req.taskId, pInfo->req.nodeId, pInfo->req.checkpointId);
+    }
+  }
+
+  return checkpointId;
 }

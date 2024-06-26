@@ -17,6 +17,7 @@
 #define TDENGINE_TSTREAM_H
 
 #include "os.h"
+#include "streamMsg.h"
 #include "streamState.h"
 #include "tdatablock.h"
 #include "tdbInt.h"
@@ -24,7 +25,6 @@
 #include "tmsgcb.h"
 #include "tqueue.h"
 #include "ttimer.h"
-#include "streammsg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -704,6 +704,7 @@ void    streamTaskSetRemoveBackendFiles(SStreamTask* pTask);
 
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
+STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask);
 
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
@@ -750,10 +751,11 @@ void    streamMetaResetStartInfo(STaskStartInfo* pMeta);
 SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta);
 void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
 void    streamMetaLoadAllTasks(SStreamMeta* pMeta);
-int32_t streamMetaStartAllTasks(SStreamMeta* pMeta, __stream_task_expand_fn fn);
+int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
-int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, __stream_task_expand_fn fn);
+int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
+int32_t streamTaskSendConsensusChkptMsg(SStreamTask* pTask);
 
 // timer
 tmr_h   streamTimerGetInstance();
@@ -788,6 +790,8 @@ int32_t streamTaskRestoreStatus(SStreamTask* pTask);
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq);
 int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq *req);
 void    streamTaskSendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp);
+
+int32_t streamTaskSendLatestCheckpointInfo(SStreamTask* pTask);
 
 #ifdef __cplusplus
 }

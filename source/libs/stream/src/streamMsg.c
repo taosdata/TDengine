@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "streamMsg.h"
 #include "os.h"
-#include "streammsg.h"
 #include "tstream.h"
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
@@ -76,7 +76,6 @@ int32_t tEncodeStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckp
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
-
 
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -623,5 +622,43 @@ int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq
   if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
   if (tDecodeI8(pDecoder, &pReq->dropHTask) < 0) return -1;
   tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tEncodeStreamTaskLatestChkptInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeStreamTaskLatestChkptInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo) {
+  if (tStartEncode(pCoder) < 0) return -1;
+  if (tEncodeI64(pCoder, pInfo->streamId) < 0) return -1;
+  if (tEncodeI32(pCoder, pInfo->taskId) < 0) return -1;
+  if (tEncodeI64(pCoder, pInfo->checkpointId) < 0) return -1;
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeRestoreCheckpointInfoRsp(SDecoder* pCoder, SRestoreCheckpointInfoRsp* pInfo) {
+  if (tStartDecode(pCoder) < 0) return -1;
+  if (tDecodeI64(pCoder, &pInfo->streamId) < 0) return -1;
+  if (tDecodeI32(pCoder, &pInfo->taskId) < 0) return -1;
+  if (tDecodeI64(pCoder, &pInfo->checkpointId) < 0) return -1;
+  tEndDecode(pCoder);
   return 0;
 }

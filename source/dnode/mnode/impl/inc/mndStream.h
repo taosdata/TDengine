@@ -34,6 +34,7 @@ extern "C" {
 #define MND_STREAM_TASK_RESET_NAME   "stream-task-reset"
 #define MND_STREAM_TASK_UPDATE_NAME  "stream-task-update"
 #define MND_STREAM_CHKPT_UPDATE_NAME "stream-chkpt-update"
+#define MND_STREAM_CHKPT_CONSEN_NAME "stream-chkpt-consen"
 
 typedef struct SStreamTransInfo {
   int64_t     startTime;
@@ -61,6 +62,7 @@ typedef struct SStreamExecInfo {
   TdThreadMutex    lock;
   SHashObj        *pTransferStateStreams;
   SHashObj        *pChkptStreams;
+  SHashObj        *pStreamConsensus;
 } SStreamExecInfo;
 
 extern SStreamExecInfo         execInfo;
@@ -131,6 +133,8 @@ int32_t     mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream)
 int32_t     mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SArray *pChkptInfoList);
 int32_t     mndScanCheckpointReportInfo(SRpcMsg *pReq);
+int32_t     mndStreamSetRestoreCheckpointId(SArray* pList, int64_t checkpointId);
+
 void        removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo);
 
 SStreamTaskIter *createStreamTaskIter(SStreamObj *pStream);
@@ -141,6 +145,8 @@ void             mndInitExecInfo();
 void             mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo);
 int32_t          removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot);
 void             removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
+void             mndAddConsensusTasks(SArray *pList, const SRestoreCheckpointInfo *pInfo, SRpcMsg *pMsg);
+int64_t          mndGetConsensusCheckpointId(SArray *pList, SStreamObj *pStream);
 
 #ifdef __cplusplus
 }

@@ -832,6 +832,34 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->hTaskId = pSrc->hTaskId;
 }
 
+STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
+  SStreamMeta*         pMeta = pTask->pMeta;
+  STaskExecStatisInfo* pExecInfo = &pTask->execInfo;
+
+  STaskStatusEntry entry = {
+      .id = streamTaskGetTaskId(pTask),
+      .status = streamTaskGetStatus(pTask)->state,
+      .nodeId = pMeta->vgId,
+      .stage = pMeta->stage,
+
+      .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize(pTask->inputq.queue)),
+      .startTime = pExecInfo->readyTs,
+      .checkpointInfo.latestId = pTask->chkInfo.checkpointId,
+      .checkpointInfo.latestVer = pTask->chkInfo.checkpointVer,
+      .checkpointInfo.latestTime = pTask->chkInfo.checkpointTime,
+      .checkpointInfo.latestSize = 0,
+      .checkpointInfo.remoteBackup = 0,
+      .hTaskId = pTask->hTaskInfo.id.taskId,
+      .procsTotal = SIZE_IN_MiB(pExecInfo->inputDataSize),
+      .outputTotal = SIZE_IN_MiB(pExecInfo->outputDataSize),
+      .procsThroughput = SIZE_IN_KiB(pExecInfo->procsThroughput),
+      .outputThroughput = SIZE_IN_KiB(pExecInfo->outputThroughput),
+      .startCheckpointId = pExecInfo->startCheckpointId,
+      .startCheckpointVer = pExecInfo->startCheckpointVer,
+  };
+  return entry;
+}
+
 static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   SStreamMeta* pMeta = pTask->pMeta;
 

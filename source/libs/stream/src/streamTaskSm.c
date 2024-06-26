@@ -199,9 +199,7 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
 static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent event) {
   SStreamTaskSM* pSM = pTask->status.pSM;
 
-  bool removed = false;
-  taosThreadMutexLock(&pTask->lock);
-
+  bool    removed = false;
   int32_t num = taosArrayGetSize(pSM->pWaitingEventList);
   for (int32_t i = 0; i < num; ++i) {
     SFutureHandleEventInfo* pInfo = taosArrayGet(pSM->pWaitingEventList, i);
@@ -218,7 +216,6 @@ static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent eve
     stDebug("s-task:%s failed to remove event:%s in waiting list", pTask->id.idStr, StreamTaskEventList[event].name);
   }
 
-  taosThreadMutexUnlock(&pTask->lock);
   return TSDB_CODE_SUCCESS;
 }
 

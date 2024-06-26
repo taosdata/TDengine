@@ -17,6 +17,7 @@
 #define TDENGINE_STREAMMSG_H
 
 #include "tmsg.h"
+#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -204,12 +205,38 @@ typedef struct SCheckpointReport {
 int32_t tEncodeStreamTaskChkptReport(SEncoder* pEncoder, const SCheckpointReport* pReq);
 int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq);
 
+typedef struct SRestoreCheckpointInfo {
+  SMsgHead head;
+  int64_t  streamId;
+  int64_t  checkpointId;   // latest checkpoint id
+  int32_t  taskId;
+  int32_t  nodeId;
+} SRestoreCheckpointInfo;
+
+int32_t tEncodeStreamTaskLatestChkptInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
+int32_t tDecodeStreamTaskLatestChkptInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq);
+
+typedef struct SRestoreCheckpointInfoRsp {
+    int64_t  streamId;
+    int64_t  checkpointId;
+    int32_t  taskId;
+} SRestoreCheckpointInfoRsp;
+
+int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo);
+int32_t tDecodeRestoreCheckpointInfoRsp(SDecoder* pCoder, SRestoreCheckpointInfoRsp* pInfo);
+
 typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
   int32_t  reqType;
 } SStreamTaskRunReq;
+
+typedef struct SCheckpointConsensusInfo {
+  SRestoreCheckpointInfo req;
+  SRpcMsg rsp;
+  int64_t ts;
+} SCheckpointConsensusInfo;
 
 #ifdef __cplusplus
 }

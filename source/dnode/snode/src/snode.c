@@ -155,6 +155,8 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
       return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
     case TDMT_STREAM_TASK_UPDATE_CHKPT:
       return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, true, pMsg->pCont, pMsg->contLen);
+    case TDMT_MND_STREAM_CHKPT_CONSEN_RSP:
+      return tqStreamProcessConsensusChkptRsp(pSnode->pMeta, pMsg);
     default:
       ASSERT(0);
   }
