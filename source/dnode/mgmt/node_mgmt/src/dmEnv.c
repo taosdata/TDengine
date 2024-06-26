@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "audit.h"
 #include "dmMgmt.h"
+#include "audit.h"
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 
