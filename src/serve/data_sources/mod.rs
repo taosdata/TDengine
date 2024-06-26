@@ -407,6 +407,7 @@ pub(super) async fn get_sample(
     })?;
     let sample_timeout = plugins::parse_sample_timeout(&dsn).as_secs();
     let timeout_sec = core::cmp::max(query_timeout, sample_timeout) + 5;
+    tracing::debug!(?query_timeout, ?sample_timeout, ?timeout_sec);
 
     let result = timeout(
         Duration::from_secs(timeout_sec),
