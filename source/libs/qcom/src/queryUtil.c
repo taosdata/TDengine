@@ -132,7 +132,7 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   execFn(pSchedMsg->thandle);
   taosFreeQitem(pSchedMsg);
   if (tsem_post(&clientQueryQueue.queueSem) != 0) {
-    uFatal("post %s emptySem failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
+    qError("post %s emptySem failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
   }
 }
 
@@ -176,10 +176,26 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   pSchedMsg->thandle = execParam;
   pSchedMsg->msg = code;
   if (tsem_wait(&clientQueryQueue.queueSem) != 0) {
-    qFatal("wait %s emptySem failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
+    qError("wait %s emptySem failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
   }
 
   return taosWriteQitem(clientQueryQueue.pTaskQueue, pSchedMsg);
+}
+
+int32_t taosAsyncWait() {
+  if (!clientQueryQueue.taskThreadPool.pCb) {
+    qError("query task thread pool callback function is null");
+    return -1;
+  }
+  return clientQueryQueue.taskThreadPool.pCb->beforeBlocking(&clientQueryQueue.taskThreadPool);
+}
+
+int32_t taosAsyncRecover() {
+  if (!clientQueryQueue.taskThreadPool.pCb) {
+    qError("query task thread pool callback function is null");
+    return -1;
+  }
+  return clientQueryQueue.taskThreadPool.pCb->afterRecoverFromBlocking(&clientQueryQueue.taskThreadPool);
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
