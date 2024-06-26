@@ -154,7 +154,7 @@ int32_t initTaskQueue() {
   }
   
   if (tsem_init(&clientQueryQueue.queueSem, 0, queueSize) != 0) {
-    uError("init %s:queue semaphore failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
+    qError("init %s:queue semaphore failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
     cleanupTaskQueue();
     return -1;
   }
