@@ -41,7 +41,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
 
-  char* p = streamTaskGetStatus(pTask)->name;
+  char *p = streamTaskGetStatus(pTask)->name;
   if (pTask->info.fillHistory) {
     sndInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
@@ -71,7 +71,8 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   startRsync();
 
   pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskBuild *)sndExpandTask, tqExpandStreamTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
+  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskBuild *)sndExpandTask, tqExpandStreamTask, SNODE_HANDLE,
+                                 taosGetTimestampMs(), tqStartTaskCompleteCallback);
   if (pSnode->pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
@@ -138,9 +139,10 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
 int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_DEPLOY: {
-      void *  pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+      void   *pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
       int32_t len = pMsg->contLen - sizeof(SMsgHead);
-      return tqStreamTaskProcessDeployReq(pSnode->pMeta, &pSnode->msgCb,pMsg->info.conn.applyIndex, pReq, len, true, true);
+      return tqStreamTaskProcessDeployReq(pSnode->pMeta, &pSnode->msgCb, pMsg->info.conn.applyIndex, pReq, len, true,
+                                          true);
     }
 
     case TDMT_STREAM_TASK_DROP:

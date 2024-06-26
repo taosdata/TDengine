@@ -140,7 +140,7 @@ int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest);
 int32_t valueToString(void* k, char* buf);
 int32_t valueIsStale(void* k, int64_t ts);
 
-void destroyCompare(void* arg);
+void        destroyCompare(void* arg);
 static void cleanDir(const char* pPath, const char* id);
 
 static bool                streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len);
@@ -194,9 +194,7 @@ int32_t getCfIdx(const char* cfName) {
   return idx;
 }
 
-bool isValidCheckpoint(const char* dir) {
-  return true;
-}
+bool isValidCheckpoint(const char* dir) { return true; }
 
 int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
   // impl later
@@ -486,9 +484,7 @@ _ERROR:
   return code;
 }
 
-int32_t backendCopyFiles(const char* src, const char* dst) {
-  return backendFileCopyFilesImpl(src, dst);
-}
+int32_t backendCopyFiles(const char* src, const char* dst) { return backendFileCopyFilesImpl(src, dst); }
 
 static int32_t rebuildFromLocalCheckpoint(const char* pTaskIdStr, const char* checkpointPath, int64_t checkpointId,
                                           const char* defaultPath) {
@@ -540,7 +536,8 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   char* chkptPath = taosMemoryCalloc(1, pathLen);
   if (chkptId > 0) {
-    snprintf(chkptPath, pathLen, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkptId);
+    snprintf(chkptPath, pathLen, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint",
+             chkptId);
 
     code = rebuildFromLocalCheckpoint(key, chkptPath, chkptId, defaultPath);
     if (code != 0) {
@@ -549,11 +546,12 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
     if (code != 0) {
       stError("failed to start stream backend at %s, reason: %s, restart from default defaultPath:%s", chkptPath,
-             tstrerror(code), defaultPath);
-      code = 0;    // reset the error code
+              tstrerror(code), defaultPath);
+      code = 0;  // reset the error code
     }
   } else {  // no valid checkpoint id
-    stInfo("%s no valid checkpoint ever generated, no need to copy checkpoint data, clean defaultPath:%s", key, defaultPath);
+    stInfo("%s no valid checkpoint ever generated, no need to copy checkpoint data, clean defaultPath:%s", key,
+           defaultPath);
     cleanDir(defaultPath, key);
   }
 
@@ -2143,13 +2141,18 @@ void taskDbDestroy(void* pDb, bool flush) {
       rocksdb_flushoptions_destroy(flushOpt);
     }
   }
-  for (int i = 0; i < nCf; i++) {
-    if (wrapper->pCf[i] != NULL) {
-      rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+
+  if (wrapper->pCf != NULL) {
+    for (int i = 0; i < nCf; i++) {
+      if (wrapper->pCf[i] != NULL) {
+        rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+      }
     }
   }
 
-  if (wrapper->db) rocksdb_close(wrapper->db);
+  if (wrapper->db) {
+    rocksdb_close(wrapper->db);
+  }
 
   rocksdb_options_destroy(wrapper->dbOpt);
   rocksdb_readoptions_destroy(wrapper->readOpt);
@@ -2205,7 +2208,8 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
   return code;
 }
 
-int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path, SArray* list, const char* idStr) {
+int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path, SArray* list,
+                                    const char* idStr) {
   int32_t  code = 0;
   SBkdMgt* p = (SBkdMgt*)bkdChkpMgt;
 
@@ -2224,7 +2228,8 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   return code;
 }
 
-int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list, const char* idStr) {
+int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path, SArray* list,
+                                const char* idStr) {
   int32_t                 code = -1;
   STaskDbWrapper*         pDb = arg;
   ECHECKPOINT_BACKUP_TYPE utype = type;
