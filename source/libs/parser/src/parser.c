@@ -49,7 +49,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
 }
 
 bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
-  (void)length;
+  (void) length;
   int32_t index = 0;
   SToken t;
 
@@ -58,28 +58,28 @@ bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
     return false;
   }
 
-  t = tStrGetToken((char *)pStr, &index, false, NULL);
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
   if (TK_INSERT != t.type && TK_IMPORT != t.type) {
     *pDbName = NULL;
     return false;
   }
 
-  t = tStrGetToken((char *)pStr, &index, false, NULL);
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
   if (TK_INTO != t.type) {
     *pDbName = NULL;
     return false;
   }
 
-  t = tStrGetToken((char *)pStr, &index, false, NULL);
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
   if (t.n == 0 || t.z == NULL) {
     *pDbName = NULL;
     return false;
   }
-  char *dotPos = strchr(t.z, '.');
+  char *dotPos = strnchr(t.z, '.', t.n, true);
   if (dotPos != NULL) {
     int dbNameLen = dotPos - t.z;
     *pDbName = taosMemoryMalloc(dbNameLen + 1);
-    if (NULL == *pDbName) {
+    if (*pDbName == NULL) {
       return false;
     }
     strncpy(*pDbName, t.z, dbNameLen);
