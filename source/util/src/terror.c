@@ -673,7 +673,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PK_TYPE,                "primary key column 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PK_OP,              "primary key column can not be added, modified, and dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL,        "Primary key column should not be null")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE,        "Primary key column should not be none")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Tbanme duplicated or not set")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Pseudo tag tbname not set")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_DUPLICATED,          "Table name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_NAME_DUPLICATED,        "Tag name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
