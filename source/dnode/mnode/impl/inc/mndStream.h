@@ -83,7 +83,7 @@ typedef struct SOrphanTask {
 
 typedef struct {
   SMsgHead head;
-} SMStreamHbRspMsg, SMStreamReqCheckpointRsp, SMStreamUpdateChkptRsp;
+} SMStreamReqCheckpointRsp, SMStreamUpdateChkptRsp;
 
 typedef struct STaskChkptInfo {
   int32_t nodeId;

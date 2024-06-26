@@ -523,7 +523,6 @@ typedef struct STaskUpdateEntry {
 } STaskUpdateEntry;
 
 typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
-typedef int32_t (*__stream_task_expand_fn)(struct SStreamTask* pTask);
 
 SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
                             SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5);
@@ -791,7 +790,8 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq);
 int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq *req);
 void    streamTaskSendRetrieveRsp(SStreamRetrieveReq *pReq, SRpcMsg* pRsp);
 
-int32_t streamTaskSendLatestCheckpointInfo(SStreamTask* pTask);
+int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp);
+
 
 #ifdef __cplusplus
 }

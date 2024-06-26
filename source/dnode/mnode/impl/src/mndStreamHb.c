@@ -236,7 +236,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
-  mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
+  mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d, msgId:%d", req.vgId, req.numOfTasks, req.msgId);
 
   pFailedChkpt = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   pOrphanTasks = taosArrayInit(4, sizeof(SOrphanTask));
@@ -333,20 +333,22 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   taosThreadMutexUnlock(&execInfo.lock);
-  tCleanupStreamHbMsg(&req);
-
-  taosArrayDestroy(pFailedChkpt);
-  taosArrayDestroy(pOrphanTasks);
 
   {
     SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamHbRspMsg)};
     rsp.pCont = rpcMallocCont(rsp.contLen);
-    SMsgHead* pHead = rsp.pCont;
-    pHead->vgId = htonl(req.vgId);
+
+    SMStreamHbRspMsg* pMsg = rsp.pCont;
+    pMsg->head.vgId = htonl(req.vgId);
+    pMsg->msgId = req.msgId;
 
     tmsgSendRsp(&rsp);
     pReq->info.handle = NULL;   // disable auto rsp
   }
+
+  tCleanupStreamHbMsg(&req);
+  taosArrayDestroy(pFailedChkpt);
+  taosArrayDestroy(pOrphanTasks);
 
   return TSDB_CODE_SUCCESS;
 }

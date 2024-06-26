@@ -365,6 +365,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI32(pEncoder, *pVgId) < 0) return -1;
   }
 
+  if (tEncodeI32(pEncoder, pReq->msgId) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -424,6 +425,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     taosArrayPush(pReq->pUpdateNodes, &vgId);
   }
 
+  if (tDecodeI32(pDecoder, &pReq->msgId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -434,12 +436,16 @@ void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
   }
 
   if (pMsg->pUpdateNodes != NULL) {
-    taosArrayDestroy(pMsg->pUpdateNodes);
+    pMsg->pUpdateNodes = taosArrayDestroy(pMsg->pUpdateNodes);
   }
 
   if (pMsg->pTaskStatus != NULL) {
-    taosArrayDestroy(pMsg->pTaskStatus);
+    pMsg->pTaskStatus = taosArrayDestroy(pMsg->pTaskStatus);
   }
+
+  pMsg->msgId = -1;
+  pMsg->vgId = -1;
+  pMsg->numOfTasks = -1;
 }
 
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
