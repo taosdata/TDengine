@@ -45,13 +45,10 @@ class CreateTablesByCSV(TDCase):
     def create_db(self):
         self.tdCom.createDb(self.dbname)
     
-    def create_stb(self):
-        tag_type_str = self.tdCom.gen_default_tag_str()
+    def create_stb(self, tag_type_str=None):
+        tag_type_str = self.tdCom.gen_default_tag_str() if tag_type_str is None else tag_type_str
         column_type_str = self.tdCom.gen_default_column_str()
         self.tdSql.execute(f'create stable if not exists {self.dbname}.{self.stbname} ({column_type_str}) tags ({tag_type_str})')
-    
-    def insert_data(self, tbname):
-        self.tdSql.execute(f'insert into {tbname} values ({",".join(self.tdCom.get_col_value_list())})')
     
     def get_tag_value_list(self):
         random_type_value_list = list(map(lambda i: f'"{self.tdCom.gen_random_type_value(i, self.tdCom.default_varchar_length, self.tdCom.default_varchar_datatype, self.tdCom.default_nchar_length, self.tdCom.default_nchar_datatype)}"' if i in self.str_type_list else self.tdCom.gen_random_type_value(i, self.tdCom.default_varchar_length, self.tdCom.default_varchar_datatype, self.tdCom.default_nchar_length, self.tdCom.default_nchar_datatype), self.common_type_list))
@@ -60,19 +57,36 @@ class CreateTablesByCSV(TDCase):
             # random_type_value_list[0] = f'"{random.choice(self.tdCom.genTs())}"'
         return random_type_value_list
     
-    def gen_csv(self, ctable_count=10, row_count=10, ctable_field_exists=True):
-        with open(self.csv_file, 'w') as f:
-            for row_num in range(row_count):
-                idx = str(row_num % ctable_count + 1)
-                f.write(f'{",".join(map(str, self.get_tag_value_list()))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'ctb{idx}\n')
+    def gen_csv(self, ctable_count=10, row_count=10, ctable_field_exists=True, custom_tag_count=0, note=False):
+        if custom_tag_count == 128 or custom_tag_count > 128:
+            tag_str_exceed = self.tdCom.gen_tag_col_str("t", "int", self.tdCom.Boundary.MAX_TAG_COUNT+1)
+            tag_str = self.tdCom.gen_tag_col_str("t", "int", self.tdCom.Boundary.MAX_TAG_COUNT)
+            with open(self.csv_file, 'w') as f:
+                for row_num in range(row_count):
+                    idx = str(row_num % ctable_count + 1)
+                    tag_fields_value = "1," * custom_tag_count
+                    print(tag_fields_value)
+                    f.write(f'{tag_fields_value}"ctb{idx}"\n')
+            return tag_str_exceed, tag_str
+        else:
+            with open(self.csv_file, 'w') as f:
+                for row_num in range(row_count):
+                    idx = str(row_num % ctable_count + 1)
+                    f.write(f'{",".join(map(str, self.get_tag_value_list()))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'"ctb{idx}"\n')
+                if note:
+                    f.write(f'#{",".join(map(str, self.get_tag_value_list()))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'#"ctb{idx}"\n')
+                    
     
-    def create_tables_by_csv(self, if_not_exists=False, tag_fields="", csv="ctbs.csv"):
+    def create_tables_by_csv(self, if_not_exists=False, tag_fields="", csv="ctbs.csv", use_except=False):
         if_not_exists_field = "if not exists" if if_not_exists else ""
-        self.tdSql.execute(f'create table {if_not_exists_field} using {self.dbname}.{self.stbname} ({tag_fields}) file "{self.csv_file}"')
+        if use_except:
+            self.tdSql.error(f'create table {if_not_exists_field} using {self.dbname}.{self.stbname} ({tag_fields}) file "{self.csv_file}"')
+        else:
+            self.tdSql.execute(f'create table {if_not_exists_field} using {self.dbname}.{self.stbname} ({tag_fields}) file "{self.csv_file}"')
     
-    def init_env(self):
+    def init_env(self, tag_type_str=None):
         self.create_db()
-        self.create_stb()
+        self.create_stb(tag_type_str=tag_type_str)
 
     def create_ctables_by_tag_and_tbname(self):
         self.init_env()
@@ -86,22 +100,70 @@ class CreateTablesByCSV(TDCase):
         self.gen_csv(ctable_field_exists=False)
         self.create_tables_by_csv(tag_fields="tbname", csv=self.csv_file)
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
-        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
+        self.create_tables_by_csv(tag_fields="tbname", if_not_exists=True, csv=self.csv_file)
+        
+    def create_ctables_by_128tag_and_tbname(self, custom_tag_count=128, use_except=False):
+        tag_str_exceed, tag_str = self.gen_csv(custom_tag_count=custom_tag_count)
+        self.init_env(tag_type_str=tag_str)
+        tag128_str = ",".join([f't{i}' for i in range(custom_tag_count)]) + ",tbname"
+        self.create_tables_by_csv(tag_fields=tag128_str, csv=self.csv_file)
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.create_tables_by_csv(tag_fields=tag128_str, if_not_exists=True, csv=self.csv_file)
     
+        tag_str_exceed, tag_str = self.gen_csv(custom_tag_count=custom_tag_count+1)
+        tag129_str = ",".join([f't{i}' for i in range(custom_tag_count+1)]) + ",tbname"
+        self.create_tables_by_csv(tag_fields=tag129_str, csv=self.csv_file, use_except=use_except)
+    
+    def create_ctables_by_tag_and_tbname_with_note(self, note=True):
+        self.init_env()
+        self.gen_csv(note=note)
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        
+    def create_exists_ctables_without_if_not_exists(self):
+        self.init_env()
+        self.gen_csv()
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, if_not_exists=False)
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, if_not_exists=False, use_except=True)
+    
+    def create_ctables_with_disorder_tagtype_legal(self):
+        varchar_idx = self.common_type_list.index('varchar')
+        nchar_idx = self.common_type_list.index('nchar')
+        disorder_tagtype_str = self.change_char_order(self.batch_create_table_str, varchar_idx+1, nchar_idx+1)
+        self.init_env()
+        self.gen_csv()
+        self.create_tables_by_csv(tag_fields=disorder_tagtype_str, csv=self.csv_file)
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+    
+    def create_ctables_with_disorder_tagtype_illegal(self):
+        varchar_idx = self.common_type_list.index('tinyint')
+        nchar_idx = self.common_type_list.index('bigint')
+        disorder_tagtype_str = self.change_char_order(self.batch_create_table_str, varchar_idx+1, nchar_idx+1)
+        self.init_env()
+        self.gen_csv()
+        self.create_tables_by_csv(tag_fields=disorder_tagtype_str, csv=self.csv_file)
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+    
+    def change_char_order(self, tag_str, idx1, idx2):
+        tag_list = copy.deepcopy(tag_str).split(',')
+        tag_list[idx1], tag_list[idx2] = tag_list[idx2], tag_list[idx1]
+        return ",".join(tag_list)
     
     def run(self):
+        # self.gen_csv(custom_tag_count=128)
+        # print(self.tdCom.gen_default_tag_str())
+        # return
         # self.create_ctables_by_tag_and_tbname()
-        self.create_ctables_by_notag_and_tbname()
+        # self.create_ctables_by_notag_and_tbname()
+        # self.create_ctables_by_128tag_and_tbname(use_except=True)
+        # self.create_ctables_by_tag_and_tbname_with_note()
+        # self.create_exists_ctables_without_if_not_exists()
+        self.create_ctables_with_disorder_tagtype_legal()
+        
     def desc(self) -> str:
         case_description = """
             child_tbname_length_check <jayden>: [TD-12748] : child tb name length check (max 192);\n
-            child_tbname_with_backquote <jayden>: [TD-12748] : backquote supported;\n
-            child_tbname_without_backquote <jayden>: [TD-12748] : error occured when illegal child tbname without backquote;\n
-            upper_lower_child_tbname_check <jayden>: [TD-12748] : upper lower child tbname check;\n
-            ttl_check <jayden>: [TD-14993] : ttl check;\n
-            comment_check <jayden>: [TD-14993] : comment check;\n
-            desc_check <jayden>: [TD-12748] : describe child table;\n
-            illegal_child_tbsql_check <jayden>: [TD-12748] : illegal child tbsql check;
         """
         return case_description
 
@@ -109,4 +171,4 @@ class CreateTablesByCSV(TDCase):
         return "Jayden"
 
     def tags(self):
-        return T.Write.TaoscSql.Table.Create, T.Write.TaoscSql.Table.Drop, T.Write.TaoscSql.Table.Alter
+        return T.Write.TaoscSql.Table.Create
