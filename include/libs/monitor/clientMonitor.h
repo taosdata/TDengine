@@ -31,9 +31,7 @@ typedef enum SQL_RESULT_CODE {
   SQL_RESULT_CANCEL = 2,
 } SQL_RESULT_CODE;
 
-#define SLOW_LOG_SEND_SIZE 1024*1024
-extern tsem2_t     monitorSem;
-extern STaosQueue* monitorQueue;
+#define SLOW_LOG_SEND_SIZE 8*1024
 
 typedef struct {
   int64_t                    clusterId;
@@ -55,18 +53,14 @@ typedef struct {
 
 void            monitorClose();
 void            monitorInit();
-void            monitorSendAllSlowLogFromTempDir(void* pInst);
 
 void            monitorClientSQLReqInit(int64_t clusterKey);
 void            monitorClientSlowQueryInit(int64_t clusterId);
 void            monitorCreateClient(int64_t clusterId);
 void            monitorCreateClientCounter(int64_t clusterId, const char* name, const char* help, size_t label_key_count, const char** label_keys);
 void            monitorCounterInc(int64_t clusterId, const char* counterName, const char** label_values);
-void*           monitorThreadFunc(void *param);
-void            monitorFreeSlowLogData(MonitorSlowLogData* pData);
 const char*     monitorResultStr(SQL_RESULT_CODE code);
-void            monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet);
-
+int32_t         monitorPutData2MonitorQueue(int64_t clusterId, char* value);
 #ifdef __cplusplus
 }
 #endif

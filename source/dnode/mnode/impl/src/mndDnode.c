@@ -49,6 +49,12 @@ static const char *offlineReason[] = {
     "ttlChangeOnWrite not match",
     "enableWhiteList not match",
     "encryptionKey not match",
+    "monitor not match",
+    "monitor switch not match",
+    "monitor interval not match",
+    "monitor slow log threshold not match",
+    "monitor slow log sql max len not match",
+    "monitor slow log scopenot match",
     "unknown",
 };
 
@@ -438,20 +444,20 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
   }
 }
 
-#define CHECK_MONITOR_PARA(para) \
+#define CHECK_MONITOR_PARA(para,err) \
 if (pCfg->monitorParas.para != para) { \
   mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
-  terrno = TSDB_CODE_DNODE_INVALID_MONITOR_PARAS; \
-  return DND_REASON_STATUS_MONITOR_NOT_MATCH;\
+  terrno = err; \
+  return err;\
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
-  CHECK_MONITOR_PARA(tsEnableMonitor);
-  CHECK_MONITOR_PARA(tsMonitorInterval);
-  CHECK_MONITOR_PARA(tsSlowLogThreshold);
-  CHECK_MONITOR_PARA(tsSlowLogThresholdTest);
-  CHECK_MONITOR_PARA(tsSlowLogMaxLen);
-  CHECK_MONITOR_PARA(tsSlowLogScope);
+  CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsMonitorInterval, DND_REASON_STATUS_MONITOR_INTERVAL_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogThreshold, DND_REASON_STATUS_MONITOR_SLOW_LOG_THRESHOLD_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogThresholdTest, DND_REASON_STATUS_MONITOR_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogMaxLen, DND_REASON_STATUS_MONITOR_SLOW_LOG_SQL_MAX_LEN_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogScope, DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH);
 
   if (0 != strcasecmp(pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb)) {
     mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id, pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
@@ -556,9 +562,6 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatisReq statisReq = {0};
   int32_t    code = -1;
-
-  char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
-  sprintf(strClusterId, "%" PRId64, pMnode->clusterId);
 
   if (tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
