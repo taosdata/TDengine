@@ -1195,6 +1195,7 @@ export default {
         retrieve: "从服务器检索",
       },
       retrieveTip: "未获取到示例数据",
+      retrieveSuccTip: " 追加了{n}条示例数据",
       filterexecuted: "筛选条件已触发",
       filterunexe: "筛选条件尚未触发，按Enter键触发",
       parsefirst: "请先执行解析,提取或者拆分操作",

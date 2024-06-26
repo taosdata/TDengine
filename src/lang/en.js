@@ -1408,6 +1408,7 @@ export default {
         retrieve: "Retrieve From Server",
       },
       retrieveTip: "No sample data was obtained",
+      retrieveSuccTip: " appended 5 examples of data",
       filterexecuted: "Filter condition triggered",
       filterunexe:
         "The filtering condition has not been triggered yet, press the enter key to trigger it",

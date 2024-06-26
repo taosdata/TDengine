@@ -946,16 +946,23 @@ export default {
         encodeURIComponent(dsn),
         this.sourceParent.sourceForm.agent
       );
+      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
       if (result && Object.hasOwnProperty.call(result,'code')) {
         this.$message.error(result.message)
-        this.msgForm.msgbody = '';
+        if (!isSupportType) {
+          this.msgForm.msgbody = '';
+        }
         this.requesting = false;
         return
       }
-      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
       if (isSupportType) {
         if (result.input.length <= 0) {
           this.$message.warning(this.$t('datasource.transformer.retrieveTip'))
+        } else {
+          let type = this.$store.state.app.currentDBType == 'kafka' ? 'Kafka' : 'MQTT';
+          this.$message.success(
+            type + this.$t('datasource.transformer.retrieveSuccTip').replace('{n}',result.input.length)
+          )
         }
         result.input.map(item => {
           this.msgForm.msgbody += item.payload + "\n";
