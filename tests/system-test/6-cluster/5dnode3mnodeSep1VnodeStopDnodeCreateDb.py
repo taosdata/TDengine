@@ -143,12 +143,11 @@ class TDTestCase:
         for i in range(dbNumbers):
             dbNameIndex = '%s%d'%(paraDict["dbName"],i)
             newTdSql=tdCom.newTdSql()
-            # a11111=paraDict["dbNumbers"]
-            # print(f"==================={dbNameIndex},{a11111}")
             threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, dbNameIndex,repeatNumber,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
             redbNameIndex = '%s%d'%(paraDict["dbName"],i+100)
-            threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, redbNameIndex,1,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+            newTdSql2=tdCom.newTdSql()
+            threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql2, redbNameIndex,1,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
         for tr in threads:
             tr.start()
