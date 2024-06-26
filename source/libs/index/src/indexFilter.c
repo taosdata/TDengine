@@ -637,7 +637,6 @@ static int8_t sifShouldUseIndexBasedOnType(SIFParam *left, SIFParam *right) {
   if (IS_VAR_DATA_TYPE(left->colValType)) {
     if (!IS_VAR_DATA_TYPE(right->colValType)) return 0;
   } else if (IS_NUMERIC_TYPE(left->colValType)) {
-    if (!IS_NUMERIC_TYPE(right->colValType)) return 0;
     if (left->colValType != right->colValType) return 0;
   }
   return 1;
