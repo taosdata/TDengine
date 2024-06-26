@@ -126,7 +126,7 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   cJSON_AddItemToObject(json, "code",         cJSON_CreateNumber(pRequest->code));
   cJSON_AddItemToObject(json, "error_info",   cJSON_CreateString(tstrerror(pRequest->code)));
   cJSON_AddItemToObject(json, "type",         cJSON_CreateNumber(reqType));
-  cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.totalRows));
+  cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows));
   if(strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
     char tmp = pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen];
     pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = '\0';
