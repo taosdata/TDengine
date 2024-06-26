@@ -897,6 +897,10 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
     return terrno;
   }
 
+  return 0;
+}
+
+int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
   void        *pIter = NULL;
   bool         conflict = false;
   SCompactObj *pCompact = NULL;
