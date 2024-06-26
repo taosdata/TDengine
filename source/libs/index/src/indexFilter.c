@@ -624,6 +624,31 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
   }
   return 0;
 }
+
+static int8_t sifCheckNumericTypeSame(uint8_t left, uint8_t right) {
+  if (left != right) {
+    return 0;
+  }
+  return 1;
+}
+static int8_t sifShouldUseIndexBasedOnType(SIFParam *left, SIFParam *right) {
+  if (left->colValType == TSDB_DATA_TYPE_GEOMETRY || right->colValType == TSDB_DATA_TYPE_GEOMETRY) {
+    return 0;
+  }
+  if (IS_VAR_DATA_TYPE(left->colValType) && !IS_VAR_DATA_TYPE(right->colValType)) {
+    return 0;
+  }
+  if (IS_NUMERIC_TYPE(left->colValType) && !IS_NUMERIC_TYPE(right->colValType)) {
+    return 0;
+  }
+  if (IS_NUMERIC_TYPE(left->colValType) && IS_NUMERIC_TYPE(right->colValType)) {
+    if (!sifCheckNumericTypeSame(left->colValType, right->colValType)) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
   int             ret = 0;
   SIndexMetaArg  *arg = &output->arg;
@@ -641,8 +666,13 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
-    if (left->colValType == TSDB_DATA_TYPE_GEOMETRY || right->colValType == TSDB_DATA_TYPE_GEOMETRY) {
-      return TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR;
+    // if (left->colValType == TSDB_DATA_TYPE_GEOMETRY || right->colValType == TSDB_DATA_TYPE_GEOMETRY) {
+    //   return TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR;
+    // }
+    int8_t useIndex = sifShouldUseIndexBasedOnType(left, right);
+    if (!useIndex) {
+      output->status = SFLT_NOT_INDEX;
+      return -1;
     }
 
     bool       reverse = false, equal = false;
@@ -660,15 +690,12 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
 
     SDataTypeBuf typedata;
     memset(&typedata, 0, sizeof(typedata));
-    if (IS_VAR_DATA_TYPE(left->colValType)) {
-      if (!IS_VAR_DATA_TYPE(right->colValType)) {
-        NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf) - 2, buf + VARSTR_HEADER_SIZE);
-        varDataSetLen(buf, strlen(buf + VARSTR_HEADER_SIZE));
-        param.val = buf;
-      }
-    } else {
-      if (sifSetFltParam(left, right, &typedata, &param) != 0) return -1;
+
+    if (sifSetFltParam(left, right, &typedata, &param) != 0) {
+      output->status = SFLT_NOT_INDEX;
+      return -1;
     }
+
     ret = left->api.metaFilterTableIds(arg->metaEx, &param, output->result);
     if (ret == 0) {
       taosArraySort(output->result, uidCompare);
