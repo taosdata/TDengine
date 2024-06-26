@@ -9,6 +9,7 @@
             :parent="parent"
             v-bind="item"
             :key="item.label"
+            ref="checkConnectivity"
           ></ConnectivityCheck>
 
         <section

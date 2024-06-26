@@ -1150,6 +1150,7 @@ function handleProtocolData(protocol, definition) {
 // }
 
 function getGroupsQuery(groups, query) {
+  groups = cloneDeep(groups)
   if (!groups) return query;
   for (let key in groups) {
     if (typeof groups[key] == 'object') {
@@ -1169,6 +1170,8 @@ function getGroupsQuery(groups, query) {
           } else if (ComposeParams.includes(k)) {
             let type_value = checkValue(getQueryParamValue(groups[key][k+'_type'])) ? getQueryParamValue(groups[key][k+'_type']) : ''
             query.push(field + '=' + getQueryParamValue(groups[key][k]) + type_value);
+          } else if (/_type$/.test(k)) {
+            delete groups[key][k+'_type'];
           } else {
             query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }

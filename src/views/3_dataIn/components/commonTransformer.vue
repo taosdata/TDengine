@@ -348,7 +348,7 @@
                     allow-create
                     default-first-option
                     size="small"
-                    @change="getSTbaleList"
+                    @change="() => getSTbaleList(false)"
                     :placeholder = "$store.state.app.currentDBName ? $t('datasource.transformer.stableSelectOrCreateTip') : $t('datasource.transformer.databaseSelectTip')"
                     :disabled="!$store.state.app.currentDBName || columnsArr.length === 0"
                   >
@@ -1441,7 +1441,7 @@ export default {
         }
         this.sruleForm.s_name = value.parser.model.using;
         // this.subrule.subname = value.parser.model.name;
-        await this.getSTbaleList();
+        await this.getSTbaleList(true);
         await this.echoFetchMap();
         await this.selectJson();
         this.$store.commit("app/SET_RESULTTB_SHOW", false);
@@ -1558,6 +1558,7 @@ export default {
       this.isbreak = false;
       let tags = [];
       let columns = [];
+      let commonColumns = [];
       let mutates = [];
       let mutateMap = {};
   
@@ -1575,6 +1576,9 @@ export default {
           }
           if (this.params_tags.includes(item["Name"])) {
             tags.push(item["Name"]);
+          }
+          if (!item["PrimaryKey"] && this.params_columns.includes(item["Name"])) {
+            commonColumns.push(item["Name"])
           }
           let key = item.exprname == "mapping" ? "cast" : item.exprname; //此处处理了编辑回显
           if (item["Type"] !== "Tablename") {
@@ -1664,8 +1668,8 @@ export default {
       };
 
       // 至少必须配置一个tag和一个column 
-      if (tags.length == 0 || columns.length == 0) {
-        Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
+      if (tags.length == 0 || commonColumns.length == 0) {
+        Message.warning(this.$t("datasource.transformer.mappingvaildColtip"));
         this.isbreak = true;
         return;
       }
@@ -1947,7 +1951,7 @@ export default {
             Message.success(this.$t("operateSucc"));
             await this.getInitStables();
             this.sruleForm.s_name = this.$refs.createstb.stable_form.name;
-            this.getSTbaleList();
+            this.getSTbaleList(false);
             this.closeDialog();
           } catch (error) {
             error.desc ? this.$error(error.desc) : "";
@@ -2033,7 +2037,7 @@ export default {
         this.caculateMappingResult();
       }
     },
-    async getSTbaleList() {
+    async getSTbaleList(isEcho) {
       try {
         this.currentPage = 1;
         let res = await sendSQLReq(
@@ -2108,7 +2112,7 @@ export default {
               equalindex > -1
                 ? ["mapping", `${defaultmap[equalindex]}`]
                 : ["expression", "value"];
-          tableRow.Expression = equalindex > -1 ? defaultmap[equalindex] : "";
+          tableRow.Expression = (equalindex > -1 && !isEcho) ? defaultmap[equalindex] : "";
           tableRow.PrimaryKey = val[3] == "PRIMARY KEY" || (val[1] == "TIMESTAMP" && !index)
           
           return tableRow;

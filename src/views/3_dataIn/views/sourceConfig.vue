@@ -408,6 +408,7 @@ export default {
         this.$store.commit("app/SET_CURRENT_DBTYPE", val);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
         this.$store.commit("app/SET_VALDIT_OPC_FILE_RES", { valid: true });
+        this.$store.commit('app/SET_CONNECTIVITY_CHECKRESULT',{})
         this.getDataSource();
         this.$nextTick(() => {
           this.$refs.form.clearValidate();
@@ -504,7 +505,9 @@ export default {
               return
             }
           }
-          const dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
+          const type = this.sourceForm.type;
+          let dsn = getDsnData(this.sourceForm.data, this.currentDefinition);
+          dsn = type === "tmq" ? dsn : (type === 'csv' ? type + ':' + dsn : type + dsn)
            if (this.sourceForm.type.startsWith('opc') 
               && dsn.includes('csv_config_file')
               && !this.$store.state.app.validOpcFileRes?.valid
@@ -513,11 +516,21 @@ export default {
             this.loading = false;
             return
           }
-          const type = this.sourceForm.type;
+          if (this.sourceForm.type !== "csv") {
+            await this.$refs.configform.$refs.checkConnectivity[0].getValidateResult(dsn,this.sourceForm.agent);
+            const { valid, support} = this.$store.state.app.connectivityCheckResult
+            if (!valid || !support) {
+              this.loading = false;
+              this.$nextTick(() => {
+                document.querySelector('.source-ui .left-ui .box-check-connectivity')?.scrollIntoView();
+              });
+              return
+            }
+          }
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;
           const params = {
-            from: type === "tmq" ? dsn : type=='csv'?type+':'+dsn:type + dsn,
+            from: dsn,
             name: this.sourceForm.name,
             to: this.toUrl,
             labels: [

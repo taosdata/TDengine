@@ -1416,8 +1416,8 @@ export default {
       jsonPlaceholder: "Please select the JSON key which is extracted from the first demo data",
       jsontip: "Please enter the correct JSON format",
       texttip:"Please enter correct text format",
-      mappingvaildtip:
-        "Please fill in the correct primary key, column, and tag",
+      mappingvaildtip: "Please fill in the correct primary key column",
+      mappingvaildColtip: "Enter at least one mapping rule for the common column and the tag column",
         // 2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
       extractdesc: `<strong style='paddingRight: 20px'>taosX supports three kinds of extractor currently</strong>:<br/>
       1. <strong>JSON</strong>: Use a visual editor to edit the extract expressions; If left blank, only non nested attributes will be parsed.<br/>
