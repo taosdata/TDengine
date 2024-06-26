@@ -254,7 +254,6 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   req->queryId = qId;
   req->taskId = tId;
   req->execId = eId;
-  //taosMsleep(500);
 
   SRpcMsg pNewMsg = {
       .msgType = TDMT_SCH_QUERY_CONTINUE,

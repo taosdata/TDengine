@@ -130,12 +130,10 @@ typedef struct SQueryAutoQWorkerPool {
   int32_t       num;
   int32_t       max;
   int32_t       min;
-  int32_t       maxRunning;
+  int32_t       maxInUse;
 
   int32_t       activeN; // running workers and workers waiting at reading new queue msg
   int32_t       runningN; // workers processing queue msgs, not include blocking/waitingA/waitingB workers.
-
-  int32_t       blockingN; // blocked worker num, like exchangeoperator sem_wait
 
   int32_t       waitingAfterBlockN; // workers that recovered from blocking but waiting for too many running workers
   TdThreadMutex waitingAfterBlockLock;
@@ -165,9 +163,9 @@ STaosQueue *tQueryAutoQWorkerAllocQueue(SQueryAutoQWorkerPool *pPool, void *ahan
 void        tQueryAutoQWorkerFreeQueue(SQueryAutoQWorkerPool* pPool, STaosQueue* pQ);
 
 typedef struct SQueryAutoQWorkerPoolCB {
-  SQueryAutoQWorkerPool* pPool;
-  int32_t (*beforeBlocking)(void* pPool);
-  int32_t (*afterRecoverFromBlocking)(void* pPool);
+  void *pPool;
+  int32_t (*beforeBlocking)(void *pPool);
+  int32_t (*afterRecoverFromBlocking)(void *pPool);
 } SQueryAutoQWorkerPoolCB;
 
 #ifdef __cplusplus
