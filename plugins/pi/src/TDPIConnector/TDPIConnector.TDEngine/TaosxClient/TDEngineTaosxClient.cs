@@ -426,7 +426,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 if (builder.tagVals.Count == 0) return;
                 var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
-                log.Info($"Stable:{builder.stableName},localPort:{localPort},Create tables {recordBatch.Length}");
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},Create tables {builder.tagVals.Count}");
                 builder.tagVals.Clear();
             }
         }
