@@ -283,26 +283,16 @@ export default {
         }
       });
     },
-    async getClusterID() {
+    async getTaosdInfo() {
       try {
-        let res=await sendSQLReq(`select id from information_schema.ins_cluster;`)
-        if(res&&res.data){
-          let id = res.data.flat(Infinity).toString();
+        let res=await sendSQLReq(`select id, CONCAT(server_version(), ' ', version) as version from information_schema.ins_cluster`)
+        if (res?.code === 0) {
+          let id = res.data[0][0].toString();
           localStorage.setItem("local_clusterID", id);
-          return id;
+          return [id, res.data[0][1]];
         }
       } catch (error) {
         localStorage.removeItem("TDengine-Token");
-        console.log(error);
-      }
-    },
-    async getVersion() {
-      try {
-        let res = await sendSQLReq('select server_version()')
-        if (res?.code == 0) {
-          return res.data[0][0];
-        }
-      } catch (error) {
         console.log(error);
       }
     },
@@ -335,7 +325,7 @@ export default {
           await this.getUserAuthority();
           await this.getGrantsFull();
 
-          const [cluster_id, taosd_version] = await Promise.all([this.getClusterID(), this.getVersion()]);
+          const [cluster_id, taosd_version] = await this.getTaosdInfo();
           const phone_email = sessionStorage.getItem("registerKey");
           const lang = localStorage.getItem('local_language') || '';
           if (phone_email) {
