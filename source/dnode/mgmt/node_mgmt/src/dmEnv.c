@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmMgmt.h"
 #include "audit.h"
+#include "dmMgmt.h"
 #include "libs/function/tudf.h"
 #include "tgrant.h"
 
@@ -310,7 +310,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
-    dmReleaseWrapper(pWrapper);
+    taosThreadMutexUnlock(&pDnode->mutex);
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
     return -1;
@@ -318,7 +318,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
-  dInfo("node:%s, start to create", pWrapper->name);
+  dInfo("node:%s, start to create and open", pWrapper->name);
   int32_t code = (*pWrapper->func.createFp)(&input, pMsg);
   if (code != 0) {
     dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
