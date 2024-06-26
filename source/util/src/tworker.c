@@ -618,7 +618,7 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool* pPool, SQueryAutoQ
     tdListPopNode(pPool->workers, pNode);
     // reclaim some workers
     if (pWorker->id >= pPool->num * 2 ) {
-      while (listNEles(pPool->exitedWorkers) > 0) {
+      while (listNEles(pPool->exitedWorkers) > pPool->num) {
         SListNode* head = tdListPopHead(pPool->exitedWorkers);
         SQueryAutoQWorker* pWorker = (SQueryAutoQWorker*)head->data;
         if (pWorker && taosCheckPthreadValid(pWorker->thread)) {
@@ -640,7 +640,6 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool* pPool, SQueryAutoQ
     taosThreadMutexLock(&pPool->backupLock);
     atomic_fetch_add_32(&pPool->backupNum, 1);
     if (!pPool->exit) taosThreadCondWait(&pPool->backupCond, &pPool->backupLock);
-    // TODO wjm what if taosd is exiting
     taosThreadMutexUnlock(&pPool->backupLock);
 
     // recovered from backup
@@ -742,7 +741,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
     }
     taosMemoryFree(pNode);
   }
-  
+
   while (listNEles(pPool->exitedWorkers) > 0) {
     SListNode* pNode = tdListPopHead(pPool->exitedWorkers);
     worker = (SQueryAutoQWorker*)pNode->data;
