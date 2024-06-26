@@ -8112,9 +8112,11 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
   for (int32_t i = 1; i < num; ++i) {
     SRetention*       pRetension = taosArrayGet(dbCfg.pRetensions, i);
     STranslateContext cxt = {0};
-    initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, &cxt);
-    code = getRollupAst(&cxt, pStmt, pRetension, dbCfg.precision, 1 == i ? &pReq->pAst1 : &pReq->pAst2,
-                        1 == i ? &pReq->ast1Len : &pReq->ast2Len);
+    code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, &cxt);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getRollupAst(&cxt, pStmt, pRetension, dbCfg.precision, 1 == i ? &pReq->pAst1 : &pReq->pAst2,
+                          1 == i ? &pReq->ast1Len : &pReq->ast2Len);
+    }
     destroyTranslateContext(&cxt);
     if (TSDB_CODE_SUCCESS != code) {
       break;

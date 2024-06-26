@@ -151,7 +151,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
   int8_t ret = STREAM_STATA_COMPATIBLE;
   TBC*   pCur = NULL;
 
-  if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) { // no task info, no stream
+  if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {  // no task info, no stream
     return ret;
   }
 
@@ -557,7 +557,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
     return -1;
   }
 
-  if (pTask->ver < SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+  if (pTask->ver < SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
     pTask->ver = SSTREAM_TASK_VER;
   }
 
@@ -907,7 +907,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     if (p == NULL) {
       code = pMeta->buildTaskFn(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer + 1);
       if (code < 0) {
-        stError("failed to expand s-task:0x%"PRIx64", code:%s, continue", id.taskId, tstrerror(terrno));
+        stError("failed to expand s-task:0x%" PRIx64 ", code:%s, continue", id.taskId, tstrerror(terrno));
         tFreeStreamTask(pTask);
         continue;
       }
@@ -1012,7 +1012,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
 
-    STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    STaskId       id = {.streamId = pId->streamId, .taskId = pId->taskId};
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (pTask == NULL) {
       continue;
@@ -1052,12 +1052,14 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
     }
 
     if ((*pTask)->chkInfo.pActiveInfo->activeId != 0) {
-      entry.checkpointInfo.failed = ((*pTask)->chkInfo.pActiveInfo->failedId >= (*pTask)->chkInfo.pActiveInfo->activeId) ? 1 : 0;
+      entry.checkpointInfo.failed =
+          ((*pTask)->chkInfo.pActiveInfo->failedId >= (*pTask)->chkInfo.pActiveInfo->activeId) ? 1 : 0;
       entry.checkpointInfo.activeId = (*pTask)->chkInfo.pActiveInfo->activeId;
       entry.checkpointInfo.activeTransId = (*pTask)->chkInfo.pActiveInfo->transId;
 
       if (entry.checkpointInfo.failed) {
-        stInfo("s-task:%s set kill checkpoint trans in hb, transId:%d", (*pTask)->id.idStr, (*pTask)->chkInfo.pActiveInfo->transId);
+        stInfo("s-task:%s set kill checkpoint trans in hb, transId:%d", (*pTask)->id.idStr,
+               (*pTask)->chkInfo.pActiveInfo->transId);
       }
     }
 
@@ -1384,7 +1386,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta, __stream_task_expand_fn expa
   int64_t now = taosGetTimestampMs();
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  stInfo("vgId:%d start to check all %d stream task(s) downstream status, start ts:%"PRId64, vgId, numOfTasks, now);
+  stInfo("vgId:%d start to check all %d stream task(s) downstream status, start ts:%" PRId64, vgId, numOfTasks, now);
 
   if (numOfTasks == 0) {
     stInfo("vgId:%d no tasks to be started", pMeta->vgId);
@@ -1513,8 +1515,8 @@ bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
   int32_t num = taosArrayGetSize(pMeta->pTaskList);
   for (int32_t i = 0; i < num; ++i) {
     SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-    STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
-    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+    STaskId        id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    SStreamTask**  ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask == NULL) {
       continue;
     }
@@ -1598,7 +1600,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
   if (pStartInfo->startAllTasks != 1) {
     int64_t el = endTs - startTs;
     stDebug("vgId:%d not start all task(s), not record status, s-task:0x%x launch succ:%d elapsed time:%" PRId64 "ms",
-           pMeta->vgId, taskId, ready, el);
+            pMeta->vgId, taskId, ready, el);
     streamMetaWUnLock(pMeta);
     return 0;
   }
@@ -1725,7 +1727,8 @@ void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SSt
     taosHashPut(pMeta->updateInfo.pTasks, &hEntry, sizeof(hEntry), NULL, 0);
 
     stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask/hTask closed, elapsed:%" PRId64
-            " ms", id, vgId, transId, el);
+            " ms",
+            id, vgId, transId, el);
   } else {
     stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms",
             id, vgId, transId, el);

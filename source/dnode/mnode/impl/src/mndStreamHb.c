@@ -39,10 +39,10 @@ static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   }
 }
 
-static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pInfo) {
+static void addIntoCheckpointList(SArray *pList, const SFailedCheckpointInfo *pInfo) {
   int32_t num = taosArrayGetSize(pList);
-  for(int32_t i = 0; i < num; ++i) {
-    SFailedCheckpointInfo* p = taosArrayGet(pList, i);
+  for (int32_t i = 0; i < num; ++i) {
+    SFailedCheckpointInfo *p = taosArrayGet(pList, i);
     if (p->transId == pInfo->transId) {
       return;
     }
@@ -52,12 +52,13 @@ static void addIntoCheckpointList(SArray* pList, const SFailedCheckpointInfo* pI
 }
 
 int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
-  STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_TASK_RESET_NAME, " reset from failed checkpoint");
+  STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_TASK_RESET_NAME,
+                                 " reset from failed checkpoint");
   if (pTrans == NULL) {
     return terrno;
   }
 
-  /*int32_t code = */mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
+  /*int32_t code = */ mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
   int32_t code = mndStreamSetResetTaskAction(pMnode, pTrans, pStream);
   if (code != 0) {
     sdbRelease(pMnode->pSdb, pStream);
@@ -140,8 +141,8 @@ static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
-  SOrphanTask* pTask = taosArrayGet(pList, 0);
+static int32_t mndDropOrphanTasks(SMnode *pMnode, SArray *pList) {
+  SOrphanTask *pTask = taosArrayGet(pList, 0);
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
   bool conflict = mndStreamTransConflictCheck(pMnode, pTask->streamId, MND_STREAM_DROP_NAME, false);
@@ -150,7 +151,7 @@ static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
   }
 
   SStreamObj dummyObj = {.uid = pTask->streamId, .sourceDb = "", .targetSTbName = ""};
-  STrans* pTrans = doCreateTrans(pMnode, &dummyObj, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream");
+  STrans    *pTrans = doCreateTrans(pMnode, &dummyObj, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream");
   if (pTrans == NULL) {
     mError("failed to create trans to drop orphan tasks since %s", terrstr());
     return -1;
@@ -180,21 +181,21 @@ static int32_t mndDropOrphanTasks(SMnode* pMnode, SArray* pList) {
   return 0;
 }
 
-int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
+int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info) {
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
-  void* pIter = NULL;
-  while(1) {
+  void       *pIter = NULL;
+  while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    if(pStream->status != STREAM_STATUS__PAUSE){
+    if (pStream->status != STREAM_STATUS__PAUSE) {
       SMPauseStreamReq reqPause = {0};
       strcpy(reqPause.name, pStream->name);
       reqPause.igNotExists = 1;
 
       int32_t contLen = tSerializeSMPauseStreamReq(NULL, 0, &reqPause);
-      void *  pHead = rpcMallocCont(contLen);
+      void   *pHead = rpcMallocCont(contLen);
       tSerializeSMPauseStreamReq(pHead, contLen, &reqPause);
 
       SRpcMsg rpcMsg = {
@@ -205,7 +206,8 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo* info){
       };
 
       tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-      mInfo("receive pause stream:%s, %s, %"PRId64 ", because grant expired", pStream->name, reqPause.name, pStream->uid);
+      mInfo("receive pause stream:%s, %s, %" PRId64 ", because grant expired", pStream->name, reqPause.name,
+            pStream->uid);
     }
 
     sdbRelease(pSdb, pStream);
@@ -311,7 +313,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (allReady || snodeChanged) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
-      for(int32_t i = 0; i < taosArrayGetSize(pFailedChkpt); ++i) {
+      for (int32_t i = 0; i < taosArrayGetSize(pFailedChkpt); ++i) {
         SFailedCheckpointInfo *pInfo = taosArrayGet(pFailedChkpt, i);
         mInfo("checkpointId:%" PRId64 " transId:%d failed, issue task-reset trans to reset all tasks status",
               pInfo->checkpointId, pInfo->transId);
@@ -341,11 +343,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   {
     SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamHbRspMsg)};
     rsp.pCont = rpcMallocCont(rsp.contLen);
-    SMsgHead* pHead = rsp.pCont;
+    SMsgHead *pHead = rsp.pCont;
     pHead->vgId = htonl(req.vgId);
 
     tmsgSendRsp(&rsp);
-    pReq->info.handle = NULL;   // disable auto rsp
+    pReq->info.handle = NULL;  // disable auto rsp
   }
 
   return TSDB_CODE_SUCCESS;
