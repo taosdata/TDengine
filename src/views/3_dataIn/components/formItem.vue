@@ -45,6 +45,7 @@
         :type="config.type"
         :show-password="config.type == 'password'"
         :placeholder="config.placeholder"
+        @blur="trimInput"
       ></el-input>
       <el-input-number
         v-if="config.type == 'number'"
@@ -93,7 +94,7 @@
       ></TimezoneDatePicker>
 
       <div v-if="config.type == 'compose'">
-        <el-input  :placeholder="config.placeholder" v-model="data[field]" class="input-with-select">
+        <el-input  :placeholder="config.placeholder" v-model="data[field]" class="input-with-select" @blur="trimInput">
           <el-select style="width: 120px;" v-model="data[field + '_type']" slot="prepend">
             <el-option v-for="item in getOptions()"
               :key="item.value"
@@ -502,6 +503,10 @@ export default {
       }
 
     },
+    trimInput() {
+      // 在失去焦点时去除输入框值的前后空格
+      this.data[this.field] = this.data[this.field].trim();
+    }
   },
 };
 </script>
