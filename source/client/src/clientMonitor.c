@@ -221,8 +221,8 @@ static void reportSendProcess(void* param, void* tmrId) {
 
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   generateClusterReport(pMonitor->registry, pInst->pTransporter, &ep);
-  taosRUnLockLatch(&monitorLock);
   taosTmrReset(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
+  taosRUnLockLatch(&monitorLock);
 }
 
 static void sendAllSlowLog(){
@@ -450,7 +450,7 @@ static void monitorFreeSlowLogData(MonitorSlowLogData* pData) {
 static void monitorThreadFuncUnexpectedStopped(void) { atomic_store_32(&slowLogFlag, -1); }
 
 static void reportSlowLog(void* param, void* tmrId) {
-  taosRLockLatch(&monitorLock);
+  taosWLockLatch(&monitorLock);
   if (atomic_load_32(&monitorFlag) == 1) {
     taosRUnLockLatch(&monitorLock);
     return;
@@ -471,9 +471,11 @@ static void reportSlowLog(void* param, void* tmrId) {
 
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   monitorReadSendSlowLog((*(SlowLogClient**)tmp)->pFile, pInst->pTransporter, &ep);
-  taosRUnLockLatch(&monitorLock);
 
-  taosTmrReset(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
+  if((*(SlowLogClient**)tmp)->timer == tmrId){
+    taosTmrReset(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &(*(SlowLogClient**)tmp)->timer);
+  }
+  taosWUnLockLatch(&monitorLock);
 }
 
 static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpPath){
@@ -535,6 +537,23 @@ FAILED:
   taosWUnLockLatch(&monitorLock);
 }
 
+static void restartReportTimer(int64_t clusterId){
+  taosWLockLatch(&monitorLock);
+
+  void* tmp = taosHashGet(monitorSlowLogHash, &clusterId, LONG_BYTES);
+  if(tmp){
+    taosTmrStopA(&(*(SlowLogClient**)tmp)->timer);
+    SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
+    if(pInst == NULL){
+      uError("failed to get app inst, clusterId:%"PRIx64, clusterId);
+      return;
+    }
+    (*(SlowLogClient**)tmp)->timer = taosTmrStart(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, (void*)clusterId, monitorTimer);
+
+  }
+  taosWUnLockLatch(&monitorLock);
+}
+
 static void* monitorThreadFunc(void *param){
   setThreadName("client-monitor-slowlog");
 
@@ -579,7 +598,9 @@ static void* monitorThreadFunc(void *param){
       uDebug("[monitor] read slow log data from queue, clusterId:%" PRIx64 " value:%s", slowLogData->clusterId, slowLogData->value);
       if (slowLogData->value == NULL){
         monitorSendAllSlowLogFromTempDir(slowLogData->clusterId);
-      }else{
+      } else if(strlen(slowLogData->value) == 0){
+        restartReportTimer(slowLogData->clusterId);
+      } else{
         monitorWriteSlowLog2File(slowLogData, tmpPath);
       }
     }
