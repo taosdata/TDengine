@@ -558,7 +558,6 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     goto _EXIT;
   }
 
-  // int32_t pathLen = strlen(path) + 48;
   char* checkpointRoot = taosMemoryCalloc(1, pathLen + 48);
   if (checkpointRoot == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -575,15 +574,15 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
 
   stDebug("%s check local backend dir:%s, checkpointId:%" PRId64 " succ", key, defaultPath, chkptId);
 
-  char* chkptPath = taosMemoryCalloc(1, pathLen);
+  char* chkptPath = taosMemoryCalloc(1, pathLen + 128);
   if (chkptPath == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _EXIT;
   }
 
   if (chkptId > 0) {
-    snprintf(chkptPath, pathLen, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint",
-             chkptId);
+    snprintf(chkptPath, pathLen + 127, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+             "checkpoint", chkptId);
 
     code = rebuildFromLocalCheckpoint(key, chkptPath, chkptId, defaultPath, processVer);
     if (code != 0) {

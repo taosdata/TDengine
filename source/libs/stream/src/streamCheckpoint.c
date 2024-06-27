@@ -667,7 +667,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
     stDebug("s-task:%s level:%d start gen checkpoint, checkpointId:%" PRId64, id, pTask->info.taskLevel, ckId);
 
-    int64_t ver = 0;
+    int64_t ver = pTask->chkInfo.processedVer;
     code = streamBackendDoCheckpoint(pTask->pBackend, ckId, ver);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s gen checkpoint:%" PRId64 " failed, code:%s", id, ckId, tstrerror(terrno));
