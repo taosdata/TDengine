@@ -32,12 +32,11 @@
           <el-checkbox label="whitelist">{{ $t('taosuser.whitelistItem') }}</el-checkbox>
         </el-checkbox-group>
       </el-form-item>
-      <el-form-item
-        v-if="Object.keys(importReason).length !== 0"
-      >
         <el-alert 
           type="info"
-          class='reason'>
+          class='reason'
+          @close="showAlert=false"
+          v-if="showAlert">
           <p>
             <span v-if="importReason?.success?.passwords">{{importReason?.success?.passwords}} {{$t('taosuser.succ1')}} </span>
             <span v-if="importReason?.success?.passwords && importReason?.success?.privileges">、</span>
@@ -52,7 +51,6 @@
           <br/>
           <span v-if="importReason?.fails?.passwords?.length > 0 || importReason?.fails?.privileges?.length > 0">{{$t('taosuser.fail3')}}</span>
         </el-alert>
-      </el-form-item>
      
     </el-form>
 
@@ -136,6 +134,7 @@ export default {
       confirmStatus: false,
       selectedItems: ['passwords','privileges'],
       loading: false,
+      showAlert: false,
       importReason: {
         // "success": {
         //   "passwords": 1,
@@ -192,6 +191,7 @@ export default {
               return
             }
             this.importReason = res
+            this.showAlert = true
             Message.success(this.$t("operateSucc"));
           } catch (error) {
             Message.error(error?.message);
