@@ -266,7 +266,7 @@ async fn ipc_tcp_forward(
             })
             .map_err(move |err: ArrowError| {
                 cur_span_in_map_err.in_scope(|| {
-                    error!(error = ?err, "IPC reading error: {err:#}");
+                    warn!(error = ?err, "IPC reading error: {err:#}");
                 });
                 FlightError::from(err)
             });
@@ -366,20 +366,12 @@ async fn ipc_tcp_forward(
         info!("Handshake done");
         // dbg!(res);
         info!("Do putting");
-        let cur_sapn_in_map_error = Span::current();
         let mut stream = match client
             .do_put(data)
             .await
             .map_err(move |err| match dbg!(err) {
                 FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
                 FlightError::Tonic(status) => {
-                    let _entered = cur_sapn_in_map_error.enter();
-                    tracing::error!(
-                        error.code = %status.code(),
-                        error.message = %status.message(),
-                        error.metadata = ?status.metadata(),
-                        "Put IPC stream error: {}", status
-                    );
                     anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
                 }
                 err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
@@ -394,7 +386,7 @@ async fn ipc_tcp_forward(
         };
         info!("Get putting stream response");
 
-        let mut msg_processed = 0;
+        let mut _msg_processed = 0;
         loop {
             let put_result = tokio::select! {
                 _ = cancel.cancelled() => {
@@ -419,7 +411,7 @@ async fn ipc_tcp_forward(
                             match ack {
                                 RPC_ACK_PROCESSED => {
                                     trace!(alive = ?alive.elapsed(), trace_id, "Processed received: {count}");
-                                    msg_processed += count;
+                                    _msg_processed += count;
                                 }
                                 RPC_ACK_DROPPED => {
                                     trace!(alive = ?alive.elapsed(), trace_id, "Dropped received: {count}");
@@ -434,7 +426,7 @@ async fn ipc_tcp_forward(
                                 _ => {}
                             }
                         } else {
-                            msg_processed += 1;
+                            _msg_processed += 1;
                         }
                     }
                     Err(err) => match &err {
@@ -464,13 +456,10 @@ async fn ipc_tcp_forward(
                         FlightError::Arrow(arrow) => {
                             tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
                             let err_msg = format!("{err:#}");
-                            if msg_processed == 0
-                                && (err_msg.contains("os error 10054")
-                                    || err_msg.contains("os error 10053"))
+                            if err_msg.contains("os error 10054")
+                                || err_msg.contains("os error 10053")
                             {
-                                warn!(
-                                    "Connection closed but messages are empty, consider as success"
-                                );
+                                warn!("ConnectionReset or ConnectionAborted, consider as success");
                                 return Ok(());
                             }
                             return Err(err).context(format!(
@@ -932,6 +921,10 @@ async fn consume_lush_record_with_transform(
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables, full_record) => {
+            tracing::trace!(
+                "Got tables: {}",
+                tables.iter().map(|t| t.table_name()).join(",")
+            );
             // 默认超级表名(transform 前)
             let default_super_table = tables[0].stable_name();
             let default_super_table = default_super_table.unwrap().as_str();
