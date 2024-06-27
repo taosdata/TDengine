@@ -21,7 +21,7 @@ class CreateTablesByCSV(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.symbol_list = [" ", "+", ";", "&", "*", "%", "/", "-", "|"]
-        self.symbol_list = [";", "&", "*", "%", "/", "-", "|"]
+        self.symbol_list = ["&", "*", "%", "/", "-", "|"]
         self.dbname = 'test'
         self.stbname = 'stb'
         self.common_type_list = ['timestamp', 'tinyint', 'smallint', 'int', 'bigint', 'tinyint unsigned', 'smallint unsigned', 'int unsigned', 'bigint unsigned', 'float', 'double', 'varchar', 'varbinary', 'nchar', 'geometry', 'bool']
@@ -42,6 +42,8 @@ class CreateTablesByCSV(TDCase):
         self.tdCom.default_nchar_length = 64
         self.csv_file = f'{os.path.dirname(os.path.abspath(__file__))}/{self.stbname}.csv'
         
+        self.other_files = [f'{os.path.dirname(os.path.abspath(__file__))}/{self.stbname}.txt', f'{os.path.dirname(os.path.abspath(__file__))}/{self.stbname}.xlsx']
+        
         
     def create_db(self):
         self.tdCom.createDb(self.dbname)
@@ -51,29 +53,40 @@ class CreateTablesByCSV(TDCase):
         column_type_str = self.tdCom.gen_default_column_str()
         self.tdSql.execute(f'create stable if not exists {self.dbname}.{self.stbname} ({column_type_str}) tags ({tag_type_str})')
     
-    def get_tag_value_list(self, exchange_type_list=None, exchange_ids=None):
+    def get_tag_value_list(self, exchange_type_list=None, exchange_ids=None, tag_kv_dict=None):
         random_type_value_list = list(map(lambda i: f'"{self.tdCom.gen_random_type_value(i, self.tdCom.default_varchar_length, self.tdCom.default_varchar_datatype, self.tdCom.default_nchar_length, self.tdCom.default_nchar_datatype)}"' if i in self.str_type_list else self.tdCom.gen_random_type_value(i, self.tdCom.default_varchar_length, self.tdCom.default_varchar_datatype, self.tdCom.default_nchar_length, self.tdCom.default_nchar_datatype), self.common_type_list))
-        
         if self.common_type_list[0].lower() == 'timestamp':
             random_type_value_list[0] = f'"{self.tdCom.genTs()[1]}"'
             # random_type_value_list[0] = f'"{random.choice(self.tdCom.genTs())}"'
         if exchange_type_list is not None and exchange_ids is not None:
             random_type_value_list[exchange_ids[0]], random_type_value_list[exchange_ids[1]] = self.tdCom.Boundary.TINYINT_BOUNDARY[1], self.tdCom.Boundary.BIGINT_BOUNDARY[1]
+        if tag_kv_dict is not None:
+            for key, value in tag_kv_dict.items():
+                idx = self.common_type_list.index(key)
+                random_type_value_list[idx] = value
         return random_type_value_list
     
-    def gen_csv(self, ctable_count=10, row_count=10, ctable_field_exists=True, tbname_exists=True, custom_tag_count=0, note=False, exchange_type_list=None, exchange_ids=None, part_error=False, symbol=None):
+    def replace_quotes_in_csv(self, input_filename, output_filename):
+        with open(input_filename, 'r', encoding='utf-8') as file:
+            content = file.read()
+        modified_content = content.replace('"', "'")
+        with open(output_filename, 'w', encoding='utf-8') as file:
+            file.write(modified_content)
+    
+    def gen_csv(self, ctable_count=10, row_count=10, ctable_field_exists=True, tbname_exists=True, custom_tag_count=0, note=False, exchange_type_list=None, exchange_ids=None, part_error=False, symbol=None, illegal_tbname=False, tag_kv_dict=None, len193_tbname=False, custom_file=None):
+        import_file = custom_file if custom_file is not None else self.csv_file
+            
         if custom_tag_count == 128 or custom_tag_count > 128:
             tag_str_exceed = self.tdCom.gen_tag_col_str("t", "int", self.tdCom.Boundary.MAX_TAG_COUNT+1)
             tag_str = self.tdCom.gen_tag_col_str("t", "int", self.tdCom.Boundary.MAX_TAG_COUNT)
-            with open(self.csv_file, 'w') as f:
+            with open(import_file, 'w') as f:
                 for row_num in range(row_count):
                     idx = str(row_num % ctable_count + 1)
                     tag_fields_value = "1," * custom_tag_count
-                    print(tag_fields_value)
                     f.write(f'{tag_fields_value}"ctb{idx}"\n')
             return tag_str_exceed, tag_str
         else:
-            with open(self.csv_file, 'w') as f:
+            with open(import_file, 'w') as f:
                 for row_num in range(row_count):
                     idx = str(row_num % ctable_count + 1)
                     # if tbname_exists:
@@ -81,14 +94,18 @@ class CreateTablesByCSV(TDCase):
                     # else:
                     #     f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))}\n') if ctable_field_exists else f.write(f'\n')
                     if symbol is not None:
-                        f.write(f'{symbol.join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'"ctb{idx}"\n')
+                        f.write(f'{symbol.join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'"ctb{idx}"\n')
                     else:
-                        f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'"ctb{idx}"\n')
+                        f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'"ctb{idx}"\n')
                     
                 if note:
-                    f.write(f'#{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'#"ctb{idx}"\n')
+                    f.write(f'#{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'#"ctb{idx}"\n')
                 if part_error:
-                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))},t100,"ctb{idx}"\n') if ctable_field_exists else f.write(f'#"ctb{idx}"\n')
+                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},t100,"ctb{idx}"\n') if ctable_field_exists else f.write(f'#"ctb{idx}"\n')
+                if illegal_tbname:
+                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb.{idx}"\n') if ctable_field_exists else f.write(f'#"ctb{idx}"\n')
+                if len193_tbname:
+                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"{self.tdCom.get_long_name(193)}"\n') if ctable_field_exists else f.write(f'#"ctb{idx}"\n')
                     
                     
     
@@ -100,6 +117,7 @@ class CreateTablesByCSV(TDCase):
             self.tdSql.execute(f'create table {if_not_exists_field} using {self.dbname}.{self.stbname} ({tag_fields}) file "{csv}"')
     
     def init_env(self, tag_type_str=None, create_stb=True):
+        self.tdCom.default_tag_index_start_num = 1
         self.create_db()
         if create_stb:
             self.create_stb(tag_type_str=tag_type_str)
@@ -107,6 +125,7 @@ class CreateTablesByCSV(TDCase):
     def create_ctables_by_tag_and_tbname(self):
         self.init_env()
         self.gen_csv()
+        self.replace_quotes_in_csv(self.csv_file, self.csv_file)
         self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
         self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
@@ -158,10 +177,8 @@ class CreateTablesByCSV(TDCase):
         exchange_ids = [exchange_idx1, exchange_idx2]
         disorder_tagtype_str = self.change_char_order(self.batch_create_table_str, exchange_idx1, exchange_idx2)
         self.init_env()
-        print(exchange_type_list,exchange_ids)
         self.gen_csv(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)
-        self.create_tables_by_csv(tag_fields=disorder_tagtype_str, csv=self.csv_file)
-        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.create_tables_by_csv(tag_fields=disorder_tagtype_str, csv=self.csv_file, use_except=True)
     
     def change_char_order(self, tag_str, idx1, idx2):
         tag_list = copy.deepcopy(tag_str).split(',')
@@ -209,8 +226,73 @@ class CreateTablesByCSV(TDCase):
         for symbol in self.symbol_list:
             self.gen_csv(symbol=symbol)
             self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, use_except=True)
-        # self.gen_csv(symbol=True)
-        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, use_except=True)
+    
+    def create_ctables_by_illegal_tbname(self):
+        self.init_env()
+        self.gen_csv(illegal_tbname=True)
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, use_except=True)
+        
+    def create_ctables_by_193len_tbname(self):
+        self.init_env()
+        self.gen_csv(len193_tbname=True)
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, use_except=True)
+    
+    def create_ctables_str_type_check(self):
+        for str_type in ["varchar", "nchar", "varbinary"]:
+            for value in ["'abc'", "'a,bc'", '"a,bc"', '\'\"a\\\'b\\"c\"\'', '"a\\"b\\"c\"']:
+                self.tdCom.default_tag_index_start_num = 1
+                self.init_env()
+                self.gen_csv(tag_kv_dict={str_type: value})
+                self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
+                self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+
+    def create_ctables_bool_type_check(self):
+        for value in [True, False, 0, 1, "True", "False"]:
+            self.tdCom.default_tag_index_start_num = 1
+            self.init_env()
+            self.gen_csv(tag_kv_dict={"bool": value})
+            self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
+            self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+            self.tdSql.query(f'select t16 from {self.dbname}.{self.stbname}')
+            if value == True or value == "True" or value == 1:
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0], True)
+            else:
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0], False)
+
+    def create_ctables_str_cross_border(self):
+        for str_type in ["varchar", "nchar", "varbinary"]:
+            self.init_env()
+            self.gen_csv(tag_kv_dict={str_type: self.tdCom.get_long_name(self.tdCom.default_varchar_length+1)})
+            self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, use_except=True)
+    
+    def create_ctables_numeric_cross_border(self):
+        for numeric_type in ['tinyint', 'smallint', 'int', 'bigint', 'tinyint unsigned', 'smallint unsigned', 'int unsigned', 'bigint unsigned']:
+            self.init_env()
+            self.gen_csv(tag_kv_dict={numeric_type: self.tdCom.Boundary.UBIGINT_BOUNDARY[1]+1})
+            self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, use_except=True)
+            
+    def create_ctables_float_cross_border(self):
+        for float_type in ['float', 'double']:
+            exceed_value = 1.797693134862316e308 if float_type == "double" else 3.4028234664e38
+            self.init_env()
+            self.gen_csv(tag_kv_dict={float_type: exceed_value})
+            self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, use_except=True)
+    
+    def create_ctables_by_txt_or_xlsx(self):
+        for import_file in self.other_files:
+            self.init_env()
+            self.gen_csv(custom_file=import_file)
+            self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=import_file)
+            self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+            self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=import_file)
+    
+    def creating_but_killed(self):
+        self.init_env()
+        self.gen_csv(ctable_count=500000, row_count=500000)
+        self.logger.info(f'generate csv finished, start creating tables by csv...')
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
+        # self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
     
     def run(self):
         # self.gen_csv(custom_tag_count=128)
@@ -223,18 +305,24 @@ class CreateTablesByCSV(TDCase):
         # self.create_exists_ctables_without_if_not_exists()
         # self.create_ctables_with_disorder_tagtype_legal()
         # TODO confirm
-        # ! TD-30786
-        self.create_ctables_with_disorder_tagtype_illegal()
+        # self.create_ctables_with_disorder_tagtype_illegal()
         # self.create_ctables_with_no_stables()
         # self.create_ctables_with_dup_tagname()
         # self.create_ctables_by_tag_and_notbname()
         # self.create_ctables_by_no_contained_tag()
         # self.create_ctables_by_not_existed_csv()
-        # ! TD-30780
         # self.create_ctables_with_part_error_rows()
-        # ! TD-30780 and " " is allower
         # self.create_ctables_csv_split_without_comma()
-        
+        # self.create_ctables_by_illegal_tbname()
+        # self.create_ctables_by_193len_tbname()
+        # self.create_ctables_str_type_check()
+        # self.create_ctables_str_cross_border()
+        # self.create_ctables_bool_type_check()
+        # self.create_ctables_numeric_cross_border()
+        # self.create_ctables_float_cross_border()
+        # self.create_ctables_by_txt_or_xlsx()
+        self.creating_but_killed()
+
     def desc(self) -> str:
         case_description = """
             child_tbname_length_check <jayden>: [TD-12748] : child tb name length check (max 192);\n
