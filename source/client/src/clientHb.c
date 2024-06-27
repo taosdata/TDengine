@@ -19,6 +19,7 @@
 #include "scheduler.h"
 #include "trpc.h"
 #include "tglobal.h"
+#include "clientMonitor.h"
 
 typedef struct {
   union {
@@ -546,7 +547,14 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
+  int32_t oldInterval = pInst->monitorParas.tsMonitorInterval;
   pInst->monitorParas = pRsp.monitorParas;
+  if(oldInterval > pInst->monitorParas.tsMonitorInterval){
+    char* value = taosStrdup("");
+    if(monitorPutData2MonitorQueue(pInst->clusterId, value) < 0){
+      taosMemoryFree(value);
+    }
+  }
   tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
            pInst->clusterId, pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
