@@ -27,7 +27,6 @@
 typedef struct SQueryQueue {
   SQueryAutoQWorkerPool taskThreadPool;
   STaosQueue* pTaskQueue;
-  tsem_t      queueSem;
 } SQueryQueue;
 
 int32_t getAsofJoinReverseOp(EOperatorType op) {
@@ -131,13 +130,9 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
   execFn(pSchedMsg->thandle);
   taosFreeQitem(pSchedMsg);
-  if (tsem_post(&clientQueryQueue.queueSem) != 0) {
-    qError("post %s emptySem failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
-  }
 }
 
 int32_t initTaskQueue() {
-  uint32_t queueSize = (uint32_t)(tsMaxShellConns * 2);
   clientQueryQueue.taskThreadPool.name = "tsc";
   clientQueryQueue.taskThreadPool.min = tsNumOfTaskQueueThreads;
   clientQueryQueue.taskThreadPool.max = tsNumOfTaskQueueThreads;
@@ -152,19 +147,12 @@ int32_t initTaskQueue() {
     qError("failed to init task queue");
     return -1;
   }
-  
-  if (tsem_init(&clientQueryQueue.queueSem, 0, queueSize) != 0) {
-    qError("init %s:queue semaphore failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
-    cleanupTaskQueue();
-    return -1;
-  }
 
   qDebug("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
   return 0;
 }
 
 int32_t cleanupTaskQueue() {
-  tsem_destroy(&clientQueryQueue.queueSem);
   tQueryAutoQWorkerCleanup(&clientQueryQueue.taskThreadPool);
   return 0;
 }
@@ -175,9 +163,6 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   pSchedMsg->ahandle = execFn;
   pSchedMsg->thandle = execParam;
   pSchedMsg->msg = code;
-  if (tsem_wait(&clientQueryQueue.queueSem) != 0) {
-    qError("wait %s emptySem failed(%s)", clientQueryQueue.taskThreadPool.name, strerror(errno));
-  }
 
   return taosWriteQitem(clientQueryQueue.pTaskQueue, pSchedMsg);
 }
