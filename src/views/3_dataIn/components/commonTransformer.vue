@@ -375,7 +375,7 @@
                 icon="el-icon-plus"
                 plain
                 @click="createStable"
-                :disabled="$store.state.app.currentDBName == '' || $COMMUNITY"
+                :disabled="$store.state.app.currentDBName == '' || columnsArr.length === 0 || $COMMUNITY"
               >
                 {{ $t("datasource.transformer.createstb") }}
               </el-button>
