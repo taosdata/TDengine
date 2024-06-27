@@ -147,7 +147,8 @@ static void monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *
   while(1){
     int64_t readSize = taosReadFile(pFile, buf + offset, SLOW_LOG_SEND_SIZE - offset);
     if (readSize <= 0) {
-      uError("failed to read len from file:%p since %s", pFile, terrstr());
+      if (readSize < 0)
+        uError("failed to read len from file:%p since %s", pFile, terrstr());
       return;
     }
 
@@ -423,7 +424,7 @@ void monitorCounterInc(int64_t clusterId, const char* counterName, const char** 
 
   MonitorClient*   pMonitor = *ppMonitor;
   taos_counter_t** ppCounter = (taos_counter_t**)taosHashGet(pMonitor->counters, counterName, strlen(counterName));
-  if (ppCounter == NULL || *ppCounter != NULL) {
+  if (ppCounter == NULL || *ppCounter == NULL) {
     uError("monitorCounterInc not found pCounter %"PRIx64":%s.", clusterId, counterName);
     goto end;
   }
@@ -543,10 +544,6 @@ static void* monitorThreadFunc(void *param){
   }
 #endif
 
-  if (-1 != atomic_val_compare_exchange_32(&slowLogFlag, -1, 0)) {
-    return NULL;
-  }
-
   char tmpPath[PATH_MAX] = {0};
   if (getSlowLogTmpDir(tmpPath, sizeof(tmpPath)) < 0){
     return NULL;
@@ -566,6 +563,10 @@ static void* monitorThreadFunc(void *param){
   monitorQueue = taosOpenQueue();
   if(monitorQueue == NULL){
     uError("open queue error since %s", terrstr());
+    return NULL;
+  }
+
+  if (-1 != atomic_val_compare_exchange_32(&slowLogFlag, -1, 0)) {
     return NULL;
   }
   uDebug("monitorThreadFunc start");
@@ -666,8 +667,8 @@ int32_t monitorPutData2MonitorQueue(int64_t clusterId, char* value){
   slowLogData->clusterId = clusterId;
   slowLogData->value = value;
   uDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " value:%s", slowLogData->clusterId, slowLogData->value);
-  while (monitorQueue == NULL) {
-    taosMsleep(100);
+  while (atomic_load_32(&slowLogFlag) == -1) {
+    taosMsleep(5);
   }
   if (taosWriteQitem(monitorQueue, slowLogData) == 0){
     tsem2_post(&monitorSem);
