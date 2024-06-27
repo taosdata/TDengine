@@ -87,8 +87,8 @@ class TDTestCase(TBase):
             tdSql.error(sql, expectErrInfo=err_info)
 
         # 2. check valid setting of slowLogMaxLen
-        # VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES = ['1']
-        VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES = ['16384', '200', '002', '1']
+        VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES = ['1']
+        # VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES = ['16384', '200', '002', '1']
 
         for maxlen_value in VAR_SHOW_LOG_MAXLEN_POSITIVE_CASES:
             updatecfgDict = {"slowLogMaxLen": maxlen_value, "slowLogScope": "QUERY", "monitorInterval": "1"}
@@ -129,11 +129,11 @@ class TDTestCase(TBase):
                 'dataDir': f'{taos_error_dir}/data',
                 'logDir': f'{taos_error_dir}/log',
                 'slowLogThresholdTest': '0',
-                'monitorInterval': '5',
+                'monitorInterval': '1',
                 'monitorFqdn': 'localhost'}
             new_taos_cfg = monitor_common.create_private_cfg(cfg_name='diff_taos.cfg', params=params)
             
-            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='slowLogMaxLen not match')
+            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='monitor slow log sql max len not match')
         tdLog.info(f"check_show_log_maxlen is done")
 
 

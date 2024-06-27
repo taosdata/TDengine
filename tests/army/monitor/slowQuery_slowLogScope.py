@@ -121,6 +121,9 @@ class TDTestCase(TBase):
         monitor_common.check_slow_query_table(db_name='check_setting_in_client', taosc_cfg=taosc_cfg, query_log_exist=False, insert_log_exist=True, other_log_exist=False)
 
         # 4.add node failed if setting is different
+        updatecfgDict = {"slowLogScope": "INSERT"}
+        monitor_common.update_taos_cfg(1, updatecfgDict)
+        
         VAR_SHOW_LOG_SCOPE_DIFF_CASES =['ALL','ALL|INSERT','QUERY','OTHERS','NONE']
         # VAR_SHOW_LOG_SCOPE_DIFF_CASES =['ALL','QUERY','OTHERS','NONE']
         taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
@@ -137,7 +140,7 @@ class TDTestCase(TBase):
                 'monitorInterval': '1',
                 'monitorFqdn': 'localhost'}
             new_taos_cfg = monitor_common.create_private_cfg(cfg_name='diff_taos.cfg', params=params)
-            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='monitor slow log scopenot match')
+            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='monitor slow log scope not match')
         tdLog.info(f"check_show_log_scope is done")
 
         tdLog.success(f"{__file__} successfully executed")
