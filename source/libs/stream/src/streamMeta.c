@@ -196,7 +196,7 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
   bool exist = streamBackendDataIsExist(pMeta->path, chkpId, pMeta->vgId);
   if (exist == false) {
     stError("failed to check backend data exist, reason:%s", tstrerror(terrno));
-    return -1;
+    return code;
   }
 
   SBackendWrapper* pBackend = streamBackendInit(pMeta->path, chkpId, pMeta->vgId);
@@ -282,6 +282,8 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   pBackend->refId = tref;
   pBackend->pTask = pTask;
   pBackend->pMeta = pMeta;
+
+  pTask->chkInfo.processedVer = processVer;
 
   taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
