@@ -21,7 +21,7 @@ class CreateTablesByCSV(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.symbol_list = [" ", "+", ";", "&", "*", "%", "/", "-", "|"]
-        self.symbol_list = ["+", ";", "&", "*", "%", "/", "-", "|"]
+        self.symbol_list = [";", "&", "*", "%", "/", "-", "|"]
         self.dbname = 'test'
         self.stbname = 'stb'
         self.common_type_list = ['timestamp', 'tinyint', 'smallint', 'int', 'bigint', 'tinyint unsigned', 'smallint unsigned', 'int unsigned', 'bigint unsigned', 'float', 'double', 'varchar', 'varbinary', 'nchar', 'geometry', 'bool']
@@ -223,7 +223,8 @@ class CreateTablesByCSV(TDCase):
         # self.create_exists_ctables_without_if_not_exists()
         # self.create_ctables_with_disorder_tagtype_legal()
         # TODO confirm
-        # self.create_ctables_with_disorder_tagtype_illegal()
+        # ! TD-30786
+        self.create_ctables_with_disorder_tagtype_illegal()
         # self.create_ctables_with_no_stables()
         # self.create_ctables_with_dup_tagname()
         # self.create_ctables_by_tag_and_notbname()
