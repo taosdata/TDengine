@@ -1424,6 +1424,7 @@ impl TaskJob {
                     );
                     let future = run_task(&global, &opts, &jid, cancellation.clone())
                         .instrument(span.clone());
+                    tokio::pin!(future);
 
                     let stop_condition = opts.stop_condition.clone();
                     let last_state = opts.last_state.clone();
@@ -1450,18 +1451,20 @@ impl TaskJob {
 
                     let _ = span.enter();
                     let mut should_stop = tokio::select! {
+                        result = &mut future => {
+                            handler(result).await
+                        }
                         _ = opts.cancellation.cancelled() => {
                             tracing::info!("task cancelled");
                             opts.last_state.write().await.replace(LastState::Stopped);
+                            global.send_task_activity(TaskActivity::stop(opts.task.id));
+                            (&mut future).await;
                             true
                         }
                         _ = license_tracker_task => {
                             opts.last_state.write().await.replace(LastState::Stopped);
                             // only triggered when license error
                             true
-                        }
-                        result = future => {
-                            handler(result).await
                         }
                     };
 

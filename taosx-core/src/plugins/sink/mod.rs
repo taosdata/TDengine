@@ -3905,6 +3905,7 @@ pub async fn listen_tcp_socket(
                     tracing::info!("IPC handler finished");
                 } else {
                     tracing::info!("IPC handler not finished");
+                    let _ = tokio::time::timeout(Duration::from_secs(10), h).await;
                 }
             }
             tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
@@ -3917,7 +3918,7 @@ pub async fn listen_tcp_socket(
             // closed.store(true, std::sync::atomic::Ordering::SeqCst);
             let _ = notified.notified().await;
             tracing::info!("stop listener");
-            match tokio::time::timeout(Duration::from_secs(10), thread).await {
+            match tokio::time::timeout(Duration::from_secs(20), thread).await {
                 Ok(Ok(_)) => anyhow::Ok(()),
                 Ok(err) => err.map_err(Into::into),
                 Err(_) => {

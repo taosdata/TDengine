@@ -351,8 +351,8 @@ docker build -f docker/dev/Dockerfile -t taosx/dev .
 script = """
 echo Build taosX release binaries with taosx/dev image.
 mkdir -p target/centos7
-docker-compose run build \
-  cargo build --release -p taosx -p taosx-agent
+docker compose run build \
+  cargo build --release -p taosx
 """
 
 [tasks.build-centos7-production]
@@ -360,8 +360,8 @@ docker-compose run build \
 script = """
 echo Build taosX release binaries with taosx/dev image.
 mkdir -p target/centos7
-docker-compose run build \
-  cargo build --profile production -p taosx -p taosx-agent
+docker compose run build \
+  cargo build --profile production -p taosx
 """
 
 [tasks.upx-local]
