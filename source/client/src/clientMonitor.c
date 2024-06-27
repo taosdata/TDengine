@@ -680,6 +680,7 @@ void monitorClose() {
 }
 
 int32_t monitorPutData2MonitorQueue(int64_t clusterId, char* value){
+  return -1;      // disable slow log monitor
   MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
   if (slowLogData == NULL) {
     uError("[monitor] failed to allocate slow log data");
