@@ -407,14 +407,15 @@ async fn ipc_tcp_forward(
                         if let Some(metadata) = MessageMetadata::ref_from(&rsp.app_metadata) {
                             let ack = metadata.ack();
                             let trace_id = metadata.trace_id();
+                            let trace_id = TraceDataId(trace_id);
                             let count = metadata.count;
                             match ack {
                                 RPC_ACK_PROCESSED => {
-                                    trace!(alive = ?alive.elapsed(), trace_id, "Processed received: {count}");
+                                    trace!(alive = ?alive.elapsed(), ?trace_id, "Processed received: {count}");
                                     _msg_processed += count;
                                 }
                                 RPC_ACK_DROPPED => {
-                                    trace!(alive = ?alive.elapsed(), trace_id, "Dropped received: {count}");
+                                    trace!(alive = ?alive.elapsed(), ?trace_id, "Dropped received: {count}");
                                 }
                                 RPC_ACK_STREAM_END => {
                                     debug!(alive = ?alive.elapsed(), "Stream end received");

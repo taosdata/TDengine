@@ -22,7 +22,7 @@ use arrow::{
 use faststr::FastStr;
 use futures::Stream;
 use taos::{ColumnView, Itertools, Precision, Ty, Value};
-use tracing::error;
+use tracing::{error, Span};
 
 use crate::{
     ack::{AckType, AckWriter},
@@ -546,9 +546,30 @@ impl<R: Read> IpcReader<R> {
         R: Send + 'static,
     {
         let (tx, rx) = flume::bounded(64);
+        let span = Span::current();
+        tracing::info!("debug debug debug span={:?}", span);
         std::thread::spawn(move || {
+            let _entered = span.entered();
             for item in self.reader {
+                let batch_number = match &item {
+                    Ok(batch) => {
+                        let schema = batch.schema();
+                        let meta = schema.metadata();
+                        let batch_number = meta.get("batchNumber").map(|v| v.clone());
+                        if let Some(number) = &batch_number {
+                            tracing::trace!("Read batch: {}", number);
+                        }
+                        batch_number
+                    }
+                    Err(err) => {
+                        tracing::trace!("IPC Read error: {}", err);
+                        None
+                    }
+                };
                 tx.send(item)?; // send under blocking thread
+                if let Some(number) = batch_number {
+                    tracing::trace!("Enqueue batch: {}", number);
+                }
                 ipc_ack_writer.write_ok()?;
             }
             tracing::info!("Raw ipc reader stream closed");

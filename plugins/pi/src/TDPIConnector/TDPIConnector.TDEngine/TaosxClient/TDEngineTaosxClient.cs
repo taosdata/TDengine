@@ -43,6 +43,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
         List<KeyValuePair<string, string>> tags;
         public string tdColomnType;
         public int localPort = 0;
+        /// <summary>
+        /// 下一批数据的批次号,用于追踪数据的处理进度,会带在 RecordBatch 的 metadata 中
+        /// </summary>
+        private long _batchNumber = 0;
 
         // For PI Point
         public TDEngineTaosxClient(string hostname, int port, string database, string stableName,
@@ -53,6 +57,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             this.useAFDatabase = useAFDatabase;
             this.tdColomnType = tdColomnType;
             this.tags = tags;
+           
 
             AckType ackType = AckType.None;
             builder = new MessageBuilder(PIDataMode.PointMode, stableName, StreamType.Lush, ackType);
@@ -81,6 +86,12 @@ namespace TDPIConnector.TDEngine.TaosxClient
             builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointValColomn(), tdType));
             builder.columnNameTypes.Add(new KeyValuePair<string, TDValueType>(TDEngineTableFormat.PointStatusColomn(), TDValueType.Int));
         }
+
+        public long NextBatchNumber()
+        {
+            return Interlocked.Increment(ref _batchNumber);
+        }
+
 
         // For AFElement
         public TDEngineTaosxClient(string hostname, int port, string database,
@@ -424,9 +435,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
             lock (stLock)
             {
                 if (builder.tagVals.Count == 0) return;
-                var recordBatch = builder.BuildTablesMessage();
+                var batchNumber = NextBatchNumber();
+                var recordBatch = builder.BuildTablesMessage(batchNumber);
                 writeRecordBatch(recordBatch);
-                log.Info($"Stable:{builder.stableName},localPort:{localPort},Create tables {builder.tagVals.Count}");
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},Write batch:{batchNumber},Create tables {builder.tagVals.Count}");
                 builder.tagVals.Clear();
             }
         }
@@ -434,9 +446,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public void send() {
             lock (stLock) {
                 if (builder.tableUniqKeyArrowArray.Length == 0) return;
-                var recordBatch = builder.BuildInsertMessage();
+                var batchNumber = NextBatchNumber();
+                var recordBatch = builder.BuildInsertMessage(batchNumber);
                 writeRecordBatch(recordBatch);
-                log.Debug($"Stable:{builder.stableName},localPort:{localPort}, Wrote records {builder.tableUniqKeyArrowArray.Length},QueueSize {actualQueueBufferSize}");
+                log.Debug($"Stable:{builder.stableName},localPort:{localPort}, Write batch:{batchNumber},records {builder.tableUniqKeyArrowArray.Length},QueueSize {actualQueueBufferSize}");
                 clear();
                 lastSend = DateTime.UtcNow;
             }
@@ -527,7 +540,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
             // If this empty message is not sent, the read function of the agent will fail
             // and consider the task abnormal.
             // Maybe the new version of Arrow doesn't have this problem. Who knows, I haven't tried it
-            writeRecordBatch(builder.BuildInsertMessage());
+            var batchNumber = NextBatchNumber();
+            writeRecordBatch(builder.BuildInsertMessage(batchNumber));
 
             if (null != writer) writer.WriteEnd();
             if (null != stream) stream.Close();
