@@ -568,6 +568,7 @@ static void* monitorThreadFunc(void *param){
     uError("open queue error since %s", terrstr());
     return NULL;
   }
+  uDebug("monitorThreadFunc start");
   while (1) {
     if (slowLogFlag > 0) break;
 
@@ -665,6 +666,9 @@ int32_t monitorPutData2MonitorQueue(int64_t clusterId, char* value){
   slowLogData->clusterId = clusterId;
   slowLogData->value = value;
   uDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " value:%s", slowLogData->clusterId, slowLogData->value);
+  while (monitorQueue == NULL) {
+    taosMsleep(100);
+  }
   if (taosWriteQitem(monitorQueue, slowLogData) == 0){
     tsem2_post(&monitorSem);
   }else{

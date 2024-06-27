@@ -54,7 +54,7 @@ static const char *offlineReason[] = {
     "monitor interval not match",
     "monitor slow log threshold not match",
     "monitor slow log sql max len not match",
-    "monitor slow log scopenot match",
+    "monitor slow log scope not match",
     "unknown",
 };
 

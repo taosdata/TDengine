@@ -31,7 +31,7 @@ typedef enum SQL_RESULT_CODE {
   SQL_RESULT_CANCEL = 2,
 } SQL_RESULT_CODE;
 
-#define SLOW_LOG_SEND_SIZE 8*1024
+#define SLOW_LOG_SEND_SIZE 32*1024
 
 typedef struct {
   int64_t                    clusterId;
