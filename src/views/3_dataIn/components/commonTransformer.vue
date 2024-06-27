@@ -936,19 +936,22 @@ export default {
         return;
       }
       this.requesting = true;
+      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
       let dsn = getDsnData(
         this.$parent.$parent.$parent.sourceForm.data,
         this.$parent.$parent.$parent.currentDefinition
       );
       dsn += `&sample_data_limit=${this.limitOffset}`
+      if (isSupportType) {
+        dsn += `&get_sample_timeout=3`
+      }
       let result = await getHistorianMsgbody(
         this.$store.state.app.currentDBType,
         encodeURIComponent(dsn),
         this.sourceParent.sourceForm.agent
       );
-      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
       if (result && Object.hasOwnProperty.call(result,'code')) {
-        this.$message.error(result.message)
+        this.$message.error(result.message || result.desc)
         if (!isSupportType) {
           this.msgForm.msgbody = '';
         }
@@ -2098,7 +2101,6 @@ export default {
         let defaultmap = this.options
           .filter((item) => item.value == "mapping")[0]
           ?.children.map((label) => label.label) || [];
-          console.log('defaultmap',defaultmap);
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
         this.pageCount = res.data.length + 1;
