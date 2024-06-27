@@ -78,8 +78,8 @@ typedef struct {
     goto _exit;       \
   } while (0)
 
-static const char *dmOS[10] = {"Ubuntu",  "CentOS Linux", "Red Hat", "Debian GNU", "CoreOS",
-                               "FreeBSD", "openSUSE",     "SLES",    "Fedora",     "macOS"};
+static const char *dmOS[] = {"Ubuntu",   "CentOS Linux", "Red Hat", "Debian GNU", "CoreOS",       "FreeBSD",
+                             "openSUSE", "SLES",         "Fedora",  "macOS",      "CentOS Stream"};
 
 // declarations
 static void    dmFetchEType(int8_t *type);
@@ -133,10 +133,13 @@ static int32_t dmInitPrerequisites() {
     if (STR_INT_CMP(ver, 6, >)) {
       DM_ERR_RTN(0);
     }
-  } else if (STR_STR_CMP(stName, dmOS[2]) || STR_STR_CMP(stName, dmOS[3]) || STR_STR_CMP(stName, dmOS[4]) ||
-             STR_STR_CMP(stName, dmOS[5]) || STR_STR_CMP(stName, dmOS[6]) || STR_STR_CMP(stName, dmOS[7]) ||
-             STR_STR_CMP(stName, dmOS[8]) || STR_STR_CMP(stName, dmOS[9])) {
-    DM_ERR_RTN(0);
+  } else {
+    int32_t size = sizeof(dmOS) / sizeof(dmOS[0]);
+    for (int32_t i = 2; i < size; ++i) {
+      if (STR_CASE_CMP(stName, dmOS[i])) {
+        DM_ERR_RTN(0);
+      }
+    }
   }
 
 _exit:
