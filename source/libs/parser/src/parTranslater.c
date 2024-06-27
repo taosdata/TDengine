@@ -12894,6 +12894,7 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
       taosMemoryFreeClear(pParseFileCtx->pTag);
     }
 
+    pParseFileCtx->pTag = NULL;
     taosArrayClearEx(pParseFileCtx->aTagVals, clearTagValArrayFp);
   }
 
