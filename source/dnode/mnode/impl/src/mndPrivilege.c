@@ -50,7 +50,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->sysInfo = pUser->sysInfo;
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
-  pRsp->whiteListVer = mndGetUserIpWhiteListVer(pMnode, pUser);
+  pRsp->whiteListVer = pMnode->ipWhiteVer;
   return 0;
 }
 

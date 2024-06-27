@@ -18,6 +18,7 @@
 #include "clientLog.h"
 #include "scheduler.h"
 #include "trpc.h"
+#include "tglobal.h"
 
 typedef struct {
   union {
@@ -67,7 +68,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
 }
 
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp) {
-  uint64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
+  int64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
   for (int i = 0; i < TARRAY_SIZE(clientHbMgr.appHbMgrs); ++i) {
     SAppHbMgr *hbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
     if (!hbMgr || hbMgr->pAppInstInfo->clusterId != clusterId) {
@@ -134,8 +135,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       if (pTscObj->whiteListInfo.fp) {
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
         int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-
-        if (oldVer < pRsp->whiteListVer || pRsp->whiteListVer == 0) {
+        if (oldVer != pRsp->whiteListVer) {
           atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
           if (whiteListInfo->fp) {
             (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
@@ -143,6 +143,14 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", tscRid:%" PRIi64, pRsp->user,
                    oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
         }
+      } else {
+        // Need to update version information to prevent frequent fetching of authentication
+        // information.
+        SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+        atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
+        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", tscRid:%" PRIi64, pRsp->user,
+                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
       releaseTscObj(pReq->connKey.tscRid);
     }
@@ -538,6 +546,9 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
+  pInst->monitorParas = pRsp.monitorParas;
+  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
+           pInst->clusterId, pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
@@ -1048,6 +1059,7 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     return NULL;
   }
 
+  int64_t  maxIpWhiteVer = 0;
   void    *pIter = NULL;
   SHbParam param = {0};
   while ((pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter))) {
@@ -1083,8 +1095,11 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
       }
     }
 
+    int64_t ver = atomic_load_64(&pTscObj->whiteListInfo.ver);
+    maxIpWhiteVer = TMAX(maxIpWhiteVer, ver);
     releaseTscObj(connKey->tscRid);
   }
+  pBatchReq->ipWhiteList = maxIpWhiteVer;
 
   return pBatchReq;
 }
@@ -1118,7 +1133,7 @@ int32_t hbGatherAppInfo(void) {
     SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
     if (pAppHbMgr == NULL) continue;
 
-    uint64_t   clusterId = pAppHbMgr->pAppInstInfo->clusterId;
+    int64_t   clusterId = pAppHbMgr->pAppInstInfo->clusterId;
     SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
     if (NULL == pApp) {
       memcpy(&req.summary, &pAppHbMgr->pAppInstInfo->summary, sizeof(req.summary));

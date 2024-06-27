@@ -2632,7 +2632,7 @@ int32_t doStreamSessionEncodeOpState(void** buf, int32_t len, SOperatorInfo* pOp
   }
 
   // 4.dataVersion
-  tlen += taosEncodeFixedI32(buf, pInfo->dataVersion);
+  tlen += taosEncodeFixedI64(buf, pInfo->dataVersion);
 
   // 5.checksum
   if (isParent) {
@@ -3086,15 +3086,17 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
-  // for stream
-  void*   buff = NULL;
-  int32_t len = 0;
-  int32_t res =
-      pInfo->streamAggSup.stateStore.streamStateGetInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_CHECKPOINT_NAME,
-                                                        strlen(STREAM_SESSION_OP_CHECKPOINT_NAME), &buff, &len);
-  if (res == TSDB_CODE_SUCCESS) {
-    doStreamSessionDecodeOpState(buff, len, pOperator, true);
-    taosMemoryFree(buff);
+  if (pPhyNode->type != QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
+    // for stream
+    void*   buff = NULL;
+    int32_t len = 0;
+    int32_t res =
+        pInfo->streamAggSup.stateStore.streamStateGetInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_CHECKPOINT_NAME,
+                                                          strlen(STREAM_SESSION_OP_CHECKPOINT_NAME), &buff, &len);
+    if (res == TSDB_CODE_SUCCESS) {
+      doStreamSessionDecodeOpState(buff, len, pOperator, true);
+      taosMemoryFree(buff);
+    }
   }
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamSessionAgg, NULL, destroyStreamSessionAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
@@ -3278,6 +3280,16 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
       pChInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
       pAPI->stateStore.streamStateSetNumber(pChInfo->streamAggSup.pState, i, pInfo->primaryTsIndex);
       taosArrayPush(pInfo->pChildren, &pChildOp);
+    }
+
+    void*   buff = NULL;
+    int32_t len = 0;
+    int32_t res =
+        pInfo->streamAggSup.stateStore.streamStateGetInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_CHECKPOINT_NAME,
+                                                          strlen(STREAM_SESSION_OP_CHECKPOINT_NAME), &buff, &len);
+    if (res == TSDB_CODE_SUCCESS) {
+      doStreamSessionDecodeOpState(buff, len, pOperator, true);
+      taosMemoryFree(buff);
     }
   }
 
@@ -3621,7 +3633,7 @@ int32_t doStreamStateEncodeOpState(void** buf, int32_t len, SOperatorInfo* pOper
   }
 
   // 4.dataVersion
-  tlen += taosEncodeFixedI32(buf, pInfo->dataVersion);
+  tlen += taosEncodeFixedI64(buf, pInfo->dataVersion);
 
   // 5.checksum
   if (isParent) {

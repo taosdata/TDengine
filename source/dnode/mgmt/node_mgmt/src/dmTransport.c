@@ -58,8 +58,8 @@ static void dmConvertErrCode(tmsg_t msgType) {
   if (terrno != TSDB_CODE_APP_IS_STOPPING) {
     return;
   }
-  if ((msgType > TDMT_VND_MSG && msgType < TDMT_VND_MAX_MSG) ||
-      (msgType > TDMT_SCH_MSG && msgType < TDMT_SCH_MAX_MSG)) {
+  if ((msgType > TDMT_VND_MSG_MIN && msgType < TDMT_VND_MSG_MAX) ||
+      (msgType > TDMT_SCH_MSG_MIN && msgType < TDMT_SCH_MSG_MAX)) {
     terrno = TSDB_CODE_VND_STOPPED;
   }
 }
@@ -279,7 +279,7 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
 static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
-  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG) {
+  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG_MIN) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
     if (pDnode->status == DND_STAT_INIT) {
@@ -290,13 +290,14 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     dError("failed to send rpc msg:%s since %s, handle:%p", TMSG_INFO(pMsg->msgType), terrstr(), pMsg->info.handle);
     return -1;
   } else {
+    pMsg->info.handle = 0;
     rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
     return 0;
   }
 }
 static inline int32_t dmSendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
-  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG) {
+  if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG_MIN) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
     if (pDnode->status == DND_STAT_INIT) {

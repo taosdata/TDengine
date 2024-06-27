@@ -55,10 +55,10 @@ struct SActiveCheckpointInfo {
   int64_t       activeId;     // current active checkpoint id
   int64_t       failedId;
   bool          dispatchTrigger;
-  SArray*       pDispatchTriggerList;   // SArray<STaskTriggerSendInfo>
-  SArray*       pReadyMsgList;   // SArray<STaskCheckpointReadyInfo*>
+  SArray*       pDispatchTriggerList;  // SArray<STaskTriggerSendInfo>
+  SArray*       pReadyMsgList;         // SArray<STaskCheckpointReadyInfo*>
   int8_t        allUpstreamTriggerRecv;
-  SArray*       pCheckpointReadyRecvList;   // SArray<STaskDownstreamReadyInfo>
+  SArray*       pCheckpointReadyRecvList;  // SArray<STaskDownstreamReadyInfo>
   int32_t       checkCounter;
   tmr_h         pChkptTriggerTmr;
   int32_t       sendReadyCheckCounter;
@@ -100,7 +100,7 @@ typedef struct {
   int32_t upstreamNodeId;
   int32_t transId;
   int32_t childId;
-  SRpcMsg msg;                 // for mnode checkpoint-source rsp
+  SRpcMsg msg;  // for mnode checkpoint-source rsp
   int64_t checkpointId;
   int64_t recvTs;
   int32_t sendCompleted;
