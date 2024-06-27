@@ -277,6 +277,7 @@ void   taosSetGlobalDebugFlag(int32_t flag);
 void   taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void   taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 int8_t taosGranted(int8_t type);
+int32_t taosSetSlowLogScope(char *pScope);
 
 #ifdef __cplusplus
 }
