@@ -859,7 +859,7 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
   void        *pIter = NULL;
   bool         conflict = false;
   SCompactObj *pCompact = NULL;
-  pIter = NULL;
+
   while (1) {
     bool thisConflict = false;
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
