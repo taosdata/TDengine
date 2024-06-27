@@ -436,3 +436,4 @@
 ./test.sh -f tsim/tag/drop_tag.sim
 ./test.sh -f tsim/tag/tbNameIn.sim
 ./test.sh -f tmp/monitor.sim
+./test.sh -f tsim/tagindex/indexOverflow.sim
