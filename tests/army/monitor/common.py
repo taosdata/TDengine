@@ -204,7 +204,7 @@ class Common:
 
         if len(ret) == 1:
             node_id = ret[0][0]
-            tdSql.execute(f"drop dnode '{node_id}'")
+            tdSql.execute(f"drop dnode {node_id}", queryTimes=2)
 
         # start taosd with special cfg
         self.start_private_taosd(cfg)
@@ -225,9 +225,10 @@ class Common:
                 if err_msg in note:
                     tdLog.info(f"get the expected err_msg: {err_msg}")
                     break
+                time.sleep(1)
             
             if count == 3:
-                tdLog.exit(f"cannot get the expected err_msg: {err_msg}")
+                tdLog.exit(f"cannot get the expected err_msg: {err_msg}, the actual err_msg: {note}")
             
     # create private taos.cfg by special setting list
     def create_private_cfg(self, cfg_name: str, params: dict):
@@ -243,6 +244,8 @@ class Common:
     
     def check_variable_setting(self, key: str, value: str):
         value = value.lstrip('0')
+        if value.lower() == 'all':
+            value = 'QUERY|INSERT|OTHERS'
         result = tdSql.getResult("show cluster variables")
         for i in range(len(result)):
             if result[i][0].lower() == key.lower() and result[i][1].lower() == value.lower():
@@ -308,7 +311,14 @@ class Common:
                     tdLog.exit(f'scenario: actual_sql_length > slowLogMaxLen={sql_length} FAIL')
                 tdLog.info(f'scenario: actual_sql_length > slowLogMaxLen={sql_length} PASS')
 
-        
+    def install_taospy(self):
+        tdLog.info("install taospyudf...")
+        packs = ["taospyudf"]
+        for pack in packs:
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-i', 'https://pypi.org/simple', '-U', pack])
+        tdLog.info("call ldconfig...")
+        os.system("ldconfig")
+        tdLog.info("install taospyudf successfully.")    
         
 
     def generate_random_string(self, length):

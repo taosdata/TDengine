@@ -70,7 +70,6 @@ class TDTestCase(TBase):
                 'serverPort': '6630',
                 'dataDir': f'{taos_error_dir}/data',
                 'logDir': f'{taos_error_dir}/log',
-                'slowLogThresholdTest': '0',
                 'monitorInterval': '5',
                 'monitorFqdn': 'localhost'}
             new_taos_cfg = monitor_common.create_private_cfg(cfg_name='invalid_taos.cfg', params=params)
@@ -81,32 +80,35 @@ class TDTestCase(TBase):
                 tdLog.exit(f"check invalid value '{value}' of variable 'slowLogScope' via config - FAIL")
 
             sql = f"ALTER ALL DNODES  'slowLogScope {value}'"
-            tdSql.error(sql, expectErrInfo=err_info)
+            tdSql.error(sql, expectErrInfo="Invalid config option")
+
+        # sql = f"ALTER ALL DNODES  'slowLogScope '"
+        # tdSql.error(sql, expectErrInfo="Invalid config option")
 
         # 2. check valid setting of show_log_scope
         VAR_SHOW_LOG_SCOPE_POSITIVE_CASES = {
-            'ALL': {'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
-            'QUERY': {'query_log_exist': True, 'insert_log_exist': False, 'other_log_exist': False},
-            'INSERT': {'query_log_exist': False, 'insert_log_exist': True, 'other_log_exist': False},
-            'OTHERS': {'query_log_exist': False, 'insert_log_exist': False, 'other_log_exist': True},
-            'NONE': {'query_log_exist': False, 'insert_log_exist': False, 'other_log_exist': False},
-            'ALL|Query|INSERT|OTHERS|NONE': {'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
-            'QUERY|Insert|OTHERS': {'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
-            'INSERT|OThers': {'query_log_exist': False, 'insert_log_exist': True, 'other_log_exist': True},
-            'QUERY|none': {'query_log_exist': True, 'insert_log_exist': False, 'other_log_exist': False}}
+            'ALL': {'expected_setting': 'Query|INSERT|OTHERS', 'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
+            'QUERY': {'expected_setting': 'Query', 'query_log_exist': True, 'insert_log_exist': False, 'other_log_exist': False},
+            'INSERT': {'expected_setting': 'INSERT', 'query_log_exist': False, 'insert_log_exist': True, 'other_log_exist': False},
+            'OTHERS': {'expected_setting': 'OTHERS', 'query_log_exist': False, 'insert_log_exist': False, 'other_log_exist': True},
+            'NONE': {'expected_setting': 'NONE', 'query_log_exist': False, 'insert_log_exist': False, 'other_log_exist': False},
+            'ALL|Query|INSERT|OTHERS|NONE': {'expected_setting': 'Query|INSERT|OTHERS', 'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
+            'QUERY|Insert|OTHERS': {'expected_setting': 'Query|INSERT|OTHERS', 'query_log_exist': True, 'insert_log_exist': True, 'other_log_exist': True},
+            'INSERT|OThers': {'expected_setting': 'INSERT|OTHERS', 'query_log_exist': False, 'insert_log_exist': True, 'other_log_exist': True},
+            'QUERY|none': {'expected_setting': 'Query', 'query_log_exist': True, 'insert_log_exist': False, 'other_log_exist': False}}
 
         for scope_value, verifications in VAR_SHOW_LOG_SCOPE_POSITIVE_CASES.items():
-            updatecfgDict = {"slowLogScope": scope_value, 'monitorInterval': '1', "slowLogThresholdTest":"0"}
+            updatecfgDict = {"slowLogScope": scope_value}
 
             # set slowLogScope via alter operation
             monitor_common.alter_variables(1, updatecfgDict)
-            monitor_common.check_variable_setting(key='slowLogScope', value=scope_value)
+            monitor_common.check_variable_setting(key='slowLogScope', value=verifications['expected_setting'])
             monitor_common.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
             tdLog.info(f"check valid value '{scope_value}' of variable 'slowLogMaxLen' via alter - PASS")
 
             # set slowLogScope via taos.cfg
             monitor_common.update_taos_cfg(1, updatecfgDict)
-            monitor_common.check_variable_setting(key='slowLogScope', value=scope_value)
+            monitor_common.check_variable_setting(key='slowLogScope', value=verifications['expected_setting'])
             monitor_common.check_slow_query_table(db_name='check_default', query_log_exist=verifications['query_log_exist'], insert_log_exist=verifications['insert_log_exist'], other_log_exist=verifications['other_log_exist'])
             tdLog.info(f"check valid value '{scope_value}' of variable 'slowLogMaxLen' via cfg - PASS")
             
@@ -120,6 +122,7 @@ class TDTestCase(TBase):
 
         # 4.add node failed if setting is different
         VAR_SHOW_LOG_SCOPE_DIFF_CASES =['ALL','ALL|INSERT','QUERY','OTHERS','NONE']
+        # VAR_SHOW_LOG_SCOPE_DIFF_CASES =['ALL','QUERY','OTHERS','NONE']
         taos_error_dir = os.path.join(sc.getSimPath(), 'dnode_err')
         endpoint = f'{socket.gethostname()}:6630'
         for value in VAR_SHOW_LOG_SCOPE_DIFF_CASES:
@@ -131,16 +134,13 @@ class TDTestCase(TBase):
                 'dataDir': f'{taos_error_dir}/data',
                 'logDir': f'{taos_error_dir}/log',
                 'slowLogThresholdTest': '0',
-                'monitorInterval': '5',
+                'monitorInterval': '1',
                 'monitorFqdn': 'localhost'}
             new_taos_cfg = monitor_common.create_private_cfg(cfg_name='diff_taos.cfg', params=params)
-            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='slowLogScope not match')
+            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='monitor slow log scopenot match')
         tdLog.info(f"check_show_log_scope is done")
 
-
         tdLog.success(f"{__file__} successfully executed")
-
-        
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())

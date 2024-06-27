@@ -50,6 +50,17 @@ class TDTestCase(TBase):
         tdLog.info(f"check_show_log_threshold")
 
         monitor_common.init_env()
+        # monitor_common.install_taospy()  
+
+        # udf_sleep = os.path.join(sc.getSimPath(), 'tests/army/monitor/udf_sleep.py')
+        # sqls = [
+        #     f'create aggregate function my_sleep as "{udf_sleep}" outputtype int language "Python"',
+        #     'create datab ase check_show_log_threshold',
+        #     'create table check_show_log_threshold.assistance (ts timestamp, n int)',
+        #     'insert into check_show_log_threshold.assistance values(now, 1), (now + 1s, 2), (now + 2s, 3)'
+        # ]
+        # tdSql.executes(sqls,queryTimes=1)
+        # tdSql.query('select my_sleep(n) from check_show_log_threshold.assistance',queryTimes=1)
 
         # 1.check nagative value of slowLogThreshold
         VAR_SHOW_LOG_THRESHOLD_NAGATIVE_CASES ={
@@ -89,8 +100,8 @@ class TDTestCase(TBase):
             tdSql.error(sql, expectErrInfo=err_info)
 
         # 2. check valid setting of show_log_scope
-        # VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['2147483647', '002', '1']
-        VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['002']
+        VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['2147483647', '002', '1']
+        # VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['002']
 
         for threshold_value in VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES:
             updatecfgDict = {"slowLogThreshold": threshold_value}
@@ -126,11 +137,11 @@ class TDTestCase(TBase):
                 'dataDir': f'{taos_error_dir}/data',
                 'logDir': f'{taos_error_dir}/log',
                 'slowLogThresholdTest': '0',
-                'monitorInterval': '5',
+                'monitorInterval': '1',
                 'monitorFqdn': 'localhost'}
             new_taos_cfg = monitor_common.create_private_cfg(cfg_name='diff_taos.cfg', params=params)
             
-            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='slowLogThreshold not match')
+            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='monitor slow log threshold not match')
         tdLog.info(f"check_show_log_threshold is done")
 
 
