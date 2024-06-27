@@ -1828,6 +1828,26 @@ SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SN
   return (SNode*)pStmt;
 }
 
+SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pUseRealTable,
+                                          SNodeList* pSpecificTags, const SToken* pFilePath) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateSubTableFromFileClause* pStmt =
+      (SCreateSubTableFromFileClause*)nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE);
+  CHECK_OUT_OF_MEM(pStmt);
+  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
+  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pSpecificTags = pSpecificTags;
+  if (TK_NK_STRING == pFilePath->type) {
+    trimString(pFilePath->z, pFilePath->n, pStmt->filePath, PATH_MAX);
+  } else {
+    strncpy(pStmt->filePath, pFilePath->z, pFilePath->n);
+  }
+
+  nodesDestroyNode(pUseRealTable);
+  return (SNode*)pStmt;
+}
+
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateMultiTablesStmt* pStmt = (SCreateMultiTablesStmt*)nodesMakeNode(QUERY_NODE_CREATE_MULTI_TABLES_STMT);
@@ -2914,7 +2934,8 @@ SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
 SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
                        SNode* pTagCond) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkDbName(pCxt, &pPrivLevel->first, false) || !checkUserName(pCxt, pUserName)) {
+  if (!checkDbName(pCxt, &pPrivLevel->first, false) || !checkUserName(pCxt, pUserName) ||
+      !checkTableName(pCxt, &pPrivLevel->second)) {
     return NULL;
   }
   SGrantStmt* pStmt = (SGrantStmt*)nodesMakeNode(QUERY_NODE_GRANT_STMT);

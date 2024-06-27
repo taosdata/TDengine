@@ -697,6 +697,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       } else {
         tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
                req.newConsumerId);
+
         atomic_store_64(&pHandle->consumerId, req.newConsumerId);
         atomic_store_32(&pHandle->epoch, 0);
         tqUnregisterPushHandle(pTq, pHandle);
@@ -963,8 +964,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
             pTask->streamTaskId.taskId, pTask->id.idStr);
 
-      tqDebug("s-task:%s fill-history task set status to be dropping and drop it", id);
-      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
+    tqDebug("s-task:%s fill-history task set status to be dropping", id);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id, 0);
 
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1013,7 +1014,7 @@ int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
 }
 
 int32_t tqProcessTaskUpdateCheckpointReq(STQ* pTq, char* msg, int32_t msgLen) {
-  return tqStreamTaskProcessUpdateCheckpointReq(pTq->pStreamMeta, msg, msgLen);
+  return tqStreamTaskProcessUpdateCheckpointReq(pTq->pStreamMeta, pTq->pVnode->restored, msg, msgLen);
 }
 
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {

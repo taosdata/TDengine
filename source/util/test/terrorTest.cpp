@@ -73,7 +73,24 @@ pair<string, int32_t> parseKeyValuePair(const string &line, char delim = '=') {
     key = key.substr(1, key.size() - 2);
 
   string valStr = line.substr(pos + 1);
-  int32_t val = stoi(valStr);
+
+  // remove leading spaces
+  firstNotSpace = valStr.find_first_not_of(" ");
+  if (firstNotSpace != string::npos) {
+    valStr = valStr.substr(firstNotSpace);
+  } else {
+    valStr.clear();
+  }
+
+  // remove ending spaces
+  lastNotSpace = valStr.find_last_not_of(" ");
+  if (lastNotSpace != string::npos) {
+    valStr = valStr.substr(0, lastNotSpace + 1);
+  }
+
+  valStr = valStr.substr(2);
+  int32_t val = int32_t(std::stol(valStr, &pos, 16));
+
   return make_pair(key, val);
 }
 
@@ -188,7 +205,8 @@ void generateConfigFile(const string& filePath) {
 
   for (int32_t i = 0; i < errSize; ++i) {
     STaosError *pInfo = &errors[i];
-    file << std::left << std::setw(maxStringLength) << pInfo->macro << "= " << pInfo->val << endl;
+    file << std::left << std::setw(maxStringLength) << pInfo->macro << "= ";
+    file << "0x" << std::uppercase << std::hex << pInfo->val << endl;
   }
 
   if (file.fail()) {

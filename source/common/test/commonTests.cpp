@@ -726,4 +726,118 @@ TEST(AlreadyAddGroupIdTest, GroupIdAddedWithDifferentLength) {
   EXPECT_FALSE(result);
 }
 
+#define SLOW_LOG_TYPE_NULL   0x0
+#define SLOW_LOG_TYPE_QUERY  0x1
+#define SLOW_LOG_TYPE_INSERT 0x2
+#define SLOW_LOG_TYPE_OTHERS 0x4
+#define SLOW_LOG_TYPE_ALL    0x7
+
+static int32_t taosSetSlowLogScope(char *pScope) {
+  if (NULL == pScope || 0 == strlen(pScope)) {
+    return SLOW_LOG_TYPE_QUERY;
+  }
+
+  int32_t slowScope = 0;
+
+  char* scope = NULL;
+  char *tmp   = NULL;
+  while((scope = strsep(&pScope, "|")) != NULL){
+    taosMemoryFreeClear(tmp);
+    tmp = taosStrdup(scope);
+    strtrim(tmp);
+    if (0 == strcasecmp(tmp, "all")) {
+      slowScope |= SLOW_LOG_TYPE_ALL;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "query")) {
+      slowScope |= SLOW_LOG_TYPE_QUERY;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "insert")) {
+      slowScope |= SLOW_LOG_TYPE_INSERT;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "others")) {
+      slowScope |= SLOW_LOG_TYPE_OTHERS;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "none")) {
+      slowScope |= SLOW_LOG_TYPE_NULL;
+      continue;
+    }
+
+    taosMemoryFreeClear(tmp);
+    uError("Invalid slowLog scope value:%s", pScope);
+    terrno = TSDB_CODE_INVALID_CFG_VALUE;
+    return -1;
+  }
+
+  taosMemoryFreeClear(tmp);
+  return slowScope;
+}
+
+TEST(TaosSetSlowLogScopeTest, NullPointerInput) {
+  char *pScope = NULL;
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, EmptyStringInput) {
+  char pScope[1] = "";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, AllScopeInput) {
+  char pScope[] = "all";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, SLOW_LOG_TYPE_ALL);
+}
+
+TEST(TaosSetSlowLogScopeTest, QueryScopeInput) {
+  char pScope[] = " query";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, InsertScopeInput) {
+  char pScope[] = "insert";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, SLOW_LOG_TYPE_INSERT);
+}
+
+TEST(TaosSetSlowLogScopeTest, OthersScopeInput) {
+  char pScope[] = "others";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, SLOW_LOG_TYPE_OTHERS);
+}
+
+TEST(TaosSetSlowLogScopeTest, NoneScopeInput) {
+  char pScope[] = "none";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, SLOW_LOG_TYPE_NULL);
+}
+
+TEST(TaosSetSlowLogScopeTest, InvalidScopeInput) {
+  char pScope[] = "invalid";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, -1);
+}
+
+TEST(TaosSetSlowLogScopeTest, MixedScopesInput) {
+  char pScope[] = "query|insert|others|none";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+}
+
+TEST(TaosSetSlowLogScopeTest, MixedScopesInputWithSpaces) {
+  char pScope[] = "query | insert | others ";
+  int32_t result = taosSetSlowLogScope(pScope);
+  EXPECT_EQ(result, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+}
+
 #pragma GCC diagnostic pop

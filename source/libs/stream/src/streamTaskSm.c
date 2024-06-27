@@ -200,7 +200,6 @@ static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent eve
   SStreamTaskSM* pSM = pTask->status.pSM;
 
   bool removed = false;
-  taosThreadMutexLock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pSM->pWaitingEventList);
   for (int32_t i = 0; i < num; ++i) {
@@ -218,7 +217,6 @@ static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent eve
     stDebug("s-task:%s failed to remove event:%s in waiting list", pTask->id.idStr, StreamTaskEventList[event].name);
   }
 
-  taosThreadMutexUnlock(&pTask->lock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -623,9 +621,9 @@ void doInitStateTransferTable(void) {
   taosArrayPush(streamTaskSMTrans, &trans);
   trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__PAUSE, TASK_EVENT_PAUSE, NULL, NULL, &info);
   taosArrayPush(streamTaskSMTrans, &trans);
-
-  trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__PAUSE, TASK_EVENT_PAUSE, NULL, NULL, NULL);
+  trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__PAUSE, TASK_EVENT_PAUSE, NULL, NULL, &info);
   taosArrayPush(streamTaskSMTrans, &trans);
+
   trans = createStateTransform(TASK_STATUS__PAUSE, TASK_STATUS__PAUSE, TASK_EVENT_PAUSE, NULL, NULL, NULL);
   taosArrayPush(streamTaskSMTrans, &trans);
   trans = createStateTransform(TASK_STATUS__STOP, TASK_STATUS__STOP, TASK_EVENT_PAUSE, NULL, NULL, NULL);

@@ -55,10 +55,10 @@ struct SActiveCheckpointInfo {
   int64_t       activeId;     // current active checkpoint id
   int64_t       failedId;
   bool          dispatchTrigger;
-  SArray*       pDispatchTriggerList;   // SArray<STaskTriggerSendInfo>
-  SArray*       pReadyMsgList;   // SArray<STaskCheckpointReadyInfo*>
+  SArray*       pDispatchTriggerList;  // SArray<STaskTriggerSendInfo>
+  SArray*       pReadyMsgList;         // SArray<STaskCheckpointReadyInfo*>
   int8_t        allUpstreamTriggerRecv;
-  SArray*       pCheckpointReadyRecvList;   // SArray<STaskDownstreamReadyInfo>
+  SArray*       pCheckpointReadyRecvList;  // SArray<STaskDownstreamReadyInfo>
   int32_t       checkCounter;
   tmr_h         pChkptTriggerTmr;
   int32_t       sendReadyCheckCounter;
@@ -100,7 +100,7 @@ typedef struct {
   int32_t upstreamNodeId;
   int32_t transId;
   int32_t childId;
-  SRpcMsg msg;                 // for mnode checkpoint-source rsp
+  SRpcMsg msg;  // for mnode checkpoint-source rsp
   int64_t checkpointId;
   int64_t recvTs;
   int32_t sendCompleted;
@@ -194,7 +194,7 @@ void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 void    streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo);
 
-void              streamClearChkptReadyMsg(SStreamTask* pTask);
+void              streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo);
 EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
                                               int32_t* blockSize);
 int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);

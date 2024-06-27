@@ -948,7 +948,7 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
   SColumnInfoData* pPrimOut = taosArrayGet(pBlock->pDataBlock, pTable->primCtx.targetSlotId);
   if (0 != pCtx->timezoneUnit) {
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit - pCtx->timezoneUnit;
+      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit) % pCtx->truncateUnit;
     }
   } else {
     for (int32_t i = 0; i < pBlock->info.rows; ++i) {

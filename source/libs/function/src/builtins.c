@@ -2166,15 +2166,6 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0))) {
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
-
-    if (!validateTimestampDigits(pValue)) {
-      pFunc->node.resType = (SDataType){.bytes = 0, .type = TSDB_DATA_TYPE_BINARY};
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
   // param1
   if (numOfParams == 2) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);

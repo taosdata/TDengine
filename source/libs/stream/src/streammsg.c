@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "streammsg.h"
+#include "os.h"
 #include "tstream.h"
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
@@ -77,7 +77,6 @@ int32_t tEncodeStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckp
   return pEncoder->pos;
 }
 
-
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pMsg->streamId) < 0) return -1;
@@ -98,7 +97,6 @@ int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpda
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
-
 
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg) {
   if (tStartDecode(pDecoder) < 0) return -1;
@@ -179,7 +177,6 @@ int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp)
   tEndDecode(pDecoder);
   return 0;
 }
-
 
 int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpointReadyMsg* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -589,7 +586,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     if (tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName) < 0) return -1;
   }
   if (tDecodeI64(pDecoder, &pTask->info.delaySchedParam) < 0) return -1;
-  if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+  if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
     if (tDecodeI8(pDecoder, &pTask->subtableWithoutMd5) < 0) return -1;
   }
   if (tDecodeCStrTo(pDecoder, pTask->reserve) < 0) return -1;
