@@ -375,7 +375,7 @@
                 icon="el-icon-plus"
                 plain
                 @click="createStable"
-                :disabled="$store.state.app.currentDBName == '' || $COMMUNITY"
+                :disabled="$store.state.app.currentDBName == '' || columnsArr.length === 0 || $COMMUNITY"
               >
                 {{ $t("datasource.transformer.createstb") }}
               </el-button>
@@ -936,26 +936,36 @@ export default {
         return;
       }
       this.requesting = true;
+      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
       let dsn = getDsnData(
         this.$parent.$parent.$parent.sourceForm.data,
         this.$parent.$parent.$parent.currentDefinition
       );
       dsn += `&sample_data_limit=${this.limitOffset}`
+      if (isSupportType) {
+        dsn += `&get_sample_timeout=3`
+      }
       let result = await getHistorianMsgbody(
         this.$store.state.app.currentDBType,
         encodeURIComponent(dsn),
         this.sourceParent.sourceForm.agent
       );
       if (result && Object.hasOwnProperty.call(result,'code')) {
-        this.$message.error(result.message)
-        this.msgForm.msgbody = '';
+        this.$message.error(result.message || result.desc)
+        if (!isSupportType) {
+          this.msgForm.msgbody = '';
+        }
         this.requesting = false;
         return
       }
-      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
       if (isSupportType) {
         if (result.input.length <= 0) {
           this.$message.warning(this.$t('datasource.transformer.retrieveTip'))
+        } else {
+          let type = this.$store.state.app.currentDBType == 'kafka' ? 'Kafka' : 'MQTT';
+          this.$message.success(
+            type + this.$t('datasource.transformer.retrieveSuccTip').replace('{n}',result.input.length)
+          )
         }
         result.input.map(item => {
           this.msgForm.msgbody += item.payload + "\n";
@@ -1449,11 +1459,16 @@ export default {
       });
     },
     clearTargetTBWhenDelete() {
-      if (!this.sourceParent.sourceForm.targetDB ||
-        !this.stableLists.find((v) => v === this.sruleForm.s_name)
-      ) {
-        this.sruleForm.s_name = ""
+      // 数据库为空
+      if (!this.sourceParent.sourceForm.targetDB) {
+        //  || !this.stableLists.find((v) => v === this.sruleForm.s_name)
+        this.clearStbMapping()
       } 
+    },
+    clearStbMapping() {
+      this.sruleForm.s_name = ""
+      this.tableData = [];
+      this.setPageTableData();
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
     initColumnLists(columns) {
@@ -2085,7 +2100,7 @@ export default {
         }
         let defaultmap = this.options
           .filter((item) => item.value == "mapping")[0]
-          .children.map((label) => label.label);
+          ?.children.map((label) => label.label) || [];
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
         this.pageCount = res.data.length + 1;

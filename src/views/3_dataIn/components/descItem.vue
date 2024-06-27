@@ -9,130 +9,24 @@
         :parent="parent + field + '.'"
       />
     </template>
-    <!-- 排除tmq中 dsn 自己带的参数，这类 param 特点就是 type=input,没有label  -->
     <div
       v-else-if="display && (labelText || config.type !== 'input')"
       :class="[classMark, 'descItem', {'grid-item-span-two': config.grid_two}]"
       :prop="parent + field"
     >
-      <!-- <template slot="label">
-        <el-tooltip placement="top" effect="light" :open-delay="0" v-if="doscShow && !dataSetDocsShow">
-          <template slot="content">
-            <DocsContent
-              v-if="doscShow && !dataSetDocsShow"
-              :style="docsStyle"
-              :class="config.templateUrl ? 'noboder' : ''"
-              :content="config.description"
-            />
-          </template>
-          <span>
-            <span>{{ labelText }}</span>
-            <span v-if="doscShow && !dataSetDocsShow" style="margin-left: 1px">
-              <Icon name="label_info" class="info_icon_custom"></Icon>
-            </span>
-          </span>
-        </el-tooltip>
-      </template> -->
       <template>
         <span v-if="config.type !== 'dataset'" style="padding-right: 10px">{{ labelText }}:</span>
         <span v-if="!inputType.includes(config.type)">{{ data[field] }}</span>
-        <span v-if="config.type == 'select'">{{ data[field] }}</span>
+        <span v-if="config.type == 'select'">
+          <span v-if="Array.isArray(getOptions(data[field]))" class="flexWrap">
+            <span v-for="option in getOptions(data[field])" :key="option">{{ option }}</span>
+          </span>
+          <span v-else>{{ getOptions(data[field]) }}</span>
+        </span>
         <a v-if="config.type == 'file' || config.type == 'dataset'" @click="handleDownloadFile(data[field])">{{ getFile(data[field]) }}</a>
         <span v-if="config.type == 'composeAppend'">{{ data[field] ? data[field] + data[field + '_type'] : ''}}</span>
+        <span v-if="config.type == 'password'">****</span>
       </template>
-
-      <!-- <el-input
-        v-if="inputType.includes(config.type)"
-        :id="parent + field"
-        v-model="data[field]"
-        :disabled="disabled()"
-        :type="config.type"
-        :show-password="config.type == 'password'"
-        :placeholder="config.placeholder"
-      ></el-input>
-      <el-input-number
-        v-if="config.type == 'number'"
-        :id="parent + field"
-        v-model="data[field]"
-        :disabled="disabled()"
-        :max="config.max"
-        :min="config.min"
-        :placeholder="config.placeholder"
-      ></el-input-number>
-      <el-select
-        v-if="config.type == 'select'"
-        :id="parent + field"
-        v-model="data[field]"
-        v-bind="meta"
-        class="ds-select"
-        clearable
-        :disabled="disabled()"
-        :placeholder="config.placeholder"
-        :multiple="config.multiple"
-      >
-        <el-option
-          v-for="item in getOptions()"
-          :key="item.value"
-          v-bind="item"
-          :title="item.description"
-          :disabled="item.disabled"
-        ></el-option>
-      </el-select>
-      <el-switch
-        v-if="config.type == 'switch'"
-        :id="parent + field"
-        v-model="data[field]"
-        :disabled="disabled()"
-        :placeholder="config.placeholder"
-        @change="changeSwith"
-      ></el-switch>
-      <TimezoneDatePicker
-        v-if="config.type == 'time'"
-        :id="parent + field"
-        v-model="data[field]"
-        :disabled="disabled()"
-        :placeholder="config.placeholder"
-        :type="config.dateType"
-        style="width: 100%"
-      ></TimezoneDatePicker>
-      <UploadCsv
-        v-if="config.type == 'file'"
-        v-model="data[field]"
-        :config="config"
-      >
-      </UploadCsv>
-      <Dataset
-        v-if="config.type == 'dataset'"
-        :config="config"
-        :data="data"
-        v-model="data[field]"
-      />
-      <PibackfillTime
-        v-if="config.type == 'pibackfillTime'"
-        :config="config"
-        :data="data"
-      />
-      <Bucket
-        v-if="config.type == 'bucket'"
-        ref="bucket"
-        :config="config"
-        :data="data"
-        :parentConfigList="parentConfigList"
-      />
-      <Mode
-        v-if="config.type == 'mode'"
-        ref="mode"
-        :config="config"
-        :data="data"
-        :parentConfigList="parentConfigList"
-      />
-      <PatternComp
-        v-if="config.type == 'pattern'"
-        ref="pattern"
-        :config="config"
-        :data="data"
-        :parentConfigList="parentConfigList"
-      /> -->
       <div v-if="config.info" slot="label">
         {{ config.label }}
         <el-tooltip class="item" effect="light" placement="top" :open-delay="0">
@@ -146,32 +40,7 @@
           ></el-icon>
         </el-tooltip>
       </div>
-      <!-- <DocsContent
-        v-if="dataSetDocsShow"
-        :style="docsStyle"
-        :class="config.templateUrl ? 'noboder' : ''"
-        :content="config.description"
-      /> -->
     </div>
-    <template v-else-if="nolabel">
-      <DocsContent
-        v-if="doscShow"
-        :style="docsStyle"
-        :content="config.description"
-      />
-      <!-- <TabFormItem
-        v-if="config.type == 'tab'"
-        :config="config"
-        :disabled="disabled()"
-        :data="data"
-      /> -->
-      <!-- <OpcTable
-        v-if="config.type == 'opcTable'"
-        :data="data[field]"
-        :parent="parent + field + '.'"
-        v-bind="config"
-      /> -->
-    </template>
   </div>
 </template>
 
@@ -203,17 +72,9 @@ export default {
   name: "DescItem",
   inject: ["sourceParent"],
   components: {
-    DocsContent: () => import("@/views/support/components/editorContentDisplay.vue"),
-    UploadCsv: () => import("./uploadCsv.vue"),
-    Dataset: () => import("./dataset.vue"),
-    TimezoneDatePicker: () => import("@/components/date-picker"),
-    PibackfillTime: () => import("./pibackfillTime.vue"),
-    Bucket: () => import("./bucket.vue"),
-    Mode: () => import("./mode.vue"),
-    PatternComp: () => import("./pattern.vue")
   },
   data() {
-    this.inputType = ["select", "file", "dataset", "composeAppend"];
+    this.inputType = ["select", "file", "dataset", "composeAppend", "password"];
     return {
       noLabelType: ["tab", "opcTable"],
       files: [],
@@ -251,32 +112,6 @@ export default {
       }
       return this.config.if;
     },
-    doscShow() {
-      return this.config.description && !this.config.info;
-    },
-    dataSetDocsShow() {
-      return this.config.info2;
-    },
-    docsStyle() {
-      const isTab = this.config.type == "tab";
-      const marginKey = isTab ? "marginBottom" : "marginTop";
-      return {
-        [marginKey]: "5px",
-      };
-    },
-    meta() {
-      return this.config.meta || {};
-    },
-
-    isEdit() {
-      return this.sourceParent.isEditable;
-    },
-    isCopyable() {
-      return this.sourceParent.isCopyable;
-    },
-    timeFormats() {
-      return TimeFormats;
-    },
     classMark() {
       return getFieldClassMarkName(this.parent + this.field);
     },
@@ -293,23 +128,22 @@ export default {
         this.$emit("csv-enable", this.data[this.field]);
       }
     },
-    getOptions(val, multiple) {
+    getOptions(val) {
       let result = []
-      console.log('thiuss',this.config.options);
       if (typeof this.config.options === "function") {
-        result = this.config.options(this).filter(item => {
+        this.config.options(this).filter(item => {
           if (val.includes(item.value)) {
             result.push(item.label)
           }
         })
-        return result.join();
+        return result.length > 1 ? result : result.join();
       }
-      result = this.config.options.filter(item => {
+      this.config.options.filter(item => {
         if (val.includes(item.value)) {
           result.push(item.label)
         }
       })
-      return result.join();
+      return result.length > 1 ? result : result.join();
     },
     getFile(val) {
       return val?.substr(val.lastIndexOf("/") + 1)
@@ -354,8 +188,15 @@ export default {
 }
 .descItem {
   padding: 0 5px 10px 0;
+  > span {
+    display: inline-block;
+  }
 }
 .grid-item-span-two {
   grid-column: 1 / 3; /* 使该元素跨越两列 */
+}
+.flexWrap {
+  display: flex;
+  flex-wrap: wrap;
 }
 </style>
