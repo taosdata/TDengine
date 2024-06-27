@@ -192,6 +192,7 @@ export default {
             }
             this.importReason = res
             this.showAlert = true
+            this.$emit("refresh")
             Message.success(this.$t("operateSucc"));
           } catch (error) {
             Message.error(error?.message);
