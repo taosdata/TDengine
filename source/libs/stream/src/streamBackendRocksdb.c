@@ -234,10 +234,25 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
 }
 
 int32_t remoteChkp_readMetaData(char* path, SArray* list) {
-  char* metaPath = taosMemoryCalloc(1, strlen(path));
-  sprintf(metaPath, "%s%s%s", path, TD_DIRSEP, "META");
+  int32_t cap = strlen(path);
+  char*   metaPath = taosMemoryCalloc(1, cap + 32);
+  if (metaPath == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (sprintf(metaPath, "%s%s%s", path, TD_DIRSEP, "META") >= (cap + 32)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(metaPath);
+    return -1;
+  }
 
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_READ);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    taosMemoryFree(metaPath);
+    return -1;
+  }
 
   char buf[128] = {0};
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
@@ -281,6 +296,10 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SArray* list, int64_t chkpId) {
   int32_t len = strlen(path) + 32;
   char*   src = taosMemoryCalloc(1, len);
   char*   dst = taosMemoryCalloc(1, len);
+  if (src == NULL || dst == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   int8_t count = 0;
   for (int i = 0; i < taosArrayGetSize(list); i++) {
@@ -4461,6 +4480,11 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     stError("failed to dump srcDir %s, reason: not exist such dir", srcDir);
     goto _ERROR;
   }
+  int64_t chkpId = 0, processId = -1;
+  if (chkpLoadExtraInfo(srcDir, &chkpId, &processId) != 0) {
+    stError("failed to load extra info from %s, reason:%s", srcDir, terrno != 0 ? "unkown" : tstrerror(terrno));
+    goto _ERROR;
+  }
 
   // add file to $name dir
   for (int i = 0; i < taosArrayGetSize(p->pAdd); i++) {
@@ -4516,9 +4540,13 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     stError("chkp failed to create meta file: %s, reason:%s", dstDir, tstrerror(terrno));
     goto _ERROR;
   }
+  // META_ON_S3
+  // current_checkpointID
+  // manifest_checkpointID
+  // processVer_processID
   char content[128] = {0};
-  snprintf(content, sizeof(content), "%s_%" PRId64 "\n%s_%" PRId64 "", p->pCurrent, p->curChkpId, p->pManifest,
-           p->curChkpId);
+  snprintf(content, sizeof(content), "%s_%" PRId64 "\n%s_%" PRId64 "\n%s_%" PRId64 "", p->pCurrent, p->curChkpId,
+           p->pManifest, p->curChkpId, "processVer", processId);
   if (taosWriteFile(pFile, content, strlen(content)) <= 0) {
     terrno = errno;
     stError("chkp failed to write meta file: %s,reason:%s", dstDir, tstrerror(terrno));
