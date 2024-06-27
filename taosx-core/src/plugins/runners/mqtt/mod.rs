@@ -370,14 +370,12 @@ async fn get_sample_impl_v3(
     {
         options.set_credentials(username, password);
     }
-
     // ssl
     if MqttConnectConfig::ssl_enabled(dsn) {
         let (ca, client_cert, client_key) = connect_config.ssl()?;
         let tls_config = build_tls_config(ca, client_cert, client_key)?;
         options.set_transport(Transport::tls_with_config(tls_config));
     }
-
     // keep alive
     options.set_keep_alive(connect_config.keep_alive());
     // clean session
@@ -395,18 +393,28 @@ async fn get_sample_impl_v3(
         subscriptions.push(subscribe_filter);
     }
     client
-        .subscribe_many(subscriptions)
-        .await
+        .try_subscribe_many(subscriptions)
         .map_err(|err| anyhow::anyhow!("failed to subscribe mqtt topics, cause: {:?}", err))?;
 
     let start = Utc::now().timestamp();
     let mut count = 0;
     let mut payload_list: Vec<String> = Vec::new();
     'GET_SAMPLE_V3: loop {
-        let notification = event_loop
-            .poll()
+        let now = Utc::now().timestamp();
+        if now - start > timeout.as_secs() as i64 || count >= limit {
+            break 'GET_SAMPLE_V3;
+        }
+
+        let notification = match tokio::time::timeout(Duration::from_secs(1), event_loop.poll())
             .await
-            .map_err(|err| anyhow::anyhow!("failed to poll mqtt event, cause: {:?}", err))?;
+        {
+            Ok(event) => event
+                .map_err(|err| anyhow::anyhow!("failed to poll mqtt event, cause: {:?}", err))?,
+            Err(_err) => {
+                continue 'GET_SAMPLE_V3;
+            }
+        };
+
         if let Event::Incoming(Incoming::Publish(publish)) = notification {
             let payload = String::from_utf8(publish.payload.to_vec()).map_err(|err| {
                 anyhow::anyhow!(
@@ -417,11 +425,6 @@ async fn get_sample_impl_v3(
             })?;
             payload_list.push(payload);
             count += 1;
-        }
-
-        let now = Utc::now().timestamp();
-        if now - start > timeout.as_secs() as i64 || count >= limit {
-            break 'GET_SAMPLE_V3;
         }
     }
 
@@ -476,18 +479,26 @@ async fn get_sample_impl_v5(
     }
     let (client, mut event_loop) = rumqttc::v5::AsyncClient::new(options, 10);
     client
-        .subscribe_many(subscriptions)
-        .await
+        .try_subscribe_many(subscriptions)
         .map_err(|err| anyhow::anyhow!("failed to subscribe mqtt topics, cause: {:?}", err))?;
 
     let start = Utc::now().timestamp();
     let mut count = 0;
     let mut payload_list: Vec<String> = Vec::new();
     'GET_SAMPLE_V5: loop {
-        let event = event_loop
-            .poll()
-            .await
-            .map_err(|err| anyhow::anyhow!("failed to poll mqtt event, cause: {:?}", err))?;
+        let now = Utc::now().timestamp();
+        if now - start > timeout.as_secs() as i64 || count >= limit {
+            break 'GET_SAMPLE_V5;
+        }
+
+        let event = match tokio::time::timeout(Duration::from_secs(1), event_loop.poll()).await {
+            Err(_err) => {
+                continue 'GET_SAMPLE_V5;
+            }
+            Ok(event) => event
+                .map_err(|err| anyhow::anyhow!("failed to poll mqtt event, cause: {:?}", err))?,
+        };
+
         if let rumqttc::v5::Event::Incoming(rumqttc::v5::Incoming::Publish(publish)) = event {
             let payload = String::from_utf8(publish.payload.to_vec()).map_err(|err| {
                 anyhow::anyhow!(
@@ -498,11 +509,6 @@ async fn get_sample_impl_v5(
             })?;
             payload_list.push(payload);
             count += 1;
-        }
-
-        let now = Utc::now().timestamp();
-        if now - start > timeout.as_secs() as i64 || count >= limit {
-            break 'GET_SAMPLE_V5;
         }
     }
 
