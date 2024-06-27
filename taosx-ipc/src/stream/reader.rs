@@ -547,7 +547,6 @@ impl<R: Read> IpcReader<R> {
     {
         let (tx, rx) = flume::bounded(64);
         let span = Span::current();
-        tracing::info!("debug debug debug span={:?}", span);
         std::thread::spawn(move || {
             let _entered = span.entered();
             for item in self.reader {

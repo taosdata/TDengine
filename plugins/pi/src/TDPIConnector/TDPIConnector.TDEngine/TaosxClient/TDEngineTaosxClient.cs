@@ -436,7 +436,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             {
                 if (builder.tagVals.Count == 0) return;
                 var batchNumber = NextBatchNumber();
-                var recordBatch = builder.BuildTablesMessage(batchNumber);
+                var recordBatch = builder.BuildTablesMessage();
                 writeRecordBatch(recordBatch);
                 log.Info($"Stable:{builder.stableName},localPort:{localPort},Write batch:{batchNumber},Create tables {builder.tagVals.Count}");
                 builder.tagVals.Clear();
@@ -447,7 +447,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             lock (stLock) {
                 if (builder.tableUniqKeyArrowArray.Length == 0) return;
                 var batchNumber = NextBatchNumber();
-                var recordBatch = builder.BuildInsertMessage(batchNumber);
+                var recordBatch = builder.BuildInsertMessage();
                 writeRecordBatch(recordBatch);
                 log.Debug($"Stable:{builder.stableName},localPort:{localPort}, Write batch:{batchNumber},records {builder.tableUniqKeyArrowArray.Length},QueueSize {actualQueueBufferSize}");
                 clear();
@@ -540,8 +540,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             // If this empty message is not sent, the read function of the agent will fail
             // and consider the task abnormal.
             // Maybe the new version of Arrow doesn't have this problem. Who knows, I haven't tried it
-            var batchNumber = NextBatchNumber();
-            writeRecordBatch(builder.BuildInsertMessage(batchNumber));
+            writeRecordBatch(builder.BuildInsertMessage());
 
             if (null != writer) writer.WriteEnd();
             if (null != stream) stream.Close();

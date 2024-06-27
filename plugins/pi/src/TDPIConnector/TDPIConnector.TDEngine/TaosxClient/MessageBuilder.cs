@@ -320,49 +320,24 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
         }
 
-        public RecordBatch BuildInsertMessage(long batchNumber)
+        public RecordBatch BuildInsertMessage()
         {
             var recordCounts = tableUniqKeyArrowArray.Length;
             IEnumerable<IArrowArray> arrays = CreateInsertArrays(this, recordCounts);
-            var schema = buildSchemaWithBatchNumber(batchNumber);
             var batch = new RecordBatch(
-                schema,
+                Schema,
                 arrays,
                 1
                 );
             return batch;
         }
 
-
-        private Schema buildSchemaWithBatchNumber(long batchNumber) {
-            var meta = new Dictionary<string, string>
-            {
-                {"batchNumber", batchNumber.ToString() },
-            };
-
-            foreach (var kv in Schema.Metadata)
-            {
-                meta[kv.Key] = kv.Value;
-            }
-            return new Schema(Schema.Fields.Values, meta);
-        }
-
-        public RecordBatch BuildTablesMessage(long batchNumber)
+        public RecordBatch BuildTablesMessage()
         {
-            int length;
-            if (mode == PIDataMode.PointMode)
-            {
-                length = tagVals.Count;
-            }
-            else
-            {
-                length = tagVals.Count;
-            }
-
-            var schema = buildSchemaWithBatchNumber(batchNumber);
+            int length = tagVals.Count;
             IEnumerable<IArrowArray> arrays = CreateArrays(this, MessageType.Children, length);
             var batch = new RecordBatch(
-                schema,
+                Schema,
                 arrays,
                 1
                 );

@@ -430,50 +430,52 @@ async fn ipc_tcp_forward(
                             _msg_processed += 1;
                         }
                     }
-                    Err(err) => match &err {
-                        FlightError::Tonic(status) => {
-                            if status
-                                .message()
-                                .contains("stream closed because of a broken pipe")
-                                || status.message() == "ExternalError(Disconnected)"
-                                || status.message().contains("connection reset")
-                                || status.message().contains("connection closed")
-                                || status.message().contains("h2 protocol error")
-                            {
-                                tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
-                                tokio::time::sleep(Duration::from_secs(1)).await;
-                                cause_error.replace(anyhow::anyhow!(
+                    Err(err) => {
+                        match &err {
+                            FlightError::Tonic(status) => {
+                                if status
+                                    .message()
+                                    .contains("stream closed because of a broken pipe")
+                                    || status.message() == "ExternalError(Disconnected)"
+                                    || status.message().contains("connection reset")
+                                    || status.message().contains("connection closed")
+                                    || status.message().contains("h2 protocol error")
+                                {
+                                    tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    cause_error.replace(anyhow::anyhow!(
                                     "gRPC put stream disconnected: {err:#}, DTID={stream_trace_id}"
                                 ));
-                                last_retry_tick!();
-                                continue 'start;
-                            }
+                                    last_retry_tick!();
+                                    continue 'start;
+                                }
 
-                            tracing::error!(alive = ?alive.elapsed(), source = status.message(), "Tonic error: {status}");
-                            return Err(err).context(format!(
-                                "Got server response with error, DTID={stream_trace_id}"
-                            ));
-                        }
-                        FlightError::Arrow(arrow) => {
-                            tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
-                            let err_msg = format!("{err:#}");
-                            if err_msg.contains("os error 10054")
-                                || err_msg.contains("os error 10053")
-                            {
-                                warn!("ConnectionReset or ConnectionAborted, consider as success");
-                                return Ok(());
+                                tracing::error!(alive = ?alive.elapsed(), source = status.message(), "Tonic error: {status}");
+                                return Err(err).context(format!(
+                                    "Got server response with error, DTID={stream_trace_id}"
+                                ));
                             }
-                            return Err(err).context(format!(
-                                "Got server response with arrow error, DTID={stream_trace_id}"
-                            ));
+                            FlightError::Arrow(arrow) => {
+                                let err_msg = format!("{err:#}");
+                                if err_msg.contains("os error 10054")
+                                    || err_msg.contains("os error 10053")
+                                {
+                                    warn!("ConnectionReset or ConnectionAborted, consider as success: {}", err_msg);
+                                    return Ok(());
+                                }
+                                tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
+                                return Err(err).context(format!(
+                                    "Got server response with arrow error, DTID={stream_trace_id}"
+                                ));
+                            }
+                            _ => {
+                                tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
+                                return Err(err).context(format!(
+                                    "Got server response with error, DTID={stream_trace_id}"
+                                ));
+                            }
                         }
-                        _ => {
-                            tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
-                            return Err(err).context(format!(
-                                "Got server response with error, DTID={stream_trace_id}"
-                            ));
-                        }
-                    },
+                    }
                 }
             } else {
                 info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
@@ -3680,13 +3682,19 @@ pub async fn listen_tcp_socket_with_agent(
                     let res =
                         ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id, config).await;
                     if let Err(err) = res {
-                        tracing::error!("{:?}", err);
-                        tokio::spawn(async move {
-                            let r = se.send(format!("{err:?}")).await;
-                            if let Err(send_err) = r {
-                                tracing::error!("error <{err:?}> reported to server: {send_err:?}");
-                            }
-                        });
+                        let err_msg = format!("{err:#}");
+                        if err_msg.contains("os error 10054")
+                            || err_msg.contains("os error 10053") {
+                                tracing::warn!("IPC reader stopped for client {client}",);
+                        } else {
+                            tracing::error!("{:?}", err);
+                            tokio::spawn(async move {
+                                let r = se.send(format!("{err:?}")).await;
+                                if let Err(send_err) = r {
+                                    tracing::error!("error <{err:?}> reported to server: {send_err:?}");
+                                }
+                            });
+                        }
                     } else {
                         tracing::info!("IPC reader stopped for client {client}",);
                     }
