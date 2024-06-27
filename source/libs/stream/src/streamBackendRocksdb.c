@@ -615,6 +615,10 @@ _EXIT:
 bool streamBackendDataIsExist(const char* path, int64_t chkpId, int32_t vgId) {
   bool  exist = true;
   char* state = taosMemoryCalloc(1, strlen(path) + 32);
+  if (state == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return false;
+  }
   sprintf(state, "%s%s%s", path, TD_DIRSEP, "state");
   if (!taosDirExist(state)) {
     exist = false;

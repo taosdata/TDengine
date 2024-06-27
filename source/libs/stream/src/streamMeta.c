@@ -195,7 +195,8 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
 
   bool exist = streamBackendDataIsExist(pMeta->path, chkpId, pMeta->vgId);
   if (exist == false) {
-    return code;
+    stError("failed to check backend data exist, reason:%s", tstrerror(terrno));
+    return -1;
   }
 
   SBackendWrapper* pBackend = streamBackendInit(pMeta->path, chkpId, pMeta->vgId);
@@ -319,7 +320,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTas
   }
 
   if (streamMetaMayCvtDbFormat(pMeta) < 0) {
-    stError("vgId:%d convert sub info format failed, open stream meta failed", pMeta->vgId);
+    stError("vgId:%d convert sub info format failed, open stream meta failed, reason: %s", pMeta->vgId,
+            tstrerror(terrno));
     goto _err;
   }
 
