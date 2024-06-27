@@ -180,7 +180,7 @@ int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
 int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 10;   // seconds
-int32_t tsSlowLogThresholdTest = 10;   // seconds
+int32_t tsSlowLogThresholdTest = INT32_MAX;   // seconds
 char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
 char*   tsSlowLogScopeString = "query";
@@ -971,7 +971,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   sndDebugFlag = cfgGetItem(pCfg, "sndDebugFlag")->i32;
 }
 
-static int32_t taosSetSlowLogScope(char *pScope) {
+int32_t taosSetSlowLogScope(char *pScope) {
   if (NULL == pScope || 0 == strlen(pScope)) {
     return SLOW_LOG_TYPE_QUERY;
   }
