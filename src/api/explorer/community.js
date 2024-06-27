@@ -4237,7 +4237,7 @@ export function getDataSources(lang) {
                 "value": "root"
               },
               "password": {
-                "display": "Password",
+                "display": "密码",
                 "description": "TDengine 密码，默认为 `taosdata`。",
                 "placeholder": "taosdata",
                 "value": "taosdata"

@@ -87,7 +87,7 @@
     </el-dialog>
 
     <el-dialog align="center" :title="$t('taosuser.importTitle')" width="680px" :visible.sync="importDialog" :close-on-click-modal="false">
-      <ImportInfo @close="closeImportDialog"></ImportInfo>
+      <ImportInfo @close="closeImportDialog" @refresh="getUserData"></ImportInfo>
     </el-dialog>
 
   </div>

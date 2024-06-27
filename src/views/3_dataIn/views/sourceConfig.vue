@@ -4,7 +4,7 @@
       <el-form
         :model="sourceForm"
         ref="form"
-        label-width="200px"
+        label-width="240px"
         label-position="left"
         size="small"
         :rules="rules"
@@ -88,6 +88,7 @@
               id="targetDB"
               v-model="sourceForm.targetDB"
               :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
+              @change="handleTargetDB"
             >
               <el-option
                 v-for="item in dbList"
@@ -602,7 +603,7 @@ export default {
         this.dbList = data.filter((v) => v.name !== "audit" && v.name !== 'log');
 
         // 在编辑状态下，判断如果 targetDb 不为空，并且 targetDB 不在 dbList 中，则将 targetDB 置空
-        if (this.isCopyable) {
+        if (this.isCopyable || this.isEditable) {
           this.clearTargetDBWhenDelete();
         }
 
@@ -647,6 +648,12 @@ export default {
     handleType() {
       this.sourceForm.agent = "";
     },
+    handleTargetDB() {
+      // 在任何状态下目标数据库改变清空超级表和 mapping table
+      if (this.$store.state.app.supportTransform) {
+        this.$refs.configform.$refs.transform[0].clearStbMapping()
+      }
+    }
   },
 };
 </script>
