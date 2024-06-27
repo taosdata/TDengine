@@ -737,9 +737,10 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int32_t code = TSDB_CODE_SUCCESS;
   char   *convBuf = taosMemoryMalloc(inputLen);
   char   *output = taosMemoryCalloc(1, outputLen + TSDB_NCHAR_SIZE);
-  char    buf[400] = {0};
+  int32_t bufSize = TSDB_MAX_FIELD_LEN + 1;
+  char   *buf = taosMemoryMalloc(bufSize);
 
-  if (convBuf == NULL || output == NULL) {
+  if (convBuf == NULL || output == NULL || buf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
@@ -991,7 +992,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           memcpy(varDataVal(output), convBuf, len);
           varDataSetLen(output, len);
         } else {
-          NUM_TO_STRING(inputType, input, sizeof(buf), buf);
+          NUM_TO_STRING(inputType, input, bufSize, buf);
           int32_t len = (int32_t)strlen(buf);
           len = (outputLen - VARSTR_HEADER_SIZE) > len ? len : (outputLen - VARSTR_HEADER_SIZE);
           memcpy(varDataVal(output), buf, len);
@@ -1037,7 +1038,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           memcpy(output, input, len + VARSTR_HEADER_SIZE);
           varDataSetLen(output, len);
         } else {
-          NUM_TO_STRING(inputType, input, sizeof(buf), buf);
+          NUM_TO_STRING(inputType, input, bufSize, buf);
           len = (int32_t)strlen(buf);
           len = outputCharLen > len ? len : outputCharLen;
           bool ret = taosMbsToUcs4(buf, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
@@ -1067,6 +1068,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   pOutput->numOfRows = pInput->numOfRows;
 
 _end:
+  taosMemoryFree(buf);
   taosMemoryFree(output);
   taosMemoryFree(convBuf);
   return code;

@@ -65,7 +65,7 @@ STfsDisk *tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg) {
     return NULL;
   }
 
-  STfsDisk *pDisk = tfsNewDisk(pCfg->level, id, pCfg->dir);
+  STfsDisk *pDisk = tfsNewDisk(pCfg->level, id, pCfg->disable, pCfg->dir);
   if (pDisk == NULL) return NULL;
 
   pTier->disks[id] = pDisk;
@@ -89,7 +89,7 @@ void tfsUpdateTierSize(STfsTier *pTier) {
     size.total += pDisk->size.total;
     size.used += pDisk->size.used;
     size.avail += pDisk->size.avail;
-    nAvailDisks++;
+    if (pDisk->disable == 0) nAvailDisks++;
   }
 
   pTier->size = size;
@@ -117,6 +117,12 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
     STfsDisk *pDisk = pTier->disks[diskId];
 
     if (pDisk == NULL) continue;
+
+    if (pDisk->disable == 1) {
+      uTrace("disk %s is disabled and skip it, level:%d id:%d disable:%" PRIi8, pDisk->path, pDisk->level, pDisk->id,
+             pDisk->disable);
+      continue;
+    }
 
     if (pDisk->size.avail < tsMinDiskFreeSize) {
       uInfo("disk %s is full and skip it, level:%d id:%d free size:%" PRId64 " min free size:%" PRId64, pDisk->path,
