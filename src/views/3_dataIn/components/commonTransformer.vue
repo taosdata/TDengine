@@ -1456,11 +1456,16 @@ export default {
       });
     },
     clearTargetTBWhenDelete() {
-      if (!this.sourceParent.sourceForm.targetDB ||
-        !this.stableLists.find((v) => v === this.sruleForm.s_name)
-      ) {
-        this.sruleForm.s_name = ""
+      // 数据库为空
+      if (!this.sourceParent.sourceForm.targetDB) {
+        //  || !this.stableLists.find((v) => v === this.sruleForm.s_name)
+        this.clearStbMapping()
       } 
+    },
+    clearStbMapping() {
+      this.sruleForm.s_name = ""
+      this.tableData = [];
+      this.setPageTableData();
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝
     initColumnLists(columns) {
@@ -2092,7 +2097,8 @@ export default {
         }
         let defaultmap = this.options
           .filter((item) => item.value == "mapping")[0]
-          .children.map((label) => label.label);
+          ?.children.map((label) => label.label) || [];
+          console.log('defaultmap',defaultmap);
         this.params_columns.splice(0, this.params_columns.length - 1);
         this.params_tags.splice(0, this.params_tags.length - 1);
         this.pageCount = res.data.length + 1;
