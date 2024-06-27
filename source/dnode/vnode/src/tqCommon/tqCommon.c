@@ -146,7 +146,7 @@ int32_t tqStreamTaskRestoreCheckpoint(SStreamMeta* pMeta, int64_t streamId, int3
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
-  int32_t code = streamTaskSendConsensusChkptMsg(pTask);
+  int32_t code = streamTaskSendRestoreChkptMsg(pTask);
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 }
@@ -675,8 +675,11 @@ int32_t tqStreamTaskProcessUpdateCheckpointReq(SStreamMeta* pMeta, bool restored
   if (ppTask != NULL && (*ppTask) != NULL) {
     streamTaskUpdateTaskCheckpointInfo(*ppTask, restored, pReq);
   } else {  // failed to get the task.
-    tqError("vgId:%d failed to locate the s-task:0x%x to update the checkpoint info, it may have been dropped already",
-            vgId, pReq->taskId);
+    int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+    tqError(
+        "vgId:%d failed to locate the s-task:0x%x to update the checkpoint info, numOfTasks:%d, it may have been "
+        "dropped already",
+        vgId, pReq->taskId, numOfTasks);
   }
 
   streamMetaWUnLock(pMeta);
@@ -729,7 +732,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
     streamMetaWUnLock(pMeta);
     streamMetaStartAllTasks(pMeta);
   } else {
-    streamMetaResetStartInfo(&pMeta->startInfo);
+    streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
     streamMetaWUnLock(pMeta);
     tqInfo("vgId:%d, follower node not start stream tasks or stream is disabled", vgId);
   }
@@ -877,7 +880,6 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
     ASSERT(pTask->status.downstreamReady == 0);
     tqStreamTaskRestoreCheckpoint(pMeta, pTask->id.streamId, pTask->id.taskId);
-//    tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, pTask->id.streamId, pTask->id.taskId);
   } else {
     tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState->name);
   }
@@ -1114,7 +1116,7 @@ int32_t tqStreamProcessConsensusChkptRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   char*   msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t len = pMsg->contLen - sizeof(SMsgHead);
   SRpcMsg rsp = {.info = pMsg->info, .code = TSDB_CODE_SUCCESS};
-  bool    updateCheckpointId = false;
+  int64_t now = taosGetTimestampMs();
 
   SRestoreCheckpointInfoRsp req = {0};
 
@@ -1133,8 +1135,19 @@ int32_t tqStreamProcessConsensusChkptRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
-    tqError("vgId:%d process restore checkpointId req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
-            req.taskId);
+    tqError("vgId:%d process restore checkpointId req, failed to acquire task:0x%x, it may have been dropped already",
+            pMeta->vgId, req.taskId);
+    streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // discard the rsp from before restart
+  if (req.startTs < pTask->execInfo.created) {
+    tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
+           " from task createTs:%" PRId64 ", discard",
+           pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs);
+    streamMetaAddFailedTaskSelf(pTask, now);
+    streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1148,23 +1161,11 @@ int32_t tqStreamProcessConsensusChkptRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     tqDebug("s-task:%s vgId:%d update the checkpoint from %" PRId64 " to %" PRId64, pTask->id.idStr, vgId,
             pTask->chkInfo.checkpointId, req.checkpointId);
     pTask->chkInfo.checkpointId = req.checkpointId;
-    updateCheckpointId = true;
-    streamMetaSaveTask(pMeta, pTask);
   }
-
   taosThreadMutexUnlock(&pTask->lock);
 
-  if (updateCheckpointId) {
-    streamMetaWLock(pMeta);
-    if (streamMetaCommit(pMeta) < 0) {
-      //     persist to disk
-    }
-    streamMetaWUnLock(pMeta);
-  }
-
-  // todo: set the update transId, and discard with less transId.
   if (pMeta->role == NODE_ROLE_LEADER) {
-    /*code = */tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, req.streamId, req.taskId);
+    /*code = */ tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, req.streamId, req.taskId);
   } else {
     tqDebug("vgId:%d follower not start task:%s", vgId, pTask->id.idStr);
   }

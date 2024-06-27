@@ -473,7 +473,7 @@ void streamMetaClear(SStreamMeta* pMeta) {
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
-  stDebug("start to close stream meta");
+  stDebug("vgId:%d start to close stream meta", pMeta->vgId);
   if (pMeta == NULL) {
     return;
   }
@@ -489,10 +489,12 @@ void streamMetaClose(SStreamMeta* pMeta) {
 
 void streamMetaCloseImpl(void* arg) {
   SStreamMeta* pMeta = arg;
-  stDebug("start to do-close stream meta");
   if (pMeta == NULL) {
     return;
   }
+
+  int32_t vgId = pMeta->vgId;
+  stDebug("vgId:%d start to do-close stream meta", vgId);
 
   streamMetaWLock(pMeta);
   streamMetaClear(pMeta);
@@ -526,7 +528,7 @@ void streamMetaCloseImpl(void* arg) {
   taosThreadRwlockDestroy(&pMeta->lock);
 
   taosMemoryFree(pMeta);
-  stDebug("end to close stream meta");
+  stDebug("vgId:%d end to close stream meta", vgId);
 }
 
 // todo let's check the status for each task
@@ -888,13 +890,16 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
+    stDebug("s-task:0x%" PRIx64 "-0x%x vgId:%d loaded from meta file, checkpointId:%" PRId64 " checkpointVer:%" PRId64,
+            pTask->id.streamId, pTask->id.taskId, vgId, pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer);
+
     // do duplicate task check.
     STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
     void*   p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (p == NULL) {
       code = pMeta->buildTaskFn(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer + 1);
       if (code < 0) {
-        stError("failed to expand s-task:0x%" PRIx64 ", code:%s, continue", id.taskId, tstrerror(terrno));
+        stError("failed to load s-task:0x%"PRIx64", code:%s, continue", id.taskId, tstrerror(terrno));
         tFreeStreamTask(pTask);
         continue;
       }
@@ -978,7 +983,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   int32_t sendCount = 0;
   streamMetaGetHbSendInfo(pMeta->pHbInfo, &startTs, &sendCount);
 
-  stDebug("vgId:%d notify all stream tasks that the vnode is closing. isLeader:%d startHb:%" PRId64 ", totalHb:%d",
+  stInfo("vgId:%d notify all stream tasks that current vnode is closing. isLeader:%d startHb:%" PRId64 ", totalHb:%d",
           vgId, (pMeta->role == NODE_ROLE_LEADER), startTs, sendCount);
 
   // wait for the stream meta hb function stopping
@@ -1020,7 +1025,7 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
   streamMetaHbToMnode(pRid, NULL);
 }
 
-void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
+void streamMetaResetStartInfo(STaskStartInfo* pStartInfo, int32_t vgId) {
   taosHashClear(pStartInfo->pReadyTaskSet);
   taosHashClear(pStartInfo->pFailedTaskSet);
   pStartInfo->tasksWillRestart = 0;
@@ -1028,6 +1033,7 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
 
   // reset the sentinel flag value to be 0
   pStartInfo->startAllTasks = 0;
+  stDebug("vgId:%d clear all start-all-task info", vgId);
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {
@@ -1249,7 +1255,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
 
     // negotiate the consensus checkpoint id for current task
     ASSERT(pTask->pBackend == NULL);
-    code = streamTaskSendConsensusChkptMsg(pTask);
+    code = streamTaskSendRestoreChkptMsg(pTask);
 
     // this task may has no checkpoint, but others tasks may generate checkpoint already?
     streamMetaReleaseTask(pMeta, pTask);
@@ -1420,7 +1426,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
     // print the initialization elapsed time and info
     displayStatusInfo(pMeta, pStartInfo->pReadyTaskSet, true);
     displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
-    streamMetaResetStartInfo(pStartInfo);
+    streamMetaResetStartInfo(pStartInfo, pMeta->vgId);
     streamMetaWUnLock(pMeta);
 
     pStartInfo->completeFn(pMeta);

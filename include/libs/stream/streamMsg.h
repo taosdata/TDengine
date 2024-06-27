@@ -213,19 +213,21 @@ int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq
 
 typedef struct SRestoreCheckpointInfo {
   SMsgHead head;
+  int64_t  startTs;
   int64_t  streamId;
   int64_t  checkpointId;   // latest checkpoint id
   int32_t  taskId;
   int32_t  nodeId;
 } SRestoreCheckpointInfo;
 
-int32_t tEncodeStreamTaskLatestChkptInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
-int32_t tDecodeStreamTaskLatestChkptInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq);
+int32_t tEncodeRestoreCheckpointInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
+int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq);
 
 typedef struct SRestoreCheckpointInfoRsp {
-    int64_t  streamId;
-    int64_t  checkpointId;
-    int32_t  taskId;
+  int64_t streamId;
+  int64_t checkpointId;
+  int64_t startTs;
+  int32_t taskId;
 } SRestoreCheckpointInfoRsp;
 
 int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo);
@@ -238,11 +240,11 @@ typedef struct {
   int32_t  reqType;
 } SStreamTaskRunReq;
 
-typedef struct SCheckpointConsensusInfo {
+typedef struct SCheckpointConsensusEntry {
   SRestoreCheckpointInfo req;
   SRpcMsg rsp;
   int64_t ts;
-} SCheckpointConsensusInfo;
+} SCheckpointConsensusEntry;
 
 #ifdef __cplusplus
 }

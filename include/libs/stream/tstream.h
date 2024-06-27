@@ -266,12 +266,13 @@ typedef struct SStreamTaskId {
 } SStreamTaskId;
 
 typedef struct SCheckpointInfo {
-  int64_t                startTs;
-  int64_t                checkpointId;    // latest checkpoint id
-  int64_t                checkpointVer;   // latest checkpoint offset in wal
-  int64_t                checkpointTime;  // latest checkpoint time
-  int64_t                processedVer;
-  int64_t                nextProcessVer;  // current offset in WAL, not serialize it
+  int64_t startTs;
+  int64_t checkpointId;    // latest checkpoint id
+  int64_t checkpointVer;   // latest checkpoint offset in wal
+  int64_t checkpointTime;  // latest checkpoint time
+  int64_t processedVer;
+  int64_t nextProcessVer;  // current offset in WAL, not serialize it
+
   SActiveCheckpointInfo* pActiveInfo;
   int64_t                msgVer;
 } SCheckpointInfo;
@@ -613,6 +614,12 @@ typedef struct SStreamTaskState {
   char*       name;
 } SStreamTaskState;
 
+typedef struct SCheckpointConsensusInfo {
+  SArray* pTaskList;
+  int64_t checkpointId;
+  int64_t genTs;
+} SCheckpointConsensusInfo;
+
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related
@@ -747,7 +754,7 @@ void    streamMetaRLock(SStreamMeta* pMeta);
 void    streamMetaRUnLock(SStreamMeta* pMeta);
 void    streamMetaWLock(SStreamMeta* pMeta);
 void    streamMetaWUnLock(SStreamMeta* pMeta);
-void    streamMetaResetStartInfo(STaskStartInfo* pMeta);
+void    streamMetaResetStartInfo(STaskStartInfo* pMeta, int32_t vgId);
 SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta);
 void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
 void    streamMetaLoadAllTasks(SStreamMeta* pMeta);
@@ -755,7 +762,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
-int32_t streamTaskSendConsensusChkptMsg(SStreamTask* pTask);
+int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask);
 
 // timer
 tmr_h streamTimerGetInstance();

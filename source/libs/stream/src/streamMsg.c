@@ -629,8 +629,9 @@ int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq
   return 0;
 }
 
-int32_t tEncodeStreamTaskLatestChkptInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq) {
+int32_t tEncodeRestoreCheckpointInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->startTs) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
@@ -639,8 +640,9 @@ int32_t tEncodeStreamTaskLatestChkptInfo (SEncoder* pEncoder, const SRestoreChec
   return pEncoder->pos;
 }
 
-int32_t tDecodeStreamTaskLatestChkptInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq) {
+int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->startTs) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
@@ -651,6 +653,7 @@ int32_t tDecodeStreamTaskLatestChkptInfo(SDecoder* pDecoder, SRestoreCheckpointI
 
 int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo) {
   if (tStartEncode(pCoder) < 0) return -1;
+  if (tEncodeI64(pCoder, pInfo->startTs) < 0) return -1;
   if (tEncodeI64(pCoder, pInfo->streamId) < 0) return -1;
   if (tEncodeI32(pCoder, pInfo->taskId) < 0) return -1;
   if (tEncodeI64(pCoder, pInfo->checkpointId) < 0) return -1;
@@ -660,6 +663,7 @@ int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpoi
 
 int32_t tDecodeRestoreCheckpointInfoRsp(SDecoder* pCoder, SRestoreCheckpointInfoRsp* pInfo) {
   if (tStartDecode(pCoder) < 0) return -1;
+  if (tDecodeI64(pCoder, &pInfo->startTs) < 0) return -1;
   if (tDecodeI64(pCoder, &pInfo->streamId) < 0) return -1;
   if (tDecodeI32(pCoder, &pInfo->taskId) < 0) return -1;
   if (tDecodeI64(pCoder, &pInfo->checkpointId) < 0) return -1;

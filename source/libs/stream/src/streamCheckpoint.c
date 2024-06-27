@@ -1108,7 +1108,7 @@ int32_t deleteCheckpointFile(const char* id, const char* name) {
   return 0;
 }
 
-int32_t streamTaskSendConsensusChkptMsg(SStreamTask* pTask) {
+int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   int32_t          code;
   int32_t          tlen = 0;
   int32_t          vgId = pTask->pMeta->vgId;
@@ -1118,9 +1118,14 @@ int32_t streamTaskSendConsensusChkptMsg(SStreamTask* pTask) {
   ASSERT(pTask->pBackend == NULL);
 
   SRestoreCheckpointInfo req = {
-      .streamId = pTask->id.streamId, .taskId = pTask->id.taskId, .nodeId = vgId, .checkpointId = pInfo->checkpointId};
+      .streamId = pTask->id.streamId,
+      .taskId = pTask->id.taskId,
+      .nodeId = vgId,
+      .checkpointId = pInfo->checkpointId,
+      .startTs = pTask->execInfo.created,
+  };
 
-  tEncodeSize(tEncodeStreamTaskLatestChkptInfo, &req, tlen, code);
+  tEncodeSize(tEncodeRestoreCheckpointInfo, &req, tlen, code);
   if (code < 0) {
     stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id failed, code:%s", id, vgId, tstrerror(code));
     return -1;
@@ -1135,7 +1140,7 @@ int32_t streamTaskSendConsensusChkptMsg(SStreamTask* pTask) {
 
   SEncoder encoder;
   tEncoderInit(&encoder, buf, tlen);
-  if ((code = tEncodeStreamTaskLatestChkptInfo(&encoder, &req)) < 0) {
+  if ((code = tEncodeRestoreCheckpointInfo(&encoder, &req)) < 0) {
     rpcFreeCont(buf);
     stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id msg failed, code:%s", id, vgId, tstrerror(code));
     return -1;
@@ -1144,8 +1149,8 @@ int32_t streamTaskSendConsensusChkptMsg(SStreamTask* pTask) {
 
   SRpcMsg msg = {0};
   initRpcMsg(&msg, TDMT_MND_STREAM_CHKPT_CONSEN, buf, tlen);
-  stDebug("s-task:%s vgId:%d send task latest-checkpoint-id to mnode:%" PRId64 " to reach the consensus checkpointId",
-          id, vgId, pInfo->checkpointId);
+  stDebug("s-task:%s vgId:%d send latest checkpointId:%" PRId64 " to mnode to get the consensus checkpointId", id, vgId,
+          pInfo->checkpointId);
 
   tmsgSendReq(&pTask->info.mnodeEpset, &msg);
   return 0;
