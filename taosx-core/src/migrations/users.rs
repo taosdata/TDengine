@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none, NoneAsEmptyString};
-use taos::{AsyncFetchable, AsyncQueryable, TryStreamExt};
+use taos::{AsyncFetchable, AsyncQueryable, Itertools, TryStreamExt};
 
 #[skip_serializing_none]
 #[serde_as]
@@ -30,9 +30,12 @@ impl User {
         if with_whitelist {
             if let Some(allowed_host) = &self.allowed_host {
                 sql.push_str(" HOST ");
-                allowed_host.split(',').for_each(|host| {
-                    sql.push_str(&format!("'{}'", host));
-                });
+                sql.push_str(
+                    &allowed_host
+                        .split(',')
+                        .map(|host| format!("'{}'", host))
+                        .join(","),
+                );
             }
         }
         sql
