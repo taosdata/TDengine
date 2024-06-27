@@ -22,35 +22,41 @@ extern "C" {
 
 #include "os.h"
 
-#define MP_CHUNKPOOL_MIN_BATCH_SIZE 1000
+#define MP_CHUNKGRP_ALLOC_BATCH_SIZE 1000
+#define MP_NSCHUNKGRP_ALLOC_BATCH_SIZE 500
 #define MP_MAX_KEEP_FREE_CHUNK_NUM  1000
 
 #define MP_CHUNK_FLAG_IN_USE   (1 << 0)
 #define MP_CHUNK_FLAG_NS_CHUNK (1 << 1)
 
+#define MP_DBG_FLAG_LOG_MALLOC_FREE (1 << 0)
+
 typedef struct SMPChunk {
-  void    *pNext;
-  void    *pMemStart;
+  void    *pNext;            
+  char    *pMemStart;
   int32_t  flags;
+  /* KEEP ABOVE SAME WITH SMPNSChunk */
+
   uint32_t offset;
 } SMPChunk;
 
 typedef struct SMPNSChunk {
   void    *pNext;
-  void    *pMemStart;
+  char    *pMemStart;
   int32_t  flags;
-  uint32_t offset;
+  /* KEEP ABOVE SAME WITH SMPChunk */
 
-  uint32_t memBytes;
+  uint32_t offset;
+  uint64_t memBytes;
 } SMPNSChunk;
 
 
-typedef struct SMPChunkCache {
+typedef struct SMPChunkGroup {
   int32_t        chunkNum;
   int32_t        idleOffset;
-  SMPChunk      *pChunks;
+  void          *pChunks;
   void*          pNext;
-} SMPChunkCache;
+} SMPChunkGroup;
 
 typedef struct SMPMemoryStat {
   int64_t  chunkAlloc;
@@ -77,6 +83,7 @@ typedef struct SMPSession {
   SMPChunk          *srcChunkHead;
   SMPChunk          *srcChunkTail;
 
+  int32_t            inUseChunkNum;
   SMPChunk          *inUseChunkHead;
   SMPChunk          *inUseChunkTail;
 
@@ -92,22 +99,36 @@ typedef struct SMPSession {
   SMPStat            stat;
 } SMPSession; 
 
+typedef struct SMPChunkGroupInfo {
+  int16_t            chunkNodeSize;
+  int64_t            allocChunkNum;
+  int32_t            chunkGroupNum;
+  SMPChunkGroup     *pChunkGrpHead;
+  SMPChunkGroup     *pChunkGrpTail;
+  void              *pIdleChunkList;
+} SMPChunkGroupInfo;
+
+typedef struct SMPDebugInfo {
+  int64_t  flags;
+} SMPDebugInfo;
+
 typedef struct SMemPool {
   char              *name;
   int16_t            slotId;
   SMemPoolCfg        cfg;
   int32_t            maxChunkNum;
+  SMPDebugInfo       dbgInfo;
 
+  int16_t            maxDiscardSize;
   double             threadChunkReserveNum;
   int64_t            allocChunkNum;
+  int64_t            allocChunkSize;
+  int64_t            allocNSChunkNum;
+  int64_t            allocNSChunkSize;
   int64_t            allocMemSize;
-  int64_t            usedMemSize;
 
-  int64_t            allocChunkCacheNum;
-  int32_t            chunkCacheUnitNum;
-  SMPChunkCache     *pChunkCacheHead;
-  SMPChunkCache     *pChunkCacheTail;
-  SMPChunk          *pIdleChunkList;
+  SMPChunkGroupInfo  chunkGrpInfo;
+  SMPChunkGroupInfo  NSChunkGrpInfo;
   
   int32_t            readyChunkNum;
   int32_t            readyChunkReserveNum;
@@ -124,15 +145,25 @@ typedef struct SMemPool {
   SMPStat            stat;
 } SMemPool;
 
-#define MP_CHUNK_GET_FLAG(st, f) ((st) & (f))
-#define MP_CHUNK_SET_FLAG(st, f) (st) |= (f)
-#define MP_CHUNK_CLR_FLAG(st, f) (st) &= (~f)
+#define MP_GET_FLAG(st, f) ((st) & (f))
+#define MP_SET_FLAG(st, f) (st) |= (f)
+#define MP_CLR_FLAG(st, f) (st) &= (~f)
 
 enum {
   MP_READ = 1,
   MP_WRITE,
 };
 
+#define MP_ADD_TO_CHUNK_LIST(_chunkHead, _chunkTail, _chunkNum, _chunk)       \
+  do {                                                                        \
+    if (NULL == _chunkHead) {                                                 \
+      _chunkHead = _chunk;                                                    \
+      _chunkTail = _chunk;                                                    \
+    } else {                                                                  \
+      (_chunkTail)->pNext = _chunk;                                           \
+    }                                                                         \
+    (_chunkNum)++;                                                            \
+  } while (0)
 
 #define MP_LOCK(type, _lock)                                                                                \
   do {                                                                                                       \
