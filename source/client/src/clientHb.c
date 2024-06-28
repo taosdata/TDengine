@@ -1029,7 +1029,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 #endif
     code = hbGetExpiredTSMAInfo(connKey, pCatalog, req);
   } else {
-    req->app.appId = 0;
+    hbGetAppInfo(hbParam->clusterId, req);
   }
 
   ++hbParam->reqCnt;  // success to get catalog info
