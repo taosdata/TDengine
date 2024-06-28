@@ -18,6 +18,8 @@ SQWorkerMgmt gQwMgmt = {
     .qwNum = 0,
 };
 
+static TdThreadOnce  gQueryPoolInit = PTHREAD_ONCE_INIT;
+
 int32_t qwStopAllTasks(SQWorker *mgmt) {
   uint64_t qId, tId, sId;
   int32_t  eId;
@@ -707,7 +709,11 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->ctrlConnInfo = qwMsg->connInfo;
   ctx->sId = sId;
   ctx->phase = -1;
-
+  
+  if (NULL != gQueryPoolHandle) {
+    QW_ERR_JRET(taosMemPoolInitSession(gQueryPoolHandle, &ctx->memPoolSession));
+  }
+  
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
 
   qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true);
@@ -1255,6 +1261,8 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
+
+  taosThreadOnce(&gQueryPoolInit, qwInitQueryPool);
 
   int32_t qwNum = atomic_add_fetch_32(&gQwMgmt.qwNum, 1);
   if (1 == qwNum) {

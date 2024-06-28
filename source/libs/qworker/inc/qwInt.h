@@ -37,6 +37,13 @@ extern "C" {
 #define QW_SCH_TIMEOUT_MSEC         180000
 #define QW_MIN_RES_ROWS             16384
 
+#define QW_THREAD_MAX_SCHED_TASK_NUM     10
+
+#define QW_QUERY_MEM_POOL_NAME         "Query"
+#define QW_DEFAULT_RESERVE_MEM_PERCENT 20
+#define QW_MIN_RESERVE_MEM_SIZE        (512 * 1048576)
+#define QW_MIN_MEM_POOL_SIZE           (256 * 1048576)
+
 enum {
   QW_PHASE_PRE_QUERY = 1,
   QW_PHASE_POST_QUERY,
@@ -146,6 +153,8 @@ typedef struct SQWTaskCtx {
   void      *taskHandle;
   void      *sinkHandle;
   SArray    *tbInfo; // STbVerInfo
+
+  void      *memPoolSession;
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {

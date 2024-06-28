@@ -39,7 +39,7 @@ typedef struct SMemPoolCfg {
 } SMemPoolCfg;
 
 void    taosMemPoolModInit(void);
-int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg cfg, void** poolHandle);
+int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle);
 void   *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* fileName, int32_t lineNo);
 void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t size, char* fileName, int32_t lineNo);
 void   *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t size, char* fileName, int32_t lineNo);
@@ -50,6 +50,9 @@ void    taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fil
 void   *taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment, int64_t size, char* fileName, int32_t lineNo);
 void    taosMemPoolClose(void* poolHandle);
 void    taosMemPoolModDestroy(void);
+
+#define taosEnableMemoryPoolUsage(_pool, _session) do { threadPoolHandle = _pool; threadPoolSession = _session; } while (0) 
+#define taosDisableMemoryPoolUsage() (threadPoolHandle = NULL) 
 
 #define taosMemoryMalloc(_size) ((NULL != threadPoolHandle) ? (taosMemPoolMalloc(threadPoolHandle, threadPoolSession, _size, __FILE__, __LINE__)) : (taosMemMalloc(_size)))
 #define taosMemoryCalloc(_num, _size) ((NULL != threadPoolHandle) ? (taosMemPoolCalloc(threadPoolHandle, threadPoolSession, _num, _size, __FILE__, __LINE__)) : (taosMemCalloc(_num, _size)))

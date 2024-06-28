@@ -22,17 +22,37 @@ extern "C" {
 
 #include "os.h"
 
-#define MP_CHUNKGRP_ALLOC_BATCH_SIZE 1000
-#define MP_NSCHUNKGRP_ALLOC_BATCH_SIZE 500
-#define MP_MAX_KEEP_FREE_CHUNK_NUM  1000
+#define MP_CHUNK_CACHE_ALLOC_BATCH_SIZE 1000
+#define MP_NSCHUNK_CACHE_ALLOC_BATCH_SIZE 500
+#define MP_SESSION_CACHE_ALLOC_BATCH_SIZE 100
 
+#define MP_MAX_KEEP_FREE_CHUNK_NUM  1000
+#define MP_MAX_MALLOC_MEM_SIZE      0xFFFFFFFFFF
+
+
+// FLAGS AREA
 #define MP_CHUNK_FLAG_IN_USE   (1 << 0)
 #define MP_CHUNK_FLAG_NS_CHUNK (1 << 1)
 
 #define MP_DBG_FLAG_LOG_MALLOC_FREE (1 << 0)
 
+#define MP_MEM_HEADER_FLAG_NS_CHUNK (1 << 0)
+
+typedef struct SMPMemHeader {
+  uint64_t flags:3;
+  uint64_t size:5;
+} SMPMemHeader;
+
+typedef struct SMPMemTailer {
+
+} SMPMemTailer;
+
+typedef struct SMPListNode {
+  void    *pNext;
+} SMPListNode;
+
 typedef struct SMPChunk {
-  void    *pNext;            
+  SMPListNode list;
   char    *pMemStart;
   int32_t  flags;
   /* KEEP ABOVE SAME WITH SMPNSChunk */
@@ -41,22 +61,22 @@ typedef struct SMPChunk {
 } SMPChunk;
 
 typedef struct SMPNSChunk {
-  void    *pNext;
+  SMPListNode list;
   char    *pMemStart;
   int32_t  flags;
   /* KEEP ABOVE SAME WITH SMPChunk */
 
-  uint32_t offset;
+  uint64_t offset;
   uint64_t memBytes;
 } SMPNSChunk;
 
 
-typedef struct SMPChunkGroup {
-  int32_t        chunkNum;
+typedef struct SMPCacheGroup {
+  int32_t        nodesNum;
   int32_t        idleOffset;
-  void          *pChunks;
+  void          *pNodes;
   void*          pNext;
-} SMPChunkGroup;
+} SMPCacheGroup;
 
 typedef struct SMPMemoryStat {
   int64_t  chunkAlloc;
@@ -74,6 +94,7 @@ typedef struct SMPStat {
 } SMPStat;
 
 typedef struct SMPSession {
+  SMPListNode        list;
   int64_t            allocChunkNum;
   int64_t            allocChunkMemSize;
   int64_t            allocMemSize;
@@ -99,14 +120,14 @@ typedef struct SMPSession {
   SMPStat            stat;
 } SMPSession; 
 
-typedef struct SMPChunkGroupInfo {
-  int16_t            chunkNodeSize;
-  int64_t            allocChunkNum;
-  int32_t            chunkGroupNum;
-  SMPChunkGroup     *pChunkGrpHead;
-  SMPChunkGroup     *pChunkGrpTail;
-  void              *pIdleChunkList;
-} SMPChunkGroupInfo;
+typedef struct SMPCacheGroupInfo {
+  int16_t            nodeSize;
+  int64_t            allocNum;
+  int32_t            groupNum;
+  SMPCacheGroup     *pGrpHead;
+  SMPCacheGroup     *pGrpTail;
+  void              *pIdleList;
+} SMPCacheGroupInfo;
 
 typedef struct SMPDebugInfo {
   int64_t  flags;
@@ -127,8 +148,9 @@ typedef struct SMemPool {
   int64_t            allocNSChunkSize;
   int64_t            allocMemSize;
 
-  SMPChunkGroupInfo  chunkGrpInfo;
-  SMPChunkGroupInfo  NSChunkGrpInfo;
+  SMPCacheGroupInfo  chunkCache;
+  SMPCacheGroupInfo  NSChunkCache;
+  SMPCacheGroupInfo  sessionCache;
   
   int32_t            readyChunkNum;
   int32_t            readyChunkReserveNum;
@@ -154,13 +176,21 @@ enum {
   MP_WRITE,
 };
 
+#define MP_INIT_MEM_HEADER(_header, _size, _nsChunk)                      \
+  do {                                                                    \
+    (_header)->size = _size;                                              \
+    if (_nsChunk) {                                                       \
+      MP_SET_FLAG((_header)->flags, MP_MEM_HEADER_FLAG_NS_CHUNK);         \
+    }                                                                     \
+  } while (0)
+
 #define MP_ADD_TO_CHUNK_LIST(_chunkHead, _chunkTail, _chunkNum, _chunk)       \
   do {                                                                        \
     if (NULL == _chunkHead) {                                                 \
       _chunkHead = _chunk;                                                    \
       _chunkTail = _chunk;                                                    \
     } else {                                                                  \
-      (_chunkTail)->pNext = _chunk;                                           \
+      (_chunkTail)->list.pNext = _chunk;                                           \
     }                                                                         \
     (_chunkNum)++;                                                            \
   } while (0)
