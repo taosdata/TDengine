@@ -976,14 +976,21 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
 
 static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo) {
   SExecTaskInfo* pTask = pOperator->pTaskInfo;
+  int32_t        code = TSDB_CODE_SUCCESS;
   if (pTask->pWorkerCb) {
-    pTask->code = pTask->pWorkerCb->beforeBlocking(pTask->pWorkerCb->pPool);
-    if (pTask->code != TSDB_CODE_SUCCESS) return pTask->code;
+    code = pTask->pWorkerCb->beforeBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      return pTask->code;
+    }
   }
   tsem_wait(&pExchangeInfo->ready);
   if (pTask->pWorkerCb) {
-    pTask->code = pTask->pWorkerCb->afterRecoverFromBlocking(pTask->pWorkerCb->pPool);
-    if (pTask->code != TSDB_CODE_SUCCESS) return pTask->code;
+    code = pTask->pWorkerCb->afterRecoverFromBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      return pTask->code;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }

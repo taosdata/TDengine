@@ -49,7 +49,7 @@ typedef struct {
   int32_t workerId;
   int32_t threadNum;
   int64_t timestamp;
-  void   *poolCb;
+  void   *workerCb;
 } SQueueInfo;
 
 typedef enum {

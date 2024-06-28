@@ -84,18 +84,25 @@ void        tWWorkerCleanup(SWWorkerPool *pool);
 STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp);
 void        tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue);
 
+typedef enum SQWorkerPoolType {
+  QWORKER_POOL = 0,
+  QUERY_AUTO_QWORKER_POOL,
+} SQWorkerPoolType;
+
 typedef struct {
-  const char *name;
-  int32_t     min;
-  int32_t     max;
-  FItem       fp;
-  void       *param;
+  const char      *name;
+  int32_t          min;
+  int32_t          max;
+  FItem            fp;
+  void            *param;
+  SQWorkerPoolType poolType;
 } SSingleWorkerCfg;
 
 typedef struct {
-  const char  *name;
-  STaosQueue  *queue;
-  SQWorkerPool pool;
+  const char      *name;
+  STaosQueue      *queue;
+  SQWorkerPoolType poolType;  // default to QWORKER_POOL
+  void            *pool;
 } SSingleWorker;
 
 typedef struct {
@@ -134,6 +141,8 @@ typedef struct SQueryAutoQWorkerPool {
 
   int32_t       activeN; // running workers and workers waiting at reading new queue msg
   int32_t       runningN; // workers processing queue msgs, not include blocking/waitingA/waitingB workers.
+  TdThreadMutex activeLock;
+
 
   int32_t       waitingAfterBlockN; // workers that recovered from blocking but waiting for too many running workers
   TdThreadMutex waitingAfterBlockLock;
