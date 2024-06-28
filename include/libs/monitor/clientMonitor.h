@@ -43,7 +43,8 @@ typedef struct {
 
 typedef struct {
   TdFilePtr                  pFile;
-  void*                      timer;
+  int64_t                    lastCheckTime;
+  char                       path[PATH_MAX];
 } SlowLogClient;
 
 typedef struct {

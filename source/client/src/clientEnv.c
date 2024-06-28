@@ -202,24 +202,24 @@ static void deregisterRequest(SRequestObj *pRequest) {
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
-    if (pRequest->pQuery && pRequest->pQuery->pRoot) {
-      if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
-          (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) {
-        tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-                 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-                 duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-                 pRequest->metric.planCostUs, pRequest->metric.execCostUs);
-        atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
-        reqType = SLOW_LOG_TYPE_INSERT;
-      } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-        tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-                 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-                 duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-                 pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+    if ((pRequest->pQuery && pRequest->pQuery->pRoot &&
+         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
+        (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
+        QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
+      tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
+               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+      atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+      reqType = SLOW_LOG_TYPE_INSERT;
+    } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+      tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
+               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
-        atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
-        reqType = SLOW_LOG_TYPE_QUERY;
-      } 
+      atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
+      reqType = SLOW_LOG_TYPE_QUERY;
     }
 
     nodesSimReleaseAllocator(pRequest->allocatorRefId);
