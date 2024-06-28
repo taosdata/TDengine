@@ -3683,18 +3683,13 @@ pub async fn listen_tcp_socket_with_agent(
                         ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id, config).await;
                     if let Err(err) = res {
                         let err_msg = format!("{err:#}");
-                        if err_msg.contains("os error 10054")
-                            || err_msg.contains("os error 10053") {
-                                tracing::warn!("IPC reader stopped for client {client}",);
-                        } else {
-                            tracing::error!("{:?}", err);
-                            tokio::spawn(async move {
-                                let r = se.send(format!("{err:?}")).await;
-                                if let Err(send_err) = r {
-                                    tracing::error!("error <{err:?}> reported to server: {send_err:?}");
-                                }
-                            });
-                        }
+                        tracing::error!("{:?}", err);
+                        tokio::spawn(async move {
+                            let r = se.send(format!("{err:?}")).await;
+                            if let Err(send_err) = r {
+                                tracing::error!("error <{err:?}> reported to server: {send_err:?}");
+                            }
+                        });
                     } else {
                         tracing::info!("IPC reader stopped for client {client}",);
                     }
