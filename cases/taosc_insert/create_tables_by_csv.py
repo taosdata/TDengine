@@ -18,6 +18,7 @@ import random
 import os
 import threading
 import time
+import csv
 
 class CreateTablesByCSV(TDCase):
     def init(self):
@@ -130,14 +131,23 @@ class CreateTablesByCSV(TDCase):
         if create_stb:
             self.create_stb(tag_type_str=tag_type_str)
 
+    def check_res(self, tbname, tag_str, csv_file):
+        with open(csv_file, mode='r', encoding='utf-8') as file:
+            csv_reader = csv.reader(file)
+            data_list = [row for row in csv_reader]
+        self.tdSql.query(f'select {tag_str} from {self.dbname}.{tbname}')
+        print(self.tdSql.query_data)
+        print(data_list[0])
+
     def create_ctables_by_tag_and_tbname(self, table_count=10):
-        self.init_env()
-        self.gen_csv(ctable_count=table_count, row_count=table_count)
-        start = time.time()
-        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
-        end = time.time()
-        perf = int(table_count/(end - start))
-        self.logger.info(f'create {table_count} tables by csv cost {end-start:.2f}s, and QPS is {perf}tables/s')
+        # self.init_env()
+        # self.gen_csv(ctable_count=table_count, row_count=table_count)
+        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
+        # self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
+        self.check_res(self.stbname, self.common_tag_name_str, self.csv_file)
+        
+        
         
     def create_ctables_by_notag_and_tbname(self):
         self.init_env()
@@ -321,11 +331,20 @@ class CreateTablesByCSV(TDCase):
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
         # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)    
 
+    def create_ctables_by_tag_and_tbname_perf(self, table_count=10):
+        self.init_env()
+        self.gen_csv(ctable_count=table_count, row_count=table_count)
+        start = time.time()
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
+        end = time.time()
+        perf = int(table_count/(end - start))
+        self.logger.info(f'create {table_count} tables by csv cost {end-start:.2f}s, and QPS is {perf}tables/s')
+
     def run(self):
         # self.gen_csv(custom_tag_count=128)
         # print(self.tdCom.gen_default_tag_str())
         # return
-        # self.create_ctables_by_tag_and_tbname()
+        self.create_ctables_by_tag_and_tbname()
         # self.create_ctables_by_notag_and_tbname()
         # self.create_ctables_by_128tag_and_tbname(use_except=True)
         # self.create_ctables_by_tag_and_tbname_with_note()
@@ -355,7 +374,7 @@ class CreateTablesByCSV(TDCase):
         # self.threading_create_ctables(dup_tbname=True)
         
         # perf test
-        self.create_ctables_by_tag_and_tbname(table_count=3000)
+        # self.create_ctables_by_tag_and_tbname_perf(table_count=3000)
         
         
         
