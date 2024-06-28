@@ -794,7 +794,6 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
     SExchangeOpStopInfo* pStop = taosArrayGet(pTaskInfo->stopInfo.pStopInfo, i);
     SExchangeInfo*       pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pStop->refId);
     if (pExchangeInfo) {
-      qDebug("%s stop exchange operator", GET_TASKID(pTaskInfo));
       tsem_post(&pExchangeInfo->ready);
       taosReleaseRef(exchangeObjRefPool, pStop->refId);
     }
