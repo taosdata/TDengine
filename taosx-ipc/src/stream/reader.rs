@@ -538,11 +538,11 @@ impl<R: Read> IpcReader<R> {
         rx.into_stream()
     }
 
-    #[instrument(skip_all, fields(client = %client))]
+    #[instrument(skip_all, fields(port = %_client_port))]
     pub fn into_raw_stream_qos_0(
         self,
         mut ipc_ack_writer: AckWriter<impl std::io::Write + Send + 'static>,
-        client: String,
+        _client_port: &str,
     ) -> flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>
     where
         R: Send + 'static,
@@ -554,13 +554,15 @@ impl<R: Read> IpcReader<R> {
             let _entered = span.entered();
             for item in self.reader {
                 batch_number += 1;
-                let data_trace_id = format!("{}:{}", client, batch_number);
-                let is_error = item.is_err();
-                tracing::trace!("Read batch {}, is_error={}", data_trace_id, is_error);
+                if let Err(err) = &item {
+                    error!("Read batch {} error: {:?}", batch_number, err);
+                } else {
+                    tracing::trace!("Read batch {}", batch_number);
+                }
                 tx.send(item)?; // send under blocking thread
-                tracing::trace!("Send batch {}, is_error={}", data_trace_id, is_error);
+                tracing::trace!("Send batch {}", batch_number);
                 ipc_ack_writer.write_ok()?;
-                tracing::trace!("Ack batch {}, is_error={}", data_trace_id, is_error);
+                tracing::trace!("Ack batch {}", batch_number);
             }
             tracing::info!("Raw ipc reader stream closed");
             anyhow::Ok(())
