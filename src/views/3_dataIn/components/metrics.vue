@@ -403,7 +403,7 @@ export default {
         this.requesting = true;
         let res = await getVgroupProgress(this.taskId)
         if (res && res.code && res.code !=0) {
-          this.$message.error(res?.message);
+          this.$error(res?.message);
           this.update_time = ""
           this.vgroupData = []
           return
@@ -431,7 +431,7 @@ export default {
             : ''
           let res = await getTableProgress(this.taskId,params)
           if (res && res.code && res.code !=0) {
-            this.$message.error(res?.message);
+            this.$error(res?.message);
             this.tbReplicationData = [];
             return
           }

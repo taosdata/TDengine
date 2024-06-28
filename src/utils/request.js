@@ -25,7 +25,7 @@ function blobToJson(blob) {
   reader.onload = () => {
     const text = reader.result;
     const json = JSON.parse(text);
-    Message.error(json?.message)
+    this.$error(json?.message)
   };
 }
 request.interceptors.request.use(
@@ -109,7 +109,7 @@ request.interceptors.response.use(
         error.response.data.desc ||
         error.message ||
         "Unexpected error";
-      Message.error(msg);
+      this.$error(msg);
       let taosx404en =
         "The TaosX API is not configured. Please check the explorer configuration";
       let taosx500en =
@@ -127,7 +127,7 @@ request.interceptors.response.use(
       if (error.config.baseURL.includes("/api/x")) {
         Message.closeAll()
         if (error.response && error.response.status === 404) {
-          Message.error(
+          this.$error(
             localStorage.getItem('local_language')?.includes("zh")
               ? isoem
                 ? taosx404.replace("TaosX", "").replace('taosx','')
@@ -137,7 +137,7 @@ request.interceptors.response.use(
               : taosx404en
           );
         } else if (error.response && error.response.status === 500) {
-          Message.error(
+          this.$error(
             localStorage.getItem('local_language')?.includes("zh")
               ? isoem
                 ? taosx500.replace("TaosX", "").replace('taosx','')
@@ -147,7 +147,7 @@ request.interceptors.response.use(
               : taosx500en
           );
         } else {
-          error.message && Message.error(error.message);
+          error.message && this.$error(error.message);
         }
       }
       error.message = msg;

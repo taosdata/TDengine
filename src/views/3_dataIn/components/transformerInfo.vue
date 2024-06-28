@@ -651,7 +651,7 @@ export default {
         this.sourceParent.sourceForm.agent
       );
       if (result && Object.hasOwnProperty.call(result,'code')) {
-        this.$message.error(result.message)
+        this.$error(result.message)
         this.msgForm.msgbody = '';
         return
       }
@@ -987,7 +987,7 @@ export default {
           this.sourceParent.sourceForm.agent
         );
         if (result && Object.hasOwnProperty.call(result,'code')) {
-          this.$message.error(result.message)
+          this.$error(result.message)
           this.msgForm.msgbody = '';
           return
         }

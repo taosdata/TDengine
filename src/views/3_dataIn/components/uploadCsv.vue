@@ -155,7 +155,7 @@ export default {
         let result = await validOpcFile(this.paramDsn)
         // eslint-disable-next-line no-prototype-builtins
         if (result && result.hasOwnProperty('code')) {
-          this.$message.error(result.message)
+          this.$error(result.message)
           let res = {
             valid: false,
             message: result.message

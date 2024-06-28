@@ -187,7 +187,7 @@ export default {
           try {
             let res = await importTaosInfo(params)
             if (res && Object.hasOwnProperty.call(res,'code')) {
-              Message.error(res?.message);
+              this.$error(res?.message);
               return
             }
             this.importReason = res
@@ -195,7 +195,7 @@ export default {
             this.$emit("refresh")
             Message.success(this.$t("operateSucc"));
           } catch (error) {
-            Message.error(error?.message);
+            this.$error(error?.message);
             console.log(error);
           }
         } else {
