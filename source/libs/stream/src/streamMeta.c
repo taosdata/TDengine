@@ -1063,6 +1063,7 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
         stInfo("s-task:%s set kill checkpoint trans in hb, transId:%d", (*pTask)->id.idStr,
                (*pTask)->chkInfo.pActiveInfo->transId);
       }
+      (*pTask)->chkInfo.pActiveInfo->failedId = 0;
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {

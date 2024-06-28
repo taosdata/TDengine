@@ -707,11 +707,11 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     }
   } else {  // clear the checkpoint info if failed
     taosThreadMutexLock(&pTask->lock);
-    streamTaskClearCheckInfo(pTask, false);
+    streamTaskSetFailedCheckpointId(pTask);  // set failed checkpoint id before clear the checkpoint info
+    streamTaskClearCheckInfo(pTask, true);
     taosThreadMutexUnlock(&pTask->lock);
 
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
-    streamTaskSetFailedCheckpointId(pTask);
     stDebug("s-task:%s clear checkpoint flag since gen checkpoint failed, checkpointId:%" PRId64, id, ckId);
   }
 
