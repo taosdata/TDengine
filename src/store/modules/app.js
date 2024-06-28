@@ -450,7 +450,7 @@ const actions = {
           });
         });
         if (!state.currentCloudAndRegion.cloud) {
-          Message.error(i18n.t("cloudError"));
+          this.$error(i18n.t("cloudError"));
         }
       })
       .catch(() => {

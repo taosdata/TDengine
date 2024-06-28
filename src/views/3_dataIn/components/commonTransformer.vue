@@ -951,7 +951,7 @@ export default {
         this.sourceParent.sourceForm.agent
       );
       if (result && Object.hasOwnProperty.call(result,'code')) {
-        this.$message.error(result.message || result.desc)
+        this.$error(result.message || result.desc)
         if (!isSupportType) {
           this.msgForm.msgbody = '';
         }
@@ -1311,7 +1311,7 @@ export default {
           this.sourceParent.sourceForm.agent
         );
         if (result && Object.hasOwnProperty.call(result,'code')) {
-          this.$message.error(result.message)
+          this.$error(result.message)
           this.msgForm.msgbody = '';
           return
         }
@@ -1566,7 +1566,7 @@ export default {
       }
 
       if (this.tableData && !this.tableData[0]?.["Expression"] && this.sruleForm.s_name) {
-        this.$error(this.$t("datasource.transformer.tablenametip")); 
+        Message.warning(this.$t("datasource.transformer.tablenametip")); 
         this.isbreak = true;
         return false;
       }
@@ -1580,6 +1580,7 @@ export default {
       this.tableData.forEach((item) => {
         // 主键列不能为空
         if (item["PrimaryKey"] && !item["Expression"]) {
+          Message.closeAll();
           Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
           this.isbreak = true;
         }

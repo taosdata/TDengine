@@ -463,9 +463,9 @@ export default {
         console.log("defaultFileInfo", defaultFileInfo)
         if (typeof defaultFileInfo !== 'string') {
           if (defaultFileInfo && defaultFileInfo.message) {
-            this.$message.error(defaultFileInfo.message);
+            this.$error(defaultFileInfo.message);
           } else {
-            this.$message.error('Failed to generate default config file');
+            this.$error('Failed to generate default config file');
           }
           return;
         }
