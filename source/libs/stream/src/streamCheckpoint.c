@@ -118,6 +118,7 @@ int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId
   pRsp->streamId = pTask->id.streamId;
   pRsp->upstreamTaskId = pTask->id.taskId;
   pRsp->taskId = dstTaskId;
+  pRsp->rspCode = code;
 
   if (code == TSDB_CODE_SUCCESS) {
     pRsp->checkpointId = pTask->chkInfo.pActiveInfo->activeId;
@@ -127,9 +128,7 @@ int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId
     pRsp->transId = -1;
   }
 
-  pRsp->rspCode = code;
-
-  SRpcMsg rspMsg = {.code = 0, .pCont = pRsp, .contLen = size, .info = *pRpcInfo};
+  SRpcMsg rspMsg = {.code = 0, .pCont = pBuf, .contLen = size, .info = *pRpcInfo};
   tmsgSendRsp(&rspMsg);
   return 0;
 }
@@ -706,11 +705,10 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     }
   } else {  // clear the checkpoint info if failed
     taosThreadMutexLock(&pTask->lock);
-    streamTaskClearCheckInfo(pTask, false);
+    streamTaskSetFailedCheckpointId(pTask);  // set failed checkpoint id before clear the checkpoint info
     taosThreadMutexUnlock(&pTask->lock);
 
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
-    streamTaskSetFailedCheckpointId(pTask);
     stDebug("s-task:%s clear checkpoint flag since gen checkpoint failed, checkpointId:%" PRId64, id, ckId);
   }
 
