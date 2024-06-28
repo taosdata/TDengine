@@ -203,7 +203,9 @@ async fn ipc_tcp_forward(
     let schema: Arc<Schema> = Arc::new(schema);
 
     info!(client, remote, "Reading batches");
-    let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
+    let ipc_stream = ipc_reader
+        .into_raw_stream_qos_0(ipc_ack_writer, client.clone())
+        .await?;
 
     let (tables_cache_tx, tables_cache_rx) = ring_channel(NonZeroUsize::new(50).unwrap());
 

@@ -22,7 +22,7 @@ use arrow::{
 use faststr::FastStr;
 use futures::Stream;
 use taos::{ColumnView, Itertools, Precision, Ty, Value};
-use tracing::{error, Span};
+use tracing::{error, instrument, Span};
 
 use crate::{
     ack::{AckType, AckWriter},
@@ -538,38 +538,29 @@ impl<R: Read> IpcReader<R> {
         rx.into_stream()
     }
 
+    #[instrument(skip_all, fields(client = %client))]
     pub fn into_raw_stream_qos_0(
         self,
         mut ipc_ack_writer: AckWriter<impl std::io::Write + Send + 'static>,
+        client: String,
     ) -> flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>
     where
         R: Send + 'static,
     {
         let (tx, rx) = flume::bounded(64);
+        let mut batch_number = 0u64;
         let span = Span::current();
         std::thread::spawn(move || {
             let _entered = span.entered();
             for item in self.reader {
-                let batch_number = match &item {
-                    Ok(batch) => {
-                        let schema = batch.schema();
-                        let meta = schema.metadata();
-                        let batch_number = meta.get("batchNumber").map(|v| v.clone());
-                        if let Some(number) = &batch_number {
-                            tracing::trace!("Read batch: {}", number);
-                        }
-                        batch_number
-                    }
-                    Err(err) => {
-                        tracing::trace!("IPC Read error: {}", err);
-                        None
-                    }
-                };
+                batch_number += 1;
+                let data_trace_id = format!("{}:{}", client, batch_number);
+                let is_error = item.is_err();
+                tracing::trace!("Read batch {}, is_error={}", data_trace_id, is_error);
                 tx.send(item)?; // send under blocking thread
-                if let Some(number) = batch_number {
-                    tracing::trace!("Enqueue batch: {}", number);
-                }
+                tracing::trace!("Send batch {}, is_error={}", data_trace_id, is_error);
                 ipc_ack_writer.write_ok()?;
+                tracing::trace!("Ack batch {}, is_error={}", data_trace_id, is_error);
             }
             tracing::info!("Raw ipc reader stream closed");
             anyhow::Ok(())
