@@ -78,8 +78,8 @@ typedef struct {
     goto _exit;       \
   } while (0)
 
-static const char *dmOS[] = {"Ubuntu",   "CentOS Linux", "Red Hat", "Debian GNU", "CoreOS",       "FreeBSD",
-                             "openSUSE", "SLES",         "Fedora",  "macOS",      "CentOS Stream"};
+static const char *dmOS[] = {"Ubuntu", "CentOS Linux", "Red Hat", "Debian GNU/Linux", "CoreOS", "FreeBSD", "openSUSE",
+                             "SLES",   "Fedora",       "macOS",   "CentOS Stream"};
 
 // declarations
 static void    dmFetchEType(int8_t *type);
