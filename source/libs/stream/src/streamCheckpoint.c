@@ -614,7 +614,8 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     if (code == TSDB_CODE_SUCCESS) {
       stDebug("s-task:%s upload checkpointId:%" PRId64 " to remote succ", idStr, checkpointId);
     } else {
-      stError("s-task:%s failed to upload checkpointId:%" PRId64 " path:%s,reason:%s", idStr, checkpointId, path);
+      stError("s-task:%s failed to upload checkpointId:%" PRId64 " path:%s,reason:%s", idStr, checkpointId, path,
+              tstrerror(errno));
     }
   }
 
