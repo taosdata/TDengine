@@ -287,7 +287,8 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
     return -1;
   }
 
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
+  SRpcMsg *pMsg =
+      taosAllocateQitemEx(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen, tGetQueueTypeStr(qtype), TMSG_INFO(pRpc->msgType));
   if (pMsg == NULL) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
@@ -310,6 +311,56 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   }
 
   return code;
+}
+
+void vmPrintQueueSize(SVnodeMgmt *pMgmt, int32_t vgId) {
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
+  if (pVnode != NULL) {
+    int32_t qSize = 0;
+    int64_t qMemSize = 0;
+    for (int8_t i = 0; i < QUEUE_MAX; ++i) {
+      switch (i) {
+        case WRITE_QUEUE:
+          qSize = taosQueueItemSize(pVnode->pWriteW.queue);
+          qMemSize = taosQueueMemorySize(pVnode->pWriteW.queue);
+          dInfo("vgId:%d, write queue: size:%d, memory:%" PRId64, vgId, qSize, qMemSize);
+          break;
+        case SYNC_QUEUE:
+          qSize = taosQueueItemSize(pVnode->pSyncW.queue);
+          qMemSize = taosQueueMemorySize(pVnode->pSyncW.queue);
+          dInfo("vgId:%d, sync queue: size:%d, memory:%" PRId64, vgId, qSize, qMemSize);
+          break;
+        case SYNC_RD_QUEUE:
+          qSize = taosQueueItemSize(pVnode->pSyncRdW.queue);
+          qMemSize = taosQueueMemorySize(pVnode->pSyncRdW.queue);
+          dInfo("vgId:%d, syncRd queue: size:%d, memory:%" PRId64, vgId, qSize, qMemSize);
+          break;
+        case APPLY_QUEUE:
+          qSize = taosQueueItemSize(pVnode->pApplyW.queue);
+          qMemSize = taosQueueMemorySize(pVnode->pApplyW.queue);
+          dInfo("vgId:%d, apply queue: size:%d, memory:%" PRId64, vgId, qSize, qMemSize);
+          break;
+        case QUERY_QUEUE:
+          qSize = taosQueueItemSize(pVnode->pQueryQ);
+          qMemSize = taosQueueMemorySize(pVnode->pQueryQ);
+          dInfo("vgId:%d, query queue: size:%d, memory:%" PRId64, vgId, qSize, qMemSize);
+          break;
+        case FETCH_QUEUE:
+          qSize = taosQueueItemSize(pVnode->pFetchQ);
+          qMemSize = taosQueueMemorySize(pVnode->pFetchQ);
+          dInfo("vgId:%d, fetch queue: size:%d, memory:%" PRId64, vgId, qSize, qMemSize);
+          break;
+        case STREAM_QUEUE:
+          qSize = taosQueueItemSize(pVnode->pStreamQ);
+          qMemSize = taosQueueMemorySize(pVnode->pStreamQ);
+          dInfo("vgId:%d, stream queue: size:%d, memory:%" PRId64, vgId, qSize, qMemSize);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+  if (pVnode) vmReleaseVnode(pMgmt, pVnode);
 }
 
 int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {

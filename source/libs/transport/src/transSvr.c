@@ -194,7 +194,7 @@ static bool addHandleToAcceptloop(void* arg);
 #define ASYNC_ERR_JRET(thrd)                            \
   do {                                                  \
     if (thrd->quit) {                                   \
-      tTrace("worker thread already quit, ignore msg"); \
+      tError("worker thread already quit, ignore msg"); \
       goto _return1;                                    \
     }                                                   \
   } while (0)
@@ -1540,7 +1540,9 @@ int transSendResponse(const STransMsg* msg) {
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
   tGDebug("conn %p start to send resp (1/2)", exh->handle);
-  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+  int32_t code = 0;
+  if (0 != (code = transAsyncSend(pThrd->asyncPool, &m->q))) {
+    tError("conn %p failed to send resp, msg:%p, msgType:%d, code:%d", exh->handle, msg, msg->msgType, code);
     destroySmsg(m);
   }
 

@@ -277,12 +277,12 @@ bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
     if (id > 0) {                                                                                            \
       SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
       if (exh2 == NULL || id != exh2->refId) {                                                               \
-        tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1,     \
+        tError("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1,     \
                exh2 ? exh2->refId : 0, id);                                                                  \
         goto _return1;                                                                                       \
       }                                                                                                      \
     } else if (id == 0) {                                                                                    \
-      tTrace("handle step2");                                                                                \
+      tError("handle step2");                                                                                \
       SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), id);                                          \
       if (exh2 == NULL || id == exh2->refId) {                                                               \
         tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1, id, \
@@ -292,7 +292,7 @@ bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
         id = exh1->refId;                                                                                    \
       }                                                                                                      \
     } else if (id < 0) {                                                                                     \
-      tTrace("handle step3");                                                                                \
+      tError("handle step3");                                                                                \
       goto _return2;                                                                                         \
     }                                                                                                        \
   } while (0)

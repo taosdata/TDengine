@@ -115,6 +115,7 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 void    vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 
 int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype);
+void    vmPrintQueueSize(SVnodeMgmt *pMgmt, int32_t vgId);
 int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
 
 int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);

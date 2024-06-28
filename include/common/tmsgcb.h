@@ -40,10 +40,36 @@ typedef enum {
   QUEUE_MAX,
 } EQueueType;
 
+FORCE_INLINE  char* tGetQueueTypeStr(EQueueType qtype) {
+  switch (qtype) {
+    case QUERY_QUEUE:
+      return "QUERY_QUEUE";
+    case FETCH_QUEUE:
+      return "FETCH_QUEUE";
+    case READ_QUEUE:
+      return "READ_QUEUE";
+    case WRITE_QUEUE:
+      return "WRITE_QUEUE";
+    case APPLY_QUEUE:
+      return "APPLY_QUEUE";
+    case SYNC_QUEUE:
+      return "SYNC_QUEUE";
+    case SYNC_RD_QUEUE:
+      return "SYNC_RD_QUEUE";
+    case STREAM_QUEUE:
+      return "STREAM_QUEUE";
+    case ARB_QUEUE:
+      return "ARB_QUEUE";
+    default:
+      return "UNKNOWN_QUEUE";
+  }
+}
+
 typedef void (*GetDnodeEp)(void* pData, int32_t dnodeId, char* pEp, char* pFqdn, uint16_t* pPort);
 typedef bool (*UpdateDnodeInfoFp)(void* pData, int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
 typedef int32_t (*PutToQueueFp)(void* pMgmt, EQueueType qtype, SRpcMsg* pMsg);
 typedef int32_t (*GetQueueSizeFp)(void* pMgmt, int32_t vgId, EQueueType qtype);
+typedef void (*PrintQueueSizeFp)(void* pMgmt, int32_t vgId);
 typedef int32_t (*SendReqFp)(const SEpSet* pEpSet, SRpcMsg* pMsg);
 typedef void (*SendRspFp)(SRpcMsg* pMsg);
 typedef void (*RegisterBrokenLinkArgFp)(SRpcMsg* pMsg);
@@ -59,6 +85,7 @@ typedef struct {
   void*                   syncRpc;
   PutToQueueFp            putToQueueFp;
   GetQueueSizeFp          qsizeFp;
+  PrintQueueSizeFp        printQSizeFp;
   SendReqFp               sendReqFp;
   SendReqFp               sendSyncReqFp;
   SendRspFp               sendRspFp;
@@ -72,6 +99,7 @@ typedef struct {
 void    tmsgSetDefault(const SMsgCb* msgcb);
 int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg);
 int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype);
+void    tmsgPrintQueueSize(const SMsgCb* msgcb, int32_t vgId);
 int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg);
 int32_t tmsgSendSyncReq(const SEpSet* epSet, SRpcMsg* pMsg);
 void    tmsgSendRsp(SRpcMsg* pMsg);

@@ -181,7 +181,8 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   }
 
   if (pWorker == NULL) return -1;
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
+  SRpcMsg *pMsg =
+      taosAllocateQitemEx(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen, tGetQueueTypeStr(qtype), TMSG_INFO(pRpc->msgType));
   if (pMsg == NULL) return -1;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   pRpc->pCont = NULL;

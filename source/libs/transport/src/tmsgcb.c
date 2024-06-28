@@ -40,6 +40,8 @@ int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype) {
   return (*msgcb->qsizeFp)(msgcb->mgmt, vgId, qtype);
 }
 
+void tmsgPrintQueueSize(const SMsgCb* msgcb, int32_t vgId) { (*msgcb->printQSizeFp)(msgcb->mgmt, vgId); }
+
 int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   int32_t code = (*defaultMsgCb.sendReqFp)(epSet, pMsg);
   if (code != 0) {

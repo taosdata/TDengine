@@ -208,7 +208,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   pRpc->info.wrapper = pWrapper;
-  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
+  pMsg = taosAllocateQitemEx(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen, "dmProcessRpc", TMSG_INFO(pRpc->msgType));
   if (pMsg == NULL) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
