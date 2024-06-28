@@ -513,7 +513,7 @@ export default {
               && dsn.includes('csv_config_file')
               && !this.$store.state.app.validOpcFileRes?.valid
             ) {
-            this.$message.error(this.$store.state.app.validOpcFileRes.message)
+            this.$error(this.$store.state.app.validOpcFileRes.message)
             this.loading = false;
             return
           }

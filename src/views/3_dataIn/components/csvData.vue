@@ -558,7 +558,7 @@ export default {
       const regex = /^[\u4e00-\u9fa5A-Za-z0-9 %$@._\-()\[\]{}（）【】｛｝]+$/;
       const fileName = file.name;
       if (!regex.test(fileName)) {
-        this.$message.error(this.$t('datasource.supportCharacter'));
+        this.$error(this.$t('datasource.supportCharacter'));
         return false; // 不允许上传
       }
 
