@@ -707,7 +707,6 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   } else {  // clear the checkpoint info if failed
     taosThreadMutexLock(&pTask->lock);
     streamTaskSetFailedCheckpointId(pTask);  // set failed checkpoint id before clear the checkpoint info
-    streamTaskClearCheckInfo(pTask, true);
     taosThreadMutexUnlock(&pTask->lock);
 
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
