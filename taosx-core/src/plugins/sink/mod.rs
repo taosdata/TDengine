@@ -2600,11 +2600,11 @@ async fn consume_point_record(
                                             sql_insertion.modify.value_column_length,
                                         );
                                         tracing::info!("add execute sql: {}", &sql);
-                                        taos.as_ref().unwrap().exec_with_req_id(&sql, req_id.next())
+                                        let _ = taos.as_ref().unwrap().exec_with_req_id(&sql, req_id.next())
                                             .await
                                             .context(
                                                 "Modify column length error while writing point stream",
-                                            )?;
+                                            );
                                     }
                                 }
                                 retry += 1;

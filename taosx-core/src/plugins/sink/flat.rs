@@ -479,11 +479,19 @@ pub async fn flat_write_with_raw_block(
                                             "alter table `{table}` modify column `{}` {}({})",
                                             name, ty, length
                                         );
-                                        taos.as_ref()
+                                        let result = taos
+                                            .as_ref()
                                             .unwrap()
                                             .exec_with_req_id(&sql, req_id.next())
-                                            .await?;
-                                        max_lengths.insert(name.to_string(), length);
+                                            .await;
+                                        match result {
+                                            Ok(_) => {
+                                                max_lengths.insert(name.to_string(), length);
+                                            }
+                                            Err(err) => {
+                                                tracing::warn!("alter column failed: {err:#}");
+                                            }
+                                        }
                                         continue;
                                     }
                                 }
@@ -711,7 +719,7 @@ pub async fn flat_write_with_raw_block(
                                                 f.ty(),
                                                 f.length() * 2
                                             );
-                                            taos.as_ref().unwrap().exec(&sql).await?;
+                                            let _ = taos.as_ref().unwrap().exec(&sql).await;
                                             continue;
                                         }
                                     } else {
@@ -750,10 +758,11 @@ pub async fn flat_write_with_raw_block(
                             f.ty(),
                             f.length() * 2
                         );
-                        taos.as_ref()
+                        let _ = taos
+                            .as_ref()
                             .unwrap()
                             .exec_with_req_id(&sql, req_id.next())
-                            .await?;
+                            .await;
                     }
                 } else if err_str.contains("[0x0118]") {
                     // Code([0x0118] Unknown or common error)
