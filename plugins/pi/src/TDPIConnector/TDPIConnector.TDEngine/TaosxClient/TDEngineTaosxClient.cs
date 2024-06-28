@@ -44,7 +44,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public string tdColomnType;
         public int localPort = 0;
         /// <summary>
-        /// 下一批数据的批次号,用于追踪数据的处理进度,会带在 RecordBatch 的 metadata 中
+        /// 下一批数据的批次号,用于追踪数据的处理进度,遗憾的是这个批号不能随着 RecordBatch 一起发送到 agent.
         /// </summary>
         private long _batchNumber = 0;
 
