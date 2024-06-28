@@ -416,6 +416,7 @@ static void setResendInfo(SDispatchEntry* pEntry, int64_t now) {
   pEntry->sendTs = now;
   pEntry->rspTs = -1;
   pEntry->retryCount += 1;
+  pEntry->status = TSDB_CODE_SUCCESS;
 }
 
 static void addDispatchEntry(SDispatchMsgInfo* pMsgInfo, int32_t nodeId, int64_t now, bool lock) {
