@@ -12807,8 +12807,7 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCtx) 
       if (TSDB_CODE_SUCCESS == code) {
         SArray* aTagNames = pParFileCtx->tagNameFilled ? NULL : pParFileCtx->aTagNames;
         code = parseTagValue(pMsgBuf, &pParFileCtx->pSql, precision, (SSchema*)pTagSchema, &token,
-                             pParFileCtx->aTagNames, pParFileCtx->aTagVals, &pParFileCtx->pTag);
-        pParFileCtx->tagNameFilled = true;
+                             aTagNames, pParFileCtx->aTagVals, &pParFileCtx->pTag);
       }
     } else {
       // parse tbname
@@ -12826,7 +12825,8 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCtx) 
     if (TSDB_CODE_SUCCESS != code) break;
   }
 
-  if (TSDB_CODE_SUCCESS == code) {  // may fail to handle json
+  if (TSDB_CODE_SUCCESS == code) {
+    pParFileCtx->tagNameFilled = true;
     code = tTagNew(pParFileCtx->aTagVals, 1, false, &pParFileCtx->pTag);
   }
 
