@@ -927,6 +927,10 @@ static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData
   } else {
     int64_t key = asc ? pReader->info.window.ekey : pReader->info.window.skey;
     endPos = doBinarySearchKey(pBlockData->aTSKEY, pRecord->numRow, pos, key, pReader->info.order);
+    if (endPos == -1) {
+      return endPos;
+    }
+
     endPos = findFirstPos(pBlockData->aTSKEY, pRecord->numRow, endPos, asc);
   }
 
