@@ -109,8 +109,8 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pRpcInfo, int32_t code) {
   int32_t size = sizeof(SMsgHead) + sizeof(SCheckpointTriggerRsp);
+  void*   pBuf = rpcMallocCont(size);
 
-  void*                  pBuf = rpcMallocCont(size);
   SCheckpointTriggerRsp* pRsp = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
 
   ((SMsgHead*)pBuf)->vgId = htonl(downstreamNodeId);
@@ -129,7 +129,7 @@ int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId
 
   pRsp->rspCode = code;
 
-  SRpcMsg rspMsg = {.code = 0, .pCont = pRsp, .contLen = size, .info = *pRpcInfo};
+  SRpcMsg rspMsg = {.code = 0, .pCont = pBuf, .contLen = size, .info = *pRpcInfo};
   tmsgSendRsp(&rspMsg);
   return 0;
 }
