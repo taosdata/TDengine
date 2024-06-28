@@ -26,7 +26,8 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
 
     stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.delaySchedParam);
 
-    pTask->schedInfo.pDelayTimer = taosTmrStart(streamTaskSchedHelper, (int32_t)pTask->info.delaySchedParam, pTask, streamTimer);
+    pTask->schedInfo.pDelayTimer =
+        taosTmrStart(streamTaskSchedHelper, (int32_t)pTask->info.delaySchedParam, pTask, streamTimer);
     pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
   }
 
@@ -78,7 +79,7 @@ int32_t streamTaskResumeInFuture(SStreamTask* pTask) {
           pTask->status.schedIdleTime, ref);
 
   // add one ref count for task
-  /*SStreamTask* pAddRefTask = */streamMetaAcquireOneTask(pTask);
+  /*SStreamTask* pAddRefTask = */ streamMetaAcquireOneTask(pTask);
 
   if (pTask->schedInfo.pIdleTimer == NULL) {
     pTask->schedInfo.pIdleTimer = taosTmrStart(streamTaskResumeHelper, pTask->status.schedIdleTime, pTask, streamTimer);

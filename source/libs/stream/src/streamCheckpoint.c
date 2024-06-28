@@ -446,13 +446,14 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
 
-  if ((!restored) && (pStatus->state != TASK_STATUS__CK)) {
-    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
-            " failed",
-            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
-    taosThreadMutexUnlock(&pTask->lock);
-    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-  }
+  //  if (restored && (pStatus->state != TASK_STATUS__CK)) {
+  //    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%"
+  //    PRId64
+  //            " failed",
+  //            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
+  //    taosThreadMutexUnlock(&pTask->lock);
+  //    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  //  }
 
   if (!restored) {  // during restore procedure, do update checkpoint-info
     stDebug("s-task:%s vgId:%d status:%s update the checkpoint-info during restore, checkpointId:%" PRId64 "->%" PRId64
@@ -585,8 +586,9 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
 }
 
 int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type) {
-  char*        path = NULL;
-  int32_t      code = 0;
+  int32_t code = 0;
+  char*   path = NULL;
+
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  idStr = pTask->id.idStr;
   int64_t      now = taosGetTimestampMs();

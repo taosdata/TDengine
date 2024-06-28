@@ -182,12 +182,12 @@ typedef struct SRetrieveChkptTriggerReq {
 } SRetrieveChkptTriggerReq;
 
 typedef struct SCheckpointTriggerRsp {
-  int64_t  streamId;
-  int64_t  checkpointId;
-  int32_t  upstreamTaskId;
-  int32_t  taskId;
-  int32_t  transId;
-  int32_t  rspCode;
+  int64_t streamId;
+  int64_t checkpointId;
+  int32_t upstreamTaskId;
+  int32_t taskId;
+  int32_t transId;
+  int32_t rspCode;
 } SCheckpointTriggerRsp;
 
 typedef struct SCheckpointReport {

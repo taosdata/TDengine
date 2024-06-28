@@ -2491,13 +2491,18 @@ void taskDbDestroy(void* pDb, bool flush) {
       rocksdb_flushoptions_destroy(flushOpt);
     }
   }
-  for (int i = 0; i < nCf; i++) {
-    if (wrapper->pCf[i] != NULL) {
-      rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+
+  if (wrapper->pCf != NULL) {
+    for (int i = 0; i < nCf; i++) {
+      if (wrapper->pCf[i] != NULL) {
+        rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+      }
     }
   }
 
-  if (wrapper->db) rocksdb_close(wrapper->db);
+  if (wrapper->db) {
+    rocksdb_close(wrapper->db);
+  }
 
   rocksdb_options_destroy(wrapper->dbOpt);
   rocksdb_readoptions_destroy(wrapper->readOpt);
@@ -3792,7 +3797,7 @@ SStreamStateCur* streamStateFillSeekKeyNext_rocksdb(SStreamState* pState, const 
     size_t  kLen = 0;
     char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     winKeyDecode((void*)&curKey, keyStr);
-    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) > 0) {
+    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) < 0) {
       return pCur;
     }
     rocksdb_iter_next(pCur->iter);
@@ -3829,7 +3834,7 @@ SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const 
     size_t  kLen = 0;
     char*   keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     winKeyDecode((void*)&curKey, keyStr);
-    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) < 0) {
+    if (winKeyCmpr(key, sizeof(*key), &curKey, sizeof(curKey)) > 0) {
       return pCur;
     }
     rocksdb_iter_prev(pCur->iter);

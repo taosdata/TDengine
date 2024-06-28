@@ -672,6 +672,7 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
+  tDebug("conn %p get from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->task != NULL) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -754,6 +755,7 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_INIT(&conn->q);
+  tDebug("conn %p get from pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->task != NULL) {
     transDQCancel(((SCliThrd*)conn->hostThrd)->timeoutQueue, conn->task);
@@ -806,6 +808,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   conn->status = ConnInPool;
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
+  tDebug("conn %p added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
 
   if (conn->list->size >= 10) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
@@ -825,6 +828,9 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
+  QUEUE_INIT(&exh->q);
+  taosInitRWLatch(&exh->latch);
+
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
@@ -849,6 +855,8 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
   taosWLockLatch(&exh->latch);
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
+  taosWUnLockLatch(&exh->latch);
+
   conn->refId = exh->refId;
   taosWUnLockLatch(&exh->latch);
 
@@ -911,13 +919,11 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
     uv_timer_init(pThrd->loop, timer);
   }
   timer->data = conn;
-  conn->timer = timer;
 
+  conn->timer = timer;
   conn->connReq.data = conn;
   transReqQueueInit(&conn->wreqQueue);
-
   transQueueInit(&conn->cliMsgs, NULL);
-
   transInitBuffer(&conn->readBuf);
   QUEUE_INIT(&conn->q);
   conn->hostThrd = pThrd;
@@ -1027,7 +1033,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   SCliConn* pConn = transReqQueueRemove(req);
   if (pConn == NULL) return;
 
-  SCliMsg* pMsg = !transQueueEmpty(&pConn->cliMsgs) ? transQueueGet(&pConn->cliMsgs, 0) : NULL;
+  SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
   if (pMsg != NULL) {
     int64_t cost = taosGetTimestampUs() - pMsg->st;
     if (cost > 1000 * 50) {
@@ -1133,6 +1139,7 @@ void cliSend(SCliConn* pConn) {
   STransMsg* pMsg = (STransMsg*)(&pCliMsg->msg);
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
+    tDebug("malloc memory: %p", pMsg->pCont);
     pMsg->contLen = 0;
   }
 
@@ -1579,7 +1586,7 @@ static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
       tinet_ntoa(old, *v);
       tinet_ntoa(new, addr);
       tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
-      taosHashPut(cache, fqdn, strlen(fqdn) + 1, &addr, sizeof(addr));
+      taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
     }
   }
   return;
@@ -1914,7 +1921,7 @@ void cliDestroyConnMsgs(SCliConn* conn, bool destroy) {
   }
 }
 
-void cliIteraConnMsgs(SCliConn* conn) {
+void cliConnFreeMsgs(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
 
@@ -1956,7 +1963,7 @@ bool cliRecvReleaseReq(SCliConn* conn, STransMsgHead* pHead) {
       }
     }
 
-    cliIteraConnMsgs(conn);
+    cliConnFreeMsgs(conn);
 
     tDebug("%s conn %p receive release request, refId:%" PRId64 "", CONN_GET_INST_LABEL(conn), conn, conn->refId);
     destroyCmsg(pMsg);
@@ -2017,6 +2024,7 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   if (pMsg == NULL) {
     return;
   }
+  tDebug("free memory:%p, free ctx: %p", pMsg, pMsg->ctx);
 
   transDestroyConnCtx(pMsg->ctx);
   transFreeMsg(pMsg->msg.pCont);
@@ -2523,6 +2531,8 @@ static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t 
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), handle);
   if (exh == NULL) {
     return NULL;
+  } else {
+    tDebug("conn %p got", exh->handle);
   }
   taosWLockLatch(&exh->latch);
   if (exh->pThrd == NULL && trans != NULL) {
@@ -2568,7 +2578,7 @@ int transReleaseCliHandle(void* handle) {
   cmsg->ctx = pCtx;
 
   STraceId* trace = &tmsg.info.traceId;
-  tGDebug("send release request at thread:%08" PRId64 "", pThrd->pid);
+  tGDebug("send release request at thread:%08" PRId64 ", malloc memory:%p", pThrd->pid, cmsg);
 
   if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
     destroyCmsg(cmsg);
@@ -2819,6 +2829,9 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
 int64_t transAllocHandle() {
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
+  QUEUE_INIT(&exh->q);
+  taosInitRWLatch(&exh->latch);
+
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);

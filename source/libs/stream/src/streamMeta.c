@@ -963,6 +963,8 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
           pMeta->numOfStreamTasks, pMeta->numOfPausedTasks);
 
   taosArrayDestroy(pRecycleList);
+
+  (void)streamMetaCommit(pMeta);
 }
 
 static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {

@@ -69,6 +69,28 @@
     pReq->sql = NULL;            \
   } while (0)
 
+static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas* pMonitorParas) {
+  if (tEncodeI8(encoder, pMonitorParas->tsEnableMonitor) < 0) return -1;
+  if (tEncodeI32(encoder, pMonitorParas->tsMonitorInterval) < 0) return -1;
+  if (tEncodeI32(encoder, pMonitorParas->tsSlowLogScope) < 0) return -1;
+  if (tEncodeI32(encoder, pMonitorParas->tsSlowLogMaxLen) < 0) return -1;
+  if (tEncodeI32(encoder, pMonitorParas->tsSlowLogThreshold) < 0) return -1;
+  if (tEncodeI32(encoder, pMonitorParas->tsSlowLogThresholdTest) < 0) return -1;
+  if (tEncodeCStr(encoder, pMonitorParas->tsSlowLogExceptDb) < 0) return -1;
+  return 0;
+}
+
+static int32_t tDeserializeSMonitorParas(SDecoder *decoder, SMonitorParas* pMonitorParas){
+  if (tDecodeI8(decoder, (int8_t *)&pMonitorParas->tsEnableMonitor) < 0) return -1;
+  if (tDecodeI32(decoder, &pMonitorParas->tsMonitorInterval) < 0) return -1;
+  if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogScope) < 0) return -1;
+  if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogMaxLen) < 0) return -1;
+  if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogThreshold) < 0) return -1;
+  if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogThresholdTest) < 0) return -1;
+  if (tDecodeCStrTo(decoder, pMonitorParas->tsSlowLogExceptDb) < 0) return -1;
+  return 0;
+}
+
 static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq);
 static int32_t tDecodeSBatchDeleteReqCommon(SDecoder *pDecoder, SBatchDeleteReq *pReq);
 static int32_t tEncodeTableTSMAInfoRsp(SEncoder *pEncoder, const STableTSMAInfoRsp *pRsp);
@@ -519,6 +541,7 @@ int32_t tSerializeSClientHbBatchRsp(void *buf, int32_t bufLen, const SClientHbBa
     SClientHbRsp *pRsp = taosArrayGet(pBatchRsp->rsps, i);
     if (tSerializeSClientHbRsp(&encoder, pRsp) < 0) return -1;
   }
+  if (tSerializeSMonitorParas(&encoder, &pBatchRsp->monitorParas) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -544,6 +567,10 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
     SClientHbRsp rsp = {0};
     tDeserializeSClientHbRsp(&decoder, &rsp);
     taosArrayPush(pBatchRsp->rsps, &rsp);
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDeserializeSMonitorParas(&decoder, &pBatchRsp->monitorParas) < 0) return -1;
   }
 
   tEndDecode(&decoder);
@@ -1308,6 +1335,9 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   if (tEncodeI64(&encoder, pReq->ipWhiteVer) < 0) return -1;
+
+  if (tSerializeSMonitorParas(&encoder, &pReq->clusterCfg.monitorParas) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1426,6 +1456,10 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI64(&decoder, &pReq->ipWhiteVer) < 0) return -1;
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDeserializeSMonitorParas(&decoder, &pReq->clusterCfg.monitorParas) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -1521,6 +1555,7 @@ int32_t tSerializeSStatisReq(void *buf, int32_t bufLen, SStatisReq *pReq) {
 
   if (tEncodeI32(&encoder, pReq->contLen) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->pCont) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->type) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -1541,7 +1576,9 @@ int32_t tDeserializeSStatisReq(void *buf, int32_t bufLen, SStatisReq *pReq) {
     if (pReq->pCont == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->pCont) < 0) return -1;
   }
-
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, (int8_t*)&pReq->type) < 0) return -1;
+  }
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -5153,6 +5190,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->passVer) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->authVer) < 0) return -1;
   if (tEncodeI64(&encoder, pRsp->whiteListVer) < 0) return -1;
+  if (tSerializeSMonitorParas(&encoder, &pRsp->monitorParas) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -5193,6 +5231,9 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
     if (tDecodeI64(&decoder, &pRsp->whiteListVer) < 0) return -1;
   } else {
     pRsp->whiteListVer = 0;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDeserializeSMonitorParas(&decoder, &pRsp->monitorParas) < 0) return -1;
   }
   tEndDecode(&decoder);
 
@@ -10481,7 +10522,10 @@ int32_t tCloneTbTSMAInfo(STableTSMAInfo *pInfo, STableTSMAInfo **pRes) {
     pRet->ast = taosStrdup(pInfo->ast);
     if (!pRet->ast) code = TSDB_CODE_OUT_OF_MEMORY;
   }
-  if (code) tFreeTableTSMAInfo(pRet);
+  if (code) {
+    tFreeTableTSMAInfo(pRet);
+    pRet = NULL;
+  }
   *pRes = pRet;
   return code;
 }

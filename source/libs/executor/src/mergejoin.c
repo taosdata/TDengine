@@ -99,7 +99,7 @@ int32_t mWinJoinDumpGrpCache(SMJoinWindowCtx* pCtx) {
       
       int32_t buildEndIdx = buildGrp->endIdx;
       buildGrp->endIdx = buildGrp->readIdx + rowsLeft - 1;
-      mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp);
+      MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp));
       buildGrp->readIdx += rowsLeft;
       buildGrp->endIdx = buildEndIdx;
       rowsLeft = 0;
@@ -225,7 +225,7 @@ static int32_t mOuterJoinMergeFullCart(SMJoinMergeCtx* pCtx) {
       
       int32_t buildEndIdx = buildGrp->endIdx;
       buildGrp->endIdx = buildGrp->readIdx + rowsLeft - 1;
-      mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp);
+      MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp));
       buildGrp->readIdx += rowsLeft;
       buildGrp->endIdx = buildEndIdx;
       rowsLeft = 0;
@@ -291,7 +291,6 @@ static int32_t mOuterJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
         MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->midBlk, true, probeGrp, buildGrp));
         buildGrp->readIdx += rowsLeft;
         buildGrp->endIdx = buildEndIdx;
-        rowsLeft = 0;
         break;
       }
 
@@ -682,7 +681,7 @@ static int32_t mInnerJoinMergeCart(SMJoinMergeCtx* pCtx) {
       
       int32_t buildEndIdx = buildGrp->endIdx;
       buildGrp->endIdx = buildGrp->readIdx + rowsLeft - 1;
-      mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp);
+      MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, buildGrp));
       buildGrp->readIdx += rowsLeft;
       buildGrp->endIdx = buildEndIdx;
       rowsLeft = 0;
@@ -1402,7 +1401,6 @@ static int32_t mSemiJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
         MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->midBlk, true, probeGrp, buildGrp));
         buildGrp->readIdx += rowsLeft;
         buildGrp->endIdx = buildEndIdx;
-        rowsLeft = 0;
         break;
       }
 
@@ -1712,7 +1710,6 @@ static int32_t mAntiJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
         MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->midBlk, true, probeGrp, buildGrp));
         buildGrp->readIdx += rowsLeft;
         buildGrp->endIdx = buildEndIdx;
-        rowsLeft = 0;
         break;
       }
 
@@ -2004,7 +2001,7 @@ int32_t mAsofBackwardDumpGrpCache(SMJoinWindowCtx* pCtx) {
     }
     
     buildGrp.endIdx = buildGrp.readIdx + rowsLeft - 1;
-    mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, &buildGrp);
+    MJ_ERR_RET(mJoinMergeGrpCart(pCtx->pJoin, pCtx->finBlk, true, probeGrp, &buildGrp));
     pCtx->cache.outRowIdx += rowsLeft;
     break;
   }

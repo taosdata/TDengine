@@ -410,7 +410,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
     return;
   }
 
-  uint64_t clusterId = pCtg->clusterId;
+  int64_t clusterId = pCtg->clusterId;
 
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
@@ -498,7 +498,7 @@ void ctgClearHandle(SCatalog* pCtg) {
     return;
   }
 
-  uint64_t clusterId = pCtg->clusterId;
+  int64_t clusterId = pCtg->clusterId;
   
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);

@@ -78,7 +78,9 @@ void osDefaultInit() {
   }
   strcpy(tsDataDir, TD_DATA_DIR_PATH);
   strcpy(tsLogDir, TD_LOG_DIR_PATH);
-  strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  if(strlen(tsTempDir) == 0){
+    strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  }
 }
 
 void osUpdate() {
