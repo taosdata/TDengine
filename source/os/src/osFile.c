@@ -1222,20 +1222,24 @@ int32_t taosUmaskFile(int32_t maskVal) {
 
 int32_t taosGetErrorFile(TdFilePtr pFile) { return errno; }
 int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
+  int64_t ret = -1;
+#if FILE_WITH_LOCK
+  taosThreadRwlockRdlock(&(pFile->rwlock));
+#endif
   if (pFile == NULL || ptrBuf == NULL) {
-    return -1;
+    goto END;
   }
   if (*ptrBuf != NULL) {
     taosMemoryFreeClear(*ptrBuf);
   }
   ASSERT(pFile->fp != NULL);
   if (pFile->fp == NULL) {
-    return -1;
+    goto END;
   }
 #ifdef WINDOWS
   size_t bufferSize = 512;
   *ptrBuf = taosMemoryMalloc(bufferSize);
-  if (*ptrBuf == NULL) return -1;
+  if (*ptrBuf == NULL)     goto END;
 
   size_t bytesRead = 0;
   size_t totalBytesRead = 0;
@@ -1244,7 +1248,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     char *result = fgets(*ptrBuf + totalBytesRead, bufferSize - totalBytesRead, pFile->fp);
     if (result == NULL) {
       taosMemoryFreeClear(*ptrBuf);
-      return -1;
+      goto END;
     }
     bytesRead = strlen(*ptrBuf + totalBytesRead);
     totalBytesRead += bytesRead;
@@ -1257,18 +1261,24 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     void *newBuf = taosMemoryRealloc(*ptrBuf, bufferSize);
     if (newBuf == NULL) {
       taosMemoryFreeClear(*ptrBuf);
-      return -1;
+      goto END;
     }
 
     *ptrBuf = newBuf;
   }
 
   (*ptrBuf)[totalBytesRead] = '\0';
-  return totalBytesRead;
+  ret = totalBytesRead;
 #else
   size_t len = 0;
-  return getline(ptrBuf, &len, pFile->fp);
+  ret = getline(ptrBuf, &len, pFile->fp);
 #endif
+
+  END:
+#if FILE_WITH_LOCK
+  taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  return ret;
 }
 
 int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {

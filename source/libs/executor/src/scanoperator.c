@@ -2265,13 +2265,16 @@ static void processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOffset
     doBlockDataPrimaryKeyFilter(pBlock, offset);
     SColumnInfoData* pColPk = taosArrayGet(pBlock->pDataBlock, 1);
 
+    if (pBlock->info.rows < 1) {
+      return ;
+    }
     void* tmp = colDataGetData(pColPk, pBlock->info.rows - 1);
     val.type = pColPk->info.type;
-    if(IS_VAR_DATA_TYPE(pColPk->info.type)) {
+    if (IS_VAR_DATA_TYPE(pColPk->info.type)) {
       val.pData = taosMemoryMalloc(varDataLen(tmp));
       val.nData = varDataLen(tmp);
       memcpy(val.pData, varDataVal(tmp), varDataLen(tmp));
-    }else{
+    } else {
       memcpy(&val.val, tmp, pColPk->info.bytes);
     }
   }
@@ -2292,13 +2295,19 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   }
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+    while (1) {
+      SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
 
-    if (pResult && pResult->info.rows > 0) {
-      bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
-      processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
-      qDebug("tmqsnap doQueueScan get data uid:%" PRId64 "", pResult->info.id.uid);
-      return pResult;
+      if (pResult && pResult->info.rows > 0) {
+        bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
+        processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
+        qDebug("tmqsnap doQueueScan get data uid:%" PRId64 "", pResult->info.id.uid);
+        if (pResult->info.rows > 0) {
+          return pResult;
+        }
+      } else {
+        break;
+      }
     }
 
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
