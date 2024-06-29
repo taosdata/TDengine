@@ -663,11 +663,6 @@
 			<key>SUMMARY</key>
 			<dict>
 				<key>LOCALIZATIONS</key>
-				<array/>
-			</dict>
-			<key>TITLE</key>
-			<dict>
-				<key>LOCALIZATIONS</key>
 				<array>
 					<dict>
 						<key>LANGUAGE</key>
@@ -679,6 +674,18 @@
 							<key>PATH_TYPE</key>
 							<integer>0</integer>
 						</dict>
+					</dict>
+				</array>
+			</dict>
+			<key>TITLE</key>
+			<dict>
+				<key>LOCALIZATIONS</key>
+				<array>
+					<dict>
+						<key>LANGUAGE</key>
+						<string>English</string>
+						<key>VALUE</key>
+						<string>TDengine</string>
 					</dict>
 				</array>
 			</dict>

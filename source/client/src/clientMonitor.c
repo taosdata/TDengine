@@ -85,31 +85,6 @@ static SAppInstInfo* getAppInstByClusterId(int64_t clusterId) {
   return *(SAppInstInfo**)p;
 }
 
-static int32_t tscMonitortInit() {
-  TdThreadAttr thAttr;
-  taosThreadAttrInit(&thAttr);
-  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-  TdThread monitorThread;
-  if (taosThreadCreate(&monitorThread, &thAttr, monitorThreadFunc, NULL) != 0) {
-    uError("failed to create monitor thread since %s", strerror(errno));
-    return -1;
-  }
-
-  taosThreadAttrDestroy(&thAttr);
-  return 0;
-}
-
-static void tscMonitorStop() {
-  if (atomic_val_compare_exchange_32(&slowLogFlag, 0, 1)) {
-    uDebug("monitor thread already stopped");
-    return;
-  }
-
-  while (atomic_load_32(&slowLogFlag) > 0) {
-    taosMsleep(100);
-  }
-}
-
 static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
   if (TSDB_CODE_SUCCESS != code) {
     uError("found error in monitorReport send callback, code:%d, please check the network.", code);
@@ -161,7 +136,7 @@ static int32_t sendReport(void* pTransporter, SEpSet *epSet, char* pCont, MONITO
   return code;
 }
 
-void monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet){
+static void monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet){
   char buf[SLOW_LOG_SEND_SIZE + 1] = {0};   // +1 for \0, for print log
   char pCont[SLOW_LOG_SEND_SIZE + 1] = {0};   // +1 for \0, for print log
   int32_t offset = 0;
@@ -172,7 +147,8 @@ void monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet){
   while(1){
     int64_t readSize = taosReadFile(pFile, buf + offset, SLOW_LOG_SEND_SIZE - offset);
     if (readSize <= 0) {
-      uError("failed to read len from file:%p since %s", pFile, terrstr());
+      if (readSize < 0)
+        uError("failed to read len from file:%p since %s", pFile, terrstr());
       return;
     }
 
@@ -245,8 +221,8 @@ static void reportSendProcess(void* param, void* tmrId) {
 
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   generateClusterReport(pMonitor->registry, pInst->pTransporter, &ep);
-  taosRUnLockLatch(&monitorLock);
   taosTmrReset(reportSendProcess, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
+  taosRUnLockLatch(&monitorLock);
 }
 
 static void sendAllSlowLog(){
@@ -268,8 +244,9 @@ static void sendAllSlowLog(){
   uDebug("[monitor] sendAllSlowLog when client close");
 }
 
-void monitorSendAllSlowLogFromTempDir(void* inst){
-  SAppInstInfo* pInst = (SAppInstInfo*)inst;
+static void monitorSendAllSlowLogFromTempDir(int64_t clusterId){
+  SAppInstInfo* pInst = getAppInstByClusterId((int64_t)clusterId);
+
   if(pInst == NULL || !pInst->monitorParas.tsEnableMonitor){
     uInfo("[monitor] monitor is disabled, skip send slow log");
     return;
@@ -348,45 +325,6 @@ static void sendAllCounter(){
     }
     ppMonitor = taosHashIterate(monitorCounterHash, ppMonitor);
   }
-}
-
-void monitorInit() {
-  uInfo("[monitor] tscMonitor init");
-  monitorCounterHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  if (monitorCounterHash == NULL) {
-    uError("failed to create monitorCounterHash");
-  }
-  taosHashSetFreeFp(monitorCounterHash, destroyMonitorClient);
-
-  monitorSlowLogHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  if (monitorSlowLogHash == NULL) {
-    uError("failed to create monitorSlowLogHash");
-  }
-  taosHashSetFreeFp(monitorSlowLogHash, destroySlowLogClient);
-
-  monitorTimer = taosTmrInit(0, 0, 0, "MONITOR");
-  if (monitorTimer == NULL) {
-    uError("failed to create monitor timer");
-  }
-
-  taosInitRWLatch(&monitorLock);
-  tscMonitortInit();
-}
-
-void monitorClose() {
-  uInfo("[monitor] tscMonitor close");
-  taosRLockLatch(&monitorLock);
-
-  if (atomic_val_compare_exchange_32(&monitorFlag, 0, 1)) {
-    uDebug("[monitor] monitorFlag is not 0");
-  }
-  tscMonitorStop();
-  sendAllSlowLog();
-  sendAllCounter();
-  taosHashCleanup(monitorCounterHash);
-  taosHashCleanup(monitorSlowLogHash);
-  taosTmrCleanUp(monitorTimer);
-  taosRUnLockLatch(&monitorLock);
 }
 
 void monitorCreateClient(int64_t clusterId) {
@@ -477,7 +415,7 @@ end:
 }
 
 void monitorCounterInc(int64_t clusterId, const char* counterName, const char** label_values) {
-  taosRLockLatch(&monitorLock);
+  taosWLockLatch(&monitorLock);
   MonitorClient** ppMonitor = (MonitorClient**)taosHashGet(monitorCounterHash, &clusterId, LONG_BYTES);
   if (ppMonitor == NULL || *ppMonitor == NULL) {
     uError("monitorCounterInc not found pMonitor %"PRId64, clusterId);
@@ -486,7 +424,7 @@ void monitorCounterInc(int64_t clusterId, const char* counterName, const char** 
 
   MonitorClient*   pMonitor = *ppMonitor;
   taos_counter_t** ppCounter = (taos_counter_t**)taosHashGet(pMonitor->counters, counterName, strlen(counterName));
-  if (ppCounter == NULL || *ppCounter != NULL) {
+  if (ppCounter == NULL || *ppCounter == NULL) {
     uError("monitorCounterInc not found pCounter %"PRIx64":%s.", clusterId, counterName);
     goto end;
   }
@@ -494,7 +432,7 @@ void monitorCounterInc(int64_t clusterId, const char* counterName, const char** 
   uInfo("[monitor] monitorCounterInc %"PRIx64"(%p):%s", pMonitor->clusterId, pMonitor, counterName);
 
 end:
-  taosRUnLockLatch(&monitorLock);
+  taosWUnLockLatch(&monitorLock);
 }
 
 const char* monitorResultStr(SQL_RESULT_CODE code) {
@@ -502,17 +440,17 @@ const char* monitorResultStr(SQL_RESULT_CODE code) {
   return result_state[code];
 }
 
-void monitorFreeSlowLogData(MonitorSlowLogData* pData) {
+static void monitorFreeSlowLogData(MonitorSlowLogData* pData) {
   if (pData == NULL) {
     return;
   }
   taosMemoryFree(pData->value);
 }
 
-void monitorThreadFuncUnexpectedStopped(void) { atomic_store_32(&slowLogFlag, -1); }
+static void monitorThreadFuncUnexpectedStopped(void) { atomic_store_32(&slowLogFlag, -1); }
 
-void reportSlowLog(void* param, void* tmrId) {
-  taosRLockLatch(&monitorLock);
+static void reportSlowLog(void* param, void* tmrId) {
+  taosWLockLatch(&monitorLock);
   if (atomic_load_32(&monitorFlag) == 1) {
     taosRUnLockLatch(&monitorLock);
     return;
@@ -533,13 +471,15 @@ void reportSlowLog(void* param, void* tmrId) {
 
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   monitorReadSendSlowLog((*(SlowLogClient**)tmp)->pFile, pInst->pTransporter, &ep);
-  taosRUnLockLatch(&monitorLock);
 
-  taosTmrReset(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
+  if((*(SlowLogClient**)tmp)->timer == tmrId){
+    taosTmrReset(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &(*(SlowLogClient**)tmp)->timer);
+  }
+  taosWUnLockLatch(&monitorLock);
 }
 
-void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpPath){
-  taosRLockLatch(&monitorLock);
+static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpPath){
+  taosWLockLatch(&monitorLock);
   TdFilePtr pFile = NULL;
   void* tmp = taosHashGet(monitorSlowLogHash, &slowLogData->clusterId, LONG_BYTES);
   if (tmp == NULL){
@@ -594,10 +534,27 @@ void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpPath){
   uDebug("[monitor] write slow log to file:%p, clusterId:%"PRIx64, pFile, slowLogData->clusterId);
 
 FAILED:
-  taosRUnLockLatch(&monitorLock);
+  taosWUnLockLatch(&monitorLock);
 }
 
-void* monitorThreadFunc(void *param){
+static void restartReportTimer(int64_t clusterId){
+  taosWLockLatch(&monitorLock);
+
+  void* tmp = taosHashGet(monitorSlowLogHash, &clusterId, LONG_BYTES);
+  if(tmp){
+    taosTmrStopA(&(*(SlowLogClient**)tmp)->timer);
+    SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
+    if(pInst == NULL){
+      uError("failed to get app inst, clusterId:%"PRIx64, clusterId);
+      return;
+    }
+    (*(SlowLogClient**)tmp)->timer = taosTmrStart(reportSlowLog, pInst->monitorParas.tsMonitorInterval * 1000, (void*)clusterId, monitorTimer);
+
+  }
+  taosWUnLockLatch(&monitorLock);
+}
+
+static void* monitorThreadFunc(void *param){
   setThreadName("client-monitor-slowlog");
 
 #ifdef WINDOWS
@@ -605,10 +562,6 @@ void* monitorThreadFunc(void *param){
     atexit(monitorThreadFuncUnexpectedStopped);
   }
 #endif
-
-  if (-1 != atomic_val_compare_exchange_32(&slowLogFlag, -1, 0)) {
-    return NULL;
-  }
 
   char tmpPath[PATH_MAX] = {0};
   if (getSlowLogTmpDir(tmpPath, sizeof(tmpPath)) < 0){
@@ -631,6 +584,11 @@ void* monitorThreadFunc(void *param){
     uError("open queue error since %s", terrstr());
     return NULL;
   }
+
+  if (-1 != atomic_val_compare_exchange_32(&slowLogFlag, -1, 0)) {
+    return NULL;
+  }
+  uDebug("monitorThreadFunc start");
   while (1) {
     if (slowLogFlag > 0) break;
 
@@ -638,7 +596,13 @@ void* monitorThreadFunc(void *param){
     taosReadQitem(monitorQueue, (void**)&slowLogData);
     if (slowLogData != NULL) {
       uDebug("[monitor] read slow log data from queue, clusterId:%" PRIx64 " value:%s", slowLogData->clusterId, slowLogData->value);
-      monitorWriteSlowLog2File(slowLogData, tmpPath);
+      if (slowLogData->value == NULL){
+        monitorSendAllSlowLogFromTempDir(slowLogData->clusterId);
+      } else if(strlen(slowLogData->value) == 0){
+        restartReportTimer(slowLogData->clusterId);
+      } else{
+        monitorWriteSlowLog2File(slowLogData, tmpPath);
+      }
     }
     monitorFreeSlowLogData(slowLogData);
     taosFreeQitem(slowLogData);
@@ -649,4 +613,90 @@ void* monitorThreadFunc(void *param){
   tsem2_destroy(&monitorSem);
   slowLogFlag = -2;
   return NULL;
+}
+
+static int32_t tscMonitortInit() {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  TdThread monitorThread;
+  if (taosThreadCreate(&monitorThread, &thAttr, monitorThreadFunc, NULL) != 0) {
+    uError("failed to create monitor thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  return 0;
+}
+
+static void tscMonitorStop() {
+  if (atomic_val_compare_exchange_32(&slowLogFlag, 0, 1)) {
+    uDebug("monitor thread already stopped");
+    return;
+  }
+
+  while (atomic_load_32(&slowLogFlag) > 0) {
+    taosMsleep(100);
+  }
+}
+
+void monitorInit() {
+  uInfo("[monitor] tscMonitor init");
+  monitorCounterHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  if (monitorCounterHash == NULL) {
+    uError("failed to create monitorCounterHash");
+  }
+  taosHashSetFreeFp(monitorCounterHash, destroyMonitorClient);
+
+  monitorSlowLogHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  if (monitorSlowLogHash == NULL) {
+    uError("failed to create monitorSlowLogHash");
+  }
+  taosHashSetFreeFp(monitorSlowLogHash, destroySlowLogClient);
+
+  monitorTimer = taosTmrInit(0, 0, 0, "MONITOR");
+  if (monitorTimer == NULL) {
+    uError("failed to create monitor timer");
+  }
+
+  taosInitRWLatch(&monitorLock);
+  tscMonitortInit();
+}
+
+void monitorClose() {
+  uInfo("[monitor] tscMonitor close");
+  taosWLockLatch(&monitorLock);
+
+  if (atomic_val_compare_exchange_32(&monitorFlag, 0, 1)) {
+    uDebug("[monitor] monitorFlag is not 0");
+  }
+  tscMonitorStop();
+  sendAllSlowLog();
+  sendAllCounter();
+  taosHashCleanup(monitorCounterHash);
+  taosHashCleanup(monitorSlowLogHash);
+  taosTmrCleanUp(monitorTimer);
+  taosWUnLockLatch(&monitorLock);
+}
+
+int32_t monitorPutData2MonitorQueue(int64_t clusterId, char* value){
+  return -1;      // disable slow log monitor
+  MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
+  if (slowLogData == NULL) {
+    uError("[monitor] failed to allocate slow log data");
+    return -1;
+  }
+  slowLogData->clusterId = clusterId;
+  slowLogData->value = value;
+  uDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " value:%s", slowLogData->clusterId, slowLogData->value);
+  while (atomic_load_32(&slowLogFlag) == -1) {
+    taosMsleep(5);
+  }
+  if (taosWriteQitem(monitorQueue, slowLogData) == 0){
+    tsem2_post(&monitorSem);
+  }else{
+    monitorFreeSlowLogData(slowLogData);
+    taosFreeQitem(slowLogData);
+  }
+  return 0;
 }

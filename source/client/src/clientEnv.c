@@ -107,17 +107,17 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   }
   char clusterId[32] = {0};
   if (snprintf(clusterId, sizeof(clusterId), "%" PRId64, pTscObj->pAppInfo->clusterId) < 0){
-    uError("failed to generate clusterId:%" PRId64, pTscObj->pAppInfo->clusterId);
+    tscError("failed to generate clusterId:%" PRId64, pTscObj->pAppInfo->clusterId);
   }
 
   char startTs[32] = {0};
   if (snprintf(startTs, sizeof(startTs), "%" PRId64, pRequest->metric.start/1000) < 0){
-    uError("failed to generate startTs:%" PRId64, pRequest->metric.start/1000);
+    tscError("failed to generate startTs:%" PRId64, pRequest->metric.start/1000);
   }
 
   char requestId[32] = {0};
   if (snprintf(requestId, sizeof(requestId), "%" PRIu64, pRequest->requestId) < 0){
-    uError("failed to generate requestId:%" PRIu64, pRequest->requestId);
+    tscError("failed to generate requestId:%" PRIu64, pRequest->requestId);
   }
   cJSON_AddItemToObject(json, "cluster_id",  cJSON_CreateString(clusterId));
   cJSON_AddItemToObject(json, "start_ts",    cJSON_CreateString(startTs));
@@ -126,7 +126,7 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   cJSON_AddItemToObject(json, "code",         cJSON_CreateNumber(pRequest->code));
   cJSON_AddItemToObject(json, "error_info",   cJSON_CreateString(tstrerror(pRequest->code)));
   cJSON_AddItemToObject(json, "type",         cJSON_CreateNumber(reqType));
-  cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.totalRows));
+  cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows));
   if(strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
     char tmp = pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen];
     pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = '\0';
@@ -142,7 +142,7 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
 
   char pid[32] = {0};
   if (snprintf(pid, sizeof(pid), "%d", appInfo.pid) < 0){
-    uError("failed to generate pid:%d", appInfo.pid);
+    tscError("failed to generate pid:%d", appInfo.pid);
   }
 
   cJSON_AddItemToObject(json, "process_id",   cJSON_CreateString(pid));
@@ -153,25 +153,14 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   }else if(pRequest->pDb != NULL){
     cJSON_AddItemToObject(json, "db", cJSON_CreateString(pRequest->pDb));
   }else{
-    cJSON_AddItemToObject(json, "db", cJSON_CreateString("unknown"));
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(""));
   }
 
+  char* value = cJSON_PrintUnformatted(json);
+  if(monitorPutData2MonitorQueue(pTscObj->pAppInfo->clusterId, value) < 0){
+    taosMemoryFree(value);
+  }
 
-  MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
-  if (slowLogData == NULL) {
-    cJSON_Delete(json);
-    tscError("[monitor] failed to allocate slow log data");
-    return;
-  }
-  slowLogData->clusterId = pTscObj->pAppInfo->clusterId;
-  slowLogData->value = cJSON_PrintUnformatted(json);
-  tscDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " value:%s", slowLogData->clusterId, slowLogData->value);
-  if (taosWriteQitem(monitorQueue, slowLogData) == 0){
-    tsem2_post(&monitorSem);
-  }else{
-    monitorFreeSlowLogData(slowLogData);
-    taosFreeQitem(slowLogData);
-  }
   cJSON_Delete(json);
 }
 

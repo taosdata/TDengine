@@ -12822,6 +12822,8 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCtx) 
         code = parseTbnameToken(pMsgBuf, pParFileCtx->ctbName.tname, &token, &bFoundTbName);
       }
     }
+
+    if (TSDB_CODE_SUCCESS != code) break;
   }
 
   if (TSDB_CODE_SUCCESS == code) {  // may fail to handle json
@@ -12897,6 +12899,7 @@ static int32_t parseCsvFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt, SParseFi
       taosMemoryFreeClear(pParseFileCtx->pTag);
     }
 
+    pParseFileCtx->pTag = NULL;
     taosArrayClearEx(pParseFileCtx->aTagVals, clearTagValArrayFp);
   }
 
