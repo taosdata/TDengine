@@ -132,7 +132,16 @@ static int32_t sendReport(void* pTransporter, SEpSet *epSet, char* pCont, MONITO
   return code;
 }
 
-static bool monitorReadSendSlowLog(TdFilePtr pFile, void* pTransporter, SEpSet *epSet){
+static bool monitorReadSendSlowLog(TdFilePtr pFile, char* path, void* pTransporter, SEpSet *epSet){
+  int64_t filesize = 0;
+  if (taosStatFile(path, &filesize, NULL, NULL) < 0) {
+    return false;
+  }
+
+  if (filesize == 0) {
+    return true;
+  }
+
   char buf[SLOW_LOG_SEND_SIZE + 1] = {0};   // +1 for \0, for print log
   char pCont[SLOW_LOG_SEND_SIZE + 1] = {0};   // +1 for \0, for print log
   int32_t offset = 0;
@@ -291,7 +300,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId){
       continue;
     }
     SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-    bool truncated = monitorReadSendSlowLog(pFile, pInst->pTransporter, &ep);
+    bool truncated = monitorReadSendSlowLog(pFile, filename, pInst->pTransporter, &ep);
     taosUnLockFile(pFile);
     taosCloseFile(&pFile);
 
@@ -510,7 +519,7 @@ static void monitorSendAllSlowLog(bool quit){
     if(quit || (pInst != NULL && t - (*(SlowLogClient**)pIter)->lastCheckTime > pInst->monitorParas.tsMonitorInterval * 1000)) {
       (*(SlowLogClient**)pIter)->lastCheckTime = t;
       SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-      truncated = monitorReadSendSlowLog((*(SlowLogClient**)pIter)->pFile, pInst->pTransporter, &ep);
+      truncated = monitorReadSendSlowLog((*(SlowLogClient**)pIter)->pFile, (*(SlowLogClient**)pIter)->path, pInst->pTransporter, &ep);
     }
 
     if(quit){
