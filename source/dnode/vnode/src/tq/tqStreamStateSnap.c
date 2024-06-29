@@ -67,7 +67,7 @@ int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
 
 _err:
   tqError("vgId:%d, vnode %s snapshot reader failed to open since %s", TD_VID(pTq->pVnode), STREAM_STATE_TRANSFER,
-          tstrerror(code));
+          tstrerror(terrno));
   *ppReader = NULL;
   return code;
 }
@@ -145,14 +145,15 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
     goto _err;
   }
 
-  tqDebug("vgId:%d, vnode %s snapshot writer opened, path:%s", TD_VID(pTq->pVnode), STREAM_STATE_TRANSFER, pTq->pStreamMeta->path);
+  tqDebug("vgId:%d, vnode %s snapshot writer opened, path:%s", TD_VID(pTq->pVnode), STREAM_STATE_TRANSFER,
+          pTq->pStreamMeta->path);
   pWriter->pWriterImpl = pSnapWriter;
 
   *ppWriter = pWriter;
   return code;
 _err:
   tqError("vgId:%d, vnode %s snapshot writer failed to open since %s", TD_VID(pTq->pVnode), STREAM_STATE_TRANSFER,
-          tstrerror(code));
+          tstrerror(terrno));
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
   return -1;

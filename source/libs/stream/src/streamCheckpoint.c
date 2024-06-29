@@ -813,6 +813,11 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   SArray* pList = pTask->upstreamInfo.pList;
   ASSERT(pTask->info.taskLevel > TASK_LEVEL__SOURCE);
   SArray* pNotSendList = taosArrayInit(4, sizeof(SStreamUpstreamEpInfo));
+  if (pNotSendList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    stDebug("s-task:%s start to triggerMonitor, reason:%s", id, tstrerror(terrno));
+    return;
+  }
 
   for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
     SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pList, i);
@@ -1057,6 +1062,7 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
     }
 
     if (s3PutObjectFromFile2(filename, object, 0) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
       code = -1;
       stError("[s3] failed to upload checkpoint:%s", filename);
     } else {
@@ -1152,6 +1158,7 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path) {
 
 int32_t deleteCheckpoint(const char* id) {
   if (id == NULL || strlen(id) == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
     stError("deleteCheckpoint parameters invalid");
     return -1;
   }
