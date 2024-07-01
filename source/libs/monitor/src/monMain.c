@@ -24,6 +24,7 @@
 SMonitor tsMonitor = {0};
 char* tsMonUri = "/report";
 char* tsMonFwUri = "/general-metric";
+char* tsMonSlowLogUri = "/slow-sql-detail-batch";
 char* tsMonFwBasicUri = "/taosd-cluster-basic";
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
@@ -631,7 +632,7 @@ void monGenAndSendReportBasic() {
   monCleanupMonitorInfo(pMonitor);
 }
 
-void monSendContent(char *pCont) {
+void monSendContent(char *pCont, const char* uri) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
   if(tsMonitorLogProtocol){
     if (pCont != NULL){
@@ -640,7 +641,7 @@ void monSendContent(char *pCont) {
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    if (taosSendHttpReport(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
       uError("failed to send monitor msg");
     }
   }

@@ -115,8 +115,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (dbName == NULL) {
       return buildInvalidOperationMsg(pMsgBuf, msg3);
     }
-    if (name[0] == '\0')
-      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
+    if (name[0] == '\0') return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
 
     code = tNameSetDbName(pName, acctId, dbName, strlen(dbName));
     if (code != TSDB_CODE_SUCCESS) {
@@ -487,12 +486,12 @@ int insColDataComp(const void* lp, const void* rp) {
   return 0;
 }
 
-
-int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, int32_t* vgId, STableColsData* pTbData, SName* sname) {
+int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, int32_t* vgId,
+                                 STableColsData* pTbData, SName* sname) {
   if (*vgId >= 0 && taosHashGet(pAllVgHash, (const char*)vgId, sizeof(*vgId))) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   SVgroupInfo      vgInfo = {0};
   SRequestConnInfo conn = {.pTrans = pBuildInfo->transport,
                            .requestId = pBuildInfo->requestId,
@@ -503,23 +502,23 @@ int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuild
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  
+
   code = taosHashPut(pAllVgHash, (const char*)&vgInfo.vgId, sizeof(vgInfo.vgId), (char*)&vgInfo, sizeof(vgInfo));
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  
-  return TSDB_CODE_SUCCESS;      
+
+  return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData, uint64_t* uid, int32_t* vgId) {
+int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
+                             uint64_t* uid, int32_t* vgId) {
   STableVgUid* pTbInfo = NULL;
-  int32_t code = 0;
+  int32_t      code = 0;
 
   if (pTbData->getFromHash) {
     pTbInfo = (STableVgUid*)tSimpleHashGet(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName));
-  } 
+  }
 
   if (NULL == pTbInfo) {
     SName sname;
@@ -540,7 +539,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
-    
+
     *uid = pTableMeta->uid;
     *vgId = pTableMeta->vgId;
 
@@ -548,7 +547,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
 
     code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
-    
+
     taosMemoryFree(pTableMeta);
   } else {
     *uid = pTbInfo->uid;
@@ -557,7 +556,6 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
 
   return code;
 }
-
 
 int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -570,20 +568,19 @@ int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDa
   return code;
 }
 
-
-
-int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx, SStbInterlaceInfo* pBuildInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
+int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
+                                  SStbInterlaceInfo* pBuildInfo) {
+  int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
-  
+
   pTbCtx->pData->aRowP = pTbData->aCol;
-  
+
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  
+
   pTbCtx->pMeta->vgId = vgId;
   pTbCtx->pMeta->uid = uid;
   pTbCtx->pData->uid = uid;
@@ -611,24 +608,24 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   } else {
     pVgCxt = *(SVgroupDataCxt**)pp;
   }
-  
+
   if (TSDB_CODE_SUCCESS == code) {
     code = fillVgroupDataCxt(pTbCtx, pVgCxt, false, false);
   }
 
   if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
     code = qBuildStmtFinOutput1((SQuery*)pBuildInfo->pQuery, pAllVgHash, pBuildInfo->pVgroupList);
-    //taosArrayClear(pVgCxt->pData->aSubmitTbData);
+    // taosArrayClear(pVgCxt->pData->aSubmitTbData);
     tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
-    //insDestroyVgroupDataCxt(pVgCxt);
+    // insDestroyVgroupDataCxt(pVgCxt);
   }
 
   return code;
 }
 
 /*
-int32_t insMergeStmtTableDataCxt(STableDataCxt* pTableCxt, SArray* pTableList, SArray** pVgDataBlocks, bool isRebuild, int32_t tbNum) {
-  SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
+int32_t insMergeStmtTableDataCxt(STableDataCxt* pTableCxt, SArray* pTableList, SArray** pVgDataBlocks, bool isRebuild,
+int32_t tbNum) { SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   SArray*   pVgroupList = taosArrayInit(8, POINTER_BYTES);
   if (NULL == pVgroupHash || NULL == pVgroupList) {
     taosHashCleanup(pVgroupHash);
@@ -644,7 +641,7 @@ int32_t insMergeStmtTableDataCxt(STableDataCxt* pTableCxt, SArray* pTableList, S
     pTableCxt->pMeta->uid = pTableCols->uid;
     pTableCxt->pData->uid = pTableCols->uid;
     pTableCxt->pData->aCol = pTableCols->aCol;
-    
+
     SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, 0);
     if (pCol->nVal <= 0) {
       continue;
@@ -810,7 +807,7 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
     if (taosArrayGetSize(src->pData->aSubmitTbData) <= 0) {
       continue;
     }
-    SVgDataBlocks*  dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
+    SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -875,7 +872,8 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   }
 
   char* p = (char*)data;
-  // | version | total length | total rows | blankFill | total columns | flag seg| block group id | column schema | each column length |
+  // | version | total length | total rows | blankFill | total columns | flag seg| block group id | column schema | each
+  // column length |
   int32_t version = *(int32_t*)data;
   p += sizeof(int32_t);
   p += sizeof(int32_t);
@@ -890,7 +888,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   p += sizeof(uint64_t);
 
   int8_t* fields = p;
-  if(*fields >= TSDB_DATA_TYPE_MAX || *fields < 0){
+  if (*fields >= TSDB_DATA_TYPE_MAX || *fields < 0) {
     uError("fields type error:%d", *fields);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
@@ -911,7 +909,8 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     goto end;
   }
   if (tFields != NULL && numFields > boundInfo->numOfBound) {
-    if (errstr != NULL) snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
+    if (errstr != NULL)
+      snprintf(errstr, errstrLen, "numFields:%d bigger than num of bound cols:%d", numFields, boundInfo->numOfBound);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
@@ -920,8 +919,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       SSchema*  pColSchema = &pSchema[j];
       SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
       if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-        if (errstr != NULL) snprintf(errstr, errstrLen, "column type or bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
-                                     pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name, *(int32_t*)(fields + sizeof(int8_t)));
+        if (errstr != NULL)
+          snprintf(errstr, errstrLen,
+                   "column type or bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+                   pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+                   *(int32_t*)(fields + sizeof(int8_t)));
         ret = TSDB_CODE_INVALID_PARA;
         goto end;
       }
@@ -951,8 +953,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
         SSchema* pColSchema = &pSchema[j];
         if (strcmp(pColSchema->name, tFields[i].name) == 0) {
           if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-            if (errstr != NULL) snprintf(errstr, errstrLen, "column type or bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
-                                         pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name, *(int32_t*)(fields + sizeof(int8_t)));
+            if (errstr != NULL)
+              snprintf(errstr, errstrLen,
+                       "column type or bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+                       pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+                       *(int32_t*)(fields + sizeof(int8_t)));
             ret = TSDB_CODE_INVALID_PARA;
             goto end;
           }
@@ -986,7 +991,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       }
     }
 
-    if(!hasTs){
+    if (!hasTs) {
       if (errstr != NULL) snprintf(errstr, errstrLen, "timestamp column(primary key) not found in raw data");
       ret = TSDB_CODE_INVALID_PARA;
       goto end;

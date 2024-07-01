@@ -15,6 +15,7 @@
 
 #include "catalog.h"
 #include "clientInt.h"
+#include "clientMonitor.h"
 #include "clientLog.h"
 #include "cmdnodes.h"
 #include "os.h"
@@ -140,12 +141,24 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
+  pTscObj->pAppInfo->monitorParas = connectRsp.monitorParas;
+  tscDebug("[monitor] paras from connect rsp, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
+           connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold, connectRsp.monitorParas.tsSlowLogScope);
   lastClusterId = connectRsp.clusterId;
 
   pTscObj->connType = connectRsp.connType;
   pTscObj->passInfo.ver = connectRsp.passVer;
   pTscObj->authVer = connectRsp.authVer;
   pTscObj->whiteListInfo.ver = connectRsp.whiteListVer;
+
+  if(taosHashGet(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES) == NULL){
+    if(taosHashPut(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES, &pTscObj->pAppInfo, POINTER_BYTES) != 0){
+      tscError("failed to put appInfo into appInfo.pInstMapByClusterId");
+    }
+    monitorPutData2MonitorQueue(pTscObj->pAppInfo->clusterId, NULL);
+    monitorClientSlowQueryInit(connectRsp.clusterId);
+    monitorClientSQLReqInit(connectRsp.clusterId);
+  }
 
   taosThreadMutexLock(&clientHbMgr.lock);
   SAppHbMgr* pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
@@ -233,7 +246,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     struct SCatalog* pCatalog = NULL;
 
     if (usedbRsp.vgVersion >= 0) {  // cached in local
-      uint64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
+      int64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t  code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
         tscWarn("0x%" PRIx64 "catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->requestId, clusterId,

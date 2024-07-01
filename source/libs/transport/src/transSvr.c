@@ -1095,6 +1095,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   exh->handle = pConn;
   exh->pThrd = pThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  QUEUE_INIT(&exh->q);
   transAcquireExHandle(transGetRefMgt(), exh->refId);
 
   STrans* pTransInst = pThrd->pTransInst;

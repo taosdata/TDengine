@@ -53,7 +53,8 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
                     .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 0};
+                    .info.noResp = 0,
+                    .info.handle = 0};
   SEpSet  epset = {0};
 
   dmGetMnodeEpSet(pMgmt->pData, &epset);
@@ -116,6 +117,13 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
   req.clusterCfg.encryptionKeyChksum =  tsEncryptionKeyChksum;
+  req.clusterCfg.monitorParas.tsEnableMonitor = tsEnableMonitor;
+  req.clusterCfg.monitorParas.tsMonitorInterval = tsMonitorInterval;
+  req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
+  req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
+  req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
+  req.clusterCfg.monitorParas.tsSlowLogThresholdTest = tsSlowLogThresholdTest;
+  tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -147,7 +155,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
                     .msgType = TDMT_MND_STATUS,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 0};
+                    .info.noResp = 0,
+                    .info.handle = 0};
   SRpcMsg rpcRsp = {0};
 
   dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
@@ -179,7 +188,8 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
                     .msgType = TDMT_MND_NOTIFY,
                     .info.ahandle = (void *)0x9527,
                     .info.refId = 0,
-                    .info.noResp = 1};
+                    .info.noResp = 1,
+                    .info.handle = 0};
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
