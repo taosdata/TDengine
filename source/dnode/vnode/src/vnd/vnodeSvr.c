@@ -1175,7 +1175,7 @@ _exit:
   taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
   tEncoderClear(&encoder);
-  taosArrayDestroyP(tbNames, taosMemoryFree);
+  taosArrayDestroyP(tbNames, NULL);
   return rcode;
 }
 

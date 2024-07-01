@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tmempool.h"
+#include "osMemPool.h"
 #include "tmempoolInt.h"
 #include "tlog.h"
 #include "tutil.h"
@@ -22,8 +22,8 @@
 static SArray* gMPoolList = NULL;
 static TdThreadOnce  gMPoolInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex gMPoolMutex;
-static threadlocal void* threadPoolHandle = NULL;
-static threadlocal void* threadPoolSession = NULL;
+threadlocal void* threadPoolHandle = NULL;
+threadlocal void* threadPoolSession = NULL;
 
 
 int32_t memPoolCheckCfg(SMemPoolCfg* cfg) {
@@ -120,7 +120,7 @@ _return:
 
 int32_t memPoolNewChunk(SMemPool* pPool, SMPChunk** ppChunk) {
   SMPChunk* pChunk = NULL;
-  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->chunkCache, &pChunk));
+  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->chunkCache, (void**)&pChunk));
   
   pChunk->pMemStart = taosMemMalloc(pPool->cfg.chunkSize);
   if (NULL == pChunk->pMemStart) {
@@ -137,7 +137,7 @@ int32_t memPoolNewChunk(SMemPool* pPool, SMPChunk** ppChunk) {
 
 int32_t memPoolNewNSChunk(SMemPool* pPool, SMPNSChunk** ppChunk, int64_t chunkSize) {
   SMPNSChunk* pChunk = NULL;
-  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->NSChunkCache, &pChunk));
+  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->NSChunkCache, (void**)&pChunk));
   
   pChunk->pMemStart = taosMemMalloc(chunkSize);
   if (NULL == pChunk->pMemStart) {
@@ -156,10 +156,9 @@ int32_t memPoolNewNSChunk(SMemPool* pPool, SMPNSChunk** ppChunk, int64_t chunkSi
 
 
 int32_t memPoolPrepareChunks(SMemPool* pPool, int32_t num) {
-  SMPCacheGroup* pGrp = NULL;
   SMPChunk* pChunk = NULL;
   for (int32_t i = 0; i < num; ++i) {
-    MP_ERR_RET(memPoolNewChunk(pPool, &pGrp, &pChunk));
+    MP_ERR_RET(memPoolNewChunk(pPool, &pChunk));
 
     if (NULL == pPool->readyChunkTail) {
       pPool->readyChunkHead = pChunk;
@@ -221,7 +220,7 @@ int32_t memPoolInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
   MP_ERR_RET(memPoolAddCacheGroup(pPool, &pPool->NSChunkCache, NULL));
   MP_ERR_RET(memPoolAddCacheGroup(pPool, &pPool->sessionCache, NULL));
 
-  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->chunkCache, &pPool->readyChunkHead));
+  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->chunkCache, (void**)&pPool->readyChunkHead));
   pPool->readyChunkTail = pPool->readyChunkHead;
 
   MP_ERR_RET(memPoolEnsureChunks(pPool));
@@ -252,7 +251,7 @@ int32_t memPoolGetChunk(SMemPool* pPool, SMPChunk** ppChunk) {
     return TSDB_CODE_SUCCESS;
   }
 
-  MP_RET(memPoolNewChunk(pPool, NULL, ppChunk));
+  MP_RET(memPoolNewChunk(pPool, ppChunk));
 }
 
 int32_t memPoolGetChunkFromSession(SMemPool* pPool, SMPSession* pSession, int64_t size, SMPChunk** ppChunk, SMPChunk** ppPreChunk) {
@@ -275,6 +274,7 @@ int32_t memPoolGetChunkFromSession(SMemPool* pPool, SMPSession* pSession, int64_
 }
 
 void* memPoolAllocFromChunk(SMemPool* pPool, SMPSession* pSession, int64_t size) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SMPChunk* pChunk = NULL, *preSrcChunk = NULL;
   void* pRes = NULL;
   int64_t totalSize = size + sizeof(SMPMemHeader) + sizeof(SMPMemTailer);
@@ -318,6 +318,7 @@ _return:
 }
 
 void* memPoolAllocFromNSChunk(SMemPool* pPool, SMPSession* pSession, int64_t size) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SMPNSChunk* pChunk = NULL;
   void* pRes = NULL;
   int64_t totalSize = size + sizeof(SMPMemHeader) + sizeof(SMPMemTailer);
@@ -387,7 +388,7 @@ void memPoolFreeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr, char* fil
 }
 
 int64_t memPoolGetMemorySizeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr, char* fileName, int32_t lineNo) {
-  SMPMemHeader* pHeader = (char)ptr - sizeof(SMPMemHeader);
+  SMPMemHeader* pHeader = (SMPMemHeader*)ptr - 1;
 
   return pHeader->size;
 }
@@ -410,7 +411,7 @@ int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle) {
     MP_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  SMemPool* pPool = taosMemoryCalloc(1, sizeof(SMemPool));
+  pPool = (SMemPool*)taosMemoryCalloc(1, sizeof(SMemPool));
   if (NULL == pPool) {
     uError("calloc memory pool failed");
     MP_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
@@ -447,7 +448,7 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession) {
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = NULL;
 
-  MP_ERR_JRET(memPoolGetIdleNode(pPool, &pPool->sessionCache, &pSession));
+  MP_ERR_JRET(memPoolGetIdleNode(pPool, &pPool->sessionCache, (void**)&pSession));
 
   MP_ERR_JRET(memPoolGetChunk(pPool, &pSession->srcChunkHead));
 
@@ -474,7 +475,7 @@ void   *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* f
   int32_t code = TSDB_CODE_SUCCESS;
   
   if (NULL == poolHandle || NULL == session || NULL == fileName || size < 0) {
-    uError("%s invalid input param, handle:%p, session:%p, fileName:%p, size:%" PRId64, __FUNC__, poolHandle, session, fileName, size);
+    uError("%s invalid input param, handle:%p, session:%p, fileName:%p, size:%" PRId64, __FUNCTION__, poolHandle, session, fileName, size);
     MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
   }
 
@@ -493,7 +494,7 @@ void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t 
   
   if (NULL == poolHandle || NULL == session || NULL == fileName || num < 0 || size < 0) {
     uError("%s invalid input param, handle:%p, session:%p, fileName:%p, num:%" PRId64 ", size:%" PRId64, 
-      __FUNC__, poolHandle, session, fileName, num, size);
+      __FUNCTION__, poolHandle, session, fileName, num, size);
     MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
   }
 
@@ -520,7 +521,7 @@ void   *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t s
   
   if (NULL == poolHandle || NULL == session || NULL == fileName || size < 0) {
     uError("%s invalid input param, handle:%p, session:%p, fileName:%p, size:%" PRId64, 
-      __FUNC__, poolHandle, session, fileName, size);
+      __FUNCTION__, poolHandle, session, fileName, size);
     MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
   }
 
@@ -560,7 +561,7 @@ char   *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char
   
   if (NULL == poolHandle || NULL == session || NULL == fileName || NULL == ptr) {
     uError("%s invalid input param, handle:%p, session:%p, fileName:%p, ptr:%p", 
-      __FUNC__, poolHandle, session, fileName, ptr);
+      __FUNCTION__, poolHandle, session, fileName, ptr);
     MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
   }
 
@@ -585,7 +586,7 @@ void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName,
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == poolHandle || NULL == session || NULL == fileName || NULL == ptr) {
     uError("%s invalid input param, handle:%p, session:%p, fileName:%p, ptr:%p", 
-      __FUNC__, poolHandle, session, fileName, ptr);
+      __FUNCTION__, poolHandle, session, fileName, ptr);
     MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
   }
 
@@ -598,11 +599,11 @@ _return:
   return;
 }
 
-int32_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
+int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == poolHandle || NULL == session || NULL == fileName) {
-    uError("%s invalid input param, handle:%p, session:%p, fileName:%p, size:%p", 
-      __FUNC__, poolHandle, session, fileName, size);
+    uError("%s invalid input param, handle:%p, session:%p, fileName:%p", 
+      __FUNCTION__, poolHandle, session, fileName);
     MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
   }
 
@@ -612,7 +613,7 @@ int32_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, cha
 
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
-  MP_RET(memPoolGetMemorySizeImpl(pPool, pSession, ptr, fileName, lineNo));
+  return memPoolGetMemorySizeImpl(pPool, pSession, ptr, fileName, lineNo);
 
 _return:
 
@@ -624,7 +625,7 @@ void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment
   
   if (NULL == poolHandle || NULL == session || NULL == fileName || size < 0 || alignment < POINTER_BYTES || alignment % POINTER_BYTES) {
     uError("%s invalid input param, handle:%p, session:%p, fileName:%p, alignment:%u, size:%" PRId64, 
-      __FUNC__, poolHandle, session, fileName, alignment, size);
+      __FUNCTION__, poolHandle, session, fileName, alignment, size);
     MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
   }
 
@@ -644,5 +645,18 @@ void taosMemPoolClose(void* poolHandle) {
 void    taosMemPoolModDestroy(void) {
 
 }
+
+void taosAutoMemoryFree(void *ptr) {
+  if (NULL != threadPoolHandle) {
+    taosMemPoolFree(threadPoolHandle, threadPoolSession, ptr, __FILE__, __LINE__);
+  } else {
+    taosMemFree(ptr);
+  }
+}
+
+void    taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo) {
+
+}
+
 
 

@@ -3766,7 +3766,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
     if (TSDB_CODE_SUCCESS == code && pRealTable->pTsmas &&
         (pRealTable->pMeta->tableType == TSDB_CHILD_TABLE || pRealTable->pMeta->tableType == TSDB_NORMAL_TABLE)) {
       if (pRealTable->tsmaTargetTbVgInfo) {
-        taosArrayDestroyP(pRealTable->tsmaTargetTbVgInfo, taosMemoryFree);
+        taosArrayDestroyP(pRealTable->tsmaTargetTbVgInfo, NULL);
         pRealTable->tsmaTargetTbVgInfo = NULL;
       }
       char buf[TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN + 1];
@@ -5835,7 +5835,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
             taosMemoryFree(vgsInfo);
           }
         }
-        taosArrayDestroyP(pTbNames, taosMemoryFree);
+        taosArrayDestroyP(pTbNames, NULL);
         if (code) break;
       }
     }

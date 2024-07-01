@@ -100,3 +100,9 @@ void dsDestroyDataSinker(DataSinkHandle handle) {
   pHandleImpl->fDestroy(pHandleImpl);
   taosMemoryFree(pHandleImpl);
 }
+
+int32_t dsGetSinkFlags(DataSinkHandle handle, uint64_t* pFlags) {
+  SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
+  return pHandleImpl->fGetFlags(pHandleImpl, pFlags);
+}
+

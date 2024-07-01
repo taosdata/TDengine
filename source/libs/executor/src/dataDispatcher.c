@@ -49,6 +49,7 @@ typedef struct SDataDispatchHandle {
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  uint64_t            flags;
   void*               pCompressBuf;
   int32_t             bufSize;
   TdThreadMutex       mutex;
@@ -290,6 +291,15 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
+  SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
+
+  *pFlags = atomic_load_64(&pDispatcher->flags);
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
@@ -304,7 +314,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;
   dispatcher->sink.fGetCacheSize = getCacheSize;
-
+  dispatcher->sink.fGetFlags = getSinkFlags;
   dispatcher->pManager = pManager;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->status = DS_BUF_EMPTY;
@@ -318,6 +328,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
     goto _return;
   }
 
+  dispatcher->flags = DS_FLAG_USE_MEMPOOL;
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
 

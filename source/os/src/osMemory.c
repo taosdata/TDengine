@@ -313,7 +313,7 @@ void *taosMemRealloc(void *ptr, int64_t size) {
 #endif
 }
 
-char *taosStrdup(const char *ptr) {
+char *taosStrdupi(const char *ptr) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return NULL;
 

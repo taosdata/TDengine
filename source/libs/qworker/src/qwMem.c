@@ -15,7 +15,7 @@ int32_t qwGetMemPoolMaxMemSize(int64_t totalSize, int64_t* maxSize) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwGetMemPoolChunkSize(int64_t totalSize, int32_t threadNum, int64_t* chunkSize) {
+int32_t qwGetMemPoolChunkSize(int64_t totalSize, int32_t threadNum, int32_t* chunkSize) {
   *chunkSize = 2 * 1048576;
 
   return TSDB_CODE_SUCCESS;

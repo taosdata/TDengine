@@ -845,7 +845,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pReal->pMeta);
       taosMemoryFreeClear(pReal->pVgroupList);
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
-      taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, taosMemoryFree);
+      taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
       break;
     }
@@ -1365,7 +1365,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pTags);
       nodesDestroyNode(pLogicNode->pSubtable);
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
-      taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, taosMemoryFree);
+      taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pLogicNode->pTsmaTargetTbInfo);
       break;
     }

@@ -3952,7 +3952,7 @@ static void mndDestroyDropTbsWithTsmaCtx(SMndDropTbsWithTsmaCtx *p) {
     taosHashCleanup(p->pDbMap);
   }
   if (p->pResTbNames) {
-    taosArrayDestroyP(p->pResTbNames, taosMemoryFree);
+    taosArrayDestroyP(p->pResTbNames, NULL);
   }
   if (p->pTsmaMap) {
     void *pIter = taosHashIterate(p->pTsmaMap, NULL);

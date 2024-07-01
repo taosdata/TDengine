@@ -696,7 +696,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 _over:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
-  taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(subscribe.topicNames, NULL);
   return code;
 }
 

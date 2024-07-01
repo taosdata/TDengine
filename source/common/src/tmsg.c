@@ -9447,11 +9447,11 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, void *pRsp) {
 static void tDeleteMqDataRspCommon(void *rsp) {
   SMqDataRspCommon *pRsp = rsp;
   pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
-  taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockData, NULL);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;
-  taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockTbName, NULL);
   pRsp->blockTbName = NULL;
   tOffsetDestroy(&pRsp->reqOffset);
   tOffsetDestroy(&pRsp->rspOffset);
@@ -9500,7 +9500,7 @@ void tDeleteSTaosxRsp(void *rsp) {
 
   STaosxRsp *pRsp = (STaosxRsp *)rsp;
   pRsp->createTableLen = taosArrayDestroy(pRsp->createTableLen);
-  taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->createTableReq, NULL);
   pRsp->createTableReq = NULL;
 }
 
@@ -10787,7 +10787,7 @@ int32_t tSemiDecodeMqBatchMetaRsp(SDecoder *pDecoder, SMqBatchMetaRsp *pRsp) {
 
 void tDeleteMqBatchMetaRsp(SMqBatchMetaRsp *pRsp) {
   taosMemoryFreeClear(pRsp->pMetaBuff);
-  taosArrayDestroyP(pRsp->batchMetaReq, taosMemoryFree);
+  taosArrayDestroyP(pRsp->batchMetaReq, NULL);
   taosArrayDestroy(pRsp->batchMetaLen);
   pRsp->batchMetaReq = NULL;
   pRsp->batchMetaLen = NULL;

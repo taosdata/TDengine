@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_UTIL_MEMPOOL_H_
-#define _TD_UTIL_MEMPOOL_H_
+#ifndef _TD_OS_MEMPOOL_H_
+#define _TD_OS_MEMPOOL_H_
 
 #include "os.h"
 
@@ -50,6 +50,14 @@ void    taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fil
 void   *taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment, int64_t size, char* fileName, int32_t lineNo);
 void    taosMemPoolClose(void* poolHandle);
 void    taosMemPoolModDestroy(void);
+void    taosAutoMemoryFree(void *ptr);
+int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession);
+void    taosMemPoolDestroySession(void* session);
+
+
+extern threadlocal void* threadPoolHandle;
+extern threadlocal void* threadPoolSession;
+
 
 #define taosEnableMemoryPoolUsage(_pool, _session) do { threadPoolHandle = _pool; threadPoolSession = _session; } while (0) 
 #define taosDisableMemoryPoolUsage() (threadPoolHandle = NULL) 
@@ -76,4 +84,4 @@ void    taosMemPoolModDestroy(void);
 }
 #endif
 
-#endif /*_TD_UTIL_MEMPOOL_H_*/
+#endif /*_TD_OS_MEMPOOL_H_*/

@@ -18,7 +18,7 @@ SQWorkerMgmt gQwMgmt = {
     .qwNum = 0,
 };
 
-static TdThreadOnce  gQueryPoolInit = PTHREAD_ONCE_INIT;
+TdThreadOnce  gQueryPoolInit = PTHREAD_ONCE_INIT;
 
 int32_t qwStopAllTasks(SQWorker *mgmt) {
   uint64_t qId, tId, sId;
@@ -103,9 +103,9 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     }
 
     if (!ctx->needFetch) {
-      taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+      QW_SINK_ENABLE_MEMPOOL(ctx);
       dsGetDataLength(ctx->sinkHandle, &ctx->affectedRows, NULL, NULL);
-      taosDisableMemoryPoolUsage();
+      QW_SINK_DISABLE_MEMPOOL();
     }
   }
 
@@ -174,9 +174,10 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
       SSDataBlock *pRes = taosArrayGetP(pResList, j);
 
       SInputData inputData = {.pData = pRes};
-      taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+      QW_SINK_ENABLE_MEMPOOL(ctx);
       code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
-      taosDisableMemoryPoolUsage();
+      QW_SINK_DISABLE_MEMPOOL();
+      
       if (code) {
         QW_TASK_ELOG("dsPutDataBlock failed, code:%x - %s", code, tstrerror(code));
         QW_ERR_JRET(code);
@@ -204,9 +205,9 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
         ctx->queryExecDone = true;
       }
 
-      taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+      QW_SINK_ENABLE_MEMPOOL(ctx);
       dsEndPut(sinkHandle, useconds);
-      taosDisableMemoryPoolUsage();
+      QW_SINK_DISABLE_MEMPOOL();
       
       if (queryStop) {
         *queryStop = true;
@@ -312,9 +313,9 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
   *pRawDataLen = 0;
 
   while (true) {
-    taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+    QW_SINK_ENABLE_MEMPOOL(ctx);
     dsGetDataLength(ctx->sinkHandle, &len, &rawLen, &queryEnd);
-    taosDisableMemoryPoolUsage();
+    QW_SINK_DISABLE_MEMPOOL();
     
     if (len < 0) {
       QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64 "", len);
@@ -323,9 +324,9 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
 
     if (len == 0) {
       if (queryEnd) {
-        taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+        QW_SINK_ENABLE_MEMPOOL(ctx);
         code = dsGetDataBlock(ctx->sinkHandle, &output);
-        taosDisableMemoryPoolUsage();
+        QW_SINK_DISABLE_MEMPOOL();
 
         if (code) {
           QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -369,9 +370,9 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     ((int32_t *)output.pData)[1] = rawLen;
     output.pData += sizeof(int32_t) * 2;
 
-    taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+    QW_SINK_ENABLE_MEMPOOL(ctx);
     code = dsGetDataBlock(ctx->sinkHandle, &output);
-    taosDisableMemoryPoolUsage();
+    QW_SINK_DISABLE_MEMPOOL();
 
     if (code) {
       QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -422,9 +423,9 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   int32_t     code = 0;
   SOutputData output = {0};
 
-  taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+  QW_SINK_ENABLE_MEMPOOL(ctx);
   dsGetDataLength(ctx->sinkHandle, &len, &rawLen, &queryEnd);
-  taosDisableMemoryPoolUsage();
+  QW_SINK_DISABLE_MEMPOOL();
   
   if (len <= 0 || len != sizeof(SDeleterRes)) {
     QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64, len);
@@ -436,9 +437,9 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
     QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+  QW_SINK_ENABLE_MEMPOOL(ctx);
   code = dsGetDataBlock(ctx->sinkHandle, &output);
-  taosDisableMemoryPoolUsage();
+  QW_SINK_DISABLE_MEMPOOL();
 
   if (code) {
     QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -514,9 +515,9 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   ctx->queryEnd = false;
 #endif
 
-  taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+  QW_SINK_ENABLE_MEMPOOL(ctx);
   dsReset(ctx->sinkHandle);
-  taosDisableMemoryPoolUsage();
+  QW_SINK_DISABLE_MEMPOOL();
   
   qUpdateOperatorParam(ctx->taskHandle, qwMsg->msg);
 
@@ -788,8 +789,12 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
+  uint64_t flags = 0;
+  dsGetSinkFlags(sinkHandle, &flags);
+
   ctx->level = plan->level;
   ctx->dynamicTask = qIsDynamicExecTask(pTaskInfo);
+  ctx->sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
@@ -1272,6 +1277,11 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
 
   ctx.taskHandle = pTaskInfo;
   ctx.sinkHandle = sinkHandle;
+
+  uint64_t flags = 0;
+  dsGetSinkFlags(sinkHandle, &flags);
+
+  ctx.sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
 
   QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx, NULL));
 

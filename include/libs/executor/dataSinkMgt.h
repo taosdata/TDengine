@@ -29,6 +29,9 @@ extern "C" {
 #define DS_BUF_FULL  2
 #define DS_BUF_EMPTY 3
 
+#define DS_FLAG_USE_MEMPOOL (1 << 0)
+
+
 struct SSDataBlock;
 
 typedef struct SDeleterRes {
@@ -130,6 +133,9 @@ void dsScheduleProcess(void* ahandle, void* pItem);
  * @param handle
  */
 void dsDestroyDataSinker(DataSinkHandle handle);
+
+int32_t dsGetSinkFlags(DataSinkHandle handle, uint64_t* pFlags);
+
 
 #ifdef __cplusplus
 }

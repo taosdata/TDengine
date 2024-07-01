@@ -71,7 +71,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   pReq->data = taosArrayInit(numOfBlocks, POINTER_BYTES);
   pReq->dataLen = taosArrayInit(numOfBlocks, sizeof(int32_t));
   if (pReq->data == NULL || pReq->dataLen == NULL) {
-    taosArrayDestroyP(pReq->data, taosMemoryFree);
+    taosArrayDestroyP(pReq->data, NULL);
     taosArrayDestroy(pReq->dataLen);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -226,7 +226,7 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
 
 void destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups) {
   for (int32_t i = 0; i < numOfVgroups; i++) {
-    taosArrayDestroyP(pReq[i].data, taosMemoryFree);
+    taosArrayDestroyP(pReq[i].data, NULL);
     taosArrayDestroy(pReq[i].dataLen);
   }
 

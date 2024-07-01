@@ -423,7 +423,7 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
 void tmq_list_destroy(tmq_list_t* list) {
   if (list == NULL) return;
   SArray* container = &list->container;
-  taosArrayDestroyP(container, taosMemoryFree);
+  taosArrayDestroyP(container, NULL);
 }
 
 int32_t tmq_list_get_size(const tmq_list_t* list) {
@@ -509,7 +509,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   pMsgSendInfo->requestId = generateRequestId();
   pMsgSendInfo->requestObjRefId = 0;
   pMsgSendInfo->param = pParam;
-  pMsgSendInfo->paramFreeFp = taosMemoryFree;
+  pMsgSendInfo->paramFreeFp = taosMemFree;
   pMsgSendInfo->fp = tmqCommitCb;
   pMsgSendInfo->msgType = TDMT_VND_TMQ_COMMIT_OFFSET;
 
@@ -864,7 +864,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
-  sendInfo->paramFreeFp = taosMemoryFree;
+  sendInfo->paramFreeFp = taosMemFree;
   sendInfo->param = taosMemoryMalloc(sizeof(int64_t));
   *(int64_t*)sendInfo->param = refId;
   sendInfo->fp = tmqHbCb;
@@ -1315,7 +1315,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
 FAIL:
-  taosArrayDestroyP(req.topicNames, taosMemoryFree);
+  taosArrayDestroyP(req.topicNames, NULL);
 
   return code;
 }
@@ -3184,7 +3184,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       sendInfo->requestId = req.reqId;
       sendInfo->requestObjRefId = 0;
       sendInfo->param = pParam;
-      sendInfo->paramFreeFp = taosMemoryFree;
+      sendInfo->paramFreeFp = taosMemFree;
       sendInfo->fp = tmqGetWalInfoCb;
       sendInfo->msgType = TDMT_VND_TMQ_VG_WALINFO;
 

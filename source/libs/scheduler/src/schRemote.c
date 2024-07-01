@@ -617,7 +617,7 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
     SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  msgSendInfo->paramFreeFp = taosMemoryFree;
+  msgSendInfo->paramFreeFp = taosMemFree;
   SCH_ERR_JRET(schMakeCallbackParam(pJob, pTask, msgType, isHb, trans, &msgSendInfo->param));
 
   SCH_ERR_JRET(schGetCallbackFp(msgType, &msgSendInfo->fp));
@@ -788,7 +788,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   param->pTrans = pJob->conn.pTrans;
 
   pMsgSendInfo->param = param;
-  pMsgSendInfo->paramFreeFp = taosMemoryFree;
+  pMsgSendInfo->paramFreeFp = taosMemFree;
   pMsgSendInfo->fp = fp;
 
   SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo};
@@ -908,7 +908,7 @@ int32_t schCloneSMsgSendInfo(void *src, void **dst) {
   pDst->param = NULL;
 
   SCH_ERR_JRET(schCloneCallbackParam(pSrc->param, (SSchCallbackParamHeader **)&pDst->param));
-  pDst->paramFreeFp = taosMemoryFree;
+  pDst->paramFreeFp = taosMemFree;
 
   *dst = pDst;
 

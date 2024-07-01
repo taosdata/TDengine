@@ -141,6 +141,7 @@ typedef struct SQWTaskCtx {
   bool    queryExecDone;
   bool    queryInQueue;
   bool    explainRsped;
+  bool    sinkWithMemPool;
   int32_t rspCode;
   int64_t affectedRows;  // for insert ...select stmt
 
@@ -226,6 +227,17 @@ typedef struct SQWorkerMgmt {
 #define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId
 #define QW_IDS()       sId, qId, tId, rId, eId
 #define QW_FPARAMS()   mgmt, QW_IDS()
+
+extern void* gQueryPoolHandle;
+
+#define QW_SINK_ENABLE_MEMPOOL(_ctx)                                              \
+  do {                                                                            \
+    if ((_ctx)->sinkWithMemPool) {                                                \
+      taosEnableMemoryPoolUsage(gQueryPoolHandle, (_ctx)->memPoolSession);        \
+    }                                                                             \
+  } while (0)
+
+#define QW_SINK_DISABLE_MEMPOOL() taosDisableMemoryPoolUsage()
 
 #define QW_STAT_INC(_item, _n) atomic_add_fetch_64(&(_item), _n)
 #define QW_STAT_DEC(_item, _n) atomic_sub_fetch_64(&(_item), _n)
@@ -418,6 +430,7 @@ void    qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped);
 void    qwDbgSimulateSleep(void);
 void    qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped);
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
+void    qwInitQueryPool(void);
 
 #ifdef __cplusplus
 }

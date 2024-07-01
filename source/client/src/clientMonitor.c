@@ -124,7 +124,7 @@ static int32_t sendReport(void* pTransporter, SEpSet *epSet, char* pCont, MONITO
   pInfo->msgType = TDMT_MND_STATIS;
   // pInfo->param = taosMemoryMalloc(sizeof(int32_t));
   // *(int32_t*)pInfo->param = i;
-  pInfo->paramFreeFp = taosMemoryFree;
+  pInfo->paramFreeFp = taosMemFree;
   pInfo->requestId = tGenIdPI64();
   pInfo->requestObjRefId = 0;
 

@@ -45,6 +45,7 @@ typedef struct SDataInserterHandle {
   bool                fullOrderColList;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  uint64_t            flags;
   TdThreadMutex       mutex;
   tsem_t              ready;
   bool                explain;
@@ -113,7 +114,7 @@ static int32_t sendSubmitRequest(SDataInserterHandle* pInserter, void* pMsg, int
   pParam->pInserter = pInserter;
 
   pMsgSendInfo->param = pParam;
-  pMsgSendInfo->paramFreeFp = taosMemoryFree;
+  pMsgSendInfo->paramFreeFp = taosMemFree;
   pMsgSendInfo->msgInfo.pData = pMsg;
   pMsgSendInfo->msgInfo.len = msgLen;
   pMsgSendInfo->msgType = TDMT_VND_SUBMIT;
@@ -396,6 +397,13 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
+  SDataInserterHandle* pDispatcher = (SDataInserterHandle*)pHandle;
+
+  *pFlags = atomic_load_64(&pDispatcher->flags);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
                            void* pParam) {
   SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
@@ -412,6 +420,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   inserter->sink.fGetData = NULL;
   inserter->sink.fDestroy = destroyDataSinker;
   inserter->sink.fGetCacheSize = getCacheSize;
+  inserter->sink.fGetFlags = getSinkFlags;
   inserter->pManager = pManager;
   inserter->pNode = pInserterNode;
   inserter->pParam = pParam;

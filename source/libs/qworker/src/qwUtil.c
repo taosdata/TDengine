@@ -308,9 +308,9 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   qwFreeTaskHandle(&ctx->taskHandle);
 
   if (ctx->sinkHandle) {
-    taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+    QW_SINK_ENABLE_MEMPOOL(ctx);
     dsDestroyDataSinker(ctx->sinkHandle);
-    taosDisableMemoryPoolUsage();
+    QW_SINK_DISABLE_MEMPOOL();
     
     ctx->sinkHandle = NULL;
     qDebug("sink handle destroyed");

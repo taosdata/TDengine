@@ -212,7 +212,7 @@ void destroyPriorityQueue(PriorityQueue* pq) {
   if (pq->deleteFn)
     taosArrayDestroyP(pq->container, pq->deleteFn);
   else
-    taosArrayDestroy(pq->container);
+    taosArrayDestroyP(pq->container, NULL);
   taosMemoryFree(pq);
 }
 
@@ -299,7 +299,11 @@ PriorityQueueNode* taosPQPush(PriorityQueue* pq, const PriorityQueueNode* node) 
 
 void taosPQPop(PriorityQueue* pq) {
   PriorityQueueNode* top = taosPQTop(pq);
-  if (pq->deleteFn) pq->deleteFn(top->data);
+  if (pq->deleteFn) {
+    pq->deleteFn(top->data);
+  } else {
+    taosMemoryFree(top->data);
+  }
   pqRemove(pq, 0);
 }
 
@@ -335,7 +339,11 @@ PriorityQueueNode* taosBQPush(BoundedQueue* q, PriorityQueueNode* n) {
       void* p = top->data;
       top->data = n->data;
       n->data = p;
-      if (q->queue->deleteFn) q->queue->deleteFn(n->data);
+      if (q->queue->deleteFn) {
+        q->queue->deleteFn(n->data);
+      } else {
+        taosMemoryFree(n->data);
+      }
     }
     return pqHeapify(q->queue, 0, taosBQSize(q));
   } else {

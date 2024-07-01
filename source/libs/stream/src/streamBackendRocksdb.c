@@ -369,7 +369,7 @@ int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId
   if (code == 0) {
     code = remoteChkp_validAndCvtMeta(chkpPath, list, chkpId);
   }
-  taosArrayDestroyP(list, taosMemoryFree);
+  taosArrayDestroyP(list, NULL);
 
   if (code == 0) {
     taosMkDir(defaultPath);
@@ -4037,8 +4037,8 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   memset(p->buf, 0, p->len);
   sprintf(p->buf, "%s%s%s%scheckpoint%" PRId64 "", p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
 
-  taosArrayClearP(p->pAdd, taosMemoryFree);
-  taosArrayClearP(p->pDel, taosMemoryFree);
+  taosArrayClearP(p->pAdd, NULL);
+  taosArrayClearP(p->pDel, NULL);
   taosHashClear(p->pSstTbl[1 - p->idx]);
 
   TdDirPtr      pDir = taosOpenDir(p->buf);
@@ -4088,8 +4088,8 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
     int32_t code = compareHashTable(p->pSstTbl[p->idx], p->pSstTbl[1 - p->idx], p->pAdd, p->pDel);
     if (code != 0) {
       // dead code
-      taosArrayClearP(p->pAdd, taosMemoryFree);
-      taosArrayClearP(p->pDel, taosMemoryFree);
+      taosArrayClearP(p->pAdd, NULL);
+      taosArrayClearP(p->pDel, NULL);
       taosHashClear(p->pSstTbl[1 - p->idx]);
       p->update = 0;
       return code;
@@ -4140,9 +4140,9 @@ void dbChkpDestroy(SDbChkp* pChkp) {
   taosMemoryFree(pChkp->buf);
   taosMemoryFree(pChkp->path);
 
-  taosArrayDestroyP(pChkp->pSST, taosMemoryFree);
-  taosArrayDestroyP(pChkp->pAdd, taosMemoryFree);
-  taosArrayDestroyP(pChkp->pDel, taosMemoryFree);
+  taosArrayDestroyP(pChkp->pSST, NULL);
+  taosArrayDestroyP(pChkp->pAdd, NULL);
+  taosArrayDestroyP(pChkp->pDel, NULL);
 
   taosHashCleanup(pChkp->pSstTbl[0]);
   taosHashCleanup(pChkp->pSstTbl[1]);
@@ -4237,8 +4237,8 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   taosCloseFile(&pFile);
 
   // clear delta data buf
-  taosArrayClearP(p->pAdd, taosMemoryFree);
-  taosArrayClearP(p->pDel, taosMemoryFree);
+  taosArrayClearP(p->pAdd, NULL);
+  taosArrayClearP(p->pDel, NULL);
   code = 0;
 
 _ERROR:

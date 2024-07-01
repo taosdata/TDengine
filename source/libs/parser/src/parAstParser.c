@@ -45,7 +45,7 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void*   pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  void*   pParser = ParseAlloc((FMalloc)taosMemMalloc);
   int32_t i = 0;
   while (1) {
     SToken t0 = {0};
@@ -86,7 +86,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
-  ParseFree(pParser, (FFree)taosMemoryFree);
+  ParseFree(pParser, (FFree)taosMemFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
     if (TSDB_CODE_SUCCESS != code) {

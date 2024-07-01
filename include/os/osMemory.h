@@ -36,11 +36,6 @@ extern "C" {
 #endif  // ifndef ALLOW_FORBID_FUNC
 #endif  // if !defined(WINDOWS)
 
-// #define taosMemoryMalloc  malloc
-// #define taosMemoryCalloc  calloc
-// #define taosMemoryRealloc realloc
-// #define taosMemoryFree    free
-
 int32_t taosMemoryDbgInit();
 int32_t taosMemoryDbgInitRestore();
 void   *taosMemMalloc(int64_t size);
@@ -61,6 +56,7 @@ void   *taosMemMallocAlign(uint32_t alignment, int64_t size);
     }                              \
   } while (0)
 
+#include "osMemPool.h"  
 
 #ifdef __cplusplus
 }

@@ -1215,7 +1215,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = taosMemoryMalloc(sizeof(int32_t));
       *(int32_t *)pInfo->param = i;
-      pInfo->paramFreeFp = taosMemoryFree;
+      pInfo->paramFreeFp = taosMemFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
 

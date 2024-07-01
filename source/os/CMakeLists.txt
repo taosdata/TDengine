@@ -8,6 +8,7 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/contrib/pthread"
     PUBLIC "${TD_SOURCE_DIR}/contrib/iconv"
     PUBLIC "${TD_SOURCE_DIR}/contrib/msvcregex"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 # iconv
 if(TD_WINDOWS)

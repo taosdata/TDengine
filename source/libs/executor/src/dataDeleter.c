@@ -50,6 +50,7 @@ typedef struct SDataDeleterHandle {
   bool                queryEnd;
   uint64_t            useconds;
   uint64_t            cachedSize;
+  uint64_t            flags;
   TdThreadMutex       mutex;
 } SDataDeleterHandle;
 
@@ -239,6 +240,15 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
+  SDataDeleterHandle* pDispatcher = (SDataDeleterHandle*)pHandle;
+
+  *pFlags = atomic_load_64(&pDispatcher->flags);
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
                           void* pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -257,6 +267,7 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   deleter->sink.fGetData = getDataBlock;
   deleter->sink.fDestroy = destroyDataSinker;
   deleter->sink.fGetCacheSize = getCacheSize;
+  deleter->sink.fGetFlags = getSinkFlags;
   deleter->pManager = pManager;
   deleter->pDeleter = pDeleterNode;
   deleter->pSchema = pDataSink->pInputDataBlockDesc;
@@ -276,6 +287,7 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
+  deleter->flags = DS_FLAG_USE_MEMPOOL;
 
   *pHandle = deleter;
   return code;

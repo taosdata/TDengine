@@ -266,7 +266,7 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
 }
 
 void tCleanupStreamDispatchReq(SStreamDispatchReq* pReq) {
-  taosArrayDestroyP(pReq->data, taosMemoryFree);
+  taosArrayDestroyP(pReq->data, NULL);
   taosArrayDestroy(pReq->dataLen);
 }
 

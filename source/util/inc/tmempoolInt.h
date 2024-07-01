@@ -13,14 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_MEMPOOL_INT_H_
-#define _TD_UTIL_MEMPOOL_INT_H_
+#ifndef _TD_MEMPOOL_INT_H_
+#define _TD_MEMPOOL_INT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "os.h"
+#include "tlockfree.h"
 
 #define MP_CHUNK_CACHE_ALLOC_BATCH_SIZE 1000
 #define MP_NSCHUNK_CACHE_ALLOC_BATCH_SIZE 500
@@ -263,4 +264,4 @@ enum {
 }
 #endif
 
-#endif /* _TD_UTIL_MEMPOOL_INT_H_ */
+#endif /* _TD_MEMPOOL_INT_H_ */

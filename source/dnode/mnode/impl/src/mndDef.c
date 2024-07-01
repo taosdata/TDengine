@@ -317,10 +317,10 @@ END:
 
 void tClearSMqConsumerObj(SMqConsumerObj *pConsumer) {
   if (pConsumer == NULL) return;
-  taosArrayDestroyP(pConsumer->currentTopics, (FDelete)taosMemoryFree);
-  taosArrayDestroyP(pConsumer->rebNewTopics, (FDelete)taosMemoryFree);
-  taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
-  taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pConsumer->currentTopics, NULL);
+  taosArrayDestroyP(pConsumer->rebNewTopics, NULL);
+  taosArrayDestroyP(pConsumer->rebRemovedTopics, NULL);
+  taosArrayDestroyP(pConsumer->assignedTopics, NULL);
 }
 
 void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer) {
