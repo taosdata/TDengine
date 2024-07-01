@@ -139,10 +139,9 @@ typedef struct SQueryAutoQWorkerPool {
   int32_t       min;
   int32_t       maxInUse;
 
-  int32_t       activeN; // running workers and workers waiting at reading new queue msg
-  int32_t       runningN; // workers processing queue msgs, not include blocking/waitingA/waitingB workers.
-  TdThreadMutex activeLock;
-
+  int64_t       activeRunningN; // 4 bytes for activeN, 4 bytes for runningN
+  // activeN are running workers and workers waiting at reading new queue msgs
+  // runningN are workers processing queue msgs, not include blocking/waitingAfterBlock/waitingBeforeProcessMsg workers.
 
   int32_t       waitingAfterBlockN; // workers that recovered from blocking but waiting for too many running workers
   TdThreadMutex waitingAfterBlockLock;
