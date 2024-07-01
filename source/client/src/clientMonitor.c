@@ -401,7 +401,7 @@ static char* readFile(TdFilePtr pFile, int64_t *offset, bool* isEnd){
     if (readLen <= 0) {
       if (readLen < 0) {
         uError("failed to read len from file:%p since %s", pFile, terrstr());
-      }else{
+      }else if(totalSize == 0){
         *isEnd = true;
       }
       break;
@@ -414,6 +414,10 @@ static char* readFile(TdFilePtr pFile, int64_t *offset, bool* isEnd){
   strcat(pCont, "]");
   uDebug("[monitor] monitorReadSendSlowLog slow log:%s", pCont);
   *offset += totalSize;
+  if(*isEnd){
+    taosMemoryFree(pCont);
+    return NULL;
+  }
   return pCont;
 }
 
@@ -450,7 +454,9 @@ static void monitorSendSlowLogAtBeginning(int64_t clusterId, char* fileName, TdF
     taosRemoveFile(fileName);
     uDebug("[monitor] monitorSendSlowLogAtBeginning delete file:%s", fileName);
   }else{
-    sendSlowLog(clusterId, data, pFile, offset, SLOW_LOG_READ_BEGINNIG, taosStrdup(fileName), pTransporter, epSet);
+    if(data != NULL){
+      sendSlowLog(clusterId, data, pFile, offset, SLOW_LOG_READ_BEGINNIG, taosStrdup(fileName), pTransporter, epSet);
+    }
     uDebug("[monitor] monitorSendSlowLogAtBeginning send slow log file:%p", pFile);
   }
 }
@@ -534,7 +540,7 @@ static void monitorSendAllSlowLog(){
       bool isEnd = false;
       int64_t offset = 0;
       char* data = readFile(pClient->pFile, &offset, &isEnd);
-      if(data){
+      if(data != NULL){
         sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
       }
       uDebug("[monitor] monitorSendAllSlowLog send slow log :%s", data);
