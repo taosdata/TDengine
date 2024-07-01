@@ -133,7 +133,7 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
 }
 
 int32_t initTaskQueue() {
-  taskQueue.wrokrerPool.name = "tsc";
+  taskQueue.wrokrerPool.name = "taskWorkPool";
   taskQueue.wrokrerPool.min = tsNumOfTaskQueueThreads;
   taskQueue.wrokrerPool.max = tsNumOfTaskQueueThreads;
   int32_t coce = tQueryAutoQWorkerInit(&taskQueue.wrokrerPool);
