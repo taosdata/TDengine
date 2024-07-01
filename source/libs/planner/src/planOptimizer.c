@@ -4056,6 +4056,8 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pScan->igLastNull = pAgg->hasLast ? true : false;
   SArray* isDuplicateCol = taosArrayInit(pScan->pScanCols->length, sizeof(bool));
   SNodeList* pLastRowCols = NULL;
+  bool       adjLastRowTsColName = false;
+  char       tsColName[TSDB_COL_NAME_LEN] = {0};      
 
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
@@ -4094,6 +4096,11 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
                 sprintf(((SColumnNode*)newColNode)->colName, "#dup_col.%p", newColNode);
                 sprintf(((SColumnNode*)pParamNode)->colName, "#dup_col.%p", newColNode);
 
+                if (FUNCTION_TYPE_LAST_ROW == funcType && ((SColumnNode*)pParamNode)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+                  adjLastRowTsColName = true;
+                  strncpy(tsColName, ((SColumnNode*)pParamNode)->colName, TSDB_COL_NAME_LEN);
+                }
+
                 nodesListAppend(pScan->pScanCols, newColNode);
                 isDup = true;
                 taosArrayInsert(isDuplicateCol, pScan->pScanCols->length, &isDup);
@@ -4112,7 +4119,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
                 lastRowScanBuildFuncTypes(pScan, (SColumnNode*)pColNode, pFunc->funcType);
               }
               continue;
-            }else if (nodeListNodeEqual(pFunc->pParameterList, pColNode)) {
+            } else if (nodeListNodeEqual(pFunc->pParameterList, pColNode)) {
               if (funcType != FUNCTION_TYPE_LAST && ((SColumnNode*)pColNode)->colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
                   !nodeListNodeEqual(pLastRowCols, pColNode)) {
                 nodesListMakeAppend(&pLastRowCols, nodesCloneNode(pColNode));
@@ -4139,6 +4146,10 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
       }
       if (pFunc->hasPk) {
         nodesListMakeAppend(&cxt.pOtherCols, nodesListGetNode(pFunc->pParameterList, LIST_LENGTH(pFunc->pParameterList) - 1));
+      }
+      if (FUNCTION_TYPE_LAST_ROW == funcType && adjLastRowTsColName) {
+        SNode* pParamNodeTs = nodesListGetNode(pFunc->pParameterList, 1);
+        strncpy(((SColumnNode*)pParamNodeTs)->colName, tsColName, TSDB_COL_NAME_LEN);
       }
     } else {
       pNode = nodesListGetNode(pFunc->pParameterList, 0);
