@@ -145,6 +145,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
 
   pMsg->vgId = pMeta->vgId;
   pMsg->msgId = pMeta->pHbInfo->hbCount;
+
   pMsg->pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
   pMsg->pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
@@ -215,6 +216,8 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     doSendHbMsgInfo(pMsg, pMeta, &epset);
   } else {
     stDebug("vgId:%d no tasks or no mnd epset, not send stream hb to mnode", pMeta->vgId);
+    tCleanupStreamHbMsg(&pInfo->hbMsg);
+    pInfo->msgSendTs = -1;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -330,8 +333,6 @@ int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
 
     pInfo->hbCount += 1;
     pInfo->msgSendTs = -1;
-
-    tCleanupStreamHbMsg(&pInfo->hbMsg);
   } else {
     stWarn("vgId:%d recv expired hb rsp, msgId:%d, discarded", pMeta->vgId, pRsp->msgId);
   }
