@@ -71,7 +71,7 @@ class TDTestQuery(TDCase):
                      'rpcDebugFlag','timezone','qDebugFlag','locale','charset','assert','enableCoreFile','numOfCores','SSE42','AVX','AVX2',
                      'FMA','SIMD-builtins','tagFilterCache','openMax','streamMax','pageSizeKB','totalMemoryKB','os sysname',
                      'os nodename','os release','os version','os machine','version','compatible_version','gitinfo','buildinfo','keepAliveIdle','ssd42','avx','avx2',
-                     'fma','avx512','simdEnable','experimental','crashReporting','monitor','monitorInterval','countAlwaysReturnValue','','',''];
+                     'fma','avx512','simdEnable','experimental','crashReporting','monitor','monitorInterval','countAlwaysReturnValue','AVX512Enable','',''];
         
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                        'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
@@ -106,7 +106,7 @@ class TDTestQuery(TDCase):
                         'countAlwaysReturnValue','numOfRpcThreads','numOfRpcSessions','timeToGetAvailableConn','rpcQueueMemoryAllowed',
                         'crashReporting','telemetryReporting','telemetryInterval','telemetryServer','telemetryPort','configDir','scriptDir',
                         'logDir','minimalLogDirGB','numOfLogLines','asyncLog','logKeepDays','debugFlag','sDebugFlag','keepAliveIdle','rsyncPort',
-                        'ssd42','avx','avx2','fma','avx512','simdEnable','experimental','monitor','monitorInterval','','','','','','',''];
+                        'ssd42','avx','avx2','fma','avx512','simdEnable','experimental','monitor','monitorInterval','AVX512Enable','','','','','',''];
     
         list_client = ['queryPolicy','enableQueryHb','enableScience','querySmaOptimize','queryPlannerTrace','queryNodeChunkSize','queryUseNodeAllocator',
                         'keepColumnName','smlChildTableName','smlTagName','maxInsertBatchRows','useAdapter','queryMaxConcurrentTables','metaCacheMaxSize',
@@ -131,7 +131,7 @@ class TDTestQuery(TDCase):
                         's3UploadDelaySec','sDebugFlag','stDebugFlag','sndDebugFlag','auditInterval','compactPullupInterval','encryptAlgorithm','encryptScope',
                         'syncSnapReplMaxWaitN','arbHeartBeatIntervalSec','arbCheckSyncIntervalSec','arbSetAssignedTimeoutSec','monitorLogProtocol',
                         'monitorIntervalForBasic','monitorForceV2','tmqRowSize','maxTsmaNum','s3MigrateIntervalSec','s3MigrateEnabled','streamAggCnt',
-                        'concurrentCheckpoint','retentionSpeedLimitMB','','','','','','','','']
+                        'concurrentCheckpoint','retentionSpeedLimitMB','slowLogThresholdTest','slowLogThreshold','slowLogMaxLen','slowLogScope','slowLogExceptDb','','','']
         
         
         dnodes_list = []
