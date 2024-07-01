@@ -42,6 +42,7 @@ extern "C" {
 // #include "tstream.h"
 // #include "tstreamUpdate.h"
 #include "tlrucache.h"
+#include "tworker.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 

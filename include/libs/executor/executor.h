@@ -57,6 +57,7 @@ typedef struct {
   STimeWindow winRange;
 
   struct SStorageAPI api;
+  void*              pWorkerCb;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg

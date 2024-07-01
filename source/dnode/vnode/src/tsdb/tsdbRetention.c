@@ -361,7 +361,7 @@ _exit:
   TARRAY2_DESTROY(&rtner.fopArr, NULL);
   taosMemoryFree(arg);
   if (code) {
-    tsdbError("vgId:%d, %s failed, code:%d, line:%d", TD_VID(((SRtnArg *)arg)->tsdb->pVnode), __func__, code, lino);
+    tsdbError("vgId:%d, %s failed, code:%d, line:%d", TD_VID(pTsdb->pVnode), __func__, code, lino);
   }
   return code;
 }

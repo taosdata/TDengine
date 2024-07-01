@@ -54,6 +54,7 @@ extern "C" {
 #define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
 typedef int32_t (*MndMsgFp)(SRpcMsg *pMsg);
+typedef int32_t (*MndMsgFpExt)(SRpcMsg *pMsg, SQueueInfo* pInfo);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
 typedef int32_t (*ShowRetrieveFp)(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -137,11 +138,13 @@ typedef struct SMnode {
   SEncryptMgmt   encryptMgmt;
   SGrantInfo     grant;
   MndMsgFp       msgFp[TDMT_MAX];
+  MndMsgFpExt    msgFpExt[TDMT_MAX];
   SMsgCb         msgCb;
   int64_t        ipWhiteVer;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
+void    mndSetMsgHandleExt(SMnode *pMnode, tmsg_t msgType, MndMsgFpExt fp);
 int64_t mndGenerateUid(const char *name, int32_t len);
 
 void mndSetRestored(SMnode *pMnode, bool restored);

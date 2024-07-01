@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tqueue.h"
 #include "executor.h"
 #include "qndInt.h"
 #include "query.h"
@@ -24,6 +25,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
     qError("calloc SQnode failed");
     return NULL;
   }
+  pQnode->qndId = QNODE_HANDLE;
 
   if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, (void **)&pQnode->pQuery, &pOption->msgCb)) {
     taosMemoryFreeClear(pQnode);
@@ -72,9 +74,10 @@ int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg, false);
 }
 
-int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
+int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo* pInfo, SRpcMsg *pMsg) {
   int32_t     code = -1;
-  SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
+  int64_t ts = pInfo->timestamp;
+  SReadHandle handle = {.pMsgCb = &pQnode->msgCb, .pWorkerCb = pInfo->workerCb};
   qTrace("message in qnode queue is processing");
 
   switch (pMsg->msgType) {

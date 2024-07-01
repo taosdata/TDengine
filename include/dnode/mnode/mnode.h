@@ -109,7 +109,7 @@ int64_t mndGetRoleTimeMs(SMnode *pMnode);
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndProcessRpcMsg(SRpcMsg *pMsg);
+int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo* pQueueInfo);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
 int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg);
 void    mndPostProcessQueryMsg(SRpcMsg *pMsg);

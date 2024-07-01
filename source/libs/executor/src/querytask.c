@@ -96,6 +96,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   TSWAP((*pTaskInfo)->sql, sql);
 
   (*pTaskInfo)->pSubplan = pPlan;
+  (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
   (*pTaskInfo)->pRoot = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond,
                                        pPlan->user, pPlan->dbFName);
 
