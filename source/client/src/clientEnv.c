@@ -157,7 +157,8 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   }
 
   char* value = cJSON_PrintUnformatted(json);
-  if(monitorPutData2MonitorQueue(pTscObj->pAppInfo->clusterId, value) < 0){
+  MonitorSlowLogData data = {.clusterId = pTscObj->pAppInfo->clusterId, .type = SLOW_LOG_WRITE, .data = value};
+  if(monitorPutData2MonitorQueue(data) < 0){
     taosMemoryFree(value);
   }
 
