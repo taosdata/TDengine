@@ -515,7 +515,8 @@ void streamMetaCloseImpl(void* arg) {
   taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
   taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
 
-  taosMemoryFree(pMeta->pHbInfo);
+  pMeta->pHbInfo = destroyMetaHbInfo(pMeta->pHbInfo);
+
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);
 

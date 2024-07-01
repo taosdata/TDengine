@@ -279,6 +279,21 @@ SMetaHbInfo* createMetaHbInfo(int64_t* pRid) {
   return pInfo;
 }
 
+void* destroyMetaHbInfo(SMetaHbInfo* pInfo) {
+  if (pInfo != NULL) {
+    tCleanupStreamHbMsg(&pInfo->hbMsg);
+
+    if (pInfo->hbTmr != NULL) {
+      taosTmrStop(pInfo->hbTmr);
+      pInfo->hbTmr = NULL;
+    }
+
+    taosMemoryFree(pInfo);
+  }
+
+  return NULL;
+}
+
 void streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta) {
   // wait for the stream meta hb function stopping
   if (pMeta->role == NODE_ROLE_LEADER) {
@@ -315,6 +330,8 @@ int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
 
     pInfo->hbCount += 1;
     pInfo->msgSendTs = -1;
+
+    tCleanupStreamHbMsg(&pInfo->hbMsg);
   } else {
     stWarn("vgId:%d recv expired hb rsp, msgId:%d, discarded", pMeta->vgId, pRsp->msgId);
   }

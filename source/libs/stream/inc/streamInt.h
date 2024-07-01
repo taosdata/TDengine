@@ -220,6 +220,7 @@ int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 void         streamMetaRemoveDB(void* arg, char* key);
 void         streamMetaHbToMnode(void* param, void* tmrId);
 SMetaHbInfo* createMetaHbInfo(int64_t* pRid);
+void*        destroyMetaHbInfo(SMetaHbInfo* pInfo);
 void         streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
 void         streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
 int32_t      streamMetaSendHbHelper(SStreamMeta* pMeta);
