@@ -828,8 +828,6 @@ TEST(clientCase, projection_query_tables) {
   //    printf("error in create db, reason:%s\n", taos_errstr(pRes));
   //  }
   //  taos_free_result(pRes);
-  TAOS_RES* pRes = NULL;
-
   pRes= taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
