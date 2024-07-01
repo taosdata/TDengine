@@ -180,6 +180,7 @@ impl CsvParser {
         let mut node_config = Vec::new();
 
         for point_id in point_config_map.keys() {
+            // filter out disabled points
             if let Some(table_config) = table_config_map.get(point_id) {
                 if table_config.enabled == Some(0i8) {
                     continue;

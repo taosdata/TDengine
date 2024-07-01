@@ -6,7 +6,13 @@ use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use tonic::{Status, Streaming};
+use tracing::{instrument, Instrument, Span};
+use zerocopy::{AsBytes as _, FromBytes};
+
+use taosx_core::sink::handle_point_message_init;
 use taosx_core::{
     core_metrics::get_metrics,
     sink::{
@@ -20,9 +26,6 @@ use taosx_core::{
     },
     ConnectorLicense, IpcStreamWorker, Parser,
 };
-use tonic::{Status, Streaming};
-use tracing::{instrument, Instrument, Span};
-use zerocopy::{AsBytes as _, FromBytes};
 
 use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
@@ -41,8 +44,6 @@ pub struct PutStream {
     cluster_id: i64,
     agent_id: i64,
 }
-
-use serde::{Deserialize, Serialize};
 
 // type PutStreamReceiver = flume::Receiver<Result<PutResult, Status>>;
 type PutStreamInner = flume::r#async::RecvStream<'static, Result<PutResult, Status>>;
@@ -144,6 +145,10 @@ async fn ipc_stream_writer(
             let req_id = RequestID::new(stream_trace_id.as_u64());
             handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
         }
+    }
+    // handle point message init
+    if let Some(opc_model_config) = worker.opc_model_config() {
+        handle_point_message_init(opc_model_config, &taos).await?;
     }
 
     if let Some(init) = metadata.init() {
