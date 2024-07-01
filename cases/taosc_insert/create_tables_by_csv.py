@@ -19,6 +19,11 @@ import os
 import threading
 import time
 import csv
+from shapely.geometry import Point
+from shapely import wkb
+from shapely.geometry.base import BaseGeometry
+
+import datetime
 
 class CreateTablesByCSV(TDCase):
     def init(self):
@@ -45,10 +50,11 @@ class CreateTablesByCSV(TDCase):
         self.tdCom.default_nchar_length = 64
         self.tablename_startid = 1
         self.csv_file = f'{os.path.dirname(os.path.abspath(__file__))}/{self.stbname}.csv'
-        
+        self.perf_varchar_len = 4
         self.other_files = [f'{os.path.dirname(os.path.abspath(__file__))}/{self.stbname}.txt', f'{os.path.dirname(os.path.abspath(__file__))}/{self.stbname}.xlsx']
-        
-        
+        self.custom_tag_offset = 0
+        self.perf_type_count = 3
+        self.tdCom.Boundary.GEOMETRY_BOUNDARY = self.GEOMETRY_BOUNDARY = ["point(1.0 1.0)"]
         
         
     def create_db(self):
@@ -91,6 +97,20 @@ class CreateTablesByCSV(TDCase):
                     tag_fields_value = "1," * custom_tag_count
                     f.write(f'{tag_fields_value}"ctb{idx}"\n')
             return tag_str_exceed, tag_str
+        elif custom_tag_count > 0 and custom_tag_count < 128:
+            # custom_tag_offset = custom_tag_count
+            int_tag_str = ','.join(map(lambda i: f't{i} int', range(custom_tag_count)))
+            double_tag_str = ','.join(map(lambda i: f't{i} double', range(custom_tag_count, custom_tag_count*2)))
+            varchar_tag_str = ','.join(map(lambda i: f't{i} varchar({self.perf_varchar_len})', range(custom_tag_count*2, custom_tag_count*3)))
+            tag_str = int_tag_str + "," + double_tag_str + "," + varchar_tag_str
+            with open(import_file, 'w') as f:
+                for idx in range(ctable_count):
+                    int_tag_fields_value = f"{idx}," * custom_tag_count
+                    float_tag_fields_value = f"{idx}.{idx}," * custom_tag_count
+                    varchar_tag_fields_value = f'"{self.tdCom.get_long_name(self.perf_varchar_len)}",' * custom_tag_count
+                    tag_fields_value = int_tag_fields_value + float_tag_fields_value + varchar_tag_fields_value
+                    f.write(f'{tag_fields_value}"ctb{idx}"\n')
+            return tag_str
         else:
             with open(import_file, 'w') as f:
                 # for row_num in range(row_count):
@@ -136,15 +156,40 @@ class CreateTablesByCSV(TDCase):
             csv_reader = csv.reader(file)
             data_list = [row for row in csv_reader]
         self.tdSql.query(f'select {tag_str} from {self.dbname}.{tbname}')
-        print(self.tdSql.query_data)
-        print(data_list[0])
+        query_data = self.tdSql.query_data
+        new_data_list = list()
+        for res in query_data:
+            for row in res:
+                if isinstance(row, datetime.datetime):
+                    item_str = row.strftime('%Y-%m-%d %H:%M:%S.%f')
+                elif isinstance(row, BaseGeometry):
+                    item_str = wkb.dumps(row)
+                elif isinstance(row, bytes):
+                    if res.index(row) == self.common_type_list.index('geometry'):
+                        point = wkb.loads(row)
+                        print(point)
+                        item_str = "point({:.1f} {:.1f})".format(point.x, point.y)
+
+                    else:
+                        item_str = row.decode('utf-8')
+                else:
+                    item_str = str(row)
+                new_data_list.append(str(item_str))
+        float_index = self.common_type_list.index('float')
+        
+        if 0.9 < float(new_data_list[float_index])/float(data_list[0][:-1][float_index]) < 1.1:
+            new_data_list[float_index] = str(data_list[0][:-1][float_index])
+        # print(self.tdSql.query_data)
+        print(new_data_list)
+        print(data_list[0][:-1])
+        self.tdSql.checkEqual(new_data_list, data_list[0][:-1])
 
     def create_ctables_by_tag_and_tbname(self, table_count=10):
-        # self.init_env()
-        # self.gen_csv(ctable_count=table_count, row_count=table_count)
-        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
-        # self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
-        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
+        self.init_env()
+        self.gen_csv(ctable_count=table_count, row_count=table_count)
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
         self.check_res(self.stbname, self.common_tag_name_str, self.csv_file)
         
         
@@ -339,12 +384,22 @@ class CreateTablesByCSV(TDCase):
         end = time.time()
         perf = int(table_count/(end - start))
         self.logger.info(f'create {table_count} tables by csv cost {end-start:.2f}s, and QPS is {perf}tables/s')
+        
+    def create_ctables_by_diff_tag_and_tbname_perf(self, table_count=10, custom_tag_count=1):
+        tag_str = self.gen_csv(ctable_count=table_count, custom_tag_count=custom_tag_count)
+        self.init_env(tag_type_str=tag_str)
+        tag_cnt_str = ",".join([f't{i}' for i in range(custom_tag_count*self.perf_type_count)]) + ",tbname"
+        start = time.time()
+        self.create_tables_by_csv(tag_fields=tag_cnt_str, csv=self.csv_file)
+        end = time.time()
+        perf = int(table_count/(end - start))
+        self.logger.info(f'create {table_count} tables with {custom_tag_count*self.perf_type_count} tags by csv cost {end-start:.2f}s, and QPS is {perf}tables/s')
 
     def run(self):
         # self.gen_csv(custom_tag_count=128)
         # print(self.tdCom.gen_default_tag_str())
         # return
-        # self.create_ctables_by_tag_and_tbname()
+        self.create_ctables_by_tag_and_tbname()
         # self.create_ctables_by_notag_and_tbname()
         # self.create_ctables_by_128tag_and_tbname(use_except=True)
         # self.create_ctables_by_tag_and_tbname_with_note()
@@ -374,7 +429,19 @@ class CreateTablesByCSV(TDCase):
         # self.threading_create_ctables(dup_tbname=True)
         
         # perf test
-        self.create_ctables_by_tag_and_tbname_perf(table_count=5000)
+        
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=1)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=2)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=4)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=8)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=16)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=32)
+        # ! TD-30856
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=1000000, custom_tag_count=32)
+        # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=10000000, custom_tag_count=32)
+        
+        # stability
+        # self.create_ctables_by_tag_and_tbname_perf(5000)
         
         
         
