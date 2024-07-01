@@ -15,7 +15,7 @@ toc_max_heading_level: 4
 TDengine 多级存储配置方式如下（在配置文件/etc/taos/taos.cfg 中）：
 
 ```
-dataDir [path] <level> <primary>
+dataDir [path] <level> <primary> <disable_create_new_file>
 ```
 
 - path: 挂载点的文件夹路径
@@ -25,16 +25,17 @@ dataDir [path] <level> <primary>
   同一存储等级可挂载多个硬盘，同一存储等级上的数据文件分布在该存储等级的所有硬盘上。
   需要说明的是，数据在不同级别的存储介质上的移动，是由系统自动完成的，用户无需干预。
 - primary: 是否为主挂载点，0（否）或 1（是），省略默认为 1。
+- disable_create_new_file: 是否禁止创建新文件组，0（否）或 1（是），省略默认为 0。
 
 在配置中，只允许一个主挂载点的存在（level=0，primary=1），例如采用如下的配置方式：
 
 ```
-dataDir /mnt/data1 0 1
-dataDir /mnt/data2 0 0
-dataDir /mnt/data3 1 0
-dataDir /mnt/data4 1 0
-dataDir /mnt/data5 2 0
-dataDir /mnt/data6 2 0
+dataDir /mnt/data1 0 1 0
+dataDir /mnt/data2 0 0 0
+dataDir /mnt/data3 1 0 0
+dataDir /mnt/data4 1 0 1
+dataDir /mnt/data5 2 0 0
+dataDir /mnt/data6 2 0 0
 ```
 
 :::note
@@ -42,6 +43,7 @@ dataDir /mnt/data6 2 0
 1. 多级存储不允许跨级配置，合法的配置方案有：仅 0 级，仅 0 级+ 1 级，以及 0 级+ 1 级+ 2 级。而不允许只配置 level=0 和 level=2，而不配置 level=1。
 2. 禁止手动移除使用中的挂载盘，挂载盘目前不支持非本地的网络盘。
 3. 多级存储目前不支持删除已经挂载的硬盘的功能。
+4. 0 级存储至少存在一个 disable_create_new_file 为 0 的挂载点，1 级 和 2 级存储没有该限制。
 
 :::
 

@@ -15,7 +15,7 @@ TDengine supports three tiers of storage. Each tier can include 128 mount points
 To configure tiered storage, modify your `taos.cfg` file as follows:
 
 ```
-dataDir [path] <level> <primary>
+dataDir [path] <level> <primary> <disable_create_new_file>
 ```
 
 - path: The path to a mount point
@@ -24,17 +24,18 @@ dataDir [path] <level> <primary>
   As data ages, it is moved from tier 0 to tier 1 and then to tier 2.
   You can mount multiple disks in a single tier. The data stored on each tier is distributed among all disks associated with the tier.
   Note that TDengine moves between tiers automatically.
-- primary: Whether the specified mount point is the primary mount point. Enter 0 for false or 1 for true. The default value is 1.
+- primary: Whether the data dir is the primary mount point. Enter 0 for false or 1 for true. The default value is 1.
+- disable_create_new_file: Whether to prohibit the creation of new file sets on the specified mount point. Enter 0 for false and 1 for true. The default value is 0.
 
 A TDengine cluster can have only one primary mount point, which must be on tier 0. An example configuration is as follows:
 
 ```
-dataDir /mnt/data1 0 1
-dataDir /mnt/data2 0 0
-dataDir /mnt/data3 1 0
-dataDir /mnt/data4 1 0
-dataDir /mnt/data5 2 0
-dataDir /mnt/data6 2 0
+dataDir /mnt/data1 0 1 0
+dataDir /mnt/data2 0 0 0
+dataDir /mnt/data3 1 0 0
+dataDir /mnt/data4 1 0 1
+dataDir /mnt/data5 2 0 0
+dataDir /mnt/data6 2 0 0
 ```
 
 :::note
@@ -42,6 +43,7 @@ dataDir /mnt/data6 2 0
 1. Skipping tiers is not allowed. Your configuration can have tier 0 storage only, tier 0 and tier 1 storage, or tier 0, 1, and 2 storage. You cannot configure tier 1 storage without tier 0 storage or tier 2 storage without tier 0 and tier 1 storage.
 2. You cannot manually remove mount points that are in use. You cannot mount network disks.
 3. You cannot remove disks that have been mounted.
+4. Tier 0 storage must have at least one mount point with disable_create_new_file set to 0. Tier 1 and tier 2 storage do not have this restriction.
 
 :::
 
