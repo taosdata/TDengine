@@ -4051,120 +4051,125 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   SNode*                           pNode = NULL;
   SColumnNode*                     pPKTsCol = NULL;
   SColumnNode*                     pNonPKCol = NULL;
-  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  SScanLogicNode*                  pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
   pScan->scanType = SCAN_TYPE_LAST_ROW;
   pScan->igLastNull = pAgg->hasLast ? true : false;
-  SArray* isDuplicateCol = taosArrayInit(pScan->pScanCols->length, sizeof(bool));
+  SArray*    isDuplicateCol = taosArrayInit(pScan->pScanCols->length, sizeof(bool));
   SNodeList* pLastRowCols = NULL;
   bool       adjLastRowTsColName = false;
-  char       tsColName[TSDB_COL_NAME_LEN] = {0};      
+  char       tsColName[TSDB_COL_NAME_LEN] = {0};
 
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        funcType = pFunc->funcType;
-    SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, 0);
-    if (FUNCTION_TYPE_LAST_ROW == funcType || FUNCTION_TYPE_LAST == funcType) {
-      int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName),
-                             FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
-      pFunc->functionName[len] = '\0';
-      int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesClearList(cxt.pLastCols);
-        return code;
-      }
-      cxt.funcType = pFunc->funcType;
-      cxt.pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
-      // add duplicate cols which be removed for both last_row, last
-      if (pAgg->hasLast && pAgg->hasLastRow) {
-        if (QUERY_NODE_COLUMN == nodeType(pParamNode)) {
-          SNode* pColNode = NULL;
-          int i = 0;
-          FOREACH(pColNode, pScan->pScanCols) {
-            bool isDup = false;
-            bool* isDuplicate = taosArrayGet(isDuplicateCol, i);
-            if (NULL == isDuplicate) {
-              taosArrayInsert(isDuplicateCol, i, &isDup);
-              isDuplicate = taosArrayGet(isDuplicateCol, i);
+    SNode*         pParamNode = NULL;
+    if (FUNCTION_TYPE_LAST == funcType) {
+      nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
+      nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
+    }
+    FOREACH(pParamNode, pFunc->pParameterList) {
+      if (FUNCTION_TYPE_LAST_ROW == funcType || FUNCTION_TYPE_LAST == funcType) {
+        int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName),
+                              FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
+        pFunc->functionName[len] = '\0';
+        int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesClearList(cxt.pLastCols);
+          return code;
+        }
+        cxt.funcType = pFunc->funcType;
+        cxt.pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
+        // add duplicate cols which be removed for both last_row, last
+        if (pAgg->hasLast && pAgg->hasLastRow) {
+          if (QUERY_NODE_COLUMN == nodeType(pParamNode)) {
+            SNode* pColNode = NULL;
+            int i = 0;
+            FOREACH(pColNode, pScan->pScanCols) {
+              bool isDup = false;
+              bool* isDuplicate = taosArrayGet(isDuplicateCol, i);
+              if (NULL == isDuplicate) {
+                taosArrayInsert(isDuplicateCol, i, &isDup);
+                isDuplicate = taosArrayGet(isDuplicateCol, i);
+              }
+              i++;
+              if (nodesEqualNode(pParamNode, pColNode)) {
+                if (*isDuplicate) {
+                  if (0 == strncmp(((SColumnNode*)pColNode)->colName, "#dup_col.", 9)) {
+                    continue;
+                  }
+                  SNode* newColNode = nodesCloneNode(pColNode);
+                  sprintf(((SColumnNode*)newColNode)->colName, "#dup_col.%p", newColNode);
+                  sprintf(((SColumnNode*)pParamNode)->colName, "#dup_col.%p", newColNode);
+                  if (FUNCTION_TYPE_LAST_ROW == funcType &&
+                      ((SColumnNode*)pParamNode)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+                    if (!adjLastRowTsColName) {
+                      adjLastRowTsColName = true;
+                      strncpy(tsColName, ((SColumnNode*)pParamNode)->colName, TSDB_COL_NAME_LEN);
+                    } else {
+                      strncpy(((SColumnNode*)pParamNode)->colName, tsColName, TSDB_COL_NAME_LEN);
+                      nodesDestroyNode(newColNode);
+                      continue;
+                    }
+                  }
+
+                  nodesListAppend(pScan->pScanCols, newColNode);
+                  isDup = true;
+                  taosArrayInsert(isDuplicateCol, pScan->pScanCols->length, &isDup);
+                  nodesListAppend(pScan->node.pTargets, nodesCloneNode(newColNode));
+                  if (funcType != FUNCTION_TYPE_LAST) {
+                    nodesListMakeAppend(&pLastRowCols, nodesCloneNode(newColNode));
+                  }
+
+                  lastRowScanBuildFuncTypes(pScan, (SColumnNode*)newColNode, pFunc->funcType);
+                } else {
+                  isDup = true;
+                  *isDuplicate = isDup;
+                  if (funcType != FUNCTION_TYPE_LAST && !nodeListNodeEqual(cxt.pLastCols, pColNode)) {
+                    nodesListMakeAppend(&pLastRowCols, nodesCloneNode(pColNode));
+                  }
+                  lastRowScanBuildFuncTypes(pScan, (SColumnNode*)pColNode, pFunc->funcType);
+                }
+                continue;
+              }else if (nodeListNodeEqual(pFunc->pParameterList, pColNode)) {
+                if (funcType != FUNCTION_TYPE_LAST && ((SColumnNode*)pColNode)->colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
+                    !nodeListNodeEqual(pLastRowCols, pColNode)) {
+                  nodesListMakeAppend(&pLastRowCols, nodesCloneNode(pColNode));
+
+                  lastRowScanBuildFuncTypes(pScan, (SColumnNode*)pColNode, pFunc->funcType);
+                  isDup = true;
+                  *isDuplicate = isDup;
+                }
+              }
             }
-            i++;
-            if (nodesEqualNode(pParamNode, pColNode)) {
-              if (*isDuplicate) {
-                if (0 == strncmp(((SColumnNode*)pColNode)->colName, "#dup_col.", 9)) {
-                  continue;
-                }
-                SNode* newColNode = nodesCloneNode(pColNode);
-                sprintf(((SColumnNode*)newColNode)->colName, "#dup_col.%p", newColNode);
-                sprintf(((SColumnNode*)pParamNode)->colName, "#dup_col.%p", newColNode);
-
-                if (FUNCTION_TYPE_LAST_ROW == funcType && ((SColumnNode*)pParamNode)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-                  adjLastRowTsColName = true;
-                  strncpy(tsColName, ((SColumnNode*)pParamNode)->colName, TSDB_COL_NAME_LEN);
-                }
-
-                nodesListAppend(pScan->pScanCols, newColNode);
-                isDup = true;
-                taosArrayInsert(isDuplicateCol, pScan->pScanCols->length, &isDup);
-                nodesListAppend(pScan->node.pTargets, nodesCloneNode(newColNode));
+            FOREACH(pColNode, pScan->pScanPseudoCols) {
+              if (nodesEqualNode(pParamNode, pColNode)) {
                 if (funcType != FUNCTION_TYPE_LAST) {
-                  nodesListMakeAppend(&pLastRowCols, nodesCloneNode(newColNode));
-                }
-
-                lastRowScanBuildFuncTypes(pScan, (SColumnNode*)newColNode, pFunc->funcType);
-              } else {
-                isDup = true;
-                *isDuplicate = isDup;
-                if (funcType != FUNCTION_TYPE_LAST && !nodeListNodeEqual(cxt.pLastCols, pColNode)) {
                   nodesListMakeAppend(&pLastRowCols, nodesCloneNode(pColNode));
                 }
-                lastRowScanBuildFuncTypes(pScan, (SColumnNode*)pColNode, pFunc->funcType);
-              }
-              continue;
-            } else if (nodeListNodeEqual(pFunc->pParameterList, pColNode)) {
-              if (funcType != FUNCTION_TYPE_LAST && ((SColumnNode*)pColNode)->colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
-                  !nodeListNodeEqual(pLastRowCols, pColNode)) {
-                nodesListMakeAppend(&pLastRowCols, nodesCloneNode(pColNode));
-
-                lastRowScanBuildFuncTypes(pScan, (SColumnNode*)pColNode, pFunc->funcType);
-                isDup = true;
-                *isDuplicate = isDup;
-              }
-            }
-          }
-          FOREACH(pColNode, pScan->pScanPseudoCols) {
-            if (nodesEqualNode(pParamNode, pColNode)) {
-              if (funcType != FUNCTION_TYPE_LAST) {
-                nodesListMakeAppend(&pLastRowCols, nodesCloneNode(pColNode));
               }
             }
           }
         }
-      }
 
-      if (FUNCTION_TYPE_LAST == funcType) {
-        nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
-        nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
-      }
-      if (pFunc->hasPk) {
-        nodesListMakeAppend(&cxt.pOtherCols, nodesListGetNode(pFunc->pParameterList, LIST_LENGTH(pFunc->pParameterList) - 1));
-      }
-      if (FUNCTION_TYPE_LAST_ROW == funcType && adjLastRowTsColName) {
-        SNode* pParamNodeTs = nodesListGetNode(pFunc->pParameterList, 1);
-        strncpy(((SColumnNode*)pParamNodeTs)->colName, tsColName, TSDB_COL_NAME_LEN);
-      }
-    } else {
-      pNode = nodesListGetNode(pFunc->pParameterList, 0);
-      nodesListMakeAppend(&cxt.pOtherCols, pNode);
+        if (pFunc->hasPk) {
+          nodesListMakeAppend(&cxt.pOtherCols, nodesListGetNode(pFunc->pParameterList, LIST_LENGTH(pFunc->pParameterList) - 1));
+        }
+      } else {
+        pNode = nodesListGetNode(pFunc->pParameterList, 0);
+        nodesListMakeAppend(&cxt.pOtherCols, pNode);
 
-      if (FUNCTION_TYPE_SELECT_VALUE == funcType) {
-        if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-          SColumnNode* pCol = (SColumnNode*)pNode;
-          if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-            pPKTsCol = pCol;
-          } else {
-            pNonPKCol = pCol;
+        if (FUNCTION_TYPE_SELECT_VALUE == funcType) {
+          if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+            SColumnNode* pCol = (SColumnNode*)pNode;
+            if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+              pPKTsCol = pCol;
+            } else {
+              pNonPKCol = pCol;
+            }
           }
         }
       }
+      WHERE_NEXT;
     }
   }
 
