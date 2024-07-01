@@ -24,7 +24,7 @@ dataDir [path] <level> <primary> <disable_create_new_file>
   As data ages, it is moved from tier 0 to tier 1 and then to tier 2.
   You can mount multiple disks in a single tier. The data stored on each tier is distributed among all disks associated with the tier.
   Note that TDengine moves between tiers automatically.
-- primary: Whether the specified mount point is the primary mount point. Enter 0 for false or 1 for true. The default value is 1.
+- primary: Whether the data dir is the primary mount point. Enter 0 for false or 1 for true. The default value is 1.
 - disable_create_new_file: Whether to prohibit the creation of new file sets on the specified mount point. Enter 0 for false and 1 for true. The default value is 0.
 
 A TDengine cluster can have only one primary mount point, which must be on tier 0. An example configuration is as follows:
