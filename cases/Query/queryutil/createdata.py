@@ -96,38 +96,38 @@ class TDCreateData():
         #local variables 修改验证
         show_sql = 'show local variables;'
         
-        self.tdSql.query('''alter local 'slowlogthreshold' '10';''') #慢查询门限值，大于等于门限值认为是慢查询，单位：秒        
+        self.tdSql.query('''alter all dnodes 'slowlogthreshold' '10';''') #慢查询门限值，大于等于门限值认为是慢查询，单位：秒        
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogThreshold'):      
                 self.data_check(self.tdSql.query_data[i][1],'10')
         
         #ALL: 启动所有类型记录 \ QUERY: 只记录查询 \ INSERT:只记录写入 \ OTHERS:除写入、查询外其他语句 \ NONE:不记录
-        self.tdSql.query('''alter local 'slowLogScope' 'NONE';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'NONE';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
                 self.data_check(self.tdSql.query_data[i][1],'NONE')
                 
-        self.tdSql.query('''alter local 'slowLogScope' 'INSERT';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'INSERT';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
                 self.data_check(self.tdSql.query_data[i][1],'INSERT')
                 
-        self.tdSql.query('''alter local 'slowLogScope' 'QUERY';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'QUERY';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
                 self.data_check(self.tdSql.query_data[i][1],'QUERY')
                 
-        self.tdSql.query('''alter local 'slowLogScope' 'OTHERS';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'OTHERS';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
                 self.data_check(self.tdSql.query_data[i][1],'OTHERS')
                 
-        self.tdSql.query('''alter local 'slowLogScope' 'ALL';''')
+        self.tdSql.query('''alter all dnodes 'slowLogScope' 'ALL';''')
         self.tdSql.query(show_sql)        
         for i in range(self.tdSql.query_row):
             if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
