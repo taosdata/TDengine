@@ -82,7 +82,7 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
 
   dGTrace("vgId:%d, msg:%p get from vnode-query queue", pVnode->vgId, pMsg);
-  int32_t code = vnodeProcessQueryMsg(pVnode->pImpl, pMsg);
+  int32_t code = vnodeProcessQueryMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
     if (terrno != 0) code = terrno;
     dGError("vgId:%d, msg:%p failed to query since %s", pVnode->vgId, pMsg, tstrerror(code));
@@ -357,7 +357,7 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   (void)tMultiWorkerInit(&pVnode->pSyncRdW, &sccfg);
   (void)tMultiWorkerInit(&pVnode->pApplyW, &acfg);
 
-  pVnode->pQueryQ = tQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
+  pVnode->pQueryQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
   pVnode->pStreamQ = tAutoQWorkerAllocQueue(&pMgmt->streamPool, pVnode, (FItem)vmProcessStreamQueue);
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
 
@@ -383,7 +383,7 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 }
 
 void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
-  tQWorkerFreeQueue(&pMgmt->queryPool, pVnode->pQueryQ);
+  tQueryAutoQWorkerFreeQueue(&pMgmt->queryPool, pVnode->pQueryQ);
   tAutoQWorkerFreeQueue(&pMgmt->streamPool, pVnode->pStreamQ);
   tWWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
   pVnode->pQueryQ = NULL;
@@ -393,11 +393,11 @@ void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 }
 
 int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
-  SQWorkerPool *pQPool = &pMgmt->queryPool;
+  SQueryAutoQWorkerPool *pQPool = &pMgmt->queryPool;
   pQPool->name = "vnode-query";
   pQPool->min = tsNumOfVnodeQueryThreads;
   pQPool->max = tsNumOfVnodeQueryThreads;
-  if (tQWorkerInit(pQPool) != 0) return -1;
+  if (tQueryAutoQWorkerInit(pQPool) != 0) return -1;
 
   SAutoQWorkerPool *pStreamPool = &pMgmt->streamPool;
   pStreamPool->name = "vnode-stream";
@@ -419,7 +419,7 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 }
 
 void vmStopWorker(SVnodeMgmt *pMgmt) {
-  tQWorkerCleanup(&pMgmt->queryPool);
+  tQueryAutoQWorkerCleanup(&pMgmt->queryPool);
   tAutoQWorkerCleanup(&pMgmt->streamPool);
   tWWorkerCleanup(&pMgmt->fetchPool);
   dDebug("vnode workers are closed");
