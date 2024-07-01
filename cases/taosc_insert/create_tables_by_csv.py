@@ -344,7 +344,7 @@ class CreateTablesByCSV(TDCase):
         # self.gen_csv(custom_tag_count=128)
         # print(self.tdCom.gen_default_tag_str())
         # return
-        self.create_ctables_by_tag_and_tbname()
+        # self.create_ctables_by_tag_and_tbname()
         # self.create_ctables_by_notag_and_tbname()
         # self.create_ctables_by_128tag_and_tbname(use_except=True)
         # self.create_ctables_by_tag_and_tbname_with_note()
@@ -374,7 +374,7 @@ class CreateTablesByCSV(TDCase):
         # self.threading_create_ctables(dup_tbname=True)
         
         # perf test
-        # self.create_ctables_by_tag_and_tbname_perf(table_count=3000)
+        self.create_ctables_by_tag_and_tbname_perf(table_count=5000)
         
         
         
