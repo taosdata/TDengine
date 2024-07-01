@@ -1067,10 +1067,10 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
 
 void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->activeId = 0;  // clear the checkpoint id
-  pInfo->failedId = 0;
   pInfo->transId = 0;
   pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
+  pInfo->failedId = 0;
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);
