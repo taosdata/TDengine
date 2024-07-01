@@ -207,6 +207,8 @@ ALTER TABLE tb_name COMMENT 'string_value'
 DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
 ```
 
+**注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动或用户手动进行数据重整时。
+
 ## 查看表的信息
 
 ### 显示所有表
