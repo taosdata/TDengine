@@ -25,7 +25,7 @@
 #include "queryInt.h"
 
 typedef struct SQueryQueue {
-  SQueryAutoQWorkerPool taskThreadPool;
+  SQueryAutoQWorkerPool wrokrerPool;
   STaosQueue* pTaskQueue;
 } SQueryQueue;
 
@@ -124,7 +124,7 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
   return true;
 }
 
-static SQueryQueue clientQueryQueue = {0};
+static SQueryQueue clientTaskQueue = {0};
 
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
@@ -133,17 +133,17 @@ static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
 }
 
 int32_t initTaskQueue() {
-  clientQueryQueue.taskThreadPool.name = "tsc";
-  clientQueryQueue.taskThreadPool.min = tsNumOfTaskQueueThreads;
-  clientQueryQueue.taskThreadPool.max = tsNumOfTaskQueueThreads;
-  int32_t coce = tQueryAutoQWorkerInit(&clientQueryQueue.taskThreadPool);
+  clientTaskQueue.wrokrerPool.name = "tsc";
+  clientTaskQueue.wrokrerPool.min = tsNumOfTaskQueueThreads;
+  clientTaskQueue.wrokrerPool.max = tsNumOfTaskQueueThreads;
+  int32_t coce = tQueryAutoQWorkerInit(&clientTaskQueue.wrokrerPool);
   if (TSDB_CODE_SUCCESS != coce) {
     qError("failed to init task thread pool");
     return -1;
   }
 
-  clientQueryQueue.pTaskQueue = tQueryAutoQWorkerAllocQueue(&clientQueryQueue.taskThreadPool, NULL, (FItem)processTaskQueue);
-  if (NULL == clientQueryQueue.pTaskQueue) {
+  clientTaskQueue.pTaskQueue = tQueryAutoQWorkerAllocQueue(&clientTaskQueue.wrokrerPool, NULL, (FItem)processTaskQueue);
+  if (NULL == clientTaskQueue.pTaskQueue) {
     qError("failed to init task queue");
     return -1;
   }
@@ -153,7 +153,7 @@ int32_t initTaskQueue() {
 }
 
 int32_t cleanupTaskQueue() {
-  tQueryAutoQWorkerCleanup(&clientQueryQueue.taskThreadPool);
+  tQueryAutoQWorkerCleanup(&clientTaskQueue.wrokrerPool);
   return 0;
 }
 
@@ -164,23 +164,23 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   pSchedMsg->thandle = execParam;
   pSchedMsg->msg = code;
 
-  return taosWriteQitem(clientQueryQueue.pTaskQueue, pSchedMsg);
+  return taosWriteQitem(clientTaskQueue.pTaskQueue, pSchedMsg);
 }
 
 int32_t taosAsyncWait() {
-  if (!clientQueryQueue.taskThreadPool.pCb) {
+  if (!clientTaskQueue.wrokrerPool.pCb) {
     qError("query task thread pool callback function is null");
     return -1;
   }
-  return clientQueryQueue.taskThreadPool.pCb->beforeBlocking(&clientQueryQueue.taskThreadPool);
+  return clientTaskQueue.wrokrerPool.pCb->beforeBlocking(&clientTaskQueue.wrokrerPool);
 }
 
 int32_t taosAsyncRecover() {
-  if (!clientQueryQueue.taskThreadPool.pCb) {
+  if (!clientTaskQueue.wrokrerPool.pCb) {
     qError("query task thread pool callback function is null");
     return -1;
   }
-  return clientQueryQueue.taskThreadPool.pCb->afterRecoverFromBlocking(&clientQueryQueue.taskThreadPool);
+  return clientTaskQueue.wrokrerPool.pCb->afterRecoverFromBlocking(&clientTaskQueue.wrokrerPool);
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
