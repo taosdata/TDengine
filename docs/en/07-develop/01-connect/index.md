@@ -32,7 +32,7 @@ There are three ways for a client library to establish connections to TDengine:
 2. REST connection through the REST API provided by the taosAdapter component.
 3. Websocket connection provided by the taosAdapter component.
 
-![TDengine connection type](connection-type-en.webp)
+![TDengine connection type](../../assets/connection-type-en.webp)
 
 For these ways of connections, client libraries provide similar APIs for performing operations and running SQL statements on your databases. The main difference is the method of establishing the connection, which is not visible to users.
 
@@ -43,6 +43,7 @@ Key differences:
 3. For a Websocket connection, users also do not need to install the client driver taosc. 
 4. To connect to a cloud service instance, you need to use the REST connection or Websocket connection.
    
+
 Normally we recommend using **Websocket connection**.
 
 ## Install Client Driver taosc
