@@ -4169,7 +4169,6 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
           }
         }
       }
-      WHERE_NEXT;
     }
   }
 
