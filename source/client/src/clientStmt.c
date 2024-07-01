@@ -896,6 +896,12 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pStmt->sql.sqlLen = length;
   pStmt->sql.stbInterlaceMode = pStmt->stbInterlaceMode;
 
+  char* dbName = NULL;
+  if (qParseDbName(sql, length, &dbName)) {
+    stmtSetDbName(stmt, dbName);
+    taosMemoryFreeClear(dbName);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -921,6 +927,22 @@ int32_t stmtInitStbInterlaceTableInfo(STscStmt* pStmt) {
 
   pStmt->sql.siInfo.boundTags = pStmt->bInfo.boundTags;
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtSetDbName(TAOS_STMT* stmt, const char* dbName) {
+  STscStmt *pStmt = (STscStmt *) stmt;
+
+  STMT_DLOG("start to set dbName: %s", dbName);
+
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
+
+  // The SQL statement specifies a database name, overriding the previously specified database
+  taosMemoryFreeClear(pStmt->exec.pRequest->pDb);
+  pStmt->exec.pRequest->pDb = taosStrdup(dbName);
+  if (pStmt->exec.pRequest->pDb == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

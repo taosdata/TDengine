@@ -171,7 +171,11 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   SStreamTask* pTask = *ppTask;
   const char*  idstr = pTask->id.idStr;
 
-  if ((pMeta->updateInfo.transId != req.transId) && (pMeta->updateInfo.transId != -1)) {
+  if (pMeta->updateInfo.transId == -1) { // info needs to be kept till the new trans to update the nodeEp arrived.
+    streamMetaInitUpdateTaskList(pMeta, req.transId);
+  }
+
+  if (pMeta->updateInfo.transId != req.transId) {
     if (req.transId < pMeta->updateInfo.transId) {
       tqError("s-task:%s vgId:%d disorder update nodeEp msg recv, discarded, newest transId:%d, recv:%d", idstr, vgId,
               pMeta->updateInfo.transId, req.transId);
@@ -937,7 +941,7 @@ int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg)
 }
 
 int32_t tqStreamTaskProcessRetrieveTriggerRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
-  SCheckpointTriggerRsp* pRsp = pMsg->pCont;
+  SCheckpointTriggerRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pRsp->streamId, pRsp->taskId);
   if (pTask == NULL) {

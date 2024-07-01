@@ -48,6 +48,47 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
   return false;
 }
 
+bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
+  (void) length;
+  int32_t index = 0;
+  SToken t;
+
+  if (NULL == pStr) {
+    *pDbName = NULL;
+    return false;
+  }
+
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  if (TK_INSERT != t.type && TK_IMPORT != t.type) {
+    *pDbName = NULL;
+    return false;
+  }
+
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  if (TK_INTO != t.type) {
+    *pDbName = NULL;
+    return false;
+  }
+
+  t = tStrGetToken((char *) pStr, &index, false, NULL);
+  if (t.n == 0 || t.z == NULL) {
+    *pDbName = NULL;
+    return false;
+  }
+  char *dotPos = strnchr(t.z, '.', t.n, true);
+  if (dotPos != NULL) {
+    int dbNameLen = dotPos - t.z;
+    *pDbName = taosMemoryMalloc(dbNameLen + 1);
+    if (*pDbName == NULL) {
+      return false;
+    }
+    strncpy(*pDbName, t.z, dbNameLen);
+    (*pDbName)[dbNameLen] = '\0';
+    return true;
+  }
+  return false;
+}
+
 static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   int32_t code = authenticate(pCxt, pQuery, pMetaCache);
 

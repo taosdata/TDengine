@@ -219,6 +219,7 @@ const char *stmtErrstr(TAOS_STMT *stmt);
 int         stmtAffectedRows(TAOS_STMT *stmt);
 int         stmtAffectedRowsOnce(TAOS_STMT *stmt);
 int         stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
+int         stmtSetDbName(TAOS_STMT* stmt, const char* dbName);
 int         stmtSetTbName(TAOS_STMT *stmt, const char *tbName);
 int         stmtSetTbTags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags);
 int         stmtGetTagFields(TAOS_STMT *stmt, int *nums, TAOS_FIELD_E **fields);
