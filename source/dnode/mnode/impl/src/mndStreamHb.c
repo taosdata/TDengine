@@ -142,8 +142,7 @@ int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
     }
 
     if (!setFlag) {
-      mError("failed to set nodeUpdate flag, nodeId:%d not exists in nodelist, update it", *pVgId);
-      ASSERT(0);
+      mError("failed to set nodeUpdate flag, nodeId:%d not exists in nodelist", *pVgId);
       return TSDB_CODE_FAILED;
     }
   }
