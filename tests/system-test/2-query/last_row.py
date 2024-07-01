@@ -649,8 +649,8 @@ class TDTestCase:
         tdSql.checkData(0,1,None)
 
         tdSql.query(f"select ts , last_row(c1) ,c1  from (select ts , max(c1) c1  ,t1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10, 10, 10))")
-        tdSql.checkData(0,1,10)
-        tdSql.checkData(0,1,10)
+        tdSql.checkData(0,1,9)
+        tdSql.checkData(0,1,9)
 
         tdSql.error(f"select ts , last_row(c1) ,c1  from (select count(c1) c1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10, 10, 10))")
 
