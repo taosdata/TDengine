@@ -381,7 +381,7 @@ if eq ${os} "windows"
     echo "UPX binary already exists"
     exit 0
   end
-  echo "Donwload UPX binary in windows"
+  echo "Download UPX binary in windows"
 
   file = set ${upx_dir}/upx.zip
 
@@ -391,7 +391,7 @@ if eq ${os} "windows"
     url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-win64.zip"
     echo ${url}
     response_size = wget -O ${file} ${url}
-    echo Got response size: ${reponse_size}
+    echo Got response size: ${response_size}
   end
 
   exec powershell -command "Expand-Archive -Force '${file}' '${upx_dir}/'"
@@ -402,7 +402,7 @@ else
     exit 0
   end
 
-  echo "* Donwloading UPX binary in windows..."
+  echo "* Downloading UPX binary in windows..."
 
   file = set ${upx_dir}/upx.tar.xz
 
@@ -420,7 +420,7 @@ else
     url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-${arch}_linux.tar.xz"
     echo ${url}
     response_size = wget -O ${file} ${url}
-    echo Got response size: ${reponse_size}
+    echo Got response size: ${response_size}
   end
 
   exec tar -xvf ${file} --strip-components=1 -C ${upx_dir}

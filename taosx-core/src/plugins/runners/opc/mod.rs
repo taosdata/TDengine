@@ -6,8 +6,7 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
 use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncTBuilder, Dsn, DsnError, TaosBuilder};
-use taosx_ipc::prelude::IpcDataType;
+use taos::{Dsn, DsnError};
 use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
@@ -15,6 +14,7 @@ pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
+use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::OptionSet;
 
 use crate::dsv::DataSourceValidation;
@@ -90,9 +90,6 @@ pub async fn opc_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
 
-    let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
-    let taos = builder.build().await?;
-
     tracing::info!("OPC DataIn task start, from: {}, to: {}", from, to);
 
     let certificate = get_temp_file(&from, "certificate");
@@ -100,7 +97,7 @@ pub async fn opc_to_taos(
     let auth_certificate = get_temp_file(&from, "auth_certificate");
     let auth_private_key = get_temp_file(&from, "auth_private_key");
 
-    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos, task_id).await?;
+    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, task_id).await?;
 
     config.set_temp_filepath("certificate", certificate.as_ref())?;
     config.set_temp_filepath("private_key", private_key.as_ref())?;
@@ -269,105 +266,6 @@ pub async fn opc_to_taos(
 
     Ok(())
 }
-
-/*
-#[instrument(skip(dsn))]
-async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
-    let child_table_expression = dsn.remove("child_table_expression");
-    if child_table_expression.is_none() {
-        anyhow::bail!("should config child_table_expression");
-    }
-    let child_table_expression = child_table_expression.unwrap();
-    let table_primary_key = dsn.remove("table_primary_key");
-    if table_primary_key.is_none() {
-        anyhow::bail!("should config table_primary_key");
-    }
-    let table_primary_key = table_primary_key.unwrap();
-    let data = DataSetsReq {
-        from: dsn.to_string(),
-        categories: vec![String::from("nodes")],
-        via: None,
-        offset: 0,
-        pattern: None,
-        limit: usize::MAX / 2 - 1,
-        lang: None,
-    };
-    let all_points = opc_datasets(&data).await?;
-    // 对于 OPCUA 来说，ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]} 是一个有效的点位 ID 和名称
-    // 此时需要借助 CSV 的 delimiter 使用 , 进行分隔
-    // 前提是点位需要使用双引号引起来
-    // 又引出的问题的是如果点位名称已经包含了双引号该如何处理 -》继续加双引号
-    // 使用标准 CSV Writer 来处理。
-    let point_config = csv_string_record_from_iter(all_points.iter().map(|point| {
-        let point_id = point.id.as_str();
-        let tbname = generate_tbname_from_pattern(&dsn.driver, &child_table_expression, point_id);
-        format!("{}::{}", point_id, tbname)
-    }));
-    if dsn.driver.as_str() == "opcua" {
-        dsn.set("ua.nodes", point_config);
-    } else {
-        dsn.set("da.tags", point_config);
-    }
-    let stable_prefix = Some(String::from("opc"));
-    let mut column_configs = vec![];
-
-    column_configs.push(ColumnConfig {
-        name: String::from("value"),
-        r#type: None,
-        alias: Some(String::from("val")),
-        transform: None,
-        is_primary_key: false,
-    });
-    column_configs.push(ColumnConfig {
-        name: String::from("quality"),
-        r#type: Some(Ty::Int),
-        alias: None,
-        transform: None,
-        is_primary_key: false,
-    });
-    let opc_table_config = if table_primary_key == "received_ts" {
-        column_configs.push(ColumnConfig {
-            name: String::from("received_ts"),
-            r#type: Some(Ty::Timestamp),
-            alias: None,
-            transform: None,
-            is_primary_key: true,
-        });
-        column_configs.push(ColumnConfig {
-            name: String::from("original_ts"),
-            r#type: Some(Ty::Timestamp),
-            alias: None,
-            transform: None,
-            is_primary_key: false,
-        });
-        TableConfig {
-            enabled: None,
-            stable_prefix,
-            column_configs,
-            tag_configs: None,
-        }
-    } else {
-        column_configs.push(ColumnConfig {
-            name: String::from("original_ts"),
-            r#type: Some(Ty::Timestamp),
-            alias: None,
-            transform: None,
-            is_primary_key: true,
-        });
-        TableConfig {
-            enabled: None,
-            stable_prefix,
-            column_configs,
-            tag_configs: None,
-        }
-    };
-    dsn.set(
-        "opc_table_config",
-        serde_json::to_string(&opc_table_config)?,
-    );
-    Ok(())
-}
-*/
 
 fn csv_string_record_from_iter<'a, I>(iter: I) -> String
 where
@@ -700,7 +598,6 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
