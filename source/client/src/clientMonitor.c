@@ -467,8 +467,8 @@ static void monitorSendSlowLogAtBeginning(int64_t clusterId, char* fileName, TdF
     if(data != NULL){
       sendSlowLog(clusterId, data, pFile, offset, SLOW_LOG_READ_BEGINNIG, taosStrdup(fileName), pTransporter, epSet);
     }
+    uDebug("[monitor] monitorSendSlowLogAtBeginning send slow log file:%p, data:%s", pFile, data);
     taosMemoryFree(data);
-    uDebug("[monitor] monitorSendSlowLogAtBeginning send slow log file:%p", pFile);
   }
 }
 
@@ -498,8 +498,8 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId){
     if(data != NULL){
       sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
     }
-    taosMemoryFree(data);
     uDebug("[monitor] monitorReadSendSlowLog send slow log:%s", data);
+    taosMemoryFree(data);
   }
 }
 
@@ -530,8 +530,8 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
     if(data != NULL){
       sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep);
     }
-    taosMemoryFree(data);
     uDebug("[monitor] monitorReadSendSlowLog send slow log:%s", data);
+    taosMemoryFree(data);
   }
   return false;
 }
@@ -561,8 +561,8 @@ static void   monitorSendAllSlowLogAtQuit(){
       if(data != NULL && sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep) == 0){
         quitCnt ++;
       }
-      taosMemoryFree(data);
       uDebug("[monitor] monitorSendAllSlowLogAtQuit send slow log :%s", data);
+      taosMemoryFree(data);
     }
   }
 }
@@ -591,8 +591,8 @@ static void monitorSendAllSlowLog(){
       if(data != NULL){
         sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
       }
-      taosMemoryFree(data);
       uDebug("[monitor] monitorSendAllSlowLog send slow log :%s", data);
+      taosMemoryFree(data);
     }
   }
 }
