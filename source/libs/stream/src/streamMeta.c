@@ -185,6 +185,7 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
 
   bool exist = streamBackendDataIsExist(pMeta->path, chkpId, pMeta->vgId);
   if (exist == false) {
+    stError("failed to check backend data exist, reason:%s", tstrerror(terrno));
     return code;
   }
 
@@ -252,8 +253,9 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   }
 
   STaskDbWrapper* pBackend = NULL;
+  int64_t         processVer = -1;
   while (1) {
-    pBackend = taskDbOpen(pMeta->path, key, chkpId);
+    pBackend = taskDbOpen(pMeta->path, key, chkpId, &processVer);
     if (pBackend != NULL) {
       break;
     }
@@ -270,6 +272,8 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   pBackend->refId = tref;
   pBackend->pTask = pTask;
   pBackend->pMeta = pMeta;
+
+  pTask->chkInfo.processedVer = processVer;
 
   taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
@@ -308,7 +312,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTas
   }
 
   if (streamMetaMayCvtDbFormat(pMeta) < 0) {
-    stError("vgId:%d convert sub info format failed, open stream meta failed", pMeta->vgId);
+    stError("vgId:%d convert sub info format failed, open stream meta failed, reason: %s", pMeta->vgId,
+            tstrerror(terrno));
     goto _err;
   }
 
