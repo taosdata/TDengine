@@ -790,6 +790,16 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
       return t0;
     }
 
+    // check the table name is '?', db.?asf is not valid.
+    if (TK_NK_QUESTION == type) {
+      tGetToken(&str[*i + t0.n + 2], &type);
+      if (TK_NK_SPACE != type) {
+        t0.type = TK_NK_ILLEGAL;
+        t0.n = 0;
+        return t0;
+      }
+    }
+
     t0.n += len + 1;
 
   } else {
