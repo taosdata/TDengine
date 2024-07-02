@@ -654,6 +654,8 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
       if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
         mError("compact:%d, trans:%d, failed to append commit log since %s", pDetail->compactId, pTrans->id, terrstr());
         mndTransDrop(pTrans);
+        sdbRelease(pMnode->pSdb, pDetail);
+        sdbCancelFetch(pMnode->pSdb, pIter);
         return -1;
       }
       (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);

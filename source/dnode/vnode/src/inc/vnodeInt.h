@@ -102,7 +102,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
-#define VNODE_METRIC_SQL_COUNT "taos_sql_req:count"
+#define VNODE_METRIC_SQL_COUNT "taosd_sql_req:count"
 
 #define VNODE_METRIC_TAG_NAME_SQL_TYPE   "sql_type"
 #define VNODE_METRIC_TAG_NAME_CLUSTER_ID "cluster_id"

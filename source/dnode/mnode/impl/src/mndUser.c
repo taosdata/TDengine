@@ -2580,7 +2580,7 @@ static void mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter) {
 }
 
 int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
-                                int32_t *pRspLen) {
+                                int32_t *pRspLen, int64_t ipWhiteListVer) {
   SUserAuthBatchRsp batchRsp = {0};
   batchRsp.pArray = taosArrayInit(numOfUses, sizeof(SGetUserAuthRsp));
   if (batchRsp.pArray == NULL) {
@@ -2602,7 +2602,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
     }
 
     pUsers[i].version = ntohl(pUsers[i].version);
-    if (pUser->authVersion <= pUsers[i].version) {
+    if (pUser->authVersion <= pUsers[i].version && ipWhiteListVer == pMnode->ipWhiteVer) {
       mndReleaseUser(pMnode, pUser);
       continue;
     }

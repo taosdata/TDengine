@@ -27,6 +27,7 @@
 #,,y,army,./pytest.sh python3 ./test.py -f community/query/subqueryBugs.py -N 3
 #,,y,army,./pytest.sh python3 ./test.py -f community/storage/oneStageComp.py -N 3 -L 3 -D 1
 #,,y,army,./pytest.sh python3 ./test.py -f community/storage/compressBasic.py -N 3
+#,,y,army,./pytest.sh python3 ./test.py -f grant/grantBugs.py -N 3
 
 
 #system test
@@ -1321,7 +1322,7 @@
 ,,y,script,./test.sh -f tmp/monitor.sim
 ,,y,script,./test.sh -f tsim/tagindex/add_index.sim 
 ,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim 
-
+,,y,script,./test.sh -f tsim/tagindex/indexOverflow.sim
 
 #develop test
 ,,n,develop-test,python3 ./test.py -f 2-query/table_count_scan.py

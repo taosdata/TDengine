@@ -504,7 +504,7 @@ SMqSubscribeObj *tNewSubscribeObj(const char *key) {
   memcpy(pSubObj->key, key, TSDB_SUBSCRIBE_KEY_LEN);
   taosInitRWLatch(&pSubObj->lock);
   pSubObj->vgNum = 0;
-  pSubObj->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  pSubObj->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
 
   // TODO set hash free fp
   /*taosHashSetFreeFp(pSubObj->consumerHash, tDeleteSMqConsumerEp);*/
@@ -524,7 +524,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
   pSubNew->withMeta = pSub->withMeta;
 
   pSubNew->vgNum = pSub->vgNum;
-  pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   // TODO set hash free fp
   /*taosHashSetFreeFp(pSubNew->consumerHash, tDeleteSMqConsumerEp);*/
   void          *pIter = NULL;

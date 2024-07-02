@@ -468,8 +468,138 @@ class TDTestCase:
         print("consume_ts_4544 ok")
         consumer.close()
 
-    def run(self):
+    def consume_TS_5067_Test(self):
+        tdSql.execute(f'create database if not exists d1 vgroups 1')
+        tdSql.execute(f'use d1')
+        tdSql.execute(f'create table st(ts timestamp, i int) tags(t int)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t2 using st tags(2) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t3 using st tags(3) values(now, 1) (now+1s, 2)')
+        tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
 
+        tdSql.query("select * from st")
+        tdSql.checkRows(8)
+
+        tdSql.execute(f'create topic t1 as select * from st')
+        tdSql.execute(f'create topic t2 as select * from st')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer1 = Consumer(consumer_dict)
+
+        try:
+            consumer1.subscribe(["t1"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        index = 0
+        try:
+            while True:
+                res = consumer1.poll(1)
+                if not res:
+                    if index != 1:
+                        tdLog.exit("consume error")
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                cnt = 0;
+                for block in val:
+                    cnt += len(block.fetchall())
+
+                if cnt != 8:
+                    tdLog.exit("consume error")
+
+                index += 1
+        finally:
+            consumer1.close()
+
+        consumer2 = Consumer(consumer_dict)
+        try:
+            consumer2.subscribe(["t2"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdSql.query(f'show subscriptions')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "t2")
+        tdSql.checkData(0, 1, 'g1')
+        tdSql.checkData(1, 0, 't1')
+        tdSql.checkData(1, 1, 'g1')
+
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 'g1')
+        tdSql.checkData(0, 4, 't2')
+        tdSql.execute(f'drop consumer group g1 on t1')
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 'g1')
+        tdSql.checkData(0, 4, 't2')
+
+        tdSql.query(f'show subscriptions')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "t2")
+        tdSql.checkData(0, 1, 'g1')
+
+        index = 0
+        try:
+            while True:
+                res = consumer2.poll(1)
+                if not res:
+                    if index != 1:
+                        tdLog.exit("consume error")
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                cnt = 0;
+                for block in val:
+                    cnt += len(block.fetchall())
+
+                if cnt != 8:
+                    tdLog.exit("consume error")
+
+                index += 1
+        finally:
+            consumer2.close()
+
+        consumer3 = Consumer(consumer_dict)
+        try:
+            consumer3.subscribe(["t2"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 'g1')
+        tdSql.checkData(0, 4, 't2')
+
+        tdSql.execute(f'insert into t4 using st tags(3) values(now, 1)')
+        try:
+            res = consumer3.poll(1)
+            if not res:
+                tdLog.exit("consume1 error")
+        finally:
+            consumer3.close()
+
+        tdSql.query(f'show consumers')
+        tdSql.checkRows(0)
+
+        tdSql.query(f'show subscriptions')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "t2")
+        tdSql.checkData(0, 1, 'g1')
+
+        tdSql.execute(f'drop topic t1')
+        tdSql.execute(f'drop topic t2')
+        tdSql.execute(f'drop database d1')
+
+    def run(self):
+        self.consume_TS_5067_Test()
         self.consumeTest()
         self.consume_ts_4544()
         self.consume_TS_4540_Test()

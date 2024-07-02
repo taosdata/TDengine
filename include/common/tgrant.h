@@ -31,6 +31,7 @@ extern "C" {
 #endif
 
 #define GRANT_HEART_BEAT_MIN 2
+#define GRANT_EXPIRE_VALUE   4102416000
 
 typedef enum {
   TSDB_GRANT_ALL,

@@ -786,6 +786,29 @@ void mndRebCntDec() {
   if(val > 0) mInfo("rebalance cnt sub, value:%d", val)
 }
 
+// This function only works when there are dirty consumers
+static void checkConsumer(SMnode *pMnode, SMqSubscribeObj* pSub){
+  void              *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pSub->consumerHash, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
+    SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pConsumerEp->consumerId);
+    if (pConsumer != NULL) {
+      mndReleaseConsumer(pMnode, pConsumer);
+      continue;
+    }
+    mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
+    taosArrayAddAll(pSub->unassignedVgs, pConsumerEp->vgs);
+
+    taosArrayDestroy(pConsumerEp->vgs);
+    taosHashRemove(pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t));
+  }
+}
+
 static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   int code = 0;
   if (!mndRebTryStart()) {
@@ -874,8 +897,10 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       mInfo("sub topic:%s has no consumers sub yet", pRebInfo->key);
     } else {
       taosRLockLatch(&pSub->lock);
-      rebInput.oldConsumerNum = taosHashGetSize(pSub->consumerHash);
       rebOutput.pSub = tCloneSubscribeObj(pSub);
+      checkConsumer(pMnode, rebOutput.pSub);
+      rebInput.oldConsumerNum = taosHashGetSize(rebOutput.pSub->consumerHash);
+
       taosRUnLockLatch(&pSub->lock);
 
       mInfo("sub topic:%s has %d consumers sub till now", pRebInfo->key, rebInput.oldConsumerNum);
@@ -988,9 +1013,20 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
       break;
     }
 
-    if (strcmp(dropReq.cgroup, pConsumer->cgroup) == 0) {
-      mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pMsg->info);
+    // drop consumer in lost status, other consumers not in lost status already deleted by rebalance
+    if (pConsumer->status != MQ_CONSUMER_STATUS_LOST || strcmp(dropReq.cgroup, pConsumer->cgroup) != 0) {
+      sdbRelease(pMnode->pSdb, pConsumer);
+      continue;
     }
+    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
+    for (int32_t i = 0; i < sz; i++) {
+      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
+      if (strcmp(dropReq.topic, name) == 0) {
+        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId, &pMsg->info);
+        break;
+      }
+    }
+
     sdbRelease(pMnode->pSdb, pConsumer);
   }
 

@@ -299,6 +299,11 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
     return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
   }
 
+  // Column index exceeds the number of columns
+  if (colIdx >= pDataBlock->pData->aCol->size || pCol == NULL) {
+    return buildInvalidOperationMsg(&pBuf, "column index exceeds the number of columns");
+  }
+
   if (bind->buffer_type != pColSchema->type) {
     return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
   }
