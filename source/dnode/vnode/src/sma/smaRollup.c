@@ -1533,10 +1533,6 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
     if (msg) {
       int8_t inputType = RSMA_EXEC_MSG_TYPE(msg);
       if (inputType == STREAM_INPUT__DATA_SUBMIT) {
-        if (nDelete > 0) {
-          resume = 1;
-          break;
-        }
       _resume_submit:
         packData.msgLen = RSMA_EXEC_MSG_LEN(msg);
         packData.ver = RSMA_EXEC_MSG_VER(msg);
@@ -1549,10 +1545,6 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
         }
         ++nSubmit;
       } else if (inputType == STREAM_INPUT__REF_DATA_BLOCK) {
-        if (nSubmit > 0) {
-          resume = 2;
-          break;
-        }
       _resume_delete:
         version = RSMA_EXEC_MSG_VER(msg);
         if ((terrno = tqExtractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
@@ -1593,10 +1585,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
       goto _rtn;
     }
 
-    if (resume == 1) {
-      resume = 0;
-      goto _resume_submit;
-    } else if (resume == 2) {
+    if (resume == 2) {
       resume = 0;
       goto _resume_delete;
     }

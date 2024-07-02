@@ -488,12 +488,12 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pScan;
+    pScan->paraTablesSort = getParaTablesSortOptHint(pSelect->pHint);
+    pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
+    pCxt->hasScan = true;
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
-  pScan->paraTablesSort = getParaTablesSortOptHint(pSelect->pHint);
-  pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
-  pCxt->hasScan = true;
 
   return code;
 }
@@ -738,11 +738,13 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
       pProbeTable = (SRealTableNode*)pJoinTable->pRight;
       break;
     default:
+      if (!*pList) nodesDestroyList(pTargets);
       return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
+    if (!*pList) nodesDestroyList(pTargets);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
