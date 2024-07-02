@@ -427,7 +427,7 @@ static char* readFile(TdFilePtr pFile, int64_t *offset, int64_t size){
     *offset += (len+1);
   }
 
-  uDebug("[monitor] monitorReadSendSlowLog slow log:%s", pCont);
+  uDebug("[monitor] readFile slow log:%s", pCont);
   return pCont;
 }
 
@@ -693,6 +693,9 @@ static void* monitorThreadFunc(void *param){
     if (slowLogFlag > 0) {
       if(quitCnt == 0){
         monitorSendAllSlowLogAtQuit();
+        if(quitCnt == 0){
+          break;
+        }
         quitTime = taosGetMonoTimestampMs();
       }
       if(taosGetMonoTimestampMs() - quitTime > 500){   //quit at most 500ms
@@ -726,7 +729,9 @@ static void* monitorThreadFunc(void *param){
     monitorFreeSlowLogData(slowLogData);
     taosFreeQitem(slowLogData);
 
-    monitorSendAllSlowLog();
+    if (quitCnt == 0) {
+      monitorSendAllSlowLog();
+    }
     tsem2_timewait(&monitorSem, 100);
   }
 
