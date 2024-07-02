@@ -206,15 +206,15 @@ static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent eve
     SFutureHandleEventInfo* pInfo = taosArrayGet(pSM->pWaitingEventList, i);
     if (pInfo->event == event) {
       taosArrayRemove(pSM->pWaitingEventList, i);
-      stDebug("s-task:%s pause event in waiting list not be handled yet, remove it from waiting list, remaining:%d",
-              pTask->id.idStr, pInfo->event);
+      stDebug("s-task:%s %s event in waiting list not be handled yet, remove it from waiting list, remaining events:%d",
+              pTask->id.idStr, GET_EVT_NAME(pInfo->event), num - 1);
       removed = true;
       break;
     }
   }
 
   if (!removed) {
-    stDebug("s-task:%s failed to remove event:%s in waiting list", pTask->id.idStr, StreamTaskEventList[event].name);
+    stDebug("s-task:%s failed to remove event:%s in waiting list", pTask->id.idStr, GET_EVT_NAME(event));
   }
 
   return TSDB_CODE_SUCCESS;
