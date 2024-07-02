@@ -102,6 +102,8 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
     if(monitorPutData2MonitorQueue(*p) == 0){
       p->fileName = NULL;
     }
+    monitorFreeSlowLogData(p);
+    taosMemoryFree(p);
   }
   return code;
 }
@@ -114,15 +116,13 @@ static int32_t sendReport(void* pTransporter, SEpSet *epSet, char* pCont, MONITO
 
   int tlen = tSerializeSStatisReq(NULL, 0, &sStatisReq);
   if (tlen < 0) {
-    monitorFreeSlowLogData(param);
-    return -1;
+    goto FAILED;
   }
   void* buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     uError("sendReport failed, out of memory, len:%d", tlen);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    monitorFreeSlowLogData(param);
-    return -1;
+    goto FAILED;
   }
   tSerializeSStatisReq(buf, tlen, &sStatisReq);
 
@@ -130,25 +130,28 @@ static int32_t sendReport(void* pTransporter, SEpSet *epSet, char* pCont, MONITO
   if (pInfo == NULL) {
     uError("sendReport failed, out of memory send info");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    monitorFreeSlowLogData(param);
     taosMemoryFree(buf);
-    return -1;
+    goto FAILED;
   }
   pInfo->fp = monitorReportAsyncCB;
   pInfo->msgInfo.pData = buf;
   pInfo->msgInfo.len = tlen;
   pInfo->msgType = TDMT_MND_STATIS;
   pInfo->param = param;
-  pInfo->paramFreeFp = monitorFreeSlowLogData;
   pInfo->requestId = tGenIdPI64();
   pInfo->requestObjRefId = 0;
 
   int64_t transporterId = 0;
   int32_t code = asyncSendMsgToServer(pTransporter, epSet, &transporterId, pInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    uError("sendReport failed, code:%d", code);
+  if (code == TSDB_CODE_SUCCESS) {
+    return code;
   }
-  return code;
+
+FAILED:
+  uError("sendReport failed, code:%d", code);
+  monitorFreeSlowLogData(param);
+  taosMemoryFree(param);
+  return -1;
 }
 
 static void generateClusterReport(taos_collector_registry_t* registry, void* pTransporter, SEpSet *epSet) {
@@ -464,6 +467,7 @@ static void monitorSendSlowLogAtBeginning(int64_t clusterId, char* fileName, TdF
     if(data != NULL){
       sendSlowLog(clusterId, data, pFile, offset, SLOW_LOG_READ_BEGINNIG, taosStrdup(fileName), pTransporter, epSet);
     }
+    taosMemoryFree(data);
     uDebug("[monitor] monitorSendSlowLogAtBeginning send slow log file:%p", pFile);
   }
 }
@@ -494,6 +498,7 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId){
     if(data != NULL){
       sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
     }
+    taosMemoryFree(data);
     uDebug("[monitor] monitorReadSendSlowLog send slow log:%s", data);
   }
 }
@@ -525,6 +530,7 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
     if(data != NULL){
       sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep);
     }
+    taosMemoryFree(data);
     uDebug("[monitor] monitorReadSendSlowLog send slow log:%s", data);
   }
   return false;
@@ -555,6 +561,7 @@ static void   monitorSendAllSlowLogAtQuit(){
       if(data != NULL && sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep) == 0){
         quitCnt ++;
       }
+      taosMemoryFree(data);
       uDebug("[monitor] monitorSendAllSlowLogAtQuit send slow log :%s", data);
     }
   }
@@ -584,6 +591,7 @@ static void monitorSendAllSlowLog(){
       if(data != NULL){
         sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
       }
+      taosMemoryFree(data);
       uDebug("[monitor] monitorSendAllSlowLog send slow log :%s", data);
     }
   }
