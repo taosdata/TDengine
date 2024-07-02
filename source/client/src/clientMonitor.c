@@ -330,7 +330,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpP
     }
     taosGetTmpfilePath(tmpPath, clusterId, path);
     uInfo("[monitor] create slow log file:%s", path);
-    pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
+    pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_STREAM);
     if (pFile == NULL) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       uError("failed to open file:%s since %s", path, terrstr());
@@ -378,7 +378,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpP
   uDebug("[monitor] write slow log to file:%p, clusterId:%"PRIx64, pFile, slowLogData->clusterId);
 }
 
-static char* readFile(TdFilePtr pFile, int64_t *offset, bool* isEnd){
+static char* readFileByLine(TdFilePtr pFile, int64_t *offset, bool* isEnd){
   if(taosLSeekFile(pFile, *offset, SEEK_SET) < 0){
     uError("failed to seek file:%p code: %d", pFile, errno);
     return NULL;
@@ -446,7 +446,7 @@ static int32_t sendSlowLog(int64_t clusterId, char* data, TdFilePtr pFile, int64
 
 static void monitorSendSlowLogAtBeginning(int64_t clusterId, char* fileName, TdFilePtr pFile, int64_t offset, void* pTransporter, SEpSet *epSet){
   bool     isEnd = false;
-  char*    data = readFile(pFile, &offset, &isEnd);
+  char*    data = readFileByLine(pFile, &offset, &isEnd);
   if(isEnd){
     taosFtruncateFile(pFile, 0);
     taosUnLockFile(pFile);
@@ -465,7 +465,7 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId){
   void* tmp = taosHashGet(monitorSlowLogHash, &clusterId, LONG_BYTES);
   SlowLogClient* pClient = (*(SlowLogClient**)tmp);
   bool isEnd = false;
-  char* data = readFile(pClient->pFile, &pClient->offset, &isEnd);
+  char* data = readFileByLine(pClient->pFile, &pClient->offset, &isEnd);
   if(isEnd){
     if(taosFtruncateFile(pClient->pFile, 0) < 0){
       uError("failed to truncate file:%p code: %d", pClient->pFile, errno);
@@ -488,7 +488,7 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
   SlowLogClient* pClient = (*(SlowLogClient**)tmp);
 
   bool isEnd = false;
-  char* data = readFile(pClient->pFile, &pClient->offset, &isEnd);
+  char* data = readFileByLine(pClient->pFile, &pClient->offset, &isEnd);
   if(isEnd){
     taosUnLockFile(pClient->pFile);
     taosCloseFile(&(pClient->pFile));
@@ -517,8 +517,7 @@ static void monitorSendAllSlowLogAtQuit(){
     SEpSet ep = getEpSet_s(&pInst->mgmtEp);
     bool isEnd = false;
     int64_t offset = 0;
-    char* data = readFile(pClient->pFile, &offset, &isEnd);
-
+    char* data = readFileByLine(pClient->pFile, &offset, &isEnd);
     if(data != NULL && sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep) == 0){
       quitCnt ++;
     }
@@ -539,7 +538,7 @@ static void monitorSendAllSlowLog(){
       SEpSet ep = getEpSet_s(&pInst->mgmtEp);
       bool isEnd = false;
       int64_t offset = 0;
-      char* data = readFile(pClient->pFile, &offset, &isEnd);
+      char* data = readFileByLine(pClient->pFile, &offset, &isEnd);
       if(data != NULL){
         sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
       }
@@ -587,7 +586,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId){
 
     char filename[PATH_MAX] = {0};
     snprintf(filename, sizeof(filename), "%s%s", tmpPath, name);
-    TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
+    TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ | TD_FILE_STREAM | TD_FILE_TRUNC);
     if (pFile == NULL) {
       uError("failed to open file:%s since %s", filename, terrstr());
       continue;
