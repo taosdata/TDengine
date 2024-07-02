@@ -24,13 +24,19 @@ script = """
 echo $VER_NUMBER
 """
 
+[tasks.cargo-update]
+command = "cargo"
+args = ["update"]
+
 [tasks.taosx]
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
+dependencies = ["cargo-update"]
 
 [tasks.taosx-agent]
 command = "cargo"
 args = ["build", "--release", "-p", "taosx-agent"]
+dependencies = ["cargo-update"]
 
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
@@ -42,6 +48,7 @@ rsync -u root@192.168.0.30:/root/enterprise-docs/docs-zh.zip .
 rsync -u root@192.168.0.30:/root/enterprise-docs/docs-en.zip .
 rm -rf public/docs && unzip docs-zh.zip -d public/docs
 rm -rf public/docs-en && unzip docs-en.zip -d public/docs-en
+cargo update
 yarn install && yarn build:bin
 mkdir -p ../taosx/target/release/ && cp target/release/taos-explorer ../taosx/target/release/taos-explorer
 """
