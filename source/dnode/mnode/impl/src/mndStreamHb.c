@@ -22,9 +22,18 @@ typedef struct SFailedCheckpointInfo {
   int32_t transId;
 } SFailedCheckpointInfo;
 
-static void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode);
+static void    mndStreamStartUpdateCheckpointInfo(SMnode *pMnode);
+static void    updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage);
+static void    addIntoCheckpointList(SArray *pList, const SFailedCheckpointInfo *pInfo);
+static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, int32_t transId);
+static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList);
+static int32_t mndDropOrphanTasks(SMnode *pMnode, SArray *pList);
+static int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info);
+static bool    validateHbMsg(const SArray *pNodeList, int32_t vgId);
+static void    cleanupAfterProcessHbMsg(SStreamHbMsg *pReq, SArray *pFailedChkptList, SArray *pOrphanTasks);
+static void    doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, int32_t vgId, int32_t msgId);
 
-static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
+void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeList);
   for (int32_t j = 0; j < numOfNodes; ++j) {
     SNodeEntry *pNodeEntry = taosArrayGet(execInfo.pNodeList, j);
@@ -39,7 +48,7 @@ static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   }
 }
 
-static void addIntoCheckpointList(SArray *pList, const SFailedCheckpointInfo *pInfo) {
+void addIntoCheckpointList(SArray *pList, const SFailedCheckpointInfo *pInfo) {
   int32_t num = taosArrayGetSize(pList);
   for (int32_t i = 0; i < num; ++i) {
     SFailedCheckpointInfo *p = taosArrayGet(pList, i);
@@ -86,7 +95,7 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, int32_t transId) {
+int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, int32_t transId) {
   int32_t code = TSDB_CODE_SUCCESS;
   mndKillTransImpl(pMnode, transId, "");
 
@@ -110,7 +119,7 @@ static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, in
   return code;
 }
 
-static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
+int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
   int32_t num = taosArrayGetSize(pNodeList);
   mInfo("set node expired for %d nodes", num);
 
@@ -133,15 +142,14 @@ static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
     }
 
     if (!setFlag) {
-      mError("failed to set nodeUpdate flag, nodeId:%d not exists in nodelist, update it", *pVgId);
-      ASSERT(0);
+      mError("failed to set nodeUpdate flag, nodeId:%d not exists in nodelist", *pVgId);
       return TSDB_CODE_FAILED;
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndDropOrphanTasks(SMnode *pMnode, SArray *pList) {
+int32_t mndDropOrphanTasks(SMnode *pMnode, SArray *pList) {
   SOrphanTask *pTask = taosArrayGet(pList, 0);
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
@@ -238,7 +246,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
-  mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d", req.vgId, req.numOfTasks);
+  mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d, msgId:%d", req.vgId, req.numOfTasks, req.msgId);
 
   pFailedChkpt = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   pOrphanTasks = taosArrayInit(4, sizeof(SOrphanTask));
@@ -246,6 +254,16 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   taosThreadMutexLock(&execInfo.lock);
 
   mndInitStreamExecInfo(pMnode, &execInfo);
+  if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
+    mError("invalid hbMsg from vgId:%d, discarded", req.vgId);
+
+    terrno = TSDB_CODE_INVALID_MSG;
+    doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
+
+    taosThreadMutexUnlock(&execInfo.lock);
+    cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
+    return -1;
+  }
 
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
@@ -335,21 +353,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   taosThreadMutexUnlock(&execInfo.lock);
-  tCleanupStreamHbMsg(&req);
 
-  taosArrayDestroy(pFailedChkpt);
-  taosArrayDestroy(pOrphanTasks);
+  terrno = TSDB_CODE_SUCCESS;
+  doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
 
-  {
-    SRpcMsg rsp = {.code = 0, .info = pReq->info, .contLen = sizeof(SMStreamHbRspMsg)};
-    rsp.pCont = rpcMallocCont(rsp.contLen);
-    SMsgHead *pHead = rsp.pCont;
-    pHead->vgId = htonl(req.vgId);
-
-    tmsgSendRsp(&rsp);
-    pReq->info.handle = NULL;  // disable auto rsp
-  }
-
+  cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -360,4 +368,33 @@ void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode) {  // here reuse the doC
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_UPDATE_CHKPT_EVT, .pCont = pMsg, .contLen = size};
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
+}
+
+bool validateHbMsg(const SArray *pNodeList, int32_t vgId) {
+  for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
+    SNodeEntry *pEntry = taosArrayGet(pNodeList, i);
+    if (pEntry->nodeId == vgId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void cleanupAfterProcessHbMsg(SStreamHbMsg *pReq, SArray *pFailedChkptList, SArray *pOrphanTasks) {
+  tCleanupStreamHbMsg(pReq);
+  taosArrayDestroy(pFailedChkptList);
+  taosArrayDestroy(pOrphanTasks);
+}
+
+void doSendHbMsgRsp(int32_t code, SRpcHandleInfo *pRpcInfo, int32_t vgId, int32_t msgId) {
+  SRpcMsg rsp = {.code = code, .info = *pRpcInfo, .contLen = sizeof(SMStreamHbRspMsg)};
+  rsp.pCont = rpcMallocCont(rsp.contLen);
+
+  SMStreamHbRspMsg *pMsg = rsp.pCont;
+  pMsg->head.vgId = htonl(vgId);
+  pMsg->msgId = msgId;
+
+  tmsgSendRsp(&rsp);
+  pRpcInfo->handle = NULL;  // disable auto rsp
 }

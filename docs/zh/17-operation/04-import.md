@@ -52,8 +52,14 @@ taos> DESCRIBE d1001
 
 那么可以用如下命令导入数据：
 
+
 ```sql
-taos> insert into d1001 file '~/data.csv';
+taos> insert into d1001 file '~/data.csv'; # For Linux / Mac
+Query OK, 9 row(s) affected (0.004763s)
+```
+
+```sql
+taos> insert into d1001 file 'E:\\taos\\data.csv'; # For Windows
 Query OK, 9 row(s) affected (0.004763s)
 ```
 

@@ -647,6 +647,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         tqProcessTaskResetReq(pVnode->pTq, pMsg);
       }
     } break;
+    case TDMT_MND_STREAM_CHKPT_CONSEN_RSP: {
+      if (pVnode->restored) {
+        tqProcessTaskConsensusChkptRsp(pVnode->pTq, pMsg);
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
