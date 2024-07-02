@@ -1065,6 +1065,7 @@ int sml_escape1_Test() {
   for(int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++){
     pRes = taos_schemaless_insert(taos, (char**)&sql[i], 1, TSDB_SML_LINE_PROTOCOL, 0);
     int code = taos_errno(pRes);
+    taos_free_result(pRes);
     ASSERT(code);
   }
 
