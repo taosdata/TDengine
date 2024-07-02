@@ -23,6 +23,7 @@ typedef struct SFailedCheckpointInfo {
 } SFailedCheckpointInfo;
 
 static void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode);
+static bool validateHbMsg(const SArray *pNodeList, int32_t vgId);
 
 static void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeList);
@@ -247,6 +248,28 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   mndInitStreamExecInfo(pMnode, &execInfo);
 
+  if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
+    mError("invalid hbMsg from vgId:%d, discarded", req.vgId);
+
+    terrno = TSDB_CODE_INVALID_MSG;
+    {
+      SRpcMsg rsp = {.code = TSDB_CODE_INVALID_MSG, .info = pReq->info, .contLen = sizeof(SMStreamHbRspMsg)};
+      rsp.pCont = rpcMallocCont(rsp.contLen);
+      SMsgHead *pHead = rsp.pCont;
+      pHead->vgId = htonl(req.vgId);
+
+      tmsgSendRsp(&rsp);
+      pReq->info.handle = NULL;  // disable auto rsp
+    }
+
+    taosThreadMutexUnlock(&execInfo.lock);
+
+    tCleanupStreamHbMsg(&req);
+    taosArrayDestroy(pFailedChkpt);
+    taosArrayDestroy(pOrphanTasks);
+    return -1;
+  }
+
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
     mDebug("%d stream node(s) need updated from hbMsg(vgId:%d)", numOfUpdated, req.vgId);
@@ -360,4 +383,15 @@ void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode) {  // here reuse the doC
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_UPDATE_CHKPT_EVT, .pCont = pMsg, .contLen = size};
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
+}
+
+bool validateHbMsg(const SArray *pNodeList, int32_t vgId) {
+  for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
+    SNodeEntry *pEntry = taosArrayGet(pNodeList, i);
+    if (pEntry->nodeId == vgId) {
+      return true;
+    }
+  }
+
+  return false;
 }
