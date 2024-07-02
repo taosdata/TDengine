@@ -36,6 +36,11 @@ REST connection supports all platforms that can run Java.
 
 | taos-jdbcdriver version |                                                                   major changes                                                                    | TDengine version |
 | :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------: |
+|          3.3.0         | 1. Optimized data transmission performance under Websocket connection; 2. SSL validation skipping is supported but disabled by default|     3.3.2.0 or later          |
+|          3.2.11         | Fixed the result set closing bug when using a native connection.|        -         |
+|          3.2.10         | 1. Automatic compression/decompression for data transmission, disabled by default; 2.Automatic reconnection for websocket with configurable parameter, disabled by default; 3. A new method for schemaless writing is added in the connection class; 4. Optimized performance for data fetching on native connection; 5. Fixing for some known issues; 6. The list of supported functions can be returned by the API for retrieving metadata|        -         |
+|          3.2.9          |  Fixed websocket prepareStatement closing bug.                                                                                                         |        -         |
+|          3.2.8          |  Improved autocommit, fixed commit offset on websocket connection bug, websocket prepareStatement uses one connection and meta data supports view. |        -         |
 |          3.2.7          |  Support VARBINARY and GEOMETRY types, and add time zone support for native connections. Support websocket auto reconnection                       | 3.2.0.0 or later |
 |          3.2.5          |                                                Subscription add committed() and assignment() method                                                | 3.1.0.3 or later |
 |          3.2.4          |                     Subscription add the enable.auto.commit parameter and the unsubscribe() method in the WebSocket connection                     |        -         |
@@ -179,7 +184,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>3.2.7</version>
+ <version>3.3.0</version>
 </dependency>
 ```
 
@@ -368,7 +373,16 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: message transmission timeout in milliseconds, the default value is 60000 ms. It only takes effect when using JDBC REST connection and batchfetch is true.
 - TSDBDriver.PROPERTY_KEY_USE_SSL: connecting Securely Using SSL. true: using SSL connection, false: not using SSL connection. It only takes effect when using JDBC REST connection.
 - TSDBDriver.HTTP_POOL_SIZE: size of REST concurrent requests. The default value is 20.
-  For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../reference/config/#configuration-file-on-client-side).
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: Whether to enable compression during transmission. It only takes effect when using REST/Websocket connections. true: enabled, false: disabled. The default is false.
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable automatic reconnection. It only takes effect when using Websocket connections. true: enabled, false: disabled. The default is false.
+> **Note**：Enabling automatic reconnection is only effective for simple SQL statement execution, schemaless writing, and data subscription. It is not effective for parameter binding. Automatic reconnection is only effective for the database specified by parameters when the connection is established, and it is not effective for the `use db` statement to switch databases later.
+
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: The interval for automatic reconnection retries, in milliseconds, with a default value of 2000. It only takes effect when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: The number of automatic reconnection retries, with a default value of 3. It only takes effect when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
+- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: Whether to disable SSL certification validation. It only takes effect when using Websocket connections. true: enabled, false: disabled. The default is false.
+
+
+For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](../../reference/config/#configuration-file-on-client-side).
 
 ### Priority of configuration parameters
 
