@@ -335,7 +335,7 @@ int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value) {
   char *endPtr = NULL;
 
   *value = taosStr2Int64(z, &endPtr, base);
-  if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
+  if (errno == ERANGE || errno == EINVAL) {
     errno = 0;
     return TSDB_CODE_FAILED;
   }
