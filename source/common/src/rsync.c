@@ -151,9 +151,9 @@ void startRsync() {
   // start rsync service to backup checkpoint
   code = system(cmd);
   if (code != 0) {
-    uError("[rsync] start server failed, code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
+    uError("[rsync] cmd:%s start server failed, code:%d," ERRNO_ERR_FORMAT, cmd, code, ERRNO_ERR_DATA);
   } else {
-    uDebug("[rsync] start server successful");
+    uInfo("[rsync] cmd:%s start server successful", cmd);
   }
 }
 

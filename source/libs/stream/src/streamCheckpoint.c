@@ -447,14 +447,13 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
 
-  //  if (restored && (pStatus->state != TASK_STATUS__CK)) {
-  //    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%"
-  //    PRId64
-  //            " failed",
-  //            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
-  //    taosThreadMutexUnlock(&pTask->lock);
-  //    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-  //  }
+  if (restored && (pStatus->state != TASK_STATUS__CK) && (pMeta->role == NODE_ROLE_LEADER)) {
+    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
+            " failed",
+            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
+    taosThreadMutexUnlock(&pTask->lock);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
 
   if (!restored) {  // during restore procedure, do update checkpoint-info
     stDebug("s-task:%s vgId:%d status:%s update the checkpoint-info during restore, checkpointId:%" PRId64 "->%" PRId64
@@ -1106,5 +1105,53 @@ int32_t deleteCheckpointFile(const char* id, const char* name) {
 
   char* tmp = object;
   s3DeleteObjects((const char**)&tmp, 1);
+  return 0;
+}
+
+int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
+  int32_t          code;
+  int32_t          tlen = 0;
+  int32_t          vgId = pTask->pMeta->vgId;
+  const char*      id = pTask->id.idStr;
+  SCheckpointInfo* pInfo = &pTask->chkInfo;
+
+  ASSERT(pTask->pBackend == NULL);
+
+  SRestoreCheckpointInfo req = {
+      .streamId = pTask->id.streamId,
+      .taskId = pTask->id.taskId,
+      .nodeId = vgId,
+      .checkpointId = pInfo->checkpointId,
+      .startTs = pTask->execInfo.created,
+  };
+
+  tEncodeSize(tEncodeRestoreCheckpointInfo, &req, tlen, code);
+  if (code < 0) {
+    stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id failed, code:%s", id, vgId, tstrerror(code));
+    return -1;
+  }
+
+  void* buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id msg failed, code:%s", id, vgId,
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return -1;
+  }
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, tlen);
+  if ((code = tEncodeRestoreCheckpointInfo(&encoder, &req)) < 0) {
+    rpcFreeCont(buf);
+    stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id msg failed, code:%s", id, vgId, tstrerror(code));
+    return -1;
+  }
+  tEncoderClear(&encoder);
+
+  SRpcMsg msg = {0};
+  initRpcMsg(&msg, TDMT_MND_STREAM_CHKPT_CONSEN, buf, tlen);
+  stDebug("s-task:%s vgId:%d send latest checkpointId:%" PRId64 " to mnode to get the consensus checkpointId", id, vgId,
+          pInfo->checkpointId);
+
+  tmsgSendReq(&pTask->info.mnodeEpset, &msg);
   return 0;
 }
