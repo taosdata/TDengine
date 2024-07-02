@@ -25,7 +25,7 @@ For information about connecting to TDengine with different programming language
 
 If you are very interested in the internal design of TDengine, please read the chapter [Inside TDengine](./tdinternal), which introduces the cluster design, data partitioning, sharding, writing, and reading processes in detail. If you want to study TDengine code or even contribute code, please read this chapter carefully.
 
-To get more general introduction about time series database, please read through [a series of articles](https://tdengine.com/tsdb/). To lean more competitive advantages about TDengine, please read through [a series of blogs](https://tdengine.com/tdengine/). 
+To get more general introduction about time series database, please read through [a series of articles](https://tdengine.com/tsdb/). To lean more competitive advantages about TDengine, please read through [a series of blogs](https://tdengine.com/tdengine/).
 
 TDengine is an open-source database, and we would love for you to be a part of TDengine. If you find any errors in the documentation or see parts where more clarity or elaboration is needed, please click "Edit this page" at the bottom of each page to edit it directly.
 

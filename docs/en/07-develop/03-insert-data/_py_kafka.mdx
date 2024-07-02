@@ -6,7 +6,7 @@ For python kafka client, please refer to [kafka client](https://cwiki.apache.org
 
 The simple way to consume messages from Kafka is to read messages one by one. The demo is as follows:
 
-```
+```python
 from kafka import KafkaConsumer
 consumer = KafkaConsumer('my_favorite_topic')
 for msg in consumer:
@@ -15,7 +15,7 @@ for msg in consumer:
 
 For higher performance, we can consume message from kafka in batch. The demo is as follows:
 
-```
+```python
 from kafka import KafkaConsumer
 consumer = KafkaConsumer('my_favorite_topic')
 while True:
@@ -28,7 +28,7 @@ while True:
 
 For more higher performance we can process data from kafka in multi-thread. We can use python's ThreadPoolExecutor to achieve multithreading. The demo is as follows:
 
-```
+```python
 from concurrent.futures import ThreadPoolExecutor, Future
 pool = ThreadPoolExecutor(max_workers=10)
 pool.submit(...)
@@ -38,7 +38,7 @@ pool.submit(...)
 
 For more higher performance, sometimes we use multiprocessing. In this case, the number of Kafka Consumers should not be greater than the number of Kafka Topic Partitions. The demo is as follows:
 
-```
+```python
 from multiprocessing import Process
 
 ps = []
@@ -63,6 +63,7 @@ In addition to python's built-in multithreading and multiprocessing library, we 
 ```py
 {{#include docs/examples/python/kafka_example_perform.py}}
 ```
+
 </details>
 
 <details>
@@ -73,6 +74,7 @@ In addition to python's built-in multithreading and multiprocessing library, we 
 ```py
 {{#include docs/examples/python/kafka_example_common.py}}
 ```
+
 </details>
 
 <details>
@@ -83,6 +85,7 @@ In addition to python's built-in multithreading and multiprocessing library, we 
 ```py
 {{#include docs/examples/python/kafka_example_producer.py}}
 ```
+
 </details>
 
 <details>
@@ -93,29 +96,30 @@ In addition to python's built-in multithreading and multiprocessing library, we 
 ```py
 {{#include docs/examples/python/kafka_example_consumer.py}}
 ```
+
 </details>
 
 ### execute Python examples
 
 <details>
-    <summary>execute Python examples</summary>
+<summary>execute Python examples</summary>
 
-    1. install and start up `kafka`
-    2. install python3 and pip
-    3. install `taospy` by pip
-    4. install `kafka-python` by pip
-    5. execute this example
+1. install and start up `kafka`
+2. install python3 and pip
+3. install `taospy` by pip
+4. install `kafka-python` by pip
+5. execute this example
 
-    The entry point of this example is `kafka_example_perform.py`. For more information about usage, please use `--help` command.
+The entry point of this example is `kafka_example_perform.py`. For more information about usage, please use `--help` command.
 
-    ```
-    python3 kafka_example_perform.py --help
-    ```
+```bash
+python3 kafka_example_perform.py --help
+```
 
-    For example, the following command is creating 100 sub-table and inserting 20000 data for each table and the kafka max poll is 100 and 1 thread and 1 process per thread.
+For example, the following command is creating 100 sub-table and inserting 20000 data for each table and the kafka max poll is 100 and 1 thread and 1 process per thread.
 
-    ```
-    python3 kafka_example_perform.py -table-count=100 -table-items=20000 -max-poll=100 -threads=1 -processes=1
-    ```
+```bash
+python3 kafka_example_perform.py -table-count=100 -table-items=20000 -max-poll=100 -threads=1 -processes=1
+```
 
 </details>

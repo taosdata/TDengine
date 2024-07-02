@@ -34,6 +34,7 @@ Please refer to [version support list](https://github.com/taosdata/driver-go#rem
 ## Handling exceptions
 
 If it is a TDengine error, you can get the error code and error information in the following ways.
+
 ```go
 // import "github.com/taosdata/driver-go/v3/errors"
     if err != nil {
@@ -124,6 +125,7 @@ DSN in full form.
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
+
 <Tabs defaultValue="rest" groupId="connect">
 <TabItem value="native" label="native connection">
 
@@ -186,6 +188,7 @@ func main() {
     }
 }
 ```
+
 </TabItem>
 <TabItem value="WebSocket" label="WebSocket connection">
 
@@ -217,6 +220,7 @@ func main() {
     }
 }
 ```
+
 </TabItem>
 </Tabs>
 
@@ -654,7 +658,6 @@ func prepareEnv(db *sql.DB) {
 </TabItem>
 </Tabs>
 
-
 ### Schemaless Writing
 
 <Tabs defaultValue="native" groupId="connect">
@@ -757,7 +760,6 @@ func main() {
 
 </TabItem>
 </Tabs>
-
 
 ### Schemaless with reqId
 
@@ -1099,7 +1101,6 @@ func prepareEnv(db *sql.DB) {
 ### More sample programs
 
 * [sample program](https://github.com/taosdata/driver-go/tree/3.0/examples)
-
 
 ## Frequently Asked Questions
 
