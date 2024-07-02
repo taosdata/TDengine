@@ -134,30 +134,63 @@ class TDTestCase:
         tdSql.checkData(1, 1, 1)
         tdSql.checkData(2, 1, 1)
         
-        tdSql.query("select tbname, ts from st where tbname=\"t2\"")  
+        tdSql.query("select tbname, ts from st where tbname=\"t2\"")
         tdSql.checkRows(3)
         
-        tdSql.query("select tbname, ts from st where tbname=\"t2\" order by tbname")  
+        tdSql.query("select tbname, ts from st where tbname=\"t2\" order by tbname")
         tdSql.checkRows(3)
         
-        tdSql.query("select tbname, ts from st where tbname=\"t2\" order by st.tbname")  
+        tdSql.query("select tbname, ts from st where tbname=\"t2\" order by st.tbname")
         tdSql.checkRows(3)
         
-        tdSql.query("select tbname, count(*) from st where tbname=\"t2\" group by tbname order by tbname")  
+        tdSql.query("select tbname, count(*) from st where tbname=\"t2\" group by tbname order by tbname")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 3)
         
-        tdSql.query("select tbname, count(*) from st group by tbname order by tbname")  
+        tdSql.query("select tbname, count(*) from st group by tbname order by tbname")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 1, 3)
         
-        tdSql.query("select tbname, count(*) from st group by st.tbname order by st.tbname")  
+        tdSql.query("select tbname, count(*) from st group by st.tbname order by st.tbname")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 1, 3)
 
-        tdLog.debug(f"--------------  step4:  join test   ------------------")
+        tdSql.query("select st.tbname, count(*) from st group by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.query("select st.tbname, count(*) from st partition by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.query("select st.tbname, ts from st where tbname=\"t2\"")
+        tdSql.checkRows(3)
+
+        tdSql.query("select st.tbname, ts from st where tbname=\"t2\" order by tbname")
+        tdSql.checkRows(3)
+
+        tdSql.query("select st.tbname, ts from st where tbname=\"t2\" order by st.tbname")
+        tdSql.checkRows(3)
+
+        tdSql.query("select st.tbname, count(*) from st where tbname=\"t2\" group by tbname order by tbname")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 3)
+
+        tdSql.query("select st.tbname, count(*) from st group by tbname order by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.query("select st.tbname, count(*) from st group by st.tbname order by st.tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 1, 3)
+
+        tdLog.debug(f"--------------  step5:  join test   ------------------")
         tdSql.query("select t1.tbname, t2.tbname from t1, t2 where t1.ts=t2.ts and t1.tbname!=t2.tbname")  
         tdSql.checkRows(3)
         
