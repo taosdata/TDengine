@@ -88,8 +88,20 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
      tscError("failed to sched async parse sql");
      return code;
    }
- 
+
+   code = taosAsyncWait();
+   if (TSDB_CODE_SUCCESS != code) {
+     tscError("failed to sched async parse sql");
+     return code;
+   }
+
    tsem_wait(&syncParam->sem);
+
+   code = taosAsyncRecover();
+   if (TSDB_CODE_SUCCESS != code) {
+     tscError("failed to sched async parse sql");
+     return code;
+   }
  
    code = pNewRequest->code;
    pRequest->code = code;
