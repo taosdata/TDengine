@@ -529,7 +529,7 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
   }
   return false;
 }
-static void monitorSendAllSlowLogAtQuit(){
+static void   monitorSendAllSlowLogAtQuit(){
   void* pIter = NULL;
   while ((pIter = taosHashIterate(monitorSlowLogHash, pIter))) {
     SlowLogClient* pClient = (*(SlowLogClient**)pIter);
@@ -537,20 +537,26 @@ static void monitorSendAllSlowLogAtQuit(){
       taosHashCancelIterate(monitorSlowLogHash, pIter);
       return;
     }
-    int64_t* clusterId = (int64_t*)taosHashGetKey(pIter, NULL);
-    SAppInstInfo* pInst = getAppInstByClusterId(*clusterId);
-    if(pInst == NULL) {
-      taosHashCancelIterate(monitorSlowLogHash, pIter);
-      return;
-    }
-    SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-    int64_t offset = 0;
     int64_t size = getFileSize(pClient->path);
-    char* data = readFile(pClient->pFile, &offset, size);
-    if(data != NULL && sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep) == 0){
-      quitCnt ++;
+    if(size <= pClient->offset){
+      taosUnLockFile(pClient->pFile);
+      taosCloseFile(&(pClient->pFile));
+      taosRemoveFile(pClient->path);
+    }else{
+      int64_t* clusterId = (int64_t*)taosHashGetKey(pIter, NULL);
+      SAppInstInfo* pInst = getAppInstByClusterId(*clusterId);
+      if(pInst == NULL) {
+        taosHashCancelIterate(monitorSlowLogHash, pIter);
+        return;
+      }
+      SEpSet ep = getEpSet_s(&pInst->mgmtEp);
+      int64_t offset = 0;
+      char* data = readFile(pClient->pFile, &offset, size);
+      if(data != NULL && sendSlowLog(*clusterId, data, NULL, offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep) == 0){
+        quitCnt ++;
+      }
+      uDebug("[monitor] monitorSendAllSlowLogAtQuit send slow log :%s", data);
     }
-    uDebug("[monitor] monitorSendAllSlowLogAtQuit send slow log :%s", data);
   }
 }
 
