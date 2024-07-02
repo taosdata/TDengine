@@ -523,11 +523,15 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
   ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
 
+int32_t qExecutorInit(void) {
+  taosThreadOnce(&initPoolOnce, initRefPool);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                         EOPTR_EXEC_MODEL model) {
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
-  taosThreadOnce(&initPoolOnce, initRefPool);
 
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 

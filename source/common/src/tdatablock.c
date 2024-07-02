@@ -1452,10 +1452,12 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
     pColumn->pData = tmp;
 
     // check if the allocated memory is aligned to the requried bytes.
+#if 0
 #if defined LINUX
     if ((((uint64_t)pColumn->pData) & (MALLOC_ALIGN_BYTES - 1)) != 0x0) {
       return TSDB_CODE_FAILED;
     }
+#endif
 #endif
 
     if (clearPayload) {

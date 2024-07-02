@@ -524,7 +524,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       return pTaskInfo->code;
     }
 
-    void* msg = taosMemoryCalloc(1, msgSize);
+    void* msg = taosMemCalloc(1, msgSize);
     if (NULL == msg) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemFree(pWrapper);
@@ -535,7 +535,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemFree(pWrapper);
-      taosMemoryFree(msg);
+      taosMemFree(msg);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
@@ -549,7 +549,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     // send the fetch remote task result reques
     SMsgSendInfo* pMsgSendInfo = taosMemCalloc(1, sizeof(SMsgSendInfo));
     if (NULL == pMsgSendInfo) {
-      taosMemoryFreeClear(msg);
+      taosMemFreeClear(msg);
       taosMemFree(pWrapper);
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -564,8 +564,11 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     pMsgSendInfo->fp = loadRemoteDataCallback;
 
     int64_t transporterId = 0;
-    int32_t code =
-        asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
+    void* poolHandle = NULL;
+    taosSaveDisableMemoryPoolUsage(poolHandle);
+    int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
+    taosRestoreEnableMemoryPoolUsage(poolHandle);
+    
   }
 
   return TSDB_CODE_SUCCESS;

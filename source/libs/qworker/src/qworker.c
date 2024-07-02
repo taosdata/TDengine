@@ -1368,6 +1368,8 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
     QW_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
+  QW_ERR_JRET(qExecutorInit());
+
   *qWorkerMgmt = mgmt;
 
   qDebug("qworker initialized, type:%d, id:%d, handle:%p", mgmt->nodeType, mgmt->nodeId, mgmt);

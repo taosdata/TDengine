@@ -131,6 +131,8 @@ int32_t memPoolNewChunk(SMemPool* pPool, SMPChunk** ppChunk) {
   pPool->allocChunkNum++;
   pPool->allocChunkSize += pPool->cfg.chunkSize;
 
+  *ppChunk = pChunk;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -160,12 +162,8 @@ int32_t memPoolPrepareChunks(SMemPool* pPool, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     MP_ERR_RET(memPoolNewChunk(pPool, &pChunk));
 
-    if (NULL == pPool->readyChunkTail) {
-      pPool->readyChunkHead = pChunk;
-      pPool->readyChunkTail = pChunk;
-    } else {
-      pPool->readyChunkTail->list.pNext = pChunk;
-    }
+    pPool->readyChunkTail->list.pNext = pChunk;
+    pPool->readyChunkTail = pChunk;
 
     atomic_add_fetch_32(&pPool->readyChunkNum, 1);
   }
@@ -192,7 +190,7 @@ int32_t memPoolEnsureChunks(SMemPool* pPool) {
 int32_t memPoolInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
   MP_ERR_RET(memPoolCheckCfg(cfg));
   
-  memcpy(&pPool->cfg, &cfg, sizeof(cfg));
+  memcpy(&pPool->cfg, cfg, sizeof(*cfg));
   
   pPool->name = taosStrdup(poolName);
   if (NULL == pPool->name) {
@@ -249,6 +247,8 @@ int32_t memPoolGetChunk(SMemPool* pPool, SMPChunk** ppChunk) {
     *ppChunk = pChunk;
 
     return TSDB_CODE_SUCCESS;
+  } else {
+    atomic_add_fetch_32(&pPool->readyChunkNum, 1);
   }
 
   MP_RET(memPoolNewChunk(pPool, ppChunk));
@@ -273,7 +273,7 @@ int32_t memPoolGetChunkFromSession(SMemPool* pPool, SMPSession* pSession, int64_
   return TSDB_CODE_SUCCESS;
 }
 
-void* memPoolAllocFromChunk(SMemPool* pPool, SMPSession* pSession, int64_t size) {
+void* memPoolAllocFromChunk(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMPChunk* pChunk = NULL, *preSrcChunk = NULL;
   void* pRes = NULL;
@@ -317,11 +317,11 @@ _return:
   return pRes;
 }
 
-void* memPoolAllocFromNSChunk(SMemPool* pPool, SMPSession* pSession, int64_t size) {
+void* memPoolAllocFromNSChunk(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMPNSChunk* pChunk = NULL;
   void* pRes = NULL;
-  int64_t totalSize = size + sizeof(SMPMemHeader) + sizeof(SMPMemTailer);
+  int64_t totalSize = size + sizeof(SMPMemHeader) + sizeof(SMPMemTailer) + alignment;
   
   MP_ERR_JRET(memPoolNewNSChunk(pPool, &pChunk, totalSize));
   SMPMemHeader* pHeader = (SMPMemHeader*)pChunk->pMemStart;
@@ -345,54 +345,204 @@ _return:
   return pRes;
 }
 
-void *memPoolMallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t size, char* fileName, int32_t lineNo) {
+void *memPoolMallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment) {
   int32_t code = TSDB_CODE_SUCCESS;
   void *res = NULL;
   
-  res = (size > pPool->cfg.chunkSize) ? memPoolAllocFromNSChunk(pPool, pSession, size) : memPoolAllocFromChunk(pPool, pSession, size);
-
-  if (MP_GET_FLAG(pPool->dbgInfo.flags, MP_DBG_FLAG_LOG_MALLOC_FREE)) {
-    //TODO
-  }
+  res = (size > pPool->cfg.chunkSize) ? memPoolAllocFromNSChunk(pPool, pSession, size, alignment) : memPoolAllocFromChunk(pPool, pSession, size, alignment);
 
 _return:
 
   return res;
 }
 
-void *memPoolCallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t num, int64_t size, char* fileName, int32_t lineNo) {
+void *memPoolCallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t num, int64_t size) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t totalSize = num * size;
-  void *res = memPoolMallocImpl(pPool, pSession, totalSize, fileName, lineNo);
+  void *res = memPoolMallocImpl(pPool, pSession, totalSize, 0);
 
   if (NULL != res) {
     memset(res, 0, totalSize);
   }
 
-  if (MP_GET_FLAG(pPool->dbgInfo.flags, MP_DBG_FLAG_LOG_MALLOC_FREE)) {
-    //TODO
-  }
-
 _return:
 
   return res;
 }
 
+void *memPoolReallocImpl(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t size, int64_t* origSize) {
+  void *res = NULL;
 
-void memPoolFreeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr, char* fileName, int32_t lineNo) {
-  //TODO
-  
-  if (MP_GET_FLAG(pPool->dbgInfo.flags, MP_DBG_FLAG_LOG_MALLOC_FREE)) {
-    //TODO
+  if (NULL == ptr) {
+    *origSize = 0;
+    res = memPoolMallocImpl(pPool, pSession, size, 0);
+    return res;
   }
+
+  if (0 == size) {
+    memPoolFreeImpl(pPool, pSession, ptr, origSize);
+    return res;
+  }
+
+  *origSize = memPoolGetMemorySizeImpl(pPool, pSession, ptr);
+  
+  if (*origSize >= size) {
+    SMPMemHeader* pHeader = (SMPMemHeader*)((char*)ptr - sizeof(SMPMemHeader));
+    pHeader->size = size;
+    return ptr;
+  }
+  
+  res = memPoolMallocImpl(pPool, pSession, size, 0);
+  SMPMemHeader* pOrigHeader = (SMPMemHeader*)((char*)ptr - sizeof(SMPMemHeader));
+  SMPMemHeader* pNewHeader = (SMPMemHeader*)((char*)res - sizeof(SMPMemHeader));
+
+  memcpy(res, ptr, *origSize);
+  memPoolFreeImpl(pPool, pSession, ptr, NULL);
+
+  return res;
 }
 
-int64_t memPoolGetMemorySizeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr, char* fileName, int32_t lineNo) {
+
+void memPoolFreeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* origSize) {
+  if (NULL == ptr) {
+    if (origSize) {
+      *origSize = 0;
+    }
+    
+    return;
+  }
+
+  if (origSize) {
+    *origSize = memPoolGetMemorySizeImpl(pPool, pSession, ptr);
+  }
+  
+  return;
+}
+
+int64_t memPoolGetMemorySizeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr) {
   SMPMemHeader* pHeader = (SMPMemHeader*)ptr - 1;
 
   return pHeader->size;
 }
 
+
+void memPoolLogStatDetail(SMPStatDetail* pDetail, EMPStatLogItem item, SMPStatInput* pInput) {
+  switch (item) {
+    case E_MP_STAT_LOG_MEM_MALLOC: {
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
+        atomic_add_fetch_64(&pDetail->times.memMalloc.exec, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memMalloc.exec, size);
+      }
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
+        atomic_add_fetch_64(&pDetail->times.memMalloc.succ, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memMalloc.succ, size);
+      } 
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
+        atomic_add_fetch_64(&pDetail->times.memMalloc.fail, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memMalloc.fail, size);
+      } 
+      break;
+    }
+    case E_MP_STAT_LOG_MEM_CALLOC:{
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
+        atomic_add_fetch_64(&pDetail->times.memCalloc.exec, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memCalloc.exec, size);
+      }
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
+        atomic_add_fetch_64(&pDetail->times.memCalloc.succ, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memCalloc.succ, size);
+      } 
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
+        atomic_add_fetch_64(&pDetail->times.memCalloc.fail, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memCalloc.fail, size);
+      } 
+      break;
+    }
+    case E_MP_STAT_LOG_MEM_REALLOC:{
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
+        atomic_add_fetch_64(&pDetail->times.memRealloc.exec, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memRealloc.exec, size);
+      }
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
+        atomic_add_fetch_64(&pDetail->times.memRealloc.succ, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memRealloc.succ, size);
+      } 
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
+        atomic_add_fetch_64(&pDetail->times.memRealloc.fail, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memRealloc.fail, size);
+      } 
+      break;
+    }
+    case E_MP_STAT_LOG_MEM_FREE:{
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
+        atomic_add_fetch_64(&pDetail->times.memFree.exec, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memFree.exec, size);
+      }
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
+        atomic_add_fetch_64(&pDetail->times.memFree.succ, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memFree.succ, size);
+      } 
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
+        atomic_add_fetch_64(&pDetail->times.memFree.fail, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memFree.fail, size);
+      } 
+      break;
+    }
+    case E_MP_STAT_LOG_MEM_STRDUP: {
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
+        atomic_add_fetch_64(&pDetail->times.strdup.exec, 1);
+        atomic_add_fetch_64(&pDetail->bytes.strdup.exec, size);
+      }
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
+        atomic_add_fetch_64(&pDetail->times.strdup.succ, 1);
+        atomic_add_fetch_64(&pDetail->bytes.strdup.succ, size);
+      } 
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
+        atomic_add_fetch_64(&pDetail->times.strdup.fail, 1);
+        atomic_add_fetch_64(&pDetail->bytes.strdup.fail, size);
+      } 
+      break;
+    }
+    case E_MP_STAT_LOG_CHUNK_MALLOC:  
+    case E_MP_STAT_LOG_CHUNK_RECYCLE:  
+    case E_MP_STAT_LOG_CHUNK_REUSE:
+    case E_MP_STAT_LOG_CHUNK_FREE: {
+
+    }
+    default:
+      uError("Invalid stat item: %d", item);
+      break;
+  }
+
+
+}
+
+void memPoolLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPStatInput* pInput) {
+  switch (item) {
+    case E_MP_STAT_LOG_MEM_MALLOC:
+    case E_MP_STAT_LOG_MEM_CALLOC:
+    case E_MP_STAT_LOG_MEM_REALLOC:
+    case E_MP_STAT_LOG_MEM_FREE:
+    case E_MP_STAT_LOG_MEM_STRDUP: {
+      if (MP_GET_FLAG(pSession->ctrlInfo.statFlags, MP_STAT_FLAG_LOG_ALL_MEM_STAT)) {
+        memPoolLogStatDetail(&pSession->stat.statDetail, item, pInput);
+      }
+      if (MP_GET_FLAG(pPool->ctrlInfo.statFlags, MP_STAT_FLAG_LOG_ALL_MEM_STAT)) {
+        memPoolLogStatDetail(&pPool->stat.statDetail, item, pInput);
+      }
+      break;
+    }
+    case E_MP_STAT_LOG_CHUNK_MALLOC:  
+    case E_MP_STAT_LOG_CHUNK_RECYCLE:  
+    case E_MP_STAT_LOG_CHUNK_REUSE:
+    case E_MP_STAT_LOG_CHUNK_FREE: {
+
+    }
+    default:
+      uError("Invalid stat item: %d", item);
+      break;
+  }
+}
 
 
 void taosMemPoolModInit(void) {
@@ -447,16 +597,17 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = NULL;
+  SMPChunk* pChunk = NULL;
 
   MP_ERR_JRET(memPoolGetIdleNode(pPool, &pPool->sessionCache, (void**)&pSession));
 
-  MP_ERR_JRET(memPoolGetChunk(pPool, &pSession->srcChunkHead));
+  MP_ERR_JRET(memPoolGetChunk(pPool, &pChunk));
 
   pSession->allocChunkNum = 1;
   pSession->allocChunkMemSize = pPool->cfg.chunkSize;
 
-  MP_ADD_TO_CHUNK_LIST(pSession->srcChunkHead, pSession->srcChunkTail, pSession->srcChunkNum, pSession->srcChunkHead);
-  MP_ADD_TO_CHUNK_LIST(pSession->inUseChunkHead, pSession->inUseChunkTail, pSession->inUseChunkNum, pSession->srcChunkHead);
+  MP_ADD_TO_CHUNK_LIST(pSession->srcChunkHead, pSession->srcChunkTail, pSession->srcChunkNum, pChunk);
+  MP_ADD_TO_CHUNK_LIST(pSession->inUseChunkHead, pSession->inUseChunkTail, pSession->inUseChunkNum, pChunk);
 
 _return:
 
@@ -473,6 +624,7 @@ _return:
 
 void   *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* fileName, int32_t lineNo) {
   int32_t code = TSDB_CODE_SUCCESS;
+  void *res = NULL;
   
   if (NULL == poolHandle || NULL == session || NULL == fileName || size < 0) {
     uError("%s invalid input param, handle:%p, session:%p, fileName:%p, size:%" PRId64, __FUNCTION__, poolHandle, session, fileName, size);
@@ -481,11 +633,16 @@ void   *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* f
 
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
-  return memPoolMallocImpl(pPool, pSession, size, fileName, lineNo);
+  SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
+
+  res = memPoolMallocImpl(pPool, pSession, size, 0);
+
+  MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
+  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_MALLOC, &input);
 
 _return:
 
-  return NULL;
+  return res;
 }
 
 void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t size, char* fileName, int32_t lineNo) {
@@ -500,15 +657,17 @@ void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t 
 
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
-  res = memPoolMallocImpl(pPool, pSession, num * size, fileName, lineNo);
+  int64_t totalSize = num * size;
+  SMPStatInput input = {.size = totalSize, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
+
+  res = memPoolMallocImpl(pPool, pSession, totalSize, 0);
 
   if (NULL != res) {
-    memset(res, 0, num * size);
+    memset(res, 0, totalSize);
   }
 
-  if (MP_GET_FLAG(pPool->dbgInfo.flags, MP_DBG_FLAG_LOG_MALLOC_FREE)) {
-    //TODO
-  }
+  MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
+  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_CALLOC, &input);
 
 _return:
 
@@ -527,28 +686,12 @@ void   *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t s
 
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
-  if (NULL == ptr) {
-    res = (size > pPool->cfg.chunkSize) ? memPoolAllocFromNSChunk(pPool, pSession, size) : memPoolAllocFromChunk(pPool, pSession, size);
-  } else if (0 == size) {
-    memPoolFreeImpl(pPool, pSession, ptr, fileName, lineNo);
-  } else {
-    int64_t origSize = memPoolGetMemorySizeImpl(pPool, pSession, ptr, fileName, lineNo);
-    if (origSize >= size) {
-      SMPMemHeader* pHeader = (SMPMemHeader*)((char*)ptr - sizeof(SMPMemHeader));
-      pHeader->size = size;
-    } else {
-      res = (size > pPool->cfg.chunkSize) ? memPoolAllocFromNSChunk(pPool, pSession, size) : memPoolAllocFromChunk(pPool, pSession, size);
-      SMPMemHeader* pOrigHeader = (SMPMemHeader*)((char*)ptr - sizeof(SMPMemHeader));
-      SMPMemHeader* pNewHeader = (SMPMemHeader*)((char*)res - sizeof(SMPMemHeader));
+  SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-      memcpy(res, ptr, origSize);
-      memset((char*)res + origSize, 0, size - origSize);
-    }
-  }
+  res = memPoolReallocImpl(pPool, pSession, ptr, size, &input.origSize);
 
-  if (MP_GET_FLAG(pPool->dbgInfo.flags, MP_DBG_FLAG_LOG_MALLOC_FREE)) {
-    //TODO
-  }
+  MP_SET_FLAG(input.procFlags, ((res || 0 == size) ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
+  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_REALLOC, &input);
 
 _return:
 
@@ -568,14 +711,15 @@ char   *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
   int64_t size = strlen(ptr) + 1;
-  res = (size > pPool->cfg.chunkSize) ? memPoolAllocFromNSChunk(pPool, pSession, size) : memPoolAllocFromChunk(pPool, pSession, size);
+  SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
+
+  res = memPoolMallocImpl(pPool, pSession, size, 0);
   if (NULL != res) {
     strcpy(res, ptr);
   }
 
-  if (MP_GET_FLAG(pPool->dbgInfo.flags, MP_DBG_FLAG_LOG_MALLOC_FREE)) {
-    //TODO
-  }
+  MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
+  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_STRDUP, &input);
 
 _return:
 
@@ -584,15 +728,20 @@ _return:
 
 void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == poolHandle || NULL == session || NULL == fileName || NULL == ptr) {
-    uError("%s invalid input param, handle:%p, session:%p, fileName:%p, ptr:%p", 
-      __FUNCTION__, poolHandle, session, fileName, ptr);
+  if (NULL == poolHandle || NULL == session || NULL == fileName) {
+    uError("%s invalid input param, handle:%p, session:%p, fileName:%p", 
+      __FUNCTION__, poolHandle, session, fileName);
     MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
   }
 
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
-  memPoolFreeImpl(pPool, pSession, ptr, fileName, lineNo);
+  SMPStatInput input = {.file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
+
+  memPoolFreeImpl(pPool, pSession, ptr, &input.size);
+
+  MP_SET_FLAG(input.procFlags, MP_STAT_PROC_FLAG_RES_SUCC);
+  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_FREE, &input);
 
 _return:
 
@@ -613,7 +762,7 @@ int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, cha
 
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
-  return memPoolGetMemorySizeImpl(pPool, pSession, ptr, fileName, lineNo);
+  return memPoolGetMemorySizeImpl(pPool, pSession, ptr);
 
 _return:
 
@@ -622,6 +771,7 @@ _return:
 
 void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment, int64_t size, char* fileName, int32_t lineNo) {
   int32_t code = TSDB_CODE_SUCCESS;
+  void *res = NULL;
   
   if (NULL == poolHandle || NULL == session || NULL == fileName || size < 0 || alignment < POINTER_BYTES || alignment % POINTER_BYTES) {
     uError("%s invalid input param, handle:%p, session:%p, fileName:%p, alignment:%u, size:%" PRId64, 
@@ -631,11 +781,16 @@ void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment
 
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
-  return memPoolMallocImpl(pPool, pSession, size, fileName, lineNo);
+  SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
+
+  res = memPoolMallocImpl(pPool, pSession, size, alignment);
+
+  MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
+  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_MALLOC, &input);
 
 _return:
 
-  return NULL;
+  return res;
 }
 
 void taosMemPoolClose(void* poolHandle) {

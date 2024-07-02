@@ -24,7 +24,7 @@ int32_t qwGetMemPoolChunkSize(int64_t totalSize, int32_t threadNum, int32_t* chu
 
 void qwInitQueryPool(void) {
   int64_t memSize = 0;
-  int32_t code = taosGetSysMemory(&memSize);
+  int32_t code = taosGetSysAvailMemory(&memSize);
   if (TSDB_CODE_SUCCESS != code) {
     return;
   }

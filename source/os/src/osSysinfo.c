@@ -697,6 +697,59 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
 #endif
 }
 
+int32_t taosGetSysAvailMemory(int64_t *availSize) {
+#ifdef WINDOWS
+  MEMORYSTATUSEX memsStat;
+  memsStat.dwLength = sizeof(memsStat);
+  if (!GlobalMemoryStatusEx(&memsStat)) {
+    return -1;
+  }
+
+  int64_t nMemFree = memsStat.ullAvailPhys;
+  int64_t nMemTotal = memsStat.ullTotalPhys;
+
+  *availSize = nMemTotal - nMemFree;
+  return 0;
+#elif defined(_TD_DARWIN_64)
+  *availSize = 0;
+  return 0;
+#else
+  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
+    return -1;
+  }
+
+  ssize_t bytes = 0;
+  char    line[1024] = {0};
+  int32_t expectedSize = 13; //"MemAvailable:"
+  while (!taosEOFFile(pFile)) {
+    bytes = taosGetsFile(pFile, sizeof(line), line);
+    if (bytes < 0) {
+      break;
+    }
+    if (line[0] != 'M' && line[3] != 'A') {
+      continue;
+      line[0] = 0;
+    }
+    if (0 == strncmp(line, "MemAvailable:", expectedSize)) {
+      break;
+    }
+  }
+
+  if (0 == line[0]) {
+    return -1;
+  }
+  
+  char tmp[32];
+  sscanf(line, "%s %" PRId64, tmp, availSize);
+
+  *availSize *= 1024;
+  
+  taosCloseFile(&pFile);
+  return 0;
+#endif
+}
+
 int32_t taosGetSysMemory(int64_t *usedKB) {
 #ifdef WINDOWS
   MEMORYSTATUSEX memsStat;

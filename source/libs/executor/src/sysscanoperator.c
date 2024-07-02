@@ -1737,11 +1737,11 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     tstrncpy(pInfo->req.user, pInfo->pUser, tListLen(pInfo->req.user));
 
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
-    char*   buf1 = taosMemoryCalloc(1, contLen);
+    char*   buf1 = taosMemCalloc(1, contLen);
     tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
 
     // send the fetch remote task result reques
-    SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+    SMsgSendInfo* pMsgSendInfo = taosMemCalloc(1, sizeof(SMsgSendInfo));
     if (NULL == pMsgSendInfo) {
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1759,8 +1759,11 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
     int64_t transporterId = 0;
-    int32_t code =
-        asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, &transporterId, pMsgSendInfo);
+    void* poolHandle = NULL;
+    taosSaveDisableMemoryPoolUsage(poolHandle);
+    int32_t code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, &transporterId, pMsgSendInfo);
+    taosRestoreEnableMemoryPoolUsage(poolHandle);
+    
     tsem_wait(&pInfo->ready);
 
     if (pTaskInfo->code) {

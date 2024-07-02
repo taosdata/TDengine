@@ -35,13 +35,48 @@ extern "C" {
 #define MP_CHUNK_FLAG_IN_USE   (1 << 0)
 #define MP_CHUNK_FLAG_NS_CHUNK (1 << 1)
 
-#define MP_DBG_FLAG_LOG_MALLOC_FREE (1 << 0)
 
+// STAT FLAGS
+#define MP_STAT_FLAG_LOG_ALL_MEM_STAT (1 << 0)
+#define MP_STAT_FLAG_LOG_ALL_CHUNK_STAT (1 << 1)
+
+#define MP_STAT_FLAG_LOG_ALL_FILE_STAT (1 << 2)
+#define MP_STAT_FLAG_LOG_ALL_LINE_STAT (1 << 3)
+#define MP_STAT_FLAG_LOG_ALL_SESSION_STAT (1 << 4)
+#define MP_STAT_FLAG_LOG_ALL_NODE_STAT (1 << 5)
+#define MP_STAT_FLAG_LOG_ALL_POOL_STAT (1 << 6)
+
+#define MP_STAT_FLAG_LOG_SOME_FILE_STAT (1 << 7)
+#define MP_STAT_FLAG_LOG_SOME_LINE_STAT (1 << 8)
+#define MP_STAT_FLAG_LOG_SOME_SESSION_STAT (1 << 9)
+#define MP_STAT_FLAG_LOG_SOME_NODE_STAT (1 << 10)
+#define MP_STAT_FLAG_LOG_SOME_POOL_STAT (1 << 11)
+
+// STAT PROCESURE FLAGS
+#define MP_STAT_PROC_FLAG_EXEC (1 << 0)
+#define MP_STAT_PROC_FLAG_INPUT_ERR (1 << 1)
+#define MP_STAT_PROC_FLAG_RES_SUCC (1 << 2)
+#define MP_STAT_PROC_FLAG_RES_FAIL (1 << 3)
+
+
+typedef enum EMPStatLogItem {
+  E_MP_STAT_LOG_MEM_MALLOC = 1,
+  E_MP_STAT_LOG_MEM_CALLOC,
+  E_MP_STAT_LOG_MEM_REALLOC,
+  E_MP_STAT_LOG_MEM_FREE,
+  E_MP_STAT_LOG_MEM_STRDUP,
+  E_MP_STAT_LOG_CHUNK_MALLOC,  
+  E_MP_STAT_LOG_CHUNK_RECYCLE,  
+  E_MP_STAT_LOG_CHUNK_REUSE,  
+  E_MP_STAT_LOG_CHUNK_FREE,
+} EMPStatLogItem;
+
+// MEM HEADER FLAGS
 #define MP_MEM_HEADER_FLAG_NS_CHUNK (1 << 0)
 
 typedef struct SMPMemHeader {
-  uint64_t flags:3;
-  uint64_t size:5;
+  uint64_t flags:24;
+  uint64_t size:40;
 } SMPMemHeader;
 
 typedef struct SMPMemTailer {
@@ -79,23 +114,55 @@ typedef struct SMPCacheGroup {
   void*          pNext;
 } SMPCacheGroup;
 
+typedef struct SMPStatInput {
+  char*    file;
+  int64_t  size;
+  int64_t  origSize;
+  int32_t  procFlags;
+  int32_t  line;
+} SMPStatInput;
+
+typedef struct SMPStatItem {
+  int64_t  exec;
+  int64_t  inErr;
+  int64_t  succ;
+  int64_t  fail;
+  int64_t  orig;
+} SMPStatItem;
+
 typedef struct SMPMemoryStat {
-  int64_t  chunkAlloc;
-  int64_t  chunkFree;
-  int64_t  memMalloc;
-  int64_t  memCalloc;
-  int64_t  memRealloc;
-  int64_t  strdup;
-  int64_t  memFree;
+  SMPStatItem chunkMalloc;
+  SMPStatItem chunkRecycle;
+  SMPStatItem chunkReUse;
+  SMPStatItem chunkFree;
+  SMPStatItem memMalloc;
+  SMPStatItem memCalloc;
+  SMPStatItem memRealloc;
+  SMPStatItem strdup;
+  SMPStatItem memFree;
 } SMPMemoryStat;
 
-typedef struct SMPStat {
+typedef struct SMPStatDetail {
   SMPMemoryStat times;
   SMPMemoryStat bytes;
-} SMPStat;
+} SMPStatDetail;
+
+typedef struct SMPCtrlInfo {
+  int64_t  statFlags;
+  int64_t  funcFlags;
+} SMPCtrlInfo;
+
+typedef struct SMPStatInfo {
+  SMPStatDetail statDetail;
+  SHashObj*     nodeStat;
+  SHashObj*     fileStat;
+  SHashObj*     lineStat;
+} SMPStatInfo;
 
 typedef struct SMPSession {
   SMPListNode        list;
+  SMPCtrlInfo        ctrlInfo;
+
   int64_t            allocChunkNum;
   int64_t            allocChunkMemSize;
   int64_t            allocMemSize;
@@ -118,7 +185,7 @@ typedef struct SMPSession {
   SMPNSChunk        *reUseNSChunkHead;
   SMPNSChunk        *reUseNSChunkTail;
 
-  SMPStat            stat;
+  SMPStatInfo        stat;
 } SMPSession; 
 
 typedef struct SMPCacheGroupInfo {
@@ -130,16 +197,14 @@ typedef struct SMPCacheGroupInfo {
   void              *pIdleList;
 } SMPCacheGroupInfo;
 
-typedef struct SMPDebugInfo {
-  int64_t  flags;
-} SMPDebugInfo;
+
 
 typedef struct SMemPool {
   char              *name;
   int16_t            slotId;
   SMemPoolCfg        cfg;
   int32_t            maxChunkNum;
-  SMPDebugInfo       dbgInfo;
+  SMPCtrlInfo        ctrlInfo;
 
   int16_t            maxDiscardSize;
   double             threadChunkReserveNum;
@@ -165,7 +230,7 @@ typedef struct SMemPool {
   SMPChunk            *readyNSChunkHead;
   SMPChunk            *readyNSChunkTail;
 
-  SMPStat            stat;
+  SMPStatInfo          stat;
 } SMemPool;
 
 #define MP_GET_FLAG(st, f) ((st) & (f))
@@ -191,7 +256,8 @@ enum {
       _chunkHead = _chunk;                                                    \
       _chunkTail = _chunk;                                                    \
     } else {                                                                  \
-      (_chunkTail)->list.pNext = _chunk;                                           \
+      (_chunkTail)->list.pNext = _chunk;                                      \
+      (_chunkTail) = _chunk;                                                  \
     }                                                                         \
     (_chunkNum)++;                                                            \
   } while (0)

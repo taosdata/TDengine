@@ -272,11 +272,14 @@ int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) { return qwAddTask
 
 void qwReleaseTaskCtx(SQWorker *mgmt, void *ctx) { taosHashRelease(mgmt->ctxHash, ctx); }
 
-void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
+void qwFreeTaskHandle(SQWTaskCtx *ctx, qTaskInfo_t *taskHandle) {
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
+    taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
     qDestroyTask(otaskHandle);
+    taosDisableMemoryPoolUsage();
+
     qDebug("task handle destroyed");
   }
 }
@@ -305,7 +308,7 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
 
   // NO need to release dataConnInfo
 
-  qwFreeTaskHandle(&ctx->taskHandle);
+  qwFreeTaskHandle(ctx, &ctx->taskHandle);
 
   if (ctx->sinkHandle) {
     QW_SINK_ENABLE_MEMPOOL(ctx);
