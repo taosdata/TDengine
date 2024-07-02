@@ -1156,7 +1156,7 @@ int32_t tqStreamProcessConsensusChkptRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // discard the rsp from before restart
+  // discard the rsp, since it is expired.
   if (req.startTs < pTask->execInfo.created) {
     tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
            " from task createTs:%" PRId64 ", discard",
@@ -1172,11 +1172,14 @@ int32_t tqStreamProcessConsensusChkptRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   taosThreadMutexLock(&pTask->lock);
   ASSERT(pTask->chkInfo.checkpointId >= req.checkpointId);
 
-  if ((pTask->chkInfo.checkpointId != req.checkpointId) && req.checkpointId != 0) {
+  if (pTask->chkInfo.checkpointId != req.checkpointId) {
     tqDebug("s-task:%s vgId:%d update the checkpoint from %" PRId64 " to %" PRId64, pTask->id.idStr, vgId,
             pTask->chkInfo.checkpointId, req.checkpointId);
     pTask->chkInfo.checkpointId = req.checkpointId;
     tqSetRestoreVersionInfo(pTask);
+  } else {
+    tqDebug("s-task:%s vgId:%d consensus-checkpointId:%" PRId64 " equals to current checkpointId, no need to update",
+            pTask->id.idStr, vgId, req.checkpointId);
   }
 
   taosThreadMutexUnlock(&pTask->lock);

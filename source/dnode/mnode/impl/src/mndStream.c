@@ -2667,7 +2667,8 @@ static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pReq) {
   int32_t numOfTasks = (pStream == NULL) ? 0 : mndGetNumOfStreamTasks(pStream);
 
   SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, req.streamId);
-  int64_t                   ckId = mndGetConsensusCheckpointId(pInfo, pStream);
+
+  int64_t ckId = mndGetConsensusCheckpointId(pInfo, pStream);
   if (ckId != -1) {  // consensus checkpoint id already exist
     SRpcMsg rsp = {0};
     rsp.code = 0;
@@ -2678,7 +2679,7 @@ static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pReq) {
     SMsgHead *pHead = rsp.pCont;
     pHead->vgId = htonl(req.nodeId);
 
-    mDebug("stream:0x%" PRIx64 " consensus checkpointId:%" PRId64 " exists, return directly", req.streamId, ckId);
+    mDebug("stream:0x%" PRIx64 " consensus-checkpointId:%" PRId64 " exists, return directly", req.streamId, ckId);
     doSendConsensusCheckpointRsp(&req, &rsp, ckId);
 
     taosThreadMutexUnlock(&execInfo.lock);
