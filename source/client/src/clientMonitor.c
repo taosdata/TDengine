@@ -498,7 +498,7 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId){
     if(data != NULL){
       sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
     }
-    uDebug("[monitor] monitorReadSendSlowLog send slow log:%s", data);
+    uDebug("[monitor] monitorSendSlowLogAtRunning send slow log:%s", data);
     taosMemoryFree(data);
   }
 }
@@ -530,7 +530,7 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
     if(data != NULL){
       sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep);
     }
-    uDebug("[monitor] monitorReadSendSlowLog send slow log:%s", data);
+    uDebug("[monitor] monitorSendSlowLogAtQuit send slow log:%s", data);
     taosMemoryFree(data);
   }
   return false;
