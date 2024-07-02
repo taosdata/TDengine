@@ -85,58 +85,64 @@ class CreateTablesByCSV(TDCase):
         with open(output_filename, 'w', encoding='utf-8') as file:
             file.write(modified_content)
     
-    def gen_csv(self, ctable_count=10, row_count=10, ctable_field_exists=True, tbname_exists=True, custom_tag_count=0, note=False, exchange_type_list=None, exchange_ids=None, part_error=False, symbol=None, illegal_tbname=False, tag_kv_dict=None, len193_tbname=False, custom_file=None, exceed_tags=False):
+    def gen_csv(self, ctable_count=10, row_count=10, ctable_field_exists=True, tbname_exists=True, custom_tag_count=0, note=False, exchange_type_list=None, exchange_ids=None, part_error=False, symbol=None, illegal_tbname=False, tag_kv_dict=None, len193_tbname=False, custom_file=None, exceed_tags=False, custom_type=None):
         import_file = custom_file if custom_file is not None else self.csv_file
-            
-        if custom_tag_count == 128 or custom_tag_count > 128:
-            tag_str_exceed = self.tdCom.gen_tag_col_str("t", "int", self.tdCom.Boundary.MAX_TAG_COUNT+1)
-            tag_str = self.tdCom.gen_tag_col_str("t", "int", self.tdCom.Boundary.MAX_TAG_COUNT)
-            with open(import_file, 'w') as f:
-                for row_num in range(row_count):
-                    idx = str(row_num % ctable_count + 1)
-                    tag_fields_value = "1," * custom_tag_count
-                    f.write(f'{tag_fields_value}"ctb{idx}"\n')
-            return tag_str_exceed, tag_str
-        elif custom_tag_count > 0 and custom_tag_count < 128:
-            # custom_tag_offset = custom_tag_count
-            int_tag_str = ','.join(map(lambda i: f't{i} int', range(custom_tag_count)))
-            double_tag_str = ','.join(map(lambda i: f't{i} double', range(custom_tag_count, custom_tag_count*2)))
-            varchar_tag_str = ','.join(map(lambda i: f't{i} varchar({self.perf_varchar_len})', range(custom_tag_count*2, custom_tag_count*3)))
-            tag_str = int_tag_str + "," + double_tag_str + "," + varchar_tag_str
+        if custom_type == "json":
             with open(import_file, 'w') as f:
                 for idx in range(ctable_count):
-                    int_tag_fields_value = f"{idx}," * custom_tag_count
-                    float_tag_fields_value = f"{idx}.{idx}," * custom_tag_count
-                    varchar_tag_fields_value = f'"{self.tdCom.get_long_name(self.perf_varchar_len)}",' * custom_tag_count
-                    tag_fields_value = int_tag_fields_value + float_tag_fields_value + varchar_tag_fields_value
-                    f.write(f'{tag_fields_value}"ctb{idx}"\n')
-            return tag_str
-        else:
-            with open(import_file, 'w') as f:
-                # for row_num in range(row_count):
-                #     idx = str(row_num % ctable_count + 1)
-                for idx in range(ctable_count):
-                    # if tbname_exists:
-                    # f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'"ctb{idx}"\n')
-                    # else:
-                    #     f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))}\n') if ctable_field_exists else f.write(f'\n')
-                    if symbol is not None:
-                        f.write(f'{symbol.join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'"ctb{self.tablename_startid}"\n')
-                    else:
-                        f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'"ctb{self.tablename_startid}"\n')
+                    f.write((f'\'{{\"loc+\":\"fff\",\"id\":{idx}}}\', "ctb{self.tablename_startid}"\n'))
+                    # f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'"ctb{self.tablename_startid}"\n')
                     self.tablename_startid += 1
-                
-                if note:
-                    f.write(f'#{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
-                if part_error:
-                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},t100,"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
-                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
-                if illegal_tbname:
-                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb.{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
-                if len193_tbname:
-                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"{self.tdCom.get_long_name(193)}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
-                if exceed_tags:
-                    f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}","exceed_tags"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
+        else:
+            if custom_tag_count == 128 or custom_tag_count > 128:
+                tag_str_exceed = self.tdCom.gen_tag_col_str("t", "int", self.tdCom.Boundary.MAX_TAG_COUNT+1)
+                tag_str = self.tdCom.gen_tag_col_str("t", "int", self.tdCom.Boundary.MAX_TAG_COUNT)
+                with open(import_file, 'w') as f:
+                    for row_num in range(row_count):
+                        idx = str(row_num % ctable_count + 1)
+                        tag_fields_value = "1," * custom_tag_count
+                        f.write(f'{tag_fields_value}"ctb{idx}"\n')
+                return tag_str_exceed, tag_str
+            elif custom_tag_count > 0 and custom_tag_count < 128:
+                # custom_tag_offset = custom_tag_count
+                int_tag_str = ','.join(map(lambda i: f't{i} int', range(custom_tag_count)))
+                double_tag_str = ','.join(map(lambda i: f't{i} double', range(custom_tag_count, custom_tag_count*2)))
+                varchar_tag_str = ','.join(map(lambda i: f't{i} varchar({self.perf_varchar_len})', range(custom_tag_count*2, custom_tag_count*3)))
+                tag_str = int_tag_str + "," + double_tag_str + "," + varchar_tag_str
+                with open(import_file, 'w') as f:
+                    for idx in range(ctable_count):
+                        int_tag_fields_value = f"{idx}," * custom_tag_count
+                        float_tag_fields_value = f"{idx}.{idx}," * custom_tag_count
+                        varchar_tag_fields_value = f'"{self.tdCom.get_long_name(self.perf_varchar_len)}",' * custom_tag_count
+                        tag_fields_value = int_tag_fields_value + float_tag_fields_value + varchar_tag_fields_value
+                        f.write(f'{tag_fields_value}"ctb{idx}"\n')
+                return tag_str
+            else:
+                with open(import_file, 'w') as f:
+                    # for row_num in range(row_count):
+                    #     idx = str(row_num % ctable_count + 1)
+                    for idx in range(ctable_count):
+                        # if tbname_exists:
+                        # f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))},"ctb{idx}"\n') if ctable_field_exists else f.write(f'"ctb{idx}"\n')
+                        # else:
+                        #     f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids)))}\n') if ctable_field_exists else f.write(f'\n')
+                        if symbol is not None:
+                            f.write(f'{symbol.join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'"ctb{self.tablename_startid}"\n')
+                        else:
+                            f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'"ctb{self.tablename_startid}"\n')
+                        self.tablename_startid += 1
+                    
+                    if note:
+                        f.write(f'#{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
+                    if part_error:
+                        f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},t100,"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
+                        f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
+                    if illegal_tbname:
+                        f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb.{self.tablename_startid}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
+                    if len193_tbname:
+                        f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"{self.tdCom.get_long_name(193)}"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
+                    if exceed_tags:
+                        f.write(f'{",".join(map(str, self.get_tag_value_list(exchange_type_list=exchange_type_list, exchange_ids=exchange_ids, tag_kv_dict=tag_kv_dict)))},"ctb{self.tablename_startid}","exceed_tags"\n') if ctable_field_exists else f.write(f'#"ctb{self.tablename_startid}"\n')
                     
                     
     
@@ -147,12 +153,15 @@ class CreateTablesByCSV(TDCase):
         else:
             self.tdSql.execute(f'create table {if_not_exists_field} using {self.dbname}.{self.stbname} ({tag_fields}) file "{csv}"')
     
-    def init_env(self, tag_type_str=None, create_stb=True):
+    def init_env(self, tag_type_str=None, create_stb=True, custom_type=None):
         self.tdCom.default_tag_index_start_num = 1
         self.tablename_startid = 1
         self.create_db()
         if create_stb:
-            self.create_stb(tag_type_str=tag_type_str)
+            if custom_type is None:
+                self.create_stb(tag_type_str=tag_type_str)
+            else:
+                self.tdSql.execute(f'create stable if not exists {self.dbname}.{self.stbname} (ts timestamp, c1 int) tags (t1 json)')
 
     def check_res(self, tbname, tag_str, csv_file, check_rows=2):
         with open(csv_file, mode='r', encoding='utf-8') as file:
@@ -491,6 +500,17 @@ class CreateTablesByCSV(TDCase):
         perf = int(table_count/(end - start))
         self.logger.info(f'create {table_count} tables with {custom_tag_count*self.perf_type_count} tags by csv cost {end-start:.2f}s, and QPS is {perf}tables/s')
 
+    def create_ctables_by_json_tag_and_tbname(self, table_count=10, custom_type="json"):
+        self.init_env(custom_type=custom_type)
+        self.gen_csv(ctable_count=table_count, row_count=table_count, custom_type=custom_type)
+        self.tdSql.execute(f'create table using {self.dbname}.{self.stbname} (t1,tbname) file "{self.csv_file}"')
+        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
+        # self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        # self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb2")
+        # self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 2)
+        # self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
+        # self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 2)
+
     def run(self):
         # self.gen_csv(custom_tag_count=128)
         # print(self.tdCom.gen_default_tag_str())
@@ -524,8 +544,8 @@ class CreateTablesByCSV(TDCase):
         # self.creating_but_killed()
         # self.threading_create_ctables()
         # self.threading_create_ctables(part_except=True)
-        self.threading_create_ctables(dup_tbname=True)
-        
+        # self.threading_create_ctables(dup_tbname=True)
+        self.create_ctables_by_json_tag_and_tbname()
         # perf test
         
         # self.create_ctables_by_diff_tag_and_tbname_perf(table_count=100000, custom_tag_count=1)
