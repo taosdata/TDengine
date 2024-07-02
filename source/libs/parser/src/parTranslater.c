@@ -11135,7 +11135,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
   pReq->intervalUnit = TIME_UNIT_MILLISECOND;
 
 #define TSMA_MIN_INTERVAL_MS 1000 * 60         // 1m
-#define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000)  // 1h
+#define TSMA_MAX_INTERVAL_MS (60 * 60 * 1000 * 24)  // 1d
   if (pReq->interval > TSMA_MAX_INTERVAL_MS || pReq->interval < TSMA_MIN_INTERVAL_MS) {
     return TSDB_CODE_TSMA_INVALID_INTERVAL;
   }
