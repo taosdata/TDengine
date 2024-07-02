@@ -568,6 +568,19 @@ static void   monitorSendAllSlowLogAtQuit(){
   }
 }
 
+static void processFileRemoved(SlowLogClient* pClient){
+  taosUnLockFile(pClient->pFile);
+  taosCloseFile(&(pClient->pFile));
+
+  TdFilePtr pFile = taosOpenFile(pClient->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to open file:%s since %s", pClient->path, terrstr());
+  }else{
+    pClient->pFile = pFile;
+  }
+}
+
 static void monitorSendAllSlowLog(){
   int64_t t = taosGetMonoTimestampMs();
   void* pIter = NULL;
@@ -588,6 +601,12 @@ static void monitorSendAllSlowLog(){
     if (pInst != NULL && pClient->offset == 0) {
       int64_t size = getFileSize(pClient->path);
       if(size <= 0){
+        if(size < 0){
+          uError("[monitor] monitorSendAllSlowLog failed to get file size:%s, err:%d", pClient->path, errno);
+          if(errno == ENOENT){
+            processFileRemoved(pClient);
+          }
+        }
         continue;
       }
       SEpSet ep = getEpSet_s(&pInst->mgmtEp);
