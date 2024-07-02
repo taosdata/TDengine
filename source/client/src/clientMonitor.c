@@ -717,11 +717,13 @@ static void* monitorThreadFunc(void *param){
       if(quitCnt == 0){
         monitorSendAllSlowLogAtQuit();
         if(quitCnt == 0){
+          uInfo("monitorThreadFunc quit since no slow log to send");
           break;
         }
         quitTime = taosGetMonoTimestampMs();
       }
       if(taosGetMonoTimestampMs() - quitTime > 500){   //quit at most 500ms
+        uInfo("monitorThreadFunc quit since timeout")
         break;
       }
     }
@@ -745,6 +747,7 @@ static void* monitorThreadFunc(void *param){
         monitorSendSlowLogAtRunning(slowLogData->clusterId);
       }else if(slowLogData->type == SLOW_LOG_READ_QUIT){
         if(monitorSendSlowLogAtQuit(slowLogData->clusterId)){
+          uInfo("monitorThreadFunc quit since all slow log sended");
           break;
         }
       }
