@@ -457,7 +457,7 @@ services:
 
 ## 使用 docker swarm 部署
 
-如果要想将基于容器的 TDengine 集群部署在多台主机上，可以使用 docker swarm。首先要在这些主机上建立 docke swarm 集群，请参考 docker 官方文档。
+如果要想将基于容器的 TDengine 集群部署在多台主机上，可以使用 docker swarm。首先要在这些主机上建立 docker swarm 集群，请参考 docker 官方文档。
 
 docker-compose 文件可以参考上节。下面是使用 docker swarm 启动 TDengine 的命令：
 
