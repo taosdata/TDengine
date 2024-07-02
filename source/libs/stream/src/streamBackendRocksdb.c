@@ -2289,8 +2289,12 @@ void* taskDbAddRef(void* pTaskDb) {
   STaskDbWrapper* pBackend = pTaskDb;
   return taosAcquireRef(taskDbWrapperId, pBackend->refId);
 }
+
 void taskDbRemoveRef(void* pTaskDb) {
-  if (pTaskDb == NULL) return;
+  if (pTaskDb == NULL) {
+    return;
+  }
+
   STaskDbWrapper* pBackend = pTaskDb;
   taosReleaseRef(taskDbWrapperId, pBackend->refId);
 }

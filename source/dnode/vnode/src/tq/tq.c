@@ -139,9 +139,11 @@ void tqClose(STQ* pTq) {
   taosHashCleanup(pTq->pCheckInfo);
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
+
+  int32_t vgId = pTq->pStreamMeta->vgId;
   streamMetaClose(pTq->pStreamMeta);
 
-  qDebug("end to close tq");
+  qDebug("vgId:%d end to close tq", vgId);
   taosMemoryFree(pTq);
 }
 
@@ -1030,7 +1032,6 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg) {
-  //
   return 0;
 }
 
@@ -1273,4 +1274,8 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamProcessChkptReportRsp(pTq->pStreamMeta, pMsg);
+}
+
+int32_t tqProcessTaskConsensusChkptRsp(STQ* pTq, SRpcMsg* pMsg) {
+  return tqStreamProcessConsensusChkptRsp(pTq->pStreamMeta, pMsg);
 }
