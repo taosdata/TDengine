@@ -562,6 +562,7 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
   bool    retry = false;
   do {
     SRpcMsg rpcMsg = {.code = applyCode};
+    // rpcMsg.info.prioirty = pEntry->originalRpcType == TDMT_VND_COMMIT ? RPC_PRI_HIGH : RPC_PRI_NORM;
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     SFsmCbMeta cbMeta = {0};

@@ -1278,7 +1278,10 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   signature = (signature << 32);
   signature += pAction->id;
 
-  SRpcMsg rpcMsg = {.msgType = pAction->msgType, .contLen = pAction->contLen, .info.ahandle = (void *)signature};
+  SRpcMsg rpcMsg = {.msgType = pAction->msgType,
+                    .contLen = pAction->contLen,
+                    .info.ahandle = (void *)signature,
+                    .info.prioirty = RPC_PRI_HIGH};
   rpcMsg.pCont = rpcMallocCont(pAction->contLen);
   if (rpcMsg.pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

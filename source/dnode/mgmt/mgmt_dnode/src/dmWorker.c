@@ -487,5 +487,7 @@ int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
+  int64_t qMemSize = taosQueueMemorySize(pWorker->queue);
+  printf("dmWorker queue: memory:%" PRId64 "\n", qMemSize);
   return 0;
 }

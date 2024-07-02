@@ -287,8 +287,8 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
     return -1;
   }
 
-  SRpcMsg *pMsg =
-      taosAllocateQitemEx(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen, tGetQueueTypeStr(qtype), TMSG_INFO(pRpc->msgType));
+  SRpcMsg *pMsg = taosAllocateQitemEx(sizeof(SRpcMsg), pRpc->info.prioirty > RPC_PRI_NORM ? DEF_QITEM : RPC_QITEM,
+                                      pRpc->contLen, tGetQueueTypeStr(qtype), TMSG_INFO(pRpc->msgType));
   if (pMsg == NULL) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
@@ -314,10 +314,10 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 }
 
 void vmPrintQueueSize(SVnodeMgmt *pMgmt, int32_t vgId) {
+  int32_t    qSize = 0;
+  int64_t    qMemSize = 0;
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode != NULL) {
-    int32_t qSize = 0;
-    int64_t qMemSize = 0;
     for (int8_t i = 0; i < QUEUE_MAX; ++i) {
       switch (i) {
         case WRITE_QUEUE:
@@ -360,6 +360,9 @@ void vmPrintQueueSize(SVnodeMgmt *pMgmt, int32_t vgId) {
       }
     }
   }
+  qSize = taosQueueItemSize(pMgmt->mgmtWorker.queue);
+  qMemSize = taosQueueMemorySize(pMgmt->mgmtWorker.queue);
+  dInfo("vgId:%d, mgmt queue: size:%d, memory:%" PRId64, vgId, qSize, qMemSize);
   if (pVnode) vmReleaseVnode(pMgmt, pVnode);
 }
 

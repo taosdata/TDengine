@@ -39,6 +39,11 @@ typedef struct {
   char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
+typedef enum {
+  RPC_PRI_LOW = -1,
+  RPC_PRI_NORM,
+  RPC_PRI_HIGH,
+} ERpcPriority;
 typedef struct SRpcHandleInfo {
   // rpc info
   void   *handle;         // rpc handle returned to app
@@ -63,6 +68,7 @@ typedef struct SRpcHandleInfo {
   int8_t       forbiddenIp;
   int8_t       notFreeAhandle;
   int8_t       compressed;
+  int8_t       prioirty;  // RPC_PRI_LOW, RPC_PRI_NORM, RPC_PRI_HIGH
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {

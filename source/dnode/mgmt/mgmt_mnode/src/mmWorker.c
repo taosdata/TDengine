@@ -122,10 +122,12 @@ int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  ASSERT(0);
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
 }
 
 int32_t mmPutMsgToSyncRdQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  ASSERT(0);
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncRdWorker, pMsg);
 }
 
