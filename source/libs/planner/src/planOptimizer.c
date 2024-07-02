@@ -1598,10 +1598,6 @@ static int32_t pdcRewriteTypeBasedOnJoinRes(SOptimizeContext* pCxt, SJoinLogicNo
   tSimpleHashCleanup(pLeftTables);
   tSimpleHashCleanup(pRightTables);
 
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-
   switch (pJoin->joinType) {
     case JOIN_TYPE_LEFT:
       if (tableResNonNull[1] && !tableResOp[0]) {
@@ -2156,17 +2152,11 @@ static int32_t sortPriKeyOptHandleLeftRightJoinSort(SJoinLogicNode* pJoin, SSort
       if (sortByProbe) {
         return TSDB_CODE_SUCCESS;
       }
-      
-      *pNotOptimize = true;
-      return TSDB_CODE_SUCCESS;
     }
     case JOIN_STYPE_ANTI: {
       if (sortByProbe) {
         return TSDB_CODE_SUCCESS;
       }
-
-      *keepSort = false;
-      return TSDB_CODE_SUCCESS;
     }
     case JOIN_STYPE_ASOF: 
     case JOIN_STYPE_WIN: {
@@ -2176,9 +2166,6 @@ static int32_t sortPriKeyOptHandleLeftRightJoinSort(SJoinLogicNode* pJoin, SSort
         }
         return TSDB_CODE_SUCCESS;
       }
-
-      *pNotOptimize = true;
-      return TSDB_CODE_SUCCESS;
     }
     default:
       return TSDB_CODE_PLAN_INTERNAL_ERROR;
@@ -3279,7 +3266,7 @@ static EDealRes eliminateProjOptRewriteScanTableAlias(SNode* pNode, void* pConte
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     RewriteTableAliasCxt* pCtx = (RewriteTableAliasCxt*)pContext;
-    strcpy(pCol->tableAlias, pCtx->newTableAlias);
+    strncpy(pCol->tableAlias, pCtx->newTableAlias, TSDB_TABLE_NAME_LEN);
   }
   return DEAL_RES_CONTINUE;
 }
@@ -3288,12 +3275,13 @@ static EDealRes eliminateProjOptRewriteScanTableAlias(SNode* pNode, void* pConte
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                          SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
-  SNodeList*  pNewChildTargets = nodesMakeList();
 
   if (NULL == pProjectNode->node.pParent) {
-    SNode *pProjection = NULL, *pChildTarget = NULL;
-    bool needOrderMatch = QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
-    bool orderMatch = true;
+    SNodeList* pNewChildTargets = nodesMakeList();
+    SNode *    pProjection = NULL, *pChildTarget = NULL;
+    bool       orderMatch = true;
+    bool       needOrderMatch =
+        QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) && ((SProjectLogicNode*)pChild)->isSetOpProj;
     if (needOrderMatch) {
       // For sql: select ... from (select ... union all select ...);
       // When eliminating the outer proj (the outer select), we have to make sure that the outer proj projections and
@@ -4279,6 +4267,7 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
     nodesDestroyList(pScan->node.pTargets);
     pScan->node.pTargets = NULL;
     SNodeListNode* list = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+    if (!list) return TSDB_CODE_OUT_OF_MEMORY;
     list->pNodeList = pFunc;
     code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
     if (TSDB_CODE_SUCCESS != code) {
@@ -4689,6 +4678,7 @@ static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPu
         }
         return true;
       }
+      break;
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
       cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT);
       break;      
@@ -5043,7 +5033,7 @@ _return:
 
   if (!res && DATA_ORDER_LEVEL_NONE == pJoin->node.requireDataOrder) {
     pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-    adjustLogicNodeDataRequirement(pNode, pJoin->node.requireDataOrder);    
+    (void)adjustLogicNodeDataRequirement(pNode, pJoin->node.requireDataOrder);    
   }
 
   return res;
