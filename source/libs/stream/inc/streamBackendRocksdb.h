@@ -131,6 +131,8 @@ typedef struct {
   TdThreadRwlock rwLock;
 } SBkdMgt;
 
+#define META_ON_S3_FORMATE "%s_%" PRId64 "\n%s_%" PRId64 "\n%s_%" PRId64 ""
+
 bool       streamBackendDataIsExist(const char* path, int64_t chkpId, int32_t vgId);
 void*      streamBackendInit(const char* path, int64_t chkpId, int32_t vgId);
 void       streamBackendCleanup(void* arg);
@@ -258,6 +260,7 @@ void     bkdMgtDestroy(SBkdMgt* bm);
 
 int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list,
                                 const char* id);
+int32_t remoteChkpGetDelFile(char* path, SArray* toDel);
 
 void* taskAcquireDb(int64_t refId);
 void  taskReleaseDb(int64_t refId);

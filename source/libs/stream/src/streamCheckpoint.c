@@ -542,7 +542,7 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
 
 static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* list) {
   TdFilePtr pFile = NULL;
-  int32_t   cap = strlen(path) + 32;
+  int32_t   cap = strlen(path) + 64;
   char      buf[128] = {0};
   int32_t   code = 0;
 
@@ -553,7 +553,7 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
   }
 
   int32_t nBytes = snprintf(filePath, cap, "%s%s%s", path, TD_DIRSEP, "META_TMP");
-  if (nBytes != strlen(filePath)) {
+  if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(filePath);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
@@ -561,41 +561,17 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
 
   code = downloadCheckpointDataByName(id, "META", filePath);
   if (code != 0) {
-    stDebug("%s chkp failed to download meta file:%s", id, filePath);
+    stError("%s chkp failed to download meta file:%s", id, filePath);
     taosMemoryFree(filePath);
     return code;
   }
 
-  pFile = taosOpenFile(filePath, TD_FILE_READ);
-  if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    stError("%s failed to open meta file:%s for checkpoint", id, filePath);
+  code = remoteChkpGetDelFile(filePath, list);
+  if (code != 0) {
+    stError("%s chkp failed to get to del:%s", id, filePath);
     taosMemoryFree(filePath);
-    return -1;
   }
-
-  if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
-    stError("%s failed to read meta file:%s for checkpoint", id, filePath);
-    code = -1;
-  } else {
-    int32_t len = strnlen(buf, tListLen(buf));
-    for (int i = 0; i < len; i++) {
-      if (buf[i] == '\n') {
-        char* item = taosMemoryCalloc(1, i + 1);
-        memcpy(item, buf, i);
-        taosArrayPush(list, &item);
-
-        item = taosMemoryCalloc(1, len - i);
-        memcpy(item, buf + i + 1, len - i - 1);
-        taosArrayPush(list, &item);
-      }
-    }
-  }
-
-  taosCloseFile(&pFile);
-  taosRemoveFile(filePath);
-  taosMemoryFree(filePath);
-  return code;
+  return 0;
 }
 
 int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type) {
