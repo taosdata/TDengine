@@ -4,7 +4,7 @@ use anyhow::bail;
 use csv_lib::ReaderBuilder;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncQueryable, Dsn, Taos};
+use taos::Dsn;
 use tempfile::NamedTempFile;
 
 use crate::runners::opc::config::collect::CollectConfig;
@@ -40,7 +40,6 @@ impl OPCConfig {
     pub async fn from_dsn_collect_mode(
         dsn: &Dsn,
         ipc_port: u16,
-        taos: &Taos,
         task_id: Option<i64>,
     ) -> anyhow::Result<Self> {
         if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
@@ -55,27 +54,7 @@ impl OPCConfig {
         let csv_config_file = Self::parse_csv_config_file(dsn);
         let model_config = if csv_config_file.is_some() {
             let parser = CsvParser::from_dsn(dsn).await?;
-
-            let table_to_drop = parser.get_tables_to_drop();
-            for child_table_name in table_to_drop.iter() {
-                let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
-                tracing::info!("drop sql: {drop_sql}");
-                taos.exec(drop_sql).await.map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to drop table: {}, cause: {}",
-                        child_table_name,
-                        err.to_string()
-                    )
-                })?;
-            }
-
-            let mut model_config = parser.get_model_config();
-            for (point_id, table_config) in model_config.table_config_map.iter_mut() {
-                if table_config.enabled == Some(0i8) {
-                    model_config.point_config_map.remove(point_id);
-                }
-            }
-
+            let model_config = parser.get_model_config();
             model_config
         } else {
             let points = opc_datasets_impl(dsn.clone()).await?;
@@ -88,7 +67,7 @@ impl OPCConfig {
 
         let points_config = PointsConfig::from_dsn(dsn)?;
 
-        // 这里把model_config中的点位写到 dsn 中，是为了在 collect 中使用。
+        // 这里把 model_config 中的点位写到 dsn 中，是为了在 collect 中使用。
         // todo: 应该改造一下 collect 解析，直接使用 model_config 中的点位
         let mut dsn_clone = dsn.clone();
         let points = csv_string_record_from_iter(model_config.point_config_map.iter().map(
@@ -315,77 +294,6 @@ impl OPCConfig {
             Some(primary_key_alias)
         }))
     }
-
-    /*
-    /// parse point config map from dsn
-    fn build_point_config_map(dsn: &Dsn) -> anyhow::Result<LinkedHashMap<String, PointConfig>> {
-        let opc_type = OpcType::from_dsn(dsn)?;
-        let point_config_map = match opc_type {
-            OpcType::OPCUA => {
-                let mut point_config_map = LinkedHashMap::new();
-                let ua_nodes =
-                    get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "ua.nodes")
-                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
-
-                for i in 0..ua_nodes.len() {
-                    let pair = ua_nodes[i].split("::").collect_vec();
-                    if pair.len() != 2 {
-                        let pair = pair.join("::");
-                        bail!(
-                            "failed to parse node: {}, cause: split result len is not 2",
-                            pair
-                        );
-                    }
-                    let point_id = String::from(pair[0]);
-                    let tbname = String::from(pair[1]);
-                    point_config_map.insert(
-                        point_id,
-                        PointConfig {
-                            row_index: i + 1,
-                            code: tbname,
-                            stable: None,
-                            tag_values: None,
-                            value_type: None,
-                        },
-                    );
-                }
-                point_config_map
-            }
-            OpcType::OPCDA => {
-                let mut point_config_map = LinkedHashMap::new();
-
-                let node_vec =
-                    get_string_vec_from_param_or_file_for_opc(&mut dsn.clone(), "da.tags")
-                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?;
-                for i in 0..node_vec.len() {
-                    let pair = node_vec[i].split("::").collect_vec();
-                    if pair.len() != 2 {
-                        let pair = pair.join("::");
-                        bail!(
-                            "node config error node config: {} split result len is not 2",
-                            pair
-                        );
-                    }
-                    let tag = String::from(pair[0]);
-                    let code = String::from(pair[1]);
-                    point_config_map.insert(
-                        tag,
-                        PointConfig {
-                            row_index: i + 1,
-                            code,
-                            stable: None,
-                            tag_values: None,
-                            value_type: None,
-                        },
-                    );
-                }
-                point_config_map
-            }
-            _ => bail!("invalid opc type: {}", opc_type),
-        };
-        Ok(point_config_map)
-    }
-    */
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

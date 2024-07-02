@@ -19,4 +19,4 @@ extend-glob = ["*.sql"]
 check-file = false
 
 [files]
-extend-exclude = ["taosx-ipc/tests/**", "taosx-core/tests/str-slice.rs"]
+extend-exclude = ["taosx-ipc/tests/**", "taosx-core/tests/str-slice.rs", "plugins/", "packaging/**", "CHANGELOG.md"]
