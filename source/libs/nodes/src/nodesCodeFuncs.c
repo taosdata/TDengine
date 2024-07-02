@@ -224,6 +224,7 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_SHOW_TAGS_STMT:
       return "ShowTagsStmt";
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return "ShowUsersStmt";
     case QUERY_NODE_SHOW_LICENCES_STMT:
       return "ShowGrantsStmt";
@@ -6929,6 +6930,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_SHOW_TAGS_STMT:
       return showTagsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return showUsersStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return showVgroupsStmtToJson(pObj, pJson);
@@ -7252,6 +7254,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_SHOW_TAGS_STMT:
       return jsonToShowTagsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
       return jsonToShowUsersStmt(pJson, pObj);
     case QUERY_NODE_SHOW_VGROUPS_STMT:
       return jsonToShowVgroupsStmt(pJson, pObj);

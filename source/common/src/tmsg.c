@@ -1575,6 +1575,9 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
     if (tEncodeU32(&encoder, pReq->pIpRanges[i].mask) < 0) return -1;
   }
   ENCODESQL();
+  if (tEncodeI8(&encoder, pReq->isImport) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->createDb) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1603,6 +1606,11 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
     }
   }
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->createDb) < 0) return -1;
+    if (tDecodeI8(&decoder, &pReq->isImport) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4200,6 +4208,7 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   if (tEncodeCStr(&encoder, pReq->filterTb) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->compactId) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withFull) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4222,7 +4231,9 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   } else {
     pReq->compactId = -1;
   }
-
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, (int8_t *)&pReq->withFull) < 0) return -1;
+  }
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;

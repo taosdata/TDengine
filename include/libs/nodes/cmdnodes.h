@@ -222,14 +222,16 @@ typedef struct SAlterTableStmt {
 } SAlterTableStmt;
 
 typedef struct SCreateUserStmt {
-  ENodeType type;
-  char      userName[TSDB_USER_LEN];
-  char      password[TSDB_USET_PASSWORD_LEN];
-  int8_t    sysinfo;
-  int32_t numIpRanges;
+  ENodeType   type;
+  char        userName[TSDB_USER_LEN];
+  char        password[TSDB_USET_PASSWORD_LEN];
+  int8_t      sysinfo;
+  int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
 
   SNodeList* pNodeListIpRanges;
+  int8_t     createDb;
+  int8_t     isImport;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
@@ -278,6 +280,7 @@ typedef struct SShowStmt {
   SNode*        pDbName;  // SValueNode
   SNode*        pTbName;  // SValueNode
   EOperatorType tableCondType;
+  bool          withFull;  // for show users full;
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
