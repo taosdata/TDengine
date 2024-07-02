@@ -38,7 +38,7 @@ typedef enum {
   SLOW_LOG_READ_QUIT = 2,
 } SLOW_LOG_QUEUE_TYPE;
 
-#define SLOW_LOG_SEND_SIZE 32*1024
+#define SLOW_LOG_SEND_SIZE_MAX 128*1024*1024
 
 typedef struct {
   int64_t                    clusterId;
