@@ -151,14 +151,19 @@ class CreateTablesByCSV(TDCase):
         if create_stb:
             self.create_stb(tag_type_str=tag_type_str)
 
-    def check_res(self, tbname, tag_str, csv_file):
+    def check_res(self, tbname, tag_str, csv_file, check_rows=2):
         with open(csv_file, mode='r', encoding='utf-8') as file:
             csv_reader = csv.reader(file)
-            data_list = [row for row in csv_reader]
-        self.tdSql.query(f'select {tag_str} from {self.dbname}.{tbname}')
+            data_list = [row for row in csv_reader if not row[0].startswith('#')]
+        csv_check_list = list()
+        for i in range(check_rows):
+            if i < 2:
+                csv_check_list.append(data_list[i][:-1])
+        self.tdSql.query(f'select {tag_str} from {self.dbname}.{tbname} order by tbname')
         query_data = self.tdSql.query_data
         new_data_list = list()
         for res in query_data:
+            tmp_data_list = list()
             for row in res:
                 if isinstance(row, datetime.datetime):
                     item_str = row.strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -167,30 +172,31 @@ class CreateTablesByCSV(TDCase):
                 elif isinstance(row, bytes):
                     if res.index(row) == self.common_type_list.index('geometry'):
                         point = wkb.loads(row)
-                        print(point)
                         item_str = "point({:.1f} {:.1f})".format(point.x, point.y)
 
                     else:
                         item_str = row.decode('utf-8')
                 else:
                     item_str = str(row)
-                new_data_list.append(str(item_str))
+                tmp_data_list.append(str(item_str))
+            new_data_list.append(tmp_data_list)
+        sorted_new_data_list = sorted(new_data_list, key=lambda x: (x[1], x[2]))
+        sorted_csv_check_list = sorted(csv_check_list, key=lambda x: (x[1], x[2]))
         float_index = self.common_type_list.index('float')
-        
-        if 0.9 < float(new_data_list[float_index])/float(data_list[0][:-1][float_index]) < 1.1:
-            new_data_list[float_index] = str(data_list[0][:-1][float_index])
-        # print(self.tdSql.query_data)
-        print(new_data_list)
-        print(data_list[0][:-1])
-        self.tdSql.checkEqual(new_data_list, data_list[0][:-1])
+        for data_list, checklist in zip(sorted_new_data_list,sorted_csv_check_list):
+            if 0.9 < float(data_list[float_index])/float(checklist[float_index]) < 1.1:
+                data_list[float_index] = str(checklist[float_index])
+        self.tdSql.checkEqual(sorted_new_data_list, sorted_csv_check_list)
 
     def create_ctables_by_tag_and_tbname(self, table_count=10):
         self.init_env()
         self.gen_csv(ctable_count=table_count, row_count=table_count)
         self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb2")
+        self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 2)
         self.create_tables_by_csv(tag_fields=self.batch_create_table_str, if_not_exists=True, csv=self.csv_file)
-        self.check_res(self.stbname, self.common_tag_name_str, self.csv_file)
+        self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 2)
         
         
         
@@ -199,37 +205,57 @@ class CreateTablesByCSV(TDCase):
         self.gen_csv(ctable_field_exists=False)
         self.create_tables_by_csv(tag_fields="tbname", csv=self.csv_file)
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb2")
+        self.tdSql.query(f'select {self.common_tag_name_str},tbname from {self.dbname}.{self.stbname} order by tbname')
+        expected_res = [(None,) * len(self.common_type_list) + (f'ctb{i}',) for i in range(1, 3)]
+        self.tdSql.checkEqual(self.tdSql.query_data, expected_res)
         self.create_tables_by_csv(tag_fields="tbname", if_not_exists=True, csv=self.csv_file)
+        self.tdSql.query(f'select {self.common_tag_name_str},tbname from {self.dbname}.{self.stbname} order by tbname')
+        self.tdSql.checkEqual(self.tdSql.query_data, expected_res)
         
     def create_ctables_by_128tag_and_tbname(self, custom_tag_count=128, use_except=False):
-        tag_str_exceed, tag_str = self.gen_csv(custom_tag_count=custom_tag_count)
+        _, tag_str = self.gen_csv(custom_tag_count=custom_tag_count)
         self.init_env(tag_type_str=tag_str)
         tag128_str = ",".join([f't{i}' for i in range(custom_tag_count)]) + ",tbname"
         self.create_tables_by_csv(tag_fields=tag128_str, csv=self.csv_file)
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb2")
+        expected_res = [(1,) * 128 + (f'ctb{i}',) for i in range(1, 3)]
+        self.tdSql.query(f'select {tag128_str} from {self.dbname}.{self.stbname} order by tbname')
+        self.tdSql.checkEqual(self.tdSql.query_data, expected_res)
         self.create_tables_by_csv(tag_fields=tag128_str, if_not_exists=True, csv=self.csv_file)
-    
-        tag_str_exceed, tag_str = self.gen_csv(custom_tag_count=custom_tag_count+1)
+        _, tag_str = self.gen_csv(custom_tag_count=custom_tag_count+1)
         tag129_str = ",".join([f't{i}' for i in range(custom_tag_count+1)]) + ",tbname"
         self.create_tables_by_csv(tag_fields=tag129_str, csv=self.csv_file, use_except=use_except)
+        # ! TD-30865
+        self.tdSql.checkIn("Pseudo tag tbname not set", str(self.tdSql.error_msg))
+        self.tdSql.query(f'select {tag128_str} from {self.dbname}.{self.stbname} order by tbname')
+        self.tdSql.checkEqual(self.tdSql.query_data, expected_res)
     
     def create_ctables_by_tag_and_tbname_with_note(self, note=True):
         self.init_env()
         self.gen_csv(note=note)
         self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file)
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 1)
+        self.tdSql.query(f'show {self.dbname}.tables')
+        ctables = list(map(lambda x: x[0], self.tdSql.query_data))
+        self.tdSql.checkNotIn("ctb11", ctables)
         
     def create_exists_ctables_without_if_not_exists(self):
         self.init_env()
         self.gen_csv()
         self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, if_not_exists=False)
         self.tdCom.insert_rows(dbname=self.dbname, tbname="ctb1")
+        self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 1)
         self.create_tables_by_csv(tag_fields=self.batch_create_table_str, csv=self.csv_file, if_not_exists=False, use_except=True)
+        self.check_res(self.stbname, self.common_tag_name_str, self.csv_file, 1)
+        self.tdSql.checkIn("Table already exists", self.tdSql.error_msg)
     
     def create_ctables_with_disorder_tagtype_legal(self):
         varchar_idx = self.common_type_list.index('varchar')
         nchar_idx = self.common_type_list.index('nchar')
-        disorder_tagtype_str = self.change_char_order(self.batch_create_table_str, varchar_idx+1, nchar_idx+1)
+        disorder_tagtype_str = self.change_char_order(self.batch_create_table_str, varchar_idx, nchar_idx)
         self.init_env()
         self.gen_csv()
         self.create_tables_by_csv(tag_fields=disorder_tagtype_str, csv=self.csv_file)
@@ -399,12 +425,13 @@ class CreateTablesByCSV(TDCase):
         # self.gen_csv(custom_tag_count=128)
         # print(self.tdCom.gen_default_tag_str())
         # return
-        self.create_ctables_by_tag_and_tbname()
+        # self.create_ctables_by_tag_and_tbname()
         # self.create_ctables_by_notag_and_tbname()
+        # ! TD-30865
         # self.create_ctables_by_128tag_and_tbname(use_except=True)
         # self.create_ctables_by_tag_and_tbname_with_note()
         # self.create_exists_ctables_without_if_not_exists()
-        # self.create_ctables_with_disorder_tagtype_legal()
+        self.create_ctables_with_disorder_tagtype_legal()
         # TODO confirm
         # self.create_ctables_with_disorder_tagtype_illegal()
         # self.create_ctables_with_no_stables()
