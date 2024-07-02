@@ -659,7 +659,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId){
 
     char filename[PATH_MAX] = {0};
     snprintf(filename, sizeof(filename), "%s%s", tmpPath, name);
-    TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ | TD_FILE_TRUNC);
+    TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ | TD_FILE_WRITE);
     if (pFile == NULL) {
       uError("failed to open file:%s since %s", filename, terrstr());
       continue;
@@ -748,6 +748,8 @@ static void* monitorThreadFunc(void *param){
       }else if(slowLogData->type == SLOW_LOG_READ_QUIT){
         if(monitorSendSlowLogAtQuit(slowLogData->clusterId)){
           uInfo("monitorThreadFunc quit since all slow log sended");
+          monitorFreeSlowLogData(slowLogData);
+          taosFreeQitem(slowLogData);
           break;
         }
       }
