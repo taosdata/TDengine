@@ -578,7 +578,9 @@ function install_taosd_config() {
     ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
     ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
     ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
-    ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}
+    if [ "$verMode" == "cluster" ]; then
+      ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}  
+    fi
     
     if [ -f "${configDir}/${configFile}" ]; then
       ${csudo}cp ${fileName} ${configDir}/${configFile}.new
@@ -596,6 +598,7 @@ function install_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
   if ((${update_flag} == 1)); then
+    install_taosd_config
     return 0
   fi
 
