@@ -3243,6 +3243,11 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
             handle_lush_message_init(init, &taos, &sql, &req_id, metrics).await?;
         }
     }
+    // handle point message init
+    if let Some(opc_model_config) = &opc_model_config {
+        handle_point_message_init(opc_model_config, &taos).await?;
+    }
+
     drop(taos);
     info!(?stream_type, "Processing stream");
     match stream_type {
@@ -3295,6 +3300,32 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
             .await?
         }
     }
+    Ok(())
+}
+
+pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> anyhow::Result<()> {
+    let point_config_map = &config.point_config_map;
+    let table_config_map = &config.table_config_map;
+
+    for point_id in point_config_map.keys() {
+        let table_config = table_config_map.get(point_id).unwrap();
+        if table_config.enabled == Some(0i8) {
+            let tbname = point_config_map
+                .get(point_id)
+                .ok_or(anyhow::anyhow!(
+                    "point_id: {} not exist in point config map",
+                    point_id
+                ))?
+                .code
+                .clone();
+            let drop_sql = format!("DROP TABLE IF EXISTS {}", tbname);
+            tracing::info!("drop table sql: {drop_sql}");
+            taos.exec(&drop_sql).await.map_err(|err| {
+                anyhow::anyhow!("failed to drop table: {}, cause: {:#?}", tbname, err)
+            })?;
+        }
+    }
+
     Ok(())
 }
 
@@ -3601,6 +3632,10 @@ impl IpcStreamWorker {
                 Ok(count)
             }
         }
+    }
+
+    pub fn opc_model_config(&self) -> Option<&OpcModelConfig> {
+        self.opc_table_config.get()
     }
 }
 
