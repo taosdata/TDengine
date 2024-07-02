@@ -19,6 +19,7 @@
 #include "tglobal.h"
 #include "thash.h"
 #include "thttp.h"
+#include "tlog.h"
 #include "ttime.h"
 
 extern SMonitor tsMonitor;
@@ -156,6 +157,9 @@ void monGenClusterInfoTable(SMonInfo *pMonitor) {
   SMonBasicInfo   *pBasicInfo = &pMonitor->dmInfo.basic;
   SMonGrantInfo   *pGrantInfo = &pMonitor->mmInfo.grant;
 
+  if (pBasicInfo->cluster_id == 0) return;
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
+
   char *metric_names[] = {MASTER_UPTIME, DBS_TOTAL,    TBS_TOTAL,    STBS_TOTAL,   VGROUPS_TOTAL,     VGROUPS_ALIVE,
                           VNODES_TOTAL,  VNODES_ALIVE, MNODES_TOTAL, MNODES_ALIVE, CONNECTIONS_TOTAL, TOPICS_TOTAL,
                           STREAMS_TOTAL, DNODES_TOTAL, DNODES_ALIVE, EXPIRE_TIME,  TIMESERIES_USED,   TIMESERIES_TOTAL};
@@ -166,15 +170,9 @@ void monGenClusterInfoTable(SMonInfo *pMonitor) {
     }
 
     if (taosHashRemove(tsMonitor.metrics, metric_names[i], strlen(metric_names[i])) != 0) {
-      uError("failed to delete metric %s from hash", metric_names[i]);
+      uWarn("failed to delete metric %s from hash", metric_names[i]);
     }
   }
-
-  if (pBasicInfo->cluster_id == 0) {
-    uError("failed to generate dnode info table since cluster_id is 0");
-    return;
-  }
-  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
   // cluster info
   taos_gauge_t *gauge = NULL;
@@ -341,10 +339,7 @@ void monGenVgroupInfoTable(SMonInfo *pMonitor) {
 }
 
 void monGenDnodeInfoTable(SMonInfo *pMonitor) {
-  if (pMonitor->dmInfo.basic.cluster_id == 0) {
-    uError("failed to generate dnode info table since cluster_id is 0");
-    return;
-  }
+  if (pMonitor->dmInfo.basic.cluster_id == 0) return;
 
   char cluster_id[TSDB_CLUSTER_ID_LEN] = {0};
   snprintf(cluster_id, TSDB_CLUSTER_ID_LEN, "%" PRId64, pMonitor->dmInfo.basic.cluster_id);
@@ -503,15 +498,12 @@ void monGenDnodeInfoTable(SMonInfo *pMonitor) {
 }
 
 void monGenDnodeStatusInfoTable(SMonInfo *pMonitor) {
-  if (taos_collector_registry_deregister_metric(DNODE_STATUS) != 0) {
-    uError("failed to delete metric " DNODE_STATUS);
-  }
-
-  if (pMonitor->dmInfo.basic.cluster_id == 0) {
-    uError("failed to generate dnode info table since cluster_id is 0");
-    return;
-  }
+  if (pMonitor->dmInfo.basic.cluster_id == 0) return;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
+
+  if (taos_collector_registry_deregister_metric(DNODE_STATUS) != 0) {
+    uWarn("failed to delete metric " DNODE_STATUS);
+  }
 
   taos_gauge_t *gauge = NULL;
 
@@ -616,6 +608,12 @@ void monGenLogDiskTable(SMonInfo *pMonitor) {
 }
 
 void monGenMnodeRoleTable(SMonInfo *pMonitor) {
+  SMonClusterInfo *pInfo = &pMonitor->mmInfo.cluster;
+  SMonBasicInfo *pBasicInfo = &pMonitor->dmInfo.basic;
+
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
+  if (pBasicInfo->cluster_id == 0) return;
+
   char *mnodes_role_gauges[] = {MNODE_ROLE};
 
   for (int32_t i = 0; i < 1; i++) {
@@ -624,13 +622,8 @@ void monGenMnodeRoleTable(SMonInfo *pMonitor) {
     }
 
     if (taosHashRemove(tsMonitor.metrics, mnodes_role_gauges[i], strlen(mnodes_role_gauges[i])) != 0)
-      uError("failed to delete metric %s", mnodes_role_gauges[i]);
+      uWarn("failed to delete metric %s", mnodes_role_gauges[i]);
   }
-
-  SMonClusterInfo *pInfo = &pMonitor->mmInfo.cluster;
-  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
-  SMonBasicInfo *pBasicInfo = &pMonitor->dmInfo.basic;
-  if (pBasicInfo->cluster_id == 0) return;
 
   taos_gauge_t *gauge = NULL;
   int32_t       mnodes_role_label_count = 3;
@@ -682,6 +675,12 @@ void monGenMnodeRoleTable(SMonInfo *pMonitor) {
 }
 
 void monGenVnodeRoleTable(SMonInfo *pMonitor) {
+  SMonVgroupInfo *pInfo = &pMonitor->mmInfo.vgroup;
+  SMonBasicInfo *pBasicInfo = &pMonitor->dmInfo.basic;
+
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
+  if (pBasicInfo->cluster_id == 0) return;
+
   char         *vnodes_role_gauges[] = {VNODE_ROLE};
   taos_gauge_t *gauge = NULL;
 
@@ -690,14 +689,8 @@ void monGenVnodeRoleTable(SMonInfo *pMonitor) {
       uError("failed to delete metric %s", vnodes_role_gauges[i]);
 
     if (taosHashRemove(tsMonitor.metrics, vnodes_role_gauges[i], strlen(vnodes_role_gauges[i])) != 0)
-      uError("failed to delete metric %s", vnodes_role_gauges[i]);
+      uWarn("failed to delete metric %s", vnodes_role_gauges[i]);
   }
-
-  SMonVgroupInfo *pInfo = &pMonitor->mmInfo.vgroup;
-  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
-
-  SMonBasicInfo *pBasicInfo = &pMonitor->dmInfo.basic;
-  if (pBasicInfo->cluster_id == 0) return;
 
   int32_t     vnodes_role_label_count = 4;
   const char *vnodes_role_sample_labels[] = {"cluster_id", "vgroup_id", "database_name", "dnode_id"};
