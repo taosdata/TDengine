@@ -1196,7 +1196,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         } else {
           taosRUnLockLatch(&pTaskInfo->lock);
           qError("no table in table list, %s", id);
-          terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
+          terrno = TSDB_CODE_TMQ_NO_TABLE_QUALIFIED;
           return -1;
         }
       }
@@ -1217,7 +1217,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       } else {
         qError("vgId:%d uid:%" PRIu64 " not found in table list, total:%d, index:%d %s", pTaskInfo->id.vgId, uid,
                numOfTables, pScanInfo->currentTable, id);
-        terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
+        terrno = TSDB_CODE_TMQ_NO_TABLE_QUALIFIED;
         return -1;
       }
 
