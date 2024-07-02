@@ -374,6 +374,27 @@ class TDSql:
         self.checkRowCol(row, col)
         return self.cursor.istype(col, dataType)
 
+    def checkPartdata(self,row,col,data,slen, show= False):
+        if row >= self.queryRows:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, row + 1, self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        if col >= self.queryCols:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, col + 1, self.queryCols)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
+
+        self.checkRowCol(row, col)
+        real = self.res[row][col]
+        if real and len(str(real))< slen:
+            tdLog.exit("%s(%d) failed: sql:%s, len:%d is larger than result:%d" % slen)
+
+        new_res = str(real)[:slen]
+
+        if  new_res == str(data):
+            tdLog.info("check successfully")
+        else:
+            tdLog.exit("value is not equal")
 
     def checkData(self, row, col, data, show = False):
         if row >= self.queryRows:

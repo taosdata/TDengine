@@ -119,6 +119,35 @@ class TDTestCase:
         tdSql.query("select * from information_schema.ins_columns")
 
         tdSql.execute('drop database db3')
+
+
+    def ins_consume_4096_check(self):
+        # if there is more than 4096 tables in one vgroup, check consume without duplicate.
+        # stable/tags/tables/columns
+        # check tag. row 1w, echo row has 2tag, can count(*) tag value =2w
+        # create db, meters has 2 tags, 1w tables. must 1 vgroup
+        tdLog.info(f"begin create db/stable/table ")
+        tdSql.execute('create database tdb1 vgroups 1 replica 1')
+        tdSql.execute('use tdb1')
+        tdSql.execute(f'create stable tdb1.stb1 (ts timestamp,c0 int) tags(t0 int,t1 int)')
+        tbnum = 10000
+        for i in range(tbnum):
+            tdSql.execute(f'create table tdb1.tb_{i} using tdb1.stb1 (t0,t1)tags(1,2)')
+        tdLog.info(f"end create table ")
+        tdSql.query(
+            "select count(*) from information_schema.ins_tags where db_name = 'tdb1'")
+        result = tdSql.queryResult
+        tdSql.checkEqual(result[0][0], tbnum*2)
+        tdLog.info(f"end query tag count ")
+
+        # columns contain meters value
+        tdSql.query(
+            "select count(*) from information_schema.ins_columns where db_name = 'tdb1'")
+        result = tdSql.queryResult
+        tdSql.checkEqual(result[0][0], tbnum*2+2)
+        tdLog.info(f"end query colunms count ")
+
+
     def ins_stable_check(self):
         tdSql.execute('create database db3 vgroups 2 replica 1')
         tbnum = 10
@@ -375,7 +404,7 @@ class TDTestCase:
         sql = f'select tag_name, tag_value from information_schema.ins_tags where table_name = "{self.stbname}_0"'
         tdSql.query(sql)
         tdSql.checkRows(2)
-
+        
 
     def run(self):
         self.prepare_data()
@@ -388,6 +417,7 @@ class TDTestCase:
         self.ins_grants_check()
         self.ins_encryptions_check()
         self.test_query_ins_tags()
+        self.ins_consume_4096_check()
 
 
     def stop(self):
