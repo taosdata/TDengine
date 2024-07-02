@@ -3672,6 +3672,7 @@ pub async fn listen_tcp_socket_with_agent(
                 let stream = stream.into_std().unwrap();
                 let _ = stream.set_read_timeout(None);
                 let _ = stream.set_nonblocking(false);
+                let _ = stream.set_nodelay(true);
                 // let client = addr.as_socket_ipv4().unwrap().to_string();
                 let se = sender.clone();
                 let cancel = cancel.clone();
@@ -3683,8 +3684,7 @@ pub async fn listen_tcp_socket_with_agent(
                     let res =
                         ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id, config).await;
                     if let Err(err) = res {
-                        let err_msg = format!("{err:#}");
-                        tracing::error!("{:?}", err);
+                        tracing::error!(?client, "{:?}", err);
                         tokio::spawn(async move {
                             let r = se.send(format!("{err:?}")).await;
                             if let Err(send_err) = r {

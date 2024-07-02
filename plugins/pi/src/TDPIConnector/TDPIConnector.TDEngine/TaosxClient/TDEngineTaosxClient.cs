@@ -183,7 +183,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 return;
             }
             reader = new ArrowStreamReader(stream);
-            while (!stopTaosxSend && stream.CanRead)
+            while (stream.CanRead)
             {
                 try
                 {
@@ -209,11 +209,18 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                         }
                                         log.Debug($"Stable:{builder.stableName},localPort:{localPort}.Arrow response code {nullableValue}, QueueSize {actualQueueBufferSize}");
                                     }
+                                    else { 
+                                        log.Warn($"Stable:{builder.stableName},localPort:{localPort}.Arrow response array length is 0");
+                                    }
                                     break;
                                 default:
                                     log.Info($"Stable:{builder.stableName},localPort:{localPort}.Unsupported arrow response array type.{array.GetType()}");
                                     break;
                             }
+                        }
+                        else
+                        {
+                            log.Warn($"Stable:{builder.stableName},localPort:{localPort}.Arrow response column count is 0");
                         }
 
                         msg.Dispose();
@@ -229,6 +236,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     Thread.Sleep(500);
                 }
             }
+            log.Debug($"Stable:{builder.stableName},localPort:{localPort}.stopTaosxSend:{stopTaosxSend},streamCanRead:{stream.CanRead},Arrow response handler exit!");
         }
 
         private void work() {
@@ -383,7 +391,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     long cost = stopwatch.ElapsedMilliseconds;
                     if (cost > 20000)
                     {
-                        log.Info($"Stable:{builder.stableName},localPort:{localPort},wait {cost} ms");
+                        log.Warn($"Stable:{builder.stableName},localPort:{localPort},wait {cost} ms, more than 20s");
                         Interlocked.Exchange(ref actualQueueBufferSize, 1);
                     }
                     else if (cost > 500)
@@ -540,7 +548,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
             // If this empty message is not sent, the read function of the agent will fail
             // and consider the task abnormal.
             // Maybe the new version of Arrow doesn't have this problem. Who knows, I haven't tried it
-            writeRecordBatch(builder.BuildInsertMessage());
+            // writeRecordBatch(builder.BuildInsertMessage());
 
             if (null != writer) writer.WriteEnd();
             if (null != stream) stream.Close();
