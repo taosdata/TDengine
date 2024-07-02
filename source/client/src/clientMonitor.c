@@ -382,6 +382,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char *tmpP
 }
 
 static char* readFile(TdFilePtr pFile, int64_t *offset, int64_t size){
+  uDebug("[monitor] readFile slow begin pFile:%p, offset:%"PRId64 ", size:%"PRId64, pFile, *offset, size);
   if(taosLSeekFile(pFile, *offset, SEEK_SET) < 0){
     uError("failed to seek file:%p code: %d", pFile, errno);
     return NULL;
@@ -427,7 +428,7 @@ static char* readFile(TdFilePtr pFile, int64_t *offset, int64_t size){
     *offset += (len+1);
   }
 
-  uDebug("[monitor] readFile slow log:%s", pCont);
+  uDebug("[monitor] readFile slow log end, data:%s, offset:%"PRId64, pCont, *offset);
   return pCont;
 }
 

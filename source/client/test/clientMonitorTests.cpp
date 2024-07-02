@@ -173,7 +173,7 @@ TEST(clientMonitorTest, ReadOneFile) {
       break;
     }
     char* val = readFile(pFile, &offset, fileSize);
-    printf("offset:%" PRId64",fileSize:%"PRId64",val:%s\n", offset, fileSize, val);
+    printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
   }
 
 //  char value[size] = {0};
