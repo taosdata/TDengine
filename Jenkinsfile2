@@ -171,6 +171,25 @@ def pre_test_build_mac() {
     '''
     sh '''
         date
+        cd ${WK}
+        rm -rf debug
+    '''
+    sh '''
+        cd ${WKC}
+        rm -rf debug
+        mkdir debug
+    '''
+    sh '''
+        cd ${WKC}/debug            
+        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false  -DCMAKE_BUILD_TYPE=Release
+        make -j10
+        cd build/bin
+        sudo pkill taosd 
+        sudo ./taosd || exit 7
+        sudo pkill taosd 
+    '''
+    sh '''
+        date
     '''
 }
 def pre_test_win(){
