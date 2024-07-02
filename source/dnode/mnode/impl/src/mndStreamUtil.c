@@ -929,8 +929,7 @@ bool mndAllTaskSendCheckpointId(SCheckpointConsensusInfo* pInfo, int32_t numOfTa
 }
 
 int64_t mndGetConsensusCheckpointId(SCheckpointConsensusInfo* pInfo, SStreamObj* pStream) {
-  if (pInfo->genTs > 0) {
-    ASSERT(pInfo->checkpointId > 0);
+  if (pInfo->genTs > 0) {  // there is no checkpoint ever generated if the checkpointId is 0.
     return pInfo->checkpointId;
   }
 
