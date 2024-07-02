@@ -116,9 +116,9 @@ void monInitOneGroup(int32_t gaugeCount, char **gauges, int32_t labelCount, cons
 
 int32_t monInitMonitorFW() {
   int32_t code = -1;
-  //return value does indicate success or failed
-  //0 means use old one
-  //1 means new one
+  // return value does indicate success or failed
+  // 0 means use old one
+  // 1 means new one
   taos_collector_registry_default_init();
 
   tsMonitor.metrics = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
