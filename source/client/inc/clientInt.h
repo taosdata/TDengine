@@ -283,6 +283,7 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
+  bool                 isStmtBind;  // is statement bind parameter
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;

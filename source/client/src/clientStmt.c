@@ -72,6 +72,7 @@ static int32_t stmtCreateRequest(STscStmt* pStmt) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
+      pStmt->exec.pRequest->isStmtBind = true;
     }
   }
 

@@ -30,7 +30,7 @@ typedef struct SInsertParseContext {
   bool           forceUpdate;
   bool           needTableTagVal;
   bool           needRequest;  // whether or not request server
-  bool           isStmtBind;    // whether is stmt
+  bool           isStmtBind;    // whether is stmt bind
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
