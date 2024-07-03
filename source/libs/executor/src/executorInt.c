@@ -930,12 +930,21 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return NULL;
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
+    if (pExpr != NULL) {
+      SExprInfo* pExprInfo = &pExpr[i];
+      for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+        if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_VALUE) {
+          taosMemoryFree(pCtx[i].input.pData[j]);
+          taosMemoryFree(pCtx[i].input.pColumnDataAgg[j]);
+        }
+      }
+    }
     for (int32_t j = 0; j < pCtx[i].numOfParams; ++j) {
       taosVariantDestroy(&pCtx[i].param[j].param);
     }
@@ -968,7 +977,7 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, S
 }
 
 void cleanupExprSupp(SExprSupp* pSupp) {
-  destroySqlFunctionCtx(pSupp->pCtx, pSupp->numOfExprs);
+  destroySqlFunctionCtx(pSupp->pCtx, pSupp->pExprInfo, pSupp->numOfExprs);
   if (pSupp->pExprInfo != NULL) {
     destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
     taosMemoryFreeClear(pSupp->pExprInfo);
