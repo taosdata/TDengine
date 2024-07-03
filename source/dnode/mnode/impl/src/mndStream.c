@@ -2309,7 +2309,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   taosThreadMutexUnlock(&execInfo.lock);
 
   if (numOfNodes == 0) {
-    mDebug("end to do stream task node change checking, no vgroup exists, do nothing");
+    mDebug("end to do stream task(s) node change checking, no stream tasks exist, do nothing");
     execInfo.ts = ts;
     atomic_store_32(&mndNodeCheckSentinel, 0);
     return 0;
