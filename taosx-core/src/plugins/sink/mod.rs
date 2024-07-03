@@ -501,7 +501,7 @@ async fn ipc_tcp_read(
     lock: Arc<Mutex<()>>,
     opc_model_config: Option<OpcModelConfig>,
     lush_model_config: Option<LushModelConfig>,
-    _cancel: CancellationToken,
+    cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
@@ -534,6 +534,7 @@ async fn ipc_tcp_read(
         lock,
         opc_model_config,
         lush_model_config,
+        cancel,
         parser,
         connector,
         transferred,
@@ -542,7 +543,7 @@ async fn ipc_tcp_read(
         stream_trace_id,
     )
     .await?;
-    tracing::info!("IPC stream processed");
+    info!("IPC stream processed");
     Ok(())
     // tokio::select! {
     // _ = cancel.cancelled() => {
@@ -2651,11 +2652,17 @@ async fn consume_flat_record(
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: &FlatMessage,
     count: &mut usize,
+    cancel: CancellationToken,
     parser: &Parser,
     target_precision: taos::Precision,
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
+    if cancel.is_cancelled() {
+        tracing::warn!("Task is cancelled");
+        return Ok(());
+    }
+
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
     let req_id = RequestID::new(data_trace_id.as_u64());
@@ -2932,6 +2939,7 @@ async fn ipc_flat_stream_worker(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
     sink: impl Sink<LushAck, Error = ArrowError> + Send + 'static,
+    cancel: CancellationToken,
     parser: Option<&Parser>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
@@ -2948,6 +2956,7 @@ async fn ipc_flat_stream_worker(
                 pool,
                 stream,
                 sink,
+                cancel,
                 parser,
                 target_precision,
                 notifier,
@@ -3008,6 +3017,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
+    cancel: CancellationToken,
     parser: Option<&Parser>,
     _license: Option<&ConnectorLicense>,
     _transferred: Option<&Transferred>,
@@ -3027,6 +3037,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
         pool,
         stream,
         sink,
+        cancel,
         parser,
         target_precision,
         notifier,
@@ -3166,6 +3177,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     _lock: Arc<Mutex<()>>,
     opc_model_config: Option<OpcModelConfig>,
     lush_model_config: Option<LushModelConfig>,
+    cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&str>,
     transferred: Option<Arc<Transferred>>,
@@ -3236,6 +3248,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     let stream_type = *metadata.stream_type();
     let metrics_arc = get_metrics_arc_from_i64(task_id).await;
     let metrics = metrics_arc.ipc();
+    // handle lush message init
     if lush_model_config.is_none() {
         if let Some(sql) = metadata.init_sql_string() {
             let init = metadata.init().unwrap();
@@ -3257,6 +3270,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 &pool,
                 ipc_reader,
                 ipc_ack_writer,
+                cancel,
                 parser.as_ref(),
                 license.as_ref(),
                 transferred.as_deref(),
@@ -3526,6 +3540,7 @@ impl IpcStreamWorker {
                     &mut taos,
                     &record,
                     &mut count,
+                    CancellationToken::new(),
                     parser.ok_or_else(|| {
                         anyhow::format_err!("Parser should be set with flat stream")
                     })?,
@@ -3927,15 +3942,10 @@ pub async fn listen_tcp_socket(
             let _ = tracing::info_span!("wait for ipc handlers to be finished").entered();
 
             let instant = std::time::Instant::now();
-            for h in handlers {
-                tokio::pin!(h);
-                if h.is_finished() {
-                    tracing::info!("IPC handler finished");
-                } else {
-                    tracing::info!("IPC handler not finished");
-                    let _ = tokio::time::timeout(Duration::from_secs(10), h).await;
-                }
-            }
+            // let handlers = handlers.into_iter().map(|h| {
+            //     tokio::time::timeout(Duration::from_secs(10), h)
+            // }).collect::<Vec<_>>();
+            let _results = futures::future::join_all(handlers).await;
             tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
         }
             .instrument(tracing::info_span!("plain_ipc_listener")),
@@ -3946,11 +3956,14 @@ pub async fn listen_tcp_socket(
             // closed.store(true, std::sync::atomic::Ordering::SeqCst);
             let _ = notified.notified().await;
             tracing::info!("stop listener");
-            match tokio::time::timeout(Duration::from_secs(20), thread).await {
-                Ok(Ok(_)) => anyhow::Ok(()),
-                Ok(err) => err.map_err(Into::into),
-                Err(_) => {
-                    anyhow::bail!("Task running deadline elapsed(1h), but seems not finished")
+            match thread.await {
+                Ok(_) => {
+                    tracing::info!("IPC listener thread finished");
+                    Ok(())
+                }
+                Err(e) => {
+                    tracing::error!("IPC listener thread error: {:#?}", e);
+                    anyhow::bail!("IPC listener thread error: {:#?}", e);
                 }
             }
         }
@@ -3999,6 +4012,7 @@ pub async fn channel_based_transformer(
                         &target,
                         stream,
                         sink,
+                        cancel.clone(),
                         parser.as_ref(),
                         target_precision,
                         notifier,
