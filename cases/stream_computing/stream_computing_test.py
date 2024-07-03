@@ -194,6 +194,9 @@ class StreamComputingTest(TDCase):
         self.need_cast_log = False
         self.n_print = False if self.need_cast_log else True
         self.tdCom.stream_timeout = 100
+        self.stream_thread_list = [0.5, 1, 2, 4]
+        self.stream_thread = random.choice(self.stream_thread_list)
+        self._remote._logger.info(f"update ratioOfVnodeStreamThreads to {self.stream_thread}")
 
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts, pk_dict=self.pk_dict)
@@ -5081,6 +5084,7 @@ class StreamComputingTest(TDCase):
     def run(self):
         # return
         for vgroups in self.vgroups_list:
+            self.taosd.update_cfg('/tmp', self.taosd_setting, {"ratioOfVnodeStreamThreads": self.stream_thread}, self.endpoint, True)
             self.vgroups = vgroups
             self.create_none_db_stream()
             self.create_none_source_tb_stream()
