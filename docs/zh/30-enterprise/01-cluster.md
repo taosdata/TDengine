@@ -44,6 +44,7 @@ KILL COMPACT compact_id；
 ```SQL
 balance vgroup leader; # 再平衡所有 vgroup 的 leader
 balance vgroup leader on <vgroup_id>; # 再平衡一个 vgroup 的 leader
+balance vgroup database <database_name>; # 再平衡一个 database 内所有 vgroup 的 leader
 ```
 
 ### 功能

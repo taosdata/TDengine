@@ -9,11 +9,11 @@ title: 数据同步
 
 进入系统管理页面，添加数据同步：
 
-![add](./replication-01-target-dsn.png)
+![add](./replication-00-add.png)
 
 选择数据源：
 
-![add](./replication-01-target-dsn.png)
+![add](./replication-00-fill.png)
 
 从目标数据库的浏览器页面复制 DSN：
 

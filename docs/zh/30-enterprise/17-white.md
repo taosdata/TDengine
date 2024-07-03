@@ -16,6 +16,13 @@ sidebar_label: "IP 白名单"
 
 3. 如果一个用户(假定 userA) 可能从 IP1 通过 taosAdapter （假定所在 IP 为 IP2）访问数据库，则首先 （userA, IP2） 要加入白名单，否则 taosAdapter 无法建立与 taosd 的连接。同时 (userA，IP)也要加入白名单，否则 userA 从 IP1 上发出的请求会被拒绝。
 
+4. 系统管理员可以使用如下命令从客户端动态开关白名单功能
+   ```sql
+   alter all dnodes 'enableWhiteList 1' # 打开白名单功能
+   alter all dnodes 'enableWhiteList 0' # 关闭白名单功能
+   ```
+   如果之前已经开启过白名单，之后关闭，然后再开启，之前添加进去的白名单依旧有效. 也就是说，针对用户的白名单一旦添加进去，一直有效，除非显式删除，这里的开关只是决定是否使用它。
+
 ## 权限
 
 只有 root 用户能够修改和查询白名单。非root 用户只能查询白名单。

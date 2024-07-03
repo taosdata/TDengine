@@ -8,11 +8,11 @@ This section explains how to perform data synchronization using a visual interfa
 
 Navigate to the system management page and add data synchronization:
 
-![add](./replication-01-target-dsn.png)
+![add](./replication-00-add.png)
 
 Choose the data source:
 
-![add](./replication-01-target-dsn.png)
+![add](replication-00-fill.png)
 
 Copy the DSN from the browser page of the target database:
 

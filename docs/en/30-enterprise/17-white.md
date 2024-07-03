@@ -16,6 +16,13 @@ Since TDengine 3.2.0.0, the DBA can use white list to control each user can only
 
 3. Assuming a user `userA` wants to access the database from IP` through taosAdapter which is running on IP2, the DBA needs to add both (userA, IP1) and (userA, IP2) in the white list.
 
+4. User can turn on or turn off the white list from the client side dynamically using following commands
+   ```sql
+   alter all dnodes 'enableWhiteList 1' # turn on white list
+   alter all dnodes 'enableWhiteList 0' # turn off white list
+   ```
+   If the white list has been turned on before, then turned off, and then turned on again, the white list added before is still valid. That is to say, once the user white list is added, it is always valid unless explicitly deleted. The switch here only determines whether to use the white list or not.
+
 ## Privilege
 
 Only the root user can add, delete or modify white list. Non-root user can only query the white list.

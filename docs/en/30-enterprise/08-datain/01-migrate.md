@@ -1,9 +1,9 @@
 ---
-title: "TDengine 2.x"
-sidebar_label: "TDengine 2.x"
+title: "TDengine2"
+sidebar_label: "TDengine2"
 ---
 
-This section describes how to create a data migration task through the Explorer interface to migrate data from the old version of TDengine (2.x) to the current cluster.
+This section describes how to create a data migration task through the Explorer interface to migrate data from the old version of TDengine2 to the current cluster.
 
 ## Function Overview
 
@@ -31,4 +31,4 @@ Then enter the task name, such as "migrate-test", and finally select the type "T
 ![step 3](./migrate-step3.png)
 ![step 4](./migrate-step4.png)
 
-After clicking the "Add" button to submit the task, return to the "Data Source" task list page to monitor the operation of the task.
+After clicking the "Submit" button to submit the task, return to the "Data Source" task list page to monitor the operation of the task.
