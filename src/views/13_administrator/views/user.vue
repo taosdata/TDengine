@@ -65,7 +65,7 @@
 
       <el-table-column :label="$t('taosuser.action')" width="150">
         <template slot-scope="scope">
-          <el-switch :value="scope.row.enable == 1" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
+          <el-switch :value="scope.row.enable == 1" :disabled="$COMMUNITY ? $COMMUNITY : (scope.row.super === 1 || !currentUser.super) || !isRoot"
             @change="changeState(scope.row)" active-color="#13ce66" inactive-color="#6D7074">
           </el-switch>&nbsp;&nbsp;
           <el-button plain size="small" @click="edit(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)|| !isRoot"
@@ -134,7 +134,7 @@ export default {
   data() {
     return {
       isRoot: localStorage.getItem('username')==='root',
-      isDisable: this.isRoot && !this.$COMMUNITY,
+      isDisable: this.isRoot,
       pageSize: 10,
       currentPage: 1,
       total: 10,
