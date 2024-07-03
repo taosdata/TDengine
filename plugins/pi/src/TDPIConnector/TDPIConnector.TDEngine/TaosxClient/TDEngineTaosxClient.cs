@@ -539,16 +539,11 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         internal void Stop()
         { 
-            log.Info($"Stable:{builder.stableName}, localPort:{localPort},Stop client");
+            log.Info($"Stable:{builder.stableName},localPort:{localPort},Stop client");
             if (!stopTaosxSend) { 
                 stopTaosxSend = true;
                 send();
             }
-
-            // If this empty message is not sent, the read function of the agent will fail
-            // and consider the task abnormal.
-            // Maybe the new version of Arrow doesn't have this problem. Who knows, I haven't tried it
-            // writeRecordBatch(builder.BuildInsertMessage());
 
             if (null != writer) writer.WriteEnd();
             if (null != stream) stream.Close();

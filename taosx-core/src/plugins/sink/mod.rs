@@ -162,7 +162,7 @@ impl MessageMetadata {
     }
 }
 
-#[instrument(skip_all, fields(task.id = task_id))]
+#[instrument(skip_all, fields(task.id = task_id, client=%client))]
 async fn ipc_tcp_forward(
     client: String,
     stream: std::net::TcpStream, // socket2::Socket,
@@ -184,8 +184,18 @@ async fn ipc_tcp_forward(
         .context("Try clone IPC stream as reader error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
         .in_current_span()
-        .await?
-        .context("Build IPC stream reader error")?;
+        .await?;
+    if let Err(err) = ipc_reader {
+        let msg = format!("{err:#}");
+        if msg.contains("Parser error: Unable to get root as message") {
+            // 关闭没有发过数据的连接会导致这个错误, 是正常行为
+            tracing::warn!("Build IPC stream reader error: {err:#}");
+            return Ok(());
+        } else {
+            return Err(err).context("Build IPC stream reader error");
+        }
+    }
+    let ipc_reader = ipc_reader.unwrap();
     let ack = ipc_reader.ack();
     let ipc_ack_writer =
         tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream))
@@ -202,7 +212,7 @@ async fn ipc_tcp_forward(
     }
     let schema: Arc<Schema> = Arc::new(schema);
 
-    info!(client, remote, "Start reading IPC stream");
+    info!("Start reading IPC stream");
     let client_port = client.split(':').last().unwrap_or("0");
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer, client_port);
 
@@ -403,7 +413,7 @@ async fn ipc_tcp_forward(
                 let rsp = res;
                 match rsp {
                     Ok(rsp) => {
-                        tracing::trace!("Response ok: {:?}", rsp);
+                        tracing::trace!("Response ok");
                         use zerocopy::FromBytes;
                         if let Some(metadata) = MessageMetadata::ref_from(&rsp.app_metadata) {
                             let ack = metadata.ack();
