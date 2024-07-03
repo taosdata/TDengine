@@ -90,6 +90,7 @@ pub async fn pi_to_taos(
         task_id,
     )
     .await?;
+    pre_check_config(&config)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -646,6 +647,38 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
         }
     };
     (mode, pattern, pattern_type)
+}
+
+/// 启动连接器连的参数检查
+fn pre_check_config(config: &PiConfig) -> anyhow::Result<()> {
+    if config.for_backfill {
+        if config.backfill_start_time.is_none() {
+            anyhow::bail!("PI backfill start time is required");
+        }
+        if config.backfill_end_time.is_none() {
+            anyhow::bail!("PI backfill end time is required");
+        }
+        let start_time = config.backfill_start_time.unwrap();
+        let end_time = config.backfill_end_time.unwrap();
+        if start_time >= end_time {
+            anyhow::bail!(
+                "PI backfill start time must be less than end time. start: {}, end: {}",
+                start_time,
+                end_time
+            );
+        }
+        let now = chrono::Utc::now();
+        let now_str = now.to_rfc3339();
+        let toml_now = now_str.parse::<toml::value::Datetime>().unwrap();
+        if end_time > toml_now {
+            anyhow::bail!(
+                "PI backfill end time must be less than current time. end: {}, now: {}",
+                end_time,
+                now_str
+            );
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

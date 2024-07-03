@@ -356,7 +356,7 @@ namespace TDPIConnector.Core
 
         public void CheckConfig()
         {
-            string info = "";
+            string info;
             try
             {
                 InitializePIConnections();

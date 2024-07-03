@@ -520,10 +520,14 @@ namespace TDPIConnector.Core
             var elementID = element.ID.ToString();
             if (breakpoints != null && breakpoints.ContainsKey(elementID))
             {
-                currentStart = breakpoints[elementID].AddMilliseconds(1);
-                log.Info($"Backfill element {superTableName}:{element.ID} from breakpoint {currentStart}.");
+                var breakPoint = breakpoints[elementID];
+                if (breakPoint >= currentStart)
+                {
+                    currentStart = breakPoint.AddMilliseconds(1);
+                    log.Info($"Backfill element {superTableName}:{element.ID} from breakpoint {currentStart}.");
+                }
             }
-
+            if (currentStart >= endTime) return;
             do
             {
                 tdEngineProxy.ArrowMsgQueueWait(element.TemplateName());
