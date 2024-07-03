@@ -144,6 +144,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_PRIVILEGES,
   TSDB_MGMT_TABLE_COMPACT,
   TSDB_MGMT_TABLE_COMPACT_DETAIL,
+  TSDB_MGMT_TABLE_USER_FULL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -309,7 +310,7 @@ typedef enum ENodeType {
   QUERY_NODE_SYNCDB_STMT,
   QUERY_NODE_GRANT_STMT,
   QUERY_NODE_REVOKE_STMT,
-  // the order of following constants must match that of variable sysTableShowAdapter 
+  // the order of following constants must match that of variable sysTableShowAdapter
   QUERY_NODE_SHOW_DNODES_STMT,
   QUERY_NODE_SHOW_MNODES_STMT,
   QUERY_NODE_SHOW_MODULES_STMT,
@@ -325,6 +326,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TABLES_STMT,
   QUERY_NODE_SHOW_TAGS_STMT,
   QUERY_NODE_SHOW_USERS_STMT,
+  QUERY_NODE_SHOW_USERS_FULL_STMT,
   QUERY_NODE_SHOW_LICENCES_STMT,
   QUERY_NODE_SHOW_VGROUPS_STMT,
   QUERY_NODE_SHOW_TOPICS_STMT,
@@ -909,16 +911,18 @@ typedef struct {
 
 SIpWhiteList* cloneIpWhiteList(SIpWhiteList* pIpWhiteList);
 typedef struct {
-  int8_t createType;
-  int8_t superUser;  // denote if it is a super user or not
-  int8_t sysInfo;
-  int8_t enable;
-  char   user[TSDB_USER_LEN];
-  char   pass[TSDB_USET_PASSWORD_LEN];
+  int8_t      createType;
+  int8_t      superUser;  // denote if it is a super user or not
+  int8_t      sysInfo;
+  int8_t      enable;
+  char        user[TSDB_USER_LEN];
+  char        pass[TSDB_USET_PASSWORD_LEN];
   int32_t     numIpRanges;
-  SIpV4Range* pIpRanges;  
-  int32_t sqlLen;
-  char*   sql;
+  SIpV4Range* pIpRanges;
+  int32_t     sqlLen;
+  char*       sql;
+  int8_t      isImport;
+  int8_t      createDb;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -1950,6 +1954,7 @@ typedef struct {
   char    filterTb[TSDB_TABLE_NAME_LEN];
   int64_t showId;
   int64_t compactId;  // for compact
+  bool    withFull;   // for show users full
 } SRetrieveTableReq;
 
 typedef struct SSysTableSchema {

@@ -4226,6 +4226,7 @@ static SSDataBlock* buildSysDbTableCount(SOperatorInfo* pOperator, STableCountSc
 
   size_t infodbTableNum;
   getInfosDbMeta(NULL, &infodbTableNum);
+  infodbTableNum -= 1;
   size_t perfdbTableNum;
   getPerfDbMeta(NULL, &perfdbTableNum);
 
