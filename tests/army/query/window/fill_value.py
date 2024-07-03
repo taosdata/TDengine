@@ -45,6 +45,16 @@ class TDTestCase:
                 ['2024-05-03 01:00:00.000', '2024-05-03 02:00:00.000', '1970-01-01 00:00:00.000', 0], # fill `ts` with 0
             ]]
         )
+        tdSql.queryAndCheckResult(["""
+            select _wstart, _wend, ts, max(k) 
+            from test_db.test_tb 
+            where ts between '2024-05-03 00:00:00.000' and '2024-06-03 00:00:00.000' 
+            interval(1h) fill(value, 1000, 10) limit 2;"""], 
+            [[
+                ['2024-05-03 00:00:00.000', '2024-05-03 01:00:00.000', '2024-05-03 00:00:00.000', 2], 
+                ['2024-05-03 01:00:00.000', '2024-05-03 02:00:00.000', '1970-01-01 00:00:01.000', 10], # fill `ts` with 1000, `k` with 10
+            ]]
+        )
     # stop
     def stop(self):
         tdSql.execute("drop database test_db;")
