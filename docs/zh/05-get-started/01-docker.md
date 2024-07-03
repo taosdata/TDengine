@@ -23,7 +23,7 @@ docker pull tdengine/tdengine:3.0.1.4
 然后只需执行下面的命令：
 
 ```shell
-docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
+docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
 ```
 
 注意：TDengine 3.0 服务端仅使用 6030 TCP 端口。6041 为 taosAdapter 所使用提供 REST 服务端口。6043-6049 为 taosAdapter 提供第三方应用接入所使用端口，可根据需要选择是否打开。
@@ -33,7 +33,7 @@ docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043
 ```shell
 docker run -d -v ~/data/taos/dnode/data:/var/lib/taos \
   -v ~/data/taos/dnode/log:/var/log/taos \
-  -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
+  -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
 ```
 
 :::note
@@ -59,7 +59,7 @@ docker exec -it <container name> bash
 
 注：Docker 工具自身的下载和使用请参考 [Docker 官网文档](https://docs.docker.com/get-docker/)。
 
-## 运行 TDengine CLI
+## TDengine 命令行界面
 
 进入容器，执行 `taos`：
 
@@ -69,7 +69,13 @@ $ taos
 taos>
 ```
 
-## 使用 taosBenchmark 体验写入速度
+## TDengine 图形化界面
+
+从 TDengine 3.3.0.0 开始，TDengine docker image 中增加了一个新的 web 组件：taos-explorer， 可以使用它进行数据库、超级表、子表、数据的查看和管理。其上也有一些只在企业版中才提供的高级特性，如需要可联系 TDengine 销售团队。
+
+使用 taos-explorer，需要从浏览器访问其映射在主机上的端口，假定主机名为 abc.com，映射到主机的端口为 6060，则需从浏览器访问 http://abc.com:6060. taos-explorer 默认在容器内使用 6060 端口。初次使用需要使用企业邮箱进行注册，注册后即可使用数据库中的用户名和密码登录。
+
+## 体验写入速度
 
 可以使用 TDengine 的自带工具 taosBenchmark 快速体验 TDengine 的写入速度。
 
@@ -85,7 +91,7 @@ $ taosBenchmark
 
 taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，您可以设置不同参数进行体验，请执行 `taosBenchmark --help` 详细列出。taosBenchmark 详细使用方法请参照[如何使用 taosBenchmark 对 TDengine 进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)和 [taosBenchmark 参考手册](../../reference/taosbenchmark)。
 
-## 使用 TDengine CLI 体验查询速度
+## 体验查询速度
 
 使用上述 `taosBenchmark` 插入数据后，可以在 TDengine CLI（taos）输入查询命令，体验查询速度。
 

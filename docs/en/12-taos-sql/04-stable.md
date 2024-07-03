@@ -111,6 +111,8 @@ DROP STABLE [IF EXISTS] [db_name.]stb_name
 
 Note: Deleting a supertable will delete all subtables created from the supertable, including all data within those subtables.
 
+**Note**：Dropping a supertable doesn't release the disk space occupied by the table, instead all the rows in the table are marked as deleted, so these data will not occur when querying. The disk space will be released when the system automatically performs `compact` operation or the user performs `compact` manually. 
+
 ## Modify a Supertable
 
 ```sql

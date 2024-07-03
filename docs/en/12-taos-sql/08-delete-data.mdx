@@ -6,6 +6,8 @@ description: This document describes how to delete data from TDengine.
 
 TDengine provides the functionality of deleting data from a table or STable according to specified time range, it can be used to cleanup abnormal data generated due to device failure.
 
+**Note**：Deletting some data doesn't release the disk space occupied by the table, instead all the rows in the table are marked as deleted, so these data will not occur when querying. The disk space will be released when the system automatically performs `compact` operation or the user performs `compact` manually. 
+
 **Syntax:**
 
 ```sql

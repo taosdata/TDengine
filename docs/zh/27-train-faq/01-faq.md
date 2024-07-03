@@ -75,7 +75,7 @@ description: 一些常见问题的解决方法汇总
    检查服务器侧 TCP 端口连接是否工作：`nc -l {port}`
    检查客户端侧 TCP 端口连接是否工作：`nc {hostIP} {port}`
 
- - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
+ - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName \{fqdn} -Port \{port} 检测服务段端口是否访问
 
 11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](../../operation/diagnose/)。
 
@@ -243,7 +243,7 @@ sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 launchctl limit maxfiles
 ```
-### 20 建库时提示 Out of dnodes
+### 20 建库时提示 Out of dnodes 或者建表时提示 Vnodes exhausted
 该提示是创建 db 的 vnode 数量不够了，需要的 vnode 不能超过了 dnode 中 vnode 的上限。因为系统默认是一个 dnode 中有 CPU 核数两倍的 vnode，也可以通过配置文件中的参数 supportVnodes 控制。
 正常调大 taos.cfg 中 supportVnodes 参数即可。
 
@@ -261,3 +261,12 @@ TDengine 在写入数据时如果有很严重的乱序写入问题，会严重�
 
 ### 25 我想统计下前后两条写入记录之间的时间差值是多少？
 使用 DIFF 函数，可以查看时间列或数值列前后两条记录的差值，非常方便，详细说明见 SQL手册->函数->DIFF
+
+### 26 遇到报错 “DND ERROR Version not compatible,cliver : 3000700swr wer : 3020300”
+说明客户端和服务端版本不兼容，这里cliver的版本是3.0.7.0,server版本是 3.2.3.0。目前的兼容策略是前三位一致，client 和 sever才能兼容。
+
+### 27 修改database的root密码后，启动taos遇到报错 “failed to connect to server, reason: Authen tication failure”
+默认情况，启动taos服务会使用系统默认的用户名（root）和密码尝试连接taosd，在root密码修改后，启用taos连接就需要指明用户名和密码，例如: taos -h xxx.xxx.xxx.xxx -u root -p，然后输入新密码进行连接。
+
+### 28 修改database的root密码后，Grafana监控插件TDinsight无数据展示
+TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集并存储于TD的log库中，在root密码修改后，需要同步更新taosKeeper和taosAdapter配置文件中对应的密码信息，然后重启taosKeeper和taosAdapter服务（注：若是集群需要重启每个节点上的对应服务）。
