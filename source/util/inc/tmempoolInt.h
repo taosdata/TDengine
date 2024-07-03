@@ -22,6 +22,7 @@ extern "C" {
 
 #include "os.h"
 #include "tlockfree.h"
+#include "thash.h"
 
 #define MP_CHUNK_CACHE_ALLOC_BATCH_SIZE 1000
 #define MP_NSCHUNK_CACHE_ALLOC_BATCH_SIZE 500
@@ -52,11 +53,17 @@ extern "C" {
 #define MP_STAT_FLAG_LOG_SOME_NODE_STAT (1 << 10)
 #define MP_STAT_FLAG_LOG_SOME_POOL_STAT (1 << 11)
 
+#define MP_STAT_FLAG_LOG_ALL            (0xFFFFFFFFFFFFFFFF)
+
+
 // STAT PROCESURE FLAGS
 #define MP_STAT_PROC_FLAG_EXEC (1 << 0)
 #define MP_STAT_PROC_FLAG_INPUT_ERR (1 << 1)
 #define MP_STAT_PROC_FLAG_RES_SUCC (1 << 2)
 #define MP_STAT_PROC_FLAG_RES_FAIL (1 << 3)
+
+// CTRL FUNC FLAGS
+#define MP_CTRL_FLAG_PRINT_STAT (1 << 0)
 
 
 typedef enum EMPStatLogItem {
@@ -123,23 +130,33 @@ typedef struct SMPStatInput {
 } SMPStatInput;
 
 typedef struct SMPStatItem {
-  int64_t  exec;
   int64_t  inErr;
+  int64_t  exec;
   int64_t  succ;
   int64_t  fail;
-  int64_t  orig;
 } SMPStatItem;
 
+typedef struct SMPStatItemExt {
+  int64_t  inErr;
+  int64_t  exec;
+  int64_t  succ;
+  int64_t  fail;
+  int64_t  origExec;
+  int64_t  origSucc;
+  int64_t  origFail;
+} SMPStatItemExt;
+
 typedef struct SMPMemoryStat {
-  SMPStatItem chunkMalloc;
-  SMPStatItem chunkRecycle;
-  SMPStatItem chunkReUse;
-  SMPStatItem chunkFree;
-  SMPStatItem memMalloc;
-  SMPStatItem memCalloc;
-  SMPStatItem memRealloc;
-  SMPStatItem strdup;
-  SMPStatItem memFree;
+  SMPStatItem    memMalloc;
+  SMPStatItem    memCalloc;
+  SMPStatItemExt memRealloc;
+  SMPStatItem    strdup;
+  SMPStatItem    memFree;
+
+  SMPStatItem    chunkMalloc;
+  SMPStatItem    chunkRecycle;
+  SMPStatItem    chunkReUse;
+  SMPStatItem    chunkFree;
 } SMPMemoryStat;
 
 typedef struct SMPStatDetail {
@@ -152,11 +169,19 @@ typedef struct SMPCtrlInfo {
   int64_t  funcFlags;
 } SMPCtrlInfo;
 
+typedef struct SMPStatSession {
+  int64_t initSucc;
+  int64_t initFail;
+  int64_t destroyNum;
+} SMPStatSession;
+
 typedef struct SMPStatInfo {
-  SMPStatDetail statDetail;
-  SHashObj*     nodeStat;
-  SHashObj*     fileStat;
-  SHashObj*     lineStat;
+  SMPStatDetail  statDetail;
+  SMPStatSession statSession;
+  SHashObj*      sessStat;
+  SHashObj*      nodeStat;
+  SHashObj*      fileStat;
+  SHashObj*      lineStat;
 } SMPStatInfo;
 
 typedef struct SMPSession {
@@ -233,6 +258,13 @@ typedef struct SMemPool {
   SMPStatInfo          stat;
 } SMemPool;
 
+typedef struct SMemPoolMgmt {
+  SArray*       poolList;
+  TdThreadMutex poolMutex;
+  TdThread      poolMgmtThread;
+  int32_t       code;
+} SMemPoolMgmt;
+
 #define MP_GET_FLAG(st, f) ((st) & (f))
 #define MP_SET_FLAG(st, f) (st) |= (f)
 #define MP_CLR_FLAG(st, f) (st) &= (~f)
@@ -241,6 +273,13 @@ enum {
   MP_READ = 1,
   MP_WRITE,
 };
+
+#define MP_STAT_FORMAT "%s => \tinputError:%" PRId64 "\texec:%" PRId64 "\tsucc:%" PRId64 "\tfail:%" PRId64
+#define MP_STAT_ORIG_FORMAT "%s => \tinputError:%" PRId64 "\texec:%" PRId64 "\tsucc:%" PRId64 "\tfail:%" PRId64 "\torigExec:%" PRId64 "\torigSucc:%" PRId64 "\torigFail:%" PRId64
+
+#define MP_STAT_VALUE(_name, _item) _name, (_item).inErr, (_item).exec, (_item).succ, (_item).fail
+#define MP_STAT_ORIG_VALUE(_name, _item) _name, (_item).inErr, (_item).exec, (_item).succ, (_item).fail, (_item).origExec, (_item).origSucc, (_item).origFail
+
 
 #define MP_INIT_MEM_HEADER(_header, _size, _nsChunk)                      \
   do {                                                                    \

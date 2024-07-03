@@ -57,11 +57,16 @@ int32_t tsShellActivityTimer = 3;  // second
 int8_t  tsQueryUseMemoryPool = 1;
 
 // queue & threads
+int32_t tsQueryMinConcurrentTaskNum = 1;
+int32_t tsQueryMaxConcurrentTaskNum = 0;
+int32_t tsQueryConcurrentTaskNum = 0;
+
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
 int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsKeepAliveIdle = 60;
 
+int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 16;
 int32_t tsNumOfMnodeQueryThreads = 16;

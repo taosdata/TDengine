@@ -19,6 +19,8 @@ SQWorkerMgmt gQwMgmt = {
 };
 
 TdThreadOnce  gQueryPoolInit = PTHREAD_ONCE_INIT;
+SQueryMgmt gQueryMgmt;
+
 
 int32_t qwStopAllTasks(SQWorker *mgmt) {
   uint64_t qId, tId, sId;
@@ -153,7 +155,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     if (taskHandle) {
       qwDbgSimulateSleep();
 
-      taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+      taosEnableMemoryPoolUsage(gQueryMgmt.memPoolHandle, ctx->memPoolSession);
       code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch);
       taosDisableMemoryPoolUsage();
       
@@ -731,8 +733,8 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->sId = sId;
   ctx->phase = -1;
   
-  if (NULL != gQueryPoolHandle) {
-    QW_ERR_JRET(taosMemPoolInitSession(gQueryPoolHandle, &ctx->memPoolSession));
+  if (NULL != gQueryMgmt.memPoolHandle) {
+    QW_ERR_JRET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, &ctx->memPoolSession));
   }
   
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
@@ -774,7 +776,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(code);
   }
 
-  taosEnableMemoryPoolUsage(gQueryPoolHandle, ctx->memPoolSession);
+  taosEnableMemoryPoolUsage(gQueryMgmt.memPoolHandle, ctx->memPoolSession);
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql, OPTR_EXEC_MODEL_BATCH);
   taosDisableMemoryPoolUsage();
   

@@ -24,18 +24,39 @@ extern "C" {
 #define MEMPOOL_MAX_CHUNK_SIZE (1 << 30)
 #define MEMPOOL_MIN_CHUNK_SIZE (1 << 20)
 
-typedef enum MemPoolEvictPolicy{
+typedef enum MemPoolEvictPolicy {
   E_EVICT_ALL = 1,
   E_EVICT_NONE,
   E_EVICT_AUTO,
   E_EVICT_MAX_VALUE, // no used
 } MemPoolEvictPolicy;
 
+typedef enum MemPoolUsageLevel {
+  E_MEM_USAGE_LOW = 0,
+  E_MEM_USAGE_MIDDLE,
+  E_MEM_USAGE_HIGH,
+  E_MEM_USAGE_EXTRAME,
+  E_MEM_USAGE_MAX_VALUE
+} MemPoolUsageLevel;
+
+typedef void (*decConcSessionNum)(void);
+typedef void (*incConcSessionNum)(void);
+typedef void (*setConcSessionNum)(int32_t);
+
+typedef struct SMemPoolCallBack {
+  decConcSessionNum decSessFp;
+  incConcSessionNum incSessFp;
+  setConcSessionNum setSessFp;
+} SMemPoolCallBack;
+
 typedef struct SMemPoolCfg {
   int64_t            maxSize;
+  int64_t            sessionExpectSize;
   int32_t            chunkSize;
   int32_t            threadNum;
+  int8_t             usageLevel[E_MEM_USAGE_MAX_VALUE];
   MemPoolEvictPolicy evicPolicy;
+  SMemPoolCallBack   cb;
 } SMemPoolCfg;
 
 void    taosMemPoolModInit(void);
@@ -52,7 +73,7 @@ void    taosMemPoolClose(void* poolHandle);
 void    taosMemPoolModDestroy(void);
 void    taosAutoMemoryFree(void *ptr);
 int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession);
-void    taosMemPoolDestroySession(void* session);
+void    taosMemPoolDestroySession(void* poolHandle, void* session);
 
 
 extern threadlocal void* threadPoolHandle;

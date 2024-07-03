@@ -100,8 +100,8 @@ int32_t qmGetQueueSize(SQnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
 
 int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
   SSingleWorkerCfg queryCfg = {
-      .min = tsNumOfVnodeQueryThreads,
-      .max = tsNumOfVnodeQueryThreads,
+      .min = tsNumOfQnodeQueryThreads,
+      .max = tsNumOfQnodeQueryThreads,
       .name = "qnode-query",
       .fp = (FItem)qmProcessQueue,
       .param = pMgmt,
@@ -111,6 +111,8 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     dError("failed to start qnode-query worker since %s", terrstr());
     return -1;
   }
+
+  tsNumOfQueryThreads += tsNumOfQnodeQueryThreads;
 
   SSingleWorkerCfg fetchCfg = {
       .min = tsNumOfQnodeFetchThreads,

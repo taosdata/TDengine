@@ -69,6 +69,10 @@ extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
 
 // queue & threads
+extern int32_t tsQueryMinConcurrentTaskNum;
+extern int32_t tsQueryMaxConcurrentTaskNum;
+extern int32_t tsQueryConcurrentTaskNum;
+extern int32_t tsNumOfQueryThreads;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsTimeToGetAvailableConn;
