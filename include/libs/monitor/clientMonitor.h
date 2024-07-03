@@ -34,14 +34,12 @@ const char* resultStr(SQL_RESULT_CODE code);
 
 typedef struct {
   char                       clusterKey[512];
-  SEpSet                     epSet;
-  void*                      pTransporter;
   taos_collector_registry_t* registry;
   taos_collector_t*          colector;
   SHashObj*                  counters;
 } ClientMonitor;
 
-void            clusterMonitorInit(const char* clusterKey, SEpSet epSet, void* pTransporter);
+void            clusterMonitorInit(const char* clusterKey);
 void            clusterMonitorClose(const char* clusterKey);
 taos_counter_t* createClusterCounter(const char* clusterKey, const char* name, const char* help, size_t label_key_count,
                                      const char** label_keys);

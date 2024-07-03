@@ -28,7 +28,7 @@ void clientSQLReqMonitorInit(const char* clusterKey) {
   if (!tsEnableMonitor) return;
   SAppInstInfo* pAppInstInfo = getAppInstInfo(clusterKey);
   SEpSet epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
-  clusterMonitorInit(clusterKey, epSet, pAppInstInfo->pTransporter);
+  clusterMonitorInit(clusterKey);
   createClusterCounter(clusterKey, selectMonitorName, selectMonitorHelp, selectMonitorLabelCount, selectMonitorLabels);
 }
 

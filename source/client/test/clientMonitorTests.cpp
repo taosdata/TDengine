@@ -39,7 +39,7 @@ TEST(clientMonitorTest, monitorTest) {
   const char* cluster1 = "cluster1";
   const char* cluster2 = "cluster2";
   SEpSet epSet;
-  clusterMonitorInit(cluster1, epSet, NULL);
+  clusterMonitorInit(cluster1);
   const char* counterName1 = "slow_query";
   const char* counterName2 = "select_count";
   const char* help1 = "test for slowQuery";
@@ -52,7 +52,7 @@ TEST(clientMonitorTest, monitorTest) {
   ASSERT_TRUE(c1 != c2);
   taos_counter_t* c21 = createClusterCounter(cluster2, counterName1, help2, 1, lables);
   ASSERT_TRUE(c21 == NULL);
-  clusterMonitorInit(cluster2, epSet, NULL);
+  clusterMonitorInit(cluster2);
   c21 = createClusterCounter(cluster2, counterName1, help2, 1, lables);
   ASSERT_TRUE(c21 != NULL);
   int i = 0;

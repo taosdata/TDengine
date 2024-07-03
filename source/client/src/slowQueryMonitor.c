@@ -41,9 +41,7 @@ static const char* getSlowQueryLableCostDesc(int64_t cost) {
 
 void clientSlowQueryMonitorInit(const char* clusterKey) {
   if (!tsEnableMonitor) return;
-  SAppInstInfo* pAppInstInfo = getAppInstInfo(clusterKey);
-  SEpSet        epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
-  clusterMonitorInit(clusterKey, epSet, pAppInstInfo->pTransporter);
+  clusterMonitorInit(clusterKey);
   createClusterCounter(clusterKey, slowQueryName, slowQueryHelp, slowQueryLabelCount, slowQueryLabels);
 }
 

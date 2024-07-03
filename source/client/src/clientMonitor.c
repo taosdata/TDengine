@@ -4,6 +4,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tglobal.h"
+#include "clientInt.h"
 
 SRWLatch  monitorLock;
 void*     tmrClientMonitor;
@@ -68,20 +69,19 @@ void monitorClientInitOnce() {
   }
 }
 
-void createMonitorClient(const char* clusterKey, SEpSet epSet, void* pTransporter) {
+void createMonitorClient(const char* clusterKey) {
   if (clusterKey == NULL || strlen(clusterKey) ==  0) {
     uError("createMonitorClient failed, clusterKey is NULL");
     return;
   }
   taosWLockLatch(&monitorLock);
-  if (taosHashGet(clusterMonitorInfoTable, clusterKey, strlen(clusterKey)) == NULL) {
+  ClientMonitor** ppMonitor = (ClientMonitor**)taosHashGet(clusterMonitorInfoTable, clusterKey, strlen(clusterKey));
+  if (ppMonitor == NULL) {
     uInfo("createMonitorClient for %s.", clusterKey);
     ClientMonitor* pMonitor = taosMemoryCalloc(1, sizeof(ClientMonitor));
     snprintf(pMonitor->clusterKey, sizeof(pMonitor->clusterKey), "%s", clusterKey);
     pMonitor->registry = taos_collector_registry_new(clusterKey);
     pMonitor->colector = taos_collector_new(clusterKey);
-    epsetAssign(&pMonitor->epSet, &epSet);
-    pMonitor->pTransporter = pTransporter;
 
     taos_collector_registry_register_collector(pMonitor->registry, pMonitor->colector);
     pMonitor->counters =
@@ -90,6 +90,7 @@ void createMonitorClient(const char* clusterKey, SEpSet epSet, void* pTransporte
     taosHashPut(clusterMonitorInfoTable, clusterKey, strlen(clusterKey), &pMonitor, sizeof(ClientMonitor*));
     uInfo("createMonitorClient for %s finished %p.", clusterKey, pMonitor);
   }
+  
   taosWUnLockLatch(&monitorLock);
 }
 
@@ -135,12 +136,13 @@ int32_t sendReport(ClientMonitor* pMonitor, char* pCont) {
   pInfo->requestObjRefId = 0;
 
   int64_t transporterId = 0;
-  return asyncSendMsgToServer(pMonitor->pTransporter, &pMonitor->epSet, &transporterId, pInfo);
+  SAppInstInfo* pAppInstInfo = getAppInstInfo(pMonitor->clusterKey);
+  return asyncSendMsgToServer(pAppInstInfo->pTransporter, &pAppInstInfo->mgmtEp.epSet, &transporterId, pInfo);
 }
 
-void clusterMonitorInit(const char* clusterKey, SEpSet epSet, void* pTransporter) {
+void clusterMonitorInit(const char* clusterKey) {
   monitorClientInitOnce();
-  createMonitorClient(clusterKey, epSet, pTransporter);
+  createMonitorClient(clusterKey);
 }
 
 taos_counter_t* createClusterCounter(const char* clusterKey, const char* name, const char* help, size_t label_key_count,
