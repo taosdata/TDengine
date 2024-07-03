@@ -52,7 +52,7 @@ pub struct PiConfig {
     pub point_list: Vec<String>,
     // backfill param
     #[serde(rename = "ForBackfill")]
-    for_backfill: bool, // 本配置是否针对 Backfill 任务
+    pub for_backfill: bool, // 本配置是否针对 Backfill 任务
     #[serde(
         rename = "BackfillBreakpointFile",
         skip_serializing_if = "Option::is_none"
@@ -65,9 +65,9 @@ pub struct PiConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     to_tdengine_first_time: Option<bool>,
     #[serde(rename = "BackfillStartTime", skip_serializing_if = "Option::is_none")]
-    backfill_start_time: Option<Datetime>,
+    pub backfill_start_time: Option<Datetime>,
     #[serde(rename = "BackfillEndTime", skip_serializing_if = "Option::is_none")]
-    backfill_end_time: Option<Datetime>,
+    pub backfill_end_time: Option<Datetime>,
     // log level
     #[serde(rename = "LogLevel", skip_serializing_if = "Option::is_none")]
     log_level: Option<String>,

@@ -1,6 +1,5 @@
 ﻿using log4net;
 using System;
-using System.ServiceProcess;
 using TDPIConnector.Core;
 using TDPIConnector.Core.ScanPiInfo;
 using System.Reflection;
@@ -135,8 +134,6 @@ namespace TDPIConnector.Service
 
             PrintVersion(true);
             Service service = new Service();
-            var servicesToRun = new ServiceBase[] { service };
-
             if (workMode == WorkMode.PrintPIInfo) {
                 service.PrintPIInfo(printMode, pointFilter, fileterMode);
                 return;
