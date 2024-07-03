@@ -640,9 +640,15 @@ void monSendContent(int64_t chanId, char *pCont, const char *uri) {
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReportByChan(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag, chanId) !=
-        0) {
-      uError("failed to send monitor msg");
+    if (chanId <= 0) {
+      if (taosSendHttpReport(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+        uError("failed to send monitor msg");
+      }
+    } else {
+      if (taosSendHttpReportByChan(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag, chanId) !=
+          0) {
+        uError("failed to send monitor msg");
+      }
     }
   }
 }

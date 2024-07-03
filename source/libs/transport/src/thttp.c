@@ -540,9 +540,10 @@ int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, c
 
 static void transHttpDestroyHandle(void* handle) { taosMemoryFree(handle); }
 
+int64_t     taosInitHttpChanImpl();
 static void transHttpEnvInit() {
   httpRefMgt = taosOpenRef(64, transHttpDestroyHandle);
-  httpDefaultChanId = taosInitHttpChan();
+  httpDefaultChanId = taosInitHttpChanImpl();
 }
 
 void transHttpEnvDestroy() {
