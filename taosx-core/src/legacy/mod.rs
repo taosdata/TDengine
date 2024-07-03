@@ -1238,14 +1238,16 @@ fn transform_sql_with_actions(
                     bail!("unsupported transform action: {:?}", action)
                 }
                 Action::RenameTable(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
-                    sql.clear();
-                    sql.extend(new.chars());
+                    let new = action.apply(table_name)?;
+                    if table_name != new {
+                        sql = sql.replace(&format!("`{table_name}`",), &format!("`{}`", new));
+                    }
                 }
                 Action::RenameChildTable(action) => {
-                    let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
-                    sql.clear();
-                    sql.extend(new.chars());
+                    let new = action.apply(table_name)?;
+                    if table_name != new {
+                        sql = sql.replace(&format!("`{table_name}`",), &format!("`{}`", new));
+                    }
                 }
                 // Action::RenameReplaceWithRegex(action) => {
                 //     let new = sql.replace(&format!("`{table_name}`",), &action.apply(table_name)?);
@@ -1376,7 +1378,7 @@ async fn sync_normal_table_schema_fallback(
     let mut sql = desc.to_create_table_sql(name);
 
     sql = transform_sql_with_actions(sql, name, actions, false, remap)?;
-    if let Err(err) = to.exec(sql.clone()).await {
+    if let Err(err) = to.exec(&sql).await {
         if !err.to_string().contains("[0x000B]") {
             Err(err).with_context(|| format!("normal table create error, sql: [{sql}]"))?;
         }
@@ -4009,5 +4011,68 @@ mod tests {
             TargetOpts::from_params(&source_opts, &mut to_dsn, source_opts.workers).unwrap();
         assert_eq!(targe_opts.concurrent_limit, NonZeroUsize::new(1).unwrap());
         assert!(targe_opts.fails_to.is_some());
+    }
+
+    #[tokio::test]
+    async fn ts5124() -> anyhow::Result<()> {
+        let builder = TaosBuilder::from_dsn("taos:///")?;
+        let taos1 = builder.build().await?;
+        let taos2 = builder.build().await?;
+        let db_prefix = "test_ts5124";
+        let db1 = format!("{}1", db_prefix);
+        let db2 = format!("{}2", db_prefix);
+        let tid = 5124;
+        taos1
+            .exec_many([
+                format!("drop database if exists `{db1}`"),
+                format!("create database `{db1}`"),
+                format!("use {db1}"),
+                format!("create table `nTb1` (ts timestamp, v1 int)"),
+                format!("insert into `nTb1` values(now, 1)"),
+                format!("create table `>♑1` (ts timestamp, v1 int)"),
+                format!("insert into `>♑1` values(now, 1)"),
+            ])
+            .await?;
+        taos2
+            .exec_many([
+                format!("drop database if exists `{db2}`"),
+                format!("create database `{db2}`"),
+                format!("use {db2}"),
+            ])
+            .await?;
+
+        let source: Dsn = format!("taos:///{db1}").parse()?;
+
+        let sink: Dsn = format!("taos:///{db2}").parse()?;
+        let _ = QueryOpts {
+            ..Default::default()
+        };
+        let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2").unwrap(); 1];
+
+        crate::core_metrics::clear_metrics(tid).await;
+        let _ = crate::core_metrics::init_task_metrics(&source, &sink, tid, None).await;
+
+        legacy_to_taos(
+            source,
+            actions,
+            sink,
+            1,
+            CancellationToken::new(),
+            Some(tid.to_string()),
+        )
+        .await?;
+
+        // table nTb2 should be created
+        let _ = taos2.exec(format!("desc `{}`.`nTb2`", db2)).await?;
+        let _ = taos2.exec(format!("desc `{}`.`>♑1`", db2)).await?;
+
+        taos1
+            .exec_many([
+                format!("drop database if exists `{db1}`"),
+                format!("drop database if exists `{db2}`"),
+            ])
+            .await?;
+        crate::core_metrics::clear_metrics(tid).await;
+        Ok(())
     }
 }
