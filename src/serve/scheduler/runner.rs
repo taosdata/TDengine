@@ -1581,7 +1581,7 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     let to_dsn = task.task.to.parse().unwrap();
     let task_id = task.task.id;
     let task_name = task.task.name.clone();
-    let metrics = init_task_metrics(from_dsn, to_dsn, task_id, task_name)
+    let metrics = init_task_metrics(&from_dsn, &to_dsn, task_id, task_name)
         .in_current_span()
         .await;
     let (_sender, stop_save_metrics_signal) = oneshot::channel::<()>();

@@ -171,8 +171,8 @@ impl Cli {
 
         let timer_run = Arc::new(AtomicBool::new(true));
         let _metrics = init_task_metrics(
-            task_opt.from.clone(),
-            task_opt.to.clone(),
+            &task_opt.from,
+            &task_opt.to,
             args.task_id.unwrap_or(-1),
             None,
         )

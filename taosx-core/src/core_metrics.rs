@@ -357,13 +357,13 @@ pub async fn clear_metrics(task_id: i64) {
 }
 
 pub async fn init_task_metrics(
-    from: Dsn,
-    to: Dsn,
+    from: &Dsn,
+    to: &Dsn,
     task_id: i64,
     task_name: Option<String>,
 ) -> Option<Arc<CoreMetrics>> {
-    let datasrouce_id = from.driver.as_str();
-    match (datasrouce_id, to.driver.as_str()) {
+    let driver = from.driver.as_str();
+    match (driver, to.driver.as_str()) {
         ("taos", "taos") => {
             let metrics = try_get_metrics::<LegacyToTaosMetrics>(task_id).await;
             if let Some(metrics) = metrics {
@@ -421,7 +421,7 @@ pub async fn init_task_metrics(
                 Some(metrics)
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
-                let stable = String::from("taosx_task_") + datasrouce_id;
+                let stable = String::from("taosx_task_") + driver;
                 let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(
                     stable, task_id, task_name,
                 )));
