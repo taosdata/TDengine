@@ -421,15 +421,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
     return true;
   }
 
-  // TODO(dengyihao): time-consuming task throwed into BG Thread
-  //  uv_work_t* wreq = taosMemoryMalloc(sizeof(uv_work_t));
-  //  wreq->data = pConn;
-  //  uv_read_stop((uv_stream_t*)pConn->pTcp);
-  //  transRefSrvHandle(pConn);
-  //  uv_queue_work(((SWorkThrd*)pConn->hostThrd)->loop, wreq, uvWorkDoTask, uvWorkAfterTask);
-
-  STransMsg transMsg;
-  memset(&transMsg, 0, sizeof(transMsg));
+  STransMsg transMsg = {0};
   transMsg.contLen = transContLenFromMsg(pHead->msgLen);
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
@@ -942,14 +934,9 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  // uv_handle_type pending = uv_pipe_pending_type(pipe);
-
   SSvrConn* pConn = createConn(pThrd);
 
   pConn->pTransInst = pThrd->pTransInst;
-  /* init conn timer*/
-  // uv_timer_init(pThrd->loop, &pConn->pTimer);
-  // pConn->pTimer.data = pConn;
 
   pConn->hostThrd = pThrd;
 
@@ -1107,6 +1094,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
 
   STrans* pTransInst = pThrd->pTransInst;
   pConn->refId = exh->refId;
+
   QUEUE_INIT(&exh->q);
   transRefSrvHandle(pConn);
   tTrace("%s handle %p, conn %p created, refId:%" PRId64, transLabel(pTransInst), exh, pConn, pConn->refId);
@@ -1618,5 +1606,3 @@ void transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   }
   transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);
 }
-
-int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
