@@ -844,21 +844,29 @@ _OVER:
   return -1;
 }
 
-int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
+int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo* pQueueInfo) {
   SMnode         *pMnode = pMsg->info.node;
   const STraceId *trace = &pMsg->info.traceId;
+  int32_t         code = TSDB_CODE_SUCCESS;
 
-  MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
+  MndMsgFp    fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
+  MndMsgFpExt fpExt = NULL;
   if (fp == NULL) {
-    mGError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
-    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    return -1;
+    fpExt = pMnode->msgFpExt[TMSG_INDEX(pMsg->msgType)];
+    if (fpExt == NULL) {
+      mGError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      return -1;
+    }
   }
 
   if (mndCheckMnodeState(pMsg) != 0) return -1;
 
   mGTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
-  int32_t code = (*fp)(pMsg);
+  if (fp)
+    code = (*fp)(pMsg);
+  else
+    code = (*fpExt)(pMsg, pQueueInfo);
   mndReleaseRpc(pMnode);
 
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -880,6 +888,13 @@ void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
   tmsg_t type = TMSG_INDEX(msgType);
   if (type < TDMT_MAX) {
     pMnode->msgFp[type] = fp;
+  }
+}
+
+void mndSetMsgHandleExt(SMnode *pMnode, tmsg_t msgType, MndMsgFpExt fp) {
+  tmsg_t type = TMSG_INDEX(msgType);
+  if (type < TDMT_MAX) {
+    pMnode->msgFpExt[type] = fp;
   }
 }
 

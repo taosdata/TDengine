@@ -297,6 +297,8 @@ int32_t cleanupTaskQueue();
  * @return
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+int32_t taosAsyncWait();
+int32_t taosAsyncRecover();
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 

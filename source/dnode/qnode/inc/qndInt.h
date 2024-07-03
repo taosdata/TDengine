@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-typedef struct SQueueWorker SQHandle;
+typedef struct SQWorker SQHandle;
 
 typedef struct SQnode {
   int32_t   qndId;

@@ -65,6 +65,11 @@ struct SActiveCheckpointInfo {
   tmr_h         pSendReadyMsgTmr;
 };
 
+struct SConsensusCheckpoint {
+  int8_t inProcess;
+
+};
+
 typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;
@@ -157,6 +162,7 @@ extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 extern int32_t taskDbWrapperId;
+extern int32_t streamMetaId;
 
 int32_t streamTimerInit();
 void    streamTimerCleanUp();
@@ -211,7 +217,13 @@ void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
-void streamMetaRemoveDB(void* arg, char* key);
+void         streamMetaRemoveDB(void* arg, char* key);
+void         streamMetaHbToMnode(void* param, void* tmrId);
+SMetaHbInfo* createMetaHbInfo(int64_t* pRid);
+void*        destroyMetaHbInfo(SMetaHbInfo* pInfo);
+void         streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
+void         streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
+int32_t      streamMetaSendHbHelper(SStreamMeta* pMeta);
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
