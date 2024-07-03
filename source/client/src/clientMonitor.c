@@ -307,6 +307,11 @@ end:
 
 void monitorCounterInc(int64_t clusterId, const char* counterName, const char** label_values) {
   taosWLockLatch(&monitorLock);
+  if (atomic_load_32(&monitorFlag) == 1) {
+    taosRUnLockLatch(&monitorLock);
+    return;
+  }
+
   MonitorClient** ppMonitor = (MonitorClient**)taosHashGet(monitorCounterHash, &clusterId, LONG_BYTES);
   if (ppMonitor == NULL || *ppMonitor == NULL) {
     tscError("monitorCounterInc not found pMonitor %"PRId64, clusterId);
