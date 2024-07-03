@@ -649,7 +649,7 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
     (mode, pattern, pattern_type)
 }
 
-/// 启动连接器连的参数检查
+/// 启动连接器前的参数检查
 fn pre_check_config(config: &PiConfig) -> anyhow::Result<()> {
     if config.for_backfill {
         if config.backfill_start_time.is_none() {
