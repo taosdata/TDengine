@@ -45,6 +45,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "thttp.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
@@ -452,26 +453,23 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
 static int32_t mndInitWal(SMnode *pMnode) {
   char path[PATH_MAX + 20] = {0};
   snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
-  SWalCfg cfg = {
-      .vgId = 1,
-      .fsyncPeriod = 0,
-      .rollPeriod = -1,
-      .segSize = -1,
-      .retentionPeriod = 0,
-      .retentionSize = 0,
-      .level = TAOS_WAL_FSYNC,
-      .encryptAlgorithm = 0,
-      .encryptKey = {0}
-  };
+  SWalCfg cfg = {.vgId = 1,
+                 .fsyncPeriod = 0,
+                 .rollPeriod = -1,
+                 .segSize = -1,
+                 .retentionPeriod = 0,
+                 .retentionSize = 0,
+                 .level = TAOS_WAL_FSYNC,
+                 .encryptAlgorithm = 0,
+                 .encryptKey = {0}};
 
 #if defined(TD_ENTERPRISE)
-  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
-    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL)? tsiEncryptAlgorithm : 0;
-    if(tsEncryptKey[0] == '\0'){
+  if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
+    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
+    if (tsEncryptKey[0] == '\0') {
       terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       return -1;
-    }
-    else{
+    } else {
       strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }
@@ -679,6 +677,10 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     terrno = code;
     return NULL;
   }
+  pMnode->chanId = taosInitHttpChan();
+  if (pMnode->chanId <= 0) {
+    mError("mnode failed to init http chan");
+  }
 
   mInfo("mnode open successfully");
   return pMnode;
@@ -695,7 +697,9 @@ void mndPreClose(SMnode *pMnode) {
 void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mInfo("start to close mnode");
+    taosDestroyHttpChan(pMnode->chanId);
     mndCleanupSteps(pMnode, -1);
+
     taosMemoryFreeClear(pMnode->path);
     taosMemoryFreeClear(pMnode);
     mInfo("mnode is closed");

@@ -227,7 +227,7 @@ void    monSetSmInfo(SMonSmInfo *pInfo);
 void    monSetBmInfo(SMonBmInfo *pInfo);
 void    monGenAndSendReport();
 void    monGenAndSendReportBasic();
-void    monSendContent(char *pCont, const char* uri);
+void    monSendContent(int64_t chanId, char *pCont, const char* uri);
 
 void tFreeSMonMmInfo(SMonMmInfo *pInfo);
 void tFreeSMonVmInfo(SMonVmInfo *pInfo);

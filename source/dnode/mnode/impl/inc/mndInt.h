@@ -139,6 +139,7 @@ typedef struct SMnode {
   MndMsgFp       msgFp[TDMT_MAX];
   SMsgCb         msgCb;
   int64_t        ipWhiteVer;
+  int64_t        chanId;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);

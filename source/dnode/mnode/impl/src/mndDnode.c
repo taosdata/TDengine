@@ -444,12 +444,12 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
   }
 }
 
-#define CHECK_MONITOR_PARA(para,err) \
-if (pCfg->monitorParas.para != para) { \
-  mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
-  terrno = err; \
-  return err;\
-}
+#define CHECK_MONITOR_PARA(para, err)                                                                    \
+  if (pCfg->monitorParas.para != para) {                                                                 \
+    mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
+    terrno = err;                                                                                        \
+    return err;                                                                                          \
+  }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
   CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
@@ -460,7 +460,8 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   CHECK_MONITOR_PARA(tsSlowLogScope, DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH);
 
   if (0 != strcasecmp(pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb)) {
-    mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id, pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
+    mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id,
+           pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
     terrno = TSDB_CODE_DNODE_INVALID_MONITOR_PARAS;
     return DND_REASON_STATUS_MONITOR_NOT_MATCH;
   }
@@ -556,8 +557,8 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
   return stateChanged;
 }
 
-extern char* tsMonFwUri;
-extern char* tsMonSlowLogUri;
+extern char   *tsMonFwUri;
+extern char   *tsMonSlowLogUri;
 static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatisReq statisReq = {0};
@@ -572,10 +573,10 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
     mInfo("process statis req,\n %s", statisReq.pCont);
   }
 
-  if (statisReq.type == MONITOR_TYPE_COUNTER){
-    monSendContent(statisReq.pCont, tsMonFwUri);
-  }else if(statisReq.type == MONITOR_TYPE_SLOW_LOG){
-    monSendContent(statisReq.pCont, tsMonSlowLogUri);
+  if (statisReq.type == MONITOR_TYPE_COUNTER) {
+    monSendContent(pMnode->chanId, statisReq.pCont, tsMonFwUri);
+  } else if (statisReq.type == MONITOR_TYPE_SLOW_LOG) {
+    monSendContent(pMnode->chanId, statisReq.pCont, tsMonSlowLogUri);
   }
 
   tFreeSStatisReq(&statisReq);
@@ -943,27 +944,27 @@ _OVER:
   return code;
 }
 
-static void getSlowLogScopeString(int32_t scope, char* result){
-  if(scope == SLOW_LOG_TYPE_NULL) {
+static void getSlowLogScopeString(int32_t scope, char *result) {
+  if (scope == SLOW_LOG_TYPE_NULL) {
     strcat(result, "NONE");
     return;
   }
-  while(scope > 0){
-    if(scope & SLOW_LOG_TYPE_QUERY) {
+  while (scope > 0) {
+    if (scope & SLOW_LOG_TYPE_QUERY) {
       strcat(result, "QUERY");
       scope &= ~SLOW_LOG_TYPE_QUERY;
-    } else if(scope & SLOW_LOG_TYPE_INSERT) {
+    } else if (scope & SLOW_LOG_TYPE_INSERT) {
       strcat(result, "INSERT");
       scope &= ~SLOW_LOG_TYPE_INSERT;
-    } else if(scope & SLOW_LOG_TYPE_OTHERS) {
+    } else if (scope & SLOW_LOG_TYPE_OTHERS) {
       strcat(result, "OTHERS");
       scope &= ~SLOW_LOG_TYPE_OTHERS;
-    } else{
+    } else {
       printf("invalid slow log scope:%d", scope);
       return;
     }
 
-    if(scope > 0) {
+    if (scope > 0) {
       strcat(result, "|");
     }
   }
