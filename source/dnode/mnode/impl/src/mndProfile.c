@@ -275,7 +275,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
       }
     }
 
-    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) != 0) {
+    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT, pDb) != 0) {
       goto _OVER;
     }
   }
