@@ -258,6 +258,9 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         pResBlock->info.id.groupId = pInfo->curGroupId;
         return pResBlock;
       }
+      if (pResBlock->info.rows < pResultInfo->threshold) {
+        assert(!taosFillHasMoreResults(pInfo->pFillInfo));
+      }
 
       doHandleRemainBlockFromNewGroup(pOperator, pInfo, pResultInfo, order);
       if (pResBlock->info.rows >= pOperator->resultInfo.threshold || pBlock == NULL) {
@@ -265,6 +268,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         return pResBlock;
       }
     } else if (pInfo->existNewGroupBlock) {  // try next group
+      assert(0);
       blockDataCleanup(pResBlock);
 
       doHandleRemainBlockForNewGroupImpl(pOperator, pInfo, pResultInfo, order);
