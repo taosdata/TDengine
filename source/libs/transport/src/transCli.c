@@ -1145,6 +1145,9 @@ static void cliHandleBatch_shareConnExcept(SCliConn* conn) {
     transMsg.info.ahandle = pCtx->ahandle;
 
     int32_t ret = cliAppCb(conn, &transMsg, pMsg);
+    if (ret != 0) {
+      return;
+    }
   }
 
   // SCliConn* conn = req->data;
