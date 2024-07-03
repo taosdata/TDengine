@@ -58,10 +58,8 @@ typedef struct {
 typedef struct {
   int64_t             clusterId;
   SLOW_LOG_QUEUE_TYPE type;
-  union{
-    char*             data;
-    int64_t           offset;
-  };
+  char*               data;
+  int64_t             offset;
   TdFilePtr           pFile;
   char*               fileName;
 } MonitorSlowLogData;
