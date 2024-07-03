@@ -174,12 +174,6 @@ Query OK, 8 row(s) in set (0.001154s)
 Before running the TDengine CLI, ensure that the taosd process has been stopped on the dnode that you want to delete.
 
 ```sql
-DROP DNODE "fqdn:port";
-```
-
-or
-
-```sql
 DROP DNODE dnodeId;
 ```
 
