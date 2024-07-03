@@ -23,6 +23,7 @@ use taosx_ipc::{
 use thiserror::Error;
 
 use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument, trace, Instrument};
 
 use crate::{
@@ -1351,6 +1352,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
     sink: impl Sink<LushAck, Error = ArrowError> + Send + 'static,
+    cancel: CancellationToken,
     parser: &Parser,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
@@ -1393,6 +1395,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
         let ipc_error_strategy = ipc_error_strategy.clone();
         let stream_trace_id = stream_trace_id.clone();
         let batch_counter = batch_counter.clone();
+        let cancel = cancel.clone();
         writer_set.spawn(async move {
             let taos = context.pool.get().await?;
             let mut taos = Some(taos);
@@ -1412,6 +1415,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     &mut taos,
                     &record,
                     &mut written,
+                    cancel.clone(),
                     &context.parser,
                     context.target_precision,
                     data_trace_id,
