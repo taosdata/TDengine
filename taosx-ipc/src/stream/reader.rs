@@ -538,11 +538,10 @@ impl<R: Read> IpcReader<R> {
         rx.into_stream()
     }
 
-    #[instrument(skip_all, fields(port = %_client_port))]
+    #[instrument(skip_all)]
     pub fn into_raw_stream_qos_0(
         self,
         mut ipc_ack_writer: AckWriter<impl std::io::Write + Send + 'static>,
-        _client_port: &str,
     ) -> flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>
     where
         R: Send + 'static,

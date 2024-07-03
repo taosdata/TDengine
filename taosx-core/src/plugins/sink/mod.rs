@@ -213,8 +213,7 @@ async fn ipc_tcp_forward(
     let schema: Arc<Schema> = Arc::new(schema);
 
     info!("Start reading IPC stream");
-    let client_port = client.split(':').last().unwrap_or("0");
-    let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer, client_port);
+    let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
 
     let (tables_cache_tx, tables_cache_rx) = ring_channel(NonZeroUsize::new(50).unwrap());
 
