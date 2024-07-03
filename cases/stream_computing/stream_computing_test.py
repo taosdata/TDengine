@@ -4834,6 +4834,20 @@ class StreamComputingTest(TDCase):
         # for tbname in ["ct1", "tb1"]:
         #     self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,c100 from {self.dbname}.{self.case_name}_{tbname}')
 
+    def wait_checkpoint_ready(self, stream_name):
+        cnt = 0
+        cmd = f'select distinct status from information_schema.ins_stream_tasks where stream_name = "{stream_name}"'
+        self.tdSql.query(cmd)
+        query_result = self.tdSql.query_data
+        while len(query_result) != 0 and query_result[0][0] != "ready":
+            time.sleep(1)
+            self.tdSql.query(cmd)
+            query_result = self.tdSql.query_data
+            if cnt < self.tdCom.stream_timeout:
+                cnt += 1
+            else:
+                return
+
     def pause_resume_test(self, interval, partition="tbname", delete=False, fill_history_value=None, pause=True, resume=True, ignore_untreated=False):
         if_exist_value_list = [None, True]
         if_exist = random.choice(if_exist_value_list)
@@ -4895,6 +4909,8 @@ class StreamComputingTest(TDCase):
             # if i == int(range_count/2):
             if i > 2 and i % 3 == 0:
                 for stream_name in [f'{self.stb_name}{self.stream_suffix}', f'{self.ctb_name}{self.stream_suffix}', f'{self.tb_name}{self.stream_suffix}']:
+                    if ignore_untreated:
+                        self.wait_checkpoint_ready(stream_name)
                     if if_exist is not None:
                         self.tdSql.execute(f'pause stream if exists {stream_name}_no_exist')
                     self.tdSql.error(f'pause stream if not exists {stream_name}')
@@ -5238,8 +5254,8 @@ class StreamComputingTest(TDCase):
 
                     # pause/resume
                     # ! TD-30779
-                    #self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value)
-                    #self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value)
+                    self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value)
+                    self.pause_resume_test(interval=random.randint(10, 15), delete=True, partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value)
                     # ! TD-26711
                     # self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False, fill_history_value=fill_history_value)
                     self.at_once_event_window(delete=delete, fill_history_value=fill_history_value)
