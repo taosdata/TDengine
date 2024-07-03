@@ -262,7 +262,7 @@ impl Export {
         };
 
         for user in &self.users {
-            if let Err(err) = conn.exec(&user.to_sql(true)).await {
+            if let Err(err) = conn.exec_many(&user.to_sqls(true)).await {
                 fails
                     .passwords
                     .push(ApplyFail::new(&user.name, format!("{err:#}")));
@@ -474,6 +474,7 @@ mod tests {
             "GRANT read ON `_xTest2`.meters WITH (t1 = 1) TO `_xTest`",
             "GRANT subscribe ON `_xTopicT1` TO `_xTest`",
             "GRANT subscribe ON `_xTopicT2` TO `_xTest`",
+            "ALTER USER `_xTest` ENABLE 0",
         ])
         .await?;
 
@@ -514,6 +515,16 @@ mod tests {
         // We revoke the privileges and users to make the second import successful.
         let export = all.load_from_file(&path)?;
         export.revoke(&conn).await?;
+
+        export
+            .users
+            .iter()
+            .filter(|user| user.name == "_xTest")
+            .for_each(|user| {
+                let sqls = user.to_sqls(true);
+                println!("sqls: {:?}", sqls);
+                debug_assert!(sqls[1].contains("ENABLE 0"));
+            });
 
         let result = super::import(&path, &to, &all).await?;
         dbg!(&result);
