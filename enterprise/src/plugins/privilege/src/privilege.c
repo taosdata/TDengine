@@ -153,6 +153,8 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
     goto _OVER;
   }
 
+  if (pDb == NULL) goto _OVER;
+
   if (operType == MND_OPER_CREATE_DB) {
     if (pUser->createdb) goto _OVER;
   }
