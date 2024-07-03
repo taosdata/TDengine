@@ -12730,7 +12730,7 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
     }
   }
 
-  if (!tbnameFound) {
+  if (TSDB_CODE_SUCCESS == code && !tbnameFound) {
       code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TBNAME_ERROR);
   }
 

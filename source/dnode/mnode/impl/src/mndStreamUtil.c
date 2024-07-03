@@ -929,8 +929,9 @@ bool mndAllTaskSendCheckpointId(SCheckpointConsensusInfo* pInfo, int32_t numOfTa
 }
 
 int64_t mndGetConsensusCheckpointId(SCheckpointConsensusInfo* pInfo, SStreamObj* pStream) {
-  if (pInfo->genTs > 0) {
-    ASSERT(pInfo->checkpointId > 0);
+  if (pInfo->genTs > 0) {  // there is no checkpoint ever generated if the checkpointId is 0.
+    mDebug("existed consensus-checkpointId:%" PRId64 " for stream:0x%" PRIx64 " %s exist, and return",
+           pInfo->checkpointId, pStream->uid, pStream->name);
     return pInfo->checkpointId;
   }
 
@@ -964,5 +965,18 @@ int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId) {
   int32_t numOfStreams = taosHashGetSize(pHash);
   mDebug("drop stream:0x%" PRIx64 " in consensus-checkpointId list after new checkpoint generated, remain:%d", streamId,
          numOfStreams);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mndRegisterConsensusChkptId(SHashObj* pHash, int64_t streamId) {
+  void* pInfo = taosHashGet(pHash, &streamId, sizeof(streamId));
+  ASSERT(pInfo == NULL);
+
+  SCheckpointConsensusInfo p = {.genTs = taosGetTimestampMs(), .checkpointId = 0, .pTaskList = NULL};
+  taosHashPut(pHash, &streamId, sizeof(streamId), &p, sizeof(p));
+
+  SCheckpointConsensusInfo* pChkptInfo = (SCheckpointConsensusInfo*)taosHashGet(pHash, &streamId, sizeof(streamId));
+  ASSERT(pChkptInfo->genTs > 0 && pChkptInfo->checkpointId == 0);
+  mDebug("s-task:0x%" PRIx64 " set the initial consensus-checkpointId:0", streamId);
   return TSDB_CODE_SUCCESS;
 }

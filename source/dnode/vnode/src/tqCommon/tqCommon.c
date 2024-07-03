@@ -1031,12 +1031,6 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
   ETaskStatus status = streamTaskGetStatus(pTask)->state;
 
   int32_t level = pTask->info.taskLevel;
-  if (level == TASK_LEVEL__SINK) {
-    ASSERT(status != TASK_STATUS__UNINIT);
-    streamMetaReleaseTask(pMeta, pTask);
-    return 0;
-  }
-
   if (status == TASK_STATUS__READY || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
     // no lock needs to secure the access of the version
     if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
@@ -1058,9 +1052,9 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
     } else {
       streamTrySchedExec(pTask);
     }
-  } else {
+  } /*else {
     ASSERT(status != TASK_STATUS__UNINIT);
-  }
+  }*/
 
   streamMetaReleaseTask(pMeta, pTask);
   return 0;
@@ -1070,16 +1064,32 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
 
   SStreamMeta* pMeta = fromVnode ? ((STQ*)handle)->pStreamMeta : handle;
+
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
-  int32_t      code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
+  if (pTask == NULL) {
+    tqError("s-task:0x%x failed to acquire task to resume, it may have been dropped or stopped", pReq->taskId);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
+
+  taosThreadMutexLock(&pTask->lock);
+  SStreamTaskState* pState = streamTaskGetStatus(pTask);
+  tqDebug("s-task:%s start to resume from paused, current status:%s", pTask->id.idStr, pState->name);
+  taosThreadMutexUnlock(&pTask->lock);
+
+  int32_t code = tqProcessTaskResumeImpl(handle, pTask, sversion, pReq->igUntreated, fromVnode);
   if (code != 0) {
     return code;
   }
 
   STaskId*     pHTaskId = &pTask->hTaskInfo.id;
-  SStreamTask* pHistoryTask = streamMetaAcquireTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
-  if (pHistoryTask) {
-    code = tqProcessTaskResumeImpl(handle, pHistoryTask, sversion, pReq->igUntreated, fromVnode);
+  SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
+  if (pHTask) {
+    taosThreadMutexLock(&pHTask->lock);
+    SStreamTaskState* p = streamTaskGetStatus(pHTask);
+    tqDebug("s-task:%s related history task start to resume from paused, current status:%s", pHTask->id.idStr, p->name);
+    taosThreadMutexUnlock(&pHTask->lock);
+
+    code = tqProcessTaskResumeImpl(handle, pHTask, sversion, pReq->igUntreated, fromVnode);
   }
 
   return code;
@@ -1146,7 +1156,7 @@ int32_t tqStreamProcessConsensusChkptRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // discard the rsp from before restart
+  // discard the rsp, since it is expired.
   if (req.startTs < pTask->execInfo.created) {
     tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
            " from task createTs:%" PRId64 ", discard",
@@ -1162,11 +1172,14 @@ int32_t tqStreamProcessConsensusChkptRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   taosThreadMutexLock(&pTask->lock);
   ASSERT(pTask->chkInfo.checkpointId >= req.checkpointId);
 
-  if ((pTask->chkInfo.checkpointId != req.checkpointId) && req.checkpointId != 0) {
+  if (pTask->chkInfo.checkpointId != req.checkpointId) {
     tqDebug("s-task:%s vgId:%d update the checkpoint from %" PRId64 " to %" PRId64, pTask->id.idStr, vgId,
             pTask->chkInfo.checkpointId, req.checkpointId);
     pTask->chkInfo.checkpointId = req.checkpointId;
     tqSetRestoreVersionInfo(pTask);
+  } else {
+    tqDebug("s-task:%s vgId:%d consensus-checkpointId:%" PRId64 " equals to current checkpointId, no need to update",
+            pTask->id.idStr, vgId, req.checkpointId);
   }
 
   taosThreadMutexUnlock(&pTask->lock);
