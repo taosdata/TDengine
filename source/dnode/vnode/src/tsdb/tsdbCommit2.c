@@ -706,7 +706,7 @@ _exit:
 
 int32_t tsdbPreCommit(STsdb *tsdb) {
   taosThreadMutexLock(&tsdb->mutex);
-  ASSERT(tsdb->imem == NULL);
+  ASSERT_CORE(tsdb->imem == NULL, "imem should be null to commit mem");
   tsdb->imem = tsdb->mem;
   tsdb->mem = NULL;
   taosThreadMutexUnlock(&tsdb->mutex);
