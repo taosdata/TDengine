@@ -334,17 +334,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public RecordBatch BuildTablesMessage()
         {
-            int length;
-            if (mode == PIDataMode.PointMode)
-            {
-                length = tagVals.Count;
-            }
-            else
-            {
-                length = tagVals.Count;
-            }
-
-
+            int length = tagVals.Count;
             IEnumerable<IArrowArray> arrays = CreateArrays(this, MessageType.Children, length);
             var batch = new RecordBatch(
                 Schema,
@@ -484,8 +474,10 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         public StructType subTableType()
         {
-            var table_fields = new List<Field>();   // self.table_fields();
-            table_fields.Add(new Field("__name__", BinaryType.Default, true));
+            var table_fields = new List<Field>
+            {
+                new Field("__name__", BinaryType.Default, true)
+            };   // self.table_fields();
             table_fields.AddRange(tagFileds());
             return new StructType(table_fields);
         }
