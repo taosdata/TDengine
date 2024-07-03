@@ -21,16 +21,16 @@ pub struct User {
 }
 
 impl User {
-    pub fn to_sql(&self, with_whitelist: bool) -> String {
-        let mut sql = format!(
+    pub fn to_sqls(&self, with_whitelist: bool) -> Vec<String> {
+        let mut create = format!(
             "CREATE USER `{}` PASS '{}' SYSINFO {} CREATEDB {} IS_IMPORT 1",
             self.name, self.encrypted_pass, self.sysinfo, self.createdb
         );
 
         if with_whitelist {
             if let Some(allowed_host) = &self.allowed_host {
-                sql.push_str(" HOST ");
-                sql.push_str(
+                create.push_str(" HOST ");
+                create.push_str(
                     &allowed_host
                         .split(',')
                         .map(|host| format!("'{}'", host))
@@ -38,7 +38,21 @@ impl User {
                 );
             }
         }
-        sql
+        let cap = match (self.is_super, self.enable) {
+            (1, 0) => 3,
+            (0, 0) | (1, 1) => 2,
+            _ => 1,
+        };
+        let mut sqls = Vec::with_capacity(cap);
+        sqls.push(create);
+
+        if self.is_super == 1 {
+            sqls.push(format!("ALTER USER `{}` SUPER 1", self.name));
+        }
+        if self.enable == 0 {
+            sqls.push(format!("ALTER USER `{}` ENABLE 0", self.name));
+        }
+        sqls
     }
 
     #[cfg(test)]
@@ -95,14 +109,14 @@ mod tests {
             .collect::<Vec<_>>();
         dbg!(&users);
         for p in &users {
-            let with_whitelist = p.to_sql(true);
-            let without_whitelist = p.to_sql(false);
+            let with_whitelist = p.to_sqls(true);
+            let without_whitelist = p.to_sqls(false);
             let drop = p.to_sql_drop();
             dbg!(&p, &with_whitelist, &drop);
             conn.exec(&drop).await?;
-            conn.exec(&with_whitelist).await?;
+            conn.exec_many(&with_whitelist).await?;
             conn.exec(&drop).await?;
-            conn.exec(&without_whitelist).await?;
+            conn.exec_many(&without_whitelist).await?;
         }
         let p2 = super::get_user_passwords(&conn)
             .await?
