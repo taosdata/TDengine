@@ -14,20 +14,23 @@ The TDengine Enterprise package includes the following components:
 - `libtaos.so`: the native client SDK (C client library)
 - `libtaosws.so`: the WebSocket client SDK (C client library)
 - `taosX`: a zero-code platform for data ingestion, replication, backup, and restore
-- `taosAgent`: an agent for ingesting data from certain sources into taosX
 - `taosExplorer`: a graphical user interface for TDengine
-- data source SDK: the SDK called by taosX or taosAgent to connect with each data source
+- data source SDK: the SDK called by taosX to connect with each data source
+
+Pre installation dependency check:
+
+- Check if `JDK1.8` or higher is installed (checked through Shell command ```java -version```)
 
 The steps are as below:
 
-1. Obtain the TDengine Server installation package.
-2. In the directory where the package is located, use `tar` to decompress the package.
-3. Run the `install.sh` script to install TDengine.
-4. The default installation localtio is /usr/local/taos
-5. start-all.sh can be used to start all services required by TDengine Enterprise on local machine
-6. Corresponding, stop-all.sh can be used to stop all services started by start-all.sh
+- Obtain the TDengine Server installation package.
+- In the directory where the package is located, use `tar` to decompress the package.
+- Run the `install.sh` script to install TDengine.
+- The default installation localtio is /usr/local/taos
+- start-all.sh can be used to start all services required by TDengine Enterprise on local machine
+- Corresponding, stop-all.sh can be used to stop all services started by start-all.sh
 
-For example: Note: Replace <version\> with your version of TDengine.
+For example: Note: Replace &lt;version&gt; with your version of TDengine.
 
 ```bash
 tar -zxvf TDengine-enterprise-<version>-Linux-x64.tar.gz
@@ -56,9 +59,13 @@ The TDengine Enterprise package includes the following components:
 - `libtaos.so`: the native client SDK (C client library)
 - `libtaosws.so`: the WebSocket client SDK (C client library)
 - `taosX`: a zero-code platform for data ingestion, replication, backup, and restore
-- `taosAgent`: an agent for ingesting data from certain sources into taosX
 - `taosExplorer`: a graphical user interface for TDengine
-- data source SDK: the SDK called by taosX or taosAgent to connect with each data source
+- data source SDK: the SDK called by taosX to connect with each data source
+
+Pre installation dependency check:
+
+- Check if `JDK1.8` or higher is installed (checked through CMD command ```java -version```)
+- Check if the `Visual C++ runtime library` is installed (check if `Microsoft Visual C++ Redistributable` is present in `Control Panel - Programs and Features`)，if had not installed, you can download and install it from [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
 
 The steps are as below:
 
@@ -68,37 +75,4 @@ The steps are as below:
 - To start or stop the `taosx` service, run the `sc.exe start/stop taosadapter` command.
 - To start or stop the `taosx` service, run the `sc.exe start/stop taoskeeper` command.
 - To start or stop the `taosx` service, run the `sc.exe start/stop taosx` command.
-- To start or stop the `taosx-agent` service, run the `sc.exe start/stop taosx-agent` command.
 - To start or stop the taos-explorer service, run the `sc.exe start/stop taosx-explorer` command.
-By default, taosX is installed to the `C:\TDengine` directory.
-~~~
-├── taosd.exe
-├── taosadapter.exe
-├── taoskeeper.exe
-├── taosx.exe
-├── taosx-srv.exe
-├── taosx-srv.xml
-├── taosx-agent.exe
-├── taosx-agent-srv.exe
-├── taosx-agent-srv.xml
-├── taos-explorer.exe
-├── taos-explorer-srv.exe
-└── taos-explorer-srv.xml
-├── plugins
-│   ├── influxdb
-│   │   └── taosx-inflxdb.jar
-│   ├── mqtt
-│   │   └── taosx-mqtt.exe
-│   ├── opc
-│   |    └── taosx-opc.exe
-│   ├── pi
-│   |   └── taosx-pi.exe
-│   |   └── taosx-pi-backfill.exe
-│   |   └── ...
-└── cfg
-│   ├── agent.toml
-│   ├── explorer.toml
-│   ├── taosx.toml
-├── uninstall_TDengine.exe
-├── uninstall_TDengine.dat
-~~~

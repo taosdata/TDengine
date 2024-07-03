@@ -17,18 +17,21 @@ TDengine Enterprise 安装包中主要包含：
 - `libtaos.so`：原生连接的客户端 SDK  （C语言接口）
 - `libtaosws.so`：WebSocket 连接的客户端 SDK （C语言接口）
 - taosX (`taosx`)：数据接入、同步、备份和恢复的零代码平台
-- Agent (`taosx-agent`)：用于一些特定数据源接入时（taosX）的代理服务
 - Explorer (`taos-explorer`)：可视化管理工具的服务端
-- 数据源接入 SDK：用于连接各种数据源，由 taosX 或 Agent 调用
+- 数据源接入 SDK：用于连接各种数据源，由 taosX 调用
+
+安装前依赖项检查：
+
+- 检查是否已安装 `JDK1.8` 或更高版本（通过 Shell 命令 ```java -version``` 检查）
 
 安装步骤如下：
 
-1. 获取 TDengine Enterprise 安装包
-2. 进入到安装包所在目录，使用 `tar` 解压安装包；
-3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
-4. 默认安装路径为 /usr/local/taos
-5. start-all.sh 可以快速在本机启动所有必要的服务
-6. stop-all.sh 可以快速停止本机上所有与 TDengine Enterprise 有关的服务
+- 获取 TDengine Enterprise 安装包
+- 进入到安装包所在目录，使用 `tar` 解压安装包；
+- 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
+- 默认安装路径为 /usr/local/taos
+- start-all.sh 可以快速在本机启动所有必要的服务
+- stop-all.sh 可以快速停止本机上所有与 TDengine Enterprise 有关的服务
 
 示例： 请将 `<version>` 替换为下载的安装包版本
 
@@ -63,9 +66,13 @@ TDengine Enterprise 安装包中主要包含：
 - `libtaos.so`：原生连接的客户端 SDK  （C语言接口）
 - `libtaosws.so`：WebSocket 连接的客户端 SDK （C语言接口）
 - taosX (`taosx`)：数据接入、同步、备份和恢复的零代码平台
-- Agent (`taosx-agent`)：用于一些特定数据源接入时（taosX）的代理服务
 - Explorer (`taos-explorer`)：可视化管理工具的服务端
-- 数据源接入 SDK：用于连接各种数据源，由 taosX 或 taosAgent 调用
+- 数据源接入 SDK：用于连接各种数据源，由 taosX 调用
+
+安装前依赖项检查：
+
+- 检查是否已安装 `JDK1.8` 或更高版本（通过 CMD 命令 ```java -version``` 检查）
+- 检查是否已安装 `Visual C++ 运行时库`（在`控制面板-程序和功能`中查看是否存在 `Microsoft Visual C++ Redistributable` 的条目）, 如果没有安装，可在此下载安装 [VC运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)
 
 安装步骤如下：
 
@@ -75,38 +82,4 @@ TDengine Enterprise 安装包中主要包含：
 - 命令行执行 ```sc.exe start/stop taosadapter``` 启动/停止 taosadapter 服务
 - 命令行执行 ```sc.exe start/stop taoskeeper``` 启动/停止 taoskeeper 服务
 - 命令行执行 ```sc.exe start/stop taosx``` 启动/停止 taosx 服务
-- 命令行执行 ```sc.exe start/stop taosx-agent``` 启动/停止 taosx-agent 服务
 - 命令行执行 ```sc.exe start/stop taos-explorer``` 启动/停止 taosx-agent 服务
-- windows 默认安装在```C:\TDengine```,目录结构如下：
-
-~~~
-├── taosd.exe
-├── taosadapter.exe
-├── taoskeeper.exe
-├── taosx.exe
-├── taosx-srv.exe
-├── taosx-srv.xml
-├── taosx-agent.exe
-├── taosx-agent-srv.exe
-├── taosx-agent-srv.xml
-├── taos-explorer.exe
-├── taos-explorer-srv.exe
-└── taos-explorer-srv.xml
-├── plugins
-│   ├── influxdb
-│   │   └── taosx-inflxdb.jar
-│   ├── mqtt
-│   │   └── taosx-mqtt.exe
-│   ├── opc
-│   |    └── taosx-opc.exe
-│   ├── pi
-│   |   └── taosx-pi.exe
-│   |   └── taosx-pi-backfill.exe
-│   |   └── ...
-└── cfg
-│   ├── agent.toml
-│   ├── explorer.toml
-│   ├── taosx.toml
-├── uninstall_TDengine.exe
-├── uninstall_TDengine.dat
-~~~
