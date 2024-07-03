@@ -46,8 +46,10 @@ const char* terrstr();
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
 int32_t* taosGetErrno();
+int32_t* taosGetErrln();
 int32_t  taosGetErrSize();
 #define terrno                              (*taosGetErrno())
+#define terrln                              (*taosGetErrln())
 #define terrMsg                             (taosGetErrMsg())
 
 #define SET_ERROR_MSG(MSG, ...) \
