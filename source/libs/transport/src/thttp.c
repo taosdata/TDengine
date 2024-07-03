@@ -540,10 +540,11 @@ int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, c
 
 static void transHttpDestroyHandle(void* handle) { taosMemoryFree(handle); }
 
-int64_t     taosInitHttpChanImpl();
+int64_t transInitHttpChanImpl();
+
 static void transHttpEnvInit() {
   httpRefMgt = taosOpenRef(64, transHttpDestroyHandle);
-  httpDefaultChanId = taosInitHttpChanImpl();
+  httpDefaultChanId = transInitHttpChanImpl();
 }
 
 void transHttpEnvDestroy() {
@@ -552,7 +553,7 @@ void transHttpEnvDestroy() {
   httpDefaultChanId = -1;
 }
 
-int64_t taosInitHttpChanImpl() {
+int64_t transInitHttpChanImpl() {
   SHttpModule* http = taosMemoryCalloc(1, sizeof(SHttpModule));
   http->loop = taosMemoryMalloc(sizeof(uv_loop_t));
   http->connStatusTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -580,7 +581,7 @@ int64_t taosInitHttpChanImpl() {
 }
 int64_t taosInitHttpChan() {
   taosThreadOnce(&transHttpInit, transHttpEnvInit);
-  return taosInitHttpChanImpl();
+  return transInitHttpChanImpl();
 }
 
 void taosDestroyHttpChan(int64_t chanId) {
