@@ -308,7 +308,7 @@ void monitorCounterInc(int64_t clusterId, const char* counterName, const char** 
     goto end;
   }
   taos_counter_inc(*ppCounter, label_values);
-  tscInfo("[monitor] monitorCounterInc %"PRIx64"(%p):%s", pMonitor->clusterId, pMonitor, counterName);
+  tscDebug("[monitor] monitorCounterInc %"PRIx64"(%p):%s", pMonitor->clusterId, pMonitor, counterName);
 
 end:
   taosWUnLockLatch(&monitorLock);
@@ -386,11 +386,11 @@ static char* readFile(TdFilePtr pFile, int64_t *offset, int64_t size){
   char* pCont = NULL;
   int64_t totalSize = 0;
   if (size - *offset >= SLOW_LOG_SEND_SIZE_MAX) {
-    pCont = taosMemoryCalloc(1, 2 * SLOW_LOG_SEND_SIZE_MAX);
-    totalSize = 2 * SLOW_LOG_SEND_SIZE_MAX;
+    pCont = taosMemoryCalloc(1, 4 + SLOW_LOG_SEND_SIZE_MAX);    //4 reserved for []
+    totalSize = 4 + SLOW_LOG_SEND_SIZE_MAX;
   }else{
-    pCont = taosMemoryCalloc(1, 2 * (size - *offset));
-    totalSize = 2 * (size - *offset);
+    pCont = taosMemoryCalloc(1, 4 + (size - *offset));
+    totalSize = 4 + (size - *offset);
   }
 
   if(pCont == NULL){
@@ -509,6 +509,7 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
   }
   int64_t size = getFileSize(pClient->path);
   if(size <= pClient->offset){
+    taosFtruncateFile(pClient->pFile, 0);
     taosUnLockFile(pClient->pFile);
     taosCloseFile(&(pClient->pFile));
     taosRemoveFile(pClient->path);
@@ -535,11 +536,11 @@ static void   monitorSendAllSlowLogAtQuit(){
   while ((pIter = taosHashIterate(monitorSlowLogHash, pIter))) {
     SlowLogClient* pClient = (*(SlowLogClient**)pIter);
     if(pClient == NULL) {
-      taosHashCancelIterate(monitorSlowLogHash, pIter);
-      return;
+      continue;
     }
     int64_t size = getFileSize(pClient->path);
     if(size <= pClient->offset){
+      taosFtruncateFile(pClient->pFile, 0);
       taosUnLockFile(pClient->pFile);
       taosCloseFile(&(pClient->pFile));
       taosRemoveFile(pClient->path);
@@ -547,8 +548,7 @@ static void   monitorSendAllSlowLogAtQuit(){
       int64_t* clusterId = (int64_t*)taosHashGetKey(pIter, NULL);
       SAppInstInfo* pInst = getAppInstByClusterId(*clusterId);
       if(pInst == NULL) {
-        taosHashCancelIterate(monitorSlowLogHash, pIter);
-        return;
+        continue;
       }
       SEpSet ep = getEpSet_s(&pInst->mgmtEp);
       char* data = readFile(pClient->pFile, &pClient->offset, size);
