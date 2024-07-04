@@ -32,8 +32,6 @@ fn opentsdb_jar_path() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
-const LOG_FILE: &str = "opentsdb.log";
-
 fn log_path() -> PathBuf {
     super::get_log_dir("")
 }
@@ -124,14 +122,9 @@ pub async fn opentsdb_to_taos(
     let connector_path = opentsdb_jar_path()?;
 
     let mut log_path = log_path();
-
-    fs::create_dir_all(&log_path)?;
-
-    tracing::info!("log path created: {}", &log_path.display());
-
-    log_path.push(LOG_FILE);
-
-    tracing::info!("log file dir: {}", &log_path.display());
+    std::fs::create_dir_all(&log_path)
+        .with_context(|| format!("Log path {}", log_path.display()))?;
+    log_path.push(format!("opentsdb-{}.log", task_id.unwrap_or(0)));
 
     let log_keep_days = get_log_keep_days();
 

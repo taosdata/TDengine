@@ -43,8 +43,6 @@ fn pi_backfill_exe_path() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
-const LOG_FILE: &str = "pi.log";
-
 fn log_path() -> PathBuf {
     super::get_log_dir("")
 }
@@ -210,11 +208,9 @@ pub async fn pi_to_taos(
     }
 
     let mut log_path = log_path();
-
-    fs::create_dir_all(&log_path)?;
-
-    tracing::info!("Log path created: {}", &log_path.display());
-    log_path.push(LOG_FILE);
+    std::fs::create_dir_all(&log_path)
+        .with_context(|| format!("Log path {}", log_path.display()))?;
+    log_path.push(format!("pi-{}.log", task_id.unwrap_or(0)));
     tracing::info!("Log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
@@ -371,14 +367,10 @@ pub async fn query_data_source(from_dsn: Dsn, args: Vec<String>) -> anyhow::Resu
 
     let mut command = tokio::process::Command::new(pi_exe_path()?);
     let mut log_path = log_path();
-
-    fs::create_dir_all(&log_path)?;
-
-    tracing::info!("log path created: {}", &log_path.display());
-
-    log_path.push(LOG_FILE);
-
-    tracing::info!("log file dir: {}", &log_path.display());
+    std::fs::create_dir_all(&log_path)
+        .with_context(|| format!("Log path {}", log_path.display()))?;
+    log_path.push("pi.log");
+    tracing::info!("log file: {}", &log_path.display());
 
     let mut log_rotation = log_rotation(&log_path, 700);
     let cmd: &mut tokio::process::Command = command
