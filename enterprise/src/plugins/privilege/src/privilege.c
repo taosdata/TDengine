@@ -153,8 +153,6 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
     goto _OVER;
   }
 
-  if (pDb == NULL) goto _OVER;
-
   if (operType == MND_OPER_CREATE_DB) {
     if (pUser->createdb) goto _OVER;
   }
@@ -165,10 +163,14 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
   }
 
   if (operType == MND_OPER_USE_DB || operType == MND_OPER_READ_OR_WRITE_DB) {
-    if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;
-    if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
-    if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
-    if (taosHashGet(pUser->useDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+    if (pDb != NULL) {
+      if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;
+      if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+      if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+      if (taosHashGet(pUser->useDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+    } else {
+      goto _OVER;
+    }
   }
 
   if (operType == MND_OPER_WRITE_DB) {
