@@ -1606,7 +1606,6 @@ int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId) {
 
   if (taosAcquireRef(taskDbWrapperId, refId) == NULL) {
     code = terrno;
-    terrno = 0;
     return code;
   }
 
