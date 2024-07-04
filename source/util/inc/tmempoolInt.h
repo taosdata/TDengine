@@ -31,6 +31,9 @@ extern "C" {
 #define MP_MAX_KEEP_FREE_CHUNK_NUM  1000
 #define MP_MAX_MALLOC_MEM_SIZE      0xFFFFFFFFFF
 
+#define MP_RETIRE_THRESHOLD_PERCENT           (0.9)
+#define MP_RETIRE_UNIT_PERCENT               (0.1)
+
 
 // FLAGS AREA
 #define MP_CHUNK_FLAG_IN_USE   (1 << 0)
@@ -186,11 +189,16 @@ typedef struct SMPStatInfo {
 
 typedef struct SMPSession {
   SMPListNode        list;
+
+  int64_t            sessionId;
+  SMPCollection*     pCollection;
+  bool               needRetire;
   SMPCtrlInfo        ctrlInfo;
 
   int64_t            allocChunkNum;
   int64_t            allocChunkMemSize;
   int64_t            allocMemSize;
+  int64_t            maxAllocMemSize;
   int64_t            reUseChunkNum;
   
   int32_t            srcChunkNum;
@@ -222,12 +230,20 @@ typedef struct SMPCacheGroupInfo {
   void              *pIdleList;
 } SMPCacheGroupInfo;
 
+typedef struct SMPCollection {
+  int64_t            collectionId;
+  int64_t            allocMemSize;
+  int64_t            maxAllocMemSize;
 
+  SMPStatInfo        stat;
+} SMPCollection;
 
 typedef struct SMemPool {
   char              *name;
   int16_t            slotId;
   SMemPoolCfg        cfg;
+  int64_t            memRetireThreshold;
+  int64_t            memRetireUnit;
   int32_t            maxChunkNum;
   SMPCtrlInfo        ctrlInfo;
 
@@ -238,6 +254,7 @@ typedef struct SMemPool {
   int64_t            allocNSChunkNum;
   int64_t            allocNSChunkSize;
   int64_t            allocMemSize;
+  int64_t            maxAllocMemSize;
 
   SMPCacheGroupInfo  chunkCache;
   SMPCacheGroupInfo  NSChunkCache;
@@ -258,11 +275,17 @@ typedef struct SMemPool {
   SMPStatInfo          stat;
 } SMemPool;
 
+typedef enum EMPMemStrategy {
+  E_MP_STRATEGY_DIRECT = 1,
+  E_MP_STRATEGY_CHUNK,
+} EMPMemStrategy;
+
 typedef struct SMemPoolMgmt {
-  SArray*       poolList;
-  TdThreadMutex poolMutex;
-  TdThread      poolMgmtThread;
-  int32_t       code;
+  EMPMemStrategy strategy;
+  SArray*        poolList;
+  TdThreadMutex  poolMutex;
+  TdThread       poolMgmtThread;
+  int32_t        code;
 } SMemPoolMgmt;
 
 #define MP_GET_FLAG(st, f) ((st) & (f))

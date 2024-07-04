@@ -231,11 +231,16 @@ typedef struct SQWorkerMgmt {
   int32_t    paramIdx;
 } SQWorkerMgmt;
 
+typedef struct SQWQueryInfo {
+  void*     pCollection;
+  SHashObj* pSessions;
+} SQWQueryInfo;
+
 typedef struct SQueryMgmt {
-  SRWLatch taskMgmtLock;
-  int32_t  concTaskLevel;
-  
-  void*   memPoolHandle;
+  SRWLatch  taskMgmtLock;
+  int32_t   concTaskLevel;
+  SHashObj* pQueryInfo;
+  void*     memPoolHandle;
 } SQueryMgmt;
 
 #define QW_CTX_NOT_EXISTS_ERR_CODE(mgmt) (atomic_load_8(&(mgmt)->nodeStopped) ? TSDB_CODE_VND_STOPPED : TSDB_CODE_QRY_TASK_CTX_NOT_EXIST)
@@ -446,7 +451,7 @@ void    qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped);
 void    qwDbgSimulateSleep(void);
 void    qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped);
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
-void    qwInitQueryPool(void);
+int32_t qwInitQueryPool(void);
 
 #ifdef __cplusplus
 }

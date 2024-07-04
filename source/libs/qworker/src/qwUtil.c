@@ -672,3 +672,8 @@ void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
     qwReleaseScheduler(QW_WRITE, mgmt);
   }
 }
+
+void qwDestroyQueryInfo(SQWQueryInfo* pQuery) {
+  //TODO
+}
+

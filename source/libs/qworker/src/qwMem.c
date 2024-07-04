@@ -4,9 +4,9 @@
 int32_t qwGetMemPoolMaxMemSize(int64_t totalSize, int64_t* maxSize) {
   int64_t reserveSize = TMAX(totalSize * QW_DEFAULT_RESERVE_MEM_PERCENT / 100 / 1048576 * 1048576, QW_MIN_RESERVE_MEM_SIZE);
   int64_t availSize = (totalSize - reserveSize) / 1048576 * 1048576;
-  if (availSize < QW_MIN_MEM_POOL_SIZE) {
-    return -1;
-  }
+  //if (availSize < QW_MIN_MEM_POOL_SIZE) {
+  //  return -1;
+  //}
 
   *maxSize = availSize;
 
@@ -34,42 +34,118 @@ void qwSetConcurrentTaskNum(int32_t taskNum) {
 
 void qwDecConcurrentTaskNum(void) {
   int32_t concTaskLevel = atomic_load_32(&gQueryMgmt.concTaskLevel);
-  if (concTaskLevel < QW_CONC_TASK_LEVEL_LOW) {
+  if (concTaskLevel <= QW_CONC_TASK_LEVEL_LOW) {
     qError("Unable to decrease concurrent task num, current task level:%d", concTaskLevel);
     return;
   }
 
-  
+  //TODO
 }
 
-void qwInitQueryPool(void) {
+void qwIncConcurrentTaskNum(void) {
+  int32_t concTaskLevel = atomic_load_32(&gQueryMgmt.concTaskLevel);
+  if (concTaskLevel >= QW_CONC_TASK_LEVEL_FULL) {
+    qError("Unable to increase concurrent task num, current task level:%d", concTaskLevel);
+    return;
+  }
+
+  //TODO
+}
+
+int32_t qwInitQueryInfo(uint64_t qId, SQWQueryInfo* pQuery) {
+  pQuery->pSessions= taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (NULL == pQuery->pSessions) {
+    qError("fail to init session hash");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t code = taosMemPoolCallocCollection(qId, &pQuery->pCollection);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosHashCleanup(pQuery->pSessions);
+    return code;
+  }
+
+  return code;
+}
+
+int32_t qwInitSession(uint64_t qId, void** ppSession) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SQWQueryInfo* pQuery = NULL;
+  
+  while (true) {
+    pQuery = (SQWQueryInfo*)taosHashGet(gQueryMgmt.pQueryInfo, &qId, sizeof(qId));
+    if (NULL == pQuery) {
+      SQWQueryInfo queryInfo = {0};
+      code = qwInitQueryInfo(qId, &queryInfo);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      
+      code = taosHashPut(gQueryMgmt.pQueryInfo, &qId, sizeof(qId), &queryInfo, sizeof(queryInfo));
+      if (TSDB_CODE_SUCCESS != code) {
+        qwDestroyQueryInfo(&queryInfo);
+        if (-2 == code) {
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
+        
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      pQuery = (SQWQueryInfo*)taosHashGet(gQueryMgmt.pQueryInfo, &qId, sizeof(qId));
+    }
+
+    code = taosHashPut(pQuery->pSessions, ppSession, POINTER_BYTES, NULL, 0);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("fail to put session into query session hash, errno:%d", terrno);
+      return terrno;
+    }
+
+    break;
+  }
+
+  QW_ERR_RET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, qId, ppSession, pQuery->pCollection));
+
+  return code;
+}
+
+int32_t qwInitQueryPool(void) {
   int64_t memSize = 0;
   int32_t code = taosGetSysAvailMemory(&memSize);
   if (TSDB_CODE_SUCCESS != code) {
-    return;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   SMemPoolCfg cfg = {0};
   code = qwGetMemPoolMaxMemSize(memSize, &cfg.maxSize);
   if (TSDB_CODE_SUCCESS != code) {
-    return;
+    return code;
   }
 
   cfg.threadNum = 10; //TODO
   cfg.evicPolicy = E_EVICT_AUTO; //TODO
+  cfg.collectionQuota = &tsSingleQueryMaxMemorySize;
   cfg.cb.setSessFp = qwSetConcurrentTaskNum;
   cfg.cb.decSessFp = qwDecConcurrentTaskNum;
   cfg.cb.incSessFp = qwIncConcurrentTaskNum;
 
   code = qwGetMemPoolChunkSize(cfg.maxSize, cfg.threadNum, &cfg.chunkSize);
   if (TSDB_CODE_SUCCESS != code) {
-    return;
+    return code;
   }  
 
   code = taosMemPoolOpen(QW_QUERY_MEM_POOL_NAME, &cfg, &gQueryMgmt.memPoolHandle);
   if (TSDB_CODE_SUCCESS != code) {
-    return;
+    return code;
   }  
+
+  gQueryMgmt.pQueryInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  if (NULL == gQueryMgmt.pQueryInfo) {
+    qError("init query hash failed");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  return code;
 }
 
 

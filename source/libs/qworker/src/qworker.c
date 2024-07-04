@@ -734,7 +734,7 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->phase = -1;
   
   if (NULL != gQueryMgmt.memPoolHandle) {
-    QW_ERR_JRET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, &ctx->memPoolSession));
+    QW_ERR_JRET(qwInitSession(qId, &ctx->memPoolSession));
   }
   
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
@@ -1297,13 +1297,16 @@ _return:
 }
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const SMsgCb *pMsgCb) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == qWorkerMgmt || (pMsgCb && pMsgCb->mgmt == NULL)) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  taosThreadOnce(&gQueryPoolInit, qwInitQueryPool);
-
+  if (NULL == gQueryMgmt.memPoolHandle) {
+    QW_ERR_RET(qwInitQueryPool());
+  }
+  
   int32_t qwNum = atomic_add_fetch_32(&gQwMgmt.qwNum, 1);
   if (1 == qwNum) {
     memset(gQwMgmt.param, 0, sizeof(gQwMgmt.param));

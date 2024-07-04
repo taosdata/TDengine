@@ -60,6 +60,7 @@ int8_t  tsQueryUseMemoryPool = 1;
 int32_t tsQueryMinConcurrentTaskNum = 1;
 int32_t tsQueryMaxConcurrentTaskNum = 0;
 int32_t tsQueryConcurrentTaskNum = 0;
+int64_t tsSingleQueryMaxMemorySize = 0;
 
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
