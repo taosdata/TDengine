@@ -724,8 +724,11 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                               int32_t numOfOutput, SArray* pPseudoList) {
+  int32_t code = TSDB_CODE_SUCCESS;
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
   pResult->info.dataLoad = 1;
+
+  SArray* diffFunctionCtx = NULL;
 
   if (pSrcBlock == NULL) {
     for (int32_t k = 0; k < numOfOutput; ++k) {
@@ -743,7 +746,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     }
 
     pResult->info.rows = 1;
-    return TSDB_CODE_SUCCESS;
+    goto _exit;
   }
 
   if (pResult != pSrcBlock) {
@@ -816,10 +819,10 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
       SScalarParam dest = {.columnData = &idata};
-      int32_t      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
+      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroy(pBlockList);
-        return code;
+        goto _exit;
       }
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
@@ -852,11 +855,21 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           pfCtx->pDstBlock = pResult;
         }
 
-        int32_t code = pfCtx->fpSet.process(pfCtx);
+        code = pfCtx->fpSet.process(pfCtx);
         if (code != TSDB_CODE_SUCCESS) {
-          return code;
+          goto _exit;
         }
         numOfRows = pResInfo->numOfRes;
+        if (fmIsProcessByRowFunc(pfCtx->functionId)) {
+          if (NULL == diffFunctionCtx) {
+            diffFunctionCtx = taosArrayInit(1, sizeof(SqlFunctionCtx*));
+            if (!diffFunctionCtx) {
+              code = terrno;
+              goto _exit;
+            }
+          }
+          taosArrayPush(diffFunctionCtx, &pfCtx);
+        }
       } else if (fmIsAggFunc(pfCtx->functionId)) {
         // selective value output should be set during corresponding function execution
         if (fmIsSelectValueFunc(pfCtx->functionId)) {
@@ -889,7 +902,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         int32_t      code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
-          return code;
+          goto _exit;
         }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
@@ -905,9 +918,18 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     }
   }
 
+  if (diffFunctionCtx && taosArrayGetSize(diffFunctionCtx) > 0){
+    SqlFunctionCtx** pfCtx = taosArrayGet(diffFunctionCtx, 0);
+    (*pfCtx)->fpSet.processFuncByRow(diffFunctionCtx);
+    numOfRows = (*pfCtx)->resultInfo->numOfRes;
+  }
   if (!createNewColModel) {
     pResult->info.rows += numOfRows;
   }
-
-  return TSDB_CODE_SUCCESS;
+_exit:
+  if(diffFunctionCtx) {
+    taosArrayDestroy(diffFunctionCtx);
+    diffFunctionCtx = NULL;
+  }
+  return code;
 }

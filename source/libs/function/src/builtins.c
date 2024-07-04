@@ -1965,9 +1965,9 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     }
 
     SValueNode* pValue = (SValueNode*)pParamNode1;
-    if (pValue->datum.i != 0 && pValue->datum.i != 1) {
+    if (pValue->datum.i < 0 || pValue->datum.i > 3) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "Second parameter of DIFF function should be only 0 or 1");
+                             "Second parameter of DIFF function should be a number between 0 and 3.");
     }
 
     pValue->notReserved = true;
@@ -1986,11 +1986,7 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 }
 
 static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
-  if (1 == LIST_LENGTH(pFunc->pParameterList)) {
-    return FUNC_RETURN_ROWS_N_MINUS_1;
-  }
-  return 1 == ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i ? FUNC_RETURN_ROWS_INDEFINITE
-                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
+  return FUNC_RETURN_ROWS_N_MINUS_1;
 }
 
 static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -3206,7 +3202,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
@@ -3215,6 +3211,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = diffScalarFunction,
     .finalizeFunc = functionFinalize,
     .estimateReturnRowsFunc = diffEstReturnRows,
+    .processFuncByRow  = diffFunctionByRow,
   },
   {
     .name = "statecount",
