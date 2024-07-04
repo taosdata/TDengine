@@ -30,7 +30,7 @@ static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SQnodeMgmt *pMgmt = pInfo->ahandle;
   dTrace("msg:%p, get from qnode queue", pMsg);
 
-  int32_t code = qndProcessQueryMsg(pMgmt->pQnode, pInfo->timestamp, pMsg);
+  int32_t code = qndProcessQueryMsg(pMgmt->pQnode, pInfo, pMsg);
   if (IsReq(pMsg) && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
     qmSendRsp(pMsg, code);
@@ -105,6 +105,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
       .name = "qnode-query",
       .fp = (FItem)qmProcessQueue,
       .param = pMgmt,
+      .poolType = QUERY_AUTO_QWORKER_POOL,
   };
 
   if (tSingleWorkerInit(&pMgmt->queryWorker, &queryCfg) != 0) {

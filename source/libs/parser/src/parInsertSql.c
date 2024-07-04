@@ -1708,37 +1708,31 @@ typedef union SRowsDataContext {
   SStbRowsDataContext* pStbRowsCxt;
 } SRowsDataContext;
 
-static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* pStbRowsCxt, SToken* pToken,
-                                bool* pFoundCtbName) {
+int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pFoundCtbName) {
   *pFoundCtbName = false;
-  int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, TSDB_DATA_TYPE_BINARY);
-  if (TK_NK_VARIABLE == pToken->type) {
-    code = buildInvalidOperationMsg(&pCxt->msg, "not expected tbname");
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
-      return buildInvalidOperationMsg(&pCxt->msg, "tbname can not be null value");
-    }
 
-    if (pToken->n > 0) {
-      if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
-        for (int i = 0; i < pToken->n; ++i) {
-          if (pToken->z[i] == '.') {
-            return buildInvalidOperationMsg(&pCxt->msg, "tbname can not contain '.'");
-          } else {
-            pStbRowsCxt->ctbName.tname[i] = pToken->z[i];
-          }
-        }
-        pStbRowsCxt->ctbName.tname[pToken->n] = '\0';
-        *pFoundCtbName = true;
-      } else {
-        return buildInvalidOperationMsg(&pCxt->msg, "tbname is too long");
-      }
-    } else {
-      return buildInvalidOperationMsg(&pCxt->msg, "tbname can not be empty");
-    }
+  if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
+    return buildInvalidOperationMsg(pMsgBuf, "tbname can not be null value");
   }
-  return code;
+
+  if (pToken->n > 0) {
+    if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
+      for (int i = 0; i < pToken->n; ++i) {
+        if (pToken->z[i] == '.') {
+          return buildInvalidOperationMsg(pMsgBuf, "tbname can not contain '.'");
+        } else {
+          tname[i] = pToken->z[i];
+        }
+      }
+      tname[pToken->n] = '\0';
+      *pFoundCtbName = true;
+    } else {
+      return buildInvalidOperationMsg(pMsgBuf, "tbname is too long");
+    }
+  } else {
+    return buildInvalidOperationMsg(pMsgBuf, "tbname can not be empty");
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
@@ -1821,7 +1815,14 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         }
       }
     } else if (pCols->pColIndex[i] == tbnameIdx) {
-      code = parseTbnameToken(pCxt, pStbRowsCxt, pToken, bFoundTbName);
+      code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, TSDB_DATA_TYPE_BINARY);
+      if (TK_NK_VARIABLE == pToken->type) {
+        code = buildInvalidOperationMsg(&pCxt->msg, "not expected tbname");
+      }
+
+      if (code == TSDB_CODE_SUCCESS) {
+        code = parseTbnameToken(&pCxt->msg, pStbRowsCxt->ctbName.tname, pToken, bFoundTbName);
+      }
     }
 
     if (code == TSDB_CODE_SUCCESS && i < pCols->numOfBound - 1) {
@@ -2425,6 +2426,21 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
 
   if (TK_NK_ID != pTbName->type && TK_NK_STRING != pTbName->type && TK_NK_QUESTION != pTbName->type) {
     return buildSyntaxErrMsg(&pCxt->msg, "table_name is expected", pTbName->z);
+  }
+
+  // db.? situation，ensure that the only thing following the '.' mark is '?'
+  char *tbNameAfterDbName = strnchr(pTbName->z, '.', pTbName->n, true);
+  if ((tbNameAfterDbName != NULL) && (*(tbNameAfterDbName + 1) == '?')) {
+    char *tbName = NULL;
+    if (NULL == pCxt->pComCxt->pStmtCb) {
+      return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pTbName->z);
+    }
+    int32_t code = (*pCxt->pComCxt->pStmtCb->getTbNameFn)(pCxt->pComCxt->pStmtCb->pStmt, &tbName);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pTbName->z = tbName;
+    pTbName->n = strlen(tbName);
   }
 
   *pHasData = true;

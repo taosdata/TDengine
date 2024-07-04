@@ -488,12 +488,12 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pScan;
+    pScan->paraTablesSort = getParaTablesSortOptHint(pSelect->pHint);
+    pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
+    pCxt->hasScan = true;
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
-  pScan->paraTablesSort = getParaTablesSortOptHint(pSelect->pHint);
-  pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
-  pCxt->hasScan = true;
 
   return code;
 }
@@ -738,11 +738,13 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
       pProbeTable = (SRealTableNode*)pJoinTable->pRight;
       break;
     default:
+      if (!*pList) nodesDestroyList(pTargets);
       return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
+    if (!*pList) nodesDestroyList(pTargets);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -1205,7 +1207,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.groupAction = getGroupAction(pCxt, pSelect);
   pFill->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pFill->node.resultDataOrder = pFill->node.requireDataOrder;
-  pFill->node.inputTsOrder = 0;
+  pFill->node.inputTsOrder = TSDB_ORDER_ASC;
 
   int32_t code = partFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs);
   if (TSDB_CODE_SUCCESS == code) {

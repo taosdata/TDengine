@@ -9296,6 +9296,52 @@ int32_t tDecodeSTqCheckInfo(SDecoder *pDecoder, STqCheckInfo *pInfo) {
 }
 void tDeleteSTqCheckInfo(STqCheckInfo *pInfo) { taosArrayDestroy(pInfo->colIdList); }
 
+int32_t tEncodeSMqRebVgReq(SEncoder* pCoder, const SMqRebVgReq* pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->leftForVer) < 0) return -1;
+  if (tEncodeI32(pCoder, pReq->vgId) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->oldConsumerId) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->newConsumerId) < 0) return -1;
+  if (tEncodeCStr(pCoder, pReq->subKey) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->subType) < 0) return -1;
+  if (tEncodeI8(pCoder, pReq->withMeta) < 0) return -1;
+
+  if (pReq->subType == TOPIC_SUB_TYPE__COLUMN) {
+    if (tEncodeCStr(pCoder, pReq->qmsg) < 0) return -1;
+  } else if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
+    if (tEncodeCStr(pCoder, pReq->qmsg) < 0) return -1;
+  }
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSMqRebVgReq(SDecoder* pCoder, SMqRebVgReq* pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI64(pCoder, &pReq->leftForVer) < 0) return -1;
+
+  if (tDecodeI32(pCoder, &pReq->vgId) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->oldConsumerId) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->newConsumerId) < 0) return -1;
+  if (tDecodeCStrTo(pCoder, pReq->subKey) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->subType) < 0) return -1;
+  if (tDecodeI8(pCoder, &pReq->withMeta) < 0) return -1;
+
+  if (pReq->subType == TOPIC_SUB_TYPE__COLUMN) {
+    if (tDecodeCStr(pCoder, &pReq->qmsg) < 0) return -1;
+  } else if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
+    if (!tDecodeIsEnd(pCoder)) {
+      if (tDecodeCStr(pCoder, &pReq->qmsg) < 0) return -1;
+    }
+  }
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+
 int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
   int32_t nUid = taosArrayGetSize(pRes->uidList);
 
@@ -10522,7 +10568,10 @@ int32_t tCloneTbTSMAInfo(STableTSMAInfo *pInfo, STableTSMAInfo **pRes) {
     pRet->ast = taosStrdup(pInfo->ast);
     if (!pRet->ast) code = TSDB_CODE_OUT_OF_MEMORY;
   }
-  if (code) tFreeTableTSMAInfo(pRet);
+  if (code) {
+    tFreeTableTSMAInfo(pRet);
+    pRet = NULL;
+  }
   *pRes = pRet;
   return code;
 }

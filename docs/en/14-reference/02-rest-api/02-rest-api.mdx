@@ -68,7 +68,7 @@ The following return value results indicate that the verification passed.
 ## HTTP request URL format
 
 ```text
-http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
+http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
 ```
 
 Parameter Description:
@@ -78,6 +78,7 @@ Parameter Description:
 - db_name: Optional parameter that specifies the default database name for the executed SQL command.
 - tz: Optional parameter that specifies the timezone of the returned time, following the IANA Time Zone rules, e.g. `America/New_York`.
 - req_id: Optional parameter that specifies the request id for tracing.
+- row_with_meta: Optional parameter that specifies whether each row of data carries the column name. The default value is `false`.(Supported starting from version 3.3.2.0)
 
 :::note
 
@@ -335,6 +336,82 @@ Description:
 
 - code: (`int`) Error code.
 - desc: (`string`): Error code description.
+
+#### Return key-value pair
+
+When the parameter `row_with_meta=true` is specified, the data returned in `data` field will change from array format to object format, where the key of the object is the column name and the value is the data.
+
+insert response example:
+
+```json
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "affected_rows",
+            "INT",
+            4
+        ]
+    ],
+    "data": [
+        {
+            "affected_rows": 1
+        }
+    ],
+    "rows": 1
+}
+```
+
+query response example:
+
+```json
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "ts",
+            "TIMESTAMP",
+            8
+        ],
+        [
+            "current",
+            "FLOAT",
+            4
+        ],
+        [
+            "voltage",
+            "INT",
+            4
+        ],
+        [
+            "phase",
+            "FLOAT",
+            4
+        ],
+        [
+            "groupid",
+            "INT",
+            4
+        ],
+        [
+            "location",
+            "VARCHAR",
+            24
+        ]
+    ],
+    "data": [
+        {
+            "ts": "2017-07-14T02:40:00.000Z",
+            "current": -2.498076,
+            "voltage": 0,
+            "phase": -0.846025,
+            "groupid": 8,
+            "location": "California.Sunnyvale"
+        }
+    ],
+    "rows": 1
+}
+```
 
 ## Custom Authorization Code
 
