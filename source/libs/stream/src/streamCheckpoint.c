@@ -1150,12 +1150,14 @@ int32_t deleteCheckpointFile(const char* id, const char* name) {
 
   int32_t nBytes = snprintf(object, sizeof(object), "%s/%s", id, name);
   if (nBytes <= 0 || nBytes >= sizeof(object)) {
-    terrno = TSDB_CODE_OUT_OF_RANGE;
-    return -1;
+    return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  char* tmp = object;
-  return s3DeleteObjects((const char**)&tmp, 1);
+  char*   tmp = object;
+  int32_t code = s3DeleteObjects((const char**)&tmp, 1);
+  if (code != 0) {
+    return code;
+  }
 }
 
 int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
