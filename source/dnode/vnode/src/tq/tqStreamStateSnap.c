@@ -132,8 +132,7 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   // alloc
   pWriter = (SStreamStateWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    code = terrno;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
   pWriter->pTq = pTq;
@@ -141,14 +140,14 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pWriter->ever = ever;
 
   if (taosMkDir(pTq->pStreamMeta->path) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     tqError("vgId:%d, vnode %s snapshot writer failed to create directory %s since %s", TD_VID(pTq->pVnode),
             STREAM_STATE_TRANSFER, pTq->pStreamMeta->path, tstrerror(terrno));
     goto _err;
   }
 
   SStreamSnapWriter* pSnapWriter = NULL;
-  if (streamSnapWriterOpen(pTq, sver, ever, pTq->pStreamMeta->path, &pSnapWriter) < 0) {
+  if ((code = streamSnapWriterOpen(pTq, sver, ever, pTq->pStreamMeta->path, &pSnapWriter)) < 0) {
     goto _err;
   }
 
@@ -157,14 +156,14 @@ int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamS
   pWriter->pWriterImpl = pSnapWriter;
 
   *ppWriter = pWriter;
-  return code;
+  return 0;
 
 _err:
   tqError("vgId:%d, vnode %s snapshot writer failed to open since %s", TD_VID(pTq->pVnode), STREAM_STATE_TRANSFER,
           tstrerror(terrno));
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
-  return -1;
+  return code;
 }
 
 int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback) {

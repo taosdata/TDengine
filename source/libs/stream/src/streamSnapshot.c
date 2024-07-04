@@ -228,12 +228,12 @@ int32_t snapFileGenMeta(SBackendSnapFile2* pSnapFile) {
   return 0;
 }
 int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
-  terrno = 0;
+  int32_t  code = 0;
   TdDirPtr pDir = taosOpenDir(pSnapFile->path);
   if (NULL == pDir) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    stError("%s failed to open %s", STREAM_STATE_TRANSFER, pSnapFile->path);
-    return terrno;
+    code = TAOS_SYSTEM_ERROR(errno);
+    stError("%s failed to open %s, reason:%s", STREAM_STATE_TRANSFER, pSnapFile->path, tstrerror(code));
+    return code;
   }
 
   TdDirEntryPtr pDirEntry;
@@ -242,7 +242,7 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
     if (strlen(name) >= strlen(ROCKSDB_CURRENT) && 0 == strncmp(name, ROCKSDB_CURRENT, strlen(ROCKSDB_CURRENT))) {
       pSnapFile->pCurrent = taosStrdup(name);
       if (pSnapFile->pCurrent == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       continue;
@@ -250,7 +250,7 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
     if (strlen(name) >= strlen(ROCKSDB_MAINFEST) && 0 == strncmp(name, ROCKSDB_MAINFEST, strlen(ROCKSDB_MAINFEST))) {
       pSnapFile->pMainfest = taosStrdup(name);
       if (pSnapFile->pMainfest == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       continue;
@@ -258,7 +258,7 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
     if (strlen(name) >= strlen(ROCKSDB_OPTIONS) && 0 == strncmp(name, ROCKSDB_OPTIONS, strlen(ROCKSDB_OPTIONS))) {
       pSnapFile->pOptions = taosStrdup(name);
       if (pSnapFile->pOptions == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       continue;
@@ -267,7 +267,7 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
         0 == strncmp(name, ROCKSDB_CHECKPOINT_META, strlen(ROCKSDB_CHECKPOINT_META))) {
       pSnapFile->pCheckpointMeta = taosStrdup(name);
       if (pSnapFile->pCheckpointMeta == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       continue;
@@ -276,7 +276,7 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
         0 == strncmp(name, ROCKSDB_CHECKPOINT_SELF_CHECK, strlen(ROCKSDB_CHECKPOINT_SELF_CHECK))) {
       pSnapFile->pCheckpointSelfcheck = taosStrdup(name);
       if (pSnapFile->pCheckpointSelfcheck == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       continue;
@@ -285,17 +285,17 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
         0 == strncmp(name + strlen(name) - strlen(ROCKSDB_SST), ROCKSDB_SST, strlen(ROCKSDB_SST))) {
       char* sst = taosStrdup(name);
       if (sst == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
       taosArrayPush(pSnapFile->pSst, &sst);
     }
   }
   taosCloseDir(&pDir);
-  return terrno;
+  return code;
 }
 int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBackendSnapFile2* pSnapFile) {
-  terrno = 0;
+  int32_t code = 0;
   int32_t nBytes = 0;
   int32_t cap = strlen(pSnap->dbPrefixPath) + 256;
 
@@ -307,28 +307,28 @@ int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBacke
   nBytes = snprintf(path, cap, "%s%s%s%s%s%" PRId64 "", pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                     "checkpoint", pSnap->chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
-    terrno = TSDB_CODE_OUT_OF_RANGE;
+    code = TSDB_CODE_OUT_OF_RANGE;
     goto _ERROR;
   }
 
   if (!taosIsDir(path)) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto _ERROR;
   }
 
   pSnapFile->pSst = taosArrayInit(16, sizeof(void*));
   pSnapFile->pFileList = taosArrayInit(64, sizeof(SBackendFileItem));
   if (pSnapFile->pSst == NULL || pSnapFile->pFileList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _ERROR;
   }
 
   pSnapFile->path = path;
   pSnapFile->snapInfo = *pSnap;
-  if ((terrno = snapFileReadMeta(pSnapFile)) != 0) {
+  if ((code = snapFileReadMeta(pSnapFile)) != 0) {
     goto _ERROR;
   }
-  if ((terrno = snapFileGenMeta(pSnapFile)) != 0) {
+  if ((code = snapFileGenMeta(pSnapFile)) != 0) {
     goto _ERROR;
   }
 
@@ -337,7 +337,7 @@ int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBacke
 
 _ERROR:
   taosMemoryFree(path);
-  return terrno;
+  return code;
 }
 void snapFileDestroy(SBackendSnapFile2* pSnap) {
   taosMemoryFree(pSnap->pCheckpointMeta);
@@ -365,34 +365,32 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
 }
 int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta) {
   // impl later
-
-  terrno = 0;
+  int32_t code = 0;
   SArray* pSnapInfoSet = taosArrayInit(4, sizeof(SStreamTaskSnap));
   if (pSnapInfoSet == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return terrno;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  terrno = streamCreateTaskDbSnapInfo(pMeta, path, pSnapInfoSet);
-  if (terrno != 0) {
-    stError("failed to do task db snap info, reason:%s", tstrerror(terrno));
+  code = streamCreateTaskDbSnapInfo(pMeta, path, pSnapInfoSet);
+  if (code != 0) {
+    stError("failed to do task db snap info, reason:%s", tstrerror(code));
     taosArrayDestroy(pSnapInfoSet);
-    return terrno;
+    return code;
   }
 
   SArray* pDbSnapSet = taosArrayInit(8, sizeof(SBackendSnapFile2));
   if (pDbSnapSet == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosArrayDestroy(pSnapInfoSet);
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pSnapInfoSet); i++) {
     SStreamTaskSnap* pSnap = taosArrayGet(pSnapInfoSet, i);
 
     SBackendSnapFile2 snapFile = {0};
-    terrno = streamBackendSnapInitFile(path, pSnap, &snapFile);
-    ASSERT(terrno == 0);
+    code = streamBackendSnapInitFile(path, pSnap, &snapFile);
+    ASSERT(code == 0);
     taosArrayPush(pDbSnapSet, &snapFile);
   }
   pHandle->pDbSnapSet = pDbSnapSet;
@@ -403,7 +401,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
 
 _err:
   streamSnapHandleDestroy(pHandle);
-  return terrno;
+  return code;
 }
 
 void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
@@ -431,8 +429,7 @@ int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t chkpId, char* pa
   // impl later
   SStreamSnapReader* pReader = taosMemoryCalloc(1, sizeof(SStreamSnapReader));
   if (pReader == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t code = streamSnapHandleInit(&pReader->handle, (char*)path, pMeta);
@@ -498,10 +495,10 @@ _NEXT:
   int64_t  nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
   if (nread == -1) {
     taosMemoryFree(buf);
-    code = TAOS_SYSTEM_ERROR(terrno);
+    code = TAOS_SYSTEM_ERROR(errno);
     stError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
             item->type, tstrerror(code));
-    return -1;
+    return code;
   } else if (nread > 0 && nread <= kBlockSize) {
     // left bytes less than kBlockSize
     stDebug("%s read file %s, current offset:%" PRId64 ",size:% " PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
@@ -558,6 +555,7 @@ _NEXT:
 // SMetaSnapWriter ========================================
 int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path, SStreamSnapWriter** ppWriter) {
   // impl later
+  int32_t            code = 0;
   SStreamSnapWriter* pWriter = taosMemoryCalloc(1, sizeof(SStreamSnapWriter));
   if (pWriter == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -568,23 +566,23 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path
 
   pHandle->metaPath = taosStrdup(path);
   if (pHandle->metaPath == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pWriter);
-    return terrno;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pHandle->pDbSnapSet = taosArrayInit(8, sizeof(SBackendSnapFile2));
   if (pHandle->pDbSnapSet == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     streamSnapWriterClose(pWriter, 0);
-    return terrno;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   SBackendSnapFile2 snapFile = {0};
   if (taosArrayPush(pHandle->pDbSnapSet, &snapFile) == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     streamSnapWriterClose(pWriter, 0);
-    return terrno;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   *ppWriter = pWriter;
@@ -607,7 +605,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
   if (pSnapFile->fd == 0) {
     pSnapFile->fd = streamOpenFile(pSnapFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pSnapFile->fd == NULL) {
-      code = TAOS_SYSTEM_ERROR(terrno);
+      code = TAOS_SYSTEM_ERROR(errno);
       stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pHandle->metaPath, TD_DIRSEP,
               pHdr->name, tstrerror(code));
     }
@@ -615,7 +613,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
   if (strlen(pHdr->name) == strlen(pItem->name) && strcmp(pHdr->name, pItem->name) == 0) {
     int64_t bytes = taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset);
     if (bytes != pHdr->size) {
-      code = TAOS_SYSTEM_ERROR(terrno);
+      code = TAOS_SYSTEM_ERROR(errno);
       stError("%s failed to write snap, file name:%s, reason:%s", STREAM_STATE_TRANSFER, pHdr->name, tstrerror(code));
       return code;
     } else {
@@ -636,12 +634,16 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
     SBackendFileItem* pItem = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
     pSnapFile->fd = streamOpenFile(pSnapFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pSnapFile->fd == NULL) {
-      code = TAOS_SYSTEM_ERROR(terrno);
+      code = TAOS_SYSTEM_ERROR(errno);
       stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pSnapFile->path, TD_DIRSEP,
               pHdr->name, tstrerror(code));
     }
 
-    taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset);
+    if (taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset) != pHdr->size) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      stError("%s failed to write snap, file name:%s, reason:%s", STREAM_STATE_TRANSFER, pHdr->name, tstrerror(code));
+      return code;
+    }
     stInfo("succ to write data %s", pItem->name);
     pSnapFile->offset += pHdr->size;
   }

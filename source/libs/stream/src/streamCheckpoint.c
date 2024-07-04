@@ -548,15 +548,13 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
 
   char* filePath = taosMemoryCalloc(1, cap);
   if (filePath == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t nBytes = snprintf(filePath, cap, "%s%s%s", path, TD_DIRSEP, "META_TMP");
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(filePath);
-    terrno = TSDB_CODE_OUT_OF_RANGE;
-    return -1;
+    return TSDB_CODE_OUT_OF_RANGE;
   }
 
   code = downloadCheckpointDataByName(id, "META", filePath);
@@ -584,19 +582,18 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
 
   SArray* toDelFiles = taosArrayInit(4, POINTER_BYTES);
   if (toDelFiles == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   if ((code = taskDbGenChkpUploadData(pTask->pBackend, pMeta->bkdChkptMgt, checkpointId, type, &path, toDelFiles,
                                       pTask->id.idStr)) != 0) {
-    stError("s-task:%s failed to gen upload checkpoint:%" PRId64 ", reason:%s", idStr, checkpointId, tstrerror(terrno));
+    stError("s-task:%s failed to gen upload checkpoint:%" PRId64 ", reason:%s", idStr, checkpointId, tstrerror(code));
   }
 
   if (type == DATA_UPLOAD_S3) {
     if (code == TSDB_CODE_SUCCESS && (code = getCheckpointDataMeta(idStr, path, toDelFiles)) != 0) {
       stError("s-task:%s failed to get checkpointData for checkpointId:%" PRId64 ", reason:%s", idStr, checkpointId,
-              tstrerror(terrno));
+              tstrerror(code));
     }
   }
 
@@ -1003,11 +1000,13 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
   int32_t nBytes = 0;
 
   if (s3Init() != 0) {
-    return -1;
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
   TdDirPtr pDir = taosOpenDir(path);
-  if (pDir == NULL) return -1;
+  if (pDir == NULL) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
 
   TdDirEntryPtr de = NULL;
   while ((de = taosReadDir(pDir)) != NULL) {
@@ -1018,13 +1017,13 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
     if (path[strlen(path) - 1] == TD_DIRSEP_CHAR) {
       nBytes = snprintf(filename, sizeof(filename), "%s%s", path, name);
       if (nBytes <= 0 || nBytes >= sizeof(filename)) {
-        code = -1;
+        code = TSDB_CODE_OUT_OF_RANGE;
         break;
       }
     } else {
       nBytes = snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
       if (nBytes <= 0 || nBytes >= sizeof(filename)) {
-        code = -1;
+        code = TSDB_CODE_OUT_OF_RANGE;
         break;
       }
     }
@@ -1032,14 +1031,13 @@ static int32_t uploadCheckpointToS3(const char* id, const char* path) {
     char object[PATH_MAX] = {0};
     nBytes = snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
     if (nBytes <= 0 || nBytes >= sizeof(object)) {
-      code = -1;
+      code = TSDB_CODE_OUT_OF_RANGE;
       break;
     }
 
-    if (s3PutObjectFromFile2(filename, object, 0) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      code = -1;
-      stError("[s3] failed to upload checkpoint:%s", filename);
+    code = s3PutObjectFromFile2(filename, object, 0);
+    if (code != 0) {
+      stError("[s3] failed to upload checkpoint:%s, reason:%s", filename, tstrerror(code));
     } else {
       stDebug("[s3] upload checkpoint:%s", filename);
     }
@@ -1054,21 +1052,18 @@ int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char
 
   char* buf = taosMemoryCalloc(1, cap);
   if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   nBytes = snprintf(buf, cap, "%s/%s", id, fname);
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(buf);
-    terrno = TSDB_CODE_OUT_OF_RANGE;
-    return -1;
+    return TSDB_CODE_OUT_OF_RANGE;
   }
-
-  if (s3GetObjectToFile(buf, dstName) != 0) {
+  int32_t code = s3GetObjectToFile(buf, dstName);
+  if (code != 0) {
     taosMemoryFree(buf);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    return TAOS_SYSTEM_ERROR(errno);
   }
   taosMemoryFree(buf);
   return 0;
@@ -1102,9 +1097,8 @@ int32_t streamTaskUploadCheckpoint(const char* id, const char* path) {
 // fileName:  CURRENT
 int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName) {
   if (id == NULL || fname == NULL || strlen(id) == 0 || strlen(fname) == 0 || strlen(fname) >= PATH_MAX) {
-    terrno = TSDB_CODE_INVALID_PARA;
     stError("down load checkpoint data parameters invalid");
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (strlen(tsSnodeAddress) != 0) {
@@ -1133,9 +1127,8 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path) {
 
 int32_t deleteCheckpoint(const char* id) {
   if (id == NULL || strlen(id) == 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
     stError("deleteCheckpoint parameters invalid");
-    return terrno;
+    return TSDB_CODE_INVALID_PARA;
   }
   if (strlen(tsSnodeAddress) != 0) {
     return deleteRsync(id);
@@ -1156,8 +1149,9 @@ int32_t deleteCheckpointFile(const char* id, const char* name) {
   char*   tmp = object;
   int32_t code = s3DeleteObjects((const char**)&tmp, 1);
   if (code != 0) {
-    return code;
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
+  return code;
 }
 
 int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
@@ -1180,14 +1174,14 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   tEncodeSize(tEncodeRestoreCheckpointInfo, &req, tlen, code);
   if (code < 0) {
     stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id failed, code:%s", id, vgId, tstrerror(code));
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   void* buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id msg failed, code:%s", id, vgId,
             tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SEncoder encoder;
