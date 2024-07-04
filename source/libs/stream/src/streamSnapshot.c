@@ -577,8 +577,7 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   pHandle->pDbSnapSet = taosArrayInit(8, sizeof(SBackendSnapFile2));
   if (pHandle->pDbSnapSet == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(pHandle->metaPath);
-    taosMemoryFree(pWriter);
+    streamSnapWriterClose(pWriter, 0);
     return terrno;
   }
 
