@@ -177,6 +177,15 @@ static void mndStreamCheckNode(SMnode *pMnode) {
   }
 }
 
+static void mndStreamConsensusChkpt(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CONSEN_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  }
+}
+
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
   int32_t contLen = 0;
@@ -308,7 +317,6 @@ static int32_t minCronTime() {
   min = TMIN(min, tsCompactPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
   min = TMIN(min, tsStreamCheckpointInterval);
-  min = TMIN(min, 6);  // checkpointRemain
   min = TMIN(min, tsStreamNodeCheckInterval);
   min = TMIN(min, tsArbHeartBeatIntervalSec);
   min = TMIN(min, tsArbCheckSyncIntervalSec);
@@ -351,6 +359,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 
   if (sec % tsStreamNodeCheckInterval == 0) {
     mndStreamCheckNode(pMnode);
+  }
+
+  if (sec % 5 == 0) {
+    mndStreamConsensusChkpt(pMnode);
   }
 
   if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {

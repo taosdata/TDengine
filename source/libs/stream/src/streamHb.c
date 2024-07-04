@@ -168,7 +168,9 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
       continue;
     }
 
+    taosThreadMutexLock(&(*pTask)->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(*pTask);
+    taosThreadMutexUnlock(&(*pTask)->lock);
 
     entry.inputRate = entry.inputQUsed * 100.0 / (2 * STREAM_TASK_QUEUE_CAPACITY_IN_SIZE);
     if ((*pTask)->info.taskLevel == TASK_LEVEL__SINK) {

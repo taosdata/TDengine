@@ -666,7 +666,11 @@ void rspMonitorFn(void* param, void* tmrId) {
     stDebug("s-task:%s status:%s vgId:%d quit from monitor check-rsp tmr, ref:%d", id, pStat->name, vgId, ref);
 
     streamTaskCompleteCheckRsp(pInfo, true, id);
-    addDownstreamFailedStatusResultAsync(pTask->pMsgCb, vgId, pTask->id.streamId, pTask->id.taskId);
+
+    // not record the failed of the current task if try to close current vnode
+    if (!pMeta->closeFlag) {
+      addDownstreamFailedStatusResultAsync(pTask->pMsgCb, vgId, pTask->id.streamId, pTask->id.taskId);
+    }
 
     streamMetaReleaseTask(pMeta, pTask);
     return;

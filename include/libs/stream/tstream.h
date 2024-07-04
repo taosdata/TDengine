@@ -616,8 +616,9 @@ typedef struct SStreamTaskState {
 
 typedef struct SCheckpointConsensusInfo {
   SArray* pTaskList;
-  int64_t checkpointId;
-  int64_t genTs;
+//  int64_t checkpointId;
+//  int64_t genTs;
+  int32_t numOfTasks;
 } SCheckpointConsensusInfo;
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask);

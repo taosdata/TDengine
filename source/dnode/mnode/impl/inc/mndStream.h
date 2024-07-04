@@ -133,7 +133,8 @@ int32_t     mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream)
 int32_t     mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SArray *pChkptInfoList);
 int32_t     mndScanCheckpointReportInfo(SRpcMsg *pReq);
-int32_t     mndSendConsensusCheckpointIdRsp(SArray* pList, int64_t checkpointId);
+int32_t     mndSendQuickConsensusChkptIdRsp(SRestoreCheckpointInfo *pReq, int32_t code, int64_t streamId,
+                                            int64_t checkpointId, SRpcHandleInfo *pRpcInfo);
 
 void        removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo);
 
@@ -146,10 +147,9 @@ void             mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInf
 int32_t          removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot);
 void             removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 
-SCheckpointConsensusInfo *mndGetConsensusInfo(SHashObj *pHash, int64_t streamId);
-void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo, SRpcMsg *pMsg);
-int64_t mndGetConsensusCheckpointId(SCheckpointConsensusInfo *pInfo, SStreamObj *pStream);
-bool    mndAllTaskSendCheckpointId(SCheckpointConsensusInfo *pInfo, int32_t numOfTasks, int32_t* pTotal);
+SCheckpointConsensusInfo *mndGetConsensusInfo(SHashObj *pHash, int64_t streamId, int32_t numOfTasks);
+void    mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo,
+                             SRpcHandleInfo *pRpcInfo);
 void    mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo);
 int32_t doSendConsensusCheckpointRsp(SRestoreCheckpointInfo *pInfo, SRpcMsg *pMsg, int64_t checkpointId);
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId);
