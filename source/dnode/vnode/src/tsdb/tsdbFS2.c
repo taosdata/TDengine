@@ -731,6 +731,7 @@ _exit:
   return code;
 }
 
+// return error code
 int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback) {
   int32_t code;
   int32_t lino;

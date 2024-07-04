@@ -18,7 +18,7 @@ time_duration:
     number unit
 ```
 
-创建 TSMA 时需要指定 TSMA 名字, 表名字, 函数列表以及窗口大小. 当基于 TSMA 创建时 TSMA 时, 即使用 `RECURSIVE` 关键字， 不需要指定 `FUNCTION()`， 将创建与已有 TSMA 相同的函数列表的TSMA， 且 INTERVAL 必须为所基于的TSMA窗口的整数倍。
+创建 TSMA 时需要指定 TSMA 名字, 表名字, 函数列表以及窗口大小. 当基于一个已经存在的 TSMA 创建新的 TSMA 时, 需要使用 `RECURSIVE` 关键字但不能指定 `FUNCTION()`， 新创建的 TSMA 已有 TSMA 拥有相同的函数列表， 且此种情况下所指定的 INTERVAL 必须为所基于的 TSMA 窗口长度的整数倍。
 
 其中 TSMA 命名规则与表名字类似, 长度最大限制为表名长度限制减去输出表后缀长度, 表名长度限制为193, 输出表后缀为`_tsma_res_stb_`, TSMA 名字最大长度为178.
 

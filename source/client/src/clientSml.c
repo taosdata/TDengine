@@ -1380,7 +1380,7 @@ void freeSSmlKv(void *data) {
 
 void smlDestroyInfo(SSmlHandle *info) {
   if (!info) return;
-  qDestroyQuery(info->pQuery);
+//  qDestroyQuery(info->pQuery);
 
   taosHashCleanup(info->pVgHash);
   taosHashCleanup(info->childTables);
@@ -1912,6 +1912,7 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
       return (TAOS_RES *)request;
     }
     info->pRequest = request;
+    info->pRequest->pQuery = info->pQuery;
     info->ttl = ttl;
     info->precision = precision;
     info->protocol = (TSDB_SML_PROTOCOL_TYPE)protocol;
