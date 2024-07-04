@@ -224,8 +224,18 @@ int transSetConnOption(uv_tcp_t* stream, int keepalive) {
 
 SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
+  if (pool == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
+  if (pool->asyncs != 0) {
+    taosMemoryFree(pool);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   int i = 0, err = 0;
   for (i = 0; i < pool->nAsync; i++) {
@@ -240,6 +250,7 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
     err = uv_async_init(loop, async, cb);
     if (err != 0) {
       tError("failed to init async, reason:%s", uv_err_name(err));
+      terrno = TSDB_CODE_THIRDPARTY_ERROR;
       break;
     }
   }
@@ -274,7 +285,7 @@ bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
 }
 int transAsyncSend(SAsyncPool* pool, queue* q) {
   if (atomic_load_8(&pool->stop) == 1) {
-    return -1;
+    return TSDB_CODE_HTTP_MODULE_QUIT;
   }
   int idx = pool->index % pool->nAsync;
 
@@ -288,7 +299,12 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   taosThreadMutexLock(&item->mtx);
   QUEUE_PUSH(&item->qmsg, q);
   taosThreadMutexUnlock(&item->mtx);
-  return uv_async_send(async);
+  int32_t ret = uv_async_send(async);
+  if (ret != 0) {
+    tError("uv async send failed, reason:%s", uv_err_name(ret));
+    ret = TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  return ret;
 }
 
 void transCtxInit(STransCtx* ctx) {

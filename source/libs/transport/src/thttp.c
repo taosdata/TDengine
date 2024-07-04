@@ -186,13 +186,15 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
     tError("http-report failed to resolving domain names: %s", server);
-    terrno = TSDB_CODE_RPC_FQDN_ERROR;
-    return terrno;
-    ;
+    return TSDB_CODE_RPC_FQDN_ERROR;
   }
-  char buf[128] = {0};
+  char buf[256] = {0};
   tinet_ntoa(buf, ip);
-  uv_ip4_addr(buf, port, dest);
+  int ret = uv_ip4_addr(buf, port, dest);
+  if (ret != 0) {
+    tError("http-report failed to get addr %s", uv_err_name(ret));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
   return 0;
 }
 
@@ -391,16 +393,20 @@ int32_t httpSendQuit(int64_t chanId) {
 
   SHttpMsg* msg = taosMemoryCalloc(1, sizeof(SHttpMsg));
   if (msg == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosReleaseRef(httpRefMgt, chanId);
-    return terrno;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   msg->quit = 1;
   msg->chanId = chanId;
 
   int ret = transAsyncSend(http->asyncPool, &(msg->q));
-  ASSERT(ret == 0);
+  if (ret != 0) {
+    taosMemoryFree(msg);
+    taosReleaseRef(httpRefMgt, chanId);
+    return ret;
+  }
+
   taosReleaseRef(httpRefMgt, chanId);
   return 0;
 }
@@ -494,6 +500,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   int32_t cap = 2048;
   header = taosMemoryCalloc(1, cap);
   if (header == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
 
@@ -682,14 +689,14 @@ int64_t transInitHttpChanImpl() {
     tError("http-report failed init uv, reason:%s", uv_strerror(err));
     httpModuleDestroy(http);
     taosMemoryFree(http);
-    return -1;
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
   http->asyncPool = transAsyncPoolCreate(http->loop, 1, http, httpAsyncCb);
   if (NULL == http->asyncPool) {
     httpModuleDestroy(http);
     taosMemoryFree(http);
-    return -1;
+    return terrno;
   }
   http->quit = 0;
 
@@ -720,7 +727,6 @@ void taosDestroyHttpChan(int64_t chanId) {
     tError("http-report failed destroy chanId %" PRId64 "", chanId);
     return;
   }
-
   atomic_store_8(&load->quit, 1);
 
   ret = httpSendQuit(chanId);
