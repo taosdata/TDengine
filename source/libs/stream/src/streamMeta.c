@@ -1198,7 +1198,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    if ((pTask->pBackend == NULL) && (pTask->info.fillHistory == 1 || HAS_RELATED_FILLHISTORY_TASK(pTask))) {
+    if ((pTask->pBackend == NULL) && ((pTask->info.fillHistory == 1) || HAS_RELATED_FILLHISTORY_TASK(pTask))) {
       code = pMeta->expandTaskFn(pTask);
       if (code != TSDB_CODE_SUCCESS) {
         stError("s-task:0x%x vgId:%d failed to expand stream backend", pTaskId->taskId, vgId);
@@ -1392,17 +1392,24 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
 
   streamMetaWLock(pMeta);
 
-  if (pStartInfo->startAllTasks != 1) {
-    int64_t el = endTs - startTs;
-    stDebug("vgId:%d not start all task(s), not record status, s-task:0x%x launch succ:%d elapsed time:%" PRId64 "ms",
-            pMeta->vgId, taskId, ready, el);
+  SStreamTask** p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+  if (p == NULL) {  // task does not exists in current vnode, not record the complete info
+    stError("vgId:%d s-task:0x%x not exists discard the check downstream info", pMeta->vgId, taskId);
     streamMetaWUnLock(pMeta);
     return 0;
   }
 
-  void* p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-  if (p == NULL) {  // task does not exists in current vnode, not record the complete info
-    stError("vgId:%d s-task:0x%x not exists discard the check downstream info", pMeta->vgId, taskId);
+  // clear the send consensus-checkpointId flag
+  taosThreadMutexLock(&(*p)->lock);
+  (*p)->status.sendConsensusChkptId = false;
+  taosThreadMutexUnlock(&(*p)->lock);
+
+  if (pStartInfo->startAllTasks != 1) {
+    int64_t el = endTs - startTs;
+    stDebug(
+        "vgId:%d not in start all task(s) process, not record launch result status, s-task:0x%x launch succ:%d elapsed "
+        "time:%" PRId64 "ms",
+        pMeta->vgId, taskId, ready, el);
     streamMetaWUnLock(pMeta);
     return 0;
   }

@@ -272,9 +272,8 @@ typedef struct SCheckpointInfo {
   int64_t checkpointTime;  // latest checkpoint time
   int64_t processedVer;
   int64_t nextProcessVer;  // current offset in WAL, not serialize it
-
+  int64_t msgVer;
   SActiveCheckpointInfo* pActiveInfo;
-  int64_t                msgVer;
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -289,6 +288,7 @@ typedef struct SStreamStatus {
   int32_t        inScanHistorySentinel;
   bool           appendTranstateBlock;  // has append the transfer state data block already
   bool           removeBackendFiles;    // remove backend files on disk when free stream tasks
+  bool           sendConsensusChkptId;
 } SStreamStatus;
 
 typedef struct SDataRange {

@@ -1107,6 +1107,17 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   const char*      id = pTask->id.idStr;
   SCheckpointInfo* pInfo = &pTask->chkInfo;
 
+  taosThreadMutexLock(&pTask->lock);
+  if (pTask->status.sendConsensusChkptId == true) {
+    stDebug("s-task:%s already start to consensus-checkpointId, not start again before it completed", id);
+    taosThreadMutexUnlock(&pTask->lock);
+    return TSDB_CODE_SUCCESS;
+  } else {
+    pTask->status.sendConsensusChkptId = true;
+  }
+
+  taosThreadMutexUnlock(&pTask->lock);
+
   ASSERT(pTask->pBackend == NULL);
 
   SRestoreCheckpointInfo req = {
