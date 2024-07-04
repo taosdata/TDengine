@@ -156,7 +156,7 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
 
     char* buf = taosMemoryCalloc(1, cap);
     if (buf == NULL) {
-      stError("%s failed to alloc memory", STREAM_STATE_TRANSFER, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      stError("%s failed to alloc memory, reason:%s", STREAM_STATE_TRANSFER, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
       return;
     }
 
