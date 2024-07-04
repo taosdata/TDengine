@@ -65,7 +65,7 @@ typedef struct {
 } MonitorSlowLogData;
 
 void            monitorClose();
-void            monitorInit();
+int32_t         monitorInit();
 
 void            monitorClientSQLReqInit(int64_t clusterKey);
 void            monitorClientSlowQueryInit(int64_t clusterId);
