@@ -27,10 +27,10 @@ SHOW DNODES;
 ## 删除数据节点
 
 ```sql
-DROP DNODE {dnode_id | dnode_endpoint}
+DROP DNODE dnode_id
 ```
 
-可以用 dnoe_id 或 endpoint 两种方式从集群中删除一个 dnode。注意删除 dnode 不等于停止相应的进程。实际中推荐先将一个 dnode 删除之后再停止其所对应的进程。
+注意删除 dnode 不等于停止相应的进程。实际中推荐先将一个 dnode 删除之后再停止其所对应的进程。
 
 ## 修改数据节点配置
 

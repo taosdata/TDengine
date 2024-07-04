@@ -448,7 +448,7 @@ TO_JSON(str_literal)
 
 **返回结果数据类型**: JSON。
 
-**适用数据类型**: JSON 字符串，形如 '{ "literal" : literal }'。'{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal中不支持转义符。
+**适用数据类型**: JSON 字符串，形如 '\{ "literal" : literal }'。'\{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal中不支持转义符。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -883,11 +883,11 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
     - "user_input": "[1, 3, 5, 7]"
        用户指定 bin 的具体数值。
 
-    - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+    - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
 
-    - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+    - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
 - normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
@@ -983,7 +983,7 @@ ignore_null_values: {
 - INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
 - INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
 - INTERP 需要同时与 RANGE，EVERY 和 FILL 关键字一起使用。
-- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2)字段来指定，需满足 timestamp1 <= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2)字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值.
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
 - INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如：SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
@@ -1158,7 +1158,7 @@ UNIQUE(expr)
 CSUM(expr)
 ```
 
-**功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
+**功能说明**：累加和（Cumulative sum），忽略 NULL 值。
 
 **返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。
 
