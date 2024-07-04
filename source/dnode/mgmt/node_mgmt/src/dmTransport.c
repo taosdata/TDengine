@@ -209,7 +209,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pRpc->info.wrapper = pWrapper;
 
-  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // resp msg is not limited by tsRpcQueueMemoryUsed
+  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg should not be restricted by tsRpcQueueMemoryUsed
   pMsg = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen);
   if (pMsg == NULL) goto _OVER;
 
