@@ -26,7 +26,7 @@ import Release from "/components/ReleaseV3";
 
 ## 3.3.2.0
 
-[版本说明](../3.3.2.0)
+[版本说明](./3.3.2.0)
 
 <Release type="tdengine" version="3.3.2.0" />
 
