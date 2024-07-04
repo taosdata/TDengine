@@ -63,7 +63,7 @@ Multiple fields can be extracted from any string (text) field using the **named 
 
 3. UDT: User-Defined Transform
 
-Use Rhai syntax script to parse input data, please refer to <https://rhai.rs/book/>. The input data must be in JSON format.
+Use Rhai syntax script to parse input data, please refer to `https://rhai.rs/book/`. The input data must be in JSON format.
 
 **input**：The parameter `data` can be used in the script, which is the Object Map parsed from the original data.
 

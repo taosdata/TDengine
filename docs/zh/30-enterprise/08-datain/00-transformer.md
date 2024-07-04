@@ -62,7 +62,7 @@ taosExplorer 中目前支持大部分数据源写入的 transformer 配置。接
 
 ##### 3. UDT 自定义解析脚本
 
-自定义 rhai 语法脚本解析输入数据（参考 <https://rhai.rs/book/> ），脚本目前仅支持 json 格式原始数据。
+自定义 rhai 语法脚本解析输入数据（参考 `https://rhai.rs/book/` ），脚本目前仅支持 json 格式原始数据。
 
 **输入**：脚本中可以使用参数 data, data 是原始数据 json 解析后的 Object Map；
 
