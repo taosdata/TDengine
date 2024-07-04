@@ -1759,6 +1759,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (ps == NULL) {
       return terrno;
     }
+    tsdbRowMergerInit(pMerger, ps);
   }
 
   SRowKey minKey = k;
@@ -1842,6 +1843,7 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
     if (ps == NULL) {
       return terrno;
     }
+    tsdbRowMergerInit(pMerger, ps);
   }
 
   bool dataInDataFile = hasDataInFileBlock(pBlockData, pDumpInfo);
@@ -1963,6 +1965,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (ps == NULL) {
       return terrno;
     }
+    tsdbRowMergerInit(pMerger, ps);
   }
 
   SRowKey minKey = k;
@@ -2326,6 +2329,7 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
     if (ps == NULL) {
       return terrno;
     }
+    tsdbRowMergerInit(pMerger, ps);
   }
 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, pKey);
