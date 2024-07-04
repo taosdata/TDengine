@@ -494,6 +494,8 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
       qall->start = queue->head;
       qall->numOfItems = queue->numOfItems;
       qall->memOfItems = queue->memOfItems;
+      qall->unAccessedNumOfItems = queue->numOfItems;
+      qall->unAccessMemOfItems = queue->memOfItems;
 
       code = qall->numOfItems;
       qinfo->ahandle = queue->ahandle;
