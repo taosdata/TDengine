@@ -920,7 +920,10 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
   if (diffFunctionCtx && taosArrayGetSize(diffFunctionCtx) > 0){
     SqlFunctionCtx** pfCtx = taosArrayGet(diffFunctionCtx, 0);
-    (*pfCtx)->fpSet.processFuncByRow(diffFunctionCtx);
+    code = (*pfCtx)->fpSet.processFuncByRow(diffFunctionCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
     numOfRows = (*pfCtx)->resultInfo->numOfRes;
   }
   if (!createNewColModel) {

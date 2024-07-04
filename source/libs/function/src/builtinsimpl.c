@@ -3148,7 +3148,7 @@ static int32_t doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
   pDiffInfo->prevTs = ts;
-
+  pDiffInfo->hasPrev = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3192,7 +3192,11 @@ static int32_t diffIsNegtive(SDiffInfo* pDiffInfo, int32_t type, const char* pv)
 }
 
 static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SColumnInfoData* pOutput, int32_t pos,
-                            int64_t ts) {                       
+                            int64_t ts) {
+  if (!pDiffInfo->hasPrev) {
+    colDataSetNull_f_s(pOutput, pos);
+    return doSetPrevVal(pDiffInfo, type, pv, ts);
+  }
   pDiffInfo->prevTs = ts;
   switch (type) {
     case TSDB_DATA_TYPE_UINT:
@@ -3272,7 +3276,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
     default:
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
-
+  pDiffInfo->hasPrev = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3333,7 +3337,7 @@ bool isFirstRow(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
   return pDiffInfo->isFirstRow;
 }
 
-int32_t setPreVal(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
+int32_t trySetPreVal(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
   pDiffInfo->isFirstRow = false;
@@ -3346,15 +3350,10 @@ int32_t setPreVal(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
   int8_t                inputType = pInputCol->info.type;
 
   char*   pv = pRow->pData;
-  int32_t code = doSetPrevVal(pDiffInfo, inputType, pv, pRow->ts);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  pDiffInfo->hasPrev = true;
-  return TSDB_CODE_SUCCESS;
+  return doSetPrevVal(pDiffInfo, inputType, pv, pRow->ts);
 }
 
-int32_t doDiff(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) {
+int32_t setDoDiffResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -3387,7 +3386,6 @@ int32_t doDiff(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) {
   if (pCtx->subsidiaries.num > 0) {
     appendSelectivityCols(pCtx, pRow->block, pRow->rowIndex, pos);
   }
-  pDiffInfo->hasPrev = true;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3430,7 +3428,9 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         goto _exit;
       }
-      hasNotNullValue = !diffResultIsNull(pCtx, pRow);
+      if (!diffResultIsNull(pCtx, pRow)) {
+        hasNotNullValue = true;
+      }
     }
     int32_t pos = startOffset + numOfElems;
 
@@ -3439,13 +3439,13 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
       SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
       if ((keepNull || hasNotNullValue) && !isFirstRow(pCtx, pRow)){
-        code = doDiff(pCtx, pRow, pos);
+        code = setDoDiffResult(pCtx, pRow, pos);
         if (code != TSDB_CODE_SUCCESS) {
           goto _exit;
         }
         newRow = true;
       } else {
-        code = setPreVal(pCtx, pRow);
+        code = trySetPreVal(pCtx, pRow);
         if (code != TSDB_CODE_SUCCESS) {
           goto _exit;
         } 
