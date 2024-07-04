@@ -1135,7 +1135,7 @@ int32_t deleteCheckpoint(const char* id) {
   if (id == NULL || strlen(id) == 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     stError("deleteCheckpoint parameters invalid");
-    return -1;
+    return terrno;
   }
   if (strlen(tsSnodeAddress) != 0) {
     return deleteRsync(id);
