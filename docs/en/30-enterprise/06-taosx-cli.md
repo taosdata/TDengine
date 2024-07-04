@@ -94,7 +94,7 @@ taosx run \
   -t 'taos:///db2' -v
 ```
 
-To synchronize sub-tables or regular tables, support specifying a sub-table of a super table with {stable}.{table}, or directly specify the table name {table}
+To synchronize sub-tables or regular tables, support specifying a sub-table of a super table with `{stable}.{table}`, or directly specify the table name {table}
 
 ```shell
 taosx run \
