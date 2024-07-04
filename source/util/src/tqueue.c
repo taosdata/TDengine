@@ -128,7 +128,7 @@ void *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize) {
     int64_t alloced = atomic_add_fetch_64(&tsRpcQueueMemoryUsed, size + dataSize);
     if (alloced > tsRpcQueueMemoryAllowed) {
       uError("failed to alloc qitem, size:%" PRId64 " alloc:%" PRId64 " allowed:%" PRId64, size + dataSize, alloced,
-             tsRpcQueueMemoryUsed);
+             tsRpcQueueMemoryAllowed);
       atomic_sub_fetch_64(&tsRpcQueueMemoryUsed, size + dataSize);
       taosMemoryFree(pNode);
       terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE;
