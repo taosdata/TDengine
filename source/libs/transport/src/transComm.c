@@ -231,7 +231,7 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
-  if (pool->asyncs != 0) {
+  if (pool->asyncs == NULL) {
     taosMemoryFree(pool);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
