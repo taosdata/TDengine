@@ -11,7 +11,6 @@ void*     tmrClientMonitor;
 tmr_h     tmrStartHandle;
 SHashObj* clusterMonitorInfoTable;
 
-static int interval = 30 * 1000;
 static int sendBathchSize = 1;
 
 int32_t sendReport(ClientMonitor* pMonitor, char* pCont);
@@ -20,7 +19,7 @@ void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
   sprintf(ts, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
   char* pCont = (char*)taos_collector_registry_bridge_new(pMonitor->registry, ts, "%" PRId64, NULL);
   if(NULL == pCont) {
-    uError("generateClusterReport failed, get null content.");
+    uError("[monitor] generateClusterReport failed, get null content.");
     return;
   }
   if (send && strlen(pCont) != 0) {
@@ -31,8 +30,8 @@ void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
   taosMemoryFreeClear(pCont);
 }
 
-void reportSendProcess(void* param, void* tmrId) {
-  taosTmrReset(reportSendProcess, tsMonitorInterval * 1000, NULL, tmrClientMonitor, &tmrStartHandle);
+void reportSendProcess(void* stop, void* tmrId) {
+  if(stop != NULL) taosTmrReset(reportSendProcess, tsMonitorInterval * 1000, NULL, tmrClientMonitor, &tmrStartHandle);
   taosRLockLatch(&monitorLock);
 
   static int index = 0;
@@ -51,33 +50,26 @@ void reportSendProcess(void* param, void* tmrId) {
 void monitorClientInitOnce() {
   static int8_t init = 0;
   if (atomic_exchange_8(&init, 1) == 0) {
-    uInfo("tscMonitorInit once.");
+    uInfo("[monitor] tscMonitorInit once.");
     clusterMonitorInfoTable =
         (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
 
     tmrClientMonitor = taosTmrInit(0, 0, 0, "MONITOR");
     tmrStartHandle = taosTmrStart(reportSendProcess, tsMonitorInterval * 1000, NULL, tmrClientMonitor);
-    if(tsMonitorInterval < 1){
-      interval = 30 * 1000;
-    } else {
-      interval = tsMonitorInterval * 1000;
-    }
-     if (tsMonitorInterval < 10) {
-      sendBathchSize = (10 / sendBathchSize) + 1;
-    }
+
     taosInitRWLatch(&monitorLock);
   }
 }
 
 void createMonitorClient(const char* clusterKey) {
   if (clusterKey == NULL || strlen(clusterKey) ==  0) {
-    uError("createMonitorClient failed, clusterKey is NULL");
+    uError("[monitor] createMonitorClient failed, clusterKey is NULL");
     return;
   }
   taosWLockLatch(&monitorLock);
   ClientMonitor** ppMonitor = (ClientMonitor**)taosHashGet(clusterMonitorInfoTable, clusterKey, strlen(clusterKey));
   if (ppMonitor == NULL) {
-    uInfo("createMonitorClient for %s.", clusterKey);
+    uInfo("[monitor] createMonitorClient for %s.", clusterKey);
     ClientMonitor* pMonitor = taosMemoryCalloc(1, sizeof(ClientMonitor));
     snprintf(pMonitor->clusterKey, sizeof(pMonitor->clusterKey), "%s", clusterKey);
     pMonitor->registry = taos_collector_registry_new(clusterKey);
@@ -88,7 +80,7 @@ void createMonitorClient(const char* clusterKey) {
         (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
 
     taosHashPut(clusterMonitorInfoTable, clusterKey, strlen(clusterKey), &pMonitor, sizeof(ClientMonitor*));
-    uInfo("createMonitorClient for %s finished %p.", clusterKey, pMonitor);
+    uInfo("[monitor] createMonitorClient for %s finished %p.", clusterKey, pMonitor);
   }
   
   taosWUnLockLatch(&monitorLock);
@@ -97,7 +89,7 @@ void createMonitorClient(const char* clusterKey) {
 static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
   static int32_t emptyRspNum = 0;
   if (TSDB_CODE_SUCCESS != code) {
-    uError("found error in monitorReport send callback, code:%d, please check the network.", code);
+    uError("[monitor] found error in monitorReport send callback, code:%d, please check the network.", code);
   }
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
@@ -154,14 +146,14 @@ taos_counter_t* createClusterCounter(const char* clusterKey, const char* name, c
     taos_counter_t** ppCounter = (taos_counter_t**)taosHashGet(pMonitor->counters, name, strlen(name));
     if (ppCounter != NULL && *ppCounter != NULL) {
       taosHashRemove(pMonitor->counters, name, strlen(name));
-      uInfo("createClusterCounter remove old counter: %s.", name);
+      uInfo("[monitor] createClusterCounter remove old counter: %s.", name);
     }
 
     taos_counter_t* newCounter = taos_counter_new(name, help, label_key_count, label_keys);
     if (newCounter != NULL) {
       taos_collector_add_metric(pMonitor->colector, newCounter);
       taosHashPut(pMonitor->counters, name, strlen(name), &newCounter, sizeof(taos_counter_t*));
-      uInfo("createClusterCounter %s(%p):%s : %p.", pMonitor->clusterKey, pMonitor, name, newCounter);
+      uInfo("[monitor] createClusterCounter %s(%p):%s : %p.", pMonitor->clusterKey, pMonitor, name, newCounter);
       return newCounter;
     } else {
       return NULL;
@@ -182,31 +174,41 @@ int taosClusterCounterInc(const char* clusterKey, const char* counterName, const
     if (ppCounter != NULL && *ppCounter != NULL) {
       taos_counter_inc(*ppCounter, label_values);
     } else {
-      uError("taosClusterCounterInc not found pCounter %s:%s.", clusterKey, counterName);
+      uError("[monitor] taosClusterCounterInc not found pCounter %s:%s.", clusterKey, counterName);
     }
   } else {
-    uError("taosClusterCounterInc not found pMonitor %s.", clusterKey);
+    uError("[monitor] taosClusterCounterInc not found pMonitor %s.", clusterKey);
   }
   taosRUnLockLatch(&monitorLock);
   return 0;
 }
 
-void clusterMonitorClose(const char* clusterKey) {
-  taosWLockLatch(&monitorLock);
-  ClientMonitor** ppMonitor = (ClientMonitor**)taosHashGet(clusterMonitorInfoTable, clusterKey, strlen(clusterKey));
+void closeAllClientMonitor() {
+  taosRLockLatch(&monitorLock);
 
-  if (ppMonitor != NULL && *ppMonitor != NULL) {
+  ClientMonitor** ppMonitor = (ClientMonitor**)taosHashIterate(clusterMonitorInfoTable, NULL);
+  while (ppMonitor != NULL && *ppMonitor != NULL) {
     ClientMonitor* pMonitor = *ppMonitor;
-    uInfo("clusterMonitorClose valule:%p  clusterKey:%s.", pMonitor, pMonitor->clusterKey);
+    uInfo("[monitor] clusterMonitorClose valule:%p  clusterKey:%s.", pMonitor, pMonitor->clusterKey);
     taosHashCleanup(pMonitor->counters);
     taos_collector_registry_destroy(pMonitor->registry);
     taosMemoryFree(pMonitor);
-    taosHashRemove(clusterMonitorInfoTable, clusterKey, strlen(clusterKey));
+
+    ppMonitor = taosHashIterate(clusterMonitorInfoTable, ppMonitor);
   }
-  taosWUnLockLatch(&monitorLock);
+  taosHashCleanup(clusterMonitorInfoTable);
+
+  taosRUnLockLatch(&monitorLock);
 }
 
 const char* resultStr(SQL_RESULT_CODE code) {
   static const char* result_state[] = {"Success", "Failed", "Cancel"};
   return result_state[code];
+}
+
+void cluster_monitor_stop() {
+  uInfo("[monitor] tscMonitor close");
+  bool stop = true;
+  reportSendProcess(&stop, NULL);
+  closeAllClientMonitor();
 }

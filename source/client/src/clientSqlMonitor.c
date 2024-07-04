@@ -72,8 +72,3 @@ void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type) {
     tscLog("sqlReqLog, not found rid");
   }
 }
-
-void clientMonitorClose(const char* clusterKey) {
-  tscLog("clientMonitorClose, key:%s", clusterKey);
-  clusterMonitorClose(clusterKey);
-}
