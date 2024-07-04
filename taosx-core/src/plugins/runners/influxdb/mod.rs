@@ -24,7 +24,6 @@ use super::get_plugin_dir;
 mod config;
 
 const EXE: &'static str = "taosx-influxdb.jar";
-const LOG_FILE: &str = "influxdb.log";
 
 pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     let path = influxdb_jar_path()?;
@@ -114,13 +113,9 @@ pub async fn influxdb_to_taos(
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let mut log_path = log_path();
-
-    fs::create_dir_all(&log_path)?;
-
-    tracing::info!("log path created: {}", &log_path.display());
-
-    log_path.push(LOG_FILE);
-
+    std::fs::create_dir_all(&log_path)
+        .with_context(|| format!("Log path {}", log_path.display()))?;
+    log_path.push(format!("influxdb-{}.log", task_id.unwrap_or(0)));
     tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();

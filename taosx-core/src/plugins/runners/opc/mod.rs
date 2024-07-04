@@ -42,7 +42,6 @@ const EXE: &'static str = {
         }
     }
 };
-const LOG_FILE: &str = "opc.log";
 
 /// taosx-opc executable path
 fn exe_path() -> anyhow::Result<PathBuf> {
@@ -129,10 +128,9 @@ pub async fn opc_to_taos(
 
     // create log file: opc.log
     let mut log_path = super::get_log_dir("");
-    fs::create_dir_all(&log_path)?;
-    tracing::info!("log dir created: {}", &log_path.display());
-    log_path.push(LOG_FILE);
-    tracing::info!("log file path: {}", &log_path.display());
+    std::fs::create_dir_all(&log_path)
+        .with_context(|| format!("Log path {}", log_path.display()))?;
+    log_path.push(format!("opc-{}.log", task_id.unwrap_or(0)));
     let log_keep_days = get_log_keep_days();
     let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
@@ -478,7 +476,9 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
         .await
         .with_context(|| "Start OPC collector error")?;
     let mut log_path = super::get_log_dir("");
-    log_path.push(LOG_FILE);
+    std::fs::create_dir_all(&log_path)
+        .with_context(|| format!("Log path {}", log_path.display()))?;
+    log_path.push("opc.log");
 
     let mut log_rotation = log_rotation(&log_path, 700);
 

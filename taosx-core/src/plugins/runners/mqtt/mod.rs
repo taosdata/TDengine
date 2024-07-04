@@ -53,8 +53,6 @@ fn mqtt_exe_path() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
-const LOG_FILE: &str = "mqtt.log";
-
 fn log_path() -> PathBuf {
     super::get_log_dir("")
 }
@@ -142,11 +140,10 @@ pub async fn mqtt_to_taos(
     let mut command = tokio::process::Command::new(mqtt);
 
     let mut log_path = log_path();
-    std::fs::create_dir_all(&log_path)?;
-    tracing::info!("log path created: {}", &log_path.display());
-
-    log_path.push(LOG_FILE);
-    tracing::info!("log file dir: {}", &log_path.display());
+    std::fs::create_dir_all(&log_path)
+        .with_context(|| format!("Log path {}", log_path.display()))?;
+    log_path.push(format!("mqtt-{}.log", task_id.unwrap_or(0)));
+    tracing::info!("log file: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
     let mut log_rotation = log_rotation(&log_path, log_keep_days);
