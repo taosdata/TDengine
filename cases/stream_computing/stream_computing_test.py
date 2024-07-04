@@ -315,7 +315,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.drop_all_streams()
         self.tdCom.drop_all_db()
 
-    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ignore_expired=None, constant_col=None, custom_col_index=0, col_value_type="random"):
+    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ignore_expired=None, constant_col=None, custom_col_index=0, col_value_type="random", force_replica=False):
         self.clean_env()
         self.dataDict = {
             "stb_name" : f"{self.case_name}_stb",
@@ -357,8 +357,8 @@ class StreamComputingTest(TDCase):
         self.date_time = self.tdCom.genTs(precision=self.precision)[0]
         self.date_time = int(datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()*self.offset)
         self.tdCom.stream_latency_log = self.run_log_dir + "/latency.log"
-
-        self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups, precision=self.precision)
+        replica = force_replica if force_replica else self.replica
+        self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups, precision=self.precision, replica=replica)
         self.tdCom.create_stable(dbname=self.dbname, stbname=self.stb_name, pk_dict=self.pk_dict)
         self.tdCom.create_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
         if ignore_expired is not None:
@@ -705,13 +705,15 @@ class StreamComputingTest(TDCase):
                 return False
         return self.tdSql.query_data[0][0]
 
-    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False, inc_cpt=False):
+    def at_once_interval(self, interval, partition="tbname", delete=False, fill_value=None, fill_history_value=None, interval_value=None, case_when=None, ignore_expired=None, check_stream_task=None, checkpoint_check=False, inc_cpt=False, redistribute=False):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
         # if interval_value is None:
         #     interval_value = f'{self.dataDict["interval"]}s'
-        self.prepare_data(interval=interval, fill_history_value=fill_history_value, ignore_expired=ignore_expired)
-
+        force_replica = 1 if redistribute else self.replica
+        self.prepare_data(interval=interval, fill_history_value=fill_history_value, ignore_expired=ignore_expired, force_replica=force_replica)
+        if self.replica == 3 and redistribute:
+            self.tdCom.check_transactions(self._remote)
         if partition == "tbname":
             if case_when:
                 stream_case_when_partition = case_when
@@ -758,6 +760,11 @@ class StreamComputingTest(TDCase):
             if "value" in fill_value.lower():
                 fill_value='VALUE,1,2,3,4,5,6,7,8,9,10,11'
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} {partition_elm} interval({self.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_value=fill_value, fill_history_value=fill_history_value, ignore_expired=ignore_expired)
+        if self.replica == 3 and redistribute:
+            self.tdSql.query(f'show {self.dbname}.vgroups')
+            vg_list = list(map(lambda x:x[0], self.tdSql.query_data))
+            for vgid in vg_list:
+                self.tdSql.execute(f'redistribute vgroup {vgid} dnode 2')
         start_time = self.date_time
         custom_col_index = 1 if partition == "c1" else None
         col_value_type = "Incremental" if partition == "c1" else "random"
@@ -5194,7 +5201,8 @@ class StreamComputingTest(TDCase):
                 # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
                 for watermark in [None, random.randint(15, 20)]:
                     self.window_close_interval(interval=random.randint(10, 12), watermark=watermark, fill_value=fill_value)
-
+            if self.replica == 3:
+                self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NULL", redistribute=True)
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1, fill_value="NULL")
             # # TODO optimize，TD-22963 is a right case
             # !!!TD-24631
