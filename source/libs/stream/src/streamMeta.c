@@ -398,6 +398,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTas
   pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
 
   pMeta->bkdChkptMgt = bkdMgtCreate(tpath);
+  if (pMeta->bkdChkptMgt == NULL) {
+    goto _err;
+  }
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
   return pMeta;
@@ -413,9 +416,10 @@ _err:
   if (pMeta->updateInfo.pTasks) taosHashCleanup(pMeta->updateInfo.pTasks);
   if (pMeta->startInfo.pReadyTaskSet) taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
   if (pMeta->startInfo.pFailedTaskSet) taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
+  if (pMeta->bkdChkptMgt) bkdMgtDestroy(pMeta->bkdChkptMgt);
   taosMemoryFree(pMeta);
 
-  stError("failed to open stream meta");
+  stError("failed to open stream meta, reason:%s", tstrerror(terrno));
   return NULL;
 }
 
