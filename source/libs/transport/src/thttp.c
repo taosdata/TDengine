@@ -75,10 +75,15 @@ static void    httpHandleReq(SHttpMsg* msg);
 static void    httpHandleQuit(SHttpMsg* msg);
 static int32_t httpSendQuit(int64_t chanId);
 
+static SHttpMsg* httpCreateMsg(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                               EHttpCompFlag flag, int64_t chanId);
+static void      httpDestroyMsg(SHttpMsg* msg);
+
 static bool    httpFailFastShoudIgnoreMsg(SHashObj* pTable, char* server, int16_t port);
 static void    httpFailFastMayUpdate(SHashObj* pTable, char* server, int16_t port, int8_t succ);
 static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag);
+static void    httpModuleDestroy(SHttpModule* http);
 
 static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri, uint16_t port, char* pCont,
                                             int32_t contLen, EHttpCompFlag flag, int64_t chanId);
@@ -102,7 +107,7 @@ static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t 
                     uri, server, contLen);
   } else {
     terrno = TSDB_CODE_INVALID_CFG;
-    return -1;
+    return terrno;
   }
 }
 
@@ -169,6 +174,8 @@ _OVER:
   if (code == 0) {
     memcpy(pSrc, pDest, gzipStream.total_out);
     code = gzipStream.total_out;
+  } else {
+    code = terrno;
   }
 
   taosMemoryFree(pDest);
@@ -179,7 +186,9 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
     tError("http-report failed to resolving domain names: %s", server);
-    return -1;
+    terrno = TSDB_CODE_RPC_FQDN_ERROR;
+    return terrno;
+    ;
   }
   char buf[128] = {0};
   tinet_ntoa(buf, ip);
@@ -194,6 +203,43 @@ static void* httpThread(void* arg) {
   return NULL;
 }
 
+static SHttpMsg* httpCreateMsg(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                               EHttpCompFlag flag, int64_t chanId) {
+  if (server == NULL || uri == NULL) {
+    tError("http-report failed to report to invalid addr, chanId:%" PRId64 "", chanId);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  if (pCont == NULL || contLen == 0) {
+    tError("http-report failed to report empty packet, chanId:%" PRId64 "", chanId);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  SHttpMsg* msg = taosMemoryMalloc(sizeof(SHttpMsg));
+  if (msg == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  msg->port = port;
+  msg->server = taosStrdup(server);
+  msg->uri = taosStrdup(uri);
+  msg->cont = taosMemoryMalloc(contLen);
+  if (msg->server == NULL || msg->uri == NULL || msg->cont == NULL) {
+    httpDestroyMsg(msg);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  memcpy(msg->cont, pCont, contLen);
+  msg->len = contLen;
+  msg->flag = flag;
+  msg->quit = 0;
+  msg->chanId = chanId;
+  return msg;
+}
 static void httpDestroyMsg(SHttpMsg* msg) {
   if (msg == NULL) return;
 
@@ -281,7 +327,7 @@ static FORCE_INLINE void clientAllocBuffCb(uv_handle_t* handle, size_t suggested
 static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   SHttpClient* cli = handle->data;
   if (nread < 0) {
-    tError("http-report recv error:%s", uv_err_name(nread));
+    tError("http-report recv error:%s", uv_strerror(nread));
   } else {
     tTrace("http-report succ to recv %d bytes", (int32_t)nread);
   }
@@ -292,17 +338,19 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
 static void clientSentCb(uv_write_t* req, int32_t status) {
   SHttpClient* cli = req->data;
   if (status != 0) {
-    tError("http-report failed to send data, reason: %s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    tError("http-report failed to send data, reason: %s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(status), cli->addr,
+           cli->port, cli->chanId);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     }
     return;
   } else {
-    tTrace("http-report succ to send data");
+    tTrace("http-report succ to send data, chanId:%" PRId64 "", cli->chanId);
   }
   status = uv_read_start((uv_stream_t*)&cli->tcp, clientAllocBuffCb, clientRecvCb);
   if (status != 0) {
-    tError("http-report failed to recv data,reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    tError("http-report failed to recv data,reason:%s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(status), cli->addr,
+           cli->port, cli->chanId);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     }
@@ -316,7 +364,8 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status != 0) {
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
 
-    tError("http-report failed to conn to server, reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    tError("http-report failed to conn to server, reason:%s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(status),
+           cli->addr, cli->port, chanId);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     }
@@ -327,7 +376,8 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
 
   status = uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
   if (0 != status) {
-    tError("http-report failed to send data,reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    tError("http-report failed to send data,reason:%s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(status), cli->addr,
+           cli->port, chanId);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     }
@@ -337,48 +387,22 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
 
 int32_t httpSendQuit(int64_t chanId) {
   SHttpModule* http = taosAcquireRef(httpRefMgt, chanId);
-  if (http == NULL) return 0;
+  if (http == NULL) return terrno;
 
   SHttpMsg* msg = taosMemoryCalloc(1, sizeof(SHttpMsg));
+  if (msg == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosReleaseRef(httpRefMgt, chanId);
+    return terrno;
+  }
+
   msg->quit = 1;
-
-  transAsyncSend(http->asyncPool, &(msg->q));
-  taosReleaseRef(httpRefMgt, chanId);
-  return 0;
-}
-
-static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri, uint16_t port, char* pCont,
-                                            int32_t contLen, EHttpCompFlag flag, int64_t chanId) {
-  if (server == NULL || uri == NULL) {
-    tError("http-report failed to report to invalid addr");
-    return -1;
-  }
-
-  if (pCont == NULL || contLen == 0) {
-    tError("http-report failed to report empty packet");
-    return -1;
-  }
-  SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
-  if (load == NULL) {
-    tError("http-report already released");
-    return -1;
-  }
-
-  SHttpMsg* msg = taosMemoryMalloc(sizeof(SHttpMsg));
-
-  msg->server = taosStrdup(server);
-  msg->uri = taosStrdup(uri);
-  msg->port = port;
-  msg->cont = taosMemoryMalloc(contLen);
-  memcpy(msg->cont, pCont, contLen);
-  msg->len = contLen;
-  msg->flag = flag;
-  msg->quit = 0;
   msg->chanId = chanId;
 
-  int ret = transAsyncSend(load->asyncPool, &(msg->q));
+  int ret = transAsyncSend(http->asyncPool, &(msg->q));
+  ASSERT(ret == 0);
   taosReleaseRef(httpRefMgt, chanId);
-  return ret;
+  return 0;
 }
 
 static void httpDestroyClientCb(uv_handle_t* handle) {
@@ -401,9 +425,9 @@ static void httpHandleQuit(SHttpMsg* msg) {
   int64_t chanId = msg->chanId;
   taosMemoryFree(msg);
 
+  tDebug("http-report receive quit, chanId:%" PRId64 "", chanId);
   SHttpModule* http = taosAcquireRef(httpRefMgt, chanId);
   if (http == NULL) return;
-
   uv_walk(http->loop, httpWalkCb, NULL);
   taosReleaseRef(httpRefMgt, chanId);
 }
@@ -438,8 +462,10 @@ static void httpFailFastMayUpdate(SHashObj* pTable, char* server, int16_t port, 
   return;
 }
 static void httpHandleReq(SHttpMsg* msg) {
-  int64_t      chanId = msg->chanId;
-  int32_t      ignore = false;
+  int64_t chanId = msg->chanId;
+  int32_t ignore = false;
+  char*   header = NULL;
+
   SHttpModule* http = taosAcquireRef(httpRefMgt, chanId);
   if (http == NULL) {
     goto END;
@@ -465,24 +491,45 @@ static void httpHandleReq(SHttpMsg* msg) {
     }
   }
 
-  int32_t len = 2048;
-  char*   header = taosMemoryCalloc(1, len);
-  int32_t headLen = taosBuildHttpHeader(msg->server, msg->uri, msg->len, header, len, msg->flag);
-  if (headLen < 0) {
-    taosMemoryFree(header);
+  int32_t cap = 2048;
+  header = taosMemoryCalloc(1, cap);
+  if (header == NULL) {
+    goto END;
+  }
+
+  int32_t headLen = taosBuildHttpHeader(msg->server, msg->uri, msg->len, header, cap, msg->flag);
+  if (headLen < 0 || headLen >= cap) {
     goto END;
   }
 
   uv_buf_t* wb = taosMemoryCalloc(2, sizeof(uv_buf_t));
+  if (wb == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
+
   wb[0] = uv_buf_init((char*)header, strlen(header));  //  heap var
   wb[1] = uv_buf_init((char*)msg->cont, msg->len);     //  heap var
 
   SHttpClient* cli = taosMemoryCalloc(1, sizeof(SHttpClient));
+  if (cli == NULL) {
+    taosMemoryFree(wb);
+    goto END;
+  }
+
   cli->conn.data = cli;
   cli->tcp.data = cli;
   cli->req.data = cli;
   cli->wbuf = wb;
   cli->rbuf = taosMemoryCalloc(1, HTTP_RECV_BUF_SIZE);
+  if (cli->rbuf == NULL) {
+    taosMemoryFree(msg->uri);
+    taosMemoryFree(msg);
+    destroyHttpClient(cli);
+    taosReleaseRef(httpRefMgt, chanId);
+    return;
+  }
+
   cli->addr = msg->server;
   cli->port = msg->port;
   cli->dest = dest;
@@ -491,28 +538,35 @@ static void httpHandleReq(SHttpMsg* msg) {
   taosMemoryFree(msg->uri);
   taosMemoryFree(msg);
 
-  uv_tcp_init(http->loop, &cli->tcp);
+  int err = uv_tcp_init(http->loop, &cli->tcp);
+  if (err != 0) {
+    tError("http-report failed to init socket handle, dst:%s:%d,reason:%s chanId:%" PRId64 "", cli->addr, cli->port,
+           uv_strerror(err), chanId);
+    destroyHttpClient(cli);
+    taosReleaseRef(httpRefMgt, chanId);
+  }
 
   // set up timeout to avoid stuck;
   int32_t fd = taosCreateSocketWithTimeout(5000);
   if (fd < 0) {
-    tError("http-report failed to open socket, dst:%s:%d", cli->addr, cli->port);
+    tError("http-report failed to open socket, dst:%s:%d, chanId:%" PRId64 "", cli->addr, cli->port, chanId);
     destroyHttpClient(cli);
     taosReleaseRef(httpRefMgt, chanId);
     return;
   }
   int ret = uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
   if (ret != 0) {
-    tError("http-report failed to open socket, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
-    taosReleaseRef(httpRefMgt, chanId);
+    tError("http-report failed to open socket, reason:%s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(ret), cli->addr,
+           cli->port, chanId);
     destroyHttpClient(cli);
+    taosReleaseRef(httpRefMgt, chanId);
     return;
   }
 
   ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&cli->dest, clientConnCb);
   if (ret != 0) {
-    tError("http-report failed to connect to http-server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr,
-           cli->port);
+    tError("http-report failed to connect to http-server, reason:%s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(ret),
+           cli->addr, cli->port, chanId);
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
     destroyHttpClient(cli);
   }
@@ -521,10 +575,58 @@ static void httpHandleReq(SHttpMsg* msg) {
 
 END:
   if (ignore == false) {
-    tError("http-report failed to report, reason: %s, addr: %s:%d", terrstr(), msg->server, msg->port);
+    tError("http-report failed to report, reason: %s, addr: %s:%d, chanId:%" PRId64 "", terrstr(), msg->server,
+           msg->port, chanId);
   }
   httpDestroyMsg(msg);
+  taosMemoryFree(header);
   taosReleaseRef(httpRefMgt, chanId);
+}
+
+static void httpModuleDestroy(SHttpModule* http) {
+  if (http->asyncPool != NULL) {
+    TRANS_DESTROY_ASYNC_POOL_MSG(http->asyncPool, SHttpMsg, httpDestroyMsgWrapper, NULL);
+    transAsyncPoolDestroy(http->asyncPool);
+  }
+  if (http->loop) {
+    uv_loop_close(http->loop);
+    taosMemoryFree(http->loop);
+  }
+  taosHashCleanup(http->connStatusTable);
+  // not free http, http freeed by ref
+}
+
+static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri, uint16_t port, char* pCont,
+                                            int32_t contLen, EHttpCompFlag flag, int64_t chanId) {
+  int32_t   ret = 0;
+  SHttpMsg* msg = httpCreateMsg(server, uri, port, pCont, contLen, flag, chanId);
+  if (msg == NULL) {
+    return terrno;
+  }
+
+  SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
+  if (load == NULL) {
+    httpDestroyMsg(msg);
+    return terrno;
+  }
+
+  if (atomic_load_8(&load->quit)) {
+    httpDestroyMsg(msg);
+    taosReleaseRef(httpRefMgt, chanId);
+    terrno = TSDB_CODE_HTTP_MODULE_QUIT;
+    return terrno;
+  }
+
+  ret = transAsyncSend(load->asyncPool, &(msg->q));
+  if (ret < 0) {
+    httpDestroyMsg(msg);
+    taosReleaseRef(httpRefMgt, chanId);
+    terrno = TSDB_CODE_HTTP_MODULE_QUIT;
+    return terrno;
+  }
+
+  taosReleaseRef(httpRefMgt, chanId);
+  return ret;
 }
 
 int32_t taosSendHttpReportByChan(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
@@ -555,29 +657,54 @@ void transHttpEnvDestroy() {
 
 int64_t transInitHttpChanImpl() {
   SHttpModule* http = taosMemoryCalloc(1, sizeof(SHttpModule));
-  http->loop = taosMemoryMalloc(sizeof(uv_loop_t));
-  http->connStatusTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  http->connPool = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  http->quit = 0;
+  if (http == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
 
-  uv_loop_init(http->loop);
+  http->connStatusTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (http->connStatusTable == NULL) {
+    httpModuleDestroy(http);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+
+  http->loop = taosMemoryMalloc(sizeof(uv_loop_t));
+  if (http->loop == NULL) {
+    httpModuleDestroy(http);
+    taosMemoryFree(http);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+
+  int err = uv_loop_init(http->loop);
+  if (err != 0) {
+    tError("http-report failed init uv, reason:%s", uv_strerror(err));
+    httpModuleDestroy(http);
+    taosMemoryFree(http);
+    return -1;
+  }
 
   http->asyncPool = transAsyncPoolCreate(http->loop, 1, http, httpAsyncCb);
   if (NULL == http->asyncPool) {
-    taosMemoryFree(http->loop);
+    httpModuleDestroy(http);
     taosMemoryFree(http);
-    http = NULL;
     return -1;
   }
+  http->quit = 0;
 
-  int err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
+  err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
   if (err != 0) {
-    taosMemoryFree(http->loop);
+    httpModuleDestroy(http);
     taosMemoryFree(http);
-    http = NULL;
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
-  return taosAddRef(httpRefMgt, http);
+  int64_t ref = taosAddRef(httpRefMgt, http);
+  if (ref < 0) {
+    return terrno;
+  }
+  return ref;
 }
 int64_t taosInitHttpChan() {
   taosThreadOnce(&transHttpInit, transHttpEnvInit);
@@ -585,18 +712,28 @@ int64_t taosInitHttpChan() {
 }
 
 void taosDestroyHttpChan(int64_t chanId) {
+  tDebug("http-report send quit, chanId:%" PRId64 "", chanId);
+
+  int          ret = 0;
   SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
+  if (load == NULL) {
+    tError("http-report failed destroy chanId %" PRId64 "", chanId);
+    return;
+  }
 
   atomic_store_8(&load->quit, 1);
-  httpSendQuit(chanId);
+
+  ret = httpSendQuit(chanId);
+  if (ret != 0) {
+    tDebug("http-report already destroyed, chanId %" PRId64 "", chanId);
+    taosReleaseRef(httpRefMgt, chanId);
+    return;
+  }
+
   taosThreadJoin(load->thread, NULL);
 
-  TRANS_DESTROY_ASYNC_POOL_MSG(load->asyncPool, SHttpMsg, httpDestroyMsgWrapper, NULL);
-  transAsyncPoolDestroy(load->asyncPool);
-  uv_loop_close(load->loop);
-  taosMemoryFree(load->loop);
+  httpModuleDestroy(load);
 
-  taosHashCleanup(load->connStatusTable);
   taosReleaseRef(httpRefMgt, chanId);
   taosReleaseRef(httpRefMgt, chanId);
 }
