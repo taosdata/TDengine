@@ -867,7 +867,10 @@ void taos_init_imp(void) {
     tscError("failed to init conv");
     return;
   }
-
+  if (monitorInit() != 0){
+    tscError("failed to init monitor");
+    return;
+  }
   rpcInit();
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
@@ -891,7 +894,6 @@ void taos_init_imp(void) {
   taosThreadMutexInit(&appInfo.mutex, NULL);
 
   tscCrashReportInit();
-  monitorInit();
 
   tscDebug("client is initialized successfully");
 }

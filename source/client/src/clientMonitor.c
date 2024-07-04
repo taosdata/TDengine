@@ -18,6 +18,7 @@ int32_t     quitCnt = 0;
 tsem2_t     monitorSem;
 STaosQueue* monitorQueue;
 SHashObj*   monitorSlowLogHash;
+char        tmpSlowLogPath[PATH_MAX] = {0};
 
 static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size){
   if (tsTempDir == NULL) {
@@ -690,28 +691,6 @@ static void* monitorThreadFunc(void *param){
   }
 #endif
 
-  char tmpPath[PATH_MAX] = {0};
-  if (getSlowLogTmpDir(tmpPath, sizeof(tmpPath)) < 0){
-    return NULL;
-  }
-
-  if (taosMulModeMkDir(tmpPath, 0777, true) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    printf("failed to create dir:%s since %s", tmpPath, terrstr());
-    return NULL;
-  }
-
-  if (tsem2_init(&monitorSem, 0, 0) != 0) {
-    tscError("sem init error since %s", terrstr());
-    return NULL;
-  }
-
-  monitorQueue = taosOpenQueue();
-  if(monitorQueue == NULL){
-    tscError("open queue error since %s", terrstr());
-    return NULL;
-  }
-
   if (-1 != atomic_val_compare_exchange_32(&slowLogFlag, -1, 0)) {
     return NULL;
   }
@@ -747,7 +726,7 @@ static void* monitorThreadFunc(void *param){
           monitorSendAllSlowLogFromTempDir(slowLogData->clusterId);
         }
       } else if(slowLogData->type == SLOW_LOG_WRITE){
-        monitorWriteSlowLog2File(slowLogData, tmpPath);
+        monitorWriteSlowLog2File(slowLogData, tmpSlowLogPath);
       } else if(slowLogData->type == SLOW_LOG_READ_RUNNING){
         monitorSendSlowLogAtRunning(slowLogData->clusterId);
       } else if(slowLogData->type == SLOW_LOG_READ_QUIT){
@@ -799,27 +778,59 @@ static void tscMonitorStop() {
   }
 }
 
-void monitorInit() {
+int32_t monitorInit() {
   tscInfo("[monitor] tscMonitor init");
   monitorCounterHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (monitorCounterHash == NULL) {
     tscError("failed to create monitorCounterHash");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
   taosHashSetFreeFp(monitorCounterHash, destroyMonitorClient);
 
   monitorSlowLogHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (monitorSlowLogHash == NULL) {
     tscError("failed to create monitorSlowLogHash");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
   taosHashSetFreeFp(monitorSlowLogHash, destroySlowLogClient);
 
   monitorTimer = taosTmrInit(0, 0, 0, "MONITOR");
   if (monitorTimer == NULL) {
     tscError("failed to create monitor timer");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (getSlowLogTmpDir(tmpSlowLogPath, sizeof(tmpSlowLogPath)) < 0){
+    terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
+    return -1;
+  }
+
+  if (taosMulModeMkDir(tmpSlowLogPath, 0777, true) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tscError("failed to create dir:%s since %s", tmpSlowLogPath, terrstr());
+    return -1;
+  }
+
+  if (tsem2_init(&monitorSem, 0, 0) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tscError("sem init error since %s", terrstr());
+    return -1;
+  }
+
+  monitorQueue = taosOpenQueue();
+  if(monitorQueue == NULL){
+    tscError("open queue error since %s", terrstr());
+    return -1;
   }
 
   taosInitRWLatch(&monitorLock);
-  tscMonitortInit();
+  if (tscMonitortInit() != 0){
+    return -1;
+  }
+  return 0;
 }
 
 void monitorClose() {
@@ -845,9 +856,6 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data){
   }
   *slowLogData = data;
   tscDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " type:%d", slowLogData->clusterId, slowLogData->type);
-  while (atomic_load_32(&slowLogFlag) == -1) {
-    taosMsleep(5);
-  }
   if (taosWriteQitem(monitorQueue, slowLogData) == 0){
     tsem2_post(&monitorSem);
   }else{
