@@ -785,8 +785,11 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
   return (SNode*)realTable;
 }
 
-SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const SToken* pTableAlias) {
+SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkTableName(pCxt, pTableAlias)) {
+    return NULL;
+  }
   STempTableNode* tempTable = (STempTableNode*)nodesMakeNode(QUERY_NODE_TEMP_TABLE);
   CHECK_OUT_OF_MEM(tempTable);
   tempTable->pSubquery = pSubquery;
