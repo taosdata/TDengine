@@ -214,14 +214,14 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
   char* state = taosMemoryCalloc(1, cap);
   if (state == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   nBytes = snprintf(state, cap, "%s%s%s", path, TD_DIRSEP, "state");
   if (nBytes <= 0 || nBytes >= cap) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     taosMemoryFree(state);
-    return -1;
+    return terrno;
   }
 
   if (chkpId != 0) {
@@ -229,7 +229,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
     if (chkp == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(state);
-      return -1;
+      return terrno;
     }
 
     nBytes = snprintf(chkp, cap, "%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, "checkpoints", TD_DIRSEP, chkpId);
@@ -237,7 +237,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       terrno = TSDB_CODE_OUT_OF_RANGE;
       taosMemoryFree(state);
       taosMemoryFree(chkp);
-      return -1;
+      return terrno;
     }
 
     if (taosIsDir(chkp) && isValidCheckpoint(chkp)) {
@@ -255,6 +255,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       code = taosMkDir(state);
       if (code != 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
+        code = terrno;
       }
     }
 
@@ -262,7 +263,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
   }
 
   *dst = state;
-  return 0;
+  return code;
 }
 
 typedef struct {
@@ -284,14 +285,14 @@ int32_t remoteChkp_readMetaData(char* path, SSChkpMetaOnS3** pMeta) {
   char* metaPath = taosMemoryCalloc(1, cap);
   if (metaPath == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   int32_t n = snprintf(metaPath, cap, "%s%s%s", path, TD_DIRSEP, "META");
   if (n <= 0 || n >= cap) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(metaPath);
-    return -1;
+    return terrno;
   }
 
   pFile = taosOpenFile(path, TD_FILE_READ);
@@ -329,29 +330,32 @@ int32_t remoteChkp_readMetaData(char* path, SSChkpMetaOnS3** pMeta) {
 _EXIT:
   taosCloseFile(&pFile);
   taosMemoryFree(metaPath);
+  code = terrno;
   return code;
 }
 
 int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t chkpId) {
   int32_t code = -1;
   int32_t nBytes = 0;
+
   int32_t cap = strlen(path) + 64;
   char*   src = taosMemoryCalloc(1, cap);
   char*   dst = taosMemoryCalloc(1, cap);
   if (src == NULL || dst == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return code;
+    goto _EXIT;
   }
 
   if (pMeta->currChkptId != chkpId || pMeta->manifestChkptId != chkpId) {
     terrno = TSDB_CODE_INVALID_CFG;
-    return code;
+    goto _EXIT;
   }
   // rename current_chkp/mainfest to current
   for (int i = 0; i < 2; i++) {
     char* key = (i == 0 ? pMeta->pCurrName : pMeta->pManifestName);
     if (strlen(key) <= 0) {
       terrno = TSDB_CODE_INVALID_PARA;
+      goto _EXIT;
     }
 
     nBytes = snprintf(src, cap, "%s%s%s_%" PRId64 "", path, TD_DIRSEP, key, pMeta->currChkptId);
@@ -385,6 +389,7 @@ int32_t remoteChkp_validAndCvtMeta(char* path, SSChkpMetaOnS3* pMeta, int64_t ch
 _EXIT:
   taosMemoryFree(src);
   taosMemoryFree(dst);
+  code = terrno;
   return code;
 }
 int32_t remoteChkpGetDelFile(char* path, SArray* toDel) {
@@ -1495,7 +1500,7 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
   if (len == 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     stError("failed to load extra info, dir:%s, reason:%s", pChkpIdDir, tstrerror(terrno));
-    return -1;
+    return terrno;
   }
 
   int32_t cap = len + 64;
@@ -1542,7 +1547,7 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
 _EXIT:
   taosMemoryFree(pDst);
   taosCloseFile(&pFile);
-  return code;
+  return terrno;
 }
 int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
   int32_t code = -1;
@@ -4399,6 +4404,10 @@ int32_t compareHashTableImpl(SHashObj* p1, SHashObj* p2, SArray* diff) {
     char* name = taosHashGetKey(pIter, &len);
     if (!isBkdDataMeta(name, len) && !taosHashGet(p1, name, len)) {
       char* fname = taosMemoryCalloc(1, len + 1);
+      if (fname == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
+      }
       strncpy(fname, name, len);
       taosArrayPush(diff, &fname);
     }
@@ -4410,7 +4419,9 @@ int32_t compareHashTable(SHashObj* p1, SHashObj* p2, SArray* add, SArray* del) {
   int32_t code = 0;
 
   code = compareHashTableImpl(p1, p2, add);
-  code = compareHashTableImpl(p2, p1, del);
+  if (code != 0) {
+    code = compareHashTableImpl(p2, p1, del);
+  }
 
   return code;
 }
@@ -4493,7 +4504,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
   if (nBytes <= 0 || nBytes >= p->len) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     taosThreadRwlockUnlock(&p->rwLock);
-    return -1;
+    return terrno;
   }
 
   taosArrayClearP(p->pAdd, taosMemoryFree);
@@ -4502,9 +4513,9 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
 
   TdDirPtr pDir = taosOpenDir(p->buf);
   if (pDir == NULL) {
-    terrno = errno;
+    terrno = TAOS_SYSTEM_ERROR(errno);
     taosThreadRwlockUnlock(&p->rwLock);
-    return -1;
+    return terrno;
   }
 
   TdDirEntryPtr de = NULL;
@@ -4514,21 +4525,36 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
     if (strlen(name) == currLen && strcmp(name, pCurrent) == 0) {
       taosMemoryFreeClear(p->pCurrent);
+
       p->pCurrent = taosStrdup(name);
+      if (p->pCurrent == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
       continue;
     }
 
     if (strlen(name) >= maniLen && strncmp(name, pManifest, maniLen) == 0) {
       taosMemoryFreeClear(p->pManifest);
       p->pManifest = taosStrdup(name);
+      if (p->pManifest == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
       continue;
     }
     if (strlen(name) >= sstLen && strncmp(name + strlen(name) - 4, pSST, sstLen) == 0) {
-      taosHashPut(p->pSstTbl[1 - p->idx], name, strlen(name), &dummy, sizeof(dummy));
+      if (taosHashPut(p->pSstTbl[1 - p->idx], name, strlen(name), &dummy, sizeof(dummy)) != 0) {
+        break;
+      }
       continue;
     }
   }
   taosCloseDir(&pDir);
+  if (terrno != 0) {
+    taosThreadRwlockUnlock(&p->rwLock);
+    return terrno;
+  }
 
   if (p->init == 0) {
     void* pIter = taosHashIterate(p->pSstTbl[1 - p->idx], NULL);
@@ -4542,6 +4568,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
           taosThreadRwlockUnlock(&p->rwLock);
           return -1;
         }
+
         strncpy(fname, name, len);
         taosArrayPush(p->pAdd, &fname);
       }
@@ -4560,7 +4587,7 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
       taosArrayClearP(p->pDel, taosMemoryFree);
       taosHashClear(p->pSstTbl[1 - p->idx]);
       p->update = 0;
-      return code;
+      return terrno;
     }
 
     if (taosArrayGetSize(p->pAdd) == 0 && taosArrayGetSize(p->pDel) == 0) {
@@ -4831,7 +4858,8 @@ _ERROR:
   taosMemoryFree(dstBuf);
   taosMemoryFree(srcDir);
   taosMemoryFree(dstDir);
-  return code;
+
+  return terrno;
 }
 
 SBkdMgt* bkdMgtCreate(char* path) {
@@ -4893,7 +4921,7 @@ int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, 
     if (path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       taosThreadRwlockUnlock(&bm->rwLock);
-      return -1;
+      return terrno;
     }
 
     int32_t nBytes = snprintf(path, cap, "%s%s%s", bm->path, TD_DIRSEP, taskId);
@@ -4901,21 +4929,20 @@ int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, 
       terrno = TSDB_CODE_OUT_OF_RANGE;
       taosMemoryFree(path);
       taosThreadRwlockUnlock(&bm->rwLock);
-      return -1;
+      return terrno;
     }
 
     SDbChkp* p = dbChkpCreate(path, chkpId);
     if (p == NULL) {
       taosMemoryFree(path);
       taosThreadRwlockUnlock(&bm->rwLock);
-      return -1;
+      return terrno;
     }
 
     if (taosHashPut(bm->pDbChkpTbl, taskId, strlen(taskId), &p, sizeof(void*)) != 0) {
       dbChkpDestroy(p);
-      taosMemoryFree(path);
       taosThreadRwlockUnlock(&bm->rwLock);
-      return -1;
+      return terrno;
     }
 
     pChkp = p;
@@ -4923,13 +4950,14 @@ int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, 
     taosThreadRwlockUnlock(&bm->rwLock);
     return code;
   } else {
-    code = dbChkpGetDelta(pChkp, chkpId, NULL);
-
-    if (code == 0) code = dbChkpDumpTo(pChkp, dname, list);
+    terrno = dbChkpGetDelta(pChkp, chkpId, NULL);
+    if (code == 0) {
+      terrno = dbChkpDumpTo(pChkp, dname, list);
+    }
   }
 
   taosThreadRwlockUnlock(&bm->rwLock);
-  return code;
+  return terrno;
 }
 
 #ifdef BUILD_NO_CALL
