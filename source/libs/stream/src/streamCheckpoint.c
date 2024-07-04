@@ -1147,3 +1147,19 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   tmsgSendReq(&pTask->info.mnodeEpset, &msg);
   return 0;
 }
+
+int32_t streamTaskSendPreparedCheckpointsourceRsp(SStreamTask* pTask) {
+  int32_t code = 0;
+  if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+    return code;
+  }
+
+  taosThreadMutexLock(&pTask->lock);
+  SStreamTaskState* p = streamTaskGetStatus(pTask);
+  if (p->state == TASK_STATUS__CK) {
+    code = streamTaskSendCheckpointSourceRsp(pTask);
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return code;
+}

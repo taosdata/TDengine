@@ -228,6 +228,9 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   }
 
   updated = streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
+
+  // send the checkpoint-source-rsp for source task to end the checkpoint trans in mnode
+  streamTaskSendPreparedCheckpointsourceRsp(pTask);
   streamTaskResetStatus(pTask);
 
   streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, pTask->id.idStr);
@@ -264,7 +267,6 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
     tqDebug("s-task:%s vgId:%d not save task since not update epset actually, stop task", idstr, vgId);
   }
 
-  // stop
   streamTaskStop(pTask);
   if (ppHTask != NULL) {
     streamTaskStop(*ppHTask);

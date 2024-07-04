@@ -801,6 +801,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 void    streamTaskSendRetrieveRsp(SStreamRetrieveReq* pReq, SRpcMsg* pRsp);
 
 int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp);
+int32_t streamTaskSendPreparedCheckpointsourceRsp(SStreamTask* pTask);
 
 
 #ifdef __cplusplus

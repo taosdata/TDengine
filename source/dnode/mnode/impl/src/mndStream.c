@@ -1239,9 +1239,6 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
       code = mndProcessStreamCheckpointTrans(pMnode, p, checkpointId, 1, true);
       sdbRelease(pSdb, p);
 
-      // clear the consensus checkpoint info
-      mndClearConsensusCheckpointId(execInfo.pStreamConsensus, p->uid);
-
       if (code != -1) {
         started += 1;
 
