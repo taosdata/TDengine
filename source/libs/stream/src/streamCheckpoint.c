@@ -405,12 +405,14 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
-
-  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
+
+  taosThreadMutexLock(&pTask->chkInfo.pActiveInfo->lock);
+  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
   if (clearChkpReadyMsg) {
     streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
   }
+  taosThreadMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
 }
 
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq) {
