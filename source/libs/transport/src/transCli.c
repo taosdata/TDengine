@@ -832,6 +832,9 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
   taosInitRWLatch(&exh->latch);
 
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
+  ASSERT(exh == self);
+
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
 
@@ -2833,6 +2836,9 @@ int64_t transAllocHandle() {
   taosInitRWLatch(&exh->latch);
 
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
+  ASSERT(exh == self);
+
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
   tDebug("pre alloc refId %" PRId64 "", exh->refId);
