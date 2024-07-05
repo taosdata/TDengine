@@ -762,8 +762,8 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     }
 
     if (code != 0) {
-      stError("failed to start stream backend at %s, reason: %s, restart from default defaultPath:%s, reason:%s",
-              checkpointPath, tstrerror(code), defaultPath, tstrerror(code));
+      stError("failed to start stream backend at %s, restart from default defaultPath:%s, reason:%s", checkpointPath,
+              defaultPath, tstrerror(code));
       code = 0;  // reset the error code
     }
   } else {  // no valid checkpoint id
@@ -2528,6 +2528,7 @@ STaskDbWrapper* taskDbOpen(const char* path, const char* key, int64_t chkptId, i
   char* statePath = NULL;
   char* dbPath = NULL;
   int   code = 0;
+  terrno = 0;
   if ((code = restoreCheckpointData(path, key, chkptId, &statePath, &dbPath, processVer)) < 0) {
     terrno = code;
     stError("failed to restore checkpoint data, path:%s, key:%s, checkpointId: %" PRId64 "reason:%s", path, key,

@@ -182,7 +182,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
 int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
   int32_t code = 0;
   int64_t chkpId = streamMetaGetLatestCheckpointId(pMeta);
-
+  terrno = 0;
   bool exist = streamBackendDataIsExist(pMeta->path, chkpId);
   if (exist == false) {
     if (terrno != 0) {
