@@ -406,6 +406,16 @@ class TDTestCase:
         # check result
         self.checkResult()
 
+        seconds = 300
+        for i in range(seconds):
+            sql ="show transactions;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+                tdLog.info("split vgroup finished.")
+                return True
+            #tdLog.info(f"i={i} wait split vgroup ...")
+            time.sleep(1)
+
     # run
     def run(self):
         # prepare env
