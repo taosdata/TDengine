@@ -576,7 +576,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   if (statisReq.type == MONITOR_TYPE_COUNTER) {
     monSendContent(-1, statisReq.pCont, tsMonFwUri);
   } else if (statisReq.type == MONITOR_TYPE_SLOW_LOG) {
-    monSendContent(pMnode->chanId, statisReq.pCont, tsMonSlowLogUri);
+    monSendContent(-1, statisReq.pCont, tsMonSlowLogUri);
   }
 
   tFreeSStatisReq(&statisReq);
