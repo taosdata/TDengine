@@ -224,7 +224,6 @@ void    monSetQmInfo(SMonQmInfo *pInfo);
 void    monSetSmInfo(SMonSmInfo *pInfo);
 void    monSetBmInfo(SMonBmInfo *pInfo);
 void    monGenAndSendReport();
-void    monGenAndSendReportBasic();
 void    monSendContent(char *pCont);
 
 void tFreeSMonMmInfo(SMonMmInfo *pInfo);
