@@ -48,7 +48,7 @@ class TDSql:
         self.queryCols = 0
         self.affectedRows = 0
 
-    def init(self, cursor, log=False):
+    def init(self, cursor, log=True):
         self.cursor = cursor
         self.sql = None
         
