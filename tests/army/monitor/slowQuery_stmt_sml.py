@@ -56,11 +56,11 @@ class TDTestCase(TBase):
         tdSql.execute(f"drop table if exists {stable_name}")
         tdSql.execute(f"create table {stable_name} (ts timestamp, pk int primary key, c2 double, c3 float) tags (engine int)")
 
-        sql = f"INSERT INTO ? USING {stable_name} TAGS(?) VALUES (?,?,?,?)"
+        sql1 = f"INSERT INTO ? USING {stable_name} TAGS(?) VALUES (?,?,?,?)"
 
         conn = taos.connect()
         conn.select_db(db_name)
-        stmt = conn.statement(sql)
+        stmt = conn.statement(sql1)
         
         tbname = f"d1001"
 
@@ -74,44 +74,73 @@ class TDTestCase(TBase):
         params[1].int((10, 12, 12))
         params[2].double([194, 200, 201])
         params[3].float([0.31, 0.33, 0.31])
-
+        
         stmt.bind_param_batch(params)
 
         stmt.execute()
 
-        stmt=conn.statement(f"select * from {stable_name} where pk = ?")
+        sql2 = f"select * from {stable_name} where pk = ?"
+
+        stmt=conn.statement(sql2)
         queryparam1=taos.new_bind_params(1)
         queryparam1[0].int(10)
         stmt.bind_param(queryparam1)
         stmt.execute()
-        result1=stmt.use_result()
-        rows1=result1.fetch_all()
-        result1.close()
+        # result1=stmt.use_result()
+        # rows1=result1.fetch_all()
+        # result1.close()
+        # stmt.close()
+        
+        stmt=conn.statement(f"select 1=?")
+        queryparam1=taos.new_bind_params(1)
+        queryparam1[0].int(1)
+        stmt.bind_param(queryparam1)
+        stmt.execute()
+
+
         time.sleep(2)
 
-        tdSql.query(f'select * from log.taos_slow_sql_detail where db="{db_name}" and type=2', queryTimes=1)
+        tdSql.query(f'select * from log.taos_slow_sql_detail where db="{db_name}" and sql="{sql1.lower()}"', queryTimes=1)
         tdSql.checkRows(1)
+        tdSql.query(f'select * from log.taos_slow_sql_detail where db="{db_name}" and sql="{sql2.lower()}"', queryTimes=1)
+        tdSql.checkRows(1)
+        
 
         # bind_param
         db_name = 'stmt_bind_param'
-        stable_name = 'stable_stmt_bind_param'
+        stable_name = 'table_stmt_bind_param'
         tdSql.execute(f"drop database if exists {db_name}")
         tdSql.execute(f"CREATE DATABASE {db_name}")
         tdSql.execute(f"USE {db_name}")
         tdSql.execute(f"drop table if exists {stable_name}")
-        tdSql.execute(f"create table {stable_name} (ts timestamp, pk int primary key, c2 double, c3 float) tags (engine int)")
+        tdSql.execute(f"create table {stable_name} (ts timestamp, pk int primary key, c2 double, c3 float)")
+        
+        sql3 = f"INSERT INTO ? USING {stable_name} TAGS(?) VALUES (?,?,?,?)"
+
+        conn = taos.connect()
+        conn.select_db(db_name)
+        stmt = conn.statement(sql3)
+        
+        tbname = f"d1001"
+
+        tags = taos.new_bind_params(1)
+        tags[0].int([2])
+
+        stmt.set_tbname_tags(tbname, tags)
 
         params = taos.new_bind_params(4)
-        params[0].timestamp((1626861392589))
-        params[1].int((11))
-        params[2].int([199])
-        params[3].float([0.31])
-
+        params[0].timestamp((1626861392589, 1626861392589, 1626861392592))
+        params[1].int((10, 12, 12))
+        params[2].double([194, 200, 201])
+        params[3].float([0.31, 0.33, 0.31])
+        
         stmt.bind_param(params)
+        stmt.add_batch()
 
         stmt.execute()
 
-        tdSql.query(f'select * from log.taos_slow_sql_detail where db="{db_name}" and type=2', queryTimes=1)
+
+        tdSql.query(f'select * from log.taos_slow_sql_detail where db="{db_name}" and sql="{sql2.lower()}"', queryTimes=1)
         tdSql.checkRows(1)
 
         stmt.close()
