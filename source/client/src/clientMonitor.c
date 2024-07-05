@@ -480,7 +480,6 @@ static void monitorSendSlowLogAtBeginning(int64_t clusterId, char** fileName, Td
       sendSlowLog(clusterId, data, pFile, offset, SLOW_LOG_READ_BEGINNIG, *fileName, pTransporter, epSet);
       *fileName = NULL;
     }
-    tscDebug("[monitor] monitorSendSlowLogAtBeginning send slow log file:%p, data:%s", pFile, data);
   }
 }
 
@@ -511,7 +510,6 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId){
     if(data != NULL){
       sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
     }
-    tscDebug("[monitor] monitorSendSlowLogAtRunning send slow log:%s", data);
   }
 }
 
@@ -542,7 +540,6 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
     if(data != NULL){
       sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep);
     }
-    tscInfo("[monitor] monitorSendSlowLogAtQuit send slow log:%s", data);
   }
   return false;
 }
@@ -568,7 +565,6 @@ static void   monitorSendAllSlowLogAtQuit(){
       if(data != NULL && sendSlowLog(*clusterId, data, NULL, pClient->offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep) == 0){
         quitCnt ++;
       }
-      tscInfo("[monitor] monitorSendAllSlowLogAtQuit send slow log :%s", data);
     }
   }
 }
@@ -619,7 +615,6 @@ static void monitorSendAllSlowLog(){
       if(data != NULL){
         sendSlowLog(*clusterId, data, NULL, pClient->offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
       }
-      tscDebug("[monitor] monitorSendAllSlowLog send slow log :%s", data);
     }
   }
 }
