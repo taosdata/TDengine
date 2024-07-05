@@ -151,7 +151,7 @@ class TDTestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbNum':     10,
-                    'rowsPerTbl': 40000,
+                    'rowsPerTbl': 400,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  30,
