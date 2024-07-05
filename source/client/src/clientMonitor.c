@@ -12,9 +12,11 @@ tmr_h     tmrStartHandle;
 SHashObj* clusterMonitorInfoTable;
 
 static int sendBathchSize = 1;
+static bool clientMonitorExit = false;
+static tsem_t  waitExitSem;
 
-int32_t sendReport(ClientMonitor* pMonitor, char* pCont);
-void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
+int32_t sendReport(ClientMonitor* pMonitor, char* pCont, void* param);
+void    generateClusterReport(ClientMonitor* pMonitor, bool send, void* param) {
   char ts[50];
   sprintf(ts, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
   char* pCont = (char*)taos_collector_registry_bridge_new(pMonitor->registry, ts, "%" PRId64, NULL);
@@ -23,15 +25,19 @@ void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
     return;
   }
   if (send && strlen(pCont) != 0) {
-    if (sendReport(pMonitor, pCont) == 0) {
+    if (sendReport(pMonitor, pCont, param) == 0) {
       taos_collector_registry_clear_batch(pMonitor->registry);
     }
   }
   taosMemoryFreeClear(pCont);
 }
 
-void reportSendProcess(void* stop, void* tmrId) {
-  if(stop != NULL) taosTmrReset(reportSendProcess, tsMonitorInterval * 1000, NULL, tmrClientMonitor, &tmrStartHandle);
+void reportSendProcess(void* pSem, void* tmrId) {
+  if (pSem != NULL) {
+    taosTmrReset(reportSendProcess, tsMonitorInterval * 1000, NULL, tmrClientMonitor, &tmrStartHandle);
+  } else if (clientMonitorExit) {
+    return;
+  }
   taosRLockLatch(&monitorLock);
 
   static int index = 0;
@@ -39,7 +45,7 @@ void reportSendProcess(void* stop, void* tmrId) {
   ClientMonitor** ppMonitor = (ClientMonitor**)taosHashIterate(clusterMonitorInfoTable, NULL);
   while (ppMonitor != NULL && *ppMonitor != NULL) {
     ClientMonitor* pMonitor = *ppMonitor;
-    generateClusterReport(*ppMonitor, index == sendBathchSize);
+    generateClusterReport(*ppMonitor, index == sendBathchSize, pSem);
     ppMonitor = taosHashIterate(clusterMonitorInfoTable, ppMonitor);
   }
 
@@ -49,6 +55,7 @@ void reportSendProcess(void* stop, void* tmrId) {
 
 void monitorClientInitOnce() {
   static int8_t init = 0;
+  tsem_init(&waitExitSem, 0, 0);
   if (atomic_exchange_8(&init, 1) == 0) {
     uInfo("[monitor] tscMonitorInit once.");
     clusterMonitorInfoTable =
@@ -95,10 +102,14 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
+  if(param != NULL) {
+    tsem_post((tsem_t*)param);
+    uInfo("[monitor] get last response, post sem for exit.");
+  }
   return code;
 }
 
-int32_t sendReport(ClientMonitor* pMonitor, char* pCont) {
+int32_t sendReport(ClientMonitor* pMonitor, char* pCont, void* param) {
   SStatisReq sStatisReq;
   sStatisReq.pCont = pCont;
   sStatisReq.contLen = strlen(pCont);
@@ -121,9 +132,8 @@ int32_t sendReport(ClientMonitor* pMonitor, char* pCont) {
   pInfo->msgInfo.pData = buf;
   pInfo->msgInfo.len = tlen;
   pInfo->msgType = TDMT_MND_STATIS;
-  // pInfo->param = taosMemoryMalloc(sizeof(int32_t));
-  // *(int32_t*)pInfo->param = i;
-  pInfo->paramFreeFp = taosMemoryFree;
+  pInfo->param = param;
+  pInfo->paramFreeFp = NULL;
   pInfo->requestId = tGenIdPI64();
   pInfo->requestObjRefId = 0;
 
@@ -208,7 +218,9 @@ const char* resultStr(SQL_RESULT_CODE code) {
 
 void cluster_monitor_stop() {
   uInfo("[monitor] tscMonitor close");
-  bool stop = true;
-  reportSendProcess(&stop, NULL);
+  clientMonitorExit = true;
+  reportSendProcess(&waitExitSem, NULL);
+  tsem_timewait(&waitExitSem, 2000);
   closeAllClientMonitor();
+  uInfo("[monitor] tscMonitor close finished.");
 }
