@@ -2701,8 +2701,8 @@ static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg) {
     }
   }
 
-  mInfo("vgId:%d stream:0x%" PRIx64 " %s meta-stored checkpointId:%" PRId64 " stream:0x%" PRIx64 " %s", req.nodeId,
-        req.streamId, pStream->name, pStream->checkpointId);
+  mInfo("vgId:%d stream:0x%" PRIx64 " %s meta-stored checkpointId:%" PRId64, req.nodeId, req.streamId, pStream->name,
+        pStream->checkpointId);
 
   int32_t numOfTasks = (pStream == NULL) ? 0 : mndGetNumOfStreamTasks(pStream);
   if ((pStream != NULL) && (pStream->checkpointId == 0)) {  // not generated checkpoint yet, return 0 directly
