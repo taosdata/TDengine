@@ -2444,6 +2444,13 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     pTbName->n = strlen(tbName);
   }
 
+  if (pCxt->isStmtBind) {
+    if (TK_NK_ID == pTbName->type || (tbNameAfterDbName != NULL && *(tbNameAfterDbName + 1) != '?')) {
+      // In SQL statements, the table name has already been specified.
+      parserWarn("0x%" PRIx64 " table name is specified in sql, ignore the table name in bind param", pCxt->pComCxt->requestId);
+    }
+  }
+
   *pHasData = true;
   return TSDB_CODE_SUCCESS;
 }

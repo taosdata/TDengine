@@ -1015,6 +1015,12 @@ int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
 
+  SBoundColInfo *tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
+  if (tags_info->numOfBound <= 0 || tags_info->numOfCols <= 0) {
+    tscWarn("no tags bound in sql, will not bound tags");
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pStmt->bInfo.inExecCache) {
     return TSDB_CODE_SUCCESS;
   }
