@@ -448,7 +448,7 @@ async fn check_verification_code(
             str_phone_email,
             str_verification_code,
             lang_code,
-            body.name.as_ref().unwrap()
+            body.name.as_ref().unwrap(),
         )
         .await;
 
@@ -463,14 +463,21 @@ async fn check_verification_code(
                         lang_code,
                         &cluster_id,
                         &taosd_version,
-                    ).await;
+                    )
+                    .await;
                     if r.is_err() {
-                        log::error!("Failed to report the guessed taosd info to cloud: {:?}", r.err());
+                        log::error!(
+                            "Failed to report the guessed taosd info to cloud: {:?}",
+                            r.err()
+                        );
                     }
                 }
             }
             Ok(code) => {
-                log::error!("Failed to upload verification status, response code: {}", code);
+                log::error!(
+                    "Failed to upload verification status, response code: {}",
+                    code
+                );
             }
             Err(err) => {
                 log::error!("Failed to upload verification status to cloud: {:?}", err);
@@ -488,11 +495,11 @@ async fn query_taosd_info_guess(args: &web::Data<Args>) -> Option<(String, Strin
             if let Some(taosd_info) = ok.data.get(0) {
                 let cluster_id = taosd_info.get(0);
                 let taosd_version = taosd_info.get(1);
-                
+
                 if cluster_id.is_some() && taosd_version.is_some() {
-                   let cluster_id = cluster_id.unwrap().as_i64().unwrap().to_string();
-                   let taosd_version = taosd_version.unwrap().as_str().unwrap().to_string();
-                   return Some((cluster_id, taosd_version));
+                    let cluster_id = cluster_id.unwrap().as_i64().unwrap().to_string();
+                    let taosd_version = taosd_version.unwrap().as_str().unwrap().to_string();
+                    return Some((cluster_id, taosd_version));
                 }
             }
         }
@@ -889,7 +896,6 @@ struct Profile {
     /// taosX version
     #[clap(skip)]
     version: Option<String>,
-
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]

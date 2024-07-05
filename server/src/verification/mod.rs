@@ -220,7 +220,7 @@ pub async fn report_verification_status_to_cloud(
     phone_email: &str,
     code: &str,
     lang: &str,
-    name: &str
+    name: &str,
 ) -> anyhow::Result<u32> {
     let mut phone = "";
     let mut email = "";
