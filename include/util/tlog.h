@@ -90,7 +90,7 @@ void taosPrintSlowLog(const char *format, ...)
 #endif
     ;
 
-bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...);
+bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, const char *format, ...);
 bool taosAssertRelease(bool condition);
 
 // Disable all asserts that may compromise the performance.
@@ -98,7 +98,9 @@ bool taosAssertRelease(bool condition);
 #define ASSERT(condition)
 #define ASSERTS(condition, ...) (0)
 #else
-#define ASSERTS(condition, ...) ((condition) ? false : taosAssertDebug(condition, __FILE__, __LINE__, __VA_ARGS__))
+#define ASSERT_CORE(condition, ...) \
+  ((condition) ? false : taosAssertDebug(condition, __FILE__, __LINE__, 1, __VA_ARGS__))
+#define ASSERTS(condition, ...) ((condition) ? false : taosAssertDebug(condition, __FILE__, __LINE__, 0, __VA_ARGS__))
 #ifdef NDEBUG
 #define ASSERT(condition) taosAssertRelease(condition)
 #else
