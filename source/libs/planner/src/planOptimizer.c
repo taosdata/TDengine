@@ -6018,6 +6018,7 @@ typedef struct STSMAOptUsefulTsma {
   SArray*               pTsmaScanCols;  // SArray<int32_t> index of tsmaFuncs array
   char                  targetTbName[TSDB_TABLE_NAME_LEN];  // the scanning table name, used only when pTsma is not NULL
   uint64_t              targetTbUid;                        // the scanning table uid, used only when pTsma is not NULL
+  int8_t                precision;
 } STSMAOptUsefulTsma;
 
 typedef struct STSMAOptCtx {
@@ -6085,7 +6086,7 @@ static void clearTSMAOptCtx(STSMAOptCtx* pTsmaOptCtx) {
   taosMemoryFreeClear(pTsmaOptCtx->queryInterval);
 }
 
-static bool tsmaOptCheckValidInterval(int64_t tsmaInterval, int8_t tsmaIntevalUnit, const STSMAOptCtx* pTsmaOptCtx) {
+static bool tsmaOptCheckValidInterval(int64_t tsmaInterval, const STSMAOptCtx* pTsmaOptCtx) {
   if (!pTsmaOptCtx->queryInterval) return true;
 
   bool validInterval = pTsmaOptCtx->queryInterval->interval % tsmaInterval == 0;
@@ -6171,7 +6172,8 @@ static bool tsmaOptCheckTags(STSMAOptCtx* pCtx, const STableTSMAInfo* pTsma) {
 }
 
 static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
-  STSMAOptUsefulTsma usefulTsma = {.pTsma = NULL, .scanRange = {.skey = TSKEY_MIN, .ekey = TSKEY_MAX}};
+  STSMAOptUsefulTsma usefulTsma = {
+      .pTsma = NULL, .scanRange = {.skey = TSKEY_MIN, .ekey = TSKEY_MAX}, .precision = pTsmaOptCtx->precision};
   SArray*            pTsmaScanCols = NULL;
 
   for (int32_t i = 0; i < pTsmaOptCtx->pTsmas->size; ++i) {
@@ -6189,7 +6191,7 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
       continue;
     }
     // filter with interval
-    if (!tsmaOptCheckValidInterval(pTsma->interval, pTsma->unit, pTsmaOptCtx)) {
+    if (!tsmaOptCheckValidInterval(pTsma->interval, pTsmaOptCtx)) {
       continue;
     }
     // filter with funcs, note that tsma funcs has been sorted by funcId and ColId
@@ -6208,12 +6210,21 @@ static int32_t tsmaOptFilterTsmas(STSMAOptCtx* pTsmaOptCtx) {
 }
 
 static int32_t tsmaInfoCompWithIntervalDesc(const void* pLeft, const void* pRight) {
+  const int64_t factors[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
   const STSMAOptUsefulTsma *p = pLeft, *q = pRight;
   int64_t                   pInterval = p->pTsma->interval, qInterval = q->pTsma->interval;
-  int32_t                   code = getDuration(pInterval, p->pTsma->unit, &pInterval, TSDB_TIME_PRECISION_MILLI);
-  ASSERT(code == TSDB_CODE_SUCCESS);
-  code = getDuration(qInterval, q->pTsma->unit, &qInterval, TSDB_TIME_PRECISION_MILLI);
-  ASSERT(code == TSDB_CODE_SUCCESS);
+  int8_t                    pUnit = p->pTsma->unit, qUnit = q->pTsma->unit;
+  if (TIME_UNIT_MONTH == pUnit) {
+    pInterval = pInterval * 31 * (NANOSECOND_PER_DAY / factors[p->precision]);
+  } else if (TIME_UNIT_YEAR == pUnit){
+    pInterval = pInterval * 365 * (NANOSECOND_PER_DAY / factors[p->precision]);
+  }
+  if (TIME_UNIT_MONTH == qUnit) {
+    qInterval = qInterval * 31 * (NANOSECOND_PER_DAY / factors[q->precision]);
+  } else if (TIME_UNIT_YEAR == qUnit){
+    qInterval = qInterval * 365 * (NANOSECOND_PER_DAY / factors[q->precision]);
+  }
+
   if (pInterval > qInterval) return -1;
   if (pInterval < qInterval) return 1;
   return 0;
@@ -6225,7 +6236,7 @@ static const STSMAOptUsefulTsma* tsmaOptFindUsefulTsma(const SArray* pUsefulTsma
   int64_t tsmaInterval;
   for (int32_t i = startIdx; i < pUsefulTsmas->size; ++i) {
     const STSMAOptUsefulTsma* pUsefulTsma = taosArrayGet(pUsefulTsmas, i);
-    getDuration(pUsefulTsma->pTsma->interval, pUsefulTsma->pTsma->unit, &tsmaInterval, precision);
+    tsmaInterval = pUsefulTsma->pTsma->interval;
     if (alignInterval % tsmaInterval == 0 && alignInterval2 % tsmaInterval == 0) {
       return pUsefulTsma;
     }
