@@ -123,16 +123,6 @@ void dmSendMonitorReport() {
   monGenAndSendReport();
 }
 
-void dmSendMonitorReportBasic() {
-  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
-  dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
-
-  SDnode *pDnode = dmInstance();
-  dmGetDmMonitorInfoBasic(pDnode);
-  dmGetMmMonitorInfo(pDnode);
-  monGenAndSendReportBasic();
-}
-
 //Todo: put this in seperate file in the future
 void dmSendAuditRecords() {
   auditSendRecordsInBatch();
