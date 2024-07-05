@@ -44,7 +44,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
       return "There mustn't be aggregation";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
-      return "ORDER BY item must be the number of a SELECT-list expression";
+      return "ORDER BY / GROUP BY item must be the number of a SELECT-list expression";
     case TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION:
       return "Not a GROUP BY expression";
     case TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION:

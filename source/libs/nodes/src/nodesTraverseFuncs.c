@@ -229,6 +229,9 @@ static void checkParamIsFunc(SFunctionNode* pFunc) {
     if (nodeType(pPara) == QUERY_NODE_COLUMN) {
       ((SColumnNode*)pPara)->node.asParam = true;
     }
+    if (nodeType(pPara) == QUERY_NODE_VALUE) {
+      ((SValueNode*)pPara)->node.asParam = true;
+    }
   }
 }
 
