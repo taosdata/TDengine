@@ -1153,7 +1153,7 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   tEncoderClear(&encoder);
 
   SRpcMsg msg = {0};
-  initRpcMsg(&msg, TDMT_MND_STREAM_CHKPT_CONSEN, buf, tlen);
+  initRpcMsg(&msg, TDMT_MND_STREAM_REQ_CONSEN_CHKPT, buf, tlen);
   stDebug("s-task:%s vgId:%d send latest checkpointId:%" PRId64 " to mnode to get the consensus checkpointId", id, vgId,
           pInfo->checkpointId);
 

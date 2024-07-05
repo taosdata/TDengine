@@ -1016,7 +1016,11 @@ int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
 }
 
 int32_t tqProcessTaskUpdateCheckpointReq(STQ* pTq, char* msg, int32_t msgLen) {
-  return tqStreamTaskProcessUpdateCheckpointReq(pTq->pStreamMeta, pTq->pVnode->restored, msg, msgLen);
+  return tqStreamTaskProcessUpdateCheckpointReq(pTq->pStreamMeta, pTq->pVnode->restored, msg);
+}
+
+int32_t tqProcessTaskConsenChkptIdReq(STQ* pTq, SRpcMsg* pMsg) {
+  return tqStreamTaskProcessConsenChkptIdReq(pTq->pStreamMeta, pMsg);
 }
 
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
@@ -1239,7 +1243,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
-  return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg);
+  return tqStreamTaskProcessTaskResetReq(pTq->pStreamMeta, pMsg->pCont);
 }
 
 int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg) {
@@ -1277,5 +1281,5 @@ int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskConsensusChkptRsp(STQ* pTq, SRpcMsg* pMsg) {
-  return tqStreamProcessConsensusChkptRsp(pTq->pStreamMeta, pMsg);
+  return tqStreamProcessConsensusChkptRsp2(pTq->pStreamMeta, pMsg);
 }

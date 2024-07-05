@@ -128,6 +128,8 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamTaskProcessRetrieveTriggerReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
       return tqStreamTaskProcessRetrieveTriggerRsp(pSnode->pMeta, pMsg);
+    case TDMT_MND_STREAM_REQ_CONSEN_CHKPT_RSP:
+      return tqStreamProcessConsensusChkptRsp2(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       ASSERT(0);
@@ -149,15 +151,15 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_VND_STREAM_TASK_UPDATE:
       return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true);
     case TDMT_VND_STREAM_TASK_RESET:
-      return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg->pCont);
     case TDMT_STREAM_TASK_PAUSE:
       return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
     case TDMT_STREAM_TASK_RESUME:
       return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
     case TDMT_STREAM_TASK_UPDATE_CHKPT:
-      return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, true, pMsg->pCont, pMsg->contLen);
-    case TDMT_MND_STREAM_CHKPT_CONSEN_RSP:
-      return tqStreamProcessConsensusChkptRsp(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, true, pMsg->pCont);
+    case TDMT_STREAM_CONSEN_CHKPT:
+      return tqStreamTaskProcessConsenChkptIdReq(pSnode->pMeta, pMsg);
     default:
       ASSERT(0);
   }

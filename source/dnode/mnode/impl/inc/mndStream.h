@@ -83,7 +83,7 @@ typedef struct SOrphanTask {
 
 typedef struct {
   SMsgHead head;
-} SMStreamReqCheckpointRsp, SMStreamUpdateChkptRsp;
+} SMStreamReqCheckpointRsp, SMStreamUpdateChkptRsp, SMStreamReqConsensChkptRsp;
 
 typedef struct STaskChkptInfo {
   int32_t nodeId;
@@ -133,9 +133,8 @@ int32_t     mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream)
 int32_t     mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SArray *pChkptInfoList);
 int32_t     mndScanCheckpointReportInfo(SRpcMsg *pReq);
-int32_t     mndSendQuickConsensusChkptIdRsp(SRestoreCheckpointInfo *pReq, int32_t code, int64_t streamId,
-                                            int64_t checkpointId, SRpcHandleInfo *pRpcInfo);
-
+int32_t     mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int32_t taskId, int64_t checkpointId,
+                                              int64_t ts);
 void        removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo);
 
 SStreamTaskIter *createStreamTaskIter(SStreamObj *pStream);
@@ -151,9 +150,7 @@ SCheckpointConsensusInfo *mndGetConsensusInfo(SHashObj *pHash, int64_t streamId,
 void    mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo,
                              SRpcHandleInfo *pRpcInfo);
 void    mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo);
-int32_t doSendConsensusCheckpointRsp(SRestoreCheckpointInfo *pInfo, SRpcMsg *pMsg, int64_t checkpointId);
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId);
-int32_t mndRegisterConsensusChkptId(SHashObj* pHash, int64_t streamId);
 
 #ifdef __cplusplus
 }

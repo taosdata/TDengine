@@ -223,16 +223,6 @@ typedef struct SRestoreCheckpointInfo {
 int32_t tEncodeRestoreCheckpointInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq);
 int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq);
 
-typedef struct SRestoreCheckpointInfoRsp {
-  int64_t streamId;
-  int64_t checkpointId;
-  int64_t startTs;
-  int32_t taskId;
-} SRestoreCheckpointInfoRsp;
-
-int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo);
-int32_t tDecodeRestoreCheckpointInfoRsp(SDecoder* pCoder, SRestoreCheckpointInfoRsp* pInfo);
-
 typedef struct {
   SMsgHead head;
   int64_t  streamId;
