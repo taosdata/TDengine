@@ -73,11 +73,6 @@ class TDTestCase:
                     f"avg(cast({tbname}.{char_col}) as bigint)",
                 )
             )
-        query_condition.extend(
-            (
-                1010,
-            )
-        )
 
         return query_condition
 
