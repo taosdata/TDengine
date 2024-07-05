@@ -2265,13 +2265,16 @@ static void processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOffset
     doBlockDataPrimaryKeyFilter(pBlock, offset);
     SColumnInfoData* pColPk = taosArrayGet(pBlock->pDataBlock, 1);
 
+    if (pBlock->info.rows < 1) {
+      return ;
+    }
     void* tmp = colDataGetData(pColPk, pBlock->info.rows - 1);
     val.type = pColPk->info.type;
-    if(IS_VAR_DATA_TYPE(pColPk->info.type)) {
+    if (IS_VAR_DATA_TYPE(pColPk->info.type)) {
       val.pData = taosMemoryMalloc(varDataLen(tmp));
       val.nData = varDataLen(tmp);
       memcpy(val.pData, varDataVal(tmp), varDataLen(tmp));
-    }else{
+    } else {
       memcpy(&val.val, tmp, pColPk->info.bytes);
     }
   }
@@ -2292,13 +2295,19 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   }
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+    while (1) {
+      SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
 
-    if (pResult && pResult->info.rows > 0) {
-      bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
-      processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
-      qDebug("tmqsnap doQueueScan get data uid:%" PRId64 "", pResult->info.id.uid);
-      return pResult;
+      if (pResult && pResult->info.rows > 0) {
+        bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
+        processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
+        qDebug("tmqsnap doQueueScan get data uid:%" PRId64 "", pResult->info.id.uid);
+        if (pResult->info.rows > 0) {
+          return pResult;
+        }
+      } else {
+        break;
+      }
     }
 
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
@@ -3450,11 +3459,15 @@ static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray*
   SScalarParam output = {0};
   code = tagScanCreateResultData(&type, numOfTables, &output);
   if (TSDB_CODE_SUCCESS != code) {
+    blockDataDestroy(pResBlock);
+    taosArrayDestroy(pBlockList);
     return code;
   }
 
   code = scalarCalculate(pTagCond, pBlockList, &output);
   if (TSDB_CODE_SUCCESS != code) {
+    blockDataDestroy(pResBlock);
+    taosArrayDestroy(pBlockList);
     return code;
   }
 
@@ -3902,17 +3915,19 @@ static int32_t openSubTablesMergeSort(STmsSubTablesMergeInfo* pSubTblsInfo) {
     if (pInput->rowIdx == -1) {
       continue;
     }
+
     if (pInput->type == SUB_TABLE_MEM_BLOCK) {
       pInput->rowIdx = 0;
       pInput->pageIdx = -1;
     }
+
     pInput->pInputBlock = (pInput->type == SUB_TABLE_MEM_BLOCK) ? pInput->pReaderBlock : pInput->pPageBlock;
     SColumnInfoData* col = taosArrayGet(pInput->pInputBlock->pDataBlock, pSubTblsInfo->pTsOrderInfo->slotId);
     pInput->aTs = (int64_t*)col->pData;
   }
+
   __merge_compare_fn_t mergeCompareFn = (!pSubTblsInfo->pPkOrderInfo) ? subTblRowCompareTsFn : subTblRowCompareTsPkFn;
-  tMergeTreeCreate(&pSubTblsInfo->pTree, pSubTblsInfo->numSubTables, pSubTblsInfo, mergeCompareFn);
-  return  TSDB_CODE_SUCCESS;
+  return tMergeTreeCreate(&pSubTblsInfo->pTree, pSubTblsInfo->numSubTables, pSubTblsInfo, mergeCompareFn);
 }
 
 static int32_t initSubTablesMergeInfo(STableMergeScanInfo* pInfo) {

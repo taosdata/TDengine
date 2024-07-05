@@ -55,14 +55,19 @@ struct SActiveCheckpointInfo {
   int64_t       activeId;     // current active checkpoint id
   int64_t       failedId;
   bool          dispatchTrigger;
-  SArray*       pDispatchTriggerList;   // SArray<STaskTriggerSendInfo>
-  SArray*       pReadyMsgList;   // SArray<STaskCheckpointReadyInfo*>
+  SArray*       pDispatchTriggerList;  // SArray<STaskTriggerSendInfo>
+  SArray*       pReadyMsgList;         // SArray<STaskCheckpointReadyInfo*>
   int8_t        allUpstreamTriggerRecv;
-  SArray*       pCheckpointReadyRecvList;   // SArray<STaskDownstreamReadyInfo>
+  SArray*       pCheckpointReadyRecvList;  // SArray<STaskDownstreamReadyInfo>
   int32_t       checkCounter;
   tmr_h         pChkptTriggerTmr;
   int32_t       sendReadyCheckCounter;
   tmr_h         pSendReadyMsgTmr;
+};
+
+struct SConsensusCheckpoint {
+  int8_t inProcess;
+
 };
 
 typedef struct {
@@ -100,7 +105,7 @@ typedef struct {
   int32_t upstreamNodeId;
   int32_t transId;
   int32_t childId;
-  SRpcMsg msg;                 // for mnode checkpoint-source rsp
+  SRpcMsg msg;  // for mnode checkpoint-source rsp
   int64_t checkpointId;
   int64_t recvTs;
   int32_t sendCompleted;
@@ -157,6 +162,7 @@ extern void*   streamTimer;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 extern int32_t taskDbWrapperId;
+extern int32_t streamMetaId;
 
 int32_t streamTimerInit();
 void    streamTimerCleanUp();
@@ -211,7 +217,13 @@ void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
-void streamMetaRemoveDB(void* arg, char* key);
+void         streamMetaRemoveDB(void* arg, char* key);
+void         streamMetaHbToMnode(void* param, void* tmrId);
+SMetaHbInfo* createMetaHbInfo(int64_t* pRid);
+void*        destroyMetaHbInfo(SMetaHbInfo* pInfo);
+void         streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
+void         streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
+int32_t      streamMetaSendHbHelper(SStreamMeta* pMeta);
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 

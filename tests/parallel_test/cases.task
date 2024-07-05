@@ -19,11 +19,14 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
+,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
+,,y,army,./pytest.sh python3 ./test.py -f query/query_last_row_repeatly.py
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
 ,,n,army,python3 ./test.py -f cmdline/fullopt.py
 ,,n,army,python3 ./test.py -f query/show.py -N 3
 ,,n,army,python3 ./test.py -f alter/alterConfig.py -N 3
@@ -31,6 +34,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f storage/compressBasic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f grant/grantBugs.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f query/queryBugs.py -N 3
 
 #
 # system test
@@ -1488,10 +1492,12 @@
 ,,y,script,./test.sh -f tmp/monitor.sim
 ,,y,script,./test.sh -f tsim/tagindex/add_index.sim
 ,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
+,,y,script,./test.sh -f tsim/tagindex/indexOverflow.sim
 ,,y,script,./test.sh -f tsim/view/view.sim
 ,,y,script,./test.sh -f tsim/query/cache_last.sim 
 ,,y,script,./test.sh -f tsim/query/const.sim 
 ,,y,script,./test.sh -f tsim/query/nestedJoinView.sim
+
 
 
 #develop test

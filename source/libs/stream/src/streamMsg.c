@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "streamMsg.h"
 #include "os.h"
-#include "streammsg.h"
 #include "tstream.h"
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
@@ -77,7 +77,6 @@ int32_t tEncodeStreamCheckpointSourceRsp(SEncoder* pEncoder, const SStreamCheckp
   return pEncoder->pos;
 }
 
-
 int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpdateMsg* pMsg) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pMsg->streamId) < 0) return -1;
@@ -98,7 +97,6 @@ int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpda
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
-
 
 int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg* pMsg) {
   if (tStartDecode(pDecoder) < 0) return -1;
@@ -179,7 +177,6 @@ int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp)
   tEndDecode(pDecoder);
   return 0;
 }
-
 
 int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpointReadyMsg* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -366,6 +363,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI32(pEncoder, *pVgId) < 0) return -1;
   }
 
+  if (tEncodeI32(pEncoder, pReq->msgId) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -425,6 +423,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     taosArrayPush(pReq->pUpdateNodes, &vgId);
   }
 
+  if (tDecodeI32(pDecoder, &pReq->msgId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -435,12 +434,16 @@ void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
   }
 
   if (pMsg->pUpdateNodes != NULL) {
-    taosArrayDestroy(pMsg->pUpdateNodes);
+    pMsg->pUpdateNodes = taosArrayDestroy(pMsg->pUpdateNodes);
   }
 
   if (pMsg->pTaskStatus != NULL) {
-    taosArrayDestroy(pMsg->pTaskStatus);
+    pMsg->pTaskStatus = taosArrayDestroy(pMsg->pTaskStatus);
   }
+
+  pMsg->msgId = -1;
+  pMsg->vgId = -1;
+  pMsg->numOfTasks = -1;
 }
 
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
@@ -589,7 +592,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     if (tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName) < 0) return -1;
   }
   if (tDecodeI64(pDecoder, &pTask->info.delaySchedParam) < 0) return -1;
-  if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER){
+  if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
     if (tDecodeI8(pDecoder, &pTask->subtableWithoutMd5) < 0) return -1;
   }
   if (tDecodeCStrTo(pDecoder, pTask->reserve) < 0) return -1;
@@ -623,5 +626,47 @@ int32_t tDecodeStreamTaskChkptReport(SDecoder* pDecoder, SCheckpointReport* pReq
   if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
   if (tDecodeI8(pDecoder, &pReq->dropHTask) < 0) return -1;
   tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tEncodeRestoreCheckpointInfo (SEncoder* pEncoder, const SRestoreCheckpointInfo* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->startTs) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo* pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->startTs) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo) {
+  if (tStartEncode(pCoder) < 0) return -1;
+  if (tEncodeI64(pCoder, pInfo->startTs) < 0) return -1;
+  if (tEncodeI64(pCoder, pInfo->streamId) < 0) return -1;
+  if (tEncodeI32(pCoder, pInfo->taskId) < 0) return -1;
+  if (tEncodeI64(pCoder, pInfo->checkpointId) < 0) return -1;
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeRestoreCheckpointInfoRsp(SDecoder* pCoder, SRestoreCheckpointInfoRsp* pInfo) {
+  if (tStartDecode(pCoder) < 0) return -1;
+  if (tDecodeI64(pCoder, &pInfo->startTs) < 0) return -1;
+  if (tDecodeI64(pCoder, &pInfo->streamId) < 0) return -1;
+  if (tDecodeI32(pCoder, &pInfo->taskId) < 0) return -1;
+  if (tDecodeI64(pCoder, &pInfo->checkpointId) < 0) return -1;
+  tEndDecode(pCoder);
   return 0;
 }

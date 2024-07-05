@@ -121,7 +121,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, 
 
   pTask->id.idStr = taosStrdup(buf);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->status.taskStatus = fillHistory? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
+  pTask->status.taskStatus = fillHistory ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
@@ -208,9 +208,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
           ", updateCount:%d latestUpdate:%" PRId64 ", latestCheckPoint:%" PRId64 ", ver:%" PRId64
           " nextProcessVer:%" PRId64 ", checkpointCount:%d",
-          taskId, pStatis->created, pStatis->checkTs, pStatis->readyTs, pStatis->updateCount,
-          pStatis->latestUpdateTs, pCkInfo->checkpointId, pCkInfo->checkpointVer, pCkInfo->nextProcessVer,
-          pStatis->checkpoint);
+          taskId, pStatis->created, pStatis->checkTs, pStatis->readyTs, pStatis->updateCount, pStatis->latestUpdateTs,
+          pCkInfo->checkpointId, pCkInfo->checkpointVer, pCkInfo->nextProcessVer, pStatis->checkpoint);
 
   // remove the ref by timer
   while (pTask->status.timerActive > 0) {
@@ -224,12 +223,12 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->hTaskInfo.pTimer != NULL) {
-    /*bool ret = */taosTmrStop(pTask->hTaskInfo.pTimer);
+    /*bool ret = */ taosTmrStop(pTask->hTaskInfo.pTimer);
     pTask->hTaskInfo.pTimer = NULL;
   }
 
   if (pTask->msgInfo.pRetryTmr != NULL) {
-    /*bool ret = */taosTmrStop(pTask->msgInfo.pRetryTmr);
+    /*bool ret = */ taosTmrStop(pTask->msgInfo.pRetryTmr);
     pTask->msgInfo.pRetryTmr = NULL;
   }
 
@@ -274,6 +273,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     stDebug("s-task:0x%x start to free task state", taskId);
     streamStateClose(pTask->pState, status1 == TASK_STATUS__DROPPING);
     taskDbRemoveRef(pTask->pBackend);
+    pTask->pBackend = NULL;
   }
 
   if (pTask->pNameMap) {
@@ -414,7 +414,8 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   streamTaskInitTokenBucket(pOutputInfo->pTokenBucket, 35, 35, tsSinkDataRate, pTask->id.idStr);
   pOutputInfo->pNodeEpsetUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));
   if (pOutputInfo->pNodeEpsetUpdateList == NULL) {
-    stError("s-task:%s failed to prepare downstreamUpdateList, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    stError("s-task:%s failed to prepare downstreamUpdateList, code:%s", pTask->id.idStr,
+            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -448,9 +449,7 @@ int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
   }
 }
 
-int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask) {
-  return taosArrayGetSize(pTask->upstreamInfo.pList);
-}
+int32_t streamTaskGetNumOfUpstream(const SStreamTask* pTask) { return taosArrayGetSize(pTask->upstreamInfo.pList); }
 
 int32_t streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask) {
   SStreamUpstreamEpInfo* pEpInfo = createStreamTaskEpInfo(pUpstreamTask);
@@ -512,7 +511,7 @@ void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDo
   pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
 }
 
-void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool *pUpdated) {
+void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpSet* pEpSet, bool* pUpdated) {
   char buf[512] = {0};
   epsetToStr(pEpSet, buf, tListLen(buf));
 
@@ -740,10 +739,10 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
 }
 
 int32_t streamSendChkptReportMsg(SStreamTask* pTask, SCheckpointInfo* pCheckpointInfo, int8_t dropRelHTask) {
-  int32_t     code;
-  int32_t     tlen = 0;
-  int32_t     vgId = pTask->pMeta->vgId;
-  const char* id = pTask->id.idStr;
+  int32_t                code;
+  int32_t                tlen = 0;
+  int32_t                vgId = pTask->pMeta->vgId;
+  const char*            id = pTask->id.idStr;
   SActiveCheckpointInfo* pActive = pCheckpointInfo->pActiveInfo;
 
   SCheckpointReport req = {.streamId = pTask->id.streamId,
@@ -832,6 +831,34 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->hTaskId = pSrc->hTaskId;
 }
 
+STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
+  SStreamMeta*         pMeta = pTask->pMeta;
+  STaskExecStatisInfo* pExecInfo = &pTask->execInfo;
+
+  STaskStatusEntry entry = {
+      .id = streamTaskGetTaskId(pTask),
+      .status = streamTaskGetStatus(pTask)->state,
+      .nodeId = pMeta->vgId,
+      .stage = pMeta->stage,
+
+      .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize(pTask->inputq.queue)),
+      .startTime = pExecInfo->readyTs,
+      .checkpointInfo.latestId = pTask->chkInfo.checkpointId,
+      .checkpointInfo.latestVer = pTask->chkInfo.checkpointVer,
+      .checkpointInfo.latestTime = pTask->chkInfo.checkpointTime,
+      .checkpointInfo.latestSize = 0,
+      .checkpointInfo.remoteBackup = 0,
+      .hTaskId = pTask->hTaskInfo.id.taskId,
+      .procsTotal = SIZE_IN_MiB(pExecInfo->inputDataSize),
+      .outputTotal = SIZE_IN_MiB(pExecInfo->outputDataSize),
+      .procsThroughput = SIZE_IN_KiB(pExecInfo->procsThroughput),
+      .outputThroughput = SIZE_IN_KiB(pExecInfo->outputThroughput),
+      .startCheckpointId = pExecInfo->startCheckpointId,
+      .startCheckpointVer = pExecInfo->startCheckpointVer,
+  };
+  return entry;
+}
+
 static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   SStreamMeta* pMeta = pTask->pMeta;
 
@@ -862,7 +889,8 @@ void streamTaskResume(SStreamTask* pTask) {
     int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
     stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, prevState.name, num);
   } else {
-    stInfo("s-task:%s status:%s no need to resume, paused task(s):%d", pTask->id.idStr, prevState.name, pMeta->numOfPausedTasks);
+    stInfo("s-task:%s status:%s no need to resume, paused task(s):%d", pTask->id.idStr, prevState.name,
+           pMeta->numOfPausedTasks);
   }
 }
 
@@ -925,7 +953,7 @@ SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
     }
   } else if (pTask->info.taskLevel == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* pList = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
-    for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+    for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
       SVgroupInfo* pVgInfo = taosArrayGet(pList, i);
       if (pVgInfo->taskId == taskId) {
         return &pVgInfo->epSet;
@@ -979,9 +1007,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
   return streamTrySchedExec(pTask);
 }
 
-void streamTaskSetRemoveBackendFiles(SStreamTask* pTask) {
-  pTask->status.removeBackendFiles = true;
-}
+void streamTaskSetRemoveBackendFiles(SStreamTask* pTask) { pTask->status.removeBackendFiles = true; }
 
 int32_t streamTaskGetActiveCheckpointInfo(const SStreamTask* pTask, int32_t* pTransId, int64_t* pCheckpointId) {
   if (pTransId != NULL) {
@@ -1042,10 +1068,10 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
 
 void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->activeId = 0;  // clear the checkpoint id
-  pInfo->failedId = 0;
   pInfo->transId = 0;
   pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
+  pInfo->failedId = 0;
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);

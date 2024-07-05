@@ -949,8 +949,11 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
   return (SNode*)realTable;
 }
 
-SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const SToken* pTableAlias) {
+SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkTableName(pCxt, pTableAlias)) {
+    return NULL;
+  }
   STempTableNode* tempTable = (STempTableNode*)nodesMakeNode(QUERY_NODE_TEMP_TABLE);
   CHECK_OUT_OF_MEM(tempTable);
   tempTable->pSubquery = pSubquery;
@@ -1824,6 +1827,26 @@ SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SN
   pStmt->pValsOfTags = pValsOfTags;
   pStmt->pOptions = (STableOptions*)pOptions;
   nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pUseRealTable,
+                                          SNodeList* pSpecificTags, const SToken* pFilePath) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateSubTableFromFileClause* pStmt =
+      (SCreateSubTableFromFileClause*)nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE);
+  CHECK_OUT_OF_MEM(pStmt);
+  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
+  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pSpecificTags = pSpecificTags;
+  if (TK_NK_STRING == pFilePath->type) {
+    trimString(pFilePath->z, pFilePath->n, pStmt->filePath, PATH_MAX);
+  } else {
+    strncpy(pStmt->filePath, pFilePath->z, pFilePath->n);
+  }
+
   nodesDestroyNode(pUseRealTable);
   return (SNode*)pStmt;
 }

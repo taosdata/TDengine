@@ -855,15 +855,15 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
     if (pNew->conflict == TRN_CONFLICT_ARBGROUP) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_ARBGROUP) {
-        pIter = taosHashIterate(pNew->arbGroupIds, NULL);
-        while (pIter != NULL) {
-          int32_t groupId = *(int32_t *)pIter;
+        void* pGidIter = taosHashIterate(pNew->arbGroupIds, NULL);
+        while (pGidIter != NULL) {
+          int32_t groupId = *(int32_t *)pGidIter;
           if (taosHashGet(pTrans->arbGroupIds, &groupId, sizeof(int32_t)) != NULL) {
-            taosHashCancelIterate(pNew->arbGroupIds, pIter);
+            taosHashCancelIterate(pNew->arbGroupIds, pGidIter);
             conflict = true;
             break;
           }
-          pIter = taosHashIterate(pNew->arbGroupIds, pIter);
+          pGidIter = taosHashIterate(pNew->arbGroupIds, pGidIter);
         }
       }
     }
@@ -893,6 +893,41 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
 
   if (mndCheckTransConflict(pMnode, pTrans)) {
     terrno = TSDB_CODE_MND_TRANS_CONFLICT;
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    return terrno;
+  }
+
+  return 0;
+}
+
+int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
+  void        *pIter = NULL;
+  bool         conflict = false;
+  SCompactObj *pCompact = NULL;
+
+  while (1) {
+    bool thisConflict = false;
+    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
+    if (pIter == NULL) break;
+
+    if (pTrans->conflict == TRN_CONFLICT_GLOBAL || pTrans->conflict == TRN_CONFLICT_DB ||
+        pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+      if (strcasecmp(pTrans->dbname, pCompact->dbname) == 0) thisConflict = true;
+    }
+
+    if (thisConflict) {
+      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with compact:%d db:%s", pTrans->id,
+             pTrans->dbname, pTrans->stbname, pTrans->conflict, pCompact->compactId, pCompact->dbname);
+      conflict = true;
+    } else {
+      mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with compact:%d db:%s", pTrans->id, pTrans->dbname,
+            pTrans->stbname, pTrans->conflict, pCompact->compactId, pCompact->dbname);
+    }
+    sdbRelease(pMnode->pSdb, pCompact);
+  }
+
+  if (conflict) {
+    terrno = TSDB_CODE_MND_TRANS_CONFLICT_COMPACT;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     return terrno;
   }

@@ -16,6 +16,7 @@
 #ifndef _TD_UTIL_WORKER_H_
 #define _TD_UTIL_WORKER_H_
 
+#include "tlist.h"
 #include "tqueue.h"
 #include "tarray.h"
 
@@ -83,18 +84,25 @@ void        tWWorkerCleanup(SWWorkerPool *pool);
 STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp);
 void        tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue);
 
+typedef enum SQWorkerPoolType {
+  QWORKER_POOL = 0,
+  QUERY_AUTO_QWORKER_POOL,
+} SQWorkerPoolType;
+
 typedef struct {
-  const char *name;
-  int32_t     min;
-  int32_t     max;
-  FItem       fp;
-  void       *param;
+  const char      *name;
+  int32_t          min;
+  int32_t          max;
+  FItem            fp;
+  void            *param;
+  SQWorkerPoolType poolType;
 } SSingleWorkerCfg;
 
 typedef struct {
-  const char  *name;
-  STaosQueue  *queue;
-  SQWorkerPool pool;
+  const char      *name;
+  STaosQueue      *queue;
+  SQWorkerPoolType poolType;  // default to QWORKER_POOL
+  void            *pool;
 } SSingleWorker;
 
 typedef struct {
@@ -114,6 +122,59 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg);
 void    tSingleWorkerCleanup(SSingleWorker *pWorker);
 int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg);
 void    tMultiWorkerCleanup(SMultiWorker *pWorker);
+
+struct SQueryAutoQWorkerPoolCB;
+
+typedef struct SQueryAutoQWorker {
+  int32_t  id;      // worker id
+  int32_t  backupIdx;// the idx when put into backup pool
+  int64_t  pid;     // thread pid
+  TdThread thread;  // thread id
+  void    *pool;
+} SQueryAutoQWorker;
+
+typedef struct SQueryAutoQWorkerPool {
+  int32_t       num;
+  int32_t       max;
+  int32_t       min;
+  int32_t       maxInUse;
+
+  int64_t       activeRunningN; // 4 bytes for activeN, 4 bytes for runningN
+  // activeN are running workers and workers waiting at reading new queue msgs
+  // runningN are workers processing queue msgs, not include blocking/waitingAfterBlock/waitingBeforeProcessMsg workers.
+
+  int32_t       waitingAfterBlockN; // workers that recovered from blocking but waiting for too many running workers
+  TdThreadMutex waitingAfterBlockLock;
+  TdThreadCond  waitingAfterBlockCond;
+
+  int32_t       waitingBeforeProcessMsgN; // workers that get msg from queue, but waiting for too many running workers
+  TdThreadMutex waitingBeforeProcessMsgLock;
+  TdThreadCond  waitingBeforeProcessMsgCond;
+
+  int32_t       backupNum; // workers that are in backup pool, not reading msg from queue
+  TdThreadMutex backupLock;
+  TdThreadCond  backupCond;
+
+  const char                     *name;
+  TdThreadMutex                   poolLock;
+  SList                          *workers;
+  SList                          *backupWorkers;
+  SList                          *exitedWorkers;
+  STaosQset                      *qset;
+  struct SQueryAutoQWorkerPoolCB *pCb;
+  bool                            exit;
+} SQueryAutoQWorkerPool;
+
+int32_t     tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pPool);
+void        tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool);
+STaosQueue *tQueryAutoQWorkerAllocQueue(SQueryAutoQWorkerPool *pPool, void *ahandle, FItem fp);
+void        tQueryAutoQWorkerFreeQueue(SQueryAutoQWorkerPool* pPool, STaosQueue* pQ);
+
+typedef struct SQueryAutoQWorkerPoolCB {
+  void *pPool;
+  int32_t (*beforeBlocking)(void *pPool);
+  int32_t (*afterRecoverFromBlocking)(void *pPool);
+} SQueryAutoQWorkerPoolCB;
 
 #ifdef __cplusplus
 }

@@ -547,17 +547,6 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
-  int32_t oldInterval = pInst->monitorParas.tsMonitorInterval;
-  pInst->monitorParas = pRsp.monitorParas;
-  if(oldInterval > pInst->monitorParas.tsMonitorInterval){
-    char* value = taosStrdup("");
-    if(monitorPutData2MonitorQueue(pInst->clusterId, value) < 0){
-      taosMemoryFree(value);
-    }
-  }
-  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
-           pInst->clusterId, pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
-
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
@@ -567,6 +556,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     tFreeClientHbBatchRsp(&pRsp);
     return -1;
   }
+
+  pInst->monitorParas = pRsp.monitorParas;
+  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
+           pInst->clusterId, pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
   if (rspNum) {
     tscDebug("hb got %d rsp, %d empty rsp received before", rspNum,
@@ -1037,7 +1030,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 #endif
     code = hbGetExpiredTSMAInfo(connKey, pCatalog, req);
   } else {
-    req->app.appId = 0;
+    hbGetAppInfo(hbParam->clusterId, req);
   }
 
   ++hbParam->reqCnt;  // success to get catalog info
