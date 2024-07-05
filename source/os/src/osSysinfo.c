@@ -33,6 +33,8 @@ typedef struct {
   uint64_t hi;
   uint64_t si;
   uint64_t st;
+  uint64_t guest;
+  uint64_t guest_nice;
 } SysCpuInfo;
 
 typedef struct {
@@ -177,9 +179,11 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   }
 
   char cpu[10] = {0};
-  sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu,
-         &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle, &cpuInfo->wa, &cpuInfo->hi, &cpuInfo->si,
-         &cpuInfo->st);
+  sscanf(line,
+         "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64
+         " %" PRIu64,
+         cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle, &cpuInfo->wa, &cpuInfo->hi,
+         &cpuInfo->si, &cpuInfo->st, &cpuInfo->guest, &cpuInfo->guest_nice);
 
   taosCloseFile(&pFile);
 #endif
@@ -581,7 +585,8 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   SysCpuInfo  sysCpu = {0};
   ProcCpuInfo procCpu = {0};
   if (taosGetSysCpuInfo(&sysCpu) == 0 && taosGetProcCpuInfo(&procCpu) == 0) {
-    curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system + sysCpu.wa + sysCpu.hi + sysCpu.si + sysCpu.st;
+    curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system + sysCpu.wa + sysCpu.hi + sysCpu.si + sysCpu.st +
+                 sysCpu.guest + sysCpu.guest_nice;
     curSysTotal = curSysUsed + sysCpu.idle;
     curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
 
