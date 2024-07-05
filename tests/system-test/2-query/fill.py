@@ -1,3 +1,5 @@
+import random
+from pandas._libs import interval
 import taos
 import sys
 
@@ -15,7 +17,67 @@ class TDTestCase:
         #tdSql.init(conn.cursor())
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
+    def generate_fill_range(self, data_start: int, data_end: int, interval: int, step: int)-> list:
+        ret = []
+        begin = data_start - 10 * interval
+        end = data_end + 10 * interval
+        for i in range(begin, end, step):
+            for j in range(begin, end, step):
+                ret.append((i,j))
+        return ret
+
+    def check_fill_range(self, where_start, where_end, res, sql: str):
+        if len(res) == 0:
+            tdLog.debug(f'fill sql got no rows {sql}')
+            return
+        if len(res) == 1:
+            tdLog.debug(f'fill sql got one row {sql}: {res}')
+        else:
+            first = res[0]
+            last = res[-1]
+            tdLog.debug(f'fill sql got   rows {sql}: {res}')
+
+    def generate_partition_by(self):
+        val = random.random()
+        if val < 0.6:
+            return ""
+        elif val < 0.8:
+            return "partition by location"
+        else:
+            return "partition by tbname"
+
+    def generate_fill_interval(self)-> list[tuple]:
+        ret = []
+        intervals = [1, 30, 60, 90, 120, 300, 3600]
+        for i in range(0, len(intervals)):
+            for j in range(0, i+1):
+                ret.append((intervals[i], intervals[j]))
+        return ret
+
+    def generate_fill_sql(self, where_start, where_end, fill_interval: tuple) -> str:
+        partition_by = self.generate_partition_by()
+        where = f'ts >= {where_start} and ts < {where_end}'
+        return f'select _wstart, _wend, count(*) from meters {where} {partition_by} interval({fill_interval[0]}s) sliding({fill_interval[1]}s) fill(NULL)'
+
+    def test_fill_range(self):
+        os.system('taosBenchmark -t 1000 -n 1000 -v 2 -S 32000 -y')
+        data_start = 1500000000
+        data_end = 1500031968
+        step = 100
+
+        fill_intervals: list[tuple] = self.generate_fill_interval()
+        fill_interval = random.choice(fill_intervals)
+        ranges = self.generate_fill_range(data_start, data_end, fill_interval[0], step)
+        range = random.choice(ranges)
+        sql = self.generate_fill_sql(range[0], range[1], fill_interval)
+        tdSql.query(sql)
+        res = tdSql.queryResult
+        self.check_fill_range(range[0], range[1], res, sql)
+
+        ## tdSql.execute('drop database test')
+
     def run(self):
+        self.test_fill_range()
         dbname = "db"
         tbname = "tb"
 
