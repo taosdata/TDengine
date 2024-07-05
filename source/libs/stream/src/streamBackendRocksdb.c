@@ -4834,7 +4834,6 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
     stError("failed to copy file from %s to %s, reason:%s", srcBuf, dstBuf, tstrerror(code));
     goto _ERROR;
   }
-
   memset(dstBuf, 0, cap);
   nBytes = snprintf(dstDir, cap, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
   if (nBytes <= 0 || nBytes >= cap) {
