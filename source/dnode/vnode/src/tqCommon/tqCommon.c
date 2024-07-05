@@ -871,7 +871,6 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
   taosThreadMutexLock(&pTask->lock);
-
   streamTaskClearCheckInfo(pTask, true);
 
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
@@ -886,9 +885,10 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
     streamTaskSetStatusReady(pTask);
   } else if (pState->state == TASK_STATUS__UNINIT) {
-    tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
-    ASSERT(pTask->status.downstreamReady == 0);
-    tqStreamTaskRestoreCheckpoint(pMeta, pTask->id.streamId, pTask->id.taskId);
+//    tqDebug("s-task:%s start task by checking downstream tasks", pTask->id.idStr);
+//    ASSERT(pTask->status.downstreamReady == 0);
+//    tqStreamTaskRestoreCheckpoint(pMeta, pTask->id.streamId, pTask->id.taskId);
+    tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState->name);
   } else {
     tqDebug("s-task:%s status:%s do nothing after receiving reset-task from mnode", pTask->id.idStr, pState->name);
   }

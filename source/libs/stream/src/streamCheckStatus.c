@@ -668,6 +668,7 @@ void rspMonitorFn(void* param, void* tmrId) {
     streamTaskCompleteCheckRsp(pInfo, true, id);
 
     // not record the failed of the current task if try to close current vnode
+    // otherwise, the put of message operation may incur invalid read of message queue.
     if (!pMeta->closeFlag) {
       addDownstreamFailedStatusResultAsync(pTask->pMsgCb, vgId, pTask->id.streamId, pTask->id.taskId);
     }
@@ -676,7 +677,7 @@ void rspMonitorFn(void* param, void* tmrId) {
     return;
   }
 
-  if (state == TASK_STATUS__DROPPING || state == TASK_STATUS__READY || state == TASK_STATUS__PAUSE) {
+  if (state == TASK_STATUS__DROPPING || state == TASK_STATUS__READY) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s status:%s vgId:%d quit from monitor check-rsp tmr, ref:%d", id, pStat->name, vgId, ref);
 

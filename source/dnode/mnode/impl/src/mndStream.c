@@ -2701,8 +2701,8 @@ static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg) {
     }
   }
 
-  mInfo("vgId:%d meta-stored checkpointId for stream:0x%" PRIx64 " %s is:%" PRId64, req.nodeId, req.streamId,
-        pStream->name, pStream->checkpointId);
+  mInfo("vgId:%d stream:0x%" PRIx64 " %s meta-stored checkpointId:%" PRId64 " stream:0x%" PRIx64 " %s", req.nodeId,
+        req.streamId, pStream->name, pStream->checkpointId);
 
   int32_t numOfTasks = (pStream == NULL) ? 0 : mndGetNumOfStreamTasks(pStream);
   if ((pStream != NULL) && (pStream->checkpointId == 0)) {  // not generated checkpoint yet, return 0 directly
@@ -2730,8 +2730,8 @@ static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg) {
   }
 
   if (chkId == req.checkpointId) {
-    mDebug("vgId:%d stream:0x%" PRIx64 " %s consensus-checkpointId is:%" PRId64, req.nodeId, req.streamId,
-           pStream->name, pStream->checkpointId);
+    mDebug("vgId:%d stream:0x%" PRIx64 " %s consensus-checkpointId is:%" PRId64 ", meta-stored checkpointId:%" PRId64,
+           req.nodeId, req.streamId, pStream->name, chkId, pStream->checkpointId);
     mndSendQuickConsensusChkptIdRsp(&req, TSDB_CODE_SUCCESS, req.streamId, chkId, &pMsg->info);
 
     taosThreadMutexUnlock(&execInfo.lock);
