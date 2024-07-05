@@ -21,14 +21,14 @@
 
 #define TAOS_ERROR_C
 
-static threadlocal int32_t tsErrno;
-static threadlocal int32_t tsErrln;
-static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
+threadlocal int32_t terrno;
+threadlocal int32_t terrln;
+threadlocal char    terrMsg[ERR_MSG_LEN];
+
 static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 
-int32_t* taosGetErrno() { return &tsErrno; }
-int32_t* taosGetErrln() { return &tsErrln; }
-char*    taosGetErrMsg() { return tsErrMsgDetail; }
+int32_t* taosGetErrno() { return &terrno; }
+char*    taosGetErrMsg() { return terrMsg; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
