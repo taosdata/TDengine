@@ -183,9 +183,15 @@ int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
   int32_t code = 0;
   int64_t chkpId = streamMetaGetLatestCheckpointId(pMeta);
 
-  bool exist = streamBackendDataIsExist(pMeta->path, chkpId, pMeta->vgId);
+  bool exist = streamBackendDataIsExist(pMeta->path, chkpId);
   if (exist == false) {
-    stError("failed to check backend data exist, reason:%s", tstrerror(terrno));
+    if (terrno != 0) {
+      code = terrno;
+      terrno = 0;
+      stError("failed to check backend data exist, reason:%s", tstrerror(code));
+    } else {
+      stInfo("not need to convert stream backend formate");
+    }
     return code;
   }
 

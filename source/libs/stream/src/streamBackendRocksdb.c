@@ -786,6 +786,29 @@ _EXIT:
   taosMemoryFree(checkpointRoot);
   return code;
 }
+bool streamBackendDataIsExist(const char* path, int64_t chkpId) {
+  bool    exist = true;
+  int32_t cap = strlen(path) + 32;
+
+  char* state = taosMemoryCalloc(1, cap);
+  if (state == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return false;
+  }
+
+  int16_t nBytes = snprintf(state, cap, "%s%s%s", path, TD_DIRSEP, "state");
+  if (nBytes <= 0 || nBytes >= cap) {
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    exist = false;
+  } else {
+    if (!taosDirExist(state)) {
+      exist = false;
+    }
+  }
+
+  taosMemoryFree(state);
+  return exist;
+}
 
 void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
   char*   backendPath = NULL;
