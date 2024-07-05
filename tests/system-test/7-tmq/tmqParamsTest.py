@@ -121,6 +121,7 @@ class TDTestCase:
                                     tmqCom.insert_data(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],int(round(time.time()*1000)))
                                     stop_flag = 1
                         finally:
+                            time.sleep(5) #wait for send heartbeat to update subscription info.
                             consumer.unsubscribe()
                             consumer.close()
                         tdSql.checkEqual(consumer_info, expected_parameters)
