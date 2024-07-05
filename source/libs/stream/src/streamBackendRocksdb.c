@@ -2539,9 +2539,7 @@ void taskDbDestroy(void* pDb, bool flush) {
 
   stDebug("succ to destroy stream backend:%p", wrapper);
 
-  int8_t nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
-
-  if (wrapper == NULL) return;
+  int8_t nCf = tListLen(ginitDict);
 
   if (flush) {
     if (wrapper->db && wrapper->pCf) {

@@ -153,6 +153,7 @@ bool    mndAllTaskSendCheckpointId(SCheckpointConsensusInfo *pInfo, int32_t numO
 void    mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo);
 int32_t doSendConsensusCheckpointRsp(SRestoreCheckpointInfo *pInfo, SRpcMsg *pMsg, int64_t checkpointId);
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId);
+int32_t mndRegisterConsensusChkptId(SHashObj* pHash, int64_t streamId);
 
 #ifdef __cplusplus
 }

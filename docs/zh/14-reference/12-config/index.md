@@ -86,7 +86,7 @@ taos -C
 | 协议 | 默认端口 | 用途说明                                         | 修改方法                                                                                           |
 | :--- | :------- | :----------------------------------------------- | :------------------------------------------------------------------------------------------------- |
 | TCP  | 6030     | 客户端与服务端之间通讯，多节点集群的节点间通讯。 | 由配置文件设置 serverPort 决定。                                                                   |
-| TCP  | 6041     | 客户端与服务端之间的 RESTful 通讯。              | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
+| TCP  | 6041     | 客户端与服务端之间的 RESTful 通讯。              | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](../taosadapter/)。 |
 | TCP  | 6043     | taosKeeper 监控服务端口。                        | 随 taosKeeper 启动参数设置变化。                                                                   |
 | TCP  | 6044     | 支持 StatsD 的数据接入端口。                     | 随 taosAdapter 启动参数设置变化                                                                    |
 | UDP  | 6045     | 支持 collectd 数据接入端口。                     | 随 taosAdapter 启动参数设置变化                                                                    |
@@ -317,7 +317,7 @@ TDengine 为存储中文、日文、韩文等非 ASCII 编码的宽字符，提�
 
 客户端的输入的字符均采用操作系统当前默认的编码格式，在 Linux/macOS 系统上多为 UTF-8，部分中文系统编码则可能是 GB18030 或 GBK 等。在 docker 环境中默认的编码是 POSIX。在中文版 Windows 系统中，编码则是 CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证 nchar 中的数据正确转换为 UCS4-LE 编码格式。
 
-在 Linux/macOS 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux/macOS 可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux/macOS 中也可以使用 charset 来指定字符编码。
+在 Linux/macOS 中 locale 的命名规则为: \<语言>_\<地区>.\<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux/macOS 可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux/macOS 中也可以使用 charset 来指定字符编码。
 
 :::
 

@@ -7,15 +7,23 @@ description: "taospy 是 TDengine 的官方 Python 连接器。taospy 提供了�
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import RequestId from "./_request_id.mdx";
 
-`taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。`taospy` 对 TDengine 的[原生接口](../cpp)和 [REST 接口](../rest-api)都进行了封装， 分别对应 `taospy` 包的 `taos` 模块 和 `taosrest` 模块。
-除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
-
-`taos-ws-py` 是使用 WebSocket 方式连接 TDengine 的 Python 连接器包。可以选装。
-
-使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
+`taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。
 
 Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-python)。
+
+## 连接方式
+`taospy`主要提供三种形式的连接器。一般我们推荐使用 **Websocket 连接**。
+- **原生连接**，对应 `taospy` 包的 `taos` 模块。通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。
+- **REST 连接**，对应 `taospy` 包的 `taosrest` 模块。通过 taosAdapter 提供的 HTTP 接口连接 TDengine 实例，不支持 schemaless 和数据订阅等特性。
+- **Websocket 连接**，对应 `taos-ws-py` 包，可以选装。通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。
+
+连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
+
+除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
+
+使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
 
 ## 支持的平台
 
@@ -317,7 +325,7 @@ Transfer-Encoding: chunked
 
 `connect()` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
 
-- `url`： taosAdapter REST 服务的 URL。默认是 <http://localhost:6041>。
+- `url`： taosAdapter REST 服务的 URL。默认是 \<http://localhost:6041>。
 - `user`： TDengine 用户名。默认是 root。
 - `password`： TDengine 用户密码。默认是 taosdata。
 - `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
@@ -350,13 +358,7 @@ Transfer-Encoding: chunked
 <TabItem value="native" label="原生连接">
 
 ```python
-conn = taos.connect()
-# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
-conn.execute("DROP DATABASE IF EXISTS test")
-conn.execute("CREATE DATABASE test")
-# change database. same as execute "USE db"
-conn.select_db("test")
-conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+{{#include docs/examples/python/create_db_native.py}}
 ```
 
 </TabItem>
@@ -364,12 +366,7 @@ conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (locat
 <TabItem value="rest" label="REST 连接">
 
 ```python
-conn = taosrest.connect(url="http://localhost:6041")
-# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
-conn.execute("DROP DATABASE IF EXISTS test")
-conn.execute("CREATE DATABASE test")
-conn.execute("USE test")
-conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+{{#include docs/examples/python/create_db_rest.py}}
 ```
 
 </TabItem>
@@ -377,12 +374,7 @@ conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (locat
 <TabItem value="websocket" label="WebSocket 连接">
 
 ```python
-conn = taosws.connect("taosws://localhost:6041")
-# Execute a sql, ignore the result set, just get affected rows. It's useful for DDL and DML statement.
-conn.execute("DROP DATABASE IF EXISTS test")
-conn.execute("CREATE DATABASE test")
-conn.execute("USE test")
-conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (location INT)")
+{{#include docs/examples/python/create_db_ws.py}}
 ```
 
 </TabItem>
@@ -390,100 +382,34 @@ conn.execute("CREATE STABLE weather(ts TIMESTAMP, temperature FLOAT) TAGS (locat
 
 ### 插入数据
 
-```python
-conn.execute("INSERT INTO t1 USING weather TAGS(1) VALUES (now, 23.5) (now+1m, 23.5) (now+2m, 24.4)")
-```
-
-:::
-now 为系统内部函数，默认为客户端所在计算机当前时间。 now + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)，n(月)，y(年)。
-:::
-
-### 基本使用
-
 <Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
-##### TaosConnection 类的使用
-
-`TaosConnection` 类既包含对 PEP249 Connection 接口的实现(如：`cursor`方法和 `close` 方法)，也包含很多扩展功能（如： `execute`、 `query`、`schemaless_insert` 和 `subscribe` 方法。
-
-```python title="execute 方法"
-{{#include docs/examples/python/connection_usage_native_reference.py:insert}}
+```python
+{{#include docs/examples/python/insert_native.py:insert}}
 ```
-
-```python title="query 方法"
-{{#include docs/examples/python/connection_usage_native_reference.py:query}}
-```
-
-:::tip
-查询结果只能获取一次。比如上面的示例中 `fetch_all()` 和 `fetch_all_into_dict()` 只能用一个。重复获取得到的结果为空列表。
-:::
-
-##### TaosResult 类的使用
-
-上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `fetch_all()` 和 `fetch_all_into_dict()`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
-
-```python title="blocks_iter 方法"
-{{#include docs/examples/python/result_set_examples.py}}
-```
-##### TaosCursor 类的使用
-
-`TaosConnection` 类和 `TaosResult` 类已经实现了原生接口的所有功能。如果你对 PEP249 规范中的接口比较熟悉也可以使用 `TaosCursor` 类提供的方法。
-
-```python title="TaosCursor 的使用"
-{{#include docs/examples/python/cursor_usage_native_reference.py}}
-```
-
-:::note
-TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
-
-TaosCursor 的最佳实践是，查询开始时创建 cursor，用完之后就关闭，请避免复用同一个 cursor 多次执行。
-:::
 
 </TabItem>
+
 <TabItem value="rest" label="REST 连接">
 
-##### RestClient 类的使用
-
-`RestClient` 类是对于 [REST API](../rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
-
-```python title="RestClient 的使用"
-{{#include docs/examples/python/rest_client_example.py}}
+```python
+{{#include docs/examples/python/insert_rest.py:insert}}
 ```
-
-对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
-
-#####  TaosRestCursor 类的使用
-
-`TaosRestCursor` 类是对 PEP249 Cursor 接口的实现。
-
-```python title="TaosRestCursor 的使用"
-{{#include docs/examples/python/connect_rest_examples.py:basic}}
-```
-- `cursor.execute` ： 用来执行任意 SQL 语句。
-- `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
-- `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
-
-:::note
-TaosRestCursor 的最佳实践是，查询开始时创建 cursor，用完之后就关闭，请避免复用同一个 cursor 多次执行。
-:::
 
 </TabItem>
+
 <TabItem value="websocket" label="WebSocket 连接">
 
-##### Connection 类的使用
-
-`Connection` 类既包含对 PEP249 Connection 接口的实现(如：cursor方法和 close 方法)，也包含很多扩展功能（如： execute、 query、schemaless_insert 和 subscribe 方法。
-
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:basic}}
+{{#include docs/examples/python/insert_ws.py:insert}}
 ```
-
-- `conn.execute`: 用来执行任意 SQL 语句，返回影响的行数
-- `conn.query`: 用来执行查询 SQL 语句，返回查询结果
 
 </TabItem>
 </Tabs>
+
+> NOW 为系统内部函数，默认为客户端所在计算机当前时间。
+> `NOW + 1s` 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)，n(月)，y(年)。
 
 ### 查询数据
 
@@ -493,7 +419,7 @@ TaosRestCursor 的最佳实践是，查询开始时创建 cursor，用完之后�
 `TaosConnection` 类的 `query` 方法可以用来查询数据，返回 `TaosResult` 类型的结果数据。
 
 ```python
-{{#include docs/examples/python/connection_usage_native_reference.py:query}}
+{{#include docs/examples/python/insert_native.py:query}}
 ```
 
 :::tip
@@ -507,7 +433,7 @@ TaosRestCursor 的最佳实践是，查询开始时创建 cursor，用完之后�
 RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方法用于执行任意 SQL 语句， 并返回执行结果。
 
 ```python
-{{#include docs/examples/python/rest_client_example.py}}
+{{#include docs/examples/python/insert_rest.py:query}}
 ```
 
 对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
@@ -519,7 +445,7 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 `TaosConnection` 类的 `query` 方法可以用来查询数据，返回 `TaosResult` 类型的结果数据。
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:basic}}
+{{#include docs/examples/python/insert_ws.py:query}}
 ```
 
 </TabItem>
@@ -527,36 +453,15 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 
 ### 执行带有 reqId 的 SQL
 
-使用可选的 req_id 参数，指定请求 id，可以用于 tracing
+<RequestId />
 
 <Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
-##### TaosConnection 类的使用
-
 类似上文介绍的使用方法，增加 `req_id` 参数。
 
-```python title="execute 方法"
-{{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:insert}}
-```
-
-```python title="query 方法"
-{{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:query}}
-```
-
-##### TaosResult 类的使用
-
-类似上文介绍的使用方法，增加 `req_id` 参数。
-
-```python title="blocks_iter 方法"
-{{#include docs/examples/python/result_set_with_req_id_examples.py}}
-```
-##### TaosCursor 类的使用
-
-`TaosConnection` 类和 `TaosResult` 类已经实现了原生接口的所有功能。如果你对 PEP249 规范中的接口比较熟悉也可以使用 `TaosCursor` 类提供的方法。
-
-```python title="TaosCursor 的使用"
-{{#include docs/examples/python/cursor_usage_native_reference_with_req_id.py}}
+```python
+{{#include docs/examples/python/insert_native.py:req_id}}
 ```
 
 </TabItem>
@@ -564,26 +469,9 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 
 类似上文介绍的使用方法，增加 `req_id` 参数。
 
-##### RestClient 类的使用
-
-`RestClient` 类是对于 [REST API](../rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
-
-```python title="RestClient 的使用"
-{{#include docs/examples/python/rest_client_with_req_id_example.py}}
+```python
+{{#include docs/examples/python/insert_rest.py:req_id}}
 ```
-
-对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
-
-#####  TaosRestCursor 类的使用
-
-`TaosRestCursor` 类是对 PEP249 Cursor 接口的实现。
-
-```python title="TaosRestCursor 的使用"
-{{#include docs/examples/python/connect_rest_with_req_id_examples.py:basic}}
-```
-- `cursor.execute` ： 用来执行任意 SQL 语句。
-- `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
-- `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
 
 </TabItem>
 
@@ -592,36 +480,7 @@ RestClient 类是对于 REST API 的直接封装。它只包含一个 sql() 方�
 类似上文介绍的使用方法，增加 `req_id` 参数。
 
 ```python
-{{#include docs/examples/python/connect_websocket_with_req_id_examples.py:basic}}
-```
-
-- `conn.execute`: 用来执行任意 SQL 语句，返回影响的行数
-- `conn.query`: 用来执行查询 SQL 语句，返回查询结果
-
-</TabItem>
-</Tabs>
-
-### 与 pandas 一起使用
-
-<Tabs defaultValue="rest">
-<TabItem value="native" label="原生连接">
-
-```python
-{{#include docs/examples/python/conn_native_pandas.py}}
-```
-
-</TabItem>
-<TabItem value="rest" label="REST 连接">
-
-```python
-{{#include docs/examples/python/conn_rest_pandas.py}}
-```
-
-</TabItem>
-<TabItem value="websocket" label="WebSocket 连接">
-
-```python
-{{#include docs/examples/python/conn_websocket_pandas.py}}
+{{#include docs/examples/python/insert_ws.py:req_id}}
 ```
 
 </TabItem>
@@ -634,130 +493,15 @@ TDengine 的 Python 连接器支持参数绑定风格的 Prepare API 方式写�
 <Tabs>
 <TabItem value="native" label="原生连接">
 
-##### 创建 stmt
-
-Python 连接器的 `Connection` 提供了 `statement` 方法用于创建参数绑定对象 stmt，该方法接收 sql 字符串作为参数，sql 字符串目前仅支持用 `?` 来代表绑定的参数。
-
-```
-import taos
-
-conn = taos.connect()
-stmt = conn.statement("insert into log values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-```
-
-##### 参数绑定
-
-调用 `new_multi_binds` 函数创建 params 列表，用于参数绑定。
-
-```
-params = new_multi_binds(16)
-params[0].timestamp((1626861392589, 1626861392590, 1626861392591))
-params[1].bool((True, None, False))
-params[2].tinyint([-128, -128, None])  # -128 is tinyint null
-params[3].tinyint([0, 127, None])
-params[4].smallint([3, None, 2])
-params[5].int([3, 4, None])
-params[6].bigint([3, 4, None])
-params[7].tinyint_unsigned([3, 4, None])
-params[8].smallint_unsigned([3, 4, None])
-params[9].int_unsigned([3, 4, None])
-params[10].bigint_unsigned([3, 4, None])
-params[11].float([3, None, 1])
-params[12].double([3, None, 1.2])
-params[13].binary(["abc", "dddafadfadfadfadfa", None])
-params[14].nchar(["涛思数据", None, "a long string with 中文字符"])
-params[15].timestamp([None, None, 1626861392591])
-```
-
-调用 stmt 的 `bind_param` 以单行的方式设置 values 或 `bind_param_batch` 以多行的方式设置 values 方法绑定参数。
-
-```
-stmt.bind_param_batch(params)
-```
-
-##### 执行 sql
-
-调用 stmt 的 `execute` 方法执行 sql
-
-```
-stmt.execute()
-```
-
-##### 关闭 stmt
-
-最后需要关闭 stmt。
-
-```
-stmt.close()
-```
-
-##### 示例代码
-
 ```python
-{{#include docs/examples/python/stmt_example.py}}
+{{#include docs/examples/python/stmt_native.py:stmt}}
 ```
 </TabItem>
 
 <TabItem value="websocket" label="WebSocket 连接">
 
-##### 创建 stmt
-
-Python WebSocket 连接器的 `Connection` 提供了 `statement` 方法用于创建参数绑定对象 stmt，该方法接收 sql 字符串作为参数，sql 字符串目前仅支持用 `?` 来代表绑定的参数。
-
-```
-import taosws
-
-conn = taosws.connect('taosws://localhost:6041/test')
-stmt = conn.statement()
-```
-
-##### 解析 sql
-
-调用 stmt 的 `prepare` 方法来解析 insert 语句。
-
-```
-stmt.prepare("insert into t1 values (?, ?, ?, ?)")
-```
-
-##### 参数绑定
-
-调用 stmt 的 `bind_param` 方法绑定参数。
-
-```
-stmt.bind_param([
-    taosws.millis_timestamps_to_column([1686844800000, 1686844801000, 1686844802000, 1686844803000]),
-    taosws.ints_to_column([1, 2, 3, 4]),
-    taosws.floats_to_column([1.1, 2.2, 3.3, 4.4]),
-    taosws.varchar_to_column(['a', 'b', 'c', 'd']),
-])
-```
-
-调用 stmt 的 `add_batch` 方法，将参数加入批处理。
-
-```
-stmt.add_batch()
-```
-
-##### 执行 sql
-
-调用 stmt 的 `execute` 方法执行 sql
-
-```
-stmt.execute()
-```
-
-##### 关闭 stmt
-
-最后需要关闭 stmt。
-
-```
-stmt.close()
-```
-
-##### 示例代码
-
 ```python
-{{#include docs/examples/python/stmt_websocket_example.py}}
+{{#include docs/examples/python/stmt_ws.py:stmt}}
 ```
 </TabItem>
 </Tabs>
@@ -767,46 +511,18 @@ stmt.close()
 连接器支持无模式写入功能。
 
 <Tabs defaultValue="list">
-<TabItem value="list" label="List 写入">
-
-##### 简单写入
+<TabItem value="list" label="原生连接">
 
 ```python
-{{#include docs/examples/python/schemaless_insert.py}}
-```
-
-##### 带有 ttl 参数的写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_ttl.py}}
-```
-
-##### 带有 req_id 参数的写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_req_id.py}}
+{{#include docs/examples/python/schemaless_native.py}}
 ```
 
 </TabItem>
 
-<TabItem value="raw" label="Raw 写入">
-
-##### 简单写入
+<TabItem value="raw" label="WebSocket 连接">
 
 ```python
-{{#include docs/examples/python/schemaless_insert_raw.py}}
-```
-
-##### 带有 ttl 参数的写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
-```
-
-##### 带有 req_id 参数的写入
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
+{{#include docs/examples/python/schemaless_ws.py}}
 ```
 
 </TabItem>
@@ -814,14 +530,15 @@ stmt.close()
 
 ### 执行带有 reqId 的无模式写入
 
-连接器的 `schemaless_insert` 和 `schemaless_insert_raw` 方法支持 `req_id` 可选参数，此 `req_Id` 可用于请求链路追踪。
+连接器的 `schemaless_insert` 和 `schemaless_insert_raw` 方法支持 `req_id` 可选参数，此 `req_id` 可用于请求链路追踪。
 
 ```python
-{{#include docs/examples/python/schemaless_insert_req_id.py}}
-```
-
-```python
-{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
+conn.schemaless_insert(
+    lines=lineDemo,
+    protocol=taos.SmlProtocol.LINE_PROTOCOL,
+    precision=taos.SmlPrecision.NANO_SECONDS,
+    req_id=1,
+)
 ```
 
 ### 数据订阅
@@ -830,193 +547,55 @@ stmt.close()
 
 #### 创建 Topic
 
-创建 Topic 相关请参考 [数据订阅文档](../../develop/tmq/#创建-topic)。
+```python
+{{#include docs/examples/python/tmq_native.py:create_topic}}
+```
 
 #### 创建 Consumer
 
-<Tabs defaultValue="native">
-
-<TabItem value="native" label="原生连接">
-
-`Consumer` 提供了 Python 连接器订阅 TMQ 数据的 API。创建 Consumer 语法为 `consumer = Consumer(configs)`，参数定义请参考 [数据订阅文档](../../develop/tmq/#创建消费者-consumer)。
-
 ```python
-from taos.tmq import Consumer
-
-consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+{{#include docs/examples/python/tmq_native.py:create_consumer}}
 ```
-</TabItem>
-
-<TabItem value="websocket" label="WebSocket 连接">
-
-除了原生的连接方式，Python 连接器还支持通过 websocket 订阅 TMQ 数据，使用 websocket 方式订阅 TMQ 数据需要安装 `taos-ws-py`。
-
-taosws `Consumer` API 提供了基于 Websocket 订阅 TMQ 数据的 API。创建 Consumer 语法为 `consumer = Consumer(conf=configs)`，使用时需要指定 `td.connect.websocket.scheme` 参数值为 "ws"，参数定义请参考 [数据订阅文档](../../develop/tmq/#%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85-consumer)。
-
-```python
-import taosws
-
-consumer = taosws.Consumer(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
-```
-
-</TabItem>
-</Tabs>
 
 #### 订阅 topics
 
-<Tabs defaultValue="native">
-
-<TabItem value="native" label="原生连接">
-
-Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
-
 ```python
-consumer.subscribe(['topic1', 'topic2'])
+{{#include docs/examples/python/tmq_native.py:subscribe}}
 ```
-
-</TabItem>
-<TabItem value="websocket" label="WebSocket 连接">
-
-Consumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
-
-```python
-consumer.subscribe(['topic1', 'topic2'])
-```
-
-</TabItem>
-</Tabs>
 
 #### 消费数据
 
-<Tabs defaultValue="native">
-
-<TabItem value="native" label="原生连接">
-
-Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
-
 ```python
-while True:
-    message = consumer.poll(1)
-    if not message:
-        continue
-    err = message.error()
-    if err is not None:
-        raise err
-    val = message.value()
-
-    for block in val:
-        print(block.fetchall())
+{{#include docs/examples/python/tmq_native.py:consume}}
 ```
-
-</TabItem>
-<TabItem value="websocket" label="WebSocket 连接">
-
-Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。
-
-```python
-while True:
-    message = consumer.poll(1)
-    if not message:
-        continue
-    
-    for block in message:
-        for row in block:
-            print(row)
-```
-
-</TabItem>
-</Tabs>
 
 #### 获取消费进度
-
-<Tabs defaultValue="native">
-
-<TabItem value="native" label="原生连接">
 
 Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
 
 ```python
-assignments = consumer.assignment()
+{{#include docs/examples/python/tmq_native.py:assignment}}
 ```
 
 Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置，方法参数类型为 TopicPartition。
 
 ```python
-tp = TopicPartition(topic='topic1', partition=0, offset=0)
-consumer.seek(tp)
+{{#include docs/examples/python/tmq_native.py:consume}}
 ```
-
-</TabItem>
-<TabItem value="websocket" label="WebSocket 连接">
-
-Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
-
-```python
-assignments = consumer.assignment()
-```
-
-Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置。
-
-```python
-consumer.seek(topic='topic1', partition=0, offset=0)
-```
-
-</TabItem>
-</Tabs>
 
 #### 关闭订阅
 
-<Tabs defaultValue="native">
-
-<TabItem value="native" label="原生连接">
-
 消费结束后，应当取消订阅，并关闭 Consumer。
 
 ```python
-consumer.unsubscribe()
-consumer.close()
+{{#include docs/examples/python/tmq_native.py:unsubscribe}}
 ```
-
-</TabItem>
-<TabItem value="websocket" label="WebSocket 连接">
-
-消费结束后，应当取消订阅，并关闭 Consumer。
-
-```python
-consumer.unsubscribe()
-consumer.close()
-```
-
-</TabItem>
-</Tabs>
 
 #### 完整示例
 
-<Tabs defaultValue="native">
-
-<TabItem value="native" label="原生连接">
-
 ```python
-{{#include docs/examples/python/tmq_example.py}}
+{{#include docs/examples/python/tmq_native.py}}
 ```
-
-```python
-{{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
-```
-
-</TabItem>
-<TabItem value="websocket" label="WebSocket 连接">
-
-```python
-{{#include docs/examples/python/tmq_websocket_example.py}}
-```
-
-```python
-{{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
-```
-
-</TabItem>
-</Tabs>
 
 ### 更多示例程序
 
