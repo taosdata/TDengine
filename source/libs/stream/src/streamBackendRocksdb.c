@@ -1568,7 +1568,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
   nBytes = snprintf(pDst, cap, "%s%sinfo", pChkpIdDir, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= cap) {
     code = TSDB_CODE_OUT_OF_RANGE;
-    stError("failed to build dst to add extra info, dir:%s, reason:%d", pChkpIdDir, tstrerror(code));
+    stError("failed to build dst to add extra info, dir:%s, reason:%s", pChkpIdDir, tstrerror(code));
     goto _EXIT;
   }
 
@@ -1582,7 +1582,7 @@ int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
   nBytes = snprintf(buf, sizeof(buf), "%" PRId64 " %" PRId64 "", chkpId, processId);
   if (nBytes <= 0 || nBytes >= sizeof(buf)) {
     code = TSDB_CODE_OUT_OF_RANGE;
-    stError("failed to build content to add extra info, dir:%s,reason:%d", pChkpIdDir, tstrerror(code));
+    stError("failed to build content to add extra info, dir:%s,reason:%s", pChkpIdDir, tstrerror(code));
     goto _EXIT;
   }
 
