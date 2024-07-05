@@ -18,7 +18,7 @@ description: This document describes the usage of escape characters in TDengine.
 
 ## Restrictions
 
-1. If there are escape characters in identifiers (database name, table name, column name)
+1. If there are escape characters in identifiers (database name, table name, column name, alias Name)
    - Identifier without ``: Error will be returned because identifier must be constituted of digits, ASCII characters or underscore and can't be started with digits
    - Identifier quoted with ``: Original content is kept, no escaping
 2. If there are escape characters in values

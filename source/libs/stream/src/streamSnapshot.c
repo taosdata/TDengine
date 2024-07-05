@@ -312,17 +312,12 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
     ASSERT(code == 0);
     taosArrayPush(pDbSnapSet, &snapFile);
   }
+
   pHandle->pDbSnapSet = pDbSnapSet;
   pHandle->pSnapInfoSet = pSnapInfoSet;
   pHandle->currIdx = 0;
   pHandle->pMeta = pMeta;
   return 0;
-
-_err:
-  streamSnapHandleDestroy(pHandle);
-
-  code = -1;
-  return code;
 }
 
 void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
@@ -444,6 +439,7 @@ _NEXT:
         pSnapFile = taosArrayGet(pHandle->pDbSnapSet, pHandle->currIdx);
         goto _NEXT;
       } else {
+        taosMemoryFree(buf);
         *ppData = NULL;
         *size = 0;
         return 0;
@@ -465,7 +461,9 @@ _NEXT:
   pHdr->totalSize = item->size;
   pHdr->snapInfo = pSnapFile->snapInfo;
 
-  memcpy(pHdr->name, item->name, strlen(item->name));
+  int32_t len = TMIN(strlen(item->name), tListLen(pHdr->name));
+  memcpy(pHdr->name, item->name, len);
+
   pSnapFile->seraial += nread;
 
   *ppData = buf;
