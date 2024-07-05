@@ -1138,6 +1138,7 @@ static int32_t mndCheckTaskAndNodeStatus(SMnode *pMnode) {
       mDebug("s-task:0x%" PRIx64 "-0x%x (nodeId:%d) status:%s, checkpoint not issued", pEntry->id.streamId,
              (int32_t)pEntry->id.taskId, pEntry->nodeId, streamTaskGetStatusStr(pEntry->status));
       ready = false;
+      break;
     }
 
     if (pEntry->hTaskId != 0) {
