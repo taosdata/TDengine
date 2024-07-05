@@ -965,20 +965,20 @@ int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 int32_t tDeserializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 
 typedef struct {
-  int32_t  acctId;
-  int64_t  clusterId;
-  uint32_t connId;
-  int32_t  dnodeNum;
-  int8_t   superUser;
-  int8_t   sysInfo;
-  int8_t   connType;
-  SEpSet   epSet;
-  int32_t  svrTimestamp;
-  int32_t  passVer;
-  int32_t  authVer;
-  char     sVer[TSDB_VERSION_LEN];
-  char     sDetailVer[128];
-  int64_t  whiteListVer;
+  int32_t       acctId;
+  int64_t       clusterId;
+  uint32_t      connId;
+  int32_t       dnodeNum;
+  int8_t        superUser;
+  int8_t        sysInfo;
+  int8_t        connType;
+  SEpSet        epSet;
+  int32_t       svrTimestamp;
+  int32_t       passVer;
+  int32_t       authVer;
+  char          sVer[TSDB_VERSION_LEN];
+  char          sDetailVer[128];
+  int64_t       whiteListVer;
   SMonitorParas monitorParas;
 } SConnectRsp;
 
@@ -1638,15 +1638,15 @@ void    tFreeSFuncInfo(SFuncInfo* pInfo);
 void    tFreeSRetrieveFuncRsp(SRetrieveFuncRsp* pRsp);
 
 typedef struct {
-  int32_t  statusInterval;
-  int64_t  checkTime;                  // 1970-01-01 00:00:00.000
-  char     timezone[TD_TIMEZONE_LEN];  // tsTimezone
-  char     locale[TD_LOCALE_LEN];      // tsLocale
-  char     charset[TD_LOCALE_LEN];     // tsCharset
-  int8_t   ttlChangeOnWrite;
-  int8_t   enableWhiteList;
-  int8_t   encryptionKeyStat;
-  uint32_t encryptionKeyChksum;
+  int32_t       statusInterval;
+  int64_t       checkTime;                  // 1970-01-01 00:00:00.000
+  char          timezone[TD_TIMEZONE_LEN];  // tsTimezone
+  char          locale[TD_LOCALE_LEN];      // tsLocale
+  char          charset[TD_LOCALE_LEN];     // tsCharset
+  int8_t        ttlChangeOnWrite;
+  int8_t        enableWhiteList;
+  int8_t        encryptionKeyStat;
+  uint32_t      encryptionKeyChksum;
   SMonitorParas monitorParas;
 } SClusterCfg;
 
@@ -1745,9 +1745,9 @@ typedef enum {
 } MONITOR_TYPE;
 
 typedef struct {
-  int32_t       contLen;
-  char*         pCont;
-  MONITOR_TYPE  type;
+  int32_t      contLen;
+  char*        pCont;
+  MONITOR_TYPE type;
 } SStatisReq;
 
 int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
@@ -3035,8 +3035,8 @@ typedef struct {
   int8_t source;  // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
 } SVCreateTbBatchReq;
 
-int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
-int tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
+int  tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
+int  tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
 void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq);
 
 typedef struct {
@@ -3275,10 +3275,10 @@ typedef struct {
 } SClientHbRsp;
 
 typedef struct {
-  int64_t reqId;
-  int64_t rspId;
-  int32_t svrTimestamp;
-  SArray* rsps;  // SArray<SClientHbRsp>
+  int64_t       reqId;
+  int64_t       rspId;
+  int32_t       svrTimestamp;
+  SArray*       rsps;  // SArray<SClientHbRsp>
   SMonitorParas monitorParas;
 } SClientHbBatchRsp;
 
@@ -3514,7 +3514,7 @@ typedef struct SVUpdateCheckpointInfoReq {
   int64_t  checkpointVer;
   int64_t  checkpointTs;
   int32_t  transId;
-  int64_t  hStreamId;       // add encode/decode
+  int64_t  hStreamId;  // add encode/decode
   int64_t  hTaskId;
   int8_t   dropRelHTask;
 } SVUpdateCheckpointInfoReq;
@@ -3993,7 +3993,7 @@ int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, void* pRsp);
 void    tDeleteSTaosxRsp(void* pRsp);
 
 typedef struct SMqBatchMetaRsp {
-  SMqRspHead   head;         // not serialize
+  SMqRspHead   head;  // not serialize
   STqOffsetVal rspOffset;
   SArray*      batchMetaLen;
   SArray*      batchMetaReq;
