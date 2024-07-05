@@ -406,12 +406,14 @@ class TDTestCase:
         # check result
         self.checkResult()
 
+        tdSql.execute(f"drop database {self.db2};")
+
         seconds = 300
         for i in range(seconds):
             sql ="show transactions;"
             rows = tdSql.query(sql)
             if rows == 0:
-                tdLog.info("split vgroup finished.")
+                tdLog.info("no transaction exist.")
                 return True
             #tdLog.info(f"i={i} wait split vgroup ...")
             time.sleep(1)
