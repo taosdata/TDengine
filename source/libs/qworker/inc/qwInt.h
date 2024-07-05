@@ -28,6 +28,7 @@ extern "C" {
 #include "tref.h"
 #include "trpc.h"
 #include "ttimer.h"
+#include "theap.h"
 
 #define QW_DEFAULT_SCHEDULER_NUMBER 100
 #define QW_DEFAULT_TASK_NUMBER      10000
@@ -232,9 +233,16 @@ typedef struct SQWorkerMgmt {
 } SQWorkerMgmt;
 
 typedef struct SQWQueryInfo {
+  bool      retired;
   void*     pCollection;
   SHashObj* pSessions;
 } SQWQueryInfo;
+
+typedef struct SQWRetireCtx {
+  int8_t        retireBegin;
+  TdThreadCond  retired;
+  BoundedQueue* collectionQueue;
+} SQWRetireCtx;
 
 typedef struct SQueryMgmt {
   SRWLatch  taskMgmtLock;
@@ -452,6 +460,8 @@ void    qwDbgSimulateSleep(void);
 void    qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped);
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwInitQueryPool(void);
+void    qwDestroyQueryInfo(SQWQueryInfo* pQuery);
+int32_t qwInitSession(uint64_t qId, void** ppSession);
 
 #ifdef __cplusplus
 }

@@ -104,9 +104,14 @@ int32_t qwInitSession(uint64_t qId, void** ppSession) {
     break;
   }
 
-  QW_ERR_RET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, qId, ppSession, pQuery->pCollection));
+  QW_ERR_RET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, ppSession, pQuery->pCollection));
 
   return code;
+}
+
+bool qwRetireCollection(uint64_t collectionId, int64_t retireSize) {
+  //TODO
+  return false;
 }
 
 int32_t qwInitQueryPool(void) {
@@ -124,10 +129,11 @@ int32_t qwInitQueryPool(void) {
 
   cfg.threadNum = 10; //TODO
   cfg.evicPolicy = E_EVICT_AUTO; //TODO
-  cfg.collectionQuota = &tsSingleQueryMaxMemorySize;
+  cfg.collectionQuota = tsSingleQueryMaxMemorySize * 1048576;
   cfg.cb.setSessFp = qwSetConcurrentTaskNum;
   cfg.cb.decSessFp = qwDecConcurrentTaskNum;
   cfg.cb.incSessFp = qwIncConcurrentTaskNum;
+  cfg.cb.retireFp = qwRetireCollection;
 
   code = qwGetMemPoolChunkSize(cfg.maxSize, cfg.threadNum, &cfg.chunkSize);
   if (TSDB_CODE_SUCCESS != code) {

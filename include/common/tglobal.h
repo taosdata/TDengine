@@ -72,6 +72,7 @@ extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsQueryMinConcurrentTaskNum;
 extern int32_t tsQueryMaxConcurrentTaskNum;
 extern int32_t tsQueryConcurrentTaskNum;
+extern int64_t tsSingleQueryMaxMemorySize;
 extern int32_t tsNumOfQueryThreads;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;

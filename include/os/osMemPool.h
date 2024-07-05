@@ -42,7 +42,7 @@ typedef enum MemPoolUsageLevel {
 typedef void (*decConcSessionNum)(void);
 typedef void (*incConcSessionNum)(void);
 typedef void (*setConcSessionNum)(int32_t);
-typedef void (*retireCollection)(uint64_t, int64_t);
+typedef bool (*retireCollection)(uint64_t, int64_t);
 
 typedef struct SMemPoolCallBack {
   decConcSessionNum decSessFp;
@@ -54,7 +54,7 @@ typedef struct SMemPoolCallBack {
 typedef struct SMemPoolCfg {
   int64_t            maxSize;
   int64_t            sessionExpectSize;
-  int64_t           *collectionQuota;
+  int64_t            collectionQuota;
   int32_t            chunkSize;
   int32_t            threadNum;
   int8_t             usageLevel[E_MEM_USAGE_MAX_VALUE];
@@ -75,8 +75,9 @@ void   *taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignme
 void    taosMemPoolClose(void* poolHandle);
 void    taosMemPoolModDestroy(void);
 void    taosAutoMemoryFree(void *ptr);
-int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession);
+int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pCollection);
 void    taosMemPoolDestroySession(void* poolHandle, void* session);
+int32_t taosMemPoolCallocCollection(uint64_t collectionId, void** ppCollection);
 
 
 extern threadlocal void* threadPoolHandle;

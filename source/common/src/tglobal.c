@@ -60,7 +60,7 @@ int8_t  tsQueryUseMemoryPool = 1;
 int32_t tsQueryMinConcurrentTaskNum = 1;
 int32_t tsQueryMaxConcurrentTaskNum = 0;
 int32_t tsQueryConcurrentTaskNum = 0;
-int64_t tsSingleQueryMaxMemorySize = 0;
+int64_t tsSingleQueryMaxMemorySize = 1000000; //MB
 
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
@@ -678,6 +678,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
+  if (cfgAddInt64(pCfg, "singleQueryMaxMemorySize", tsSingleQueryMaxMemorySize, 100, 1000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+
   if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 4, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -1142,6 +1144,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
 
   tsQueryUseMemoryPool = (bool)cfgGetItem(pCfg, "queryUseMemoryPool")->bval;
+  tsSingleQueryMaxMemorySize = cfgGetItem(pCfg, "singleQueryMaxMemorySize")->i64 * 1048576;
 
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsRetentionSpeedLimitMB = cfgGetItem(pCfg, "retentionSpeedLimitMB")->i32;

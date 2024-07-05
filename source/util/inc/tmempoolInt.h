@@ -31,7 +31,10 @@ extern "C" {
 #define MP_MAX_KEEP_FREE_CHUNK_NUM  1000
 #define MP_MAX_MALLOC_MEM_SIZE      0xFFFFFFFFFF
 
-#define MP_RETIRE_THRESHOLD_PERCENT           (0.9)
+
+#define MP_RETIRE_HIGH_THRESHOLD_PERCENT          (0.95)
+#define MP_RETIRE_MID_THRESHOLD_PERCENT           (0.9)
+#define MP_RETIRE_LOW_THRESHOLD_PERCENT           (0.85)
 #define MP_RETIRE_UNIT_PERCENT               (0.1)
 
 
@@ -187,10 +190,21 @@ typedef struct SMPStatInfo {
   SHashObj*      lineStat;
 } SMPStatInfo;
 
+
+typedef struct SMPCollection {
+  int64_t            collectionId;
+  int64_t            allocMemSize;
+  int64_t            maxAllocMemSize;
+
+  SMPStatInfo        stat;
+} SMPCollection;
+
+
 typedef struct SMPSession {
   SMPListNode        list;
 
   int64_t            sessionId;
+
   SMPCollection*     pCollection;
   bool               needRetire;
   SMPCtrlInfo        ctrlInfo;
@@ -230,19 +244,12 @@ typedef struct SMPCacheGroupInfo {
   void              *pIdleList;
 } SMPCacheGroupInfo;
 
-typedef struct SMPCollection {
-  int64_t            collectionId;
-  int64_t            allocMemSize;
-  int64_t            maxAllocMemSize;
-
-  SMPStatInfo        stat;
-} SMPCollection;
 
 typedef struct SMemPool {
   char              *name;
   int16_t            slotId;
   SMemPoolCfg        cfg;
-  int64_t            memRetireThreshold;
+  int64_t            memRetireThreshold[3];
   int64_t            memRetireUnit;
   int32_t            maxChunkNum;
   SMPCtrlInfo        ctrlInfo;

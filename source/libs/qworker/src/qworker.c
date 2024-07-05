@@ -1312,7 +1312,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
     memset(gQwMgmt.param, 0, sizeof(gQwMgmt.param));
   }
 
-  int32_t code = qwOpenRef();
+  code = qwOpenRef();
   if (code) {
     atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
     QW_RET(code);
