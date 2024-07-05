@@ -162,7 +162,7 @@ static int32_t sendReport(void* pTransporter, SEpSet *epSet, char* pCont, MONITO
   int64_t transporterId = 0;
   return asyncSendMsgToServer(pTransporter, epSet, &transporterId, pInfo);
 
-  FAILED:
+FAILED:
   monitorFreeSlowLogDataEx(param);
   return -1;
 }
@@ -454,6 +454,10 @@ static int64_t getFileSize(char* path){
 }
 
 static int32_t sendSlowLog(int64_t clusterId, char* data, TdFilePtr pFile, int64_t offset, SLOW_LOG_QUEUE_TYPE type, char* fileName, void* pTransporter, SEpSet *epSet){
+  if (data == NULL){
+    taosMemoryFree(fileName);
+    return -1;
+  }
   MonitorSlowLogData* pParam = taosMemoryMalloc(sizeof(MonitorSlowLogData));
   if(pParam == NULL){
     taosMemoryFree(data);
@@ -469,18 +473,26 @@ static int32_t sendSlowLog(int64_t clusterId, char* data, TdFilePtr pFile, int64
   return sendReport(pTransporter, epSet, data, MONITOR_TYPE_SLOW_LOG, pParam);
 }
 
-static void monitorSendSlowLogAtBeginning(int64_t clusterId, char** fileName, TdFilePtr pFile, int64_t offset, void* pTransporter, SEpSet *epSet){
+static int32_t monitorReadSend(int64_t clusterId, TdFilePtr pFile, int64_t* offset, int64_t size, SLOW_LOG_QUEUE_TYPE type, char* fileName){
+  SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
+  if(pInst == NULL){
+    tscError("failed to get app instance by clusterId:%" PRId64, clusterId);
+    return -1;
+  }
+  SEpSet ep = getEpSet_s(&pInst->mgmtEp);
+  char* data = readFile(pFile, offset, size);
+  return sendSlowLog(clusterId, data, (type == SLOW_LOG_READ_BEGINNIG ? pFile : NULL), *offset, type, fileName, pInst->pTransporter, &ep);
+}
+
+static void monitorSendSlowLogAtBeginning(int64_t clusterId, char** fileName, TdFilePtr pFile, int64_t offset){
   int64_t  size = getFileSize(*fileName);
   if(size <= offset){
     processFileInTheEnd(pFile, *fileName);
     tscDebug("[monitor] monitorSendSlowLogAtBeginning delete file:%s", *fileName);
   }else{
-    char* data = readFile(pFile, &offset, size);
-    if(data != NULL){
-      sendSlowLog(clusterId, data, pFile, offset, SLOW_LOG_READ_BEGINNIG, *fileName, pTransporter, epSet);
-      *fileName = NULL;
-    }
-    tscDebug("[monitor] monitorSendSlowLogAtBeginning send slow log file:%p, data:%s", pFile, data);
+    int32_t code = monitorReadSend(clusterId, pFile, &offset, size, SLOW_LOG_READ_BEGINNIG, *fileName);
+    tscDebug("[monitor] monitorSendSlowLogAtBeginning send slow log clusterId:%"PRId64",ret:%d", clusterId, code);
+    *fileName = NULL;
   }
 }
 
@@ -501,17 +513,8 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId){
     tscDebug("[monitor] monitorSendSlowLogAtRunning truncate file to 0 file:%p", pClient->pFile);
     pClient->offset = 0;
   }else{
-    SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
-    if(pInst == NULL){
-      tscError("failed to get app instance by clusterId:%" PRId64, clusterId);
-      return;
-    }
-    SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-    char* data = readFile(pClient->pFile, &pClient->offset, size);
-    if(data != NULL){
-      sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
-    }
-    tscDebug("[monitor] monitorSendSlowLogAtRunning send slow log:%s", data);
+    int32_t code = monitorReadSend(clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_RUNNING, NULL);
+    tscDebug("[monitor] monitorSendSlowLogAtRunning send slow log clusterId:%"PRId64",ret:%d", clusterId, code);
   }
 }
 
@@ -533,16 +536,8 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
       return true;
     }
   }else{
-    SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
-    if(pInst == NULL) {
-      return true;
-    }
-    SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-    char* data = readFile(pClient->pFile, &pClient->offset, size);
-    if(data != NULL){
-      sendSlowLog(clusterId, data, pClient->pFile, pClient->offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep);
-    }
-    tscInfo("[monitor] monitorSendSlowLogAtQuit send slow log:%s", data);
+    int32_t code = monitorReadSend(clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_QUIT, NULL);
+    tscDebug("[monitor] monitorSendSlowLogAtRunning send slow log clusterId:%"PRId64",ret:%d", clusterId, code);
   }
   return false;
 }
@@ -559,16 +554,11 @@ static void   monitorSendAllSlowLogAtQuit(){
       pClient->pFile = NULL;
     }else if(pClient->offset == 0){
       int64_t* clusterId = (int64_t*)taosHashGetKey(pIter, NULL);
-      SAppInstInfo* pInst = getAppInstByClusterId(*clusterId);
-      if(pInst == NULL) {
-        continue;
-      }
-      SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-      char* data = readFile(pClient->pFile, &pClient->offset, size);
-      if(data != NULL && sendSlowLog(*clusterId, data, NULL, pClient->offset, SLOW_LOG_READ_QUIT, NULL, pInst->pTransporter, &ep) == 0){
+      int32_t code = monitorReadSend(*clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_QUIT, NULL);
+      tscDebug("[monitor] monitorSendAllSlowLogAtQuit send slow log clusterId:%"PRId64",ret:%d", *clusterId, code);
+      if (code == 0){
         quitCnt ++;
       }
-      tscInfo("[monitor] monitorSendAllSlowLogAtQuit send slow log :%s", data);
     }
   }
 }
@@ -614,12 +604,8 @@ static void monitorSendAllSlowLog(){
         }
         continue;
       }
-      SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-      char* data = readFile(pClient->pFile, &pClient->offset, size);
-      if(data != NULL){
-        sendSlowLog(*clusterId, data, NULL, pClient->offset, SLOW_LOG_READ_RUNNING, NULL, pInst->pTransporter, &ep);
-      }
-      tscDebug("[monitor] monitorSendAllSlowLog send slow log :%s", data);
+      int32_t code = monitorReadSend(*clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_RUNNING, NULL);
+      tscDebug("[monitor] monitorSendAllSlowLog send slow log clusterId:%"PRId64",ret:%d", *clusterId, code);
     }
   }
 }
@@ -632,7 +618,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId){
     return;
   }
   char namePrefix[PATH_MAX] = {0};
-  if (snprintf(namePrefix, sizeof(namePrefix), "%s%"PRIx64, TD_TMP_FILE_PREFIX, pInst->clusterId) < 0) {
+  if (snprintf(namePrefix, sizeof(namePrefix), "%s%"PRIx64, TD_TMP_FILE_PREFIX, clusterId) < 0) {
     tscError("failed to generate slow log file name prefix");
     return;
   }
@@ -657,7 +643,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId){
     if (strcmp(name, ".") == 0 ||
         strcmp(name, "..") == 0 ||
         strstr(name, namePrefix) == NULL) {
-      tscInfo("skip file:%s, for cluster id:%"PRIx64, name, pInst->clusterId);
+      tscInfo("skip file:%s, for cluster id:%"PRIx64, name, clusterId);
       continue;
     }
 
@@ -673,9 +659,8 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId){
       taosCloseFile(&pFile);
       continue;
     }
-    SEpSet ep = getEpSet_s(&pInst->mgmtEp);
     char *tmp = taosStrdup(filename);
-    monitorSendSlowLogAtBeginning(pInst->clusterId, &tmp, pFile, 0, pInst->pTransporter, &ep);
+    monitorSendSlowLogAtBeginning(clusterId, &tmp, pFile, 0);
     taosMemoryFree(tmp);
   }
 
@@ -717,11 +702,7 @@ static void* monitorThreadFunc(void *param){
     if (slowLogData != NULL) {
       if (slowLogData->type == SLOW_LOG_READ_BEGINNIG){
         if(slowLogData->pFile != NULL){
-          SAppInstInfo* pInst = getAppInstByClusterId(slowLogData->clusterId);
-          if(pInst != NULL) {
-            SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-            monitorSendSlowLogAtBeginning(slowLogData->clusterId, &(slowLogData->fileName), slowLogData->pFile, slowLogData->offset, pInst->pTransporter, &ep);
-          }
+          monitorSendSlowLogAtBeginning(slowLogData->clusterId, &(slowLogData->fileName), slowLogData->pFile, slowLogData->offset);
         }else{
           monitorSendAllSlowLogFromTempDir(slowLogData->clusterId);
         }
