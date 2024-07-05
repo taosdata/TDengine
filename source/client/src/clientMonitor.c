@@ -162,7 +162,7 @@ static int32_t sendReport(void* pTransporter, SEpSet *epSet, char* pCont, MONITO
   int64_t transporterId = 0;
   return asyncSendMsgToServer(pTransporter, epSet, &transporterId, pInfo);
 
-FAILED:
+  FAILED:
   monitorFreeSlowLogDataEx(param);
   return -1;
 }
@@ -537,7 +537,7 @@ static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
     }
   }else{
     int32_t code = monitorReadSend(clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_QUIT, NULL);
-    tscDebug("[monitor] monitorSendSlowLogAtRunning send slow log clusterId:%"PRId64",ret:%d", clusterId, code);
+    tscDebug("[monitor] monitorSendSlowLogAtQuit send slow log clusterId:%"PRId64",ret:%d", clusterId, code);
   }
   return false;
 }
@@ -836,7 +836,7 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data){
     return -1;
   }
   *slowLogData = data;
-  tscDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " type:%d", slowLogData->clusterId, slowLogData->type);
+  tscDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " type:%s, data:%s", slowLogData->clusterId, queueTypeStr[slowLogData->type], slowLogData->data);
   if (taosWriteQitem(monitorQueue, slowLogData) == 0){
     tsem2_post(&monitorSem);
   }else{
