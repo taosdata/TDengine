@@ -154,13 +154,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if(taosHashGet(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES) == NULL){
     if(taosHashPut(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES, &pTscObj->pAppInfo, POINTER_BYTES) != 0){
       tscError("failed to put appInfo into appInfo.pInstMapByClusterId");
+    }else{
+      MonitorSlowLogData data = {0};
+      data.clusterId = pTscObj->pAppInfo->clusterId;
+      data.type = SLOW_LOG_READ_BEGINNIG;
+      monitorPutData2MonitorQueue(data);
+      monitorClientSlowQueryInit(connectRsp.clusterId);
+      monitorClientSQLReqInit(connectRsp.clusterId);
     }
-    MonitorSlowLogData data = {0};
-    data.clusterId = pTscObj->pAppInfo->clusterId;
-    data.type = SLOW_LOG_READ_BEGINNIG;
-    monitorPutData2MonitorQueue(data);
-    monitorClientSlowQueryInit(connectRsp.clusterId);
-    monitorClientSQLReqInit(connectRsp.clusterId);
   }
 
   taosThreadMutexLock(&clientHbMgr.lock);
