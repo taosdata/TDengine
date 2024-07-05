@@ -38,6 +38,13 @@ typedef enum {
     SLOW_LOG_READ_QUIT = 3,
 } SLOW_LOG_QUEUE_TYPE;
 
+static char* queueTypeStr[] = {
+    "SLOW_LOG_WRITE",
+    "SLOW_LOG_READ_RUNNING",
+    "SLOW_LOG_READ_BEGINNIG",
+    "SLOW_LOG_READ_QUIT"
+};
+
 #define SLOW_LOG_SEND_SIZE_MAX 1024*1024
 
 typedef struct {
@@ -65,7 +72,7 @@ typedef struct {
 } MonitorSlowLogData;
 
 void            monitorClose();
-void            monitorInit();
+int32_t         monitorInit();
 
 void            monitorClientSQLReqInit(int64_t clusterKey);
 void            monitorClientSlowQueryInit(int64_t clusterId);

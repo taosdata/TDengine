@@ -864,7 +864,13 @@ void taos_init_imp(void) {
   initQueryModuleMsgHandle();
 
   if (taosConvInit() != 0) {
+    tscInitRes = -1;
     tscError("failed to init conv");
+    return;
+  }
+  if (monitorInit() != 0) {
+    tscInitRes = -1;
+    tscError("failed to init monitor");
     return;
   }
 
@@ -891,7 +897,6 @@ void taos_init_imp(void) {
   taosThreadMutexInit(&appInfo.mutex, NULL);
 
   tscCrashReportInit();
-  monitorInit();
 
   tscDebug("client is initialized successfully");
 }
