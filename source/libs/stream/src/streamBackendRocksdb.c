@@ -2074,7 +2074,9 @@ int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
     len += taosEncodeFixedI32((void**)&buf, key.len);
     len += taosEncodeFixedI32((void**)&buf, key.rawLen);
     len += taosEncodeFixedI8((void**)&buf, key.compress);
-    len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
+    if (value != NULL && key.len != 0) {
+      len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
+    }
     *dest = p;
   } else {
     char* buf = *dest;
@@ -2082,7 +2084,9 @@ int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
     len += taosEncodeFixedI32((void**)&buf, key.len);
     len += taosEncodeFixedI32((void**)&buf, key.rawLen);
     len += taosEncodeFixedI8((void**)&buf, key.compress);
-    len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
+    if (value != NULL && key.len != 0) {
+      len += taosEncodeBinary((void**)&buf, (char*)value, key.len);
+    }
   }
 
   taosMemoryFree(dst);
