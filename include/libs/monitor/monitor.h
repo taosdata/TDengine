@@ -76,7 +76,7 @@ typedef struct {
 } SMonBasicInfo;
 
 typedef struct {
-  //float        uptime;  // day
+  // float        uptime;  // day
   int64_t      uptime;  // second
   int8_t       has_mnode;
   int8_t       has_qnode;
@@ -108,8 +108,8 @@ typedef struct {
   char    first_ep[TSDB_EP_LEN];
   int32_t first_ep_dnode_id;
   char    version[MON_VER_LEN];
-  //float   master_uptime;     // day
-  int64_t master_uptime;        //second
+  // float   master_uptime;     // day
+  int64_t master_uptime;     // second
   int32_t monitor_interval;  // sec
   int32_t dbs_total;
   int32_t stbs_total;
@@ -153,9 +153,9 @@ typedef struct {
 } SMonStbInfo;
 
 typedef struct {
-  int64_t  expire_time;
-  int64_t  timeseries_used;
-  int64_t  timeseries_total;
+  int64_t expire_time;
+  int64_t timeseries_used;
+  int64_t timeseries_total;
 } SMonGrantInfo;
 
 typedef struct {
@@ -226,8 +226,7 @@ void    monSetQmInfo(SMonQmInfo *pInfo);
 void    monSetSmInfo(SMonSmInfo *pInfo);
 void    monSetBmInfo(SMonBmInfo *pInfo);
 void    monGenAndSendReport();
-void    monGenAndSendReportBasic();
-void    monSendContent(int64_t chanId, char *pCont, const char* uri);
+void    monSendContent(int64_t chanId, char *pCont, const char *uri);
 
 void tFreeSMonMmInfo(SMonMmInfo *pInfo);
 void tFreeSMonVmInfo(SMonVmInfo *pInfo);

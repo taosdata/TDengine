@@ -568,6 +568,25 @@ void monSendReport(SMonInfo *pMonitor) {
   }
 }
 
+void monSendReportBasic(SMonInfo *pMonitor) {
+  char *pCont = tjsonToString(pMonitor->pJson);
+  if (tsMonitorLogProtocol) {
+    if (pCont != NULL) {
+      uInfoL("report cont basic:\n%s", pCont);
+    } else {
+      uInfo("report cont basic is null");
+    }
+  }
+  if (pCont != NULL) {
+    EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
+    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwBasicUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) !=
+        0) {
+      uError("failed to send monitor msg");
+    }
+    taosMemoryFree(pCont);
+  }
+}
+
 void monGenAndSendReport() {
   SMonInfo *pMonitor = monCreateMonitorInfo();
   if (pMonitor == NULL) return;
@@ -594,38 +613,11 @@ void monGenAndSendReport() {
     monGenVnodeRoleTable(pMonitor);
 
     monSendPromReport();
-  }
-
-  monCleanupMonitorInfo(pMonitor);
-}
-
-void monSendReportBasic(SMonInfo *pMonitor) {
-  char *pCont = tjsonToString(pMonitor->pJson);
-  if (tsMonitorLogProtocol) {
-    if (pCont != NULL) {
-      uInfoL("report cont basic:\n%s", pCont);
-    } else {
-      uInfo("report cont basic is null");
+    if (pMonitor->mmInfo.cluster.first_ep_dnode_id != 0) {
+      monGenBasicJsonBasic(pMonitor);
+      monGenClusterJsonBasic(pMonitor);
+      monSendReportBasic(pMonitor);
     }
-  }
-  if (pCont != NULL) {
-    EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonFwBasicUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) !=
-        0) {
-      uError("failed to send monitor msg");
-    }
-    taosMemoryFree(pCont);
-  }
-}
-
-void monGenAndSendReportBasic() {
-  SMonInfo *pMonitor = monCreateMonitorInfo();
-
-  monGenBasicJsonBasic(pMonitor);
-  monGenClusterJsonBasic(pMonitor);
-
-  if (pMonitor->mmInfo.cluster.first_ep_dnode_id != 0) {
-    monSendReportBasic(pMonitor);
   }
 
   monCleanupMonitorInfo(pMonitor);
