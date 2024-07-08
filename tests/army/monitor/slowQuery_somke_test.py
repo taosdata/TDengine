@@ -62,9 +62,9 @@ class TDTestCase(TBase):
                 tdLog.exit(f"check default value '{value}' of variable '{key}' - FAIL" )
         
         # check basic slow query
-        # updatecfgDict = {"slowLogScope":"ALL", "slowLogThresholdTest":"0", "monitorInterval":"1"}
-        # monitor_common.update_taos_cfg(idx=1, updatecfgDict=updatecfgDict)
-        # monitor_common.check_slow_query_table(db_name='smoke_testing', query_log_exist=True, insert_log_exist=True, other_log_exist=True)
+        updatecfgDict = {"slowLogScope":"ALL", "slowLogThresholdTest":"0", "monitorInterval":"1"}
+        monitor_common.update_taos_cfg(idx=1, updatecfgDict=updatecfgDict)
+        monitor_common.check_slow_query_table(db_name='smoke_testing', query_log_exist=True, insert_log_exist=True, other_log_exist=True)
 
 
         tdLog.success(f"{__file__} successfully executed")
