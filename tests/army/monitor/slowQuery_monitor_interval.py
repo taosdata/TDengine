@@ -36,7 +36,7 @@ from monitor.common import *
 class TDTestCase(TBase):
 
     updatecfgDict = {
-        "monitorIntervalTest": "0",  # special setting only for testing
+        "slowLogThresholdTest": "0",  # special setting only for testing
         "slowLogExceptDb": "log",
         "monitor": "1",
         "monitorInterval": "1",
@@ -50,17 +50,6 @@ class TDTestCase(TBase):
         tdLog.info(f"check_show_log_threshold")
 
         monitor_common.init_env()
-        # monitor_common.install_taospy()  
-
-        # udf_sleep = os.path.join(sc.getSimPath(), 'tests/army/monitor/udf_sleep.py')
-        # sqls = [
-        #     f'create aggregate function my_sleep as "{udf_sleep}" outputtype int language "Python"',
-        #     'create datab ase check_show_log_threshold',
-        #     'create table check_show_log_threshold.assistance (ts timestamp, n int)',
-        #     'insert into check_show_log_threshold.assistance values(now, 1), (now + 1s, 2), (now + 2s, 3)'
-        # ]
-        # tdSql.executes(sqls,queryTimes=1)
-        # tdSql.query('select my_sleep(n) from check_show_log_threshold.assistance',queryTimes=1)
 
         # 1.check nagative value of monitorInterval
         VAR_MONITOR_INTERVAL_NAGATIVE_CASES ={
@@ -115,7 +104,7 @@ class TDTestCase(TBase):
             tdLog.info(f"check valid value '{threshold_value}' of variable 'monitorInterval' via cfg - PASS")
 
         # 3.config in client is not available
-        updatecfgDict = {"monitorIntervalTest": "0", "slowLogScope": "ALL"}
+        updatecfgDict = {"monitorInterval": "1", "slowLogScope": "ALL"}
         monitor_common.update_taos_cfg(1, updatecfgDict)
 
         updatecfgDict = {"monitorInterval":"10"}
@@ -134,12 +123,11 @@ class TDTestCase(TBase):
                 'serverPort': '6630',
                 'dataDir': f'{taos_error_dir}/data',
                 'logDir': f'{taos_error_dir}/log',
-                'monitorIntervalTest': '0',
-                'monitorInterval': '1',
+                'monitor': '1',
                 'monitorFqdn': 'localhost'}
             new_taos_cfg = monitor_common.create_private_cfg(cfg_name='diff_taos.cfg', params=params)
             
-            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='monitor slow log threshold not match')
+            monitor_common.failed_to_create_dnode_with_setting_not_match(cfg=new_taos_cfg, taos_error_dir=taos_error_dir, endpoint=endpoint, err_msg='monitor interval not match')
         tdLog.info(f"check_show_log_threshold is done")
 
 
