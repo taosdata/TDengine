@@ -3247,10 +3247,11 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       tryToSetInt64(pDiffInfo, pOutput, v, pos);
       break;
     }
-    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:{
       int64_t v = *(uint16_t*)pv;
       tryToSetInt64(pDiffInfo, pOutput, v, pos);
       break;
+    }
     case TSDB_DATA_TYPE_SMALLINT: {
       int64_t v = *(int16_t*)pv;
       tryToSetInt64(pDiffInfo, pOutput, v, pos);
