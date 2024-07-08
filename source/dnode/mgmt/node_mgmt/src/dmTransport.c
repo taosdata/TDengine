@@ -208,7 +208,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   pRpc->info.wrapper = pWrapper;
-  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
+
+  EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsRpcQueueMemoryUsed
+  pMsg = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen);
   if (pMsg == NULL) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
