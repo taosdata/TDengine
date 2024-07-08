@@ -2763,6 +2763,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   taosArrayDestroy(pNodeSnapshot);
   if (!allReady) {
     mWarn("not all vnodes are ready, end to process the consensus-checkpointId in tmr process");
+    taosArrayDestroy(pStreamList);
     return 0;
   }
 
