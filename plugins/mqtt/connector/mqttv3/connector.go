@@ -28,19 +28,20 @@ func newTLSConfig(conf *config.MQTT) (*tls.Config, error) {
 	certPool := x509.NewCertPool()
 	caCert := []byte(conf.CA)
 	certPool.AppendCertsFromPEM(caCert)
-
-	cert, err := tls.X509KeyPair([]byte(conf.Cert), []byte(conf.CertKey))
-	if err != nil {
-		return nil, err
-	}
-
-	return &tls.Config{
+	tlsConfig := &tls.Config{
 		RootCAs:            certPool,
 		ClientAuth:         tls.NoClientCert,
-		ClientCAs:          nil,
 		InsecureSkipVerify: true,
-		Certificates:       []tls.Certificate{cert},
-	}, nil
+	}
+	if conf.Cert != "" || conf.CertKey != "" {
+		cert, err := tls.X509KeyPair([]byte(conf.Cert), []byte(conf.CertKey))
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.ClientAuth = tls.RequestClientCert
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+	return tlsConfig, nil
 }
 
 func (conn *Connector) SubscribeMultiple(topics map[string]int) error {
