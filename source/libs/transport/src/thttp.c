@@ -516,50 +516,53 @@ static void httpHandleReq(SHttpMsg* msg) {
   SHttpClient* cli = taosMemoryCalloc(1, sizeof(SHttpClient));
   if (cli == NULL) {
     taosMemoryFree(wb);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
 
+  cli->wbuf = wb;
   cli->conn.data = cli;
   cli->tcp.data = cli;
   cli->req.data = cli;
-  cli->wbuf = wb;
+  cli->addr = msg->server;
+  cli->port = msg->port;
+  cli->dest = dest;
+  cli->chanId = chanId;
+  taosMemoryFree(msg->uri);
+  taosMemoryFree(msg);
+
   cli->rbuf = taosMemoryCalloc(1, HTTP_RECV_BUF_SIZE);
   if (cli->rbuf == NULL) {
-    taosMemoryFree(msg->uri);
-    taosMemoryFree(msg);
+    tError("http-report failed to alloc read buf, dst:%s:%d,chanId:%" PRId64 ", reason:%s", cli->addr, cli->port,
+           chanId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     destroyHttpClient(cli);
     taosReleaseRef(httpRefMgt, chanId);
     return;
   }
 
-  cli->addr = msg->server;
-  cli->port = msg->port;
-  cli->dest = dest;
-  cli->chanId = chanId;
-
-  taosMemoryFree(msg->uri);
-  taosMemoryFree(msg);
-
   int err = uv_tcp_init(http->loop, &cli->tcp);
   if (err != 0) {
-    tError("http-report failed to init socket handle, dst:%s:%d,reason:%s chanId:%" PRId64 "", cli->addr, cli->port,
-           uv_strerror(err), chanId);
+    tError("http-report failed to init socket handle, dst:%s:%d,chanId:%" PRId64 ", reason:%s", cli->addr, cli->port,
+           chanId, uv_strerror(err));
     destroyHttpClient(cli);
     taosReleaseRef(httpRefMgt, chanId);
+    return;
   }
 
   // set up timeout to avoid stuck;
   int32_t fd = taosCreateSocketWithTimeout(5000);
   if (fd < 0) {
-    tError("http-report failed to open socket, dst:%s:%d, chanId:%" PRId64 "", cli->addr, cli->port, chanId);
+    tError("http-report failed to open socket, dst:%s:%d, chanId:%" PRId64 ", reason:%s", cli->addr, cli->port, chanId,
+           tstrerror(TAOS_SYSTEM_ERROR(errno)));
     destroyHttpClient(cli);
     taosReleaseRef(httpRefMgt, chanId);
     return;
   }
+
   int ret = uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
   if (ret != 0) {
-    tError("http-report failed to open socket, reason:%s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(ret), cli->addr,
-           cli->port, chanId);
+    tError("http-report failed to open socket, reason:%s, dst:%s:%d, chanId:%" PRId64 ",reason:%s", uv_strerror(ret),
+           cli->addr, cli->port, chanId, uv_strerror(ret));
     destroyHttpClient(cli);
     taosReleaseRef(httpRefMgt, chanId);
     return;
@@ -567,8 +570,8 @@ static void httpHandleReq(SHttpMsg* msg) {
 
   ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&cli->dest, clientConnCb);
   if (ret != 0) {
-    tError("http-report failed to connect to http-server, reason:%s, dst:%s:%d, chanId:%" PRId64 "", uv_strerror(ret),
-           cli->addr, cli->port, chanId);
+    tError("http-report failed to connect to http-server,dst:%s:%d, chanId:%" PRId64 ",reson:%s", cli->addr, cli->port,
+           chanId, uv_strerror(ret));
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
     destroyHttpClient(cli);
   }
@@ -577,9 +580,10 @@ static void httpHandleReq(SHttpMsg* msg) {
 
 END:
   if (ignore == false) {
-    tError("http-report failed to report, reason: %s, addr: %s:%d, chanId:%" PRId64 "", terrstr(), msg->server,
-           msg->port, chanId);
+    tError("http-report failed to report to addr: %s:%d, chanId:%" PRId64 ", reason:%s", msg->server, msg->port, chanId,
+           tstrerror(terrno));
   }
+  terrno = 0;
   httpDestroyMsg(msg);
   taosMemoryFree(header);
   taosReleaseRef(httpRefMgt, chanId);
