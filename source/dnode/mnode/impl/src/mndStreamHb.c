@@ -290,7 +290,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
           .streamId = p->id.streamId,
           .taskId = p->id.taskId,
           .checkpointId = p->checkpointInfo.latestId,
-          .startTs = pTaskEntry->startTime,
+          .startTs = pChkInfo->consensusTs,
       };
 
       SStreamObj *pStream = mndGetStreamObj(pMnode, p->id.streamId);
@@ -320,21 +320,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         // remove failed trans from pChkptStreams
         taosHashRemove(execInfo.pChkptStreams, &p->id.streamId, sizeof(p->id.streamId));
       }
-
-/*      if (pChkInfo->consensusChkptId != 0) {
-        SRestoreCheckpointInfo cp = {
-            .streamId = p->id.streamId,
-            .taskId = p->id.taskId,
-            .checkpointId = p->checkpointInfo.latestId,
-            .startTs = pTaskEntry->startTime,
-        };
-
-        SStreamObj* pStream = mndGetStreamObj(pMnode, p->id.streamId);
-        int32_t numOfTasks = mndGetNumOfStreamTasks(pStream);
-        SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, p->id.streamId, numOfTasks);
-        mndAddConsensusTasks(pInfo, &cp, NULL);
-        mndReleaseStream(pMnode, pStream);
-      }*/
     }
 
     if (p->status == pTaskEntry->status) {

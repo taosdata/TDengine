@@ -87,7 +87,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
   int32_t replica = -1;   // do the replica check
 
   *allReady = true;
-  SArray *pVgroupListSnapshot = taosArrayInit(4, sizeof(SNodeEntry));
+  SArray *pVgroupList = taosArrayInit(4, sizeof(SNodeEntry));
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -133,7 +133,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     epsetToStr(&entry.epset, buf, tListLen(buf));
 
     mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
-    taosArrayPush(pVgroupListSnapshot, &entry);
+    taosArrayPush(pVgroupList, &entry);
     sdbRelease(pSdb, pVgroup);
   }
 
@@ -152,11 +152,11 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     epsetToStr(&entry.epset, buf, tListLen(buf));
     mDebug("take snode snapshot, nodeId:%d %s", entry.nodeId, buf);
 
-    taosArrayPush(pVgroupListSnapshot, &entry);
+    taosArrayPush(pVgroupList, &entry);
     sdbRelease(pSdb, pObj);
   }
 
-  return pVgroupListSnapshot;
+  return pVgroupList;
 }
 
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {
@@ -960,9 +960,10 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pTaskList); ++i) {
     SCheckpointConsensusEntry *p = taosArrayGet(pInfo->pTaskList, i);
     if (p->req.taskId == info.req.taskId) {
-      mDebug("s-task:0x%x already in consensus-checkpointId list for stream:0x%" PRIx64
-             ", ignore this, total existed:%d",
+      mDebug("s-task:0x%x already in consensus-checkpointId list for stream:0x%" PRIx64 ", update ts %" PRId64
+             "->%" PRId64 " total existed:%d",
              pRestoreInfo->taskId, pRestoreInfo->streamId, (int32_t)taosArrayGetSize(pInfo->pTaskList));
+      p->req.startTs = info.req.startTs;
       return;
     }
   }

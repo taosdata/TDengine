@@ -1161,7 +1161,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
     return TSDB_CODE_SUCCESS;
   }
-#if 0
+
   // discard the rsp, since it is expired.
   if (req.startTs < pTask->execInfo.created) {
     tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
@@ -1171,7 +1171,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
   }
-#endif
+
   tqDebug("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64 " from mnode",
           pTask->id.idStr, vgId, pTask->chkInfo.checkpointId, req.checkpointId);
 

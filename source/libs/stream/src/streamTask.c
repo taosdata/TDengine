@@ -849,6 +849,7 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
       .checkpointInfo.latestSize = 0,
       .checkpointInfo.remoteBackup = 0,
       .checkpointInfo.consensusChkptId = 0,
+      .checkpointInfo.consensusTs = taosGetTimestampMs(),
       .hTaskId = pTask->hTaskInfo.id.taskId,
       .procsTotal = SIZE_IN_MiB(pExecInfo->inputDataSize),
       .outputTotal = SIZE_IN_MiB(pExecInfo->outputDataSize),

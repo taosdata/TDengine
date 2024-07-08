@@ -59,7 +59,7 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
 static int32_t extractNodeListFromStream(SMnode *pMnode, SArray *pNodeList);
 static int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq);
 static int32_t mndProcessCheckpointReport(SRpcMsg *pReq);
-static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg);
+//static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg);
 static int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg);
 static void    doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId, int32_t code);
 
@@ -2617,10 +2617,11 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
   return 0;
 }
 
-static int64_t getConsensusId(int64_t streamId, int32_t numOfTasks, int32_t* pExistedTasks) {
+static int64_t getConsensusId(int64_t streamId, int32_t numOfTasks, int32_t* pExistedTasks, bool *pAllSame) {
   int32_t num = 0;
   int64_t chkId = INT64_MAX;
   *pExistedTasks = 0;
+  *pAllSame = true;
 
   for(int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
     STaskId* p = taosArrayGet(execInfo.pTaskList, i);
@@ -2631,6 +2632,9 @@ static int64_t getConsensusId(int64_t streamId, int32_t numOfTasks, int32_t* pEx
     num += 1;
     STaskStatusEntry* pe = taosHashGet(execInfo.pTaskMap, p, sizeof(*p));
     if (chkId > pe->checkpointInfo.latestId) {
+      if (chkId != INT64_MAX) {
+        *pAllSame = false;
+      }
       chkId = pe->checkpointInfo.latestId;
     }
   }
@@ -2653,99 +2657,99 @@ static void doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId,
   pInfo->handle = NULL;  // disable auto rsp
 }
 
-static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg) {
-  SMnode  *pMnode = pMsg->info.node;
-  SDecoder decoder = {0};
-
-  SRestoreCheckpointInfo req = {0};
-  tDecoderInit(&decoder, pMsg->pCont, pMsg->contLen);
-
-  if (tDecodeRestoreCheckpointInfo(&decoder, &req)) {
-    tDecoderClear(&decoder);
-    terrno = TSDB_CODE_INVALID_MSG;
-    mError("invalid task consensus-checkpoint msg received");
-    return -1;
-  }
-  tDecoderClear(&decoder);
-
-  mDebug("receive stream task consensus-checkpoint msg, vgId:%d, s-task:0x%" PRIx64 "-0x%x, checkpointId:%" PRId64,
-         req.nodeId, req.streamId, req.taskId, req.checkpointId);
-
-  // register to the stream task done map, if all tasks has sent this kinds of message, start the checkpoint trans.
-  taosThreadMutexLock(&execInfo.lock);
-
-  // mnode handle the create stream transaction too slow may cause this problem
-  SStreamObj *pStream = mndGetStreamObj(pMnode, req.streamId);
-  if (pStream == NULL) {
-    mWarn("failed to find the stream:0x%" PRIx64 ", not handle consensus-checkpointId", req.streamId);
-
-    // not in meta-store yet, try to acquire the task in exec buffer
-    // the checkpoint req arrives too soon before the completion of the create stream trans.
-    STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
-    void   *p = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
-    if (p == NULL) {
-      mError("failed to find the stream:0x%" PRIx64 " in buf, not handle consensus-checkpointId", req.streamId);
-      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
-      taosThreadMutexUnlock(&execInfo.lock);
-
-      doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
-      return -1;
-    } else {
-      mDebug("s-task:0x%" PRIx64 "-0x%x in buf not in mnode/meta, create stream trans may not complete yet",
-             req.streamId, req.taskId);
-      // todo wait for stream is created
-    }
-  }
-
-  mInfo("vgId:%d stream:0x%" PRIx64 " %s meta-stored checkpointId:%" PRId64, req.nodeId, req.streamId, pStream->name,
-        pStream->checkpointId);
-
-  int32_t numOfTasks = (pStream == NULL) ? 0 : mndGetNumOfStreamTasks(pStream);
-  if ((pStream != NULL) && (pStream->checkpointId == 0)) {  // not generated checkpoint yet, return 0 directly
-    taosThreadMutexUnlock(&execInfo.lock);
-    mndCreateSetConsensusChkptIdTrans(pMnode, pStream, req.taskId, 0, req.startTs);
-
-    doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t num = 0;
-  int64_t chkId = getConsensusId(req.streamId, numOfTasks, &num);
-
-  // some tasks not send hbMsg to mnode yet, wait for 5s.
-  if (chkId == -1) {
-    mDebug("not all(%d/%d) task(s) send hbMsg yet, wait for a while and check again, s-task:0x%x", req.taskId, num,
-           numOfTasks);
-    SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, req.streamId, numOfTasks);
-    mndAddConsensusTasks(pInfo, &req);
-
-    taosThreadMutexUnlock(&execInfo.lock);
-    doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
-    return 0;
-  }
-
-  if (chkId == req.checkpointId) {
-    mDebug("vgId:%d stream:0x%" PRIx64 " %s consensus-checkpointId is:%" PRId64 ", meta-stored checkpointId:%" PRId64,
-           req.nodeId, req.streamId, pStream->name, chkId, pStream->checkpointId);
-    mndCreateSetConsensusChkptIdTrans(pMnode, pStream, req.taskId, chkId, req.startTs);
-
-    taosThreadMutexUnlock(&execInfo.lock);
-    doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
-    return 0;
-  }
-
-  // wait for 5s and check again
-  SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, req.streamId, numOfTasks);
-  mndAddConsensusTasks(pInfo, &req);
-
-  if (pStream != NULL) {
-    mndReleaseStream(pMnode, pStream);
-  }
-
-  taosThreadMutexUnlock(&execInfo.lock);
-  doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
-  return 0;
-}
+//static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg) {
+//  SMnode  *pMnode = pMsg->info.node;
+//  SDecoder decoder = {0};
+//
+//  SRestoreCheckpointInfo req = {0};
+//  tDecoderInit(&decoder, pMsg->pCont, pMsg->contLen);
+//
+//  if (tDecodeRestoreCheckpointInfo(&decoder, &req)) {
+//    tDecoderClear(&decoder);
+//    terrno = TSDB_CODE_INVALID_MSG;
+//    mError("invalid task consensus-checkpoint msg received");
+//    return -1;
+//  }
+//  tDecoderClear(&decoder);
+//
+//  mDebug("receive stream task consensus-checkpoint msg, vgId:%d, s-task:0x%" PRIx64 "-0x%x, checkpointId:%" PRId64,
+//         req.nodeId, req.streamId, req.taskId, req.checkpointId);
+//
+//  // register to the stream task done map, if all tasks has sent this kinds of message, start the checkpoint trans.
+//  taosThreadMutexLock(&execInfo.lock);
+//
+//  // mnode handle the create stream transaction too slow may cause this problem
+//  SStreamObj *pStream = mndGetStreamObj(pMnode, req.streamId);
+//  if (pStream == NULL) {
+//    mWarn("failed to find the stream:0x%" PRIx64 ", not handle consensus-checkpointId", req.streamId);
+//
+//    // not in meta-store yet, try to acquire the task in exec buffer
+//    // the checkpoint req arrives too soon before the completion of the create stream trans.
+//    STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
+//    void   *p = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
+//    if (p == NULL) {
+//      mError("failed to find the stream:0x%" PRIx64 " in buf, not handle consensus-checkpointId", req.streamId);
+//      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+//      taosThreadMutexUnlock(&execInfo.lock);
+//
+//      doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
+//      return -1;
+//    } else {
+//      mDebug("s-task:0x%" PRIx64 "-0x%x in buf not in mnode/meta, create stream trans may not complete yet",
+//             req.streamId, req.taskId);
+//      // todo wait for stream is created
+//    }
+//  }
+//
+//  mInfo("vgId:%d stream:0x%" PRIx64 " %s meta-stored checkpointId:%" PRId64, req.nodeId, req.streamId, pStream->name,
+//        pStream->checkpointId);
+//
+//  int32_t numOfTasks = (pStream == NULL) ? 0 : mndGetNumOfStreamTasks(pStream);
+//  if ((pStream != NULL) && (pStream->checkpointId == 0)) {  // not generated checkpoint yet, return 0 directly
+//    taosThreadMutexUnlock(&execInfo.lock);
+//    mndCreateSetConsensusChkptIdTrans(pMnode, pStream, req.taskId, 0, req.startTs);
+//
+//    doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
+//    return TSDB_CODE_SUCCESS;
+//  }
+//
+//  int32_t num = 0;
+//  int64_t chkId = getConsensusId(req.streamId, numOfTasks, &num);
+//
+//  // some tasks not send hbMsg to mnode yet, wait for 5s.
+//  if (chkId == -1) {
+//    mDebug("not all(%d/%d) task(s) send hbMsg yet, wait for a while and check again, s-task:0x%x", req.taskId, num,
+//           numOfTasks);
+//    SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, req.streamId, numOfTasks);
+//    mndAddConsensusTasks(pInfo, &req);
+//
+//    taosThreadMutexUnlock(&execInfo.lock);
+//    doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
+//    return 0;
+//  }
+//
+//  if (chkId == req.checkpointId) {
+//    mDebug("vgId:%d stream:0x%" PRIx64 " %s consensus-checkpointId is:%" PRId64 ", meta-stored checkpointId:%" PRId64,
+//           req.nodeId, req.streamId, pStream->name, chkId, pStream->checkpointId);
+//    mndCreateSetConsensusChkptIdTrans(pMnode, pStream, req.taskId, chkId, req.startTs);
+//
+//    taosThreadMutexUnlock(&execInfo.lock);
+//    doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
+//    return 0;
+//  }
+//
+//  // wait for 5s and check again
+//  SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, req.streamId, numOfTasks);
+//  mndAddConsensusTasks(pInfo, &req);
+//
+//  if (pStream != NULL) {
+//    mndReleaseStream(pMnode, pStream);
+//  }
+//
+//  taosThreadMutexUnlock(&execInfo.lock);
+//  doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
+//  return 0;
+//}
 
 int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
@@ -2753,6 +2757,15 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   SArray *pStreamList = taosArrayInit(4, sizeof(int64_t));
 
   mDebug("start to process consensus-checkpointId in tmr");
+
+  bool    allReady = true;
+  SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode, &allReady);
+  taosArrayDestroy(pNodeSnapshot);
+  if (!allReady) {
+    mWarn("not all vnodes are ready, end to process the consensus-checkpointId in tmr process");
+    return 0;
+  }
+
   taosThreadMutexLock(&execInfo.lock);
 
   void *pIter = NULL;
@@ -2765,7 +2778,8 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
 
     SStreamObj *pStream = mndGetStreamObj(pMnode, pInfo->streamId);
     if (pStream == NULL) {  // stream has been dropped already
-      mDebug("stream:0x%"PRIx64" dropped already, continue", pInfo->streamId);
+      mDebug("stream:0x%" PRIx64 " dropped already, continue", pInfo->streamId);
+      taosArrayDestroy(pList);
       continue;
     }
 
@@ -2773,15 +2787,18 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
       SCheckpointConsensusEntry *pe = taosArrayGet(pInfo->pTaskList, j);
       streamId = pe->req.streamId;
 
-      if ((now - pe->ts) >= 10 * 1000) {
-        int32_t existed = 0;
-        int64_t chkId = getConsensusId(pe->req.streamId, pInfo->numOfTasks, &existed);
-        if (chkId == -1) {
-          mDebug("not all(%d/%d) task(s) send hbMsg yet, wait for a while and check again, s-task:0x%x", existed,
-                 pInfo->numOfTasks, pe->req.taskId);
-          break;
-        }
+      int32_t existed = 0;
+      bool    allSame = true;
+      int64_t chkId = getConsensusId(pe->req.streamId, pInfo->numOfTasks, &existed, &allSame);
+      if (chkId == -1) {
+        mDebug("not all(%d/%d) task(s) send hbMsg yet, wait for a while and check again, s-task:0x%x", existed,
+               pInfo->numOfTasks, pe->req.taskId);
+        break;
+      }
 
+      if (((now - pe->ts) >= 10 * 1000) || allSame) {
+        mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs and all tasks have same checkpointId", pe->req.taskId,
+               (now - pe->ts) / 1000.0, pe->ts);
         ASSERT(chkId <= pe->req.checkpointId);
         mndCreateSetConsensusChkptIdTrans(pMnode, pStream, pe->req.taskId, chkId, pe->req.startTs);
 

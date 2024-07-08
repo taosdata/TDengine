@@ -578,6 +578,7 @@ typedef struct STaskCkptInfo {
   int32_t activeTransId;     // checkpoint trans id
   int8_t  failed;            // denote if the checkpoint is failed or not
   int8_t  consensusChkptId;  // required the consensus-checkpointId
+  int64_t consensusTs;       //
 } STaskCkptInfo;
 
 typedef struct STaskStatusEntry {
@@ -588,8 +589,6 @@ typedef struct STaskStatusEntry {
   int32_t       nodeId;
   SVersionRange verRange;        // start/end version in WAL, only valid for source task
   int64_t       processedVer;    // only valid for source task
-  bool          inputQChanging;  // inputQ is changing or not
-  int64_t       inputQUnchangeCounter;
   double        inputQUsed;  // in MiB
   double        inputRate;
   double        procsThroughput;   // duration between one element put into input queue and being processed.
