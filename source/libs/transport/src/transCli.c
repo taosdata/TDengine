@@ -2832,8 +2832,6 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
 int64_t transAllocHandle() {
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
-  QUEUE_INIT(&exh->q);
-  taosInitRWLatch(&exh->latch);
 
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
