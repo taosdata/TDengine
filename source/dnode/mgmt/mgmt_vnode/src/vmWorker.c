@@ -448,7 +448,7 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) return -1;
 
   SSingleWorkerCfg multiMgmtCfg = {
-      .min = 3, .max = 3, .name = "vnode-multi-mgmt", .fp = (FItem)vmProcessMultiMgmtQueue, .param = pMgmt};
+      .min = 16, .max = 16, .name = "vnode-multi-mgmt", .fp = (FItem)vmProcessMultiMgmtQueue, .param = pMgmt};
 
   if (tSingleWorkerInit(&pMgmt->mgmtMultiWorker, &multiMgmtCfg) != 0) return -1;
 
