@@ -1063,7 +1063,6 @@ void tmqFreeImpl(void* handle) {
 
   taosArrayDestroyEx(tmq->clientTopics, freeClientVgImpl);
   taos_close_internal(tmq->pTscObj);
-  taosMemoryFree(tmq);
 
   if(tmq->commitTimer) {
     taosTmrStopA(tmq->commitTimer);
@@ -1077,6 +1076,8 @@ void tmqFreeImpl(void* handle) {
     taosTmrStopA(tmq->hbLiveTimer);
     tmq->hbLiveTimer = NULL;
   }
+  taosMemoryFree(tmq);
+
   tscDebug("consumer:0x%" PRIx64 " closed", id);
 }
 
