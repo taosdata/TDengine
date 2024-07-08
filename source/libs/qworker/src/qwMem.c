@@ -68,7 +68,7 @@ int32_t qwInitQueryInfo(uint64_t qId, SQWQueryInfo* pQuery) {
   return code;
 }
 
-int32_t qwInitSession(uint64_t qId, void** ppSession) {
+int32_t qwInitSession(QW_FPARAMS_DEF, void** ppSession) {
   int32_t code = TSDB_CODE_SUCCESS;
   SQWQueryInfo* pQuery = NULL;
   
@@ -95,22 +95,32 @@ int32_t qwInitSession(uint64_t qId, void** ppSession) {
       pQuery = (SQWQueryInfo*)taosHashGet(gQueryMgmt.pQueryInfo, &qId, sizeof(qId));
     }
 
-    code = taosHashPut(pQuery->pSessions, ppSession, POINTER_BYTES, NULL, 0);
-    if (TSDB_CODE_SUCCESS != code) {
-      qError("fail to put session into query session hash, errno:%d", terrno);
-      return terrno;
-    }
-
     break;
   }
 
   QW_ERR_RET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, ppSession, pQuery->pCollection));
 
+  char id[sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_TEID(id, tId, eId);
+
+  code = taosHashPut(pQuery->pSessions, id, sizeof(id), ppSession, POINTER_BYTES);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("fail to put session into query session hash, errno:%d", terrno);
+    return terrno;
+  }
+
   return code;
 }
 
-bool qwRetireCollection(uint64_t collectionId, int64_t retireSize) {
-  //TODO
+bool qwLowLevelRetire() {
+
+}
+
+bool qwRetireCollection(uint64_t collectionId, int64_t retireSize, bool retireLow) {
+  if (retireLow) {
+    return qwLowLevelRetire();
+  }
+  
   return false;
 }
 

@@ -238,17 +238,27 @@ typedef struct SQWQueryInfo {
   SHashObj* pSessions;
 } SQWQueryInfo;
 
-typedef struct SQWRetireCtx {
+typedef struct SQWRetireLowCtx {
+  int8_t        retireBegin;
+} SQWRetireLowCtx;
+
+typedef struct SQWRetireMidCtx {
   int8_t        retireBegin;
   TdThreadCond  retired;
   BoundedQueue* collectionQueue;
+} SQWRetireMidCtx;
+
+typedef struct SQWRetireCtx {
+  SQWRetireLowCtx lowCtx;
+  SQWRetireMidCtx midCtx;
 } SQWRetireCtx;
 
 typedef struct SQueryMgmt {
-  SRWLatch  taskMgmtLock;
-  int32_t   concTaskLevel;
-  SHashObj* pQueryInfo;
-  void*     memPoolHandle;
+  SRWLatch     taskMgmtLock;
+  int32_t      concTaskLevel;
+  SHashObj*    pQueryInfo;
+  void*        memPoolHandle;
+  SQWRetireCtx retireCtx;
 } SQueryMgmt;
 
 #define QW_CTX_NOT_EXISTS_ERR_CODE(mgmt) (atomic_load_8(&(mgmt)->nodeStopped) ? TSDB_CODE_VND_STOPPED : TSDB_CODE_QRY_TASK_CTX_NOT_EXIST)
@@ -319,6 +329,18 @@ extern SQueryMgmt gQueryMgmt;
     (tId) = *(uint64_t *)((char *)(id) + sizeof(qId));              \
     (eId) = *(int32_t *)((char *)(id) + sizeof(qId) + sizeof(tId)); \
   } while (0)
+
+#define QW_SET_TEID(id, tId, eId)                              \
+    do {                                                              \
+      *(uint64_t *)(id) = (tId);                                      \
+      *(uint32_t *)((char *)(id) + sizeof(tId)) = (eId);              \
+    } while (0)
+  
+#define QW_GET_TEID(id, tId, eId)                              \
+    do {                                                              \
+      (tId) = *(uint64_t *)(id);                                      \
+      (eId) = *(uint32_t *)((char *)(id) + sizeof(tId));              \
+    } while (0)
 
 #define QW_ERR_RET(c)                 \
   do {                                \

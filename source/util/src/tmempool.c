@@ -300,10 +300,10 @@ void memPoolUpdateAllocMemSize(SMemPool* pPool, SMPSession* pSession, int64_t si
   int64_t allocMemSize = atomic_add_fetch_64(&pSession->allocMemSize, size);
   memPoolUpdateMaxAllocMemSize(&pSession->maxAllocMemSize, allocMemSize);
 
-  allocMemSize = atomic_add_fetch_64(&pSession->pCollection->allocMemSize, size);
-  memPoolUpdateMaxAllocMemSize(&pSession->pCollection->maxAllocMemSize, allocMemSize);
+  allocMemSize = atomic_load_64(&pSession->pMpCollection->allocMemSize);
+  memPoolUpdateMaxAllocMemSize(&pSession->pMpCollection->maxAllocMemSize, allocMemSize);
 
-  allocMemSize = atomic_add_fetch_64(&pPool->allocMemSize, size);
+  allocMemSize = atomic_load_64(&pPool->allocMemSize);
   memPoolUpdateMaxAllocMemSize(&pPool->maxAllocMemSize, allocMemSize);
 }
 
@@ -382,11 +382,42 @@ _return:
 
 
 bool memPoolMemQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) {
-  if (pPool->cfg.collectionQuota > 0 && (atomic_load_64(&pSession->pCollection->allocMemSize) + size) > atomic_load_64(&pPool->cfg.collectionQuota)) {
+  int64_t allocSize = atomic_add_fetch_64(&pSession->pMpCollection->allocMemSize, size);
+  int64_t quota = atomic_load_64(&pPool->cfg.collectionQuota);
+  if (quota > 0 && allocSize > quota) {
+    uWarn("collection %" PRIx64 " allocSize " PRId64 " is over than quota %" PRId64, pSession->pMpCollection->collectionId, allocSize, quota);
+    atomic_sub_fetch_64(&pSession->pMpCollection->allocMemSize, size);
     return true;
   }
-  if ((atomic_load_64(&pPool->allocMemSize) + size) >= pPool->memRetireThreshold[1]) {
-    return (*pPool->cfg.cb.retireFp)(pSession->pCollection->collectionId, pPool->memRetireUnit);
+
+  allocSize = atomic_add_fetch_64(&pPool->allocMemSize, size);
+  quota = atomic_load_64(&pPool->memRetireThreshold[2]);
+  if (allocSize >= quota) {
+    uWarn("pool allocSize " PRId64 " reaches the high quota %" PRId64, allocSize, quota);
+    atomic_sub_fetch_64(&pPool->allocMemSize, size);
+    return true;
+  }
+
+  quota = atomic_load_64(&pPool->memRetireThreshold[1]);  
+  if (allocSize >= quota) {
+    uInfo("pool allocSize " PRId64 " reaches the middle quota %" PRId64, allocSize, quota);
+    bool retire = (*pPool->cfg.cb.retireFp)(pSession->pMpCollection->collectionId, pPool->memRetireUnit, false);
+    if (retire) {
+      uWarn("session retired in middle quota retire choise, sessionAllocSize: %" PRId64, atomic_load_64(&pSession->allocMemSize));
+      atomic_sub_fetch_64(&pPool->allocMemSize, size);
+    }
+    return retire;
+  }
+
+  quota = atomic_load_64(&pPool->memRetireThreshold[0]);    
+  if (allocSize >= quota) {
+    uInfo("pool allocSize " PRId64 " reaches the low quota %" PRId64, allocSize, quota);
+    bool retire = (*pPool->cfg.cb.retireFp)(pSession->pMpCollection->collectionId, pPool->memRetireUnit, true);
+    if (retire) {
+      uWarn("session retired in low quota retire choise, sessionAllocSize: %" PRId64, atomic_load_64(&pSession->allocMemSize));
+      atomic_sub_fetch_64(&pPool->allocMemSize, size);
+    }
+    return retire;
   }
 
   return false;
@@ -401,6 +432,10 @@ void* memPoolAllocDirect(SMemPool* pPool, SMPSession* pSession, int64_t size, ui
   void* res = alignment ? taosMemMallocAlign(alignment, size) : taosMemMalloc(size);
   if (NULL != res) {
     memPoolUpdateAllocMemSize(pPool, pSession, size);
+  } else {
+    atomic_sub_fetch_64(&pSession->pMpCollection->allocMemSize, size);
+    atomic_sub_fetch_64(&pPool->allocMemSize, size);
+    uError("malloc %" PRId64 " alighment %d failed", size, alignment);
   }
   
   return res;
@@ -842,7 +877,7 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pCollec
   MP_ADD_TO_CHUNK_LIST(pSession->srcChunkHead, pSession->srcChunkTail, pSession->srcChunkNum, pChunk);
   MP_ADD_TO_CHUNK_LIST(pSession->inUseChunkHead, pSession->inUseChunkTail, pSession->inUseChunkNum, pChunk);
 
-  pSession->pCollection = (SMPCollection*)pCollection;
+  pSession->pMpCollection = (SMPCollection*)pCollection;
 
 _return:
 

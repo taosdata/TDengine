@@ -205,7 +205,8 @@ typedef struct SMPSession {
 
   int64_t            sessionId;
 
-  SMPCollection*     pCollection;
+  void*              pCollection;
+  SMPCollection*     pMpCollection;
   bool               needRetire;
   SMPCtrlInfo        ctrlInfo;
 

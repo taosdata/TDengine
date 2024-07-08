@@ -42,7 +42,7 @@ typedef enum MemPoolUsageLevel {
 typedef void (*decConcSessionNum)(void);
 typedef void (*incConcSessionNum)(void);
 typedef void (*setConcSessionNum)(int32_t);
-typedef bool (*retireCollection)(uint64_t, int64_t);
+typedef bool (*retireCollection)(uint64_t, int64_t, bool);
 
 typedef struct SMemPoolCallBack {
   decConcSessionNum decSessFp;
@@ -79,6 +79,13 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pCollec
 void    taosMemPoolDestroySession(void* poolHandle, void* session);
 int32_t taosMemPoolCallocCollection(uint64_t collectionId, void** ppCollection);
 
+#define taosMemPoolFreeClear(ptr)   \
+  do {                             \
+    if (ptr) {                     \
+      taosMemPoolFree((void *)ptr); \
+      (ptr) = NULL;                \
+    }                              \
+  } while (0)
 
 extern threadlocal void* threadPoolHandle;
 extern threadlocal void* threadPoolSession;

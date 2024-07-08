@@ -734,7 +734,7 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->phase = -1;
   
   if (NULL != gQueryMgmt.memPoolHandle) {
-    QW_ERR_JRET(qwInitSession(qId, &ctx->memPoolSession));
+    QW_ERR_JRET(qwInitSession(QW_IDS(), &ctx->memPoolSession));
   }
   
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
