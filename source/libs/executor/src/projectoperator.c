@@ -728,7 +728,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
   pResult->info.dataLoad = 1;
 
-  SArray* diffFunctionCtx = NULL;
+  SArray* processByRowFunctionCtx = NULL;
 
   if (pSrcBlock == NULL) {
     for (int32_t k = 0; k < numOfOutput; ++k) {
@@ -861,14 +861,14 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
         numOfRows = pResInfo->numOfRes;
         if (fmIsProcessByRowFunc(pfCtx->functionId)) {
-          if (NULL == diffFunctionCtx) {
-            diffFunctionCtx = taosArrayInit(1, sizeof(SqlFunctionCtx*));
-            if (!diffFunctionCtx) {
+          if (NULL == processByRowFunctionCtx) {
+            processByRowFunctionCtx = taosArrayInit(1, sizeof(SqlFunctionCtx*));
+            if (!processByRowFunctionCtx) {
               code = terrno;
               goto _exit;
             }
           }
-          taosArrayPush(diffFunctionCtx, &pfCtx);
+          taosArrayPush(processByRowFunctionCtx, &pfCtx);
         }
       } else if (fmIsAggFunc(pfCtx->functionId)) {
         // selective value output should be set during corresponding function execution
@@ -918,9 +918,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     }
   }
 
-  if (diffFunctionCtx && taosArrayGetSize(diffFunctionCtx) > 0){
-    SqlFunctionCtx** pfCtx = taosArrayGet(diffFunctionCtx, 0);
-    code = (*pfCtx)->fpSet.processFuncByRow(diffFunctionCtx);
+  if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0){
+    SqlFunctionCtx** pfCtx = taosArrayGet(processByRowFunctionCtx, 0);
+    code = (*pfCtx)->fpSet.processFuncByRow(processByRowFunctionCtx);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
@@ -930,9 +930,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     pResult->info.rows += numOfRows;
   }
 _exit:
-  if(diffFunctionCtx) {
-    taosArrayDestroy(diffFunctionCtx);
-    diffFunctionCtx = NULL;
+  if(processByRowFunctionCtx) {
+    taosArrayDestroy(processByRowFunctionCtx);
+    processByRowFunctionCtx = NULL;
   }
   return code;
 }

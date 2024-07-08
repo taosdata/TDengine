@@ -1977,7 +1977,7 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (IS_SIGNED_NUMERIC_TYPE(colType) || IS_TIMESTAMP_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType) {
     resType = TSDB_DATA_TYPE_BIGINT;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
-    resType = TSDB_DATA_TYPE_UBIGINT;
+    resType = TSDB_DATA_TYPE_BIGINT;
   } else {
     resType = TSDB_DATA_TYPE_DOUBLE;
   }
@@ -1986,7 +1986,11 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 }
 
 static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
-  return FUNC_RETURN_ROWS_N_MINUS_1;
+  if (1 == LIST_LENGTH(pFunc->pParameterList)) {
+    return FUNC_RETURN_ROWS_N_MINUS_1;
+  }
+  return 1 < ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i ? FUNC_RETURN_ROWS_INDEFINITE
+                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
 }
 
 static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {

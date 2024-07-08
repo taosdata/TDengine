@@ -415,6 +415,7 @@ typedef struct SSelectStmt {
   int32_t       returnRows;  // EFuncReturnRows
   ETimeLineMode timeLineCurMode;
   ETimeLineMode timeLineResMode;
+  bool          hasProcessByRowFunc;
   bool          timeLineFromOrderBy;
   bool          isEmptyResult;
   bool          isSubquery;
