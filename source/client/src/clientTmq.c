@@ -1065,16 +1065,13 @@ void tmqFreeImpl(void* handle) {
   taos_close_internal(tmq->pTscObj);
 
   if(tmq->commitTimer) {
-    taosTmrStopA(tmq->commitTimer);
-    tmq->commitTimer = NULL;
+    taosTmrStopA(&tmq->commitTimer);
   }
   if(tmq->epTimer) {
-    taosTmrStopA(tmq->epTimer);
-    tmq->epTimer = NULL;
+    taosTmrStopA(&tmq->epTimer);
   }
   if(tmq->hbLiveTimer) {
-    taosTmrStopA(tmq->hbLiveTimer);
-    tmq->hbLiveTimer = NULL;
+    taosTmrStopA(&tmq->hbLiveTimer);
   }
   taosMemoryFree(tmq);
 
