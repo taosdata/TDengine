@@ -72,6 +72,7 @@ static int32_t stmtCreateRequest(STscStmt* pStmt) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
+      pStmt->exec.pRequest->isStmtBind = true;
     }
   }
 
@@ -830,6 +831,7 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions) {
   pStmt->bInfo.needParse = true;
   pStmt->sql.status = STMT_INIT;
   pStmt->reqid = reqid;
+  pStmt->errCode = TSDB_CODE_SUCCESS;
 
   if (NULL != pOptions) {
     memcpy(&pStmt->options, pOptions, sizeof(pStmt->options));
@@ -881,6 +883,10 @@ int stmtPrepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG_E("start to prepare");
+
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
 
   if (pStmt->sql.status >= STMT_PREPARE) {
     STMT_ERR_RET(stmtResetStmt(pStmt));
@@ -953,6 +959,10 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
 
   STMT_DLOG("start to set tbName: %s", tbName);
 
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTBNAME));
 
   int32_t insert = 0;
@@ -999,7 +1009,17 @@ int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
 
   STMT_DLOG_E("start to set tbTags");
 
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
+
+  SBoundColInfo *tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
+  if (tags_info->numOfBound <= 0 || tags_info->numOfCols <= 0) {
+    tscWarn("no tags bound in sql, will not bound tags");
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (pStmt->bInfo.inExecCache) {
     return TSDB_CODE_SUCCESS;
@@ -1021,6 +1041,10 @@ int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
 }
 
 int stmtFetchTagFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields) {
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     tscError("invalid operation to get query tag fileds");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
@@ -1039,6 +1063,10 @@ int stmtFetchTagFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields
 }
 
 int stmtFetchColFields(STscStmt* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields) {
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     tscError("invalid operation to get query column fileds");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
@@ -1150,7 +1178,12 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
   STMT_DLOG("start to bind stmt data, colIdx: %d", colIdx);
 
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
+
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
@@ -1306,6 +1339,10 @@ int stmtAddBatch(TAOS_STMT* stmt) {
   int64_t startUs = taosGetTimestampUs();
 
   STMT_DLOG_E("start to add batch");
+
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_ADD_BATCH));
 
@@ -1471,6 +1508,10 @@ int stmtExec(TAOS_STMT* stmt) {
 
   STMT_DLOG_E("start to exec");
 
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
@@ -1599,6 +1640,10 @@ int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
 
   STMT_DLOG_E("start to get tag fields");
 
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT_ERRI_JRET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
@@ -1637,6 +1682,10 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
 
   STMT_DLOG_E("start to get col fields");
 
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT_ERRI_JRET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
@@ -1674,6 +1723,10 @@ int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
 
   STMT_DLOG_E("start to get param num");
 
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
@@ -1705,6 +1758,10 @@ int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   STMT_DLOG_E("start to get param");
+
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
