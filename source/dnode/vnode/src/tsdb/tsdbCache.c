@@ -194,8 +194,8 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
     return code;
   }
 
-  // rocksdb_cache_t *cache = rocksdb_cache_create_lru(5 * 1024 * 1024);
-  // pTsdb->rCache.blockcache = cache;
+  rocksdb_cache_t *cache = rocksdb_cache_create_lru(5 * 1024 * 1024);
+  pTsdb->rCache.blockcache = cache;
 
   rocksdb_block_based_table_options_t *tableoptions = rocksdb_block_based_options_create();
   pTsdb->rCache.tableoptions = tableoptions;
@@ -208,7 +208,7 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
 
   rocksdb_options_set_create_if_missing(options, 1);
   rocksdb_options_set_comparator(options, cmp);
-  // rocksdb_block_based_options_set_block_cache(tableoptions, cache);
+  rocksdb_block_based_options_set_block_cache(tableoptions, cache);
   rocksdb_options_set_block_based_table_factory(options, tableoptions);
   rocksdb_options_set_info_log_level(options, 2);  // WARN_LEVEL
   // rocksdb_options_set_inplace_update_support(options, 1);
@@ -273,7 +273,7 @@ _err3:
 _err2:
   rocksdb_options_destroy(options);
   rocksdb_block_based_options_destroy(tableoptions);
-  // rocksdb_cache_destroy(cache);
+  rocksdb_cache_destroy(cache);
 _err:
   rocksdb_comparator_destroy(cmp);
   return code;
