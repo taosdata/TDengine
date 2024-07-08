@@ -89,6 +89,7 @@ typedef struct SParseContext {
   bool             isView;
   bool             isAudit;
   bool             nodeOffline;
+  bool             isStmtBind;
   const char*      svrVer;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
