@@ -27,13 +27,13 @@
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
 #define DEFAULT_HEARTBEAT_INTERVAL     3000
+#define DEFAULT_ASKEP_INTERVAL         1000
 
 #define OFFSET_IS_RESET_OFFSET(_of)  ((_of) < 0)
 
 typedef void (*__tmq_askep_fn_t)(tmq_t* pTmq, int32_t code, SDataBuf* pBuf, void* pParam);
 
 struct SMqMgmt {
-  int8_t  inited;
   tmr_h   timer;
   int32_t rsetId;
 };
@@ -64,8 +64,6 @@ struct tmq_conf_t {
   int8_t         resetOffset;
   int8_t         withTbName;
   int8_t         snapEnable;
-  int32_t        snapBatchSize;
-  bool           hbBgEnable;
   uint16_t       port;
   int32_t        autoCommitInterval;
   char*          ip;
@@ -86,35 +84,27 @@ struct tmq_t {
   int32_t        autoCommitInterval;
   int8_t         resetOffsetCfg;
   uint64_t       consumerId;
-  bool           hbBgEnable;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
   int8_t         enableBatchMeta;
 
   // status
-  SRWLatch        lock;
-  int8_t  status;
-  int32_t epoch;
-#if 0
-  int8_t  epStatus;
-  int32_t epSkipCnt;
-#endif
+  SRWLatch       lock;
+  int8_t         status;
+  int32_t        epoch;
   // poll info
-  int64_t pollCnt;
-  int64_t totalRows;
-//  bool    needReportOffsetRows;
+  int64_t        pollCnt;
+  int64_t        totalRows;
 
   // timer
-  tmr_h       hbLiveTimer;
   tmr_h       epTimer;
-  tmr_h       reportTimer;
   tmr_h       commitTimer;
   STscObj*    pTscObj;       // connection
   SArray*     clientTopics;  // SArray<SMqClientTopic>
   STaosQueue* mqueue;        // queue of rsp
   STaosQall*  qall;
   STaosQueue* delayedTask;  // delayed task queue for heartbeat and auto commit
-  tsem2_t      rspSem;
+  tsem2_t     rspSem;
 };
 
 typedef struct SAskEpInfo {
@@ -155,7 +145,6 @@ typedef struct {
   int32_t       vgId;
   int32_t       vgStatus;
   int32_t       vgSkipCnt;              // here used to mark the slow vgroups
-//  bool          receivedInfoFromVnode;  // has already received info from vnode
   int64_t       emptyBlockReceiveTs;    // once empty block is received, idle for ignoreCnt then start to poll data
   bool          seekUpdated;            // offset is updated by seek operator, therefore, not update by vnode rsp.
   SEpSet        epSet;
@@ -282,7 +271,6 @@ tmq_conf_t* tmq_conf_new() {
   conf->autoCommit = true;
   conf->autoCommitInterval = DEFAULT_AUTO_COMMIT_INTERVAL;
   conf->resetOffset = TMQ_OFFSET__RESET_EARLIEST;
-  conf->hbBgEnable = true;
   conf->enableBatchMeta = false;
 
   return conf;
@@ -746,39 +734,24 @@ static void generateTimedTask(int64_t refId, int32_t type) {
   if(tmq == NULL) return;
 
   int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
-  if(pTaskType == NULL) return;
-
-  *pTaskType = type;
-  taosWriteQitem(tmq->delayedTask, pTaskType);
-  tsem2_post(&tmq->rspSem);
+  if (pTaskType != NULL){
+    *pTaskType = type;
+    if (taosWriteQitem(tmq->delayedTask, pTaskType) == 0){
+      tsem2_post(&tmq->rspSem);
+    }
+  }
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
 void tmqAssignAskEpTask(void* param, void* tmrId) {
-  int64_t refId = *(int64_t*)param;
+  int64_t refId = (int64_t)param;
   generateTimedTask(refId, TMQ_DELAYED_TASK__ASK_EP);
-  taosMemoryFree(param);
 }
 
 void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
-  int64_t refId = *(int64_t*)param;
+  int64_t refId = (int64_t)param;
   generateTimedTask(refId, TMQ_DELAYED_TASK__COMMIT);
-  taosMemoryFree(param);
 }
-
-//void tmqAssignDelayedReportTask(void* param, void* tmrId) {
-//  int64_t refId = *(int64_t*)param;
-//  tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
-//  if (tmq != NULL) {
-//    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
-//    *pTaskType = TMQ_DELAYED_TASK__REPORT;
-//    taosWriteQitem(tmq->delayedTask, pTaskType);
-//    tsem_post(&tmq->rspSem);
-//  }
-//
-//  taosReleaseRef(tmqMgmt.rsetId, refId);
-//  taosMemoryFree(param);
-//}
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
@@ -813,11 +786,10 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 void tmqSendHbReq(void* param, void* tmrId) {
-  int64_t refId = *(int64_t*)param;
+  int64_t refId = (int64_t)param;
 
   tmq_t* tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) {
-    taosMemoryFree(param);
     return;
   }
 
@@ -886,7 +858,9 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
 OVER:
   tDeatroySMqHbReq(&req);
-  taosTmrReset(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, param, tmqMgmt.timer, &tmq->hbLiveTimer);
+  if(tmrId != NULL){
+    taosTmrReset(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, param, tmqMgmt.timer, &tmrId);
+  }
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
@@ -913,21 +887,15 @@ int32_t tmqHandleAllDelayedTask(tmq_t* pTmq) {
     if (*pTaskType == TMQ_DELAYED_TASK__ASK_EP) {
       asyncAskEp(pTmq, addToQueueCallbackFn, NULL);
 
-      int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
-      *pRefId = pTmq->refId;
-
       tscDebug("consumer:0x%" PRIx64 " retrieve ep from mnode in 1s", pTmq->consumerId);
-      taosTmrReset(tmqAssignAskEpTask, 1000, pRefId, tmqMgmt.timer, &pTmq->epTimer);
+      taosTmrReset(tmqAssignAskEpTask, 1000, (void*)(pTmq->refId), tmqMgmt.timer, &pTmq->epTimer);
     } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
       tmq_commit_cb* pCallbackFn = pTmq->commitCb ? pTmq->commitCb : defaultCommitCbFn;
 
       asyncCommitAllOffsets(pTmq, pCallbackFn, pTmq->commitCbUserParam);
-      int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
-      *pRefId = pTmq->refId;
-
       tscDebug("consumer:0x%" PRIx64 " next commit to vnode(s) in %.2fs", pTmq->consumerId,
                pTmq->autoCommitInterval / 1000.0);
-      taosTmrReset(tmqAssignDelayedCommitTask, pTmq->autoCommitInterval, pRefId, tmqMgmt.timer, &pTmq->commitTimer);
+      taosTmrReset(tmqAssignDelayedCommitTask, pTmq->autoCommitInterval, (void*)(pTmq->refId), tmqMgmt.timer, &pTmq->commitTimer);
     } else if (*pTaskType == TMQ_DELAYED_TASK__REPORT) {
     }
 
@@ -1146,8 +1114,6 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->enableBatchMeta = conf->enableBatchMeta;
   taosInitRWLatch(&pTmq->lock);
 
-  pTmq->hbBgEnable = conf->hbBgEnable;
-
   // assign consumerId
   pTmq->consumerId = tGenIdPI64();
 
@@ -1173,20 +1139,15 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     SET_ERROR_MSG_TMQ("add tscObj ref failed")
     goto _failed;
   }
-
-  if (pTmq->hbBgEnable) {
-    int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
-    *pRefId = pTmq->refId;
-    pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, pRefId, tmqMgmt.timer);
-  }
+  taosTmrStart(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, (void*)(pTmq->refId), tmqMgmt.timer);
 
   char         buf[TSDB_OFFSET_LEN] = {0};
   STqOffsetVal offset = {.type = pTmq->resetOffsetCfg};
   tFormatOffset(buf, tListLen(buf), &offset);
   tscInfo("consumer:0x%" PRIx64 " is setup, refId:%" PRId64
-          ", groupId:%s, snapshot:%d, autoCommit:%d, commitInterval:%dms, offset:%s, backgroudHB:%d",
+          ", groupId:%s, snapshot:%d, autoCommit:%d, commitInterval:%dms, offset:%s",
           pTmq->consumerId, pTmq->refId, pTmq->groupId, pTmq->useSnapshot, pTmq->autoCommit, pTmq->autoCommitInterval,
-          buf, pTmq->hbBgEnable);
+          buf);
 
   return pTmq;
 
@@ -1302,18 +1263,9 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   // init ep timer
-  if (tmq->epTimer == NULL) {
-    int64_t* pRefId1 = taosMemoryMalloc(sizeof(int64_t));
-    *pRefId1 = tmq->refId;
-    tmq->epTimer = taosTmrStart(tmqAssignAskEpTask, 1000, pRefId1, tmqMgmt.timer);
-  }
-
+  tmq->epTimer = taosTmrStart(tmqAssignAskEpTask, DEFAULT_ASKEP_INTERVAL, (void*)(tmq->refId), tmqMgmt.timer);
   // init auto commit timer
-  if (tmq->autoCommit && tmq->commitTimer == NULL) {
-    int64_t* pRefId2 = taosMemoryMalloc(sizeof(int64_t));
-    *pRefId2 = tmq->refId;
-    tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, pRefId2, tmqMgmt.timer);
-  }
+  tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, (void*)(tmq->refId), tmqMgmt.timer);
 
 FAIL:
   taosArrayDestroyP(req.topicNames, taosMemoryFree);
@@ -2321,7 +2273,7 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
         return rsp;
       }
     }
-    taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
+    tmqSendHbReq((void*)(tmq->refId), NULL);
 
     int32_t     retryCnt = 0;
     tmq_list_t* lst = tmq_list_new();
