@@ -971,8 +971,9 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
 
   taosArrayPush(pInfo->pTaskList, &info);
   int32_t num = taosArrayGetSize(pInfo->pTaskList);
-  mDebug("s-task:0x%x added into consensus-checkpointId list, stream:0x%" PRIx64 " total waiting:%d",
-         pRestoreInfo->taskId, pRestoreInfo->streamId, num);
+  mDebug("s-task:0x%x checkpointId:%" PRId64 " added into consensus-checkpointId list, stream:0x%" PRIx64
+         " waiting tasks:%d",
+         pRestoreInfo->taskId, pRestoreInfo->checkpointId, pRestoreInfo->streamId, num);
 }
 
 void mndClearConsensusRspEntry(SCheckpointConsensusInfo* pInfo) {
