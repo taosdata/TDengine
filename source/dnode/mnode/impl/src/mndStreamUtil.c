@@ -103,7 +103,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     } else {
       if (replica != pVgroup->replica) {
         mInfo("vgId:%d replica:%d inconsistent with other vgroups replica:%d, not ready for stream operations",
-              pVgroup->vgId);
+              pVgroup->vgId, pVgroup->replica, replica);
         *allReady = false;
         break;
       }

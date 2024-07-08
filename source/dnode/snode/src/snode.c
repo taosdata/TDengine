@@ -128,8 +128,6 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return tqStreamTaskProcessRetrieveTriggerReq(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
       return tqStreamTaskProcessRetrieveTriggerRsp(pSnode->pMeta, pMsg);
-    case TDMT_MND_STREAM_REQ_CONSEN_CHKPT_RSP:
-      return tqStreamProcessConsensusChkptRsp2(pSnode->pMeta, pMsg);
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);
       ASSERT(0);

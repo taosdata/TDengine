@@ -861,8 +861,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqStreamProgressRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
       return tqProcessTaskChkptReportRsp(pVnode->pTq, pMsg);
-    case TDMT_MND_STREAM_REQ_CONSEN_CHKPT_RSP:
-      return tqProcessTaskConsensusChkptRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;

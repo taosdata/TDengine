@@ -232,7 +232,6 @@ typedef struct {
 
 typedef struct SCheckpointConsensusEntry {
   SRestoreCheckpointInfo req;
-  SRpcHandleInfo         rspInfo;
   int64_t                ts;
 } SCheckpointConsensusEntry;
 
