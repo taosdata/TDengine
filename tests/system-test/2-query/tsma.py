@@ -972,16 +972,16 @@ class TDTestCase:
         sql = 'select avg(c2), "recursive test.tsma4" from test.meters'
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma4', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
-        #time.sleep(999999)
         self.tsma_tester.check_sql(sql, ctx)
         self.check(self.test_query_tsma_all(select_func_list))
         self.create_recursive_tsma(
-            'tsma4', 'tsma6', 'test', '1h', 'meters', tsma_func_list)
+            'tsma4', 'tsma6', 'test', '5h', 'meters', tsma_func_list)
         ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma(
             'tsma6', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc()
         self.tsma_tester.check_sql(sql, ctx)
 
         self.check(self.test_query_tsma_all(select_func_list))
+        #time.sleep(999999)
 
         tdSql.error('drop tsma test.tsma3', -2147482491)
         tdSql.error('drop tsma test.tsma4', -2147482491)

@@ -11125,68 +11125,6 @@ static int32_t rewriteTSMAFuncs(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
   return code;
 }
 
-static int8_t UNIT_INDEX[26] = {/*a*/ 2,  0,  -1, 6,  -1, -1, -1,
-                                /*h*/ 5,  -1, -1, -1, -1, 4,  8,
-                                /*o*/ -1, -1, -1, -1, 3,  -1,
-                                /*u*/ 1,  -1, 7,  -1, 9,  -1};
-static int64_t MATRIX[10][11] = {     /*  ns,   us,   ms,    s,   min,   h,   d,   w, month, y*/
-                                /*ns*/ {   1, 1000,    0},
-                                /*us*/ {1000,    1, 1000,    0},
-                                /*ms*/ {  -1, 1000,    1, 1000,    0},
-                                 /*s*/ {  -1,   -1, 1000,    1,   60,    0},
-                               /*min*/ {  -1,   -1,   -1,   60,    1,   60,   0},
-                                 /*h*/ {  -1,   -1,   -1,   -1,   60,    1,  24,   0},
-                                 /*d*/ {  -1,   -1,   -1,   -1,   -1,   24,   1,   7,   1,   0},
-                                 /*w*/ {  -1,   -1,   -1,   -1,   -1,   -1,   7,   1,  -1,   0},
-                               /*mon*/ {  -1,   -1,   -1,   -1,   -1,   -1,  -1,  -1,   1,  12,  0},
-                                 /*y*/ {  -1,   -1,   -1,   -1,   -1,   -1,  -1,  -1,  -1,   1,  0}};
-
-static bool recursiveTsmaCheckRecursive(int64_t baseInterval, int8_t baseIdx, int64_t interval, int8_t idx, int8_t precision) {
-  if (MATRIX[baseIdx][idx] == -1) return false;
-  if (baseIdx == idx) {
-    if (interval < baseInterval) return false;
-    return interval % baseInterval == 0;
-  }
-  int8_t next = baseIdx + 1;
-  while (MATRIX[baseIdx][next] != 0 && next <= idx) {
-    if (MATRIX[baseIdx][next] == -1) {
-      next++;
-      continue;
-    }
-    if (MATRIX[baseIdx][next] % baseInterval == 0) {
-      int8_t extra = baseInterval >= MATRIX[baseIdx][idx] ? 0 : 1;
-      if (!recursiveTsmaCheckRecursive(baseInterval / MATRIX[baseIdx][idx] + extra, next, interval, idx, precision)) {
-        next++;
-        continue;
-      } else {
-        return true;
-      }
-    } else {
-      return false;
-    }
-  }
-  return false;
-}
-
-/*
- * @breif check if tsma with param [interval], [unit] can create based on base tsma with baseInterval and baseUnit
- * @param baseInterval, baseUnit, interval/unit of base tsma
- * @param interval the tsma interval going to create. Not that if unit is not calander unit, then interval has already been
- * translated to TICKS of [precision]
- * @param unit the tsma unit going to create
- * @precision the precision of this db
- * @ret true the tsma can be created, else cannot
- * */
-static bool checkRecursiveTsmaInterval(int64_t baseInterval, int8_t baseUnit, int64_t interval, int8_t unit, int8_t precision) {
-  int8_t baseIdx = UNIT_INDEX[baseUnit], idx = UNIT_INDEX[unit];
-  if (baseIdx <= idx) {
-    return recursiveTsmaCheckRecursive(baseInterval, baseIdx, interval, idx, precision);
-  } else {
-
-  }
-  return true;
-}
-
 static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq,
                                   SName* useTbName) {
   SName      name;
@@ -11236,7 +11174,8 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
       pReq->recursiveTsma = true;
       tNameExtractFullName(useTbName, pReq->baseTsmaName);
       SValueNode* pInterval = (SValueNode*)pStmt->pOptions->pInterval;
-      if (pRecursiveTsma->interval < pInterval->datum.i && pInterval->datum.i % pRecursiveTsma->interval == 0) {
+      if (checkRecursiveTsmaInterval(pRecursiveTsma->interval, pRecursiveTsma->unit, pInterval->datum.i,
+                                     pInterval->unit, pDbInfo.precision, true)) {
       } else {
         code = TSDB_CODE_TSMA_INVALID_PARA;
       }
