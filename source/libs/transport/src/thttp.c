@@ -509,7 +509,6 @@ static void httpHandleReq(SHttpMsg* msg) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
-
   wb[0] = uv_buf_init((char*)header, strlen(header));  //  heap var
   wb[1] = uv_buf_init((char*)msg->cont, msg->len);     //  heap var
 
@@ -520,17 +519,17 @@ static void httpHandleReq(SHttpMsg* msg) {
     goto END;
   }
 
-  cli->wbuf = wb;
   cli->conn.data = cli;
   cli->tcp.data = cli;
   cli->req.data = cli;
-  cli->addr = msg->server;
-  cli->port = msg->port;
   cli->dest = dest;
   cli->chanId = chanId;
+  cli->addr = msg->server;
+  cli->port = msg->port;
   taosMemoryFree(msg->uri);
   taosMemoryFree(msg);
 
+  cli->wbuf = wb;
   cli->rbuf = taosMemoryCalloc(1, HTTP_RECV_BUF_SIZE);
   if (cli->rbuf == NULL) {
     tError("http-report failed to alloc read buf, dst:%s:%d,chanId:%" PRId64 ", reason:%s", cli->addr, cli->port,
