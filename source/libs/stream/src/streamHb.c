@@ -332,7 +332,7 @@ int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
   stDebug("vgId:%d process hbMsg rsp, msgId:%d rsp confirmed", pMeta->vgId, pRsp->msgId);
   SMetaHbInfo* pInfo = pMeta->pHbInfo;
 
-  streamMetaRLock(pMeta);
+  streamMetaWLock(pMeta);
 
   // current waiting rsp recved
   if (pRsp->msgId == pInfo->hbCount) {
@@ -345,6 +345,6 @@ int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
     stWarn("vgId:%d recv expired hb rsp, msgId:%d, discarded", pMeta->vgId, pRsp->msgId);
   }
 
-  streamMetaRUnLock(pMeta);
+  streamMetaWUnLock(pMeta);
   return TSDB_CODE_SUCCESS;
 }
