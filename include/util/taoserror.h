@@ -18,8 +18,6 @@
 
 #include <stdint.h>
 
-#include "osDef.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -48,11 +46,11 @@ const char* terrstr();
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
 int32_t* taosGetErrno();
+int32_t* taosGetErrln();
 int32_t  taosGetErrSize();
-
-extern threadlocal int32_t terrno;
-extern threadlocal int32_t terrln;
-extern threadlocal char    terrMsg[ERR_MSG_LEN];
+#define terrno                              (*taosGetErrno())
+#define terrMsg                             (taosGetErrMsg())
+#define terrln                              (*taosGetErrln())
 
 #define SET_ERROR_MSG(MSG, ...) \
   snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
