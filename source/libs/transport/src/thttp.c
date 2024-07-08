@@ -604,8 +604,7 @@ static void httpModuleDestroy(SHttpModule* http) {
 
 static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri, uint16_t port, char* pCont,
                                             int32_t contLen, EHttpCompFlag flag, int64_t chanId) {
-  int32_t ret = 0;
-  terrno = 0;
+  int32_t   ret = 0;
   SHttpMsg* msg = httpCreateMsg(server, uri, port, pCont, contLen, flag, chanId);
   if (msg == NULL) {
     return terrno;
