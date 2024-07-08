@@ -3167,11 +3167,11 @@ static int32_t diffIsNegtive(SDiffInfo* pDiffInfo, int32_t type, const char* pv)
       return v < pDiffInfo->prev.i64;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      int64_t v = *(int8_t*)pv;
+      int64_t v = *(uint8_t*)pv;
       return v < pDiffInfo->prev.i64;
     }
     case TSDB_DATA_TYPE_TINYINT: {
-      int64_t v = *(uint8_t*)pv;
+      int64_t v = *(int8_t*)pv;
       return v < pDiffInfo->prev.i64;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
@@ -3238,12 +3238,12 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      int64_t v = *(int8_t*)pv;
+      int64_t v = *(uint8_t*)pv;
       tryToSetInt64(pDiffInfo, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_TINYINT: {
-      int64_t v = *(uint8_t*)pv;
+      int64_t v = *(int8_t*)pv;
       tryToSetInt64(pDiffInfo, pOutput, v, pos);
       break;
     }
