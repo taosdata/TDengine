@@ -83,12 +83,13 @@ void taos_cleanup(void) {
 
   taosConvDestroy();
 
-  tscInfo("all local resources released");
-  taosCleanupCfg();
-  taosCloseLog();
   tmqMgmtClose();
   taosHashCleanup(appInfo.pInstMap);
   taosHashCleanup(appInfo.pInstMapByClusterId);
+
+  tscInfo("all local resources released");
+  taosCleanupCfg();
+  taosCloseLog();
 }
 
 static setConfRet taos_set_config_imp(const char *config) {
