@@ -73,7 +73,7 @@ static void         transHttpEnvInit();
 
 static void    httpHandleReq(SHttpMsg* msg);
 static void    httpHandleQuit(SHttpMsg* msg);
-static int32_t httpSendQuit(int64_t chanId);
+static int32_t httpSendQuit(SHttpModule* http, int64_t chanId);
 
 static SHttpMsg* httpCreateMsg(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                EHttpCompFlag flag, int64_t chanId);
@@ -387,13 +387,9 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   taosReleaseRef(httpRefMgt, chanId);
 }
 
-int32_t httpSendQuit(int64_t chanId) {
-  SHttpModule* http = taosAcquireRef(httpRefMgt, chanId);
-  if (http == NULL) return terrno;
-
+int32_t httpSendQuit(SHttpModule* http, int64_t chanId) {
   SHttpMsg* msg = taosMemoryCalloc(1, sizeof(SHttpMsg));
   if (msg == NULL) {
-    taosReleaseRef(httpRefMgt, chanId);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -403,11 +399,9 @@ int32_t httpSendQuit(int64_t chanId) {
   int ret = transAsyncSend(http->asyncPool, &(msg->q));
   if (ret != 0) {
     taosMemoryFree(msg);
-    taosReleaseRef(httpRefMgt, chanId);
-    return ret;
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
-  taosReleaseRef(httpRefMgt, chanId);
   return 0;
 }
 
@@ -727,14 +721,14 @@ void taosDestroyHttpChan(int64_t chanId) {
   int          ret = 0;
   SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
   if (load == NULL) {
-    tError("http-report failed destroy chanId %" PRId64 "", chanId);
+    tError("http-report failed to destroy chanId %" PRId64 ", reason:%s", chanId, tstrerror(terrno));
     return;
   }
-  atomic_store_8(&load->quit, 1);
 
-  ret = httpSendQuit(chanId);
+  atomic_store_8(&load->quit, 1);
+  ret = httpSendQuit(load, chanId);
   if (ret != 0) {
-    tDebug("http-report already destroyed, chanId %" PRId64 "", chanId);
+    tDebug("http-report already destroyed, chanId %" PRId64 ",reason:%s", chanId, tstrerror(ret));
     taosReleaseRef(httpRefMgt, chanId);
     return;
   }
