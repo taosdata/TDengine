@@ -243,7 +243,8 @@ class Common:
         return taos_cfg
     
     def check_variable_setting(self, key: str, value: str):
-        value = value.lstrip('0')
+        if len(value) > 1: 
+            value = value.lstrip('0')
         if value.lower() == 'all':
             value = 'QUERY|INSERT|OTHERS'
         result = tdSql.getResult("show cluster variables")
