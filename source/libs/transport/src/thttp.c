@@ -509,6 +509,7 @@ static void httpHandleReq(SHttpMsg* msg) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
+
   wb[0] = uv_buf_init((char*)header, strlen(header));  //  heap var
   wb[1] = uv_buf_init((char*)msg->cont, msg->len);     //  heap var
 
