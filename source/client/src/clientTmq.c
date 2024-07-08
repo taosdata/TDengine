@@ -64,6 +64,7 @@ struct tmq_conf_t {
   int8_t         resetOffset;
   int8_t         withTbName;
   int8_t         snapEnable;
+  int32_t        snapBatchSize;
   uint16_t       port;
   int32_t        autoCommitInterval;
   char*          ip;
