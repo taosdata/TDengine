@@ -57,8 +57,6 @@ void taos_cleanup(void) {
   }
 
   monitorClose();
-  taosHashCleanup(appInfo.pInstMap);
-  taosHashCleanup(appInfo.pInstMapByClusterId);
   tscStopCrashReport();
 
   hbMgrCleanUp();
@@ -88,6 +86,9 @@ void taos_cleanup(void) {
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
+  tmqMgmtClose();
+  taosHashCleanup(appInfo.pInstMap);
+  taosHashCleanup(appInfo.pInstMapByClusterId);
 }
 
 static setConfRet taos_set_config_imp(const char *config) {

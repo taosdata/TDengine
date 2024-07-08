@@ -29,7 +29,6 @@
 #define DEFAULT_HEARTBEAT_INTERVAL     3000
 
 struct SMqMgmt {
-  int8_t  inited;
   tmr_h   timer;
   int32_t rsetId;
 };
@@ -1066,6 +1065,18 @@ void tmqFreeImpl(void* handle) {
   taos_close_internal(tmq->pTscObj);
   taosMemoryFree(tmq);
 
+  if(tmq->commitTimer) {
+    taosTmrStopA(tmq->commitTimer);
+    tmq->commitTimer = NULL;
+  }
+  if(tmq->epTimer) {
+    taosTmrStopA(tmq->epTimer);
+    tmq->epTimer = NULL;
+  }
+  if(tmq->hbLiveTimer) {
+    taosTmrStopA(tmq->hbLiveTimer);
+    tmq->hbLiveTimer = NULL;
+  }
   tscDebug("consumer:0x%" PRIx64 " closed", id);
 }
 
@@ -1080,6 +1091,18 @@ static void tmqMgmtInit(void) {
   tmqMgmt.rsetId = taosOpenRef(10000, tmqFreeImpl);
   if (tmqMgmt.rsetId < 0) {
     tmqInitRes = terrno;
+  }
+}
+
+void tmqMgmtClose(void) {
+  if (tmqMgmt.timer) {
+    taosTmrCleanUp(tmqMgmt.timer);
+    tmqMgmt.timer = NULL;
+  }
+
+  if (tmqMgmt.rsetId >= 0) {
+    taosCloseRef(tmqMgmt.rsetId);
+    tmqMgmt.rsetId = -1;
   }
 }
 
