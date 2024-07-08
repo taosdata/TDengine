@@ -1546,6 +1546,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
     goto _error;
   }
 
+  pOperator->exprSupp.hasWindowOrGroup = true;
   pOperator->pTaskInfo = pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
@@ -4209,6 +4210,8 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->ignoreExpiredDataSaved = false;
 
   SExprSupp* pSup = &pOperator->exprSupp;
+  pSup->hasWindowOrGroup = true;
+
   initBasicInfo(&pInfo->binfo, pResBlock);
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 

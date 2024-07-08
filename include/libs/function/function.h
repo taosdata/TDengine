@@ -253,6 +253,7 @@ typedef struct SqlFunctionCtx {
   bool                 hasPrimaryKey;
   SFuncInputRowIter    rowIter;
   bool                 bInputFinished;
+  bool                 hasWindowOrGroup; // denote that the function is used with time window or group
 } SqlFunctionCtx;
 
 typedef struct tExprNode {

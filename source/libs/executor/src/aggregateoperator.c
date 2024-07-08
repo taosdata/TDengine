@@ -77,6 +77,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
     goto _error;
   }
 
+  pOperator->exprSupp.hasWindowOrGroup = false;
+
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
@@ -519,6 +521,7 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
+    pSup->pCtx[i].hasWindowOrGroup = pSup->hasWindowOrGroup;
     if (pState) {
       pSup->pCtx[i].saveHandle.pBuf = NULL;
       pSup->pCtx[i].saveHandle.pState = pState;
