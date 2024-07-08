@@ -691,7 +691,8 @@ int64_t transInitHttpChanImpl() {
     tError("http-report failed init uv, reason:%s", uv_strerror(err));
     httpModuleDestroy(http);
     taosMemoryFree(http);
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    terrno = TSDB_CODE_THIRDPARTY_ERROR;
+    return terrno;
   }
 
   http->asyncPool = transAsyncPoolCreate(http->loop, 1, http, httpAsyncCb);
