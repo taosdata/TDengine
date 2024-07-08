@@ -28,8 +28,7 @@ from frame import *
 
 
 class TDTestCase(TBase):
-
-    # fix 
+    # fix
     def FIX_TD_30686(self):
         tdLog.info("check bug TD_30686 ...\n")
         sqls = [
@@ -49,6 +48,32 @@ class TDTestCase(TBase):
         ]
         tdSql.checkDataMem(sql, results)
 
+    def FIX_TS_5105(self):
+        tdLog.info("check bug TS_5105 ...\n")
+        ts1 = "2024-07-03 10:00:00.000"
+        ts2 = "2024-07-03 13:00:00.000"
+        sqls = [
+            "drop database if exists ts_5105",
+            "create database ts_5105 cachemodel 'both';",
+            "use ts_5105;",
+            "CREATE STABLE meters (ts timestamp, current float) TAGS (location binary(64), groupId int);",
+            "CREATE TABLE d1001 USING meters TAGS ('California.B', 2);",
+            "CREATE TABLE d1002 USING meters TAGS ('California.S', 3);",
+            f"INSERT INTO d1001 VALUES ('{ts1}', 10);",
+            f"INSERT INTO d1002 VALUES ('{ts2}', 13);",
+        ]
+        tdSql.executes(sqls)
+
+        sql = "select last(ts), last_row(ts) from meters;"
+
+        # 执行多次，有些时候last_row(ts)会返回错误的值，详见TS-5105
+        for i in range(1, 10):
+            tdLog.debug(f"{i}th execute sql: {sql}")
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, ts2)
+            tdSql.checkData(0, 1, ts2)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -57,11 +82,10 @@ class TDTestCase(TBase):
         self.FIX_TD_30686()
 
         # TS BUGS
-        
+        self.FIX_TS_5105()
 
         tdLog.success(f"{__file__} successfully executed")
 
-        
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
