@@ -2840,6 +2840,5 @@ int64_t transAllocHandle() {
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
   tDebug("pre alloc refId %" PRId64 "", exh->refId);
-
   return exh->refId;
 }
