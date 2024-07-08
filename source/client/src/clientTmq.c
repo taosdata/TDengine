@@ -1063,21 +1063,18 @@ void tmqFreeImpl(void* handle) {
 
   taosArrayDestroyEx(tmq->clientTopics, freeClientVgImpl);
   taos_close_internal(tmq->pTscObj);
-  taosMemoryFree(tmq);
 
   if(tmq->commitTimer) {
-    taosTmrStopA(tmq->commitTimer);
-    tmq->commitTimer = NULL;
+    taosTmrStopA(&tmq->commitTimer);
   }
   if(tmq->epTimer) {
-    taosTmrStopA(tmq->epTimer);
-    tmq->epTimer = NULL;
+    taosTmrStopA(&tmq->epTimer);
   }
   if(tmq->hbLiveTimer) {
-    taosTmrStopA(tmq->hbLiveTimer);
-    tmq->hbLiveTimer = NULL;
+    taosTmrStopA(&tmq->hbLiveTimer);
   }
 
+  taosMemoryFree(tmq);
   tscDebug("consumer:0x%" PRIx64 " closed", id);
 }
 
