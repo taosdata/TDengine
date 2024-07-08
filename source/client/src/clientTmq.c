@@ -99,6 +99,7 @@ struct tmq_t {
   int64_t totalRows;
 
   // timer
+  tmr_h       hbLiveTimer;
   tmr_h       epTimer;
   tmr_h       commitTimer;
   STscObj*    pTscObj;       // connection
@@ -876,7 +877,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
 OVER:
   tDestroySMqHbReq(&req);
   if(tmrId != NULL){
-    taosTmrReset(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, param, tmqMgmt.timer, &tmrId);
+    taosTmrReset(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, param, tmqMgmt.timer, &tmq->hbLiveTimer);
   }
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
@@ -1162,7 +1163,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     goto _failed;
   }
 
-  taosTmrStart(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, (void*)pTmq->refId, tmqMgmt.timer);
+  pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, (void*)pTmq->refId, tmqMgmt.timer);
 
   char         buf[TSDB_OFFSET_LEN] = {0};
   STqOffsetVal offset = {.type = pTmq->resetOffsetCfg};
