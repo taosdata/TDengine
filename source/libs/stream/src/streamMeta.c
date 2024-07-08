@@ -1031,10 +1031,11 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo, int32_t vgId) {
   taosHashClear(pStartInfo->pFailedTaskSet);
   pStartInfo->tasksWillRestart = 0;
   pStartInfo->readyTs = 0;
+  pStartInfo->elapsedTime = 0;
 
   // reset the sentinel flag value to be 0
   pStartInfo->startAllTasks = 0;
-  stDebug("vgId:%d clear all start-all-task info", vgId);
+  stDebug("vgId:%d clear start-all-task info", vgId);
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {

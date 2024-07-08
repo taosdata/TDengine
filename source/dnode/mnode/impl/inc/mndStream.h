@@ -147,8 +147,7 @@ int32_t          removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot);
 void             removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 
 SCheckpointConsensusInfo *mndGetConsensusInfo(SHashObj *pHash, int64_t streamId, int32_t numOfTasks);
-void    mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo,
-                             SRpcHandleInfo *pRpcInfo);
+void    mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo);
 void    mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo);
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId);
 

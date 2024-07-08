@@ -349,6 +349,7 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestTime) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestSize) < 0) return -1;
     if (tEncodeI8(pEncoder, ps->checkpointInfo.remoteBackup) < 0) return -1;
+    if (tEncodeI8(pEncoder, ps->checkpointInfo.consensusChkptId) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startTime) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startCheckpointId) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startCheckpointVer) < 0) return -1;
@@ -403,6 +404,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestTime) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestSize) < 0) return -1;
     if (tDecodeI8(pDecoder, &entry.checkpointInfo.remoteBackup) < 0) return -1;
+    if (tDecodeI8(pDecoder, &entry.checkpointInfo.consensusChkptId) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startTime) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startCheckpointId) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startCheckpointVer) < 0) return -1;

@@ -953,12 +953,21 @@ SCheckpointConsensusInfo* mndGetConsensusInfo(SHashObj* pHash, int64_t streamId,
 
 // no matter existed or not, add the request into info list anyway, since we need to send rsp mannually
 // discard the msg may lead to the lost of connections.
-void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo, SRpcHandleInfo* pRpcInfo) {
-  SCheckpointConsensusEntry info = {.ts = taosGetTimestampMs(), .rspInfo = *pRpcInfo};
+void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo) {
+  SCheckpointConsensusEntry info = {.ts = taosGetTimestampMs()};
   memcpy(&info.req, pRestoreInfo, sizeof(info.req));
 
-  taosArrayPush(pInfo->pTaskList, &info);
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pTaskList); ++i) {
+    SCheckpointConsensusEntry *p = taosArrayGet(pInfo->pTaskList, i);
+    if (p->req.taskId == info.req.taskId) {
+      mDebug("s-task:0x%x already in consensus-checkpointId list for stream:0x%" PRIx64
+             ", ignore this, total existed:%d",
+             pRestoreInfo->taskId, pRestoreInfo->streamId, (int32_t)taosArrayGetSize(pInfo->pTaskList));
+      return;
+    }
+  }
 
+  taosArrayPush(pInfo->pTaskList, &info);
   int32_t num = taosArrayGetSize(pInfo->pTaskList);
   mDebug("s-task:0x%x added into consensus-checkpointId list, stream:0x%" PRIx64 " total waiting:%d",
          pRestoreInfo->taskId, pRestoreInfo->streamId, num);

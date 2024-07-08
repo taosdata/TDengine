@@ -1121,7 +1121,8 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   taosThreadMutexUnlock(&pTask->lock);
 
   ASSERT(pTask->pBackend == NULL);
-
+  pTask->status.requireConsensusChkptId = true;
+#if 0
   SRestoreCheckpointInfo req = {
       .streamId = pTask->id.streamId,
       .taskId = pTask->id.taskId,
@@ -1158,6 +1159,7 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
           pInfo->checkpointId);
 
   tmsgSendReq(&pTask->info.mnodeEpset, &msg);
+#endif
   return 0;
 }
 

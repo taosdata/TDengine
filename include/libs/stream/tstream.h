@@ -289,6 +289,7 @@ typedef struct SStreamStatus {
   bool           appendTranstateBlock;  // has append the transfer state data block already
   bool           removeBackendFiles;    // remove backend files on disk when free stream tasks
   bool           sendConsensusChkptId;
+  bool           requireConsensusChkptId;
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -568,14 +569,15 @@ typedef struct {
 } SStreamScanHistoryReq;
 
 typedef struct STaskCkptInfo {
-  int64_t latestId;       // saved checkpoint id
-  int64_t latestVer;      // saved checkpoint ver
-  int64_t latestTime;     // latest checkpoint time
-  int64_t latestSize;     // latest checkpoint size
-  int8_t  remoteBackup;   // latest checkpoint backup done
-  int64_t activeId;       // current active checkpoint id
-  int32_t activeTransId;  // checkpoint trans id
-  int8_t  failed;         // denote if the checkpoint is failed or not
+  int64_t latestId;          // saved checkpoint id
+  int64_t latestVer;         // saved checkpoint ver
+  int64_t latestTime;        // latest checkpoint time
+  int64_t latestSize;        // latest checkpoint size
+  int8_t  remoteBackup;      // latest checkpoint backup done
+  int64_t activeId;          // current active checkpoint id
+  int32_t activeTransId;     // checkpoint trans id
+  int8_t  failed;            // denote if the checkpoint is failed or not
+  int8_t  consensusChkptId;  // required the consensus-checkpointId
 } STaskCkptInfo;
 
 typedef struct STaskStatusEntry {

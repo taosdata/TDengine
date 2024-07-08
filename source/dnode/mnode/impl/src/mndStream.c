@@ -2718,7 +2718,7 @@ static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg) {
     mDebug("not all(%d/%d) task(s) send hbMsg yet, wait for a while and check again, s-task:0x%x", req.taskId, num,
            numOfTasks);
     SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, req.streamId, numOfTasks);
-    mndAddConsensusTasks(pInfo, &req, &pMsg->info);
+    mndAddConsensusTasks(pInfo, &req);
 
     taosThreadMutexUnlock(&execInfo.lock);
     doSendQuickRsp(&pMsg->info, sizeof(SMStreamReqConsensChkptRsp), req.nodeId, terrno);
@@ -2737,7 +2737,7 @@ static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg) {
 
   // wait for 5s and check again
   SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, req.streamId, numOfTasks);
-  mndAddConsensusTasks(pInfo, &req, &pMsg->info);
+  mndAddConsensusTasks(pInfo, &req);
 
   if (pStream != NULL) {
     mndReleaseStream(pMnode, pStream);
@@ -2789,7 +2789,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
         taosArrayPush(pList, &pe->req.taskId);
         streamId = pe->req.streamId;
       } else {
-        mDebug("s-task:0x%x sendTs:%" PRId64 " wait %2.fs already, wait for next round to check", pe->req.taskId,
+        mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs already, wait for next round to check", pe->req.taskId,
                (now - pe->ts) / 1000.0, pe->ts);
       }
     }
