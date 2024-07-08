@@ -1536,15 +1536,10 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
 
   pFile = taosOpenFile(pDst, TD_FILE_READ);
   if (pFile == NULL) {
-    if (errno == ENOENT) {
-      // compatible with previous version
-      *processId = -1;
-      code = 0;
-      goto _EXIT;
-    } else {
-      code = TAOS_SYSTEM_ERROR(errno);
-      stError("failed to open file to load extra info, file:%s, reason:%s", pDst, tstrerror(code));
-    }
+    // compatible with previous version
+    *processId = -1;
+    code = 0;
+    stError("failed to open file to load extra info, file:%s, reason:%s", pDst, tstrerror(TAOS_SYSTEM_ERROR(errno)));
     goto _EXIT;
   }
 
