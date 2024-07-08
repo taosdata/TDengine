@@ -1656,6 +1656,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->param = pFunct->pParam;
     pCtx->saveHandle.currentPage = -1;
     pCtx->pStore = pStore;
+    pCtx->hasWindowOrGroup = false;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
