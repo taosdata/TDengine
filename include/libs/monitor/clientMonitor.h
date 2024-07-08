@@ -25,13 +25,27 @@ extern "C" {
 #include "query.h"
 #include "tqueue.h"
 
-typedef enum SQL_RESULT_CODE {
+typedef enum {
   SQL_RESULT_SUCCESS = 0,
   SQL_RESULT_FAILED = 1,
   SQL_RESULT_CANCEL = 2,
 } SQL_RESULT_CODE;
 
-#define SLOW_LOG_SEND_SIZE 32*1024
+typedef enum {
+    SLOW_LOG_WRITE = 0,
+    SLOW_LOG_READ_RUNNING = 1,
+    SLOW_LOG_READ_BEGINNIG = 2,
+    SLOW_LOG_READ_QUIT = 3,
+} SLOW_LOG_QUEUE_TYPE;
+
+static char* queueTypeStr[] = {
+    "SLOW_LOG_WRITE",
+    "SLOW_LOG_READ_RUNNING",
+    "SLOW_LOG_READ_BEGINNIG",
+    "SLOW_LOG_READ_QUIT"
+};
+
+#define SLOW_LOG_SEND_SIZE_MAX 1024*1024
 
 typedef struct {
   int64_t                    clusterId;
@@ -43,16 +57,22 @@ typedef struct {
 
 typedef struct {
   TdFilePtr                  pFile;
-  void*                      timer;
+  int64_t                    lastCheckTime;
+  char                       path[PATH_MAX];
+  int64_t                    offset;
 } SlowLogClient;
 
 typedef struct {
-  int64_t  clusterId;
-  char    *value;
+  int64_t             clusterId;
+  SLOW_LOG_QUEUE_TYPE type;
+  char*               data;
+  int64_t             offset;
+  TdFilePtr           pFile;
+  char*               fileName;
 } MonitorSlowLogData;
 
 void            monitorClose();
-void            monitorInit();
+int32_t         monitorInit();
 
 void            monitorClientSQLReqInit(int64_t clusterKey);
 void            monitorClientSlowQueryInit(int64_t clusterId);
@@ -60,7 +80,7 @@ void            monitorCreateClient(int64_t clusterId);
 void            monitorCreateClientCounter(int64_t clusterId, const char* name, const char* help, size_t label_key_count, const char** label_keys);
 void            monitorCounterInc(int64_t clusterId, const char* counterName, const char** label_values);
 const char*     monitorResultStr(SQL_RESULT_CODE code);
-int32_t         monitorPutData2MonitorQueue(int64_t clusterId, char* value);
+int32_t         monitorPutData2MonitorQueue(MonitorSlowLogData data);
 #ifdef __cplusplus
 }
 #endif

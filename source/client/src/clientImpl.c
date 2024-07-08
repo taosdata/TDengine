@@ -1540,6 +1540,9 @@ int32_t doProcessMsgFromServer(void* param) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
     tscError("doProcessMsgFromServer pMsg->info.ahandle == NULL");
+    taosMemoryFree(arg->pEpset);
+    rpcFreeCont(pMsg->pCont);
+    taosMemoryFree(arg);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   STscObj* pTscObj = NULL;
@@ -1557,6 +1560,11 @@ int32_t doProcessMsgFromServer(void* param) {
       if (pRequest->self != pSendInfo->requestObjRefId) {
         tscError("doProcessMsgFromServer pRequest->self:%" PRId64 " != pSendInfo->requestObjRefId:%" PRId64,
                  pRequest->self, pSendInfo->requestObjRefId);
+        taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+        taosMemoryFree(arg->pEpset);
+        rpcFreeCont(pMsg->pCont);
+        destroySendMsgInfo(pSendInfo);
+        taosMemoryFree(arg);
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
       pTscObj = pRequest->pTscObj;
