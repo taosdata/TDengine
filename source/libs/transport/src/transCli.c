@@ -819,6 +819,9 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
+  ASSERT(exh == self);
+
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
 
@@ -2805,11 +2808,14 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
 int64_t transAllocHandle() {
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
+
+  exh->refId = transAddExHandle(transGetRefMgt(), exh);
+  SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
+  ASSERT(exh == self);
+
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
-  exh->refId = transAddExHandle(transGetRefMgt(), exh);
 
   tDebug("pre alloc refId %" PRId64 "", exh->refId);
-
   return exh->refId;
 }
