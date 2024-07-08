@@ -682,7 +682,7 @@ static void* monitorThreadFunc(void *param){
   tscDebug("monitorThreadFunc start");
   int64_t     quitTime = 0;
   while (1) {
-    if (slowLogFlag > 0) {
+    if (atomic_load_32(&slowLogFlag) > 0) {
       if(quitCnt == 0){
         monitorSendAllSlowLogAtQuit();
         if(quitCnt == 0){
@@ -728,9 +728,7 @@ static void* monitorThreadFunc(void *param){
     tsem2_timewait(&monitorSem, 100);
   }
 
-  taosCloseQueue(monitorQueue);
-  tsem2_destroy(&monitorSem);
-  slowLogFlag = -2;
+  atomic_store_32(&slowLogFlag, -2);
   return NULL;
 }
 
@@ -826,10 +824,17 @@ void monitorClose() {
   taosHashCleanup(monitorCounterHash);
   taosHashCleanup(monitorSlowLogHash);
   taosTmrCleanUp(monitorTimer);
+  taosCloseQueue(monitorQueue);
+  tsem2_destroy(&monitorSem);
   taosWUnLockLatch(&monitorLock);
 }
 
 int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data){
+  if (atomic_load_32(&slowLogFlag) == -2) {
+    tscError("[monitor] slow log thread is exiting");
+    return -1;
+  }
+
   MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
   if (slowLogData == NULL) {
     tscError("[monitor] failed to allocate slow log data");
