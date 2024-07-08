@@ -962,7 +962,8 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
     if (p->req.taskId == info.req.taskId) {
       mDebug("s-task:0x%x already in consensus-checkpointId list for stream:0x%" PRIx64 ", update ts %" PRId64
              "->%" PRId64 " total existed:%d",
-             pRestoreInfo->taskId, pRestoreInfo->streamId, (int32_t)taosArrayGetSize(pInfo->pTaskList));
+             pRestoreInfo->taskId, pRestoreInfo->streamId, p->req.startTs, info.req.startTs,
+             (int32_t)taosArrayGetSize(pInfo->pTaskList));
       p->req.startTs = info.req.startTs;
       return;
     }
