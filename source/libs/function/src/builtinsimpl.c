@@ -3183,10 +3183,13 @@ static int32_t diffIsNegtive(SDiffInfo* pDiffInfo, int32_t type, const char* pv)
       return v < pDiffInfo->prev.i64;
     }
     case TSDB_DATA_TYPE_TIMESTAMP:
-    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:{
+      uint64_t v = *(uint64_t*)pv;
+      return v < (uint64_t)pDiffInfo->prev.i64;
+    }
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t v = *(int64_t*)pv;
-      return v - pDiffInfo->prev.i64 < 0;
+      return v < pDiffInfo->prev.i64;
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float v = *(float*)pv;
@@ -3203,15 +3206,29 @@ static int32_t diffIsNegtive(SDiffInfo* pDiffInfo, int32_t type, const char* pv)
   return false;
 }
 
-static void tryToSetInt64(SDiffInfo* pDiffInfo, SColumnInfoData* pOutput, int64_t v, int32_t pos) {
-  int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
-  if (delta < 0 && ignoreNegative(pDiffInfo->ignoreOption)) {
+static void tryToSetInt64(SDiffInfo* pDiffInfo, int32_t type, SColumnInfoData* pOutput, int64_t v, int32_t pos) {
+  bool isNegative = v < pDiffInfo->prev.i64;
+  if(type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP){
+    isNegative = (uint64_t)v < (uint64_t)pDiffInfo->prev.i64;
+  }
+  int64_t delta = v - pDiffInfo->prev.i64;
+  if (isNegative && ignoreNegative(pDiffInfo->ignoreOption)) {
     colDataSetNull_f_s(pOutput, pos);
     pOutput->hasNull = true;
   } else {
     colDataSetInt64(pOutput, pos, &delta);
   }
   pDiffInfo->prev.i64 = v;
+}
+
+static void tryToSetDouble(SDiffInfo* pDiffInfo, SColumnInfoData* pOutput, double v, int32_t pos) {
+  double delta = v - pDiffInfo->prev.d64;
+  if (delta < 0 && ignoreNegative(pDiffInfo->ignoreOption)) {
+    colDataSetNull_f_s(pOutput, pos);
+  } else {
+    colDataSetDouble(pOutput, pos, &delta);
+  }
+  pDiffInfo->prev.d64 = v;
 }
 
 static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SColumnInfoData* pOutput, int32_t pos,
@@ -3224,74 +3241,54 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
   switch (type) {
     case TSDB_DATA_TYPE_UINT: {
       int64_t v = *(uint32_t*)pv;
-      tryToSetInt64(pDiffInfo, pOutput, v, pos);
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_INT: {
       int64_t v = *(int32_t*)pv;
-      tryToSetInt64(pDiffInfo, pOutput, v, pos);
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_BOOL: {
       int64_t v = *(bool*)pv;
-      tryToSetInt64(pDiffInfo, pOutput, v, pos);
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
       int64_t v = *(uint8_t*)pv;
-      tryToSetInt64(pDiffInfo, pOutput, v, pos);
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_TINYINT: {
       int64_t v = *(int8_t*)pv;
-      tryToSetInt64(pDiffInfo, pOutput, v, pos);
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT:{
       int64_t v = *(uint16_t*)pv;
-      tryToSetInt64(pDiffInfo, pOutput, v, pos);
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int64_t v = *(int16_t*)pv;
-      tryToSetInt64(pDiffInfo, pOutput, v, pos);
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t v = *(int64_t*)pv;
-      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
-      if (delta < 0 && ignoreNegative(pDiffInfo->ignoreOption)) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.i64 = v;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
       double v = *(float*)pv;
-      double delta = v - pDiffInfo->prev.d64;  // direct previous may be null
-      if ((delta < 0 && ignoreNegative(pDiffInfo->ignoreOption)) || isinf(delta) ||
-          isnan(delta)) {  // check for overflow
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetDouble(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.d64 = v;
+      tryToSetDouble(pDiffInfo, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double v = *(double*)pv;
-      double delta = v - pDiffInfo->prev.d64;  // direct previous may be null
-      if ((delta < 0 && ignoreNegative(pDiffInfo->ignoreOption)) || isinf(delta) ||
-          isnan(delta)) {  // check for overflow
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetDouble(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.d64 = v;
+      tryToSetDouble(pDiffInfo, pOutput, v, pos);
       break;
     }
     default:

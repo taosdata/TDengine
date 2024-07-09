@@ -275,7 +275,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         
         
-    def typeOverflowTest(self):
+    def intOverflowTest(self):
         dbname = "db"
         
         ts1 = 1694912400000
@@ -284,7 +284,7 @@ class TDTestCase:
 
         tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -2147483648, -32768, 0,         9223372036854775806,  9223372036854775806)" % (ts1 + 1))
         tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, 2147483647,  32767, 4294967295, 0,                    0)" % (ts1 + 2))
-        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -10,         -10,    0,         -9223372036854775806, 9223372036854775806)" % (ts1 + 3))
+        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -10,         -10,    0,         -9223372036854775806, 16223372036854775806)" % (ts1 + 3))
         
         tdSql.query(f"select ts, diff(c1), diff(c2), diff(c3), diff(c4), diff(c5) from {dbname}.stb6_1")
         tdSql.checkRows(2)
@@ -299,7 +299,6 @@ class TDTestCase:
         tdSql.checkData(1, 2, -32777)
         tdSql.checkData(1, 3, -4294967295)
         tdSql.checkData(1, 4, -9223372036854775806)
-        tdSql.checkData(1, 5, 9223372036854775806)
         
         tdSql.query(f"select ts, diff(c1, 1), diff(c2) from {dbname}.stb6_1")
         tdSql.checkRows(2)
@@ -326,6 +325,65 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 4294967295)
         tdSql.checkData(0, 2, 65535)
+        
+        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -10, -10, 0, 9223372036854775800, 0)" % (ts1 + 4))
+        tdSql.execute(f"insert into  {dbname}.stb6_1 values(%d, -10, -10, 0, 9223372036854775800, 16223372036854775806)" % (ts1 + 5))
+        
+        tdSql.query(f"select ts, diff(c4, 0) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        
+        tdSql.query(f"select ts, diff(c4, 1) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        tdSql.checkData(2, 1, -10)
+        
+        tdSql.query(f"select ts, diff(c4, 2) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        
+        tdSql.query(f"select ts, diff(c4, 3) from {dbname}.stb6_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, -10)
+        tdSql.checkData(1, 1, 0)
+        
+        tdSql.query(f"select ts, diff(c5, 0) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        
+        tdSql.query(f"select ts, diff(c5, 1) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.005')
+        
+        tdSql.query(f"select ts, diff(c5, 2) from {dbname}.stb6_1")
+        tdSql.checkRows(4)
+        
+        tdSql.query(f"select ts, diff(c5, 3) from {dbname}.stb6_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.005')
+
+    def doubleOverflowTest(self):
+        dbname = "db"
+        
+        ts1 = 1694912400000
+        tdSql.execute(f'''create table  {dbname}.stb7(ts timestamp, c1 float, c2 double) tags(loc nchar(20))''')
+        tdSql.execute(f"create table  {dbname}.stb7_1 using  {dbname}.stb7 tags('shanghai')")
+
+        tdSql.execute(f"insert into  {dbname}.stb7_1 values(%d, 334567777777777777777343434343333333733, 334567777777777777777343434343333333733)" % (ts1 + 1))
+        tdSql.execute(f"insert into  {dbname}.stb7_1 values(%d, -334567777777777777777343434343333333733, -334567777777777777777343434343333333733)" % (ts1 + 2))
+        tdSql.execute(f"insert into  {dbname}.stb7_1 values(%d, 334567777777777777777343434343333333733, 334567777777777777777343434343333333733)" % (ts1 + 3))
+        
+        tdSql.query(f"select ts, diff(c1), diff(c2) from {dbname}.stb7_1")
+        tdSql.checkRows(2)
+
+        tdSql.query(f"select ts, diff(c1, 1), diff(c2, 1) from {dbname}.stb7_1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        
+        tdSql.query(f"select ts, diff(c1, 3), diff(c2, 3) from {dbname}.stb7_1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.003')
 
     def run(self):
         tdSql.prepare()
@@ -336,7 +394,8 @@ class TDTestCase:
         
         self.ignoreTest()
         self.withPkTest()
-        self.typeOverflowTest()
+        self.intOverflowTest()
+        self.doubleOverflowTest()
 
         tdSql.execute(
             f"create table {dbname}.ntb(ts timestamp,c1 int,c2 double,c3 float)")

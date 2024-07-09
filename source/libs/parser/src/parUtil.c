@@ -221,6 +221,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Table name:%s duplicated";
     case TSDB_CODE_PAR_TAG_NAME_DUPLICATED:
       return "Tag name:%s duplicated";
+    case TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC:
+      return "Some functions cannot appear in the select list at the same time";
      default:
       return "Unknown error";
   }
@@ -772,6 +774,7 @@ SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* 
   select->onlyHasKeepOrderFunc = true;
   select->timeRange = TSWINDOW_INITIALIZER;
   select->pHint = pHint;
+  select->lastProcessByRowFuncId = -1;
   return (SNode*)select;
 }
 
