@@ -819,7 +819,7 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   if ((pActiveInfo->activeId == 0) && (pActiveInfo->transId == 0) && (num == 0) && (pTask->chkInfo.startTs == 0)) {
     taosThreadMutexUnlock(&pActiveInfo->lock);
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stWarn("s-task:0x%x vgId:%d active checkpoint may be cleared, quit from readyMsg send tmr, ref:%d", id, vgId, ref);
+    stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from readyMsg send tmr, ref:%d", id, vgId, ref);
 
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
