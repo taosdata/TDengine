@@ -123,6 +123,8 @@ pub fn get_task_metrics_string(status: &Status, metrics: Arc<CoreMetrics>) -> St
         map.remove("total_written_points");
         map.remove("success_blocks");
         map.remove("total_success_blocks");
+        map.remove("write_raw_fails");
+        map.remove("total_write_raw_fails");
     } else {
         compute_total_avg_speed(common_metrics, &mut map);
         compute_avg_speed(common_metrics, &mut map, running);
