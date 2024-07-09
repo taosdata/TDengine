@@ -1222,7 +1222,6 @@ class TDTestCase:
         self.init_data()
         self.test_ddl()
         self.test_query_with_tsma()
-        self.test_bigger_tsma_interval()
         # bug to fix
         self.test_flush_query()
         
@@ -1231,6 +1230,7 @@ class TDTestCase:
         clust_dnode_nums = len(cluster_dnode_list)
         if clust_dnode_nums > 1:
             self.test_redistribute_vgroups()
+        self.test_bigger_tsma_interval()
             
     def test_create_tsma(self):
         function_name = sys._getframe().f_code.co_name
@@ -1639,6 +1639,7 @@ class TDTestCase:
         return ctxs
 
     def test_bigger_tsma_interval(self):
+        tdSql.execute('drop database test')
         db = 'db'
         tb = 'meters'
         func = ['max(c1)', 'min(c1)', 'min(c2)', 'max(c2)', 'avg(c1)', 'count(ts)']
