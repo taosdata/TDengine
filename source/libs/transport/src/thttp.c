@@ -602,37 +602,41 @@ static void httpModuleDestroy(SHttpModule* http) {
   // not free http, http freeed by ref
 }
 
+void httpModuleDestroy2(SHttpModule* http) {
+  httpModuleDestroy(http);
+  taosMemoryFree(http);
+}
+
 static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri, uint16_t port, char* pCont,
                                             int32_t contLen, EHttpCompFlag flag, int64_t chanId) {
-  int32_t   ret = 0;
-  SHttpMsg* msg = httpCreateMsg(server, uri, port, pCont, contLen, flag, chanId);
+  int32_t      ret = 0;
+  SHttpModule* load = NULL;
+  SHttpMsg*    msg = httpCreateMsg(server, uri, port, pCont, contLen, flag, chanId);
   if (msg == NULL) {
-    return terrno;
+    goto _ERROR;
   }
 
-  SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
+  load = taosAcquireRef(httpRefMgt, chanId);
   if (load == NULL) {
-    httpDestroyMsg(msg);
-    return terrno;
+    goto _ERROR;
   }
 
   if (atomic_load_8(&load->quit)) {
-    httpDestroyMsg(msg);
-    taosReleaseRef(httpRefMgt, chanId);
     terrno = TSDB_CODE_HTTP_MODULE_QUIT;
-    return terrno;
+    goto _ERROR;
   }
 
   ret = transAsyncSend(load->asyncPool, &(msg->q));
   if (ret < 0) {
-    httpDestroyMsg(msg);
-    taosReleaseRef(httpRefMgt, chanId);
     terrno = TSDB_CODE_HTTP_MODULE_QUIT;
-    return terrno;
+    goto _ERROR;
   }
+  msg = NULL;
 
-  taosReleaseRef(httpRefMgt, chanId);
-  return ret;
+_ERROR:
+  httpDestroyMsg(msg);
+  if (load != NULL) taosReleaseRef(httpRefMgt, chanId);
+  return ret = terrno;
 }
 
 int32_t taosSendHttpReportByChan(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
@@ -670,15 +674,14 @@ int64_t transInitHttpChanImpl() {
 
   http->connStatusTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (http->connStatusTable == NULL) {
-    httpModuleDestroy(http);
+    httpModuleDestroy2(http);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
   http->loop = taosMemoryMalloc(sizeof(uv_loop_t));
   if (http->loop == NULL) {
-    httpModuleDestroy(http);
-    taosMemoryFree(http);
+    httpModuleDestroy2(http);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
@@ -686,24 +689,21 @@ int64_t transInitHttpChanImpl() {
   int err = uv_loop_init(http->loop);
   if (err != 0) {
     tError("http-report failed init uv, reason:%s", uv_strerror(err));
-    httpModuleDestroy(http);
-    taosMemoryFree(http);
+    httpModuleDestroy2(http);
     terrno = TSDB_CODE_THIRDPARTY_ERROR;
     return terrno;
   }
 
   http->asyncPool = transAsyncPoolCreate(http->loop, 1, http, httpAsyncCb);
   if (NULL == http->asyncPool) {
-    httpModuleDestroy(http);
-    taosMemoryFree(http);
+    httpModuleDestroy2(http);
     return terrno;
   }
   http->quit = 0;
 
   err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
   if (err != 0) {
-    httpModuleDestroy(http);
-    taosMemoryFree(http);
+    httpModuleDestroy2(http);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
@@ -741,5 +741,5 @@ void taosDestroyHttpChan(int64_t chanId) {
   httpModuleDestroy(load);
 
   taosReleaseRef(httpRefMgt, chanId);
-  taosReleaseRef(httpRefMgt, chanId);
+  taosRemoveRef(httpRefMgt, chanId);
 }
