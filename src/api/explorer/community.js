@@ -170,7 +170,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "Port",
             "description": "Remote server REST API (taosAdapter) port.",
-            "placeholder": "6041"
+            "placeholder": "6041",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
             "required": true,
@@ -1634,7 +1636,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "Port",
             "description": "The port of InfluxDB",
-            "placeholder": "8086"
+            "placeholder": "8086",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {}
         },
@@ -1919,7 +1923,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "Port",
             "description": "The port of OpenTSDB",
-            "placeholder": "4242"
+            "placeholder": "4242",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {}
         },
@@ -2088,15 +2094,17 @@ export function getDataSources(lang) {
         "options": {
           "host": {
             "required": true,
-            "display": "MQTT host",
+            "display": "MQTT Host",
             "description": "MQTT server endpoint. e.g: 127.0.0.1\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.\n",
             "placeholder": "127.0.0.1"
           },
           "port": {
             "required": true,
-            "display": "MQTT port",
+            "display": "MQTT Port",
             "description": "MQTT server port",
-            "placeholder": "1883"
+            "placeholder": "1883",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           }
         },
         "authentication": {
@@ -2356,12 +2364,20 @@ export function getDataSources(lang) {
         "license_id": "kafka",
         "description": "Apache Kafka is an open-source distributed streaming system used for stream processing, real-time data pipelines, and data integration at scale.\nTDengine can efficiently read the data from Kafka and write to TDengine to achieve historical data migration or real-time data streaming.\n",
         "options": {
-          "endpoint": {
+          "host": {
             "required": true,
             "display": "bootstrap-servers",
             "description": "kafka bootstrap-servers.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
-            "placeholder": "127.0.0.1:9092"
-          }
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "Port",
+            "description": "Kafka Server Port",
+            "placeholder": "9092",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
+          },
         },
         "groups": [
           {
@@ -2779,14 +2795,16 @@ export function getDataSources(lang) {
         "options": {
           "host": {
             "required": true,
-            "display": "host",
+            "display": "Host",
             "description": "AVEVA Historian SQL Server IP address or host name",
             "placeholder": "127.0.0.1"
           },
           "port": {
-            "display": "port",
+            "display": "Port",
             "description": "AVEVA Historian SQL Server port",
-            "placeholder": "1433"
+            "placeholder": "1433",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {}
         },
@@ -3170,15 +3188,17 @@ export function getDataSources(lang) {
         "options": {
           "host": {
             "required": true,
-            "display": "host",
+            "display": "Host",
             "description": "The access address of MySQL.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
             "placeholder": "127.0.0.1"
           },
           "port": {
             "required": true,
-            "display": "port",
+            "display": "Port",
             "description": "The port of MySQL.",
-            "placeholder": "3306"
+            "placeholder": "3306",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
             "required": true,
@@ -3401,15 +3421,17 @@ export function getDataSources(lang) {
         "options": {
           "host": {
             "required": true,
-            "display": "host",
+            "display": "Host",
             "description": "The access address of PostgreSQL.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
             "placeholder": "127.0.0.1"
           },
           "port": {
             "required": true,
-            "display": "port",
+            "display": "Port",
             "description": "The port of PostgreSQL.",
-            "placeholder": "5432"
+            "placeholder": "5432",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
             "required": true,
@@ -3622,15 +3644,17 @@ export function getDataSources(lang) {
         "options": {
           "host": {
             "required": true,
-            "display": "host",
+            "display": "Host",
             "description": "The access address of Oracle.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
             "placeholder": "127.0.0.1"
           },
           "port": {
             "required": true,
-            "display": "port",
+            "display": "Port",
             "description": "The port of Oracle.",
-            "placeholder": "1521"
+            "placeholder": "1521",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
             "required": true,
@@ -3806,15 +3830,17 @@ export function getDataSources(lang) {
         "options": {
           "host": {
             "required": true,
-            "display": "host",
+            "display": "Host",
             "description": "The access address of SQL Server.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
             "placeholder": "127.0.0.1"
           },
           "port": {
             "required": true,
-            "display": "port",
+            "display": "Port",
             "description": "The port of SQL Server.",
-            "placeholder": "1433"
+            "placeholder": "1433",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
             "required": true,
@@ -4196,7 +4222,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "端口",
             "description": "TDengine REST API 服务端口。",
-            "placeholder": "6041"
+            "placeholder": "6041",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
             "required": true,
@@ -5654,7 +5682,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "端口",
             "description": "InfluxDB 数据库的服务端口。",
-            "placeholder": "8086"
+            "placeholder": "8086",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {}
         },
@@ -5939,7 +5969,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "端口",
             "description": "OpenTSDB 数据库的服务端口。",
-            "placeholder": "4242"
+            "placeholder": "4242",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {}
         },
@@ -6116,7 +6148,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "MQTT 端口",
             "description": "MQTT 服务器端口",
-            "placeholder": "1883"
+            "placeholder": "1883",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           }
         },
         "authentication": {
@@ -6388,12 +6422,20 @@ export function getDataSources(lang) {
         "license_id": "kafka",
         "description": "Apache Kafka 是一个用于流处理、实时数据管道和大规模数据集成的开源分布式流系统。\nTDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。\n",
         "options": {
-          "endpoint": {
+          "host": {
             "required": true,
             "display": "bootstrap-servers",
             "description": "Kafka Server 地址。\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n",
-            "placeholder": "127.0.0.1:9092"
-          }
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "服务端口",
+            "description": "Kafka 的端口",
+            "placeholder": "9092",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
+          },
         },
         "groups": [
           {
@@ -6816,7 +6858,9 @@ export function getDataSources(lang) {
           "port": {
             "display": "Server 端口",
             "description": "AVEVA Historian SQL Server 的端口",
-            "placeholder": "1433"
+            "placeholder": "1433",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {}
         },
@@ -7208,7 +7252,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "服务端口",
             "description": "MySQL 的端口",
-            "placeholder": "3306"
+            "placeholder": "3306",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
             "required": true,
@@ -7439,7 +7485,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "服务端口",
             "description": "PostgreSQL 的端口",
-            "placeholder": "5432"
+            "placeholder": "5432",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
             "required": true,
@@ -7660,7 +7708,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "服务端口",
             "description": "Oracle 的端口",
-            "placeholder": "1521"
+            "placeholder": "1521",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
             "required": true,
@@ -7844,7 +7894,9 @@ export function getDataSources(lang) {
             "required": true,
             "display": "服务端口",
             "description": "SQL Server 的端口",
-            "placeholder": "1433"
+            "placeholder": "1433",
+            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
             "required": true,
