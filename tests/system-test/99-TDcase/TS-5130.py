@@ -21,8 +21,9 @@ class TDTestCase:
         try:
             for db in ['information_schema', 'performance_schema']:
                 new_tdsql = tdCom.newTdSql(user=uname, password=self.passwd[uname], database=db)
-                result = new_tdsql.getResult(sql=f'show databases')
-                assert result == [('information_schema',), ('performance_schema',)]
+                new_tdsql.query('show databases')
+                new_tdsql.checkData(0, 0, 'information_schema')
+                new_tdsql.checkData(1, 0, 'performance_schema')
                 tdLog.success(f"Test User {uname} for {db} .......[OK]")
         except:
             tdLog.exit(f'{__file__} failed')
