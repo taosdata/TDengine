@@ -846,6 +846,7 @@ static int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStream
       .checkpointId = checkpointId,
       .startTs = ts,
       .nodeId = pTask->info.nodeId,
+      .transId = pTrans->id,
   };
 
   int32_t code = 0;

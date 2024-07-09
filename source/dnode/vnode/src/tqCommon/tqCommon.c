@@ -1178,16 +1178,25 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   taosThreadMutexLock(&pTask->lock);
   ASSERT(pTask->chkInfo.checkpointId >= req.checkpointId);
 
+  if (pTask->chkInfo.consensusTransId >= req.transId) {
+    tqDebug("s-task:%s vgId:%d latest consensus transId:%d, expired consensus trans:%d, discard",
+            pTask->id.idStr, vgId, pTask->chkInfo.consensusTransId, req.transId);
+    taosThreadMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pTask->chkInfo.checkpointId != req.checkpointId) {
-    tqDebug("s-task:%s vgId:%d update the checkpoint from %" PRId64 " to %" PRId64, pTask->id.idStr, vgId,
-            pTask->chkInfo.checkpointId, req.checkpointId);
+    tqDebug("s-task:%s vgId:%d update the checkpoint from %" PRId64 " to %" PRId64" transId:%d", pTask->id.idStr, vgId,
+            pTask->chkInfo.checkpointId, req.checkpointId, req.transId);
     pTask->chkInfo.checkpointId = req.checkpointId;
     tqSetRestoreVersionInfo(pTask);
   } else {
-    tqDebug("s-task:%s vgId:%d consensus-checkpointId:%" PRId64 " equals to current checkpointId, not update",
-            pTask->id.idStr, vgId, req.checkpointId);
+    tqDebug("s-task:%s vgId:%d consensus-checkpointId:%" PRId64 " equals to current id, transId:%d not update",
+            pTask->id.idStr, vgId, req.checkpointId, req.transId);
   }
 
+  pTask->chkInfo.consensusTransId = req.transId;
   taosThreadMutexUnlock(&pTask->lock);
 
   if (pMeta->role == NODE_ROLE_LEADER) {

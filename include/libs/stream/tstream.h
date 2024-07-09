@@ -273,6 +273,7 @@ typedef struct SCheckpointInfo {
   int64_t processedVer;
   int64_t nextProcessVer;  // current offset in WAL, not serialize it
   int64_t msgVer;
+  int32_t consensusTransId;// consensus checkpoint id
   SActiveCheckpointInfo* pActiveInfo;
 } SCheckpointInfo;
 

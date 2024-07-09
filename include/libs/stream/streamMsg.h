@@ -216,6 +216,7 @@ typedef struct SRestoreCheckpointInfo {
   int64_t  startTs;
   int64_t  streamId;
   int64_t  checkpointId;   // latest checkpoint id
+  int32_t  transId;        // transaction id of the update the consensus-checkpointId transaction
   int32_t  taskId;
   int32_t  nodeId;
 } SRestoreCheckpointInfo;
