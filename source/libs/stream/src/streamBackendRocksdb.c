@@ -475,6 +475,7 @@ int32_t rebuildDataFromS3(char* chkpPath, int64_t chkpId) {
     taosMemoryFree(pMeta);
     return code;
   }
+  taosMemoryFree(pMeta);
 
   return chkpAddExtraInfo(chkpPath, chkpId, pMeta->processId);
 }
@@ -2648,6 +2649,7 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
 
   char* buf = taosMemoryCalloc(1, cap);
   if (buf == NULL) {
+    taosReleaseRef(taskDbWrapperId, refId);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -2655,6 +2657,7 @@ int32_t taskDbGenChkpUploadData__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
       snprintf(buf, cap, "%s%s%s%s%s%" PRId64 "", pDb->path, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkpId);
   if (nBytes <= 0 || nBytes >= cap) {
     taosMemoryFree(buf);
+    taosReleaseRef(taskDbWrapperId, refId);
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
@@ -4716,18 +4719,21 @@ int32_t dbChkpInit(SDbChkp* p) {
 int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   static char* chkpMeta = "META";
   int32_t      code = 0;
-  int32_t      cap = p->len + 128;
 
   taosThreadRwlockRdlock(&p->rwLock);
 
-  char* srcBuf = taosMemoryCalloc(1, cap);
-  char* dstBuf = taosMemoryCalloc(1, cap);
-  char* srcDir = taosMemoryCalloc(1, cap);
-  char* dstDir = taosMemoryCalloc(1, cap);
-  if (srcBuf == NULL || dstBuf == NULL || srcDir == NULL || dstDir == NULL) {
+  int32_t cap = p->len + 128;
+
+  char* buffer = taosMemoryCalloc(4, cap);
+  if (buffer == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _ERROR;
   }
+
+  char* srcBuf = buffer;
+  char* dstBuf = &srcBuf[cap];
+  char* srcDir = &dstBuf[cap];
+  char* dstDir = &srcDir[cap];
 
   int nBytes = snprintf(srcDir, cap, "%s%s%s%s%s%" PRId64 "", p->path, TD_DIRSEP, "checkpoints", TD_DIRSEP,
                         "checkpoint", p->curChkpId);
@@ -4872,12 +4878,8 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   code = 0;
 
 _ERROR:
+  taosMemoryFree(buffer);
   taosThreadRwlockUnlock(&p->rwLock);
-  taosMemoryFree(srcBuf);
-  taosMemoryFree(dstBuf);
-  taosMemoryFree(srcDir);
-  taosMemoryFree(dstDir);
-
   return code;
 }
 

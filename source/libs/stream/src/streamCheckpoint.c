@@ -541,10 +541,8 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
 }
 
 static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* list) {
-  TdFilePtr pFile = NULL;
-  int32_t   cap = strlen(path) + 64;
-  char      buf[128] = {0};
-  int32_t   code = 0;
+  int32_t code = 0;
+  int32_t cap = strlen(path) + 64;
 
   char* filePath = taosMemoryCalloc(1, cap);
   if (filePath == NULL) {
@@ -603,7 +601,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
       stDebug("s-task:%s upload checkpointId:%" PRId64 " to remote succ", idStr, checkpointId);
     } else {
       stError("s-task:%s failed to upload checkpointId:%" PRId64 " path:%s,reason:%s", idStr, checkpointId, path,
-              tstrerror(errno));
+              tstrerror(code));
     }
   }
 
@@ -1080,13 +1078,17 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
 }
 
 int32_t streamTaskUploadCheckpoint(const char* id, const char* path) {
+  int32_t code = 0;
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
     stError("invalid parameters in upload checkpoint, %s", id);
-    return -1;
+    return TSDB_CODE_INVALID_CFG;
   }
 
   if (strlen(tsSnodeAddress) != 0) {
-    return uploadByRsync(id, path);
+    code = uploadByRsync(id, path);
+    if (code != 0) {
+      return TAOS_SYSTEM_ERROR(errno);
+    }
   } else if (tsS3StreamEnabled) {
     return uploadCheckpointToS3(id, path);
   }
