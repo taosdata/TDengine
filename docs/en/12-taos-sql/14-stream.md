@@ -30,7 +30,7 @@ subquery: SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
     [PARTITION BY tag_list]
-    [window_clause]
+    window_clause
 ```
 
 Session windows, state windows, and sliding windows are supported. When you configure a session or state window for a supertable, you must use PARTITION BY TBNAME. If the source table has a composite primary key, state windows, event windows, and count windows are not supported.
@@ -193,11 +193,32 @@ All [scalar functions](../function/#scalar-functions) are available in stream pr
   - [unique](../function/#unique)
   - [mode](../function/#mode)
 
-## Pause\Resume stream
+## Pause Resume stream
 1.pause stream
+```sql
 PAUSE STREAM [IF EXISTS] stream_name;
+```
 If "IF EXISTS" is not specified and the stream does not exist, an error will be reported; If "IF EXISTS" is specified and the stream does not exist, success is returned; If the stream exists, paused all stream tasks.
 
 2.resume stream
+```sql
 RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
+```
 If "IF EXISTS" is not specified and the stream does not exist, an error will be reported. If "IF EXISTS" is specified and the stream does not exist, success is returned; If the stream exists, all of the stream tasks will be resumed. If "IGNORE UntREATED" is specified, data written during the pause period of stream is ignored when resuming stream.
+
+## Stream State Backup
+The intermediate processing results of stream, a.k.a stream state, need to be persistent on the disk properly during stream processing. The stream state, consisting of multiple files on disk, may be transferred between different computing nodes during the stream processing, as a result of a leader/follower switch or physical computing node offline. You need to deploy the rsync on each physical node to enable the backup and restore processing work, since _ver_.3.3.2.1. To ensure it works correctly, please refer to the following instructions:
+1. add the option "snodeAddress" in the configure file
+2. add the option "checkpointBackupDir" in the configure file to set the backup data directory.
+3. create a _snode_ before creating a stream to ensure the backup service is activated. Otherwise, the checkpoint may not generated during the stream procedure.
+
+>snodeAddress 127.0.0.1:873
+>
+>checkpointBackupDir /home/user/stream/backup/checkpoint/
+
+## create snode
+The snode, stream node for short, on which the aggregate tasks can be deployed on, is a stateful computing node dedicated to the stream processing. An important feature is to backup and restore the stream state files. The snode needs to be created before creating stream tasks. Use the following SQL statement to create a snode in a TDengine cluster, and only one snode is allowed in a TDengine cluster for now.
+```sql
+CREATE SNODE ON DNODE id
+```
+is the ordinal number of a dnode, which can be acquired by using ```show dnodes``` statement.

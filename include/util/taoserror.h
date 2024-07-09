@@ -46,9 +46,11 @@ const char* terrstr();
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
 int32_t* taosGetErrno();
+int32_t* taosGetErrln();
 int32_t  taosGetErrSize();
 #define terrno                              (*taosGetErrno())
 #define terrMsg                             (taosGetErrMsg())
+#define terrln                              (*taosGetErrln())
 
 #define SET_ERROR_MSG(MSG, ...) \
   snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
@@ -136,6 +138,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TIMEOUT_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x012C)
 #define TSDB_CODE_MSG_ENCODE_ERROR              TAOS_DEF_ERROR_CODE(0, 0x012D)
 #define TSDB_CODE_NO_ENOUGH_DISKSPACE           TAOS_DEF_ERROR_CODE(0, 0x012E)
+#define TSDB_CODE_THIRDPARTY_ERROR              TAOS_DEF_ERROR_CODE(0, 0x012F)
 
 #define TSDB_CODE_APP_IS_STARTING               TAOS_DEF_ERROR_CODE(0, 0x0130)
 #define TSDB_CODE_APP_IS_STOPPING               TAOS_DEF_ERROR_CODE(0, 0x0131)
@@ -145,6 +148,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_IP_NOT_IN_WHITE_LIST          TAOS_DEF_ERROR_CODE(0, 0x0134)
 #define TSDB_CODE_FAILED_TO_CONNECT_S3          TAOS_DEF_ERROR_CODE(0, 0x0135)
 #define TSDB_CODE_MSG_PREPROCESSED              TAOS_DEF_ERROR_CODE(0, 0x0136) // internal
+#define TSDB_CODE_OUT_OF_BUFFER                 TAOS_DEF_ERROR_CODE(0, 0x0137)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)

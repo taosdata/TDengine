@@ -168,7 +168,9 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
       continue;
     }
 
+    taosThreadMutexLock(&(*pTask)->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(*pTask);
+    taosThreadMutexUnlock(&(*pTask)->lock);
 
     entry.inputRate = entry.inputQUsed * 100.0 / (2 * STREAM_TASK_QUEUE_CAPACITY_IN_SIZE);
     if ((*pTask)->info.taskLevel == TASK_LEVEL__SINK) {
@@ -190,6 +192,12 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
         streamTaskClearCheckInfo((*pTask), true);
         taosThreadMutexUnlock(&(*pTask)->lock);
       }
+    }
+
+    if ((*pTask)->status.requireConsensusChkptId) {
+      entry.checkpointInfo.consensusChkptId = 1;
+      (*pTask)->status.requireConsensusChkptId = false;
+      stDebug("s-task:%s vgId:%d set the require consensus-checkpointId in hbMsg", (*pTask)->id.idStr, pMeta->vgId);
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {
@@ -324,7 +332,7 @@ int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
   stDebug("vgId:%d process hbMsg rsp, msgId:%d rsp confirmed", pMeta->vgId, pRsp->msgId);
   SMetaHbInfo* pInfo = pMeta->pHbInfo;
 
-  streamMetaRLock(pMeta);
+  streamMetaWLock(pMeta);
 
   // current waiting rsp recved
   if (pRsp->msgId == pInfo->hbCount) {
@@ -337,6 +345,6 @@ int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp) {
     stWarn("vgId:%d recv expired hb rsp, msgId:%d, discarded", pMeta->vgId, pRsp->msgId);
   }
 
-  streamMetaRUnLock(pMeta);
+  streamMetaWUnLock(pMeta);
   return TSDB_CODE_SUCCESS;
 }

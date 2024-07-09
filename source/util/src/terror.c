@@ -22,10 +22,12 @@
 #define TAOS_ERROR_C
 
 static threadlocal int32_t tsErrno;
+static threadlocal int32_t tsErrln;
 static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
 static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 
 int32_t* taosGetErrno() { return &tsErrno; }
+int32_t* taosGetErrln() { return &tsErrln; }
 char*    taosGetErrMsg() { return tsErrMsgDetail; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
@@ -96,6 +98,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISKSPACE,                 "Out of disk space")
 TAOS_DEFINE_ERROR(TSDB_CODE_TIMEOUT_ERROR,                "Operation timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DISKSPACE,          "No enough disk space")
+TAOS_DEFINE_ERROR(TSDB_CODE_THIRDPARTY_ERROR,             "third party error, please check the log")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting up")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
@@ -104,6 +107,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration
 TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,         "Not allowed to connect")
 TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_CONNECT_S3,         "Failed to connect to s3 server")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been processed in preprocess")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_BUFFER,                "Out of buffer")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
