@@ -1984,7 +1984,7 @@ static int64_t MATRIX[10][11] = {     /*  ns,   us,   ms,    s,   min,   h,   d,
                                  /*s*/ {   0,    0, 1000,    1,   60,    0},
                                /*min*/ {   0,    0,    0,   60,    1,   60,   0},
                                  /*h*/ {   0,    0,    0,    0,   60,    1,   1,   0},
-                                 /*d*/ {   0,    0,    0,    0,    0,    1,   1,   7,   1,   0},
+                                 /*d*/ {   0,    0,    0,    0,    0,   24,   1,   7,   1,   0},
                                  /*w*/ {   0,    0,    0,    0,    0,    0,   7,   1,  -1,   0},
                                /*mon*/ {   0,    0,    0,    0,    0,    0,   0,   0,   1,  12,  0},
                                  /*y*/ {   0,    0,    0,    0,    0,    0,   0,   0,   12,   1,  0}};
@@ -2006,7 +2006,8 @@ static bool recursiveTsmaCheckRecursive(int64_t baseInterval, int8_t baseIdx, in
     }
     if (val % baseInterval == 0 || baseInterval % val == 0) {
       int8_t extra = baseInterval >= val ? 0 : 1;
-      if (!recursiveTsmaCheckRecursive(baseInterval / val + extra, next, interval, idx, (extra == 0) && checkEq)) {
+      bool needCheckEq = baseInterval >= val && !(baseIdx < next && val == 1);
+      if (!recursiveTsmaCheckRecursive(baseInterval / val + extra, next, interval, idx, needCheckEq && checkEq)) {
         next++;
         val = MATRIX[baseIdx][next];
         continue;
