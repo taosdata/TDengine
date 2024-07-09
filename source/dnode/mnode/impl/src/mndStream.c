@@ -2829,7 +2829,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
 
       if (((now - pe->ts) >= 10 * 1000) || allSame) {
         mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs and all tasks have same checkpointId", pe->req.taskId,
-               (now - pe->ts) / 1000.0, pe->ts);
+               pe->req.startTs, (now - pe->ts) / 1000.0);
         ASSERT(chkId <= pe->req.checkpointId);
         mndCreateSetConsensusChkptIdTrans(pMnode, pStream, pe->req.taskId, chkId, pe->req.startTs);
 
@@ -2837,7 +2837,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
         streamId = pe->req.streamId;
       } else {
         mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs already, wait for next round to check", pe->req.taskId,
-               (now - pe->ts) / 1000.0, pe->ts);
+               pe->req.startTs, (now - pe->ts) / 1000.0);
       }
     }
 
