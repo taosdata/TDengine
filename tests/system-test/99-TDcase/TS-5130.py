@@ -20,19 +20,12 @@ class TDTestCase:
     def test_connect_user(self, uname):
         try:
             for db in ['information_schema', 'performance_schema']:
-                new_conn = taos.connect(host = self.conn._host, config = self.conn._config, 
-                database =db, user=uname, password=self.passwd[uname])
-                cursor = new_conn.cursor()
-                cursor.execute(f'show databases')
-                result = cursor.fetchall()
-                dbname = [i for i in result]
+                new_tdsql = tdCom.newTdSql(user=uname, password=self.passwd[uname], database=db)
+                result = new_tdsql.getResult(sql=f'show databases')
                 assert result == [('information_schema',), ('performance_schema',)]
                 tdLog.success(f"Test User {uname} for {db} .......[OK]")
-                new_conn.close()
-
         except:
-            tdLog.debug(f"{__file__}  Failed!")
-            exit(-1)
+            tdLog.exit(f'{__file__} failed')
     
     def run(self):
         self.prepare_user()
@@ -41,7 +34,7 @@ class TDTestCase:
     
     def stop(self):
         tdSql.close()
-        tdLog.success(f"{__file__} successful executed")
+        tdLog.success(f"{__file__} successfully executed")
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
