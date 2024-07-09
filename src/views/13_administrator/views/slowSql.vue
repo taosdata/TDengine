@@ -155,7 +155,7 @@
               </el-button>
             </div>
           </section>
-          <el-table style="margin-top: 20px" :data="slowSqlLogList" size="mini">
+          <el-table style="margin-top: 20px" :data="slowSqlLogList" size="mini" @sort-change="customSort">
             <el-table-column :label="$t('slowSql.startTs')" prop="start_ts" width="220">
               <span slot-scope="scope">{{ parsinginZone(scope.row.start_ts) }}</span>
             </el-table-column>
@@ -196,7 +196,7 @@
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.queryTime')" prop="query_time" sortable width="160px">
+            <el-table-column :label="$t('slowSql.queryTime')" prop="query_time" sortable="custom" width="160px">
               <template slot-scope="scope">
                 <el-tooltip :content="String(numToFixed(scope.row.query_time))" placement="top-start">
                   <span class="nowrap">{{ numToFixed(scope.row.query_time) }}</span>
@@ -306,7 +306,7 @@
               >{{ $t("refresh") }}</el-button
             >
           </div> -->
-          <el-table style="margin-top: 20px" :data="statisticsList" size="mini">
+          <el-table style="margin-top: 20px" :data="statisticsList" size="mini"  @sort-change="customSort">
             <el-table-column :label="$t('slowSql.sql')" prop="sql" min-width="180">
               <template slot-scope="scope">
                 <el-tooltip
@@ -337,14 +337,14 @@
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.averageTime')" prop="avg_query_time" width="190px">
+            <el-table-column :label="$t('slowSql.averageTime')" prop="avg_query_time" width="190px" sortable="custom">
               <template slot-scope="scope">
                 <el-tooltip :content="String(numToFixed(scope.row.avg_query_time))" placement="top-start">
                   <span class="nowrap">{{ numToFixed(scope.row.avg_query_time) }}</span>
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.maximumTime')" prop="max_query_time" width="200px">
+            <el-table-column :label="$t('slowSql.maximumTime')" prop="max_query_time" width="200px" sortable="custom">
               <template slot-scope="scope">
                 <el-tooltip :content="String(numToFixed(scope.row.max_query_time))" placement="top-start">
                   <span class="nowrap">{{ numToFixed(scope.row.max_query_time) }}</span>
@@ -419,6 +419,8 @@ export default {
       visible: false,
       configData: [],
       data: {},
+      query_time_sort: null,
+      orderSql: null,
     };
   },
   props: {
@@ -537,6 +539,7 @@ export default {
           pageSize: this.pageSize,
           conditions: this.conditions,
           deDuplication: this.de_duplication,
+          sortBy: this.query_time_sort
         });
         this.requestIng = false;
       } catch (error) {
@@ -552,6 +555,7 @@ export default {
         [this.statisticsList, this.totalTwo] = await getSlowSqlStatistics({
           currentPage: this.currentPageTwo,
           pageSize: this.pageSizeTwo,
+          orderSql: this.orderSql
         });
         this.requestIng = false;
       } catch (error) {
@@ -600,7 +604,18 @@ export default {
     numToFixed(num){
       if (!num) return num;
       return (Number(num)/1000).toFixed(1)
-    }
+    },
+    customSort({column, prop, order}) {
+      let sortBy = order ? (order == "descending" ? "DESC" : "ASC") : order
+      if (prop == "query_time") {
+        this.query_time_sort = sortBy;
+        this.getSlowSqlLogData();
+      }
+      if (prop == "max_query_time" || prop == "avg_query_time") {
+        this.orderSql = `${sortBy ? `ORDER BY ${prop} ${sortBy}` : ''}`
+        this.getStatisticsData()
+      }
+     }
   },
   watch: {
     async activeName(val) {

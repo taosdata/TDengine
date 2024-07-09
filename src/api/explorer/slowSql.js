@@ -113,7 +113,7 @@ export function getDataConfig(lang) {
 }
 
 export function getSlowSqlLogs(params) {
-  let { currentPage, pageSize, conditions, deDuplication } = params;
+  let { currentPage, pageSize, conditions, deDuplication, sortBy } = params;
   let dataSql = `
     SELECT
       ${deDuplication ? 'LAST_ROW(start_ts) as start_ts,' : 'start_ts,'}
@@ -126,7 +126,7 @@ export function getSlowSqlLogs(params) {
       FROM log.taos_slow_sql_detail 
       ${conditions ? 'WHERE' + conditions : ''}
       ${deDuplication ? 'PARTITION by sql,db' : ''}
-      ORDER BY start_ts DESC
+      ORDER BY ${sortBy ? `query_time ${sortBy}` : 'start_ts DESC'}
       `
   // 去除整行的空格
   dataSql = dataSql.replace(/^\s*$(?:\r\n?|\n)/gm, '')
@@ -135,7 +135,7 @@ export function getSlowSqlLogs(params) {
 }
 
 export function getSlowSqlStatistics(params) {
-  let { currentPage, pageSize } = params;
+  let { currentPage, pageSize, orderSql  } = params;
   const dataSql = `
     SELECT 
       sql, 
@@ -146,7 +146,9 @@ export function getSlowSqlStatistics(params) {
       cast(avg(rows_num) as int) as avg_rows_num, 
       max(rows_num) as max_rows_num 
     from log.taos_slow_sql_detail 
-    PARTITION by sql, db`;
+    PARTITION by sql, db
+    ${orderSql}
+    `;
   const countSql = `select count(*) from (${dataSql});`;
   
   return getPaginationData(countSql, dataSql, currentPage, pageSize);
