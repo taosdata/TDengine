@@ -207,6 +207,8 @@ The following SQL statement deletes one or more tables.
 DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
 ```
 
+**Note**：Dropping a table doesn't release the disk space occupied by the table, instead all the rows in the table are marked as deleted, so these data will not occur when querying. The disk space will be released when the system automatically performs `compact` operation or the user performs `compact` manually. 
+
 ## View Tables
 
 ### View All Tables

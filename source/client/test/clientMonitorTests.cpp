@@ -64,6 +64,65 @@ int main(int argc, char** argv) {
 //  clusterMonitorClose(cluster2);
 //}
 
+static char* readFile(TdFilePtr pFile, int64_t *offset, int64_t size){
+  if(taosLSeekFile(pFile, *offset, SEEK_SET) < 0){
+    uError("failed to seek file:%p code: %d", pFile, errno);
+    return NULL;
+  }
+
+  ASSERT(size > *offset);
+  char* pCont = NULL;
+  int64_t totalSize = 0;
+  if (size - *offset >= SLOW_LOG_SEND_SIZE_MAX) {
+    pCont = (char*)taosMemoryCalloc(1, 2 * SLOW_LOG_SEND_SIZE_MAX);
+    totalSize = 2 * SLOW_LOG_SEND_SIZE_MAX;
+  }else{
+    pCont = (char*)taosMemoryCalloc(1, 2 * (size - *offset));
+    totalSize = 2 * (size - *offset);
+  }
+
+  if(pCont == NULL){
+    uError("failed to allocate memory for slow log, size:%" PRId64, totalSize);
+    return NULL;
+  }
+  char*  buf = pCont;
+  strcat(buf++, "[");
+  int64_t readSize = taosReadFile(pFile, buf, SLOW_LOG_SEND_SIZE_MAX);
+  if (readSize <= 0) {
+    if (readSize < 0){
+      uError("failed to read len from file:%p since %s", pFile, terrstr());
+    }
+    taosMemoryFree(pCont);
+    return NULL;
+  }
+
+  totalSize = 0;
+  while(1){
+    size_t len = strlen(buf);
+    totalSize += (len+1);
+    if (totalSize > readSize || len == 0) {
+      *(buf-1) = ']';
+      *buf = '\0';
+      break;
+    }
+    buf[len] = ','; // replace '\0' with ','
+    buf += (len + 1);
+    *offset += (len+1);
+  }
+
+  uDebug("[monitor] monitorReadSendSlowLog slow log:%s", pCont);
+  return pCont;
+}
+
+static int64_t getFileSize(char* path){
+  int64_t fileSize = 0;
+  if (taosStatFile(path, &fileSize, NULL, NULL) < 0) {
+    return -1;
+  }
+
+  return fileSize;
+}
+
 TEST(clientMonitorTest, sendTest) {
   TAOS*       taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
   ASSERT_TRUE(taos != NULL);
@@ -91,8 +150,8 @@ TEST(clientMonitorTest, ReadOneFile) {
   }
 
   const int batch = 10;
-  const int size = SLOW_LOG_SEND_SIZE/batch;
-  for(int i = 0; i < batch + 1; i++){
+  const int size = 10;
+  for(int i = 0; i < batch; i++){
     char value[size] = {0};
     memset(value, '0' + i, size - 1);
     if (taosWriteFile(pFile, value, strlen(value) + 1) < 0){
@@ -106,14 +165,22 @@ TEST(clientMonitorTest, ReadOneFile) {
   // Create an SEpSet object and set it up for testing
   SEpSet* epSet = NULL;
 
+  int64_t  fileSize = getFileSize("./tdengine-1-wewe");
   // Call the function to be tested
-//  monitorReadSendSlowLog(pFile, (int64_t)pTransporter, epSet);
-
-  char value[size] = {0};
-  memset(value, '0', size - 1);
-  if (taosWriteFile(pFile, value, strlen(value) + 1) < 0){
-    uError("failed to write len to file:%p since %s", pFile, terrstr());
+  int64_t offset = 0;
+  while(1){
+    if (offset >= fileSize) {
+      break;
+    }
+    char* val = readFile(pFile, &offset, fileSize);
+    printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
   }
+
+//  char value[size] = {0};
+//  memset(value, '0', size - 1);
+//  if (taosWriteFile(pFile, value, strlen(value) + 1) < 0){
+//    uError("failed to write len to file:%p since %s", pFile, terrstr());
+//  }
 
 //  monitorReadSendSlowLog(pFile, (int64_t)pTransporter, epSet);
 
@@ -121,49 +188,49 @@ TEST(clientMonitorTest, ReadOneFile) {
   taosCloseFile(&pFile);
 }
 
-TEST(clientMonitorTest, ReadTwoFile) {
-  // Create a TdFilePtr object and set it up for testing
-
-  TdFilePtr pFile = taosOpenFile("/tmp/tdengine_slow_log/tdengine-1-wewe", TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    uError("failed to open file:./test.txt since %s", terrstr());
-    return;
-  }
-
-  const int batch = 10;
-  const int size = SLOW_LOG_SEND_SIZE/batch;
-  for(int i = 0; i < batch + 1; i++){
-    char value[size] = {0};
-    memset(value, '0' + i, size - 1);
-    if (taosWriteFile(pFile, value, strlen(value) + 1) < 0){
-      uError("failed to write len to file:%p since %s", pFile, terrstr());
-    }
-  }
-
-  taosFsyncFile(pFile);
-  taosCloseFile(&pFile);
-
-  pFile = taosOpenFile("/tmp/tdengine_slow_log/tdengine-2-wewe", TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    uError("failed to open file:./test.txt since %s", terrstr());
-    return;
-  }
-
-  for(int i = 0; i < batch + 1; i++){
-    char value[size] = {0};
-    memset(value, '0' + i, size - 1);
-    if (taosWriteFile(pFile, value, strlen(value) + 1) < 0){
-      uError("failed to write len to file:%p since %s", pFile, terrstr());
-    }
-  }
-
-  taosFsyncFile(pFile);
-  taosCloseFile(&pFile);
-
-  SAppInstInfo pAppInfo = {0};
-  pAppInfo.clusterId = 2;
-  pAppInfo.monitorParas.tsEnableMonitor = 1;
-  strcpy(tsTempDir,"/tmp");
-//  monitorSendAllSlowLogFromTempDir(&pAppInfo);
-
-}
+//TEST(clientMonitorTest, ReadTwoFile) {
+//  // Create a TdFilePtr object and set it up for testing
+//
+//  TdFilePtr pFile = taosOpenFile("/tmp/tdengine_slow_log/tdengine-1-wewe", TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
+//  if (pFile == NULL) {
+//    uError("failed to open file:./test.txt since %s", terrstr());
+//    return;
+//  }
+//
+//  const int batch = 10;
+//  const int size = SLOW_LOG_SEND_SIZE/batch;
+//  for(int i = 0; i < batch + 1; i++){
+//    char value[size] = {0};
+//    memset(value, '0' + i, size - 1);
+//    if (taosWriteFile(pFile, value, strlen(value) + 1) < 0){
+//      uError("failed to write len to file:%p since %s", pFile, terrstr());
+//    }
+//  }
+//
+//  taosFsyncFile(pFile);
+//  taosCloseFile(&pFile);
+//
+//  pFile = taosOpenFile("/tmp/tdengine_slow_log/tdengine-2-wewe", TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
+//  if (pFile == NULL) {
+//    uError("failed to open file:./test.txt since %s", terrstr());
+//    return;
+//  }
+//
+//  for(int i = 0; i < batch + 1; i++){
+//    char value[size] = {0};
+//    memset(value, '0' + i, size - 1);
+//    if (taosWriteFile(pFile, value, strlen(value) + 1) < 0){
+//      uError("failed to write len to file:%p since %s", pFile, terrstr());
+//    }
+//  }
+//
+//  taosFsyncFile(pFile);
+//  taosCloseFile(&pFile);
+//
+//  SAppInstInfo pAppInfo = {0};
+//  pAppInfo.clusterId = 2;
+//  pAppInfo.monitorParas.tsEnableMonitor = 1;
+//  strcpy(tsTempDir,"/tmp");
+////  monitorSendAllSlowLogFromTempDir(&pAppInfo);
+//
+//}

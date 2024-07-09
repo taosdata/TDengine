@@ -26,6 +26,8 @@ class TDTestCase:
         self.dbname = 'db'
         self.setsql = TDSetSql()
         self.stbname = 'stb'
+        self.ntbname1 = 'ntb1'
+        self.ntbname2 = 'ntb2'
         self.streamname = 'stm'
         self.streamtb = 'stm_stb'
     def topic_name_check(self):
@@ -74,11 +76,33 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.queryResult[0][0],self.streamname)
         tdSql.execute(f'drop stream `{self.streamname}`')
         tdSql.execute(f'drop database {self.dbname}')
-        
+
+    def table_name_check(self):
+        tdSql.execute(f'create database if not exists {self.dbname} wal_retention_period 3600')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'create table {self.ntbname1} (ts timestamp,c0 int,c1 int)')
+        tdSql.execute(f'create table {self.ntbname2} (ts timestamp,c0 int,c1 int)')
+        tdSql.execute(f'insert into {self.ntbname1} values(now(),1,1)')
+        tdSql.execute(f'insert into {self.ntbname2} values(now(),2,2)')
+        tdSql.query(f'select `{self.ntbname1}`.`c0`, `{self.ntbname1}`.`c1` from `{self.ntbname1}`')
+        tdSql.checkEqual(tdSql.queryResult[0][0], 1)
+        tdSql.query(f'select `{self.ntbname1}`.`c0`, `{self.ntbname1}`.`c1` from `{self.dbname}`.`{self.ntbname1}`')
+        tdSql.checkEqual(tdSql.queryResult[0][0], 1)
+        tdSql.query(f'select `{self.ntbname1}`.`c0` from `{self.ntbname2}` `{self.ntbname1}`')
+        tdSql.checkEqual(tdSql.queryResult[0][0], 2)
+        tdSql.query(f'select `{self.ntbname1}`.`c0` from (select * from `{self.ntbname2}`) `{self.ntbname1}`')
+        tdSql.checkEqual(tdSql.queryResult[0][0], 2)
+        # select `t1`.`col1`, `col2`, `col3` from (select ts `col1`, 123 `col2`, c0 + c1 as `col3` from t2) `t1`;
+        tdSql.query(f'select `{self.ntbname1}`.`col1`, `col2`, `col3` from (select ts `col1`, 123 `col2`, c0 + c1 as `col3` from {self.ntbname2}) `{self.ntbname1}`')
+        tdSql.checkEqual(tdSql.queryResult[0][1], 123)
+        tdSql.checkEqual(tdSql.queryResult[0][2], 4)
+
+        tdSql.execute(f'drop database {self.dbname}')
     def run(self):
         self.topic_name_check()
         self.db_name_check()
         self.stream_name_check()
+        self.table_name_check()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

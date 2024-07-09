@@ -1167,7 +1167,7 @@ TDengine includes extensions to standard SQL that are intended specifically for 
 CSUM(expr)
 ```
 
-**Description**: The cumulative sum of each row for a specific column. The number of output rows is same as that of the input rows.
+**Description**: The cumulative sum of each row for a specific column, NULL value will be discard.
 
 **Return value type**: Long integer for integers; Double for floating points. uint64_t for unsigned integers
 

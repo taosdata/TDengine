@@ -6,337 +6,328 @@ title: TDengine Node.js Connector
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import RequestId from "./_request_id.mdx";
 
-import Preparation from "./_preparation.mdx";
-import NodeInsert from "../07-develop/03-insert-data/_js_sql.mdx";
-import NodeInfluxLine from "../07-develop/03-insert-data/_js_line.mdx";
-import NodeOpenTSDBTelnet from "../07-develop/03-insert-data/_js_opts_telnet.mdx";
-import NodeOpenTSDBJson from "../07-develop/03-insert-data/_js_opts_json.mdx";
-import NodeQuery from "../07-develop/04-query-data/_js.mdx";
+`@tdengine/websocket` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发存取 TDengine 数据库的的应用软件。
 
-`@tdengine/client` 和 `@tdengine/rest` 是 TDengine 的官方 Node.js 语言连接器。 Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。注意：从 TDengine 3.0 开始 Node.js 原生连接器的包名由 `td2.0-connector` 改名为 `@tdengine/client` 而 rest 连接器的包名由 `td2.0-rest-connector` 改为 `@tdengine/rest`。并且不与 TDengine 2.x 兼容。
+Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node/tree/main)。
 
-`@tdengine/client` 是**原生连接器**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。`@tdengine/rest` 是 **REST 连接器**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 的运行实例。REST 连接器可以在任何平台运行，但性能略为下降，接口实现的功能特性集合和原生接口有少量不同。
+## 连接方式
 
-Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node/tree/3.0)。
+Node.js 连接器目前仅支持 Websocket 连接器， 其通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例。
+
+连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
 
 ## 支持的平台
 
-原生连接器支持的平台和 TDengine 客户端驱动支持的平台一致。
-REST 连接器支持所有能运行 Node.js 的平台。
+支持 Node.js 14及以上版本。
 
-## 版本支持
+## 版本历史
 
-请参考[版本支持列表](../#版本支持)
+| Node.js 连接器 版本 |          主要变化         |   TDengine 版本    |
+| :------------------:  | :----------------------: | :----------------: |
+|        3.1.0          | 新版本发布，支持 WebSocket 连接 |  3.2.0.0 及更高版本 |
 
 ## 支持的功能特性
 
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接器">
+- 连接管理
+- SQL写入
+- SQL查询
+- 参数绑定
+- 数据订阅
+- 无模式写入
 
-1. 连接管理
-2. 普通查询
-3. 连续查询
-4. 参数绑定
-5. 订阅功能
-6. Schemaless
+## 处理异常
 
-</TabItem>
-<TabItem value="rest" label="REST 连接器">
+在调用连接器 api 报错后，通过 try catch 可以获取到错误的信息和错误码。
 
-1. 连接管理
-2. 普通查询
-3. 连续查询
+错误说明：Node.js 连接器错误码在 100 到 110 之间，之外的错误为 TDengine 其他功能模块的报错。
 
-</TabItem>
-</Tabs>
+具体的连接器错误码请参考：
 
+| Error Code | Description                                                  | Suggested Actions                                                                         |
+| ---------- | -------------------------------------------------------------| ----------------------------------------------------------------------------------------- |
+| 100     | invalid variables                                               | 参数不合法，请检查相应接口规范，调整参数类型及大小。                                |
+| 101     | invalid url                                                     | url 错误，请检查 url 是否填写正确。                                                |
+| 102     | received server data but did not find a callback for processing | 接收到服务端数据但没有找到上层回调                                      |
+| 103     | invalid message type                                            | 接收到的消息类型无法识别，请检查服务端是否正常。               |
+| 104     | connection creation failed                                      | 连接创建失败，请检查网络是否正常。                           |
+| 105     | websocket request timeout                                       | 请求超时                                          |
+| 106     | authentication fail                                             | 认证失败，请检查用户名，密码是否正确。                                 |
+| 107     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                 |
+| 108     | connection has been closed                                      | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。  |
+| 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败                    |
+| 110     | websocket connection has reached its maximum limit              | Websocket 连接达到上限                                                   |
+
+## 类型映射
+
+下表为 TDengine DataType 和 Node.js DataType 之间的映射关系
+
+| TDengine DataType | Node.js DataType|
+|-------------------|-------------|
+| TIMESTAMP         | bigint      |
+| TINYINT           | number      |
+| SMALLINT          | number      |
+| INT               | number      |
+| BIGINT            | bigint      |
+| TINYINT UNSIGNED  | number      |
+| SMALLINT UNSIGNED | number      |
+| INT UNSIGNED      | number      |
+| BIGINT UNSIGNED   | bigint      |
+| FLOAT             | number      |
+| DOUBLE            | number      |
+| BOOL              | boolean     | 
+| BINARY            | string      |
+| NCHAR             | string      |
+| JSON              | string      |
+| VARBINARY         | ArrayBuffer |
+| GEOMETRY          | ArrayBuffer |
+
+**注意**：JSON 类型仅在 tag 中支持。
 
 ## 安装步骤
 
 ### 安装前准备
 
-- 安装 Node.js 开发环境
-- 如果使用 REST 连接器，跳过此步。但如果使用原生连接器，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](../#安装客户端驱动)。我们使用 [node-gyp](https://github.com/nodejs/node-gyp) 和 TDengine 实例进行交互，还需要根据具体操作系统来安装下文提到的一些依赖工具。
+- 安装 Node.js 开发环境, 使用14以上版本。下载链接： https://nodejs.org/en/download/
 
-<Tabs defaultValue="Linux">
-<TabItem value="Linux" label="Linux 系统安装依赖工具">
-
-- `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
-- `@tdengine/client` 3.0.0 支持 Node.js LTS v10.9.0 或更高版本, Node.js LTS v12.8.0 或更高版本；其他版本可能存在包兼容性的问题
-- `make`
-- C 语言编译器，[GCC](https://gcc.gnu.org) v4.8.5 或更高版本
-
-</TabItem>
-
-<TabItem value="macOS" label="macOS 系统安装依赖工具">
-
-- `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
-- `@tdengine/client` 3.0.0 目前是只支持 Node.js v12.22.12 或 v12 的更高版本；其他版本可能存在包兼容性的问题
-- `make`
-- C 语言编译器，[GCC](https://gcc.gnu.org) v4.8.5 或更高版本
-
-</TabItem>
-
-<TabItem value="Windows" label="Windows 系统安装依赖工具">
-
-- 安装方法 1
-
-使用微软的[ windows-build-tools ](https://github.com/felixrieseberg/windows-build-tools)在`cmd` 命令行界面执行`npm install --global --production windows-build-tools` 即可安装所有的必备工具。
-
-- 安装方法 2
-
-手动安装以下工具：
-
-- 安装 Visual Studio 相关：[Visual Studio Build 工具](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) 或者 [Visual Studio 2017 Community](https://visualstudio.microsoft.com/pl/thank-you-downloading-visual-studio/?sku=Community)
-- 安装 [Python](https://www.python.org/downloads/) 2.7(`v3.x.x` 暂不支持) 并执行 `npm config set python python2.7`
-- 进入`cmd`命令行界面，`npm config set msvs_version 2017`
-
-参考微软的 Node.js 用户手册[ Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
-
-如果在 Windows 10 ARM 上使用 ARM64 Node.js，还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual C++ ATL for ARM64"。
-
-</TabItem>
-</Tabs>
-
-### 使用 npm 安装
-
-<Tabs defaultValue="install_rest">
-<TabItem value="install_native" label="安装原生连接器">
+### 使用 npm 安装 Node.js 连接器
 
 ```bash
-npm install @tdengine/client
+npm install @tdengine/websocket
 ```
-
-</TabItem>
-<TabItem value="install_rest" label="安装 REST 连接器">
-
-```bash
-npm install @tdengine/rest
-```
-
-</TabItem>
-</Tabs>
 
 ### 安装验证
 
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接器">
-
-在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 Node.js 方式访问 TDengine。
-
 验证方法：
 
-- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/nodejsChecker.js)到本地。
+- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js)到本地。
 
 - 在命令行中执行以下命令。
 
 ```bash
-npm init -y
-npm install @tdengine/client
-node nodejsChecker.js host=localhost
+  npm init -y
+  npm install @tdengine/websocket
+  node nodejsChecker.js
 ```
 
-- 执行以上步骤后，在命令行会输出 nodejsChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
-
-</TabItem>
-<TabItem value="rest" label="REST 连接器">
-
-在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 Node.js 方式访问 TDengine。
-
-验证方法：
-
-- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [restChecker.js 源代码](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/node/restexample/restChecker.js)到本地。
-
-- 在命令行中执行以下命令。
-
-```bash
-npm init -y
-npm install @tdengine/rest
-node restChecker.js
-```
-
-- 执行以上步骤后，在命令行会输出 restChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
-
-</TabItem>
-</Tabs>
-
-
+- 执行以上步骤后，在命令行会输出 nodeChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
 
 ## 建立连接
 
-请选择使用一种连接器。
+安装并引用 `@tdengine/websocket` 包。
 
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
-
-安装并引用 `@tdengine/client` 包。
-
+**注意**：
+- 链接器使用结束后，需要调用 taos.destroy() 释放连接器资源
 ```javascript
-//A cursor also needs to be initialized in order to interact with TDengine from Node.js.
-const taos = require("@tdengine/client");
-var conn = taos.connect({
-  host: "127.0.0.1",
-  user: "root",
-  password: "taosdata",
-  config: "/etc/taos",
-  port: 0,
-});
-var cursor = conn.cursor(); // Initializing a new cursor
+const taos = require("@tdengine/websocket");
 
-//Close a connection
-conn.close();
+//数据库操作......
+
+taos.destroy();
 ```
 
-</TabItem>
-<TabItem value="rest" label="REST 连接">
-
-安装并引用 `@tdengine/rest` 包。
-
 ```javascript
-//A cursor also needs to be initialized in order to interact with TDengine from Node.js.
-import { options, connect } from "@tdengine/rest";
-options.path = "/rest/sql";
-// set host
-options.host = "localhost";
-// set other options like user/passwd
-
-let conn = connect(options);
-let cursor = conn.cursor();
+WSConfig配置Websocket参数如下:
+    getToken(): string | undefined | null;
+    setToken(token: string): void;
+    getUser(): string | undefined | null;
+    setUser(user: string): void;
+    getPwd(): string | undefined | null;
+    setPwd(pws: string): void;
+    getDb(): string | undefined | null;
+    setDb(db: string): void;
+    getUrl(): string;
+    setUrl(url: string): void;
+    setTimeOut(ms: number): void;
+    getTimeOut(): number | undefined | null;
 ```
 
-</TabItem>
-</Tabs>
+```javascript
+{{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
+```
 
 ## 使用示例
 
-### 写入数据
+### 创建数据库和表
 
-#### SQL 写入
+```javascript
+{{#include docs/examples/node/websocketexample/sql_example.js:create_db_and_table}}
+```
+> **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 power.meters。
 
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
+### 插入数据
 
-<NodeInsert />
-
-</TabItem>
-<TabItem value="rest" label="REST 连接">
-
-```js
-{{#include docs/examples/node/restexample/insert_example.js}}
+```javascript
+{{#include docs/examples/node/websocketexample/sql_example.js:insertData}}
 ```
 
-</TabItem>
-</Tabs>
-
-
-
-#### InfluxDB 行协议写入
-
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
-
-<NodeInfluxLine />
-
-</TabItem>
-</Tabs>
-
-#### OpenTSDB Telnet 行协议写入
-
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
-
-<NodeOpenTSDBTelnet />
-
-</TabItem>
-</Tabs>
-
-#### OpenTSDB JSON 行协议写入
-
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
-
-<NodeOpenTSDBJson />
-
-</TabItem>
-</Tabs>
+> NOW 为系统内部函数，默认为客户端所在计算机当前时间。
+> `NOW + 1s` 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)，n(月)，y(年)。
 
 ### 查询数据
 
-<Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
-
-<NodeQuery />
-
-</TabItem>
-
-<TabItem value="rest" label="REST 连接">
-
-```js
-{{#include docs/examples/node/restexample/query_example.js}}
+```javascript
+{{#include docs/examples/node/websocketexample/sql_example.js:queryData}}
 ```
 
-</TabItem>
-</Tabs>
+> 查询到的数据
 
+```javascript
+wsRow:meta:=> [
+  { name: 'ts',       type: 'TIMESTAMP', length: 8 },
+  { name: 'current',  type: 'FLOAT',     length: 4 },
+  { name: 'voltage',  type: 'INT',       length: 4 },
+  { name: 'phase',    type: 'FLOAT',     length: 4 },
+  { name: 'location', type: 'VARCHAR',   length: 64},
+  { name: 'groupid',  type: 'INT',       length: 4 }
+]
+wsRow:data:=> [
+    [ 1714013737536n, 12.3, 221, 0.31, 'California.SanFrancisco', 3 ]
+]
+```
+
+### 执行带有 reqId 的 SQL
+
+<RequestId />
+
+```javascript
+{{#include docs/examples/node/websocketexample/sql_example.js:sqlWithReqid}}
+```
+
+### 通过参数绑定写入数据
+
+TDengine 的 NodeJs 连接器支持参数绑定风格的 Prepare API 方式写入数据，和大多数数据库类似，目前仅支持用 ? 来代表待绑定的参数。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
+
+**注意**：
+- 预处理语句中指定数据库与子表名称不要使用 `db.?`，应直接使用 `?`，然后在 setTableName 中指定数据库，如：`stmt.setTableName("db.t1")`。
+
+示例代码：
+```javascript
+{{#include docs/examples/node/websocketexample/stmt_example.js}}
+```
+
+用于设定 TAG/VALUES 数据列的取值的方法总共有：
+
+```javascript
+setBoolean(params: any[]): void;
+setTinyInt(params: any[]): void;
+setUTinyInt(params: any[]): void;
+setSmallInt(params: any[]): void;
+setUSmallInt(params: any[]): void;
+setInt(params: any[]): void;
+setUInt(params: any[]): void;
+setBigint(params: any[]): void;
+setUBigint(params: any[]): void;
+setFloat(params: any[]): void;
+setDouble(params: any[]): void;
+setVarchar(params: any[]): void;
+setBinary(params: any[]): void;
+setNchar(params: any[]): void;
+setJson(params: any[]): void;
+setVarBinary(params: any[]): void;
+setGeometry(params: any[]): void;
+setTimestamp(params: any[]): void;
+```
+
+**注意**：JSON 类型仅在 tag 中支持。
+
+### 无模式写入
+
+TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](../../reference/schemaless/)。
+
+```javascript
+{{#include docs/examples/node/websocketexample/line_example.js}}
+```
+
+### 执行带有 reqId 的无模式写入
+
+此 reqId 可用于请求链路追踪。
+
+```javascript
+await wsSchemaless.schemalessInsert([influxdbData], SchemalessProto.InfluxDBLineProtocol, Precision.NANO_SECONDS, ttl, reqId);
+await wsSchemaless.schemalessInsert([telnetData], SchemalessProto.OpenTSDBTelnetLineProtocol, Precision.NANO_SECONDS, ttl, reqId);
+await wsSchemaless.schemalessInsert([jsonData], SchemalessProto.OpenTSDBJsonFormatProtocol, Precision.NANO_SECONDS, ttl, reqId);
+```
+
+### 数据订阅
+
+TDengine NodeJs 连接器支持订阅功能，应用 API 如下：
+
+#### 创建 Topic
+```javascript
+{{#include docs/examples/node/websocketexample/tmq_example.js:create_topic}}
+```
+
+#### 创建 Consumer
+
+```javascript
+{{#include docs/examples/node/websocketexample/tmq_example.js:create_consumer}}
+```
+> 参数说明
+- taos.TMQConstants.CONNECT_USER: 用户名。
+- taos.TMQConstants.CONNECT_PASS: 密码。
+- taos.TMQConstants.GROUP_ID: 所在的 group。
+- taos.TMQConstants.CLIENT_ID: client id。
+- taos.TMQConstants.WS_URL: taosAdapter 的url地址。
+- taos.TMQConstants.AUTO_OFFSET_RESET: 来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
+- taos.TMQConstants.ENABLE_AUTO_COMMIT: 是否允许自动提交。
+- taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS: 自动提交间隔。
+- taos.TMQConstants.CONNECT_MESSAGE_TIMEOUT: 数据传输超时参数，单位 ms，默认为 10000 ms。  
+
+其他参数请参考：[Consumer 参数列表](../../develop/tmq/#数据订阅相关参数)， 注意 TDengine 服务端自3.2.0.0版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+
+#### 订阅消费数据
+```javascript
+{{#include docs/examples/node/websocketexample/tmq_example.js:subscribe}}
+```
+
+#### 指定订阅 Offset
+
+```javascript
+{{#include docs/examples/node/websocketexample/tmq_example.js:assignment}}
+```
+
+#### 关闭订阅
+```javascript
+// 取消订阅
+consumer.unsubscribe();
+// 关闭消费
+consumer.close()
+// 释放连接器资源
+taos.destroy();
+```
+
+详情请参考：[数据订阅](../../develop/tmq)
+
+#### 完整示例
+
+```javascript
+{{#include docs/examples/node/websocketexample/tmq_example.js}}
+```
 
 ## 更多示例程序
 
-| 示例程序                                                                                                                                   | 示例程序描述                           |
+| 示例程序                                                                                                                                    | 示例程序描述                           |
 | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| [basicUse](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/queryExample.js)                                  | 基本的使用如如建立连接，执行 SQL 等操作。                       |
-| [stmtBindBatch](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/bindParamBatch.js)                  | 绑定多行参数插入的示例。               | |
-| [stmtBindSingleParamBatch](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/bindSingleParamBatch.js) | 按列绑定参数插入的示例。               |
-| [stmtQuery](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/stmtQuery.js)                       | 绑定参数查询的示例。                   |
-| [schemless insert](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/schemaless.js)                   | schemless 插入的示例。                 |
-| [TMQ](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/tmq.js)                                 | 订阅的使用示例。                       |
-| [asyncQuery](https://github.com/taosdata/taos-connector-node/blob/3.0/nodejs/examples/asyncQueryExample.js)                                         | 异步查询的使用示例。                   |
-| [REST](https://github.com/taosdata/taos-connector-node/blob/3.0/typescript-rest/example/example.ts)                                    | 使用 REST 连接的 TypeScript 使用示例。 |
+| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js)                           | 基本的使用如如建立连接，执行 SQL 等操作。                       |
+| [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/stmt_example.js)                         | 绑定参数插入的示例。               | |
+| [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/line_example.js)                         | 行协议写入示例。               |
+| [telnet_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/telnet_line_example.js)           | OpenTSDB Telnet 行协议写入示例。                 |
+| [json_line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/json_line_example.js)               | OpenTSDB JSON 行协议写入示例。                 |
+| [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/tmq_example.js)                           | 订阅的使用示例。                       |
 
 ## 使用限制
 
-native 连接器（`@tdengine/client`） >= v3.0.0 目前支持 node 的版本为：支持 >=v12.8.0 <= v12.9.1 || >=v10.20.0 <= v10.9.0 ；2.0.5 及更早版本支持 v10.x 版本，其他版本可能存在包兼容性的问题。
+- Node.js 连接器（`@tdengine/websocket`）支持 Node.js 14 以上版本，低于 14 的版本可能存在包兼容性的问题。
+- 目前只支持 WebSocket 连接，需要提前启动 taosAdapter
+- 使用连接器结束后，需要调用 taos.connectorDestroy(); 释放连接器资源。
 
-## 其他说明
-
-Node.js 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1957.html)。
 
 ## 常见问题
 
-1. 使用 REST 连接需要启动 taosadapter。
+1. "Unable to establish connection" 或 "Unable to resolve FQDN"
 
-   ```bash
-   sudo systemctl start taosadapter
-   ```
+   **原因**：一般都是因为配置 FQDN 不正确。 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
 
-2. Node.js 版本
 
-   原生连接器 `@tdengine/client` 目前兼容的 Node.js 版本为：>=v10.20.0 <= v10.9.0 || >=v12.8.0 <= v12.9.1
-
-3. "Unable to establish connection"，"Unable to resolve FQDN"
-
-  一般都是因为配置 FQDN 不正确。 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
-
-## 重要更新记录
-
-### 原生连接器
-
-| package name     | version | TDengine version    | 说明                                                             |
-|------------------|---------|---------------------|------------------------------------------------------------------|
-| @tdengine/client | 3.0.0   | 3.0.0               | 支持TDengine 3.0 且不与2.x 兼容。                                                          |
-| td2.0-connector  | 2.0.12  | 2.4.x；2.5.x；2.6.x | 修复 cursor.close() 报错的 bug。                                 |
-| td2.0-connector  | 2.0.11  | 2.4.x；2.5.x；2.6.x | 支持绑定参数、json tag、schemaless 接口等功能。                  |
-| td2.0-connector  | 2.0.10  | 2.4.x；2.5.x；2.6.x | 支持连接管理，普通查询、连续查询、获取系统信息、订阅功能等功能。 |
-### REST 连接器
-
-| package name         | version | TDengine version    | 说明                                                                      |
-|----------------------|---------|---------------------|---------------------------------------------------------------------------|
-| @tdengine/rest       | 3.0.0   | 3.0.0               | 支持 TDegnine 3.0，且不与2.x 兼容。                                               |
-| td2.0-rest-connector | 1.0.7   | 2.4.x；2.5.x；2.6.x | 移除默认端口 6041。                                                       |
-| td2.0-rest-connector | 1.0.6   | 2.4.x；2.5.x；2.6.x | 修复create，insert，update，alter 等SQL 执行返回的 affectRows 错误的bug。 |
-| td2.0-rest-connector | 1.0.5   | 2.4.x；2.5.x；2.6.x | 支持云服务 cloud Token；                                                  |
-| td2.0-rest-connector | 1.0.3   | 2.4.x；2.5.x；2.6.x | 支持连接管理、普通查询、获取系统信息、错误信息、连续查询等功能。          |
-
-## API 参考
-
-[API 参考](https://docs.taosdata.com/api/td2.0-connector/)

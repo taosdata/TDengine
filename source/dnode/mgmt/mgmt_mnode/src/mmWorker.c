@@ -53,7 +53,7 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, get from mnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
-  int32_t code = mndProcessRpcMsg(pMsg);
+  int32_t code = mndProcessRpcMsg(pMsg, pInfo);
 
   if (pInfo->timestamp != 0) {
     int64_t cost = taosGetTimestampUs() - pInfo->timestamp;
@@ -203,6 +203,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .name = "mnode-query",
       .fp = (FItem)mmProcessRpcMsg,
       .param = pMgmt,
+      .poolType = QUERY_AUTO_QWORKER_POOL,
   };
   if (tSingleWorkerInit(&pMgmt->queryWorker, &qCfg) != 0) {
     dError("failed to start mnode-query worker since %s", terrstr());

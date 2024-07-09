@@ -13,14 +13,23 @@ import RustInsert from "../07-develop/03-insert-data/_rust_sql.mdx"
 import RustBind from "../07-develop/03-insert-data/_rust_stmt.mdx"
 import RustSml from "../07-develop/03-insert-data/_rust_schemaless.mdx"
 import RustQuery from "../07-develop/04-query-data/_rust.mdx"
+import RequestId from "./_request_id.mdx";
 
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
 `taos` is the official Rust client library for TDengine. Rust developers can develop applications to access the TDengine instance data.
 
-`taos` provides two ways to establish connections. One is the **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). The other is the **WebSocket connection**, which connects to TDengine instances via the WebSocket interface provided by taosAdapter. You can specify a connection type with Cargo features. By default, both types are supported. The Websocket connection can be used on any platform. The native connection can be used on any platform that the TDengine Client supports.
-
 The source code for the Rust client library is located on [GitHub](https://github.com/taosdata/taos-connector-rust).
+
+## Connection types
+
+`taos` provides two ways to establish connections, among which we recommend using **websocket connection**. 
+- **Native Connection**, which connects to TDengine instances via the TDengine client driver (taosc). 
+- **WebSocket connection**, which connects to TDengine instances via the WebSocket interface provided by taosAdapter. 
+
+You can specify a connection type with Cargo features. By default, both types are supported. 
+
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../develop/connect/#establish-connection)
 
 ## Supported platforms
 
@@ -31,8 +40,11 @@ Websocket connections are supported on all platforms that can run Go.
 
 | connector-rust version |  TDengine version |                   major features                    |
 | :----------------: | :--------------: | :--------------------------------------------------: |
-|       v0.9.2       |      3.0.7.0 or later    | STMT: Get tag_fields and col_fields under ws. |
-|       v0.8.12       |      3.0.5.0    | TMQ: Get consuming progress and seek offset to consume. |
+|       v0.12.0      |      3.2.3.0 or later    | WS supports compression |
+|       v0.11.0      |      3.2.0.0     |  TMQ feature optimization |
+|       v0.10.0      |      3.1.0.0     | WS endpoint changes |
+|       v0.9.2       |      3.0.7.0     | STMT: Get tag_fields and col_fields under ws. |
+|       v0.8.12      |      3.0.5.0    | TMQ: Get consuming progress and seek offset to consume. |
 |       v0.8.0       |      3.0.4.0     | Support schemaless insert. |
 |       v0.7.6       |      3.0.3.0     | Support req_id in query. |
 |       v0.6.0       |      3.0.0.0     | Base features. |
@@ -269,52 +281,28 @@ There are two ways to query data: Using built-in types or the [serde](https://se
 ### Create database and tables
 
 ```rust
-use taos::*;
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let dsn = "taos://localhost:6030";
-    let builder = TaosBuilder::from_dsn(dsn)?;
-
-    let taos = builder.build()?;
-
-    let db = "query";
-
-    // create database
-    taos.exec_many([
-        format!("DROP DATABASE IF EXISTS `{db}`"),
-        format!("CREATE DATABASE `{db}`"),
-        format!("USE `{db}`"),
-    ])
-    .await?;
-
-    // create table
-    taos.exec_many([
-        // create super table
-        "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) \
-         TAGS (`groupid` INT, `location` BINARY(16))",
-        // create child table
-        "CREATE TABLE `d0` USING `meters` TAGS(0, 'Los Angles')",
-    ]).await?;
-}
+{{#include docs/examples/rust/nativeexample/examples/query.rs:create_db_and_table}}
 ```
 
 > The query is consistent with operating a relational database. When using subscripts to get the contents of the returned fields, you have to start from 1. However, we recommend using the field names to get the values of the fields in the result set.
 
 ### Insert data
 
-<RustInsert />
-
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:insert_data}}
+```
 ### Query data
 
-<RustQuery />
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:query_data}}
+```
 
 ### execute SQL with req_id
 
-This req_id can be used to request link tracing.
+<RequestId />
 
 ```rust
-let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
+{{#include docs/examples/rust/nativeexample/examples/query.rs:query_with_req_id}}
 ```
 
 ### Writing data via parameter binding
@@ -323,13 +311,17 @@ TDengine has significantly improved the bind APIs to support data writing (INSER
 
 Parameter binding details see [API Reference](#bind-interface)
 
-<RustBind />
+```rust
+{{#include docs/examples/rust/nativeexample/examples/stmt.rs}}
+```
 
 ### Schemaless Writing
 
 TDengine supports schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. For more information, see [Schemaless Writing](../../reference/schemaless/).
 
-<RustSml />
+```rust
+{{#include docs/examples/rust/nativeexample/examples/schemaless.rs}}
+```
 
 ### Schemaless with req_id
 
@@ -352,25 +344,15 @@ TDengine starts subscriptions through [TMQ](../../taos-sql/tmq/).
 #### Create a Topic
 
 ```rust
-taos.exec_many([
-    // create topic for subscription
-    format!("CREATE TOPIC tmq_meters with META AS DATABASE {db}")
-])
-.await?;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_topic}}
 ```
 
 #### Create a Consumer
 
-You create a TMQ connection by using a DSN.
-
-```rust
-let tmq = TmqBuilder::from_dsn("taos://localhost:6030/?group.id=test")?;
-```
-
 Create a consumer:
 
 ```rust
-let mut consumer = tmq.build()?;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer}}
 ```
 
 #### Subscribe to consume data
@@ -378,40 +360,13 @@ let mut consumer = tmq.build()?;
 A single consumer can subscribe to one or more topics.
 
 ```rust
-consumer.subscribe(["tmq_meters"]).await?;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:subscribe}}
 ```
 
 The TMQ is of [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) type. You can use the corresponding API to consume each message in the queue and then use `.commit` to mark them as consumed.
 
 ```rust
-{
-    let mut stream = consumer.stream();
-
-    while let Some((offset, message)) = stream.try_next().await? {
-        // get information from offset
-
-        // the topic
-        let topic = offset.topic();
-        // the vgroup id, like partition id in kafka.
-        let vgroup_id = offset.vgroup_id();
-        println!("* in vgroup id {vgroup_id} of topic {topic}\n");
-
-        if let Some(data) = message.into_data() {
-            while let Some(block) = data.fetch_raw_block().await? {
-                // one block for one table, get table name if needed
-                let name = block.table_name();
-                let records: Vec<Record> = block.deserialize().try_collect()?;
-                println!(
-                    "** table: {}, got {} records: {:#?}\n",
-                    name.unwrap(),
-                    records.len(),
-                    records
-                );
-            }
-        }
-        consumer.commit(offset).await?;
-    }
-}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:consume}}
 ```
 
 Get assignments：
@@ -419,7 +374,7 @@ Get assignments：
 Version requirements connector-rust >= v0.8.8, TDengine >= 3.0.5.0
 
 ```rust
-let assignments = consumer.assignments().await.unwrap();
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:assignments}}
 ```
 
 #### Assignment subscription Offset
@@ -429,13 +384,13 @@ Seek offset：
 Version requirements connector-rust >= v0.8.8, TDengine >= 3.0.5.0
 
 ```rust
-consumer.offset_seek(topic, vgroup_id, offset).await;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:seek_offset}}
 ```
 
 #### Close subscriptions
 
 ```rust
-consumer.unsubscribe().await;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:unsubscribe}}
 ```
 
 The following parameters can be configured for the TMQ DSN. Only `group.id` is mandatory.

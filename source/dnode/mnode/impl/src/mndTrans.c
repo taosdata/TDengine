@@ -855,15 +855,15 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
     if (pNew->conflict == TRN_CONFLICT_ARBGROUP) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_ARBGROUP) {
-        pIter = taosHashIterate(pNew->arbGroupIds, NULL);
-        while (pIter != NULL) {
-          int32_t groupId = *(int32_t *)pIter;
+        void* pGidIter = taosHashIterate(pNew->arbGroupIds, NULL);
+        while (pGidIter != NULL) {
+          int32_t groupId = *(int32_t *)pGidIter;
           if (taosHashGet(pTrans->arbGroupIds, &groupId, sizeof(int32_t)) != NULL) {
-            taosHashCancelIterate(pNew->arbGroupIds, pIter);
+            taosHashCancelIterate(pNew->arbGroupIds, pGidIter);
             conflict = true;
             break;
           }
-          pIter = taosHashIterate(pNew->arbGroupIds, pIter);
+          pGidIter = taosHashIterate(pNew->arbGroupIds, pGidIter);
         }
       }
     }
