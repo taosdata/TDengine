@@ -5,7 +5,7 @@ taosx_sys_available_memory: "System available memory, unit: bytes"
 taosx_sys_uptime_in_seconds: system start-up duration, in seconds
 taosx_process_cpu_percent: "% CPU usage of taosx process"
 taosx_process_mem_percent: "% of memory occupied by taosx processes"
-taosx_process_io_read_bytes:  Number of read bytes since the last refresh
+taosx_process_io_read_bytes: Number of read bytes since the last refresh
 taosx_process_io_written_bytes: Number of written bytes since the last refresh
 taosx_process_tasks: Number of threads run by this process
 total_execute_time: Total execute time
@@ -22,19 +22,16 @@ points_per_second: Average number of points written per second for this task run
 read_concurrency: Number of data workers concurrently reading data sources
 total_stables: Total super tables to migrate
 total_updated_tags: Total updated tag count
-total_created_tables: Total number of child tables created using sql.(not include auto created child tables)
 total_tables: Total tables to migrate
 total_finished_tables: Total number of sub-tables successfully migrated. (may greater than the actual value if task was resumed from break point)
 total_success_blocks: Total number of data blocks successfully written
 finished_tables: Number of sub-tables successfully migrated in this task run
 success_blocks: Number of data blocks successfully written in this task run
-created_tables: Number of child tables created in this task run
 updated_tags: Number of updated tags in this task run
 total_messages: Total number of messages received via TMQ
 total_messages_of_meta: Total number of messages with type "Meta" received via TMQ
 total_messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ
 total_write_raw_fails: Total times of failed to write TMQ messages
-total_success_blocks: Total number of data blocks successfully written
 topics: Total number of topics subscribed to via TMQ
 consumers: Total number of consumers created via TMQ
 messages: Total number of messages received via TMQ in this task run

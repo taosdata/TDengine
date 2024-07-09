@@ -25,13 +25,11 @@ total_finished_tables: 完成数据迁移的子表数(任务中断重启可能�
 total_success_blocks: 累计写入成功的数据块数
 finished_tables: 本次运行完成迁移子表数
 success_blocks: 本次写入成功的数据块数
-created_tables: 本次运行创建子表数
 updated_tags: 本次运行更新 tag 数
 total_messages: 通过 TMQ 累计收到的消息总数
 total_messages_of_meta: 通过 TMQ 累计收到的 Meta 类型的消息总数
 total_messages_of_data: 通过 TMQ 累计收到的 Data 和 MetaData 类型的消息总数
 total_write_raw_fails: 累计写入 TMQ 消息失败次数
-total_success_blocks: 累计写入成功的数据块数
 topics: 通过 TMQ 订阅的主题数
 consumers: TMQ 消费者数
 messages: 本次运行通过 TMQ 收到的消息总数
@@ -45,7 +43,6 @@ total_processed_rows: 已经成功处理的总行数（等于成功处理的 bat
 total_inserted_sqls: 成功执行的 INSERT SQL 总条数
 total_failed_sqls: 执行失败的 INSERT SQL 总条数
 total_created_stables: 尝试创建超级表总数（可能大于实际值）
-total_created_tables: 尝试创建子表总数(可能大于实际值，不包括自动创建的子表)
 total_failed_rows: 写入失败的总行数
 total_failed_points: 写入失败的总点数
 total_written_raw_blocks: 写入成功的 raw block 总数
