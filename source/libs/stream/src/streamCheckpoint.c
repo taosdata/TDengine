@@ -405,12 +405,14 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
-
-  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
+
+  taosThreadMutexLock(&pTask->chkInfo.pActiveInfo->lock);
+  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
   if (clearChkpReadyMsg) {
     streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
   }
+  taosThreadMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
 }
 
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq) {
@@ -446,14 +448,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   }
 
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
-
-  if (restored && (pStatus->state != TASK_STATUS__CK) && (pMeta->role == NODE_ROLE_LEADER)) {
-    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
-            " failed",
-            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
-    taosThreadMutexUnlock(&pTask->lock);
-    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-  }
 
   if (!restored) {  // during restore procedure, do update checkpoint-info
     stDebug("s-task:%s vgId:%d status:%s update the checkpoint-info during restore, checkpointId:%" PRId64 "->%" PRId64
@@ -1115,8 +1109,20 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   const char*      id = pTask->id.idStr;
   SCheckpointInfo* pInfo = &pTask->chkInfo;
 
-  ASSERT(pTask->pBackend == NULL);
+  taosThreadMutexLock(&pTask->lock);
+  if (pTask->status.sendConsensusChkptId == true) {
+    stDebug("s-task:%s already start to consensus-checkpointId, not start again before it completed", id);
+    taosThreadMutexUnlock(&pTask->lock);
+    return TSDB_CODE_SUCCESS;
+  } else {
+    pTask->status.sendConsensusChkptId = true;
+  }
 
+  taosThreadMutexUnlock(&pTask->lock);
+
+  ASSERT(pTask->pBackend == NULL);
+  pTask->status.requireConsensusChkptId = true;
+#if 0
   SRestoreCheckpointInfo req = {
       .streamId = pTask->id.streamId,
       .taskId = pTask->id.taskId,
@@ -1148,10 +1154,27 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   tEncoderClear(&encoder);
 
   SRpcMsg msg = {0};
-  initRpcMsg(&msg, TDMT_MND_STREAM_CHKPT_CONSEN, buf, tlen);
+  initRpcMsg(&msg, TDMT_MND_STREAM_REQ_CONSEN_CHKPT, buf, tlen);
   stDebug("s-task:%s vgId:%d send latest checkpointId:%" PRId64 " to mnode to get the consensus checkpointId", id, vgId,
           pInfo->checkpointId);
 
   tmsgSendReq(&pTask->info.mnodeEpset, &msg);
+#endif
   return 0;
+}
+
+int32_t streamTaskSendPreparedCheckpointsourceRsp(SStreamTask* pTask) {
+  int32_t code = 0;
+  if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+    return code;
+  }
+
+  taosThreadMutexLock(&pTask->lock);
+  SStreamTaskState* p = streamTaskGetStatus(pTask);
+  if (p->state == TASK_STATUS__CK) {
+    code = streamTaskSendCheckpointSourceRsp(pTask);
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return code;
 }

@@ -630,6 +630,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         goto _err;
       }
     } break;
+    case TDMT_STREAM_CONSEN_CHKPT: {
+      if (pVnode->restored) {
+        tqProcessTaskConsenChkptIdReq(pVnode->pTq, pMsg);
+      }
+    } break;
     case TDMT_STREAM_TASK_PAUSE: {
       if (pVnode->restored && vnodeIsLeader(pVnode) &&
           tqProcessTaskPauseReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
@@ -645,11 +650,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_STREAM_TASK_RESET: {
       if (pVnode->restored && vnodeIsLeader(pVnode)) {
         tqProcessTaskResetReq(pVnode->pTq, pMsg);
-      }
-    } break;
-    case TDMT_MND_STREAM_CHKPT_CONSEN_RSP: {
-      if (pVnode->restored) {
-        tqProcessTaskConsensusChkptRsp(pVnode->pTq, pMsg);
       }
     } break;
     case TDMT_VND_ALTER_CONFIRM:
