@@ -32,11 +32,12 @@ from frame.srvCtl import *
 from frame.taosadapter import *
 from monitor.common import *
 
+global_slowLogThreshold_count = 0
 
 class TDTestCase(TBase):
 
     updatecfgDict = {
-        "slowLogThresholdTest": "0",  # special setting only for testing
+        # "slowLogThresholdTest": "0",  # special setting only for testing
         "slowLogExceptDb": "log",
         "monitor": "1",
         "monitorInterval": "1",
@@ -45,22 +46,44 @@ class TDTestCase(TBase):
         # "monitorPort": "6043"
     }
     
+    def check_slowLogThreshold_setting(self, db_name, threshold_value: str):
+        global global_slowLogThreshold_count
+        db_name = db_name + str(global_slowLogThreshold_count)
+        
+        global_slowLogThreshold_count = global_slowLogThreshold_count + 1
+
+        # monitor_common.install_taospy()
+        
+        udf_sleep = os.path.join(sc.getSimPath(), 'tests/army/monitor/udf_sleep.py')
+        sqls = [
+            f'create aggregate function if not exists my_sleep as "{udf_sleep}" outputtype int bufsize 10240 language "Python"',
+            f'create database {db_name}',
+            f'create table {db_name}.assistance (ts timestamp, n int)',
+            f'insert into {db_name}.assistance values(now, 1), (now + 1s, 2), (now + 2s, 4), (now + 3s, 6)'
+        ]
+        tdSql.executes(sqls,queryTimes=1)
+    
+        if threshold_value == "1":
+            tdSql.query(f'select my_sleep(n) from {db_name}.assistance where n=1', queryTimes=1)
+            tdSql.query(f'select my_sleep(n) from {db_name}.assistance where n=2', queryTimes=1)
+            tdSql.query(f'select 1=1', queryTimes=1)
+            time.sleep(2)
+            tdSql.query(f"select * from log.taos_slow_sql_detail where db ='{db_name}' and type=1", queryTimes=1)
+            tdSql.checkRows(2)
+        
+        if threshold_value == "005":
+            tdSql.query(f'select my_sleep(n) from {db_name}.assistance where n=4', queryTimes=1)
+            tdSql.query(f'select my_sleep(n) from {db_name}.assistance where n=6', queryTimes=1)
+            tdSql.query(f'select 1=1', queryTimes=1)
+            time.sleep(2)
+            tdSql.query(f"select * from log.taos_slow_sql_detail where db ='{db_name}' and type=1", queryTimes=1)
+            tdSql.checkRows(1)
+
     # run
     def run(self):
         tdLog.info(f"check_show_log_threshold")
 
-        monitor_common.init_env()
-        # monitor_common.install_taospy()  
-
-        # udf_sleep = os.path.join(sc.getSimPath(), 'tests/army/monitor/udf_sleep.py')
-        # sqls = [
-        #     f'create aggregate function my_sleep as "{udf_sleep}" outputtype int language "Python"',
-        #     'create datab ase check_show_log_threshold',
-        #     'create table check_show_log_threshold.assistance (ts timestamp, n int)',
-        #     'insert into check_show_log_threshold.assistance values(now, 1), (now + 1s, 2), (now + 2s, 3)'
-        # ]
-        # tdSql.executes(sqls,queryTimes=1)
-        # tdSql.query('select my_sleep(n) from check_show_log_threshold.assistance',queryTimes=1)
+        monitor_common.init_env()  
 
         # 1.check nagative value of slowLogThreshold
         VAR_SHOW_LOG_THRESHOLD_NAGATIVE_CASES ={
@@ -100,7 +123,7 @@ class TDTestCase(TBase):
             tdSql.error(sql, expectErrInfo=err_info)
 
         # 2. check valid setting of show_log_scope
-        VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['2147483647', '002', '1']
+        VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['2147483647', '005', '1']
         # VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES = ['002']
 
         for threshold_value in VAR_SHOW_LOG_THRESHOLD_POSITIVE_CASES:
@@ -109,11 +132,15 @@ class TDTestCase(TBase):
             # set slowLogThreshold via alter operation
             monitor_common.alter_variables(1, updatecfgDict)
             monitor_common.check_variable_setting(key='slowLogThreshold', value=threshold_value)
+            if threshold_value != '2147483647':
+                self.check_slowLogThreshold_setting(db_name='threshold_value_test', threshold_value=threshold_value)
             tdLog.info(f"check valid value '{threshold_value}' of variable 'slowLogThreshold' via alter - PASS")
 
             # set slowLogThreshold via taos.cfg
             monitor_common.update_taos_cfg(1, updatecfgDict)
             monitor_common.check_variable_setting(key='slowLogThreshold', value=threshold_value)
+            if threshold_value != '2147483647':
+                self.check_slowLogThreshold_setting(db_name='threshold_value_test', threshold_value=threshold_value)
             tdLog.info(f"check valid value '{threshold_value}' of variable 'slowLogThreshold' via cfg - PASS")
 
         # 3.config in client is not available
