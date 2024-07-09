@@ -1973,6 +1973,9 @@ _exit:
   return code;
 }
 
+extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
+extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   bool walChanged = false;
   bool tsdbChanged = false;
@@ -2070,7 +2073,14 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (req.sttTrigger != -1 && req.sttTrigger != pVnode->config.sttTrigger) {
-    pVnode->config.sttTrigger = req.sttTrigger;
+    if (req.sttTrigger > 1 && pVnode->config.sttTrigger > 1) {
+      pVnode->config.sttTrigger = req.sttTrigger;
+    } else {
+      vnodeAWait(&pVnode->commitTask);
+      tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
+      pVnode->config.sttTrigger = req.sttTrigger;
+      tsdbEnableBgTask(pVnode->pTsdb);
+    }
   }
 
   if (req.minRows != -1 && req.minRows != pVnode->config.tsdbCfg.minRows) {
