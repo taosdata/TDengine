@@ -411,7 +411,7 @@ async fn write_meta(
         Ok(json_meta) => json_meta,
         Err(err) => {
             // Without fallback.
-            tracing::debug!("Can't get json meta: {err:#}");
+            tracing::debug!("Can't get json meta: {err}");
 
             if actions.is_empty() {
                 if target_is_v3 {

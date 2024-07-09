@@ -19,22 +19,25 @@ points_per_second: 任务本次运行平均每秒写入测点数
 read_concurrency: 并发读取数据源的数据 worker 数
 total_stables: 需要迁移的超级表数据数量
 total_updated_tags: 累计更新 tag 数
+total_created_tables: 累计创建子表数
 total_tables: 需要迁移的子表数量
 total_finished_tables: 完成数据迁移的子表数(任务中断重启可能大于实际值)
 total_success_blocks: 累计写入成功的数据块数
 finished_tables: 本次运行完成迁移子表数
 success_blocks: 本次写入成功的数据块数
+created_tables: 本次运行创建子表数
 updated_tags: 本次运行更新 tag 数
 total_messages: 通过 TMQ 累计收到的消息总数
 total_messages_of_meta: 通过 TMQ 累计收到的 Meta 类型的消息总数
 total_messages_of_data: 通过 TMQ 累计收到的 Data 和 MetaData 类型的消息总数
-total_write_raw_fails: 使用 write_raw_meta 接口写入失败次数，会尝试其它写入方案，不会丢数据
+total_write_raw_fails: 累计写入 TMQ 消息失败次数
+total_success_blocks: 累计写入成功的数据块数
 topics: 通过 TMQ 订阅的主题数
 consumers: TMQ 消费者数
 messages: 本次运行通过 TMQ 收到的消息总数
 messages_of_meta: 本次运行通过 TMQ 收到的 Meta 类型的消息总数
 messages_of_data: 本次运行通过 TMQ 收到的 Data 和 MetaData 类型的消息总数
-write_raw_fails: 使用 write_raw_meta 接口写入失败次数，会尝试其它写入方案，不会丢数据
+write_raw_fails: 本次运行写入 TMQ 消息失败次数
 total_received_batches: 通过 IPC Stream 收到的数据总批数
 total_processed_batches: 已经成功处理的总批数
 total_failed_batches: 处理失败的总批数

@@ -5,7 +5,7 @@ taosx_sys_available_memory: "System available memory, unit: bytes"
 taosx_sys_uptime_in_seconds: system start-up duration, in seconds
 taosx_process_cpu_percent: "% CPU usage of taosx process"
 taosx_process_mem_percent: "% of memory occupied by taosx processes"
-taosx_process_io_read_bytes: Number of read bytes since the last refresh
+taosx_process_io_read_bytes:  Number of read bytes since the last refresh
 taosx_process_io_written_bytes: Number of written bytes since the last refresh
 taosx_process_tasks: Number of threads run by this process
 total_execute_time: Total execute time
@@ -28,17 +28,19 @@ total_finished_tables: Total number of sub-tables successfully migrated. (may gr
 total_success_blocks: Total number of data blocks successfully written
 finished_tables: Number of sub-tables successfully migrated in this task run
 success_blocks: Number of data blocks successfully written in this task run
+created_tables: Number of child tables created in this task run
 updated_tags: Number of updated tags in this task run
 total_messages: Total number of messages received via TMQ
 total_messages_of_meta: Total number of messages with type "Meta" received via TMQ
 total_messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ
-total_write_raw_fails: Total times of failed to write using write_raw_meta, will try other write methods, no data loss
+total_write_raw_fails: Total times of failed to write TMQ messages
+total_success_blocks: Total number of data blocks successfully written
 topics: Total number of topics subscribed to via TMQ
 consumers: Total number of consumers created via TMQ
 messages: Total number of messages received via TMQ in this task run
 messages_of_meta: Total number of messages with type "Meta" received via TMQ in this task run
 messages_of_data: Total number of messages with type "Data" and "MetaData" received via TMQ in this task run
-write_raw_fails: Total times of failed to write using write_raw_meta, will try other write methods, no data loss
+write_raw_fails: Total times of failed to write TMQ messages in this task run
 total_received_batches: Total number of data batches received via IPC Stream
 total_processed_batches: Total number of data batches successfully processed by taosx
 total_failed_batches: Total number of data batches failed to process
@@ -46,6 +48,7 @@ total_processed_rows: Total number of rows successfully processed. (equal to the
 total_inserted_sqls: Total number of INSERT SQLs successfully executed by taosx
 total_failed_sqls: Total number of INSERT SQLs failed to execute by taosx
 total_created_stables: Total number of super tables that taosX try to created. (may greater than successfully created super tables)
+total_created_tables: Total number of child tables that taosX try to created.(not include auto created child tables)
 total_failed_rows: Total number of rows failed to write
 total_failed_points: Total number of points failed to write
 total_written_raw_blocks: Total number of raw blocks successfully written
