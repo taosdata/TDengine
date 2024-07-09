@@ -182,9 +182,10 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
 int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
   int32_t code = 0;
   int64_t chkpId = streamMetaGetLatestCheckpointId(pMeta);
-
-  bool exist = streamBackendDataIsExist(pMeta->path, chkpId, pMeta->vgId);
+  terrno = 0;
+  bool exist = streamBackendDataIsExist(pMeta->path, chkpId);
   if (exist == false) {
+    code = terrno;
     return code;
   }
 
@@ -252,8 +253,9 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   }
 
   STaskDbWrapper* pBackend = NULL;
+  int64_t         processVer = -1;
   while (1) {
-    pBackend = taskDbOpen(pMeta->path, key, chkpId);
+    pBackend = taskDbOpen(pMeta->path, key, chkpId, &processVer);
     if (pBackend != NULL) {
       break;
     }
@@ -270,6 +272,8 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   pBackend->refId = tref;
   pBackend->pTask = pTask;
   pBackend->pMeta = pMeta;
+
+  if (processVer != -1) pTask->chkInfo.processedVer = processVer;
 
   taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
@@ -308,7 +312,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTas
   }
 
   if (streamMetaMayCvtDbFormat(pMeta) < 0) {
-    stError("vgId:%d convert sub info format failed, open stream meta failed", pMeta->vgId);
+    stError("vgId:%d convert sub info format failed, open stream meta failed, reason: %s", pMeta->vgId,
+            tstrerror(terrno));
     goto _err;
   }
 
@@ -393,6 +398,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTas
   pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
 
   pMeta->bkdChkptMgt = bkdMgtCreate(tpath);
+  if (pMeta->bkdChkptMgt == NULL) {
+    goto _err;
+  }
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
   return pMeta;
@@ -408,9 +416,10 @@ _err:
   if (pMeta->updateInfo.pTasks) taosHashCleanup(pMeta->updateInfo.pTasks);
   if (pMeta->startInfo.pReadyTaskSet) taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
   if (pMeta->startInfo.pFailedTaskSet) taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
+  if (pMeta->bkdChkptMgt) bkdMgtDestroy(pMeta->bkdChkptMgt);
   taosMemoryFree(pMeta);
 
-  stError("failed to open stream meta");
+  stError("failed to open stream meta, reason:%s", tstrerror(terrno));
   return NULL;
 }
 
@@ -900,7 +909,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     if (p == NULL) {
       code = pMeta->buildTaskFn(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer + 1);
       if (code < 0) {
-        stError("failed to load s-task:0x%"PRIx64", code:%s, continue", id.taskId, tstrerror(terrno));
+        stError("failed to load s-task:0x%" PRIx64 ", code:%s, continue", id.taskId, tstrerror(terrno));
         tFreeStreamTask(pTask);
         continue;
       }
@@ -985,7 +994,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   streamMetaGetHbSendInfo(pMeta->pHbInfo, &startTs, &sendCount);
 
   stInfo("vgId:%d notify all stream tasks that current vnode is closing. isLeader:%d startHb:%" PRId64 ", totalHb:%d",
-          vgId, (pMeta->role == NODE_ROLE_LEADER), startTs, sendCount);
+         vgId, (pMeta->role == NODE_ROLE_LEADER), startTs, sendCount);
 
   // wait for the stream meta hb function stopping
   streamMetaWaitForHbTmrQuit(pMeta);
@@ -1171,7 +1180,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int64_t now = taosGetTimestampMs();
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  stInfo("vgId:%d start to consensus checkpointId for all %d task(s), start ts:%"PRId64, vgId, numOfTasks, now);
+  stInfo("vgId:%d start to consensus checkpointId for all %d task(s), start ts:%" PRId64, vgId, numOfTasks, now);
 
   if (numOfTasks == 0) {
     stInfo("vgId:%d no tasks exist, quit from consensus checkpointId", pMeta->vgId);
