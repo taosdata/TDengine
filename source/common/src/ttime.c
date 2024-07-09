@@ -1983,8 +1983,8 @@ static int64_t MATRIX[10][11] = {     /*  ns,   us,   ms,    s,   min,   h,   d,
                                 /*ms*/ {   0, 1000,    1, 1000,    0},
                                  /*s*/ {   0,    0, 1000,    1,   60,    0},
                                /*min*/ {   0,    0,    0,   60,    1,   60,   0},
-                                 /*h*/ {   0,    0,    0,    0,   60,    1,  24,   0},
-                                 /*d*/ {   0,    0,    0,    0,    0,   24,   1,   7,   1,   0},
+                                 /*h*/ {   0,    0,    0,    0,   60,    1,   1,   0},
+                                 /*d*/ {   0,    0,    0,    0,    0,    1,   1,   7,   1,   0},
                                  /*w*/ {   0,    0,    0,    0,    0,    0,   7,   1,  -1,   0},
                                /*mon*/ {   0,    0,    0,    0,    0,    0,   0,   0,   1,  12,  0},
                                  /*y*/ {   0,    0,    0,    0,    0,    0,   0,   0,   12,   1,  0}};
@@ -2058,7 +2058,7 @@ bool checkRecursiveTsmaInterval(int64_t baseInterval, int8_t baseUnit, int64_t i
   if (baseIdx <= idx) {
     return recursiveTsmaCheckRecursive(baseInterval, baseIdx, interval, idx, needCheckEq);
   } else {
-    return recursiveTsmaCheckRecursiveReverse(baseInterval, baseIdx, interval, idx, true);
+    return recursiveTsmaCheckRecursiveReverse(baseInterval, baseIdx, interval, idx, checkEq);
   }
   return true;
 }

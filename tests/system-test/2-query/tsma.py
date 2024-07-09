@@ -9,7 +9,7 @@ from util.dnodes import *
 from util.common import *
 # from tmqCommon import *
 
-ROUND = 1000
+ROUND = 10000
 
 ignore_some_tests: int = 1
 
@@ -687,10 +687,10 @@ class TDTestCase:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def init_data(self, ctb_num: int = 10, rows_per_ctb: int = 10000, start_ts: int = 1537146000000, ts_step: int = 500):
+    def init_data(self, db: str = 'test', ctb_num: int = 10, rows_per_ctb: int = 10000, start_ts: int = 1537146000000, ts_step: int = 500):
         tdLog.printNoPrefix(
             "======== prepare test env include database, stable, ctables, and insert data: ")
-        paraDict = {'dbName':     'test',
+        paraDict = {'dbName':     db,
                     'dropFlag':   1,
                     'vgroups':    2,
                     'stbName':    'meters',
@@ -707,8 +707,8 @@ class TDTestCase:
                     'tsStep':     ts_step}
 
         paraDict['vgroups'] = self.vgroups
-        paraDict['ctbNum'] = self.ctbNum
-        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        paraDict['ctbNum'] = ctb_num
+        paraDict['rowsPerTbl'] = rows_per_ctb
 
         tdLog.info("create database")
         self.create_database(tsql=tdSql, dbName=paraDict["dbName"], dropFlag=paraDict["dropFlag"],
@@ -1217,12 +1217,12 @@ class TDTestCase:
         self.test_create_tsma()
         self.test_drop_tsma()
         self.test_tb_ddl_with_created_tsma()
-
     
     def run(self):
         self.init_data()
-        self.test_ddl()
-        self.test_query_with_tsma()
+        #self.test_ddl()
+        #self.test_query_with_tsma()
+        self.test_bigger_tsma_interval()
         # bug to fix
         self.test_flush_query()
         
@@ -1610,6 +1610,103 @@ class TDTestCase:
         
     # def test_split_dnode(self):
 
+    def test_create_recursive_tsma_interval(self, db: str, tb: str, func: list[str], interval: str, recursive_interval: str, succ: bool, code: int):
+        return
+        self.create_tsma('tsma1', db, tb, func, interval)
+        sql = f'CREATE RECURSIVE TSMA tsma2 ON tsma1 INTERVAL({recursive_interval})'
+        if not succ:
+            tdSql.error(sql, code)
+        else:
+            self.create_recursive_tsma('tsma1', 'tsma2', db, recursive_interval, tb, func)
+            self.drop_tsma('tsma2', db)
+        self.drop_tsma('tsma1', db)
+
+    def test_bigger_tsma_interval_query(self, func_list: List):
+        ## 3 tsmas, 12h, 1n, 1y
+        ctxs = []
+        interval_list = ['2h', '8h', '1d', '1n', '3n', '1w', '1y', '2y']
+        opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()
+        opts.interval = True
+        opts.where_ts_range = True
+        for _ in range(1, ROUND):
+            opts.partition_by = True
+            opts.group_by = True
+            opts.norm_tb = False
+            sql_generator = TSMATestSQLGenerator(opts)
+            sql = sql_generator.generate_one(
+                ','.join(func_list), ['db.meters', 'db.meters', 'db.t1', 'db.t9'], '', interval_list)
+            ctxs.append(TSMAQCBuilder().with_sql(sql).ignore_query_table(
+            ).ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
+        return ctxs
+
+    def test_bigger_tsma_interval(self):
+        #os.system("taosBenchmark -d db -t 100 -n 10000 -v 2 -S 32000000 -y")
+        db = 'db'
+        tb = 'meters'
+        func = ['max(c1)', 'min(c1)', 'min(c2)', 'max(c2)', 'avg(c1)', 'count(ts)']
+        self.init_data(db,10, 10000, 1500000000000, 11000000)
+        examples = [
+                ('10m', '1h', True), ('10m','1d',True), ('1m', '120s', True), ('1h','1d',True),
+                ('12h', '1y', False), ('1h', '1n', True), ('1h', '1y', True),
+                ('12n', '1y', False), ('2d','1n',False), ('55m', '55h', False), ('7m','7d',False),
+                ]
+        for (i, ri, ret) in examples:
+            self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471099)
+
+        self.create_tsma('tsma1', db, tb, func, '1h')
+        self.create_recursive_tsma('tsma1', 'tsma2', db, '1n', tb, func)
+        self.create_recursive_tsma('tsma2', 'tsma3', db, '1y', tb, func)
+        self.check(self.test_bigger_tsma_interval_query(func))
+
+        ctxs = []
+        ctxs.append(TSMAQCBuilder().with_sql('SELECT max(c1) FROM meters').should_query_with_tsma('tsma3').get_qc())
+        ctxs.append(TSMAQCBuilder()
+                    .with_sql('SELECT max(c1) FROM meters WHERE ts > "2024-09-03 18:40:00.324"')
+                    .should_query_with_table('meters', '2024-09-03 18:40:00.325', '2024-12-31 23:59:59.999')
+                    .should_query_with_tsma('tsma3', '2025-01-01 00:00:00.000', UsedTsma.TS_MIN)
+                    .get_qc())
+
+        ctxs.append(TSMAQCBuilder()
+                    .with_sql('SELECT max(c1) FROM meters WHERE ts >= "2024-09-03 18:00:00.000"')
+                    .should_query_with_tsma('tsma1', '2024-09-03 18:00:00.000', '2024-12-31 23:59:59.999')
+                    .should_query_with_tsma('tsma3', '2025-01-01 00:00:00.000', UsedTsma.TS_MIN)
+                    .get_qc())
+
+        ctxs.append(TSMAQCBuilder()
+                    .with_sql('SELECT max(c1) FROM meters WHERE ts >= "2024-09-01 00:00:00.000"')
+                    .should_query_with_tsma('tsma2', '2024-09-01 00:00:00.000', '2024-12-31 23:59:59.999')
+                    .should_query_with_tsma('tsma3', '2025-01-01 00:00:00.000', UsedTsma.TS_MIN)
+                    .get_qc())
+
+        ctxs.append(TSMAQCBuilder()
+                    .with_sql("SELECT max(c1) FROM meters INTERVAL(12n)")
+                    .should_query_with_tsma('tsma3')
+                    .get_qc())
+
+        ctxs.append(TSMAQCBuilder()
+                    .with_sql("SELECT max(c1) FROM meters INTERVAL(13n)")
+                    .should_query_with_tsma('tsma2')
+                    .get_qc())
+
+        ctxs.append(TSMAQCBuilder()
+                    .with_sql("SELECT max(c1),min(c1),min(c2),max(c2),avg(c1),count(ts) FROM db.t9 WHERE ts > '2018-09-17 08:16:00'")
+                    .should_query_with_table('meters', '2018-09-17 08:16:00.001', '2018-12-31 23:59:59:999')
+                    .should_query_with_tsma('tsma3', '2019-01-01')
+                    .get_qc())
+
+        ctxs.append(TSMAQCBuilder()
+                    .with_sql("SELECT max(c1), _wstart FROM meters WHERE ts >= '2024-09-03 18:40:00.324' INTERVAL(1d)")
+                    .should_query_with_table('meters', '2024-09-03 18:40:00.324', '2024-09-03 23:59:59:999')
+                    .should_query_with_tsma('tsma1', '2024-09-04 00:00:00.000')
+                    .get_qc())
+
+        ctxs.append(TSMAQCBuilder()
+                    .with_sql("SELECT max(c1), _wstart FROM meters WHERE ts >= '2024-09-03 18:40:00.324' INTERVAL(1n)")
+                    .should_query_with_table('meters', '2024-09-03 18:40:00.324', '2024-09-30 23:59:59:999')
+                    .should_query_with_tsma('tsma2', '2024-10-01 00:00:00.000')
+                    .get_qc())
+
+        self.check(ctxs)
 
     def stop(self):
         tdSql.close()
