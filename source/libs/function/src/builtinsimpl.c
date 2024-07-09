@@ -3182,11 +3182,11 @@ static int32_t diffIsNegtive(SDiffInfo* pDiffInfo, int32_t type, const char* pv)
       int64_t v = *(int16_t*)pv;
       return v < pDiffInfo->prev.i64;
     }
-    case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:{
       uint64_t v = *(uint64_t*)pv;
       return v < (uint64_t)pDiffInfo->prev.i64;
     }
+    case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t v = *(int64_t*)pv;
       return v < pDiffInfo->prev.i64;
@@ -3208,7 +3208,7 @@ static int32_t diffIsNegtive(SDiffInfo* pDiffInfo, int32_t type, const char* pv)
 
 static void tryToSetInt64(SDiffInfo* pDiffInfo, int32_t type, SColumnInfoData* pOutput, int64_t v, int32_t pos) {
   bool isNegative = v < pDiffInfo->prev.i64;
-  if(type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP){
+  if(type == TSDB_DATA_TYPE_UBIGINT){
     isNegative = (uint64_t)v < (uint64_t)pDiffInfo->prev.i64;
   }
   int64_t delta = v - pDiffInfo->prev.i64;
