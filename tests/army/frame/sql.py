@@ -375,9 +375,8 @@ class TDSql:
     def checkDataType(self, row, col, dataType):
         self.checkRowCol(row, col)
         return self.cursor.istype(col, dataType)
-
-
-    def checkData(self, row, col, data, show = False):
+        
+    def checkData(self, row, col, data, show = False, fuzzy = False):
         if row >= self.queryRows:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
@@ -469,7 +468,12 @@ class TDSql:
                     args = (caller.filename, caller.lineno, self.sql, row, col, self.res[row][col], data)
                     tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
 
-            if str(self.res[row][col]) == str(data):
+            if str(self.res[row][col]) == str(data) and not fuzzy:
+                # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.res[row][col]} == expect:{data}")
+                if(show):
+                    tdLog.info("check successfully")
+                return
+            elif str(data) in str(self.res[row][col])  and fuzzy:
                 # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.res[row][col]} == expect:{data}")
                 if(show):
                     tdLog.info("check successfully")
