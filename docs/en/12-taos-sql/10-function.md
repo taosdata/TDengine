@@ -1209,27 +1209,40 @@ ignore_negative: {
 ### DIFF
 
 ```sql
-DIFF(expr [, ignore_negative])
+DIFF(expr [, ignore_option])
 
-ignore_negative: {
+ignore_option: {
     0
   | 1
+  | 2
+  | 3
 }
 ```
 
-**Description**: The different of each row with its previous row for a specific column. `ignore_negative` can be specified as 0 or 1, the default value is 1 if it's not specified. `1` means negative values are ignored. For tables with composite primary key, the data with the smallest primary key value is used to calculate the difference.
+**Description**: The different of each row with its previous row for a specific column. `ignore_option` takes the value of 0|1|2|3, the default value is 0 if it's not specified. 
+- `0` means that negative values ​​(diff results) are not ignored and null values ​​are not ignored
+- `1` means that negative values ​​(diff results) are treated as null values
+- `2` means that negative values ​​(diff results) are not ignored but null values ​​are ignored
+- `3` means that negative values ​​(diff results) are ignored and null values ​​are ignored
+- For tables with composite primary key, the data with the smallest primary key value is used to calculate the difference.
 
-**Return value type**:Same as the data type of the column being operated upon
+**Return value type**: `bool`, `timestamp` type and integer value type all return `int_64`, `floating` point type returns `double`, and if the diff result overflows, it is returned as overflow.
 
-**Applicable data types**: Numeric
+**Applicable data types**: Numeric type, timestamp and bool type.
 
 **Applicable table types**: standard tables and supertables
 
 **More explanation**:
 
-- The number of result rows is the number of rows subtracted by one, no output for the first row
-- It can be used together with a selected column. For example: select \_rowts, DIFF() from.
-
+- diff is to diff the data in current row and column with the **first valid data before**. The **first valid data before** refers to sorting by timestamp, searching current this row to the direction of smaller timestamps, checking the same column of other rows, and finding the first non-null data.
+- The diff result of numeric type is the corresponding difference; the timestamp is calculated based on the timestamp of the precision type of the database creation; the difference is calculated for bool type true as 1 and false as 0
+- When the row and column data does not exist (null), or no valid comparison data is found, the diff result is null
+- When ignoring negative values ​​(ignore_option is 1/3), if the diff result is negative, the result is set to null, and then filtered according to the null value filtering rule
+- When the diff result has a type overflow, the positive and negative results of the logical operation are used to determine whether to ignore the negative value. For example, the value of 9223372036854775800 - (-9223372036854775806) exceeds the range of BIGINT, and the diff result will display the overflow value -10, but it will not be ignored as a negative value
+- Supports single or multiple diffs in a single statement, and supports different diff functions to specify the same or different ignore_option , when there are multiple diffs, only when all diff results of a row are null and ignore_option is set to ignore null values, the row will be removed from the result set
+- Can be used with the selected associated columns. For example: select _rowts, DIFF() from.
+- When not using a composite primary key, the sub-tables of the super table may have the same timestamp data. If there are the same timestamps, it will prompt "Duplicate timestamps not allowed"
+- When using a composite primary key, the sub-tables of the super table may have the same composite primary key, whichever row is found first will prevail
 
 ### IRATE
 
