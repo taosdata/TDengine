@@ -1226,7 +1226,7 @@ ignore_option: {
 - `3` means that negative values ​​(diff results) are ignored and null values ​​are ignored
 - For tables with composite primary key, the data with the smallest primary key value is used to calculate the difference.
 
-**Return value type**: `bool`, `timestamp` type and integer value type all return `int_64`, `floating` point type returns `double`, and if the diff result overflows, it is returned as overflow.
+**Return value type**: `bool`, `timestamp` and `integer` value type all return `int_64`, `float` type returns `double`; if the diff result overflows, it is returned as overflow.
 
 **Applicable data types**: Numeric type, timestamp and bool type.
 
