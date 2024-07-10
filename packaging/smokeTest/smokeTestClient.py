@@ -236,5 +236,8 @@ if not leftFile:
     print("**********Test Result: uninstall test passed! **********")
 else:
     print("!!!!!!!!!!!Test Result: uninstall test failed! !!!!!!!!!!")
-sys.exit(0)
+if taosBenchmark_test_result and taos_test_result and version_test_result and not leftFile:
+    sys.exit(0)
+else:
+    sys.exit(1)
 

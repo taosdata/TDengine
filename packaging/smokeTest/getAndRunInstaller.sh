@@ -18,7 +18,7 @@ function usage() {
 #parameter
 scriptDir=$(dirname $(readlink -f $0))
 version="3.0.1.7"
-originversion="3.0.1.7"
+originversion="smoking"
 testFile="server"
 verMode="communtity"
 sourcePath="nas"
@@ -96,7 +96,7 @@ if [[ "$packageType" = "tar" ]] ;then
 fi
 
 tdPath="${prePackage}-${version}"
-originTdpPath="${prePackage}-${originversion}"
+#originTdpPath="${prePackage}-${originversion}"
 
 packageName="${tdPath}-Linux-${cpuType}${packageLite}.${packageType}"
 #originPackageName="${originTdpPath}-Linux-${cpuType}${packageLite}.${packageType}"
@@ -114,7 +114,7 @@ elif [ ${testFile} = "client" ];then
 fi
 
 
-echo "tdPath:${tdPath},originTdpPath:${originTdpPath},packageName:${packageName}}"
+echo "tdPath:${tdPath},packageName:${packageName}}"
 function cmdInstall {
 command=$1
 if command -v ${command} ;then
@@ -156,7 +156,7 @@ file=$1
 versionPath=$2
 sourceP=$3
 nasServerIP="192.168.1.213"
-packagePath="/nas/TDengine/smoking/v${versionPath}/${verMode}"
+packagePath="/nas/TDengine/${originversion}/v${versionPath}/${verMode}"
 if [ -f  ${file}  ];then
     echoColor  YD "${file} already exists ,it will delete it and download  it again "
     rm -rf ${file}
