@@ -18,6 +18,7 @@
 #include "audit.h"
 #include "libs/function/tudf.h"
 #include "tgrant.h"
+#include "tcompare.h"
 
 #define DM_INIT_AUDIT()              \
   do {                               \
@@ -163,6 +164,7 @@ int32_t dmInit() {
   if (dmInitMonitor() != 0) return -1;
   if (dmInitAudit() != 0) return -1;
   if (dmInitDnode(dmInstance()) != 0) return -1;
+  if (InitRegexCache() != 0) return -1;
 #if defined(USE_S3)
   if (s3Begin() != 0) return -1;
 #endif
@@ -192,6 +194,7 @@ void dmCleanup() {
   udfStopUdfd();
   taosStopCacheRefreshWorker();
   dmDiskClose();
+  DestroyRegexCache();
 
 #if defined(USE_S3)
   s3End();

@@ -1667,6 +1667,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       }
     } else {
       for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
+        if (terrno != TSDB_CODE_SUCCESS) break;
         int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
         int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
@@ -1688,6 +1689,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   } else {
     //  if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_JSON || GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_JSON) {
     for (int32_t i = startIndex; i < numOfRows && i >= startIndex; i += step) {
+      if (terrno != TSDB_CODE_SUCCESS) break;
       int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
       int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
