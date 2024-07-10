@@ -171,7 +171,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "Remote server REST API (taosAdapter) port.",
             "placeholder": "6041",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
@@ -1637,7 +1637,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "The port of InfluxDB",
             "placeholder": "8086",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {}
@@ -1924,7 +1924,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "The port of OpenTSDB",
             "placeholder": "4242",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {}
@@ -2103,7 +2103,7 @@ export function getDataSources(lang) {
             "display": "MQTT Port",
             "description": "MQTT server port",
             "placeholder": "1883",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           }
         },
@@ -2375,7 +2375,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "Kafka Server Port",
             "placeholder": "9092",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
         },
@@ -2803,7 +2803,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "AVEVA Historian SQL Server port",
             "placeholder": "1433",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {}
@@ -3197,7 +3197,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "The port of MySQL.",
             "placeholder": "3306",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
@@ -3430,7 +3430,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "The port of PostgreSQL.",
             "placeholder": "5432",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
@@ -3653,7 +3653,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "The port of Oracle.",
             "placeholder": "1521",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
@@ -3839,7 +3839,7 @@ export function getDataSources(lang) {
             "display": "Port",
             "description": "The port of SQL Server.",
             "placeholder": "1433",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
           "subject": {
@@ -4223,7 +4223,7 @@ export function getDataSources(lang) {
             "display": "端口",
             "description": "TDengine REST API 服务端口。",
             "placeholder": "6041",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
@@ -5683,7 +5683,7 @@ export function getDataSources(lang) {
             "display": "端口",
             "description": "InfluxDB 数据库的服务端口。",
             "placeholder": "8086",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {}
@@ -5970,7 +5970,7 @@ export function getDataSources(lang) {
             "display": "端口",
             "description": "OpenTSDB 数据库的服务端口。",
             "placeholder": "4242",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {}
@@ -6149,7 +6149,7 @@ export function getDataSources(lang) {
             "display": "MQTT 端口",
             "description": "MQTT 服务器端口",
             "placeholder": "1883",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           }
         },
@@ -6433,7 +6433,7 @@ export function getDataSources(lang) {
             "display": "服务端口",
             "description": "Kafka 的端口",
             "placeholder": "9092",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
         },
@@ -6859,7 +6859,7 @@ export function getDataSources(lang) {
             "display": "Server 端口",
             "description": "AVEVA Historian SQL Server 的端口",
             "placeholder": "1433",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {}
@@ -7253,7 +7253,7 @@ export function getDataSources(lang) {
             "display": "服务端口",
             "description": "MySQL 的端口",
             "placeholder": "3306",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
@@ -7486,7 +7486,7 @@ export function getDataSources(lang) {
             "display": "服务端口",
             "description": "PostgreSQL 的端口",
             "placeholder": "5432",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
@@ -7709,7 +7709,7 @@ export function getDataSources(lang) {
             "display": "服务端口",
             "description": "Oracle 的端口",
             "placeholder": "1521",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
@@ -7895,7 +7895,7 @@ export function getDataSources(lang) {
             "display": "服务端口",
             "description": "SQL Server 的端口",
             "placeholder": "1433",
-            "pattern": "^(0|[1-9]\d{0,3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$",
+            "pattern": "^[0-9]$|(^[1-9][0-9]$)|(^[1-9][0-9][0-9]$)|(^[1-9][0-9][0-9][0-9]$)|(^[1-6][0-5][0-5][0-3][0-5]$)",
             "patternMsg": "端口号的范围是 0-65535",
           },
           "subject": {
