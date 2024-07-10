@@ -2363,7 +2363,8 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
     averageRow: "平均返回行数",
     maximumRow: "最大返回行数",
     executionTimes: "执行次数",
-    deDuplication: "去除重复 SQL"
+    deDuplication: "去除重复 SQL",
+    queryTimeTip: "min 不能大于 max"
   },
   taosagents: {
     step1: "安装",
