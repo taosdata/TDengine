@@ -80,6 +80,9 @@ void taos_cleanup(void) {
   clientConnRefPool = -1;
   taosCloseRef(id);
 
+  while (atomic_load_8(&clientTransportCount) > 0) {
+    taosMsleep(20);
+  }
   rpcCleanup();
   tscDebug("rpc cleanup");
 
