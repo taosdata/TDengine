@@ -534,6 +534,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.qsizeFp = (GetQueueSizeFp)vmGetQueueSize;
   pMgmt->msgCb.mgmt = pMgmt;
   taosThreadRwlockInit(&pMgmt->lock, NULL);
+  taosThreadMutexInit(&pMgmt->createLock, NULL);
 
   pMgmt->pTfs = pInput->pTfs;
   if (pMgmt->pTfs == NULL) {

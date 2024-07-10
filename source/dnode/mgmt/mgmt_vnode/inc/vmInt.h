@@ -34,12 +34,14 @@ typedef struct SVnodeMgmt {
   SAutoQWorkerPool streamPool;
   SWWorkerPool     fetchPool;
   SSingleWorker    mgmtWorker;
+  SSingleWorker    mgmtMultiWorker;
   SHashObj        *hash;
   TdThreadRwlock   lock;
   SVnodesStat      state;
   STfs            *pTfs;
   TdThread         thread;
   bool             stop;
+  TdThreadMutex    createLock;
 } SVnodeMgmt;
 
 typedef struct {
@@ -68,6 +70,7 @@ typedef struct {
   STaosQueue   *pQueryQ;
   STaosQueue   *pStreamQ;
   STaosQueue   *pFetchQ;
+  STaosQueue   *pMultiMgmQ;
 } SVnodeObj;
 
 typedef struct {
@@ -121,6 +124,7 @@ int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToMultiMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
