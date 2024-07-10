@@ -152,6 +152,8 @@ if $data31 != 2 then
   goto loop1
 endi
 
+sleep 5000
+
 sql delete from ts2 where ts = 1648791243000 ;
 
 $loop_count = 0
