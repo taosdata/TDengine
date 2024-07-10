@@ -84,8 +84,6 @@ void taos_cleanup(void) {
   taosConvDestroy();
 
   tmqMgmtClose();
-  taosHashCleanup(appInfo.pInstMap);
-  taosHashCleanup(appInfo.pInstMapByClusterId);
 
   tscInfo("all local resources released");
   taosCleanupCfg();
