@@ -2194,10 +2194,16 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc ||
-      (pSelect->hasIndefiniteRowsFunc &&
-       (FUNC_RETURN_ROWS_INDEFINITE == pSelect->returnRows || pSelect->returnRows != fmGetFuncReturnRows(pFunc)))) {
+  if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  }
+  if (pSelect->hasIndefiniteRowsFunc &&
+       (FUNC_RETURN_ROWS_INDEFINITE == pSelect->returnRows || pSelect->returnRows != fmGetFuncReturnRows(pFunc)) &&
+       (pSelect->lastProcessByRowFuncId == -1 || !fmIsProcessByRowFunc(pFunc->funcId))) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  }
+  if (pSelect->lastProcessByRowFuncId != -1 && pSelect->lastProcessByRowFuncId != pFunc->funcId) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC);
   }
   if (NULL != pSelect->pWindow || NULL != pSelect->pGroupByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
@@ -2461,6 +2467,9 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
       pSelect->returnRows = fmGetFuncReturnRows(pFunc);
     } else if (fmIsInterpFunc(pFunc->funcId)) {
       pSelect->returnRows = fmGetFuncReturnRows(pFunc);
+    }
+    if (fmIsProcessByRowFunc(pFunc->funcId)) {
+      pSelect->lastProcessByRowFuncId = pFunc->funcId;
     }
 
     pSelect->hasMultiRowsFunc = pSelect->hasMultiRowsFunc ? true : fmIsMultiRowsFunc(pFunc->funcId);
@@ -3398,6 +3407,7 @@ static int32_t checkIsEmptyResult(STranslateContext* pCxt, SSelectStmt* pSelect)
 static int32_t resetSelectFuncNumWithoutDup(SSelectStmt* pSelect) {
   if (pSelect->selectFuncNum <= 1) return TSDB_CODE_SUCCESS;
   pSelect->selectFuncNum = 0;
+  pSelect->lastProcessByRowFuncId = -1;
   SNodeList* pNodeList = nodesMakeList();
   int32_t    code = nodesCollectSelectFuncs(pSelect, SQL_CLAUSE_FROM, NULL, fmIsSelectFunc, pNodeList);
   if (TSDB_CODE_SUCCESS != code) {
