@@ -3121,6 +3121,7 @@ _error:
 static void clearStreamSessionOperator(SStreamSessionAggOperatorInfo* pInfo) {
   tSimpleHashClear(pInfo->streamAggSup.pResultRows);
   pInfo->streamAggSup.stateStore.streamStateSessionClear(pInfo->streamAggSup.pState);
+  pInfo->clearState = false;
 }
 
 void deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
@@ -3170,7 +3171,6 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       // semi session operator clear disk buffer
       clearStreamSessionOperator(pInfo);
       setStreamOperatorCompleted(pOperator);
-      pInfo->clearState = false;
       return NULL;
     }
   }
