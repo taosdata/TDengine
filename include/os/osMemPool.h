@@ -39,19 +39,22 @@ typedef enum MemPoolUsageLevel {
   E_MEM_USAGE_MAX_VALUE
 } MemPoolUsageLevel;
 
-typedef void (*decConcSessionNum)(void);
-typedef void (*incConcSessionNum)(void);
-typedef void (*setConcSessionNum)(int32_t);
-typedef bool (*retireCollection)(uint64_t, int64_t, bool);
+typedef void (*mpDecConcSessionNum)(void);
+typedef void (*mpIncConcSessionNum)(void);
+typedef void (*mpSetConcSessionNum)(int32_t);
+typedef bool (*mpRetireCollection)(uint64_t, int64_t, bool);
+typedef void (*mpCfgUpdate)(void);
 
 typedef struct SMemPoolCallBack {
-  decConcSessionNum decSessFp;
-  incConcSessionNum incSessFp;
-  setConcSessionNum setSessFp;
-  retireCollection  retireFp;
+  mpDecConcSessionNum decSessFp;
+  mpIncConcSessionNum incSessFp;
+  mpSetConcSessionNum setSessFp;
+  mpRetireCollection  retireFp;
+  mpCfgUpdate         cfgUpdateFp;
 } SMemPoolCallBack;
 
 typedef struct SMemPoolCfg {
+  bool               autoMaxSize;
   int64_t            maxSize;
   int64_t            sessionExpectSize;
   int64_t            collectionQuota;

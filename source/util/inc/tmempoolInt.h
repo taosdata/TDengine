@@ -31,6 +31,7 @@ extern "C" {
 #define MP_MAX_KEEP_FREE_CHUNK_NUM  1000
 #define MP_MAX_MALLOC_MEM_SIZE      0xFFFFFFFFFF
 
+#define MP_DEFAULT_MEM_CHK_INTERVAL_MS       100
 
 #define MP_RETIRE_HIGH_THRESHOLD_PERCENT          (0.95)
 #define MP_RETIRE_MID_THRESHOLD_PERCENT           (0.9)
@@ -291,8 +292,11 @@ typedef enum EMPMemStrategy {
 typedef struct SMemPoolMgmt {
   EMPMemStrategy strategy;
   SArray*        poolList;
-  TdThreadMutex  poolMutex;
+  SRWLatch       poolLock;
   TdThread       poolMgmtThread;
+  tsem2_t        threadSem;
+  int8_t         modExit;
+  int64_t        waitMs;
   int32_t        code;
 } SMemPoolMgmt;
 

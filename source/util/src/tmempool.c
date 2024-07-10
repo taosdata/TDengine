@@ -22,7 +22,7 @@
 static TdThreadOnce  gMPoolInit = PTHREAD_ONCE_INIT;
 threadlocal void* threadPoolHandle = NULL;
 threadlocal void* threadPoolSession = NULL;
-SMemPoolMgmt gMPMgmt;
+SMemPoolMgmt gMPMgmt = {0};
 
 int32_t memPoolCheckCfg(SMemPoolCfg* cfg) {
   if (cfg->chunkSize < MEMPOOL_MIN_CHUNK_SIZE || cfg->chunkSize > MEMPOOL_MAX_CHUNK_SIZE) {
@@ -187,6 +187,27 @@ int32_t memPoolEnsureChunks(SMemPool* pPool) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t memPoolApplyCfgUpdate(SMemPool* pPool) {
+  pPool->memRetireThreshold[0] = pPool->cfg.maxSize * MP_RETIRE_LOW_THRESHOLD_PERCENT;
+  pPool->memRetireThreshold[1] = pPool->cfg.maxSize * MP_RETIRE_MID_THRESHOLD_PERCENT;
+  pPool->memRetireThreshold[2] = pPool->cfg.maxSize * MP_RETIRE_HIGH_THRESHOLD_PERCENT;
+  pPool->memRetireUnit = pPool->cfg.maxSize * MP_RETIRE_UNIT_PERCENT;
+
+  if (E_MP_STRATEGY_CHUNK == gMPMgmt.strategy) {
+    pPool->maxChunkNum = pPool->cfg.maxSize / pPool->cfg.chunkSize;
+    if (pPool->maxChunkNum <= 0) {
+      uError("invalid memory pool max chunk num, maxSize:%" PRId64 ", chunkSize:%d", pPool->cfg.maxSize, pPool->cfg.chunkSize);
+      return TSDB_CODE_INVALID_MEM_POOL_PARAM;
+    }
+
+    pPool->readyChunkReserveNum = TMIN(pPool->cfg.threadNum * pPool->threadChunkReserveNum, pPool->maxChunkNum);
+
+    pPool->chunkCache.groupNum = TMAX(pPool->maxChunkNum / 10, MP_CHUNK_CACHE_ALLOC_BATCH_SIZE);
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t memPoolInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
   MP_ERR_RET(memPoolCheckCfg(cfg));
   
@@ -198,23 +219,13 @@ int32_t memPoolInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
     MP_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  pPool->memRetireThreshold[0] = pPool->cfg.maxSize * MP_RETIRE_LOW_THRESHOLD_PERCENT;
-  pPool->memRetireThreshold[1] = pPool->cfg.maxSize * MP_RETIRE_MID_THRESHOLD_PERCENT;
-  pPool->memRetireThreshold[2] = pPool->cfg.maxSize * MP_RETIRE_HIGH_THRESHOLD_PERCENT;
-  pPool->memRetireUnit = pPool->cfg.maxSize * MP_RETIRE_UNIT_PERCENT;
-  pPool->maxChunkNum = cfg->maxSize / cfg->chunkSize;
-  if (pPool->maxChunkNum <= 0) {
-    uError("invalid memory pool max chunk num, maxSize:%" PRId64 ", chunkSize:%d", cfg->maxSize, cfg->chunkSize);
-    return TSDB_CODE_INVALID_MEM_POOL_PARAM;
-  }
+  MP_ERR_RET(memPoolApplyCfgUpdate(pPool));
 
   pPool->ctrlInfo.statFlags = MP_STAT_FLAG_LOG_ALL;
   pPool->ctrlInfo.funcFlags = MP_CTRL_FLAG_PRINT_STAT;
 
   pPool->threadChunkReserveNum = 1;
-  pPool->readyChunkReserveNum = TMIN(cfg->threadNum * pPool->threadChunkReserveNum, pPool->maxChunkNum);
 
-  pPool->chunkCache.groupNum = TMAX(pPool->maxChunkNum / 10, MP_CHUNK_CACHE_ALLOC_BATCH_SIZE);
   pPool->chunkCache.nodeSize = sizeof(SMPChunk);
   pPool->NSChunkCache.groupNum = MP_NSCHUNK_CACHE_ALLOC_BATCH_SIZE;
   pPool->NSChunkCache.nodeSize = sizeof(SMPNSChunk);
@@ -785,13 +796,26 @@ void memPoolLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, 
 }
 
 void* memPoolMgmtThreadFunc(void* param) {
-  //TODO
+  while (0 == atomic_load_8(&gMPMgmt.modExit)) {
+    tsem2_timewait(&gMPMgmt.threadSem, gMPMgmt.waitMs);
+
+    taosRLockLatch(&gMPMgmt.poolLock);
+    int32_t poolNum = taosArrayGetSize(gMPMgmt.poolList);
+    for (int32_t i = 0; i < poolNum; ++i) {
+      SMemPool* pPool = (SMemPool*)taosArrayGetP(gMPMgmt.poolList, i);
+      if (pPool->cfg.cb.cfgUpdateFp) {
+        (*pPool->cfg.cb.cfgUpdateFp)(&pPool->cfg);
+      }
+    }
+    taosRUnLockLatch(&gMPMgmt.poolLock);
+  }
+  
   return NULL;
 }
 
 void taosMemPoolModInit(void) {
-  taosThreadMutexInit(&gMPMgmt.poolMutex, NULL);
-
+  taosInitRWLatch(&gMPMgmt.poolLock);
+  
   gMPMgmt.poolList = taosArrayInit(10, POINTER_BYTES);
   if (NULL == gMPMgmt.poolList) {
     gMPMgmt.code = TSDB_CODE_OUT_OF_MEMORY;
@@ -799,6 +823,15 @@ void taosMemPoolModInit(void) {
   }
 
   gMPMgmt.strategy = E_MP_STRATEGY_DIRECT;
+
+  gMPMgmt.code = tsem2_init(&gMPMgmt.threadSem, 0, 0);
+  if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
+    gMPMgmt.code = TAOS_SYSTEM_ERROR(errno);
+    qError("failed to init sem2, error: %x", gMPMgmt.code);
+    return;
+  }
+
+  gMPMgmt.waitMs = MP_DEFAULT_MEM_CHK_INTERVAL_MS;
   
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
@@ -817,9 +850,9 @@ int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle) {
   SMemPool* pPool = NULL;
   
   taosThreadOnce(&gMPoolInit, taosMemPoolModInit);
-  if (NULL == gMPMgmt.poolList) {
+  if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
     uError("init memory pool failed");
-    MP_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    MP_ERR_JRET(gMPMgmt.code);
   }
 
   pPool = (SMemPool*)taosMemoryCalloc(1, sizeof(SMemPool));
@@ -830,12 +863,12 @@ int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle) {
 
   MP_ERR_JRET(memPoolInit(pPool, poolName, cfg));
 
-  taosThreadMutexLock(&gMPMgmt.poolMutex);
+  taosWLockLatch(&gMPMgmt.poolLock);
   
   taosArrayPush(gMPMgmt.poolList, &pPool);
   pPool->slotId = taosArrayGetSize(gMPMgmt.poolList) - 1;
   
-  taosThreadMutexUnlock(&gMPMgmt.poolMutex);
+  taosWUnLockLatch(&gMPMgmt.poolLock);
 
 _return:
 
@@ -847,6 +880,10 @@ _return:
   *poolHandle = pPool;
 
   return code;
+}
+
+void taosMemPoolCfgUpdate() {
+
 }
 
 void taosMemPoolDestroySession(void* poolHandle, void* session) {

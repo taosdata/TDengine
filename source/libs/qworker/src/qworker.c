@@ -19,7 +19,7 @@ SQWorkerMgmt gQwMgmt = {
 };
 
 TdThreadOnce  gQueryPoolInit = PTHREAD_ONCE_INIT;
-SQueryMgmt gQueryMgmt;
+SQueryMgmt gQueryMgmt = {0};
 
 
 int32_t qwStopAllTasks(SQWorker *mgmt) {

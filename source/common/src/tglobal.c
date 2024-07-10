@@ -55,12 +55,13 @@ int32_t tsShellActivityTimer = 3;  // second
 
 // memory pool
 int8_t  tsQueryUseMemoryPool = 1;
+int32   tsQueryBufferPoolSize = 0; //MB
+int32_t tsSingleQueryMaxMemorySize = 0; //MB
 
 // queue & threads
 int32_t tsQueryMinConcurrentTaskNum = 1;
 int32_t tsQueryMaxConcurrentTaskNum = 0;
 int32_t tsQueryConcurrentTaskNum = 0;
-int64_t tsSingleQueryMaxMemorySize = 1000000; //MB
 
 int32_t tsNumOfRpcThreads = 1;
 int32_t tsNumOfRpcSessions = 30000;
@@ -678,7 +679,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
-  if (cfgAddInt64(pCfg, "singleQueryMaxMemorySize", tsSingleQueryMaxMemorySize, 100, 1000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "singleQueryMaxMemorySize", tsSingleQueryMaxMemorySize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "queryBufferPoolSize", tsQueryBufferPoolSize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
@@ -1144,7 +1146,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
 
   tsQueryUseMemoryPool = (bool)cfgGetItem(pCfg, "queryUseMemoryPool")->bval;
-  tsSingleQueryMaxMemorySize = cfgGetItem(pCfg, "singleQueryMaxMemorySize")->i64 * 1048576;
+  tsSingleQueryMaxMemorySize = cfgGetItem(pCfg, "singleQueryMaxMemorySize")->i32;
+  tsQueryBufferPoolSize = cfgGetItem(pCfg, "queryBufferPoolSize")->i32;
 
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsRetentionSpeedLimitMB = cfgGetItem(pCfg, "retentionSpeedLimitMB")->i32;
@@ -1599,7 +1602,9 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"s3UploadDelaySec", &tsS3UploadDelaySec},
                                          {"supportVnodes", &tsNumOfSupportVnodes},
                                          {"experimental", &tsExperimental},
-                                         {"maxTsmaNum", &tsMaxTsmaNum}};
+                                         {"maxTsmaNum", &tsMaxTsmaNum},
+                                         {"queryBufferPoolSize", &tsQueryBufferPoolSize},
+                                         {"singleQueryMaxMemorySize", &tsSingleQueryMaxMemorySize}};
 
     if (taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true) != 0) {
       taosCfgSetOption(options, tListLen(options), pItem, false);
