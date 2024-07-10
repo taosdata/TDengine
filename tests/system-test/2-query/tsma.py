@@ -1610,7 +1610,7 @@ class TDTestCase:
         
     # def test_split_dnode(self):
 
-    def test_create_recursive_tsma_interval(self, db: str, tb: str, func: list[str], interval: str, recursive_interval: str, succ: bool, code: int):
+    def test_create_recursive_tsma_interval(self, db: str, tb: str, func, interval: str, recursive_interval: str, succ: bool, code: int):
         self.create_tsma('tsma1', db, tb, func, interval)
         sql = f'CREATE RECURSIVE TSMA tsma2 ON tsma1 INTERVAL({recursive_interval})'
         if not succ:
