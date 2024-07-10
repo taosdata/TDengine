@@ -1,0 +1,459 @@
+use std::str::FromStr;
+
+use crate::plugins::config::AdvancedOptions;
+use crate::runners::mongodb::config::connect::ConnectConfig;
+use chrono::{DateTime, Duration, FixedOffset, Utc};
+use core::result::Result::Ok;
+use mongodb::bson::{Bson, Document};
+use taos::Dsn;
+
+pub mod connect;
+
+#[derive(Debug, Clone)]
+pub struct MongoDBConfig {
+    // task info
+    pub task_id: Option<i64>,
+    pub sub_task_id: Option<String>,
+    pub ipc_port: Option<u16>,
+    // the datasource config
+    pub connect: ConnectConfig,
+    // the task config
+    pub task: TaskConfig,
+    // the advanced options
+    pub advanced: AdvancedOptions,
+}
+
+impl MongoDBConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        if dsn.driver != "mongodb" {
+            return Err(anyhow::anyhow!("invalid driver: {}", dsn.driver));
+        }
+        Ok(MongoDBConfig {
+            task_id: Self::parse_task_id(dsn),
+            sub_task_id: None,
+            ipc_port: None,
+            connect: ConnectConfig::from_dsn(dsn)?,
+            task: TaskConfig::from_dsn(dsn)?,
+            advanced: AdvancedOptions::from_dsn(dsn)?,
+        })
+    }
+
+    fn parse_task_id(dsn: &Dsn) -> Option<i64> {
+        dsn.params
+            .get("taskId")
+            .map(|s| {
+                s.parse::<i64>()
+                    .map(Some)
+                    .map_err(|err| {
+                        tracing::warn!("failed to parse taskId: {}, use None", s);
+                        err
+                    })
+                    .unwrap_or(None)
+            })
+            .flatten()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskConfig {
+    pub database: String,
+    pub collection: String,
+    pub sql: String,
+    pub start: DateTime<Utc>,
+    pub end: Option<DateTime<Utc>>,
+    pub time_zone: String,
+    pub interval: Duration,
+    pub delay: Duration,
+    pub sample_data_limit: u32,
+}
+
+impl TaskConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        Ok(TaskConfig {
+            database: Self::parse_database(dsn)?,
+            collection: Self::parse_collection(dsn)?,
+            sql: Self::parse_sql(dsn)?,
+            start: Self::parse_start(dsn)?,
+            end: Self::parse_end(dsn)?,
+            time_zone: Self::parse_time_zone(dsn)?,
+            interval: Self::parse_interval(dsn)?,
+            delay: Self::parse_delay(dsn)?,
+            sample_data_limit: Self::parse_sample_data_limit(dsn)?,
+        })
+    }
+
+    fn parse_database(dsn: &Dsn) -> anyhow::Result<String> {
+        Ok(dsn
+            .params
+            .get("database")
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("database is required"))?)
+    }
+
+    fn parse_collection(dsn: &Dsn) -> anyhow::Result<String> {
+        Ok(dsn
+            .params
+            .get("collection")
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("collection is required"))?)
+    }
+
+    fn parse_sql(dsn: &Dsn) -> anyhow::Result<String> {
+        Ok(dsn
+            .params
+            .get("sql")
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("sql is required"))?)
+    }
+
+    fn parse_start(dsn: &Dsn) -> anyhow::Result<DateTime<Utc>> {
+        let start = dsn
+            .params
+            .get("start")
+            .map(|s| {
+                let start_time = DateTime::parse_from_rfc3339(s)
+                    .map_err(|e| {
+                        anyhow::anyhow!(
+                            "failed to parse start: {}, cause: {}",
+                            s.to_string(),
+                            e.to_string()
+                        )
+                    })?
+                    .into();
+                anyhow::Ok(start_time)
+            })
+            .transpose()?
+            .expect("start is required");
+        Ok(start)
+    }
+
+    fn parse_end(dsn: &Dsn) -> anyhow::Result<Option<DateTime<Utc>>> {
+        let end = dsn
+            .params
+            .get("end")
+            .map(|s| {
+                let end_time = DateTime::parse_from_rfc3339(s)
+                    .map_err(|e| {
+                        anyhow::anyhow!(
+                            "failed to parse end: {}, cause: {}",
+                            s.to_string(),
+                            e.to_string()
+                        )
+                    })?
+                    .into();
+                anyhow::Ok(Some(end_time))
+            })
+            .transpose()?
+            .unwrap_or(None);
+        Ok(end)
+    }
+
+    fn parse_time_zone(dsn: &Dsn) -> anyhow::Result<String> {
+        // try to parse from start time
+        let start = dsn.params.get("start");
+        let time_zone = match start {
+            Some(start) => {
+                if !start.is_empty() {
+                    let start_time = DateTime::parse_from_rfc3339(start);
+                    match start_time {
+                        Result::Ok(start_time) => start_time.format("%Z").to_string(),
+                        Err(_) => "+00:00".to_string(),
+                    }
+                } else {
+                    "+00:00".to_string()
+                }
+            }
+            None => "+00:00".to_string(),
+        };
+        // get time_zone from params or use the time_zone in start time
+        Ok(dsn
+            .params
+            .get("time_zone")
+            .unwrap_or(&time_zone)
+            .to_string())
+    }
+
+    fn parse_interval(dsn: &Dsn) -> anyhow::Result<Duration> {
+        Ok(dsn
+            .params
+            .get("interval")
+            .map(|s| {
+                let duration = parse_duration::parse(s).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse interval: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
+                let duration = Duration::from_std(duration).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed parse interval: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
+                anyhow::Ok(duration)
+            })
+            .transpose()?
+            .unwrap_or(Duration::try_days(1).unwrap()))
+    }
+
+    fn parse_delay(dsn: &Dsn) -> anyhow::Result<Duration> {
+        Ok(dsn
+            .params
+            .get("delay")
+            .map(|s| {
+                let delay = parse_duration::parse(s).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse delay: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
+                let delay = Duration::from_std(delay).map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed parse delay: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
+                anyhow::Ok(delay)
+            })
+            .transpose()?
+            .unwrap_or(Duration::try_seconds(5).unwrap()))
+    }
+
+    fn parse_sample_data_limit(dsn: &Dsn) -> anyhow::Result<u32> {
+        Ok(dsn
+            .params
+            .get("sample_data_limit")
+            .map(|s| {
+                let limit = s.parse::<u32>().map_err(|err| {
+                    anyhow::anyhow!(
+                        "failed to parse sample_data_limit: {}, cause: {}",
+                        s.to_string(),
+                        err.to_string()
+                    )
+                })?;
+                anyhow::Ok(limit)
+            })
+            .transpose()?
+            .unwrap_or(5))
+    }
+
+    pub fn generate_database(&self) -> anyhow::Result<String> {
+        // replace ${start} and ${end} with the actual start and end time
+        let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
+        let start_tz = self.start.with_timezone(&time_zone);
+
+        let mut database = self.database.clone();
+
+        database = database.replace("${Y}", start_tz.format("%Y").to_string().as_str());
+        database = database.replace("${y}", start_tz.format("%y").to_string().as_str());
+        database = database.replace("${m}", start_tz.format("%m").to_string().as_str());
+        database = database.replace("${b}", start_tz.format("%b").to_string().as_str());
+        database = database.replace("${B}", start_tz.format("%B").to_string().as_str());
+        database = database.replace("${d}", start_tz.format("%d").to_string().as_str());
+        database = database.replace("${j}", start_tz.format("%j").to_string().as_str());
+        database = database.replace("${F}", start_tz.format("%F").to_string().as_str());
+        database = database.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
+        database = database.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
+        database = database.replace("${md}", start_tz.format("%m%d").to_string().as_str());
+        database = database.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
+        database = database.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
+        database = database.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
+        anyhow::Ok(database)
+    }
+
+    pub fn generate_collection(&self) -> anyhow::Result<String> {
+        // replace ${start} and ${end} with the actual start and end time
+        let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
+        let start_tz = self.start.with_timezone(&time_zone);
+
+        let mut collection = self.collection.clone();
+
+        collection = collection.replace("${Y}", start_tz.format("%Y").to_string().as_str());
+        collection = collection.replace("${y}", start_tz.format("%y").to_string().as_str());
+        collection = collection.replace("${m}", start_tz.format("%m").to_string().as_str());
+        collection = collection.replace("${b}", start_tz.format("%b").to_string().as_str());
+        collection = collection.replace("${B}", start_tz.format("%B").to_string().as_str());
+        collection = collection.replace("${d}", start_tz.format("%d").to_string().as_str());
+        collection = collection.replace("${j}", start_tz.format("%j").to_string().as_str());
+        collection = collection.replace("${F}", start_tz.format("%F").to_string().as_str());
+        collection = collection.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
+        collection = collection.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
+        collection = collection.replace("${md}", start_tz.format("%m%d").to_string().as_str());
+        collection = collection.replace("${dm}", start_tz.format("%d%m").to_string().as_str());
+        collection = collection.replace("${Yj}", start_tz.format("%Y%j").to_string().as_str());
+        collection = collection.replace("${yj}", start_tz.format("%y%j").to_string().as_str());
+        anyhow::Ok(collection)
+    }
+
+    pub fn generate_filter(&self) -> anyhow::Result<Document> {
+        // replace ${start} and ${end} with the actual start and end time
+        let start = self.start;
+        let end = self.end.unwrap_or(DateTime::<Utc>::from(Utc::now()));
+        let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
+
+        let start_tz = start.with_timezone(&time_zone);
+        let end_tz = end.with_timezone(&time_zone);
+
+        let mut sql = self.sql.clone();
+
+        // whether the sql contains time range
+        let mut time_range_exist = false;
+
+        if sql.contains("${start_datetime}") && sql.contains("${end_datetime}") {
+            let query_start = Bson::DateTime(mongodb::bson::DateTime::from_millis(
+                start_tz.timestamp_millis() as i64,
+            ));
+            let query_end = Bson::DateTime(mongodb::bson::DateTime::from_millis(
+                end_tz.timestamp_millis() as i64,
+            ));
+            sql = sql
+                .replace(
+                    "${start_datetime}",
+                    &serde_json::to_string(&query_start).unwrap().as_str(),
+                )
+                .replace(
+                    "${end_datetime}",
+                    &serde_json::to_string(&query_end).unwrap().as_str(),
+                );
+            time_range_exist = true;
+        }
+        if sql.contains("${start_timestamp}") && sql.contains("${end_timestamp}") {
+            let query_start = Bson::Timestamp(mongodb::bson::Timestamp {
+                time: start_tz.timestamp() as u32,
+                increment: 0,
+            });
+            let query_end = Bson::Timestamp(mongodb::bson::Timestamp {
+                time: end_tz.timestamp() as u32,
+                increment: 0,
+            });
+            sql = sql
+                .replace(
+                    "${start_timestamp}",
+                    &serde_json::to_string(&query_start).unwrap().as_str(),
+                )
+                .replace(
+                    "${end_timestamp}",
+                    &serde_json::to_string(&query_end).unwrap().as_str(),
+                );
+            time_range_exist = true;
+        }
+        if !time_range_exist {
+            anyhow::bail!("invalid query template, missing start and end");
+        }
+        let document: Result<Document, serde_json::Error> = serde_json::from_str(sql.as_str());
+        match document {
+            Ok(document) => anyhow::Ok(document),
+            Err(e) => anyhow::bail!("failed to parse sql: {}", e),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::get_data_dir;
+
+    use super::*;
+
+    #[test]
+    fn test_parse_config_invalid_driver() {
+        let dsn = Dsn::from_str("mongodbx://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
+            .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn);
+        dbg!(&config);
+        assert!(config.is_err());
+    }
+
+    #[test]
+    fn test_parse_config() {
+        let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?load_balanced=true&direct_connection=true&repl_set_name=repl&local_threshold=10ms&mechanism=MongoDbCr&source=admin&app_name=appname&compressors=zstd&tls=true&ca_file_path=@./file/ca.pem&cert_key_file_path=@./file/cert.pem&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
+            .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        dbg!(&config);
+        assert_eq!(config.connect.host, "localhost");
+        assert_eq!(config.connect.port, 27017);
+        assert_eq!(config.connect.load_balanced, true);
+        assert_eq!(config.connect.direct_connection, true);
+        assert_eq!(config.connect.repl_set_name, Some("repl".to_string()));
+        assert_eq!(
+            config.connect.local_threshold,
+            std::time::Duration::from_millis(10)
+        );
+        assert_eq!(config.connect.mechanism, Some("MongoDbCr".to_string()));
+        assert_eq!(config.connect.source, Some("admin".to_string()));
+        assert_eq!(config.connect.app_name, Some("appname".to_string()));
+        assert_eq!(config.connect.compressors, Some("zstd".to_string()));
+        assert_eq!(config.connect.tls, true);
+        assert_eq!(
+            config.connect.ca_file_path,
+            Some(get_data_dir().join("./file/ca.pem").display().to_string()),
+        );
+        assert_eq!(
+            config.connect.cert_key_file_path,
+            Some(get_data_dir().join("./file/cert.pem").display().to_string()),
+        );
+        assert_eq!(config.task.database, "test_taosx");
+        assert_eq!(config.task.collection, "metrics");
+        assert_eq!(
+            config.task.sql,
+            "{\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}"
+        );
+        assert_eq!(
+            config.task.start,
+            "2024-07-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap()
+        );
+        assert_eq!(
+            config.task.end,
+            Some("2024-08-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap())
+        );
+        assert_eq!(config.task.time_zone, "+00:00");
+        assert_eq!(config.task.interval, Duration::try_hours(12).unwrap());
+        assert_eq!(config.task.delay, Duration::try_seconds(0).unwrap());
+        assert_eq!(config.task.sample_data_limit, 4);
+    }
+
+    #[test]
+    fn test_parse_time_zone() {
+        // time_zone exists
+        let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?database=test_taosx&collection=metrics&sql={}&time_zone=+02:00&start=2021-01-01T00:00:00Z")
+            .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+02:00");
+
+        // time_zone doesn't exists, start exists
+        let dsn = Dsn::from_str(
+            "mongodb://admin:123456@localhost:27017?database=test_taosx&collection=metrics&sql={}&start=2021-01-01T00:00:00+03:00",
+        )
+        .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+03:00");
+
+        // time_zone doesn't exists, start's time_zone is zero
+        let dsn = Dsn::from_str(
+            "mongodb://admin:123456@localhost:27017?database=test_taosx&collection=metrics&sql={}&start=2021-01-01T00:00:00Z",
+        )
+        .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.task.time_zone, "+00:00");
+    }
+
+    #[test]
+    fn test_generate_filter() {
+        // with type datatime
+        let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?load_balanced=true&direct_connection=true&repl_set_name=repl&local_threshold=10ms&mechanism=MongoDbCr&source=admin&app_name=appname&compressors=zstd&tls=true&ca_file_path=@./file/ca.pem&cert_key_file_path=@./file/cert.pem&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
+            .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        let filter = config.task.generate_filter().unwrap();
+        dbg!(&filter);
+
+        // with type timestamp
+        let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?load_balanced=true&direct_connection=true&repl_set_name=repl&local_threshold=10ms&mechanism=MongoDbCr&source=admin&app_name=appname&compressors=zstd&tls=true&ca_file_path=@./file/ca.pem&cert_key_file_path=@./file/cert.pem&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
+            .unwrap();
+        let config = MongoDBConfig::from_dsn(&dsn).unwrap();
+        let filter = config.task.generate_filter().unwrap();
+        dbg!(&filter);
+    }
+}

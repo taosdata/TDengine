@@ -411,7 +411,8 @@ pub async fn init_task_metrics(
             | runners::mysql::MYSQL_ID
             | runners::postgres::POSTGRES_ID
             | runners::oracle::ORACLE_ID
-            | runners::mssql::MSSQL_ID,
+            | runners::mssql::MSSQL_ID
+            | runners::mongodb::MONGODB_ID,
             "taos",
         ) => {
             let metrics = try_get_metrics::<IpcMetrics>(task_id).await;

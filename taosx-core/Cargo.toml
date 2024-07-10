@@ -153,6 +153,14 @@ rumqttc = "0.24.0"
 rustls-pemfile = "2"
 rustls-native-certs = "0.7"
 
+mongodb = { version="3.0.0", features = [
+    "aws-auth", 
+    "zstd-compression", 
+    "zlib-compression", 
+    "snappy-compression", 
+    "openssl-tls"
+] }
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"
