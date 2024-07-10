@@ -802,7 +802,7 @@ class TDTestCase:
 
     def test_create_recursive_tsma_interval(self, db: str, tb: str, func, interval: str, recursive_interval: str, succ: bool, code: int):
         self.create_tsma('tsma1', db, tb, func, interval)
-        sql = f'CREATE RECURSIVE TSMA tsma2 ON tsma1 INTERVAL({recursive_interval})'
+        sql = f'CREATE RECURSIVE TSMA tsma2 ON {db}.tsma1 INTERVAL({recursive_interval})'
         if not succ:
             tdSql.error(sql, code)
         else:
@@ -838,6 +838,7 @@ class TDTestCase:
                 ('12h', '1y', False), ('1h', '1n', True), ('1h', '1y', True),
                 ('12n', '1y', False), ('2d','1n',False), ('55m', '55h', False), ('7m','7d',False),
                 ]
+        tdSql.execute('use db')
         for (i, ri, ret) in examples:
             self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471099)
 
@@ -847,32 +848,32 @@ class TDTestCase:
         self.check(self.test_bigger_tsma_interval_query(func))
 
         ctxs = []
-        ctxs.append(TSMAQCBuilder().with_sql('SELECT max(c1) FROM meters').should_query_with_tsma('tsma3').get_qc())
+        ctxs.append(TSMAQCBuilder().with_sql('SELECT max(c1) FROM db.meters').should_query_with_tsma('tsma3').get_qc())
         ctxs.append(TSMAQCBuilder()
-                    .with_sql('SELECT max(c1) FROM meters WHERE ts > "2024-09-03 18:40:00.324"')
+                    .with_sql('SELECT max(c1) FROM db.meters WHERE ts > "2024-09-03 18:40:00.324"')
                     .should_query_with_table('meters', '2024-09-03 18:40:00.325', '2024-12-31 23:59:59.999')
                     .should_query_with_tsma('tsma3', '2025-01-01 00:00:00.000', UsedTsma.TS_MAX)
                     .get_qc())
 
         ctxs.append(TSMAQCBuilder()
-                    .with_sql('SELECT max(c1) FROM meters WHERE ts >= "2024-09-03 18:00:00.000"')
+                    .with_sql('SELECT max(c1) FROM db.meters WHERE ts >= "2024-09-03 18:00:00.000"')
                     .should_query_with_tsma('tsma1', '2024-09-03 18:00:00.000', '2024-12-31 23:59:59.999')
                     .should_query_with_tsma('tsma3', '2025-01-01 00:00:00.000', UsedTsma.TS_MAX)
                     .get_qc())
 
         ctxs.append(TSMAQCBuilder()
-                    .with_sql('SELECT max(c1) FROM meters WHERE ts >= "2024-09-01 00:00:00.000"')
+                    .with_sql('SELECT max(c1) FROM db.meters WHERE ts >= "2024-09-01 00:00:00.000"')
                     .should_query_with_tsma('tsma2', '2024-09-01 00:00:00.000', '2024-12-31 23:59:59.999')
                     .should_query_with_tsma('tsma3', '2025-01-01 00:00:00.000', UsedTsma.TS_MAX)
                     .get_qc())
 
         ctxs.append(TSMAQCBuilder()
-                    .with_sql("SELECT max(c1) FROM meters INTERVAL(12n)")
+                    .with_sql("SELECT max(c1) FROM db.meters INTERVAL(12n)")
                     .should_query_with_tsma('tsma3')
                     .get_qc())
 
         ctxs.append(TSMAQCBuilder()
-                    .with_sql("SELECT max(c1) FROM meters INTERVAL(13n)")
+                    .with_sql("SELECT max(c1) FROM db.meters INTERVAL(13n)")
                     .should_query_with_tsma('tsma2')
                     .get_qc())
 
@@ -883,13 +884,13 @@ class TDTestCase:
                     .get_qc())
 
         ctxs.append(TSMAQCBuilder()
-                    .with_sql("SELECT max(c1), _wstart FROM meters WHERE ts >= '2024-09-03 18:40:00.324' INTERVAL(1d)")
+                    .with_sql("SELECT max(c1), _wstart FROM db.meters WHERE ts >= '2024-09-03 18:40:00.324' INTERVAL(1d)")
                     .should_query_with_table('meters', '2024-09-03 18:40:00.324', '2024-09-03 23:59:59:999')
                     .should_query_with_tsma('tsma1', '2024-09-04 00:00:00.000')
                     .get_qc())
 
         ctxs.append(TSMAQCBuilder()
-                    .with_sql("SELECT max(c1), _wstart FROM meters WHERE ts >= '2024-09-03 18:40:00.324' INTERVAL(1n)")
+                    .with_sql("SELECT max(c1), _wstart FROM db.meters WHERE ts >= '2024-09-03 18:40:00.324' INTERVAL(1n)")
                     .should_query_with_table('meters', '2024-09-03 18:40:00.324', '2024-09-30 23:59:59:999')
                     .should_query_with_tsma('tsma2', '2024-10-01 00:00:00.000')
                     .get_qc())
