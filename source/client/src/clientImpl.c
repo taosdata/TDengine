@@ -145,6 +145,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
       taosMemoryFree(p);
       return NULL;
     }
+    atomic_add_fetch_8(&clientTransportCount, 1);
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
       destroyAppInst(&p);

@@ -49,6 +49,7 @@ int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 int32_t  clientStop = -1;
+int8_t   clientTransportCount = 0;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -264,6 +265,7 @@ void closeTransporter(SAppInstInfo *pAppInfo) {
 
   tscDebug("free transporter:%p in app inst %p", pAppInfo->pTransporter, pAppInfo);
   rpcClose(pAppInfo->pTransporter);
+  atomic_sub_fetch_8(&clientTransportCount, 1);
 }
 
 static bool clientRpcRfp(int32_t code, tmsg_t msgType) {

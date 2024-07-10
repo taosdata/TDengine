@@ -343,6 +343,7 @@ extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 extern int32_t  timestampDeltaLimit;
 extern int64_t  lastClusterId;
+extern int8_t   clientTransportCount;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
