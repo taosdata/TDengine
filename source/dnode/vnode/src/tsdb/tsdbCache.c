@@ -851,7 +851,7 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
     rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
     for (int i = 0; i < num_keys; ++i) {
       SIdxKey        *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
-      SLastUpdateCtx *updCtx = (SLastUpdateCtx *)taosArrayGet(updCtxArray, i);
+      SLastUpdateCtx *updCtx = (SLastUpdateCtx *)taosArrayGet(updCtxArray, idxKey->idx);
       TSKEY           keyTs = updCtx->ts;
       SColVal        *pColVal = &updCtx->colVal;
 
