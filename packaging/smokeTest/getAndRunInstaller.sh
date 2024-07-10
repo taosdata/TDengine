@@ -114,7 +114,7 @@ elif [ ${testFile} = "client" ];then
 fi
 
 
-echo "tdPath:${tdPath},originTdpPath:${originTdpPath},packageName:${packageName},originPackageName:${originPackageName}"
+echo "tdPath:${tdPath},originTdpPath:${originTdpPath},packageName:${packageName}}"
 function cmdInstall {
 command=$1
 if command -v ${command} ;then
@@ -210,17 +210,17 @@ fi
 
 echoColor G "===== new workroom path ====="
 installPath="/usr/local/src/packageTest"
-oriInstallPath="/usr/local/src/packageTest/3.0"
+#oriInstallPath="/usr/local/src/packageTest/3.0"
 
 newPath ${installPath}
 
-newPath ${oriInstallPath}
+#newPath ${oriInstallPath}
 
 
-if [ -d ${oriInstallPath}/${originTdpPath} ] ;then
-    echoColor BD "rm -rf ${oriInstallPath}/${originTdpPath}/*"
-    rm -rf  ${oriInstallPath}/${originTdpPath}/*  
-fi
+#if [ -d ${oriInstallPath}/${originTdpPath} ] ;then
+#    echoColor BD "rm -rf ${oriInstallPath}/${originTdpPath}/*"
+#    rm -rf  ${oriInstallPath}/${originTdpPath}/*
+#fi
 
 if [ -d ${installPath}/${tdPath} ] ;then
     echoColor BD "rm -rf ${installPath}/${tdPath}/*"
@@ -229,7 +229,7 @@ fi
 
 echoColor G "===== download  installPackage ====="
 cd ${installPath} && wgetFile ${packageName} ${version}  ${sourcePath}
-cd  ${oriInstallPath}  && wgetFile ${originPackageName} ${originversion}   ${sourcePath}
+#cd  ${oriInstallPath}  && wgetFile ${originPackageName} ${originversion}   ${sourcePath}
 
 
 cd ${installPath}
@@ -277,23 +277,23 @@ elif [[ ${packageName} =~ "rpm" ]];then
     fi
 elif [[ ${packageName} =~ "tar" ]];then
     echoColor G "===== check installPackage File of tar ====="
-    cd  ${oriInstallPath}
-    if [ ! -f  {originPackageName}  ];then
-        echoColor YD "download  base installPackage"
-        wgetFile ${originPackageName} ${originversion} ${sourcePath} 
-    fi
-    echoColor YD "unzip the base installation package" 
-    echoColor BD "tar -xf ${originPackageName}" && tar -xf ${originPackageName} 
+    #cd  ${oriInstallPath}
+    #if [ ! -f  {originPackageName}  ];then
+    #    echoColor YD "download  base installPackage"
+    #    wgetFile ${originPackageName} ${originversion} ${sourcePath}
+    #fi
+    #echoColor YD "unzip the base installation package"
+    #echoColor BD "tar -zxf ${originPackageName}" && tar -zxf ${originPackageName}
     cd ${installPath} 
     echoColor YD "unzip the new installation package" 
     echoColor BD "tar -xf ${packageName}" && tar -xf ${packageName} 
 
-    if [ ${testFile} != "tools" ] ;then
-        cd ${installPath}/${tdPath} && tar xf ${subFile}
-        cd  ${oriInstallPath}/${originTdpPath}  && tar xf ${subFile}
-    fi
+    #if [ ${testFile} != "tools" ] ;then
+    #    cd ${installPath}/${tdPath} && tar xf ${subFile}
+    #    cd  ${oriInstallPath}/${originTdpPath}  && tar xf ${subFile}
+    #fi
 
-    cd  ${oriInstallPath}/${originTdpPath} && tree -I "driver" >  ${installPath}/base_${originversion}_checkfile
+    #cd  ${oriInstallPath}/${originTdpPath} && tree -I "driver" >  ${installPath}/base_${originversion}_checkfile
     cd ${installPath}/${tdPath}   && tree -I "driver" > ${installPath}/now_${version}_checkfile
     
     cd ${installPath} 
@@ -322,24 +322,6 @@ fi
 
 cd ${installPath}
 
-if [[ ${packageName} =~ "Lite" ]]  ||   ([[ ${packageName} =~ "x64" ]] && [[ ${packageName} =~ "client" ]]) ||  ([[ ${packageName} =~ "deb" ]] && [[ ${packageName} =~ "server" ]])  || ([[ ${packageName} =~ "rpm" ]] && [[ ${packageName} =~ "server" ]]) ;then
-    echoColor G "===== install taos-tools when package is lite or client ====="
-    cd ${installPath}
-    if [ ! -f "taosTools-2.1.3-Linux-x64.tar.gz " ];then
-        wgetFile taosTools-2.1.3-Linux-x64.tar.gz v2.1.3 web
-        tar xf taosTools-2.1.3-Linux-x64.tar.gz  
-    fi
-    cd taosTools-2.1.3 && bash install-taostools.sh
-elif  ([[ ${packageName} =~ "arm64" ]] && [[ ${packageName} =~ "client" ]]);then
-    echoColor G "===== install taos-tools arm when package is arm64-client ====="
-    cd ${installPath}
-    if [ ! -f "taosTools-2.1.3-Linux-x64.tar.gz " ];then
-        wgetFile taosTools-2.1.3-Linux-arm64.tar.gz v2.1.3 web
-        tar xf taosTools-2.1.3-Linux-arm64.tar.gz
-    fi    
-    
-    cd taosTools-2.1.3 && bash install-taostools.sh
-fi
 
 echoColor G  "===== start TDengine ====="
 
