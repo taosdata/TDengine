@@ -241,6 +241,7 @@ export default {
     selectPlan: "选择方案",
   },
   dataIn: {
+    basicsTitle: '基础信息',
     orgIdTip: '请输入十六进制字符',
     agentNameExist: "代理名称“{0}”已存在",
     finish: "结束",

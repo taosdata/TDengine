@@ -763,8 +763,21 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
             }
           } 
           // if (!currentData.table) return true;
-          if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
-            return !['update_interval', 'update_mode'].includes(name)
+          if (id.startsWith('opc')) {
+            if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
+              if (currentData.collect_mode == "subscribe") {
+                // 只显示采集模式 
+                return ['collect_mode'].includes(name)
+              } else {
+                return !['update_interval','update_mode'].includes(name)
+              }
+            } else {
+              if (currentData.collect_mode == "subscribe") {
+                return !['interval','request_timeout'].includes(name)
+              } else {
+                return true
+              }
+            }
           } else if (currentData.mode == historianSynchronizeMode) {
             if (currentData.table == historianLiveTable) {
               return ['mode','table','tags','retrieveInterval'].includes(name)

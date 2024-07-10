@@ -1468,6 +1468,7 @@ export default {
     clearStbMapping() {
       this.sruleForm.s_name = ""
       this.tableData = [];
+      this.params_tags = [];
       this.setPageTableData();
     },
     //初始化列下拉框数据，适用于新增和编辑，拷贝

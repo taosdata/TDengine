@@ -3,7 +3,7 @@
     <div :class="['left-ui']">
       <section class="block-wrapper">
         <div class="mb10">
-          <BlockHeader title="基础信息"> </BlockHeader>
+          <BlockHeader :title="$t('dataIn.basicsTitle')"> </BlockHeader>
         </div>
         <div class="descriptions">
           <div class="descItem">

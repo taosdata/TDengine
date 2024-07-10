@@ -2942,7 +2942,7 @@ export function getDataSources(lang) {
                       "label": "Microsecond"
                     },
                     {
-                      "value": "ms",
+                      "value": "ns",
                       "label": "Nanoseconds"
                     },
                   ]
@@ -6972,7 +6972,7 @@ export function getDataSources(lang) {
                       "label": "微秒"
                     },
                     {
-                      "value": "ms",
+                      "value": "ns",
                       "label": "纳秒"
                     },
                   ]
