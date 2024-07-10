@@ -1236,8 +1236,15 @@ static void copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins) {
 
 static SSDataBlock* buildIntervalResult(SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
-  uint16_t                     opType = pOperator->operatorType;
+
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  uint16_t       opType = pOperator->operatorType;
+
+  // check if query task is closed or not
+  if (isTaskKilled(pTaskInfo)) {
+    return NULL;
+  }
+
   if (IS_FINAL_INTERVAL_OP(pOperator)) {
     doBuildPullDataBlock(pInfo->pPullWins, &pInfo->pullIndex, pInfo->pPullDataRes);
     if (pInfo->pPullDataRes->info.rows != 0) {
