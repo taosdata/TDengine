@@ -228,6 +228,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
             runners::postgres::POSTGRES_ID => runners::postgres::is_valid(&dsn).await,
             runners::oracle::ORACLE_ID => runners::oracle::is_valid(&dsn).await,
             runners::mssql::MSSQL_ID => runners::mssql::is_valid(&dsn).await,
+            runners::mongodb::MONGODB_ID => runners::mongodb::is_valid(&dsn).await,
             &_ => DataSourceValidation::unknown(),
         },
     }
@@ -254,6 +255,7 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
         runners::postgres::POSTGRES_ID => runners::postgres::get_sample(&dsn).await,
         runners::oracle::ORACLE_ID => runners::oracle::get_sample(&dsn).await,
         runners::mssql::MSSQL_ID => runners::mssql::get_sample(&dsn).await,
+        runners::mongodb::MONGODB_ID => runners::mongodb::get_sample(&dsn).await,
         _ => Err(anyhow::anyhow!(
             "get sample from data source is unsupported"
         )),
