@@ -21,7 +21,7 @@
         <el-tab-pane name="audit" :label="$t('topic.audit')" lazy v-if="getMetaShow('audit')">
           <Audit :activeName="activeName"></Audit>
         </el-tab-pane>
-        <el-tab-pane name="slowSql" :label="$t('topic.slowSql')" lazy>
+        <el-tab-pane name="slowSql" :label="$t('topic.slowSql')" lazy v-if="version_gt_equ_3320">
           <SlowSql :activeName="activeName"></SlowSql>
         </el-tab-pane>
       </el-tabs>
@@ -57,8 +57,16 @@ export default {
     return {
       message: "这是Admin页面",
       taosxDisabled:false,
-      activeName: 'user'
+      activeName: 'user',
+      version_gt_equ_3320: false
     };
+  },
+  created() {
+    let version = localStorage.getItem("agent_version");
+    let [a, b, c, d] = version.split(".");
+    if (a > 3 || (a == 3 && b >= 1 && c >= 2)) {
+      this.version_gt_equ_3320 = true;
+    }
   }
 };
 </script>

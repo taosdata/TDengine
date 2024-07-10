@@ -2611,7 +2611,8 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
     averageRow: "Average Rows",
     maximumRow: "Maximum Rows",
     executionTimes: "Executed Times",
-    deDuplication: "Filter duplicate SQL"
+    deDuplication: "Filter duplicate SQL",
+    queryTimeTip: "min cannot be greater than max"
   },
   taosagents: {
     step1: "Install",

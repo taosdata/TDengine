@@ -4,7 +4,7 @@
       <el-tab-pane :label="$t('slowSql.tab1')" name="log_desc">
         <div class="dnode-block">
           <section class="flexBetween">
-            <el-form :inline="true" size="mini" :disabled="requestIng" label-position="left">
+            <el-form :inline="true" size="mini" :disabled="requestIng" label-position="left" :rules="rules">
               <!-- <section class="flexBetween"> -->
                 <!-- <div> -->
                   <el-form-item
@@ -26,6 +26,7 @@
                   </el-form-item>
                   <el-form-item
                     :label="$t('slowSql.queryTime')"
+                    prop="query_time"
                    >
                    <el-input-number
                       v-model="filterParams.query_time_1"
@@ -421,6 +422,14 @@ export default {
       data: {},
       query_time_sort: null,
       orderSql: null,
+      rules: {
+        query_time: [
+          {
+            validator: this.checkQueryTime,
+            trigger: "blur",  
+          }
+        ],
+      },
     };
   },
   props: {
@@ -615,7 +624,15 @@ export default {
         this.orderSql = `${sortBy ? `ORDER BY ${prop} ${sortBy}` : ''}`
         this.getStatisticsData()
       }
-     }
+     },
+     checkQueryTime(_, value, callback) {
+      const { query_time_1, query_time_2} = this.filterParams
+      if (query_time_1 && query_time_2 && query_time_2 < query_time_1 ) {
+        return callback(new Error(this.$t('slowSql.queryTimeTip')));
+      } else {
+        callback()
+      }
+    },
   },
   watch: {
     async activeName(val) {
