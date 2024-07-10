@@ -1219,7 +1219,7 @@ ignore_option: {
 }
 ```
 
-**Description**: The different of each row with its previous row for a specific column. `ignore_option` takes the value of 0|1|2|3, the default value is 0 if it's not specified. 
+**Description**: The difference of each row with its previous row for a specific column. `ignore_option` takes the value of 0|1|2|3, the default value is 0 if it's not specified. 
 - `0` means that negative values ​​(diff results) are not ignored and null values ​​are not ignored
 - `1` means that negative values ​​(diff results) are treated as null values
 - `2` means that negative values ​​(diff results) are not ignored but null values ​​are ignored
@@ -1234,15 +1234,15 @@ ignore_option: {
 
 **More explanation**:
 
-- diff is to diff the data in current row and column with the **first valid data before**. The **first valid data before** refers to sorting by timestamp, searching current this row to the direction of smaller timestamps, checking the same column of other rows, and finding the first non-null data.
-- The diff result of numeric type is the corresponding difference; the timestamp is calculated based on the timestamp of the precision type of the database creation; the difference is calculated for bool type true as 1 and false as 0
-- When the row and column data does not exist (null), or no valid comparison data is found, the diff result is null
-- When ignoring negative values ​​(ignore_option is 1/3), if the diff result is negative, the result is set to null, and then filtered according to the null value filtering rule
-- When the diff result has a type overflow, the positive and negative results of the logical operation are used to determine whether to ignore the negative value. For example, the value of 9223372036854775800 - (-9223372036854775806) exceeds the range of BIGINT, and the diff result will display the overflow value -10, but it will not be ignored as a negative value
-- Supports single or multiple diffs in a single statement, and supports different diff functions to specify the same or different ignore_option , when there are multiple diffs, only when all diff results of a row are null and ignore_option is set to ignore null values, the row will be removed from the result set
-- Can be used with the selected associated columns. For example: select _rowts, DIFF() from.
-- When not using a composite primary key, the sub-tables of the super table may have the same timestamp data. If there are the same timestamps, it will prompt "Duplicate timestamps not allowed"
-- When using a composite primary key, the sub-tables of the super table may have the same composite primary key, whichever row is found first will prevail
+- diff is to calculate the difference of a specific column in current row and the **first valid data before the row**. The **first valid data before the row** refers to the most adjacent non-null value of same column with smaller timestamp.
+- The diff result of numeric type is the corresponding arithmatic difference; the timestamp is calculated based on the timestamp precision of the database; when calculating diff, `true` is treated as 1 and `false` is treated as 0
+- If the data of current row is NULL or can't find the **first valid data before the current row**, the diff result is NULL
+- When ignoring negative values ​​(ignore_option is set to 1 or 3), if the diff result is negative, the result is set to null, and then filtered according to the null value filtering rule
+- When the diff result has an overflow, whether to ignore the negative value depends on the result of the logical operation is positive or negative. For example, the value of 9223372036854775800 - (-9223372036854775806) exceeds the range of BIGINT, and the diff result will display the overflow value -10, but it will not be ignored as a negative value
+- Single or multiple diffs can be used in a single statement, and for each diff you can specify same or different `ignore_option`. When there are multiple diffs in a single statement, when and only when all the diff results are NULL for a row and the `ignore_option` is specified as ignoring NULL for all diffs, the output of this row will be removed from the result set.
+- Can be used with the selected associated columns. For example: `select _rowts, DIFF()`.
+- When there is not composite primary key, if there are the same timestamps across different subtables, it will prompt "Duplicate timestamps not allowed"
+- When using with composite primary key, there may be same combination of timestamp and complete primary key across sub-tables, which row will be used depends on which row is found first, that means the result of running diff() multiple times may be different in such a case
 
 ### IRATE
 
