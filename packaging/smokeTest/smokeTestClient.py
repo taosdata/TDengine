@@ -73,8 +73,8 @@ else:
 
 # prepare data by taosBenchmark
 
-print("run taosBenchmark -y -n 100 -t 100 -h %s -P %d" % (serverHost, serverPort))
-os.system("taosBenchmark -y -n 100 -t 100 -h %s -P %d" % (serverHost, serverPort))
+print("run taosBenchmark -y -a 3 -n 100 -t 100 -h %s -P %d" % (serverHost, serverPort))
+os.system("taosBenchmark -y -a 3 -n 100 -t 100 -h %s -P %d" % (serverHost, serverPort))
 taosBenchmark_test_result = True
 import taos
 
