@@ -266,6 +266,7 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t upda
   pConsumer->epoch = 0;
   pConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
   pConsumer->hbStatus = 0;
+  pConsumer->pollStatus = 0;
 
   taosInitRWLatch(&pConsumer->lock);
   pConsumer->createTime = taosGetTimestampMs();
@@ -294,6 +295,8 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t upda
     pConsumer->autoCommit = subscribe->autoCommit;
     pConsumer->autoCommitInterval = subscribe->autoCommitInterval;
     pConsumer->resetOffsetCfg = subscribe->resetOffsetCfg;
+    pConsumer->maxPollIntervalMs = subscribe->maxPollIntervalMs;
+    pConsumer->sessionTimeoutMs = subscribe->sessionTimeoutMs;
 
 
     pConsumer->rebNewTopics = taosArrayDup(subscribe->topicNames, topicNameDup);
@@ -396,6 +399,8 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   tlen += taosEncodeFixedI8(buf, pConsumer->autoCommit);
   tlen += taosEncodeFixedI32(buf, pConsumer->autoCommitInterval);
   tlen += taosEncodeFixedI32(buf, pConsumer->resetOffsetCfg);
+  tlen += taosEncodeFixedI32(buf, pConsumer->maxPollIntervalMs);
+  tlen += taosEncodeFixedI32(buf, pConsumer->sessionTimeoutMs);
   return tlen;
 }
 
@@ -456,6 +461,14 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
     buf = taosDecodeFixedI32(buf, &pConsumer->autoCommitInterval);
     buf = taosDecodeFixedI32(buf, &pConsumer->resetOffsetCfg);
   }
+  if (sver > 2){
+    buf = taosDecodeFixedI32(buf, &pConsumer->maxPollIntervalMs);
+    buf = taosDecodeFixedI32(buf, &pConsumer->sessionTimeoutMs);
+  } else{
+    pConsumer->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
+    pConsumer->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
+  }
+
   return (void *)buf;
 }
 

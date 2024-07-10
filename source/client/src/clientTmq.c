@@ -37,6 +37,7 @@ struct SMqMgmt {
 static TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
 volatile int32_t      tmqInitRes = 0;               // initialize rsp code
 static struct SMqMgmt tmqMgmt = {0};
+static   int8_t       pollFlag = 0;
 
 typedef struct {
   int32_t code;
@@ -56,7 +57,7 @@ struct tmq_list_t {
 };
 
 struct tmq_conf_t {
-  char           clientId[256];
+  char           clientId[TSDB_CLIENT_ID_LEN];
   char           groupId[TSDB_CGROUP_LEN];
   int8_t         autoCommit;
   int8_t         resetOffset;
@@ -66,6 +67,9 @@ struct tmq_conf_t {
   int8_t         sourceExcluded;  // do not consume, bit
   uint16_t       port;
   int32_t        autoCommitInterval;
+  int32_t        sessionTimeoutMs;
+  int32_t        heartBeatIntervalMs;
+  int32_t        maxPollIntervalMs;
   char*          ip;
   char*          user;
   char*          pass;
@@ -77,15 +81,18 @@ struct tmq_conf_t {
 struct tmq_t {
   int64_t        refId;
   char           groupId[TSDB_CGROUP_LEN];
-  char           clientId[256];
+  char           clientId[TSDB_CLIENT_ID_LEN];
   int8_t         withTbName;
   int8_t         useSnapshot;
   int8_t         autoCommit;
   int32_t        autoCommitInterval;
+  int32_t        sessionTimeoutMs;
+  int32_t        heartBeatIntervalMs;
+  int32_t        maxPollIntervalMs;
   int8_t         resetOffsetCfg;
   int8_t         replayEnable;
   int8_t         sourceExcluded;  // do not consume, bit
-  uint64_t       consumerId;
+  int64_t        consumerId;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
   int8_t         enableBatchMeta;
@@ -272,6 +279,9 @@ tmq_conf_t* tmq_conf_new() {
   conf->autoCommitInterval = DEFAULT_AUTO_COMMIT_INTERVAL;
   conf->resetOffset = TMQ_OFFSET__RESET_LATEST;
   conf->enableBatchMeta = false;
+  conf->heartBeatIntervalMs = DEFAULT_HEARTBEAT_INTERVAL;
+  conf->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
+  conf->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
 
   return conf;
 }
@@ -301,7 +311,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "client.id") == 0) {
-    tstrncpy(conf->clientId, value, 256);
+    tstrncpy(conf->clientId, value, TSDB_CLIENT_ID_LEN);
     return TMQ_CONF_OK;
   }
 
@@ -318,7 +328,38 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "auto.commit.interval.ms") == 0) {
-    conf->autoCommitInterval = taosStr2int64(value);
+    int64_t tmp = taosStr2int64(value);
+    if (tmp < 0 || EINVAL == errno || ERANGE == errno) {
+      return TMQ_CONF_INVALID;
+    }
+    conf->autoCommitInterval = (tmp > INT32_MAX ? INT32_MAX : tmp);
+    return TMQ_CONF_OK;
+  }
+
+  if (strcasecmp(key, "session.timeout.ms") == 0) {
+    int64_t tmp = taosStr2int64(value);
+    if (tmp < 6000 || tmp > 1800000){
+      return TMQ_CONF_INVALID;
+    }
+    conf->sessionTimeoutMs = tmp;
+    return TMQ_CONF_OK;
+  }
+
+  if (strcasecmp(key, "heartbeat.interval.ms") == 0) {
+    int64_t tmp = taosStr2int64(value);
+    if (tmp < 1000 || tmp >= conf->sessionTimeoutMs){
+      return TMQ_CONF_INVALID;
+    }
+    conf->heartBeatIntervalMs = tmp;
+    return TMQ_CONF_OK;
+  }
+
+  if (strcasecmp(key, "max.poll.interval.ms") == 0) {
+    int64_t tmp = taosStr2int64(value);
+    if (tmp < 1000 || tmp > INT32_MAX){
+      return TMQ_CONF_INVALID;
+    }
+    conf->maxPollIntervalMs = tmp;
     return TMQ_CONF_OK;
   }
 
@@ -377,7 +418,12 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "td.connect.port") == 0) {
-    conf->port = taosStr2int64(value);
+    int64_t tmp = taosStr2int64(value);
+    if (tmp <= 0 || tmp > 65535) {
+      return TMQ_CONF_INVALID;
+    }
+
+    conf->port = tmp;
     return TMQ_CONF_OK;
   }
 
@@ -813,6 +859,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   SMqHbReq req = {0};
   req.consumerId = tmq->consumerId;
   req.epoch = tmq->epoch;
+  req.pollFlag = atomic_load_8(&pollFlag);
   taosRLockLatch(&tmq->lock);
   req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
@@ -878,9 +925,10 @@ void tmqSendHbReq(void* param, void* tmrId) {
     tscError("tmqSendHbReq asyncSendMsgToServer failed");
   }
 
+  atomic_val_compare_exchange_8(&pollFlag, 1, 0);
 OVER:
   tDestroySMqHbReq(&req);
-  taosTmrReset(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, param, tmqMgmt.timer, &tmq->hbLiveTimer);
+  taosTmrReset(tmqSendHbReq, tmq->heartBeatIntervalMs, param, tmqMgmt.timer, &tmq->hbLiveTimer);
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
@@ -1134,6 +1182,9 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->useSnapshot = conf->snapEnable;
   pTmq->autoCommit = conf->autoCommit;
   pTmq->autoCommitInterval = conf->autoCommitInterval;
+  pTmq->sessionTimeoutMs = conf->sessionTimeoutMs;
+  pTmq->heartBeatIntervalMs = conf->heartBeatIntervalMs;
+  pTmq->maxPollIntervalMs = conf->maxPollIntervalMs;
   pTmq->commitCb = conf->commitCb;
   pTmq->commitCbUserParam = conf->commitCbUserParam;
   pTmq->resetOffsetCfg = conf->resetOffset;
@@ -1173,7 +1224,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
 
   int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
   *pRefId = pTmq->refId;
-  pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, pRefId, tmqMgmt.timer);
+  pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, pTmq->heartBeatIntervalMs, pRefId, tmqMgmt.timer);
 
   char         buf[TSDB_OFFSET_LEN] = {0};
   STqOffsetVal offset = {.type = pTmq->resetOffsetCfg};
@@ -1203,7 +1254,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   tscInfo("consumer:0x%" PRIx64 " cgroup:%s, subscribe %d topics", tmq->consumerId, tmq->groupId, sz);
 
   req.consumerId = tmq->consumerId;
-  tstrncpy(req.clientId, tmq->clientId, 256);
+  tstrncpy(req.clientId, tmq->clientId, TSDB_CLIENT_ID_LEN);
   tstrncpy(req.cgroup, tmq->groupId, TSDB_CGROUP_LEN);
   req.topicNames = taosArrayInit(sz, sizeof(void*));
 
@@ -1215,6 +1266,8 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   req.withTbName = tmq->withTbName;
   req.autoCommit = tmq->autoCommit;
   req.autoCommitInterval = tmq->autoCommitInterval;
+  req.sessionTimeoutMs = tmq->sessionTimeoutMs;
+  req.maxPollIntervalMs = tmq->maxPollIntervalMs;
   req.resetOffsetCfg = tmq->resetOffsetCfg;
   req.enableReplay = tmq->replayEnable;
   req.enableBatchMeta = tmq->enableBatchMeta;
@@ -2206,6 +2259,8 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
       taosMsleep(500);
     }
   }
+
+  atomic_val_compare_exchange_8(&pollFlag, 0, 1);
 
   while (1) {
     tmqHandleAllDelayedTask(tmq);

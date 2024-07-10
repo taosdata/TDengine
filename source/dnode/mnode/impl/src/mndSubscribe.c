@@ -27,8 +27,7 @@
 #define MND_SUBSCRIBE_VER_NUMBER   3
 #define MND_SUBSCRIBE_RESERVE_SIZE 64
 
-#define MND_CONSUMER_LOST_HB_CNT          6
-#define MND_CONSUMER_LOST_CLEAR_THRESHOLD 43200
+//#define MND_CONSUMER_LOST_HB_CNT          6
 
 static int32_t mqRebInExecCnt = 0;
 
@@ -234,7 +233,7 @@ static void processRemovedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, c
   int32_t numOfRemoved = taosArrayGetSize(pInput->pRebInfo->removedConsumers);
   int32_t actualRemoved = 0;
   for (int32_t i = 0; i < numOfRemoved; i++) {
-    uint64_t       consumerId = *(uint64_t *)taosArrayGet(pInput->pRebInfo->removedConsumers, i);
+    int64_t        consumerId  = *(int64_t *)taosArrayGet(pInput->pRebInfo->removedConsumers, i);
     SMqConsumerEp *pConsumerEp = taosHashGet(pOutput->pSub->consumerHash, &consumerId, sizeof(int64_t));
     if (pConsumerEp == NULL) {
       continue;
@@ -378,12 +377,10 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
     }
   }
 
-  if (taosArrayGetSize(pOutput->pSub->unassignedVgs) == 0 && taosArrayGetSize(newVgs) != 0) {
+  if (taosArrayGetSize(newVgs) != 0) {
     taosArrayAddAll(pOutput->pSub->unassignedVgs, newVgs);
     mInfo("[rebalance] processRemoveAddVgs add new vg num:%d", (int)taosArrayGetSize(newVgs));
     taosArrayDestroy(newVgs);
-  } else {
-    taosArrayDestroyP(newVgs, (FDelete)tDeleteSMqVgEp);
   }
   return totalVgNum;
 }
@@ -678,7 +675,7 @@ static void freeRebalanceItem(void *param) {
 static void buildRebInfo(SHashObj *rebSubHash, SArray *topicList, int8_t type, char *group, int64_t consumerId) {
   int32_t topicNum = taosArrayGetSize(topicList);
   for (int32_t i = 0; i < topicNum; i++) {
-    char  key[TSDB_SUBSCRIBE_KEY_LEN];
+    char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
     char *removedTopic = taosArrayGetP(topicList, i);
     mndMakeSubscribeKey(key, group, removedTopic);
     SMqRebInfo *pRebSub = mndGetOrCreateRebSub(rebSubHash, key);
@@ -707,7 +704,7 @@ static void checkForVgroupSplit(SMnode *pMnode, SMqConsumerObj *pConsumer, SHash
       SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
       SVgObj  *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
       if (!pVgroup) {
-        char key[TSDB_SUBSCRIBE_KEY_LEN];
+        char key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
         mndMakeSubscribeKey(key, pConsumer->cgroup, topic);
         mndGetOrCreateRebSub(rebSubHash, key);
         mInfo("vnode splitted, vgId:%d rebalance will be triggered", pVgEp->vgId);
@@ -733,26 +730,24 @@ static void mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
     }
 
     int32_t hbStatus = atomic_add_fetch_32(&pConsumer->hbStatus, 1);
+    int32_t pollStatus = atomic_add_fetch_32(&pConsumer->pollStatus, 1);
     int32_t status = atomic_load_32(&pConsumer->status);
 
     mDebug("[rebalance] check for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64
-           ", hbstatus:%d",
+           ", hbstatus:%d, pollStatus:%d",
            pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime,
-           pConsumer->createTime, hbStatus);
+           pConsumer->createTime, hbStatus, pollStatus);
 
     if (status == MQ_CONSUMER_STATUS_READY) {
-      if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {  // unsubscribe or close
+      if (taosArrayGetSize(pConsumer->currentTopics) == 0) {  // unsubscribe or close
         mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info);
-      } else if (hbStatus > MND_CONSUMER_LOST_HB_CNT) {
+      } else if (hbStatus * tsMqRebalanceInterval * 1000 >= pConsumer->sessionTimeoutMs ||
+                 pollStatus * tsMqRebalanceInterval * 1000 >= pConsumer->maxPollIntervalMs) {
         taosRLockLatch(&pConsumer->lock);
         buildRebInfo(rebSubHash, pConsumer->currentTopics, 0, pConsumer->cgroup, pConsumer->consumerId);
         taosRUnLockLatch(&pConsumer->lock);
       } else {
         checkForVgroupSplit(pMnode, pConsumer, rebSubHash);
-      }
-    } else if (status == MQ_CONSUMER_STATUS_LOST) {
-      if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD) {  // clear consumer if lost a day
-        mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info);
       }
     } else {
       taosRLockLatch(&pConsumer->lock);
@@ -832,8 +827,8 @@ static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOu
 
   if (pSub == NULL) {
     // split sub key and extract topic
-    char topic[TSDB_TOPIC_FNAME_LEN];
-    char cgroup[TSDB_CGROUP_LEN];
+    char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    char cgroup[TSDB_CGROUP_LEN] = {0};
     mndSplitSubscribeKey(key, topic, cgroup, true);
 
     SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
@@ -878,7 +873,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   mDebug("[rebalance] start to process mq timer")
 
-      if (!mndRebTryStart()) {
+  if (!mndRebTryStart()) {
     mInfo("[rebalance] mq rebalance already in progress, do nothing") return code;
   }
 
