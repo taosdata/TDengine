@@ -156,7 +156,7 @@ file=$1
 versionPath=$2
 sourceP=$3
 nasServerIP="192.168.1.213"
-packagePath="/nas/TDengine/冒烟中/v${versionPath}/${verMode}"
+packagePath="/nas/TDengine/smoking/v${versionPath}/${verMode}"
 if [ -f  ${file}  ];then
     echoColor  YD "${file} already exists ,it will delete it and download  it again "
     rm -rf ${file}
@@ -210,7 +210,7 @@ fi
 
 echoColor G "===== new workroom path ====="
 installPath="/usr/local/src/packageTest"
-oriInstallPath="/usr/local/src/packageTest/3.1"
+oriInstallPath="/usr/local/src/packageTest/3.0"
 
 newPath ${installPath}
 
