@@ -1345,11 +1345,18 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   }
 
   ASSERT(pTask->status.downstreamReady == 0);
+
+  // avoid initialization and destroy running concurrently.
+  taosThreadMutexLock(&pTask->lock);
   if (pTask->pBackend == NULL) {
     code = pMeta->expandTaskFn(pTask);
+    taosThreadMutexUnlock(&pTask->lock);
+
     if (code != TSDB_CODE_SUCCESS) {
       streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
     }
+  } else {
+    taosThreadMutexUnlock(&pTask->lock);
   }
 
   if (code == TSDB_CODE_SUCCESS) {
