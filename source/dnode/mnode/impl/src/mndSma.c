@@ -2004,8 +2004,13 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
     // interval
     char interval[64 + VARSTR_HEADER_SIZE] = {0};
-    int32_t len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
-                           getPrecisionUnit(pSrcDb->cfg.precision));
+    int32_t len = 0;
+    if (!IS_CALENDAR_TIME_DURATION(pSma->intervalUnit)) {
+      len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
+          getPrecisionUnit(pSrcDb->cfg.precision));
+    } else {
+      len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval, pSma->intervalUnit);
+    }
     varDataSetLen(interval, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, interval, false);
