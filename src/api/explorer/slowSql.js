@@ -135,8 +135,8 @@ export function getSlowSqlLogs(params) {
 }
 
 export function getSlowSqlStatistics(params) {
-  let { currentPage, pageSize, orderSql  } = params;
-  const dataSql = `
+  let { currentPage, pageSize, conditions, orderSql  } = params;
+  let dataSql = `
     SELECT 
       sql, 
       db, 
@@ -146,9 +146,11 @@ export function getSlowSqlStatistics(params) {
       cast(avg(rows_num) as int) as avg_rows_num, 
       max(rows_num) as max_rows_num 
     from log.taos_slow_sql_detail 
+    ${conditions ? 'WHERE' + conditions : ''}
     PARTITION by sql, db
     ${orderSql}
     `;
+  dataSql = dataSql.replace(/^\s*$(?:\r\n?|\n)/gm, '');
   const countSql = `select count(*) from (${dataSql});`;
   
   return getPaginationData(countSql, dataSql, currentPage, pageSize);
