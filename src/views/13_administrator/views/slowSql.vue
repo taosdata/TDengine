@@ -403,7 +403,7 @@ export default {
       statisticsList: [],
       parsinginZone,
       filterParams: {
-        query_time_1: 3,
+        query_time_1: 10,
         query_time_2: undefined,
       },
       de_duplication: false,
