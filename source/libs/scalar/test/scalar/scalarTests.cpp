@@ -43,6 +43,7 @@
 #include "tglobal.h"
 #include "tlog.h"
 #include "tvariant.h"
+#include "tcompare.h"
 
 #define _DEBUG_PRINT_ 0
 
@@ -52,6 +53,12 @@
 #define PRINTF(...)
 #endif
 
+class constantTest {
+ public:
+  constantTest() { InitRegexCache(); }
+  ~constantTest() { DestroyRegexCache(); }
+};
+static constantTest test;
 namespace {
 
 SColumnInfo createColumnInfo(int32_t colId, int32_t type, int32_t bytes) {
