@@ -25,7 +25,7 @@ extern "C" {
 enum {
   MQ_CONSUMER_STATUS_REBALANCE = 1,
   MQ_CONSUMER_STATUS_READY,
-  MQ_CONSUMER_STATUS_LOST,
+//  MQ_CONSUMER_STATUS_LOST,
 };
 
 int32_t mndInitConsumer(SMnode *pMnode);

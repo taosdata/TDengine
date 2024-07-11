@@ -749,11 +749,13 @@ static void mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
       } else {
         checkForVgroupSplit(pMnode, pConsumer, rebSubHash);
       }
-    } else {
+    } else if (status == MQ_CONSUMER_STATUS_REBALANCE) {
       taosRLockLatch(&pConsumer->lock);
       buildRebInfo(rebSubHash, pConsumer->rebNewTopics, 1, pConsumer->cgroup, pConsumer->consumerId);
       buildRebInfo(rebSubHash, pConsumer->rebRemovedTopics, 0, pConsumer->cgroup, pConsumer->consumerId);
       taosRUnLockLatch(&pConsumer->lock);
+    } else {
+      mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info);
     }
 
     mndReleaseConsumer(pMnode, pConsumer);
@@ -974,41 +976,41 @@ END:
   return ret;
 }
 
-static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic) {
-  void           *pIter = NULL;
-  SMqConsumerObj *pConsumer = NULL;
-  int             ret = 0;
-  while (1) {
-    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
-    if (pIter == NULL) {
-      break;
-    }
-
-    // drop consumer in lost status, other consumers not in lost status already deleted by rebalance
-    if (pConsumer->status != MQ_CONSUMER_STATUS_LOST || strcmp(cgroup, pConsumer->cgroup) != 0) {
-      sdbRelease(pMnode->pSdb, pConsumer);
-      continue;
-    }
-    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
-    for (int32_t i = 0; i < sz; i++) {
-      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
-      if (strcmp(topic, name) == 0) {
-        int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
-        if (code != 0) {
-          ret = code;
-          goto END;
-        }
-      }
-    }
-
-    sdbRelease(pMnode->pSdb, pConsumer);
-  }
-
-END:
-  sdbRelease(pMnode->pSdb, pConsumer);
-  sdbCancelFetch(pMnode->pSdb, pIter);
-  return ret;
-}
+//static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic) {
+//  void           *pIter = NULL;
+//  SMqConsumerObj *pConsumer = NULL;
+//  int             ret = 0;
+//  while (1) {
+//    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+//    if (pIter == NULL) {
+//      break;
+//    }
+//
+//    // drop consumer in lost status, other consumers not in lost status already deleted by rebalance
+//    if (pConsumer->status != MQ_CONSUMER_STATUS_LOST || strcmp(cgroup, pConsumer->cgroup) != 0) {
+//      sdbRelease(pMnode->pSdb, pConsumer);
+//      continue;
+//    }
+//    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
+//    for (int32_t i = 0; i < sz; i++) {
+//      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
+//      if (strcmp(topic, name) == 0) {
+//        int32_t code = mndSetConsumerDropLogs(pTrans, pConsumer);
+//        if (code != 0) {
+//          ret = code;
+//          goto END;
+//        }
+//      }
+//    }
+//
+//    sdbRelease(pMnode->pSdb, pConsumer);
+//  }
+//
+//END:
+//  sdbRelease(pMnode->pSdb, pConsumer);
+//  sdbCancelFetch(pMnode->pSdb, pIter);
+//  return ret;
+//}
 
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   SMnode         *pMnode = pMsg->info.node;
@@ -1055,10 +1057,10 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     goto end;
   }
 
-  code = mndDropConsumerByGroup(pMnode, pTrans, dropReq.cgroup, dropReq.topic);
-  if (code != 0) {
-    goto end;
-  }
+//  code = mndDropConsumerByGroup(pMnode, pTrans, dropReq.cgroup, dropReq.topic);
+//  if (code != 0) {
+//    goto end;
+//  }
 
   code = sendDeleteSubToVnode(pMnode, pSub, pTrans);
   if (code != 0) {
