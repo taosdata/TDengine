@@ -133,7 +133,7 @@ static int32_t mnodeUserActionRestored() {
     mInfo("dnode first deploy, create root user");
     SAcctObj *pAcct = mnodeGetAcct(TSDB_DEFAULT_USER);
     mnodeCreateUser(pAcct, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS, NULL, NULL);
-    mnodeCreateUser(pAcct, "monitor", tsInternalPass, NULL, NULL);
+    mnodeCreateUser(pAcct, "monitor", tsMonitorPass, NULL, NULL);
     mnodeCreateUser(pAcct, "_"TSDB_DEFAULT_USER, tsInternalPass, NULL, NULL);
     mnodeDecAcctRef(pAcct);
   }
@@ -484,7 +484,7 @@ static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_INVALID_USER;
   }
 
-  if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
+  if ((strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }

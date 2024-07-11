@@ -154,6 +154,7 @@ extern int8_t  tsEnableMonitorModule;
 extern int8_t  tsMonitorReplica;
 extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
+extern char    tsMonitorPass[];
 extern int32_t tsMonitorInterval;
 
 // audit
