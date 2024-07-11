@@ -20,6 +20,11 @@ addr = "0.0.0.0"
 #
 log_level = "info"
 
+# All data files are stored in this directory
+# data_dir = "/var/lib/taos/explorer" # Default for Linux
+# data_dir = "C:\\TDengine\\data\\explorer" # Default for Windows
+data_dir = "./data"
+
 # REST API endpoint to connect to the cluster.
 # This configuration is also the target for data migration tasks.
 # 
@@ -36,7 +41,7 @@ cluster = "http://localhost:6041"
 # API endpoint for data replication/backup/data sources. No default option.
 #   Set it to API URL like "http://localhost:6050".
 #
-x_api ="http://localhost:6050"
+x_api = "http://localhost:6050"
 
 # GRPC endpoint for "Agent"s.
 #   Default is "http://localhost:6055" - the default endpoint for taosX grpc API.
