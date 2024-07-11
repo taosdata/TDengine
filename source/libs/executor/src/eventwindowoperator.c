@@ -66,6 +66,8 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
     goto _error;
   }
 
+  pOperator->exprSupp.hasWindowOrGroup = true;
+
   SEventWinodwPhysiNode* pEventWindowNode = (SEventWinodwPhysiNode*)physiNode;
 
   int32_t tsSlotId = ((SColumnNode*)pEventWindowNode->window.pTspk)->slotId;

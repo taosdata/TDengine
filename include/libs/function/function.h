@@ -208,6 +208,7 @@ typedef struct SqlFunctionCtx {
   int32_t              exprIdx;
   char                *udfName;
   SFunctionStateStore *pStore;
+  bool                 hasWindowOrGroup; // denote that the function is used with time window or group
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
