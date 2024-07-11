@@ -7,7 +7,7 @@ taosAdapter is a component of TDengine that provides RESTful and WebSocket inter
 
 ## Installing taosAdapter
 
-It is not necessary to install taosAdapter separately. When you install TDengine Server, taosAdapter is automatically installed. However, if desired, you can install taosAdapter and TDengine Server on different machines. For more information, see [Installation](../install/). For more information about taosAdapter, see [taosAdapter](../../reference/taosAdapter/).
+It is not necessary to install taosAdapter separately. When you install TDengine Server, taosAdapter is automatically installed. However, if desired, you can install taosAdapter and TDengine Server on different machines. For more information, see [Installation](../install/). For more information about taosAdapter, see [taosAdapter](../../reference/taosadapter/).
 
 ## Single Instance
 
