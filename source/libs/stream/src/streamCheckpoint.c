@@ -442,6 +442,9 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 id, vgId, pReq->taskId, numOfTasks);
       }
       streamMetaWLock(pMeta);
+      if (streamMetaCommit(pMeta) < 0) {
+        // persist to disk
+      }
     }
 
     return TSDB_CODE_SUCCESS;
