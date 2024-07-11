@@ -1196,6 +1196,9 @@ _stddev_over:
 }
 
 static void stddevTransferInfo(SStddevRes* pInput, SStddevRes* pOutput) {
+  if (IS_NULL_TYPE(pInput->type)) {
+    return;
+  }
   pOutput->type = pInput->type;
   if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
     pOutput->quadraticISum += pInput->quadraticISum;
