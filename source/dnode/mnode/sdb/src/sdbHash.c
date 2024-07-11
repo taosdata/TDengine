@@ -140,11 +140,11 @@ static int32_t sdbGetkeySize(SSdb *pSdb, ESdbType type, const void *pKey) {
 
 static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
   int32_t type = pRow->type;
-  sdbWriteLock(pSdb, type);
+  // sdbWriteLock(pSdb, type);
 
   SSdbRow *pOldRow = taosHashGet(hash, pRow->pObj, keySize);
   if (pOldRow != NULL) {
-    sdbUnLock(pSdb, type);
+    // sdbUnLock(pSdb, type);
     sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
     return terrno;
@@ -155,7 +155,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   sdbPrintOper(pSdb, pRow, "insert");
 
   if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
-    sdbUnLock(pSdb, type);
+    // sdbUnLock(pSdb, type);
     sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
@@ -171,12 +171,12 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
       taosHashRemove(hash, pRow->pObj, keySize);
       sdbFreeRow(pSdb, pRow, false);
       terrno = code;
-      sdbUnLock(pSdb, type);
+      // sdbUnLock(pSdb, type);
       return terrno;
     }
   }
 
-  sdbUnLock(pSdb, type);
+  // sdbUnLock(pSdb, type);
 
   if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT32) {
     pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
@@ -191,11 +191,11 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
 static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pNewRow, int32_t keySize) {
   int32_t type = pNewRow->type;
-  sdbWriteLock(pSdb, type);
+  // sdbWriteLock(pSdb, type);
 
   SSdbRow **ppOldRow = taosHashGet(hash, pNewRow->pObj, keySize);
   if (ppOldRow == NULL || *ppOldRow == NULL) {
-    sdbUnLock(pSdb, type);
+    // sdbUnLock(pSdb, type);
     return sdbInsertRow(pSdb, hash, pRaw, pNewRow, keySize);
   }
 
@@ -208,7 +208,7 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   if (updateFp != NULL) {
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
-  sdbUnLock(pSdb, type);
+  // sdbUnLock(pSdb, type);
 
   // sdbUnLock(pSdb, type);
   sdbFreeRow(pSdb, pNewRow, false);
@@ -219,11 +219,11 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
 static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
   int32_t type = pRow->type;
-  sdbWriteLock(pSdb, type);
+  // sdbWriteLock(pSdb, type);
 
   SSdbRow **ppOldRow = taosHashGet(hash, pRow->pObj, keySize);
   if (ppOldRow == NULL || *ppOldRow == NULL) {
-    sdbUnLock(pSdb, type);
+    // sdbUnLock(pSdb, type);
     sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
     return terrno;
@@ -236,7 +236,7 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
   taosHashRemove(hash, pOldRow->pObj, keySize);
   pSdb->tableVer[pOldRow->type]++;
-  sdbUnLock(pSdb, type);
+  // sdbUnLock(pSdb, type);
 
   sdbFreeRow(pSdb, pRow, false);
 
@@ -249,6 +249,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
   if (hash == NULL) return terrno;
 
   SdbDecodeFp decodeFp = pSdb->decodeFps[pRaw->type];
+  sdbWriteLock(pSdb, pRaw->type);
   SSdbRow    *pRow = (*decodeFp)(pRaw);
   if (pRow == NULL) return terrno;
 
@@ -270,6 +271,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
       code = sdbDeleteRow(pSdb, hash, pRaw, pRow, keySize);
       break;
   }
+  sdbUnLock(pSdb, pRaw->type);
 
   return code;
 }
@@ -336,7 +338,7 @@ void *sdbAcquireNotReadyObj(SSdb *pSdb, ESdbType type, const void *pKey) {
 
 static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {
   int32_t type = pRow->type;
-  sdbWriteLock(pSdb, type);
+  // sdbWriteLock(pSdb, type);
 
   int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   sdbPrintOper(pSdb, pRow, "check");
@@ -344,7 +346,7 @@ static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {
     sdbFreeRow(pSdb, pRow, true);
   }
 
-  sdbUnLock(pSdb, type);
+  // sdbUnLock(pSdb, type);
 }
 
 void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
