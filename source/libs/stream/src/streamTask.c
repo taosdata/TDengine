@@ -268,13 +268,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   streamTaskCleanupCheckInfo(&pTask->taskCheckInfo);
-
-  if (pTask->pState) {
-    stDebug("s-task:0x%x start to free task state", taskId);
-    streamStateClose(pTask->pState, status1 == TASK_STATUS__DROPPING);
-    taskDbRemoveRef(pTask->pBackend);
-    pTask->pBackend = NULL;
-  }
+  streamFreeTaskState(pTask, status1);
 
   if (pTask->pNameMap) {
     tSimpleHashCleanup(pTask->pNameMap);
@@ -309,6 +303,16 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
+}
+
+void streamFreeTaskState(SStreamTask* pTask, ETaskStatus status) {
+  if (pTask->pState != NULL) {
+    stDebug("s-task:0x%x start to free task state", pTask->id.taskId);
+    streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
+    taskDbRemoveRef(pTask->pBackend);
+    pTask->pBackend = NULL;
+    pTask->pState = NULL;
+  }
 }
 
 static void setInitialVersionInfo(SStreamTask* pTask, int64_t ver) {
@@ -848,6 +852,8 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
       .checkpointInfo.latestTime = pTask->chkInfo.checkpointTime,
       .checkpointInfo.latestSize = 0,
       .checkpointInfo.remoteBackup = 0,
+      .checkpointInfo.consensusChkptId = 0,
+      .checkpointInfo.consensusTs = taosGetTimestampMs(),
       .hTaskId = pTask->hTaskInfo.id.taskId,
       .procsTotal = SIZE_IN_MiB(pExecInfo->inputDataSize),
       .outputTotal = SIZE_IN_MiB(pExecInfo->outputDataSize),

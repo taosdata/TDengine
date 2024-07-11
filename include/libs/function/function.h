@@ -41,6 +41,7 @@ typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunctionCtx *pSourceCtx);
+typedef int32_t (*processFuncByRow)(SArray* pCtx);  // array of SqlFunctionCtx
 
 typedef struct SScalarFuncExecFuncs {
   FExecGetEnv        getEnv;
@@ -48,11 +49,12 @@ typedef struct SScalarFuncExecFuncs {
 } SScalarFuncExecFuncs;
 
 typedef struct SFuncExecFuncs {
-  FExecGetEnv   getEnv;
-  FExecInit     init;
-  FExecProcess  process;
-  FExecFinalize finalize;
-  FExecCombine  combine;
+  FExecGetEnv      getEnv;
+  FExecInit        init;
+  FExecProcess     process;
+  FExecFinalize    finalize;
+  FExecCombine     combine;
+  processFuncByRow processFuncByRow;
 } SFuncExecFuncs;
 
 #define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
