@@ -37,6 +37,7 @@ extern "C" {
 #define MP_RETIRE_MID_THRESHOLD_PERCENT           (0.9)
 #define MP_RETIRE_LOW_THRESHOLD_PERCENT           (0.85)
 #define MP_RETIRE_UNIT_PERCENT               (0.1)
+#define MP_RETIRE_UNIT_MIN_SIZE              (50 * 1048576UL)
 
 
 // FLAGS AREA

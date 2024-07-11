@@ -46,7 +46,6 @@ extern "C" {
 #define QW_MIN_MEM_POOL_SIZE           (1048576UL)
 
 #define QW_DEFAULT_THREAD_TASK_NUM     3
-#define QW_DEFAULT_MIN_MEM_POOL_SIZE   104857600UL
 
 enum {
   QW_CONC_TASK_LEVEL_LOW = 1,

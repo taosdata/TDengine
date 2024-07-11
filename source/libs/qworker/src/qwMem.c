@@ -20,7 +20,7 @@ int32_t qwGetMemPoolChunkSize(int64_t totalSize, int32_t threadNum, int32_t* chu
   return TSDB_CODE_SUCCESS;
 }
 
-void qwSetConcurrentTaskNum(int32_t taskNum) {
+void qwSetConcurrentTaskNumCb(int32_t taskNum) {
   int32_t finTaskNum = TMIN(taskNum, tsNumOfQueryThreads * QW_DEFAULT_THREAD_TASK_NUM);
   
   if (tsQueryMaxConcurrentTaskNum > 0) {
@@ -33,7 +33,7 @@ void qwSetConcurrentTaskNum(int32_t taskNum) {
   atomic_store_32(&gQueryMgmt.concTaskLevel, QW_CONC_TASK_LEVEL_FULL);
 }
 
-void qwDecConcurrentTaskNum(void) {
+void qwDecConcurrentTaskNumCb(void) {
   int32_t concTaskLevel = atomic_load_32(&gQueryMgmt.concTaskLevel);
   if (concTaskLevel <= QW_CONC_TASK_LEVEL_LOW) {
     qError("Unable to decrease concurrent task num, current task level:%d", concTaskLevel);
@@ -43,7 +43,7 @@ void qwDecConcurrentTaskNum(void) {
   //TODO
 }
 
-void qwIncConcurrentTaskNum(void) {
+void qwIncConcurrentTaskNumCb(void) {
   int32_t concTaskLevel = atomic_load_32(&gQueryMgmt.concTaskLevel);
   if (concTaskLevel >= QW_CONC_TASK_LEVEL_FULL) {
     qError("Unable to increase concurrent task num, current task level:%d", concTaskLevel);
@@ -117,8 +117,8 @@ bool qwLowLevelRetire() {
 
 }
 
-bool qwRetireCollection(uint64_t collectionId, int64_t retireSize, bool retireLow) {
-  if (retireLow) {
+bool qwRetireCollectionCb(int64_t collectionId, int64_t collectionAllocSize, int64_t retireSize, bool retireLow) {
+  if (retireLow && collectionAllocSize > retireSize) {
     return qwLowLevelRetire();
   }
   
@@ -150,7 +150,7 @@ int32_t qwGetQueryMemPoolMaxSize(int64_t* pMaxSize, bool* autoMaxSize) {
   return code;
 }
 
-void qwCheckUpateCfg(SMemPoolCfg* pCfg) {
+void qwCheckUpateCfgCb(void* pHandle, SMemPoolCfg* pCfg) {
   int64_t newCollectionQuota = tsSingleQueryMaxMemorySize * 1048576UL;
   if (pCfg->collectionQuota != newCollectionQuota) {
     atomic_store_64(&pCfg->collectionQuota, newCollectionQuota);
@@ -160,7 +160,7 @@ void qwCheckUpateCfg(SMemPoolCfg* pCfg) {
   bool autoMaxSize = false;
   int32_t code = qwGetQueryMemPoolMaxSize(&maxSize, &autoMaxSize);
   if (TSDB_CODE_SUCCESS != code) {
-    pCfg->maxSize = QW_DEFAULT_MIN_MEM_POOL_SIZE;
+    pCfg->maxSize = 0;
     qError("get query memPool maxSize failed, reset maxSize to %" PRId64, pCfg->maxSize);
     return;
   }
@@ -168,7 +168,7 @@ void qwCheckUpateCfg(SMemPoolCfg* pCfg) {
   if (pCfg->autoMaxSize != autoMaxSize || pCfg->maxSize != maxSize) {
     pCfg->autoMaxSize = autoMaxSize;
     atomic_store_64(&pCfg->maxSize, maxSize);
-    taosMemPoolCfgUpdate();
+    taosMemPoolCfgUpdate(pHandle, pCfg);
   }
 }
 
@@ -191,11 +191,11 @@ int32_t qwInitQueryPool(void) {
   cfg.threadNum = 10; //TODO
   cfg.evicPolicy = E_EVICT_AUTO; //TODO
   cfg.collectionQuota = tsSingleQueryMaxMemorySize * 1048576UL;
-  cfg.cb.setSessFp = qwSetConcurrentTaskNum;
-  cfg.cb.decSessFp = qwDecConcurrentTaskNum;
-  cfg.cb.incSessFp = qwIncConcurrentTaskNum;
-  cfg.cb.retireFp = qwRetireCollection;
-  cfg.cb.cfgUpdateFp = qwCheckUpateCfg;
+  cfg.cb.setSessFp = qwSetConcurrentTaskNumCb;
+  cfg.cb.decSessFp = qwDecConcurrentTaskNumCb;
+  cfg.cb.incSessFp = qwIncConcurrentTaskNumCb;
+  cfg.cb.retireFp = qwRetireCollectionCb;
+  cfg.cb.cfgUpdateFp = qwCheckUpateCfgCb;
 
   code = qwGetMemPoolChunkSize(cfg.maxSize, cfg.threadNum, &cfg.chunkSize);
   if (TSDB_CODE_SUCCESS != code) {
