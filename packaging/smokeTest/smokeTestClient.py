@@ -56,6 +56,7 @@ if serverPort == 0:
 
 
 system = platform.system()
+
 arch = platform.machine()
 # install taospy
 taospy_version = ""
@@ -66,10 +67,10 @@ else:
 
 print("taospy version %s " % taospy_version)
 if taospy_version == "":
-    os.system("pip3 install git+https://github.com/taosdata/taos-connector-python.git")
+    subprocess.getoutput("pip3 install git+https://github.com/taosdata/taos-connector-python.git")
     print("install taos python connector")
 else:
-    os.system("pip3 install --upgrade  taospy  ")
+    subprocess.getoutput("pip3 install --upgrade  taospy")
 
 # prepare data by taosBenchmark
 
@@ -180,7 +181,7 @@ if uninstall:
 
     elif system == "Darwin":
         # 创建一个subprocess.Popen对象，并使用stdin和stdout进行交互
-        process = subprocess.Popen(['osascript', '-e', 'do shell script "rmtaos" with administrator privileges'],
+        process = subprocess.Popen(['sudo', 'rmtaos'],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         # 向子进程发送输入
         process.stdin.write("y\n")
