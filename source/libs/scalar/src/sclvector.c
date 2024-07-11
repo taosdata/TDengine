@@ -1667,7 +1667,6 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       }
     } else {
       for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
-        if (terrno != TSDB_CODE_SUCCESS) break;
         int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
         int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
@@ -1676,11 +1675,11 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
           pRes[i] = false;
           continue;
         }
-
         char *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
         char *pRightData = colDataGetData(pRight->columnData, rightIndex);
-
+        terrno = TSDB_CODE_SUCCESS;
         pRes[i] = filterDoCompare(fp, optr, pLeftData, pRightData);
+        if (terrno != TSDB_CODE_SUCCESS) break;
         if (pRes[i]) {
           ++num;
         }
@@ -1689,7 +1688,6 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   } else {
     //  if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_JSON || GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_JSON) {
     for (int32_t i = startIndex; i < numOfRows && i >= startIndex; i += step) {
-      if (terrno != TSDB_CODE_SUCCESS) break;
       int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
       int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
@@ -1716,7 +1714,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       if (!pLeftData || !pRightData) {
         result = false;
       }
-
+      terrno = TSDB_CODE_SUCCESS;
       if (!result) {
         colDataSetInt8(pOut->columnData, i, (int8_t *)&result);
       } else {
@@ -1726,6 +1724,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
           ++num;
         }
       }
+      if (terrno != TSDB_CODE_SUCCESS) break;
 
       if (freeLeft) {
         taosMemoryFreeClear(pLeftData);

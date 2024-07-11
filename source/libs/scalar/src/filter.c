@@ -3217,6 +3217,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes
       continue;
     }
 
+    terrno = TSDB_CODE_SUCCESS;
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
     // match/nmatch for nchar type need convert from ucs4 to mbs
     if (info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR &&
@@ -3235,6 +3236,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes
       p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData,
                              info->cunits[uidx].valData);
     }
+    if (terrno != TSDB_CODE_SUCCESS) break;
 
     if (p[i] == 0) {
       all = false;
@@ -3358,8 +3360,9 @@ int32_t filterSetExecFunc(SFilterInfo *info) {
     return TSDB_CODE_SUCCESS;
   }
 
+  terrno = TSDB_CODE_SUCCESS;
   info->func = filterExecuteImplMisc;
-  return TSDB_CODE_SUCCESS;
+  return terrno;
 }
 
 int32_t filterPreprocess(SFilterInfo *info) {
@@ -4744,6 +4747,7 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
   }
 
   bool keepAll = (*info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified);
+  if (terrno != TSDB_CODE_SUCCESS) return terrno; 
 
   // todo this should be return during filter procedure
   if (keepAll) {

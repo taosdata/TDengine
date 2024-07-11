@@ -1650,8 +1650,8 @@ static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
-    if (ldt.type == TSDB_DATA_TYPE_VARBINARY || !IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
-        (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
+    if (QUERY_NODE_VALUE != nodeType(pOp->pRight) || 
+      (rdt.type != TSDB_DATA_TYPE_NCHAR && rdt.type != TSDB_DATA_TYPE_VARCHAR && rdt.type != TSDB_DATA_TYPE_NULL)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }

@@ -38,18 +38,6 @@ class TDTestCase:
     def stopTest(self):
         tdSql.execute("drop database if exists db")
         
-    def insertData(self, threadID):
-        cursor = self.conn.cursor()
-        print("Thread %d: starting" % threadID)
-        base = 200000 * threadID
-        for i in range(200):                        
-            query = "insert into tb values"
-            for j in range(1000):
-                query += "(%d, %d, 'test')" % (self.ts + base + i * 1000 + j, base + i * 1000 + j)                        
-            cursor.execute(query)            
-        cursor.close()
-        print("Thread %d: finishing" % threadID)
-
     def threadTest(self, threadID):
         print(f"Thread {threadID} starting...")
         tdsqln = tdCom.newTdSql()
@@ -68,6 +56,8 @@ class TDTestCase:
             
             tdsqln.query("select * from db.t1x where c1 match '%__c'")
             tdsqln.checkRows(0)
+            
+            tdsqln.error("select * from db.t1x where c1 match '*d'")
         
         print(f"Thread {threadID} finished.")
 
@@ -91,7 +81,7 @@ class TDTestCase:
         
         tdSql.query("select * from db.t1x where c1 match '%__c'")
         tdSql.checkRows(0)
-        
+        tdSql.error("select * from db.t1x where c1 match '*d'")
         threads = []
         for i in range(10):
             t = threading.Thread(target=self.threadTest, args=(i,))
@@ -122,6 +112,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query("select * from db.t3x where c1 match '中文'")
         tdSql.checkRows(5)
+        tdSql.error("select * from db.t1x where c1 match '*d'")
 
         for thread in threads:
             print(f"Thread waitting for finish...")
