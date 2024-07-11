@@ -70,7 +70,7 @@ if taospy_version == "":
     subprocess.getoutput("pip3 install git+https://github.com/taosdata/taos-connector-python.git")
     print("install taos python connector")
 else:
-    subprocess.getoutput("pip3 install --upgrade  taospy")
+    subprocess.getoutput("pip3 install taospy")
 
 # prepare data by taosBenchmark
 
