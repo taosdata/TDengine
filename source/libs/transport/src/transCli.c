@@ -470,8 +470,11 @@ void cliHandleResp_shareConn(SCliConn* conn) {
   transMsg.info.ahandle = pCtx ? pCtx->ahandle : NULL;
   STraceId* trace = &transMsg.info.traceId;
 
-  if (cliAppCb(conn, &transMsg, pMsg) != 0) {
+  int32_t ret = cliAppCb(conn, &transMsg, pMsg);
+  if (ret != 0) {
     return;
+  } else {
+    destroyCmsg(pMsg);
   }
 }
 void cliHandleResp(SCliConn* conn) {
@@ -1131,33 +1134,32 @@ static void cliHandleBatch_shareConnExcept(SCliConn* conn) {
   int32_t   code = -1;
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
-  for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
-    SCliMsg* pMsg = transQueueGet(&conn->cliMsgs, i);
+  while (!transQueueEmpty(&conn->cliMsgs)) {
+    SCliMsg* pMsg = transQueuePop(&conn->cliMsgs);
     ASSERT(pMsg->type != Release);
     ASSERT(REQUEST_NO_RESP(&pMsg->msg) == 0);
 
     STransConnCtx* pCtx = pMsg ? pMsg->ctx : NULL;
-    STransMsg      transMsg = {0};
+
+    STransMsg transMsg = {0};
     transMsg.code = code == -1 ? (conn->broken ? TSDB_CODE_RPC_BROKEN_LINK : TSDB_CODE_RPC_NETWORK_UNAVAIL) : code;
     transMsg.msgType = pMsg ? pMsg->msg.msgType + 1 : 0;
     transMsg.info.ahandle = NULL;
     transMsg.info.cliVer = pTransInst->compatibilityVer;
     transMsg.info.ahandle = pCtx->ahandle;
 
-    int32_t ret = cliAppCb(conn, &transMsg, pMsg);
-    if (ret != 0) {
-      return;
+    pMsg->seqNum = 0;
+    code = cliAppCb(conn, &transMsg, pMsg);
+    if (code != 0) {
+      continue;
+    } else {
+      // already notify user
+      destroyCmsg(pMsg);
     }
   }
 
-  // SCliConn* conn = req->data;
-  // if (status != 0) {
-  //   tDebug("%s conn %p failed to send batch msg, reason:%s", CONN_GET_INST_LABEL(conn), conn, uv_err_name(status));
-  //   return;
-  // }
-
-  // uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
-  // taosMemoryFree(req);
+  if (T_REF_VAL_GET(conn) > 1) transUnrefCliHandle(conn);
+  transUnrefCliHandle(conn);
 }
 static void cliSendBatch_shareConnCb(uv_write_t* req, int status) {
   SCliConn* conn = req->data;
