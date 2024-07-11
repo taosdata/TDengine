@@ -64,7 +64,12 @@ while getopts "m:c:f:l:s:o:t:v:h" opt; do
     esac
 done
 
-
+systemType=`uname`
+if [ ${systemType} == "Darwin" ]; then
+    platform="macOS"
+else
+    platform="Linux"
+fi
 
 echo "testFile:${testFile},verMode:${verMode},lite:${lite},cpuType:${cpuType},packageType:${packageType},version-${version},originversion:${originversion},sourcePath:${sourcePath}"
 # Color setting
@@ -98,7 +103,7 @@ fi
 tdPath="${prePackage}-${version}"
 #originTdpPath="${prePackage}-${originversion}"
 
-packageName="${tdPath}-Linux-${cpuType}${packageLite}.${packageType}"
+packageName="${tdPath}-${platform}-${cpuType}${packageLite}.${packageType}"
 #originPackageName="${originTdpPath}-Linux-${cpuType}${packageLite}.${packageType}"
 
 if [ "$testFile" == "server" ] ;then
@@ -207,10 +212,13 @@ if [[ ${packageName} =~ "server" ]] ;then
     pkill -9 taosd
 fi
 
-
 echoColor G "===== new workroom path ====="
 installPath="/usr/local/src/packageTest"
 #oriInstallPath="/usr/local/src/packageTest/3.0"
+
+if [ ${systemType} == "Darwin" ]; then
+    installPath="${JENKINS_HOME}/packageTest"
+fi
 
 newPath ${installPath}
 
@@ -318,18 +326,20 @@ elif [[ ${packageName} =~ "tar" ]];then
         echoColor BD "bash ${installCmd} "
         bash ${installCmd} 
     fi
+elif [[ ${packageName} =~ "pkg" ]];then
+    cd ${installPath}
+    sudo installer -pkg ${packageName} -target /
 fi  
 
 cd ${installPath}
 
+#echoColor G  "===== start TDengine ====="
 
-echoColor G  "===== start TDengine ====="
-
-if [[ ${packageName} =~ "server" ]] ;then
-    echoColor BD " rm -rf /var/lib/taos/* &&  systemctl restart taosd "
-    rm -rf /var/lib/taos/*
-    systemctl restart taosd
-fi
+#if [[ ${packageName} =~ "server" ]] ;then
+#    echoColor BD " rm -rf /var/lib/taos/* &&  systemctl restart taosd "
+#    rm -rf /var/lib/taos/*
+#    systemctl restart taosd
+#fi
 
 rm -rf ${installPath}/${packageName}
 rm -rf ${installPath}/${tdPath}/
