@@ -34,6 +34,7 @@
                       placeholder="[min"
                       :min="0"
                       :controls="false"
+                      :precision="1"
                     /> -
                     <el-input-number 
                       v-model="filterParams.query_time_2"
@@ -41,6 +42,7 @@
                       placeholder="max]"
                       :min="0"
                       :controls="false"
+                      :precision="1"
                     />
                   </el-form-item>
                   <el-form-item
