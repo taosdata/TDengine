@@ -1561,7 +1561,7 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionW
     goto _error;
   }
 
-  pOperator->exprSupp.hasWindowOrGroup = false;
+  pOperator->exprSupp.hasWindowOrGroup = true;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
