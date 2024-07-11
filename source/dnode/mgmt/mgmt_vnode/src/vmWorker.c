@@ -453,7 +453,7 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) return -1;
 
   int32_t threadNum = 0;
-  if (tsNumOfCores == 0) {
+  if (tsNumOfCores == 1) {
     threadNum = 2;
   } else {
     threadNum = tsNumOfCores;
