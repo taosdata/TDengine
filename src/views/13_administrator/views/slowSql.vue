@@ -34,6 +34,7 @@
                       placeholder="[min"
                       :min="0"
                       :controls="false"
+                      :precision="1"
                     /> -
                     <el-input-number 
                       v-model="filterParams.query_time_2"
@@ -41,6 +42,7 @@
                       placeholder="max]"
                       :min="0"
                       :controls="false"
+                      :precision="1"
                     />
                   </el-form-item>
                   <el-form-item
@@ -401,7 +403,7 @@ export default {
       statisticsList: [],
       parsinginZone,
       filterParams: {
-        query_time_1: 3,
+        query_time_1: 10,
         query_time_2: undefined,
       },
       de_duplication: false,
