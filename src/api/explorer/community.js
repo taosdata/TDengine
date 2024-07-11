@@ -8078,7 +8078,367 @@ export function getDataSources(lang) {
             }
           ]
         }
-      }
+      },
+      {
+        "id": "mongodb",
+        "type": "uri",
+        "name": "MongoDB",
+        "license_id": "mongodb",
+        "description": "MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品，被广泛应用于内容管理系统、移动应用与物联网等众多领域。\n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "服务地址",
+            "description": "MongoDB 的服务器地址",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "服务端口",
+            "description": "MongoDB 的端口",
+            "placeholder": "3306",
+          },
+          "direct_connection": {
+            "required": false,
+            "display": "是否直连",
+            "description": "是否直接连接到单个主机或者自动发现集群中所有服务器。",
+            "hint": {
+              "type": "bool",
+            }
+          },
+          "repl_set_name": {
+            "required": false,
+            "display": "副本名称",
+            "description": "客户端连接到指定名称的集群副本。",
+            "placeholder": "",
+          },
+          "local_threshold": {
+            "required": false,
+            "display": "超时阈值",
+            "description": "用于确定与所有服务器中最短往返时间相比，客户端与服务器之间的平均往返时间被允许增加多少。",
+            "hint": {
+              "type": "duration",
+              "choices": [
+                {
+                  "value": "m",
+                  "label": "分钟"
+                },
+                {
+                  "value": "s",
+                  "label": "秒"
+                },
+              ]
+            },
+            "placeholder": "15",
+            "value": "15",
+            "type_value": "s",
+            "pattern": "^[0-9]+$",
+            "patternMsg": "只能输入正整数或者0",
+          }
+        },
+        "authentication": {
+          "display": "认证",
+          "description": "使用用户名和密码访问 MongoDB 数据库",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "用户名密码访问",
+              "params": [
+                {
+                  "name": "username",
+                  "required": false,
+                  "display": "用户",
+                  "placeholder": "username"
+                },
+                {
+                  "name": "password",
+                  "required": false,
+                  "display": "密码",
+                  "placeholder": "password"
+                },
+                {
+                  "name": "mechanism",
+                  "required": false,
+                  "display": "认证机制",
+                  "placeholder": "请选择认证机制",
+                  "short_description": "要使用的身份验证机制，如果没有提供，将与服务器协商一个。\n",
+                  "description": "要使用的身份验证机制，如果没有提供，将与服务器协商一个。\n",
+                  "hint": {
+                    "type": "str",
+                    "choices": [
+                      "MongoDbCr",
+                      "ScramSha1",
+                      "ScramSha256",
+                      "MongoDbX509",
+                      "Gssapi",
+                      "Plain",
+                      "MongoDbAws",
+                      "MongoDbOidc",
+                    ]
+                  },
+                },
+                {
+                  "name": "source",
+                  "required": false,
+                  "display": "认证数据库",
+                  "placeholder": "认证数据库",
+                  "short_description": "进行身份验证的数据库。\n",
+                  "description": "进行身份验证的数据库，在 SCRAM 身份验证机制中默认为 “admin”，GSSAPI 和 MONGODB-X509 默认为 “$external”，PLAIN 默认为数据库名称或 “$external”。\n",
+                },
+              ],
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "连接选项",
+            "display_order": 1,
+            "short_description": "其他数据库连接选项。",
+            "description": "其他数据库连接选项。",
+            "collapsible": false,
+            "connection_option": true,
+            "params": [
+              {
+                "name": "app_name",
+                "display": "应用名称",
+                "hint": {
+                  "type": "str",
+                },
+                "short_description": "用于标识客户端。",
+                "description": "用于标识客户端。",
+                "placeholder": "",
+              },
+              {
+                "name": "compressors",
+                "display": "压缩器",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "snappy",
+                    "zlib",
+                    "zstd"
+                  ]
+                },
+                "short_description": "用于压缩发送到服务器的消息和解压缩从服务器接收的消息。",
+                "description": "用于压缩发送到服务器的消息和解压缩从服务器接收的消息。",
+                "placeholder": "请选择压缩器",
+              }
+            ]
+          },
+          {
+            "name": "SSL 证书",
+            "short_description": "使用证书和私钥建立连接以启用 SSL。",
+            "description": "使用证书和私钥建立连接以启用 SSL。",
+            "collapsible": true,
+            "connection_option": true,
+            "collapsed": false,
+            "params": [
+              {
+                "name": "ca_file_path",
+                "display": "CA 文件",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": "CA 证书文件",
+                "description": "CA 证书文件",
+                "required": true
+              },
+              {
+                "name": "cert_key_file_path",
+                "display": "证书文件",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": ".cert 文件",
+                "description": ".cert 文件",
+                "required": true
+              },
+            ]
+          },
+          {
+            "name": "数据查询",
+            "display_order": 2,
+            "short_description": "数据采集相关配置项。",
+            "description": "数据采集相关配置项。",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "database",
+                "display": "数据库",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "源数据库。",
+                "description": "源数据库。\n",
+                "required": true,
+                "placeholder": "",
+              },
+              {
+                "name": "collection",
+                "display": "集合",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "源集合。",
+                "description": "源集合。\n",
+                "required": true,
+                "placeholder": "",
+              },
+              {
+                "name": "sql",
+                "display": "查询模板",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
+                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n",
+                "required": true,
+                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "grid_two": true,
+              },
+              {
+                "name": "start",
+                "display": "起始时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的起始时间。",
+                "description": "迁移数据的起始时间。\n",
+                "required": true,
+                "placeholder": "如：2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "结束时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。",
+                "description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。\n",
+                "required": false,
+                "placeholder": "如：2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "查询间隔",
+                "hint": {
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                  ]
+                },
+                "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
+                "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
+                "required": false,
+                "placeholder": "1",
+                "type_value": "d",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
+              },
+              {
+                "name": "delay",
+                "display": "延迟时长",
+                "hint": {
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
+                },
+                "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
+                "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
+                "required": false,
+                "placeholder": "10",
+                "type_value": "s",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "高级选项",
+          "description": "对数据源性能、日志等其他参数进行调整，可修改以下选项。\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "最大读取并发数",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "批次大小",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "单次发送的最大消息数或行数。\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "Payload 转换",
+          "required": true,
+          "description": "Kafka 连接器会上传以下六列到服务端：<br>\n\n- **ts**: 采集时间戳。<br>\n- **topic**: 订阅主题名。<br>\n- **partition**: 当前消息所在的分区 ID。<br>\n- **offset**: 当前消息的偏移量。<br>\n- **key**: 当前消息的 Key。<br>\n- **value**: 当前消息的数据内容。<br>\n\ntaosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>\n包括，指定表名称和超级表名，设置普通列和标签列等。\n",
+          "fields": [
+            {
+              "name": "ts",
+              "description": "时间戳。",
+              "type": "timestamp"
+            },
+            {
+              "name": "topic",
+              "description": "主题名。",
+              "type": "varchar"
+            },
+            {
+              "name": "partition",
+              "description": "分区 ID。",
+              "type": "int"
+            },
+            {
+              "name": "offset",
+              "description": "偏移。",
+              "type": "bigint"
+            },
+            {
+              "name": "key",
+              "description": "消息 Key。",
+              "type": "varchar"
+            },
+            {
+              "name": "value",
+              "description": "消息体。",
+              "type": "varchar"
+            }
+          ]
+        }
+      },
     ]
   }
 

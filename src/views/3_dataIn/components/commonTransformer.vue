@@ -691,6 +691,7 @@ export default {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
+      mongodbDefaultCols: ["topic", "partition", "offset", "key", "value"],
       parseTypes: ["regex", "json", "udt"],
       exprformat: "${c1}-${c2}:${c3}",
       exprexpression: "centigrade * 1.8 + 32",
@@ -829,7 +830,8 @@ export default {
     if (this.parserColumns) {
       if (
         this.$store.state.app.currentDBType == "mqtt" ||
-        this.$store.state.app.currentDBType == "kafka"
+        this.$store.state.app.currentDBType == "kafka" ||
+        this.$store.state.app.currentDBType == "mongodb"
       ) {
         this.initColumnLists(
           this.parserColumns.filter((item) => item.name != "ts")
@@ -1165,6 +1167,8 @@ export default {
           hiddenCols = this.mqttDefaultCols;
         } else if (this.$store.state.app.currentDBType == "kafka") {
           hiddenCols = this.kafkaDefaultCols;
+        } else if (this.$store.state.app.currentDBType == "mongodb") {
+          hiddenCols = this.mongodbDefaultCols;
         }
         let tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
@@ -1193,6 +1197,11 @@ export default {
                 } else if (
                   this.$store.state.app.currentDBType == "kafka" &&
                   !this.kafkaDefaultCols.includes(item.name)
+                ) {
+                  return item;
+                } else if (
+                  this.$store.state.app.currentDBType == "mongodb" &&
+                  !this.mongodbDefaultCols.includes(item.name)
                 ) {
                   return item;
                 } else if (this.$store.state.app.supportSQL) {
@@ -1506,6 +1515,16 @@ export default {
             });
           break;
         case "kafka":
+          finalCol = columns
+            .filter((val) => ["value"].includes(val.name))
+            .map((item) => {
+              return {
+                ...item,
+                show: true,
+              };
+            });
+          break;
+        case "mongodb":
           finalCol = columns
             .filter((val) => ["value"].includes(val.name))
             .map((item) => {
@@ -1864,6 +1883,15 @@ export default {
                     ? "" //parsinginZone(new Date())
                     : item.name;
               }
+            } else if (this.$store.state.app.currentDBType == "mongodb") {
+              if (item.name == "value") {
+                inputobj["value"] = msg;
+              } else {
+                inputobj[item.name] =
+                  item.type == "timestamp"
+                    ? "" //parsinginZone(new Date())
+                    : item.name;
+              }
             }
           }
         });
@@ -2091,6 +2119,11 @@ export default {
                 ) {
                   return val;
                 } else if (
+                  this.$store.state.app.currentDBType == "mongodb" &&
+                  !this.mongodbDefaultCols.includes(val.value)
+                ) {
+                  return val;
+                }  else if (
                   this.$store.state.app.supportSQL
                 ) {
                   return val;
@@ -2397,7 +2430,8 @@ export default {
       handler(val) {
         if (
           this.$store.state.app.currentDBType == "mqtt" ||
-          this.$store.state.app.currentDBType == "kafka"
+          this.$store.state.app.currentDBType == "kafka" ||
+          this.$store.state.app.currentDBType == "mongodb"
         ) {
           this.initColumnLists(val.filter((item) => item.name != "ts"));
         } else {
