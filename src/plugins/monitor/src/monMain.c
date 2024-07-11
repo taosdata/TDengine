@@ -281,7 +281,7 @@ static void *monAuditFunc(void *param) {
 
   int32_t try = 0;
   for (; try < AUDIT_MAX_RETRIES; ++try) {
-    auditConn = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+    auditConn = taos_connect(NULL, "monitor", tsMonitorPass, "", 0);
     if (auditConn == NULL) {
       monDebug("audit retry connect, tries: %d", try);
       taosMsleep(1000);
@@ -362,7 +362,7 @@ static void *monThreadFunc(void *param) {
 
     if (tsMonitor.conn == NULL) {
       tsMonitor.state = MON_STATE_NOT_INIT;
-      tsMonitor.conn = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+      tsMonitor.conn = taos_connect(NULL, "monitor", tsMonitorPass, "", 0);
       if (tsMonitor.conn == NULL) {
         monError("failed to connect to database, reason:%s", tstrerror(terrno));
         continue;
