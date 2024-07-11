@@ -75,7 +75,6 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   blockDataCleanup(pInfo->pRes);
   doApplyScalarCalculation(pOperator, pInfo->existNewGroupBlock, order, scanFlag);
 
-  //revisedFillStartKey(pInfo, pInfo->existNewGroupBlock, order);
   reviseFillStartAndEndKey(pOperator->info, order);
 
   int64_t ts = (order == TSDB_ORDER_ASC) ? pInfo->existNewGroupBlock->info.window.ekey
@@ -260,7 +259,6 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
       if (pInfo->curGroupId == 0 || (pInfo->curGroupId == pInfo->pRes->info.id.groupId)) {
         if (pInfo->curGroupId == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
-          //revisedFillStartKey(pInfo, pBlock, order);
           reviseFillStartAndEndKey(pInfo, order);
         }
 
@@ -570,14 +568,13 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
   } else {
     assert(order == TSDB_ORDER_DESC);
     skey = taosTimeTruncate(pInfo->win.skey, &pInfo->pFillInfo->interval);
-    taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);
-
     next = skey;
     while (next < pInfo->win.skey) {
       next = taosTimeAdd(skey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
                          pInfo->pFillInfo->interval.precision);
       skey = next > pInfo->win.skey ? skey : next;
     }
+    taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);
     pInfo->win.ekey = taosTimeTruncate(pInfo->win.ekey, &pInfo->pFillInfo->interval);
   }
 }

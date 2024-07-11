@@ -1,3 +1,4 @@
+import queue
 import random
 from fabric2.runners import threading
 from pandas._libs import interval
@@ -12,6 +13,7 @@ from util.cases import *
 
 
 class TDTestCase:
+    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'numOfVnodeQueryThreads': 80}
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -19,7 +21,7 @@ class TDTestCase:
         #tdSql.init(conn.cursor())
         tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def generate_fill_range(self, data_start: int, data_end: int, interval: int, step: int)-> list:
+    def generate_fill_range(self, data_start: int, data_end: int, interval: int, step: int):
         ret = []
         begin = data_start - 10 * interval
         end = data_end + 10 * interval
@@ -52,9 +54,10 @@ class TDTestCase:
         else:
             return "partition by tbname"
 
-    def generate_fill_interval(self)-> list[tuple]:
+    def generate_fill_interval(self):
         ret = []
-        intervals = [60, 90, 120, 300, 3600]
+        #intervals = [60, 90, 120, 300, 3600]
+        intervals = [120, 300, 3600]
         for i in range(0, len(intervals)):
             for j in range(0, i+1):
                 ret.append((intervals[i], intervals[j]))
@@ -63,9 +66,9 @@ class TDTestCase:
     def generate_fill_sql(self, where_start, where_end, fill_interval: tuple):
         partition_by = self.generate_partition_by()
         where = f'where ts >= {where_start} and ts < {where_end}'
-        sql = f'select _wstart, _wend, count(*) from test.meters {where} {partition_by} interval({fill_interval[0]}s) sliding({fill_interval[1]}s) fill(NULL)'
-        sql_asc = sql + " order by _wstart asc"
-        sql_desc = sql + " order by _wstart desc"
+        sql = f'select first(_wstart), last(_wstart) from (select _wstart, _wend, count(*) from test.meters {where} {partition_by} interval({fill_interval[0]}s) sliding({fill_interval[1]}s) fill(NULL)'
+        sql_asc = sql + " order by _wstart asc) t"
+        sql_desc = sql + " order by _wstart desc) t"
         return sql_asc, sql_desc
 
     def fill_test_thread_routine(self, cli: TDSql, interval, data_start, data_end, step):
@@ -78,34 +81,55 @@ class TDTestCase:
             desc_res = cli.queryResult
             self.check_fill_range(range[0], range[1], asc_res,desc_res , sql_asc, interval)
 
-    def test_fill_range(self):
-        os.system('taosBenchmark -t 10 -n 10000 -v 8 -S 32000 -y')
+    def fill_test_task_routine(self, tdCom: TDCom, queue: queue.Queue):
+        cli = tdCom.newTdSql()
+        while True:
+            m: list = queue.get()
+            if len(m) == 0:
+                break
+            interval = m[0]
+            range = m[1]
+            sql_asc, sql_desc = self.generate_fill_sql(range[0], range[1], interval)
+            cli.query(sql_asc, queryTimes=1)
+            asc_res = cli.queryResult
+            cli.query(sql_desc, queryTimes=1)
+            desc_res = cli.queryResult
+            self.check_fill_range(range[0], range[1], asc_res,desc_res , sql_asc, interval)
+        cli.close()
+
+    def schedule_fill_test_tasks(self):
+        num: int = 20
+        threads = []
+        tdCom = TDCom()
+        q: queue.Queue = queue.Queue()
+        for _ in range(num):
+            t = threading.Thread(target=self.fill_test_task_routine, args=(tdCom, q))
+            t.start()
+            threads.append(t)
+
         data_start = 1500000000000
         data_end = 1500319968000
-        step = 2000000
-        tdCom = TDCom()
-        inses: list[TDSql] = []
-        threads: list[threading.Thread] = []
+        step = 30000000
 
         fill_intervals: list[tuple] = self.generate_fill_interval()
         for interval in fill_intervals:
-            ins = tdCom.newTdSql()
-            t = threading.Thread(target=self.fill_test_thread_routine, args=(ins, interval, data_start, data_end, step))
-            t.start()
-            inses.append(ins)
-            threads.append(t)
+            ranges = self.generate_fill_range(data_start, data_end, interval[0], step)
+            for r in ranges:
+                q.put([interval, r])
+
+        for _ in range(num):
+            q.put([])
 
         for t in threads:
             t.join()
 
-        for ins in inses:
-            ins.close()
-
-        ## tdSql.execute('drop database test')
+    def test_fill_range(self):
+        os.system('taosBenchmark -t 10 -n 10000 -v 8 -S 32000 -y')
+        self.schedule_fill_test_tasks()
+        tdSql.execute('drop database test')
 
     def run(self):
         self.test_fill_range()
-        return
         dbname = "db"
         tbname = "tb"
 
