@@ -30,7 +30,6 @@
 #define DEFAULT_ASKEP_INTERVAL         1000
 
 struct SMqMgmt {
-  int8_t  inited;
   tmr_h   timer;
   int32_t rsetId;
 };
@@ -1057,6 +1056,16 @@ void tmqFreeImpl(void* handle) {
 
   taosArrayDestroyEx(tmq->clientTopics, freeClientVgImpl);
   taos_close_internal(tmq->pTscObj);
+
+  if(tmq->commitTimer) {
+    taosTmrStopA(&tmq->commitTimer);
+  }
+  if(tmq->epTimer) {
+    taosTmrStopA(&tmq->epTimer);
+  }
+  if(tmq->hbLiveTimer) {
+    taosTmrStopA(&tmq->hbLiveTimer);
+  }
   taosMemoryFree(tmq);
 
   tscDebug("consumer:0x%" PRIx64 " closed", id);
@@ -1073,6 +1082,18 @@ static void tmqMgmtInit(void) {
   tmqMgmt.rsetId = taosOpenRef(10000, tmqFreeImpl);
   if (tmqMgmt.rsetId < 0) {
     tmqInitRes = terrno;
+  }
+}
+
+void tmqMgmtClose(void) {
+  if (tmqMgmt.timer) {
+    taosTmrCleanUp(tmqMgmt.timer);
+    tmqMgmt.timer = NULL;
+  }
+
+  if (tmqMgmt.rsetId >= 0) {
+    taosCloseRef(tmqMgmt.rsetId);
+    tmqMgmt.rsetId = -1;
   }
 }
 
