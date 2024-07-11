@@ -64,7 +64,7 @@ export default {
   created() {
     let version = localStorage.getItem("agent_version");
     let [a, b, c, d] = version.split(".");
-    if (a > 3 || (a == 3 && b >= 1 && c >= 3)) {
+    if (a > 3 || (a == 3 && b >= 1 && c >= 2)) {
       this.version_gt_equ_3330 = true;
     }
   }
