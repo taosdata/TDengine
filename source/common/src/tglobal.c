@@ -1344,7 +1344,10 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
     return -1;
   }
 
-  if (taosSetTfsCfg(pCfg) != 0) return -1;
+  if (taosSetTfsCfg(pCfg) != 0) {
+    cfgCleanup(pCfg);
+    return -1;
+  }
   dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
 
   cfgCleanup(pCfg);
