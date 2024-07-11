@@ -16,6 +16,7 @@ start_taosadapter_count=0
 SLEEP_INTERVAL=${SLEEP_INTERVAL:-10}
 DNODE_CREATED=0
 MNODE_CREATED=0
+SNODE_CREATED=0
 
 # set the timezone for the TDengine
 if [ "$TZ" != "" ]; then
@@ -294,7 +295,7 @@ function print_service_state_change() {
 function initDnodeAndMnode {
     while true
     do 
-        if [ $DNODE_CREATED -eq 1 ] && [ $MNODE_CREATED -eq 1 ]; then
+        if [ $DNODE_CREATED -eq 1 ] && [ $MNODE_CREATED -eq 1 ] && [ $SNODE_CREATED -eq 1 ]; then
             break 
         fi
         # first check dnode created
@@ -330,6 +331,24 @@ function initDnodeAndMnode {
             else 
                 MNODE_CREATED=1
                 logger "INFO" "Mnode $MNODETmp already created"
+            fi
+            # third check snode created
+            SNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show snodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+            if [[ "$SNODETmp" == "" ]]; then
+                DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
+                if [[ "$DNODEID" != "" ]]; then
+                    taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create snode on dnode $DNODEID;"
+                    SNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show snodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+                    if [[ "$SNODETmp" != "" ]]; then
+                        SNODE_CREATED=1
+                        logger "INFO" "Created the snode for dnode $DNODEID"
+                    else 
+                        logger "ERROR" "failed to create snode for dnode $ENDPOINT through taos"
+                    fi
+                fi
+            else 
+                SNODE_CREATED=1
+                logger "INFO" "Snode $SNODETmp already created"
             fi
         else
             # check admin_user created or not
