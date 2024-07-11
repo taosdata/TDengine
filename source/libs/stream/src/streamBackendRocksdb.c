@@ -4222,7 +4222,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   static char* chkpMeta = "META";
   memset(dstBuf, 0, len);
   sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
-  tstrncpy(dstDir, dstBuf, strlen(dstBuf) + 1);
+  memcpy(dstDir, dstBuf, strlen(dstBuf));
 
   TdFilePtr pFile = taosOpenFile(dstDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
