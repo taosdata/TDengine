@@ -508,7 +508,7 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   vmStopWorker(pMgmt);
   vnodeCleanup();
   taosThreadRwlockDestroy(&pMgmt->lock);
-  taosThreadRwlockDestroy(&pMgmt->createLock);
+  taosThreadMutexDestroy(&pMgmt->createLock);
   taosMemoryFree(pMgmt);
 }
 
