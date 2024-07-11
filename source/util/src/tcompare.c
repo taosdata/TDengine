@@ -1280,6 +1280,7 @@ static UsingRegex *getRegComp(const char *pPattern) {
   UsingRegex *pUsingRegex = taosMemoryMalloc(sizeof(UsingRegex));
   if (pUsingRegex == NULL) {
     uError("Failed to Malloc when compile regex pattern %s.", pPattern);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   int32_t cflags = REG_EXTENDED;
@@ -1306,11 +1307,13 @@ static UsingRegex *getRegComp(const char *pPattern) {
       } else {
         uError("Failed to get regex pattern %s from cache, exception internal error.", pPattern);
         taosThreadRwlockUnlock(&sRegexCache.regexLock);
+        terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         return NULL;
       }      
     } else {
         uError("Failed to put regex pattern %s into cache, exception internal error.", pPattern);
         taosThreadRwlockUnlock(&sRegexCache.regexLock);
+        terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         return NULL;
     }
   }
