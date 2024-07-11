@@ -207,6 +207,8 @@ SOperatorInfo* createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
     goto _error;
   }
 
+  pOperator->exprSupp.hasWindowOrGroup = true;
+
   int32_t code = TSDB_CODE_SUCCESS;
   SCountWinodwPhysiNode* pCountWindowNode = (SCountWinodwPhysiNode*)physiNode;
 

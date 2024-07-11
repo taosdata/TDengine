@@ -255,6 +255,7 @@ bool fmIsIgnoreNullFunc(int32_t funcId);
 bool fmIsConstantResFunc(SFunctionNode* pFunc);
 bool fmIsSkipScanCheckFunc(int32_t funcId);
 bool fmIsPrimaryKeyFunc(int32_t funcId);
+bool fmIsProcessByRowFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);

@@ -272,9 +272,9 @@ typedef struct SCheckpointInfo {
   int64_t checkpointTime;  // latest checkpoint time
   int64_t processedVer;
   int64_t nextProcessVer;  // current offset in WAL, not serialize it
-
+  int64_t msgVer;
+  int32_t consensusTransId;// consensus checkpoint id
   SActiveCheckpointInfo* pActiveInfo;
-  int64_t                msgVer;
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -289,6 +289,8 @@ typedef struct SStreamStatus {
   int32_t        inScanHistorySentinel;
   bool           appendTranstateBlock;  // has append the transfer state data block already
   bool           removeBackendFiles;    // remove backend files on disk when free stream tasks
+  bool           sendConsensusChkptId;
+  bool           requireConsensusChkptId;
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -528,10 +530,11 @@ typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
 
 SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
                             SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5);
+void         tFreeStreamTask(SStreamTask* pTask);
 int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
-void         tFreeStreamTask(SStreamTask* pTask);
 int32_t      streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver);
+void         streamFreeTaskState(SStreamTask* pTask, ETaskStatus status);
 
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo);
 int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId);
@@ -568,14 +571,16 @@ typedef struct {
 } SStreamScanHistoryReq;
 
 typedef struct STaskCkptInfo {
-  int64_t latestId;       // saved checkpoint id
-  int64_t latestVer;      // saved checkpoint ver
-  int64_t latestTime;     // latest checkpoint time
-  int64_t latestSize;     // latest checkpoint size
-  int8_t  remoteBackup;   // latest checkpoint backup done
-  int64_t activeId;       // current active checkpoint id
-  int32_t activeTransId;  // checkpoint trans id
-  int8_t  failed;         // denote if the checkpoint is failed or not
+  int64_t latestId;          // saved checkpoint id
+  int64_t latestVer;         // saved checkpoint ver
+  int64_t latestTime;        // latest checkpoint time
+  int64_t latestSize;        // latest checkpoint size
+  int8_t  remoteBackup;      // latest checkpoint backup done
+  int64_t activeId;          // current active checkpoint id
+  int32_t activeTransId;     // checkpoint trans id
+  int8_t  failed;            // denote if the checkpoint is failed or not
+  int8_t  consensusChkptId;  // required the consensus-checkpointId
+  int64_t consensusTs;       //
 } STaskCkptInfo;
 
 typedef struct STaskStatusEntry {
@@ -586,8 +591,6 @@ typedef struct STaskStatusEntry {
   int32_t       nodeId;
   SVersionRange verRange;        // start/end version in WAL, only valid for source task
   int64_t       processedVer;    // only valid for source task
-  bool          inputQChanging;  // inputQ is changing or not
-  int64_t       inputQUnchangeCounter;
   double        inputQUsed;  // in MiB
   double        inputRate;
   double        procsThroughput;   // duration between one element put into input queue and being processed.
@@ -616,8 +619,8 @@ typedef struct SStreamTaskState {
 
 typedef struct SCheckpointConsensusInfo {
   SArray* pTaskList;
-  int64_t checkpointId;
-  int64_t genTs;
+  int32_t numOfTasks;
+  int64_t streamId;
 } SCheckpointConsensusInfo;
 
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
@@ -800,6 +803,7 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 void    streamTaskSendRetrieveRsp(SStreamRetrieveReq* pReq, SRpcMsg* pRsp);
 
 int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp);
+int32_t streamTaskSendPreparedCheckpointsourceRsp(SStreamTask* pTask);
 
 
 #ifdef __cplusplus
