@@ -74,6 +74,44 @@ class TDTestCase(TBase):
             tdSql.checkData(0, 0, ts2)
             tdSql.checkData(0, 1, ts2)
 
+    def FIX_TS_5143(self):
+        tdLog.info("check bug TS_5143 ...\n")
+        # 2024-07-11 17:07:38
+        base_ts = 1720688857000
+        new_ts = base_ts + 10
+        sqls = [
+            "drop database if exists ts_5143",
+            "create database ts_5143 cachemodel 'both';",
+            "use ts_5143;",
+            "create table stb1 (ts timestamp, vval varchar(50), ival2 int, ival3 int, ival4 int) tags (itag int);",
+            "create table ntb1 using stb1 tags(1);",
+            f"insert into ntb1 values({base_ts}, 'nihao1', 12, 13, 14);",
+            f"insert into ntb1 values({base_ts + 2}, 'nihao2', NULL, NULL, NULL);",
+            f"delete from ntb1 where ts = {base_ts};",
+            f"insert into ntb1 values('{new_ts}', 'nihao3', 32, 33, 34);",
+        ]
+        tdSql.executes(sqls)
+
+        last_sql = "select last(vval), last(ival2), last(ival3), last(ival4) from stb1;"
+        tdLog.debug(f"execute sql: {last_sql}")
+        tdSql.query(last_sql)
+
+        for i in range(1, 10):
+            new_ts = base_ts + i * 1000
+            num = i * 100
+            sqls = [
+                f"insert into ntb1 values({new_ts}, 'nihao{num}', {10*i}, {10*i}, {10*i});",
+                f"insert into ntb1 values({new_ts + 1}, 'nihao{num + 1}', NULL, NULL, NULL);",
+                f"delete from ntb1 where ts = {new_ts};",
+                f"insert into ntb1 values({new_ts + 2}, 'nihao{num + 2}', {11*i}, {11*i}, {11*i});",
+            ]
+            tdSql.executes(sqls)
+
+            tdLog.debug(f"{i}th execute sql: {last_sql}")
+            tdSql.query(last_sql)
+            tdSql.checkData(0, 0, f"nihao{num + 2}")
+            tdSql.checkData(0, 1, f"{11*i}")
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -83,6 +121,7 @@ class TDTestCase(TBase):
 
         # TS BUGS
         self.FIX_TS_5105()
+        self.FIX_TS_5143()
 
         tdLog.success(f"{__file__} successfully executed")
 
