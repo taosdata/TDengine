@@ -22,7 +22,7 @@ const InfoParams = ['security_policy', 'security_mode'];
 const Info2Params = ['point_file','template_for_pi_point_file', 'template_for_af_element_file','csv_config_file'];
 export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime', 'BackfillStartTime', 'BackfillEndTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
-export const ComposeParams = ['timeout','schema-polling-interval','unit','retro','excursion','interval','MaxBackfillRangeDays','timeWindow','retrieveInterval','tolerance','','delay'];
+export const ComposeParams = ['timeout','schema-polling-interval','unit','retro','excursion','interval','MaxBackfillRangeDays','timeWindow','retrieveInterval','tolerance', 'delay', 'local_threshold'];
 const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
@@ -359,7 +359,7 @@ function handleOptions(options, paramsConfig, id) {
   const children = paramsConfig[0]?.children ?? [];
   const keys = Object.keys(options);
   keys.forEach(key => {
-    const { display, description, placeholder, required, value, pattern, patternMsg } = options[key];
+    const { display, description, placeholder, required, value, pattern, patternMsg, type_value } = options[key];
     if (!display) return;
     const config = {
       label: display,
@@ -370,6 +370,7 @@ function handleOptions(options, paramsConfig, id) {
       pattern: pattern || null,
       patternMsg,
       defaultValue: value ?? '',
+      type_value,
       if: currentData => {
         if (id?.startsWith('pi')) {
           if (!currentData.system_configuration || key == 'host') return true;
@@ -454,7 +455,7 @@ function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue
   const { display, description, fields } = parser;
   paramsConfig.push({
     label: display,
-    description:['mqtt','kafka'].includes(id)?'':description,
+    description:['mqtt','kafka','mongodb'].includes(id)?'':description,
     field: 'parser',
     type: 'parser',
     fields: fields,//fields.filter(item => item.name != 'payload'),
@@ -806,7 +807,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
       // }
 
       // postgres/mysql/sql server 的 sql 在编辑状态下不能修改
-      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle' || currentType == 'mssql') && paramConfig.field == 'sql') {
+      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle' || currentType == 'mssql' || currentType == 'mongodb') && paramConfig.field == 'sql') {
         paramConfig.disabled = (a,b,c,isEdit) => {
           return isEdit;
         };
@@ -1106,7 +1107,7 @@ export function getOptionsValue(data) {
 export function getDsnData(data, definition) {
   let dsn = handleProtocolData(data[optionsField]?.protocol, definition);
   let queryArr = [];
-  dsn += getAuthentications(data[authenticationField], queryArr);
+  dsn += getAuthentications(data[authenticationField], queryArr, definition);
   dsn += getOptionData(data[optionsField], queryArr, definition);
   getGroupsQuery(data[groupsFieldBeforeConnection], queryArr, definition);
   getGroupsQuery(data[groupsFieldAfterConnection], queryArr, definition);
@@ -1232,12 +1233,21 @@ function getDatasetsQuery(datasets, allData, query) {
 }
 
 // 获取authentications
-export function getAuthentications(authentication, params) {
+export function getAuthentications(authentication, params, definition) {
   if (!authentication) return '';
   const currentData = authentication[handleField(authentication[valueField])];
   const dataFields = Object.keys(currentData);
+  const { id } = definition;
   switch (authentication[valueField]) {
     case 'plain':
+      if (id === 'mongodb') {
+        if (currentData.mechanism) {
+          params.push('mechanism=' + currentData.mechanism)
+        }
+        if (currentData.source) {
+          params.push('source=' + currentData.source)
+        }
+      }
       if (!currentData.username) {
         return '';
       }
