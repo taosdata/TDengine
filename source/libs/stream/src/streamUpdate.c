@@ -420,6 +420,8 @@ int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo)
 }
 
 int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   ASSERT(pInfo);
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
@@ -440,8 +442,10 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
   if (tDecodeI32(&decoder, &sBfSize) < 0) return -1;
   pInfo->pTsSBFs = taosArrayInit(sBfSize, sizeof(void *));
   for (int32_t i = 0; i < sBfSize; i++) {
-    SScalableBf *pSBf = tScalableBfDecode(&decoder);
-    if (!pSBf) return -1;
+    SScalableBf *pSBf = NULL;
+    code = tScalableBfDecode(&decoder, &pSBf);
+    TSDB_CHECK_CODE(code, lino, _error);
+
     taosArrayPush(pInfo->pTsSBFs, &pSBf);
   }
 
@@ -449,7 +453,9 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
   if (tDecodeI64(&decoder, &pInfo->interval) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->watermark) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->minTS) < 0) return -1;
-  pInfo->pCloseWinSBF = tScalableBfDecode(&decoder);
+  pInfo->pCloseWinSBF = NULL;
+  code = tScalableBfDecode(&decoder, &pInfo->pCloseWinSBF);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   int32_t mapSize = 0;
   if (tDecodeI32(&decoder, &mapSize) < 0) return -1;
@@ -482,7 +488,12 @@ int32_t updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo) {
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
-  return 0;
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 bool isIncrementalTimeStamp(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len) {

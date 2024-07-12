@@ -32,13 +32,13 @@ typedef struct SScalableBf {
   _hash_fn_t hashFn2;
 } SScalableBf;
 
-int32_t      tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf **ppSBf);
-int32_t      tScalableBfPutNoCheck(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
-int32_t      tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
-int32_t      tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32_t len);
-void         tScalableBfDestroy(SScalableBf *pSBf);
-int32_t      tScalableBfEncode(const SScalableBf *pSBf, SEncoder *pEncoder);
-SScalableBf *tScalableBfDecode(SDecoder *pDecoder);
+int32_t tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf **ppSBf);
+int32_t tScalableBfPutNoCheck(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
+int32_t tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
+int32_t tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32_t len);
+void    tScalableBfDestroy(SScalableBf *pSBf);
+int32_t tScalableBfEncode(const SScalableBf *pSBf, SEncoder *pEncoder);
+int32_t tScalableBfDecode(SDecoder *pDecoder, SScalableBf **ppSBf);
 
 #ifdef __cplusplus
 }
