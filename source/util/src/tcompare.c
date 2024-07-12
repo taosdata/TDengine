@@ -1211,27 +1211,23 @@ typedef struct UsingRegex {
 
 typedef struct RegexCache {
   SHashObj      *regexHash;
-  int32_t        regexCaheSize;
   void          *regexCacheTimer;
   void          *timer;
-  int32_t        lastClearTime;
 } RegexCache;
 static RegexCache sRegexCache;
 #define MAX_REGEX_CACHE_SIZE   20
 #define REGEX_CACHE_CLEAR_TIME 30
 
 static void checkRegexCache(void* param, void* tmrId) {
-  if (taosGetTimestampSec() - sRegexCache.lastClearTime < REGEX_CACHE_CLEAR_TIME ||
-      taosHashGetSize(sRegexCache.regexHash) < sRegexCache.regexCaheSize) {
+  if (taosHashGetSize(sRegexCache.regexHash) < MAX_REGEX_CACHE_SIZE) {
     return;
   }
 
-  if (taosHashGetSize(sRegexCache.regexHash) >= sRegexCache.regexCaheSize) {
+  if (taosHashGetSize(sRegexCache.regexHash) >= MAX_REGEX_CACHE_SIZE) {
     UsingRegex **ppUsingRegex = taosHashIterate(sRegexCache.regexHash, NULL);
     while ((ppUsingRegex != NULL)) {
       if (taosGetTimestampSec() - (*ppUsingRegex)->lastUsedTime > REGEX_CACHE_CLEAR_TIME) {
         taosHashRelease(sRegexCache.regexHash, ppUsingRegex);
-        sRegexCache.lastClearTime = taosGetTimestampSec();
       }
       ppUsingRegex = taosHashIterate(sRegexCache.regexHash, ppUsingRegex);
     }
@@ -1252,9 +1248,6 @@ int32_t InitRegexCache() {
     return -1;
   }
   taosHashSetFreeFp(sRegexCache.regexHash, regexCacheFree);
-  sRegexCache.regexCaheSize = MAX_REGEX_CACHE_SIZE;
-  sRegexCache.lastClearTime = taosGetTimestampSec();
-
   sRegexCache.regexCacheTimer = taosTmrInit(0, 0, 0, "REGEXCACHE");
   if (sRegexCache.regexCacheTimer == NULL) {
     uError("failed to create regex cache check timer");
@@ -1272,13 +1265,26 @@ int32_t InitRegexCache() {
 }
 
 void DestroyRegexCache(){
-  UsingRegex **ppUsingRegex = taosHashIterate(sRegexCache.regexHash, NULL);
   taosTmrStopA(&sRegexCache.timer);
-  while ((ppUsingRegex != NULL)) {
-    regexCacheFree(ppUsingRegex);
-    ppUsingRegex = taosHashIterate(sRegexCache.regexHash, ppUsingRegex);
-  }
   taosHashCleanup(sRegexCache.regexHash);
+}
+
+int32_t checkRegexPattern(const char *pPattern) {
+  if (pPattern == NULL) {
+    return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+  }
+
+  regex_t regex;
+  int32_t cflags = REG_EXTENDED;
+  int32_t ret = regcomp(&regex, pPattern, cflags);
+  if (ret != 0) {
+    char msgbuf[256] = {0};
+    regerror(ret, &regex, msgbuf, tListLen(msgbuf));
+    uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
+    return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+  }
+  regfree(&regex);
+  return TSDB_CODE_SUCCESS;
 }
 
 static UsingRegex **getRegComp(const char *pPattern) {
@@ -1291,7 +1297,6 @@ static UsingRegex **getRegComp(const char *pPattern) {
   UsingRegex *pUsingRegex = taosMemoryMalloc(sizeof(UsingRegex));
   if (pUsingRegex == NULL) {
     uError("Failed to Malloc when compile regex pattern %s.", pPattern);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   int32_t cflags = REG_EXTENDED;
@@ -1301,7 +1306,6 @@ static UsingRegex **getRegComp(const char *pPattern) {
     regerror(ret, &pUsingRegex->pRegex, msgbuf, tListLen(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
     taosMemoryFree(pUsingRegex);
-    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
     return NULL;
   }
 
@@ -1309,6 +1313,7 @@ static UsingRegex **getRegComp(const char *pPattern) {
     int code = taosHashPut(sRegexCache.regexHash, pPattern, strlen(pPattern), &pUsingRegex, sizeof(UsingRegex *));
     if (code != 0) {
       if (terrno == TSDB_CODE_DUP_KEY) {
+        terrno  = TSDB_CODE_SUCCESS;
         ppUsingRegex = (UsingRegex **)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
         if (ppUsingRegex) {
           if (*ppUsingRegex != pUsingRegex) {
@@ -1322,7 +1327,6 @@ static UsingRegex **getRegComp(const char *pPattern) {
       } else {
         regexCacheFree(&pUsingRegex);
         uError("Failed to put regex pattern %s into cache, exception internal error.", pPattern);
-        terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         return NULL;
       }
     }

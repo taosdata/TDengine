@@ -71,6 +71,7 @@ class TDTestCase:
             tdSql.query(f"select distinct table_name from information_schema.ins_columns where table_name match 't.*{i}x'")
             tdSql.checkRows(0)
 
+        tdSql.error("select * from db.t1x where c1 match '*d'")
         tdSql.query("insert into db.t1x values(now, 'abc'), (now+1s, 'a%c'),(now+2s, 'a_c'),(now+3s, '_c'),(now+4s, '%c')")
         
         tdSql.query("select * from db.t1x")

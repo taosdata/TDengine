@@ -618,6 +618,7 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);
+bool nodesIsMatchRegularOp(const SOperatorNode* pOp);
 bool nodesIsBitwiseOp(const SOperatorNode* pOp);
 
 bool nodesExprHasColumn(SNode* pNode);

@@ -2205,6 +2205,17 @@ bool nodesIsRegularOp(const SOperatorNode* pOp) {
   return false;
 }
 
+bool nodesIsMatchRegularOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 bool nodesIsBitwiseOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_BIT_AND:

@@ -1654,6 +1654,12 @@ static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
       (rdt.type != TSDB_DATA_TYPE_NCHAR && rdt.type != TSDB_DATA_TYPE_VARCHAR && rdt.type != TSDB_DATA_TYPE_NULL)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
+    if (nodesIsMatchRegularOp(pOp)) {
+      SValueNode* node = (SValueNode*)(pOp->pRight);
+      if(checkRegexPattern(node->literal) != TSDB_CODE_SUCCESS){
+        return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+      }
+    }
   }
   pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
   pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;

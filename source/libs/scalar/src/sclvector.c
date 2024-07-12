@@ -1677,9 +1677,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
         }
         char *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
         char *pRightData = colDataGetData(pRight->columnData, rightIndex);
-        terrno = TSDB_CODE_SUCCESS;
         pRes[i] = filterDoCompare(fp, optr, pLeftData, pRightData);
-        if (terrno != TSDB_CODE_SUCCESS) break;
         if (pRes[i]) {
           ++num;
         }
@@ -1714,7 +1712,6 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       if (!pLeftData || !pRightData) {
         result = false;
       }
-      terrno = TSDB_CODE_SUCCESS;
       if (!result) {
         colDataSetInt8(pOut->columnData, i, (int8_t *)&result);
       } else {
@@ -1724,7 +1721,6 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
           ++num;
         }
       }
-      if (terrno != TSDB_CODE_SUCCESS) break;
 
       if (freeLeft) {
         taosMemoryFreeClear(pLeftData);
