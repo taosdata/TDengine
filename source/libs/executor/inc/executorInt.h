@@ -128,6 +128,7 @@ typedef struct SExprSupp {
   SqlFunctionCtx* pCtx;
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
+  bool            hasWindowOrGroup;
 } SExprSupp;
 
 typedef enum {

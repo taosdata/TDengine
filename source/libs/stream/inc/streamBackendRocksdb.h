@@ -131,20 +131,21 @@ typedef struct {
   TdThreadRwlock rwLock;
 } SBkdMgt;
 
-bool       streamBackendDataIsExist(const char* path, int64_t chkpId, int32_t vgId);
+#define META_ON_S3_FORMATE "%s_%" PRId64 "\n%s_%" PRId64 "\n%s_%" PRId64 ""
+
+bool       streamBackendDataIsExist(const char* path, int64_t chkpId);
 void*      streamBackendInit(const char* path, int64_t chkpId, int32_t vgId);
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);
 int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
-int32_t    streamBackendDoCheckpoint(void* pMeta, int64_t checkpointId);
+int32_t    streamBackendDoCheckpoint(void* pMeta, int64_t checkpointId, int64_t processver);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 int32_t    streamStateCvtDataFormat(char* path, char* key, void* cfInst);
 
-STaskDbWrapper* taskDbOpen(const char* path, const char* key, int64_t chkptId);
+STaskDbWrapper* taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* processVer);
 void            taskDbDestroy(void* pBackend, bool flush);
 void            taskDbDestroy2(void* pBackend);
-int32_t         taskDbDoCheckpoint(void* arg, int64_t chkpId);
 
 void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId);
 
@@ -250,7 +251,7 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
 int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo);
 
-int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId);
+int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId);
 
 SBkdMgt* bkdMgtCreate(char* path);
 int32_t  bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);
@@ -260,6 +261,7 @@ void     bkdMgtDestroy(SBkdMgt* bm);
 
 int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list,
                                 const char* id);
+int32_t remoteChkpGetDelFile(char* path, SArray* toDel);
 
 void* taskAcquireDb(int64_t refId);
 void  taskReleaseDb(int64_t refId);

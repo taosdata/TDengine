@@ -50,6 +50,7 @@ typedef struct SBuiltinFuncDefinition {
   const char*                pStateFunc;
   FCreateMergeFuncParameters createMergeParaFuc;
   FEstimateReturnRows        estimateReturnRowsFunc;
+  processFuncByRow           processFuncByRow;
 } SBuiltinFuncDefinition;
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];
