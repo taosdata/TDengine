@@ -14,6 +14,7 @@
 
 # -*- coding: utf-8 -*-
 import sys, os
+import re
 import platform
 import getopt
 import subprocess
@@ -59,7 +60,7 @@ system = platform.system()
 
 arch = platform.machine()
 
-databaseName = subprocess.getoutput("hostname")
+databaseName = re.sub(r'[^a-zA-Z0-9]', '', subprocess.getoutput("hostname"))
 # install taospy
 taospy_version = ""
 if system == 'Windows':
