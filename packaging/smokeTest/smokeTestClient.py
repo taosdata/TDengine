@@ -98,7 +98,7 @@ print("client_version", client_version)  # 3.0.0.0
 result: taos.TaosResult = conn.query("SELECT count(*) from meters")
 
 data = result.fetch_all()
-
+print(data)
 if data[0][0] !=10000:
     print(" taosBenchmark work not as expected ")
     print("!!!!!!!!!!!Test Result: taosBenchmark test failed! !!!!!!!!!!")
@@ -110,8 +110,9 @@ if data[0][0] !=10000:
 # drop database of test
 taos_test_result = False
 print("drop database test")
-print("run taos -s 'drop database -d %s;'  -h %s  -P %d" % (databaseName, serverHost, serverPort))
-taos_cmd_outpur = subprocess.getoutput('taos -s "drop database -d %s;"  -h %s  -P %d' % (databaseName, serverHost, serverPort))
+print("run taos -s 'drop database %s;'  -h %s  -P %d" % (databaseName, serverHost, serverPort))
+taos_cmd_outpur = subprocess.getoutput('taos -s "drop database %s;"  -h %s  -P %d' % (databaseName, serverHost, serverPort))
+print(taos_cmd_outpur)
 if ("Drop OK" in taos_cmd_outpur):
     taos_test_result = True
     #print("*******Test Result: taos test passed ************")
