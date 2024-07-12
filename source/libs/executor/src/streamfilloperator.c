@@ -21,6 +21,7 @@
 #include "ttypes.h"
 
 #include "executorInt.h"
+#include "streamexecutorInt.h"
 #include "tcommon.h"
 #include "thash.h"
 #include "ttime.h"
@@ -31,12 +32,6 @@
 #include "tfill.h"
 #include "operator.h"
 #include "querytask.h"
-
-
-#define FILL_POS_INVALID 0
-#define FILL_POS_START   1
-#define FILL_POS_MID     2
-#define FILL_POS_END     3
 
 typedef struct STimeRange {
   TSKEY    skey;
@@ -133,12 +128,12 @@ static void destroyStreamFillOperatorInfo(void* param) {
   taosMemoryFree(pInfo);
 }
 
-static void resetFillWindow(SResultRowData* pRowData) {
+void resetFillWindow(SResultRowData* pRowData) {
   pRowData->key = INT64_MIN;
   taosMemoryFreeClear(pRowData->pRowVal);
 }
 
-void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, void* pState, SStorageAPI* pAPI) {
+void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup) {
   if (pFillSup->cur.pRowVal != pFillSup->prev.pRowVal && pFillSup->cur.pRowVal != pFillSup->next.pRowVal) {
     resetFillWindow(&pFillSup->cur);
   } else {
@@ -154,7 +149,7 @@ void getCurWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupI
   SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
 
   void* pState = pOperator->pTaskInfo->streamInfo.pState;
-  resetPrevAndNextWindow(pFillSup, pState, pAPI);
+  resetPrevAndNextWindow(pFillSup);
 
   SWinKey key = {.ts = ts, .groupId = groupId};
   int32_t curVLen = 0;
@@ -167,7 +162,7 @@ void getCurWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupI
 void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
   SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
   void* pState = pOperator->pTaskInfo->streamInfo.pState;
-  resetPrevAndNextWindow(pFillSup, pState, pAPI);
+  resetPrevAndNextWindow(pFillSup);
 
   SWinKey key = {.ts = ts, .groupId = groupId};
   void*   curVal = NULL;
@@ -233,14 +228,14 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
   pAPI->stateStore.streamStateFreeCur(pCur);
 }
 
-static bool hasPrevWindow(SStreamFillSupporter* pFillSup) { return pFillSup->prev.key != INT64_MIN; }
-static bool hasNextWindow(SStreamFillSupporter* pFillSup) { return pFillSup->next.key != INT64_MIN; }
+bool hasPrevWindow(SStreamFillSupporter* pFillSup) { return pFillSup->prev.key != INT64_MIN; }
+bool hasNextWindow(SStreamFillSupporter* pFillSup) { return pFillSup->next.key != INT64_MIN; }
 static bool hasNextNextWindow(SStreamFillSupporter* pFillSup) {
   return pFillSup->nextNext.key != INT64_MIN;
   return false;
 }
 
-static void transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SResultRowData* pRowVal) {
+void transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SResultRowData* pRowVal) {
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
@@ -262,30 +257,7 @@ static void transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKE
   pRowVal->key = ts;
 }
 
-static void calcDeltaData(SSDataBlock* pBlock, int32_t rowId, SResultRowData* pRowVal, SArray* pDelta,
-                          SFillColInfo* pFillCol, int32_t numOfCol, int32_t winCount, int32_t order) {
-  for (int32_t i = 0; i < numOfCol; i++) {
-    if (!pFillCol[i].notFillCol) {
-      int32_t          slotId = GET_DEST_SLOT_ID(pFillCol + i);
-      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-      char*            var = colDataGetData(pCol, rowId);
-      double           start = 0;
-      GET_TYPED_DATA(start, double, pCol->info.type, var);
-      SResultCellData* pCell = getResultCell(pRowVal, slotId);
-      double           end = 0;
-      GET_TYPED_DATA(end, double, pCell->type, pCell->pData);
-      double delta = 0;
-      if (order == TSDB_ORDER_ASC) {
-        delta = (end - start) / winCount;
-      } else {
-        delta = (start - end) / winCount;
-      }
-      taosArraySet(pDelta, slotId, &delta);
-    }
-  }
-}
-
-static void calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol,
+void calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol,
                              int32_t numOfCol) {
   for (int32_t i = 0; i < numOfCol; i++) {
     if (!pFillCol[i].notFillCol) {
@@ -308,7 +280,7 @@ static void setFillInfoEnd(TSKEY ts, SInterval* pInterval, SStreamFillInfo* pFil
   pFillInfo->end = ts;
 }
 
-static void setFillKeyInfo(TSKEY start, TSKEY end, SInterval* pInterval, SStreamFillInfo* pFillInfo) {
+void setFillKeyInfo(TSKEY start, TSKEY end, SInterval* pInterval, SStreamFillInfo* pFillInfo) {
   setFillInfoStart(start, pInterval, pFillInfo);
   pFillInfo->current = pFillInfo->start;
   setFillInfoEnd(end, pInterval, pFillInfo);
@@ -519,7 +491,7 @@ static bool buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFill
   return true;
 }
 
-static bool hasRemainCalc(SStreamFillInfo* pFillInfo) {
+bool hasRemainCalc(SStreamFillInfo* pFillInfo) {
   if (pFillInfo->current != INT64_MIN && pFillInfo->current <= pFillInfo->end) {
     return true;
   }
@@ -1004,7 +976,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
   return pInfo->pRes;
 }
 
-static int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
+int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
   pFillSup->rowSize = sizeof(SResultCellData) * pFillSup->numOfAllCols;
   for (int i = 0; i < pFillSup->numOfAllCols; i++) {
     SFillColInfo* pCol = &pFillSup->pAllColInfo[i];

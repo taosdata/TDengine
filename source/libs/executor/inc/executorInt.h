@@ -806,6 +806,36 @@ typedef struct SStreamFillOperatorInfo {
   SStreamFillInfo*      pFillInfo;
 } SStreamFillOperatorInfo;
 
+typedef struct SStreamTimeSliceOperatorInfo {
+  SSteamOpBasicInfo     basic;
+  STimeWindowAggSupp    twAggSup;
+  SStreamAggSupporter   streamAggSup;
+  SStreamFillSupporter* pFillSup;
+  SStreamFillInfo*      pFillInfo;
+  SSDataBlock*          pRes;
+  SSDataBlock*          pDelRes;
+  bool                  recvCkBlock;
+  SSDataBlock*          pCheckpointRes;
+  int32_t               fillType;
+  SResultRowData        leftRow;
+  SResultRowData        valueRow;
+  SResultRowData        rightRow;
+  int32_t               primaryTsIndex;
+  SExprSupp             scalarSup;  // scalar calculation
+  bool                  ignoreExpiredData;
+  bool                  ignoreExpiredDataSaved;
+  bool                  destHasPrimaryKey;
+  SArray*               historyPoints;
+  SArray*               pUpdated;  // SWinKey
+  SSHashObj*            pUpdatedMap;
+  int32_t               delIndex;
+  SArray*               pDelWins;  // SWinKey
+  SSHashObj*            pDeletedMap;
+  uint64_t              numOfDatapack;
+  SGroupResInfo         groupResInfo;
+  bool                  ignoreNull;
+} SStreamTimeSliceOperatorInfo;
+
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
 
@@ -963,6 +993,8 @@ void     resetUnCloseSessionWinInfo(SSHashObj* winMap);
 void     setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
 void     reloadAggSupFromDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup);
 void     destroyFlusedPos(void* pRes);
+bool     isIrowtsPseudoColumn(SExprInfo* pExprInfo);
+bool     isIsfilledPseudoColumn(SExprInfo* pExprInfo);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);
@@ -995,6 +1027,8 @@ void doDeleteTimeWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SArr
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
 void    extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
+bool    getIgoreNullRes(SExprSupp* pExprSup);
+bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
 
 
 

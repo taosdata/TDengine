@@ -166,6 +166,8 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateFillPut = streamStateFillPut;
   pStore->streamStateFillGet = streamStateFillGet;
   pStore->streamStateFillDel = streamStateFillDel;
+  pStore->streamStateFillGetNext = streamStateFillGetNext;
+  pStore->streamStateFillGetPrev = streamStateFillGetPrev;
 
   pStore->streamStateCurNext = streamStateCurNext;
   pStore->streamStateCurPrev = streamStateCurPrev;

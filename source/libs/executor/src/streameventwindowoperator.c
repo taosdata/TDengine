@@ -765,7 +765,7 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->reCkBlock = false;
   pInfo->recvGetAll = false;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
-  pInfo->destHasPrimaryKey = pEventNode->window.destHasPrimayKey;
+  pInfo->destHasPrimaryKey = pEventNode->window.destHasPrimaryKey;
 
   setOperatorInfo(pOperator, "StreamEventAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);

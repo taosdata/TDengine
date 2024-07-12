@@ -359,10 +359,21 @@ int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void*
 // todo refactor
 int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
+  if (pState->pFileState) {
+    return getHashSortRowBuff(pState->pFileState, key, pVal, pVLen);
+  }
   return streamStateFillGet_rocksdb(pState, key, pVal, pVLen);
 #else
   return tdbTbGet(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), pVal, pVLen);
 #endif
+}
+
+int32_t streamStateFillGetNext(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen) {
+  return getHashSortNextRow(pState->pFileState, pKey, pResKey, pVal, pVLen); 
+}
+
+int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen) {
+  return getHashSortPrevRow(pState->pFileState, pKey, pResKey, pVal, pVLen);
 }
 
 // todo refactor

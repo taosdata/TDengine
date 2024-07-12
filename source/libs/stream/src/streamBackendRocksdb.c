@@ -2817,7 +2817,7 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
 
   return 0;
 }
-int32_t streamStateCurNext_rocksdb(SStreamState* pState, SStreamStateCur* pCur) {
+int32_t streamStateCurNext_rocksdb(SStreamStateCur* pCur) {
   if (!pCur) {
     return -1;
   }
@@ -2982,6 +2982,7 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
   STREAM_STATE_DEL_ROCKSDB(pState, "state", &maxStateKey);
   return pCur;
 }
+
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   stDebug("streamStateGetCur_rocksdb");
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
@@ -3480,6 +3481,12 @@ SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const 
   streamStateFreeCur(pCur);
   return NULL;
 }
+
+SStreamStateCur* streamStateFillSeekToLast_rocksdb(SStreamState* pState) {
+  SWinKey key = {.groupId = UINT64_MAX, .ts = INT64_MAX};
+  return streamStateFillSeekKeyNext_rocksdb(pState, &key);
+}
+
 #ifdef BUILD_NO_CALL
 int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
   stDebug("streamStateSessionGetKeyByRange_rocksdb");
@@ -3518,7 +3525,7 @@ int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSes
   }
 
   if (c > 0) {
-    streamStateCurNext_rocksdb(pState, pCur);
+    streamStateCurNext_rocksdb(pCur);
     code = streamStateSessionGetKVByCur_rocksdb(pCur, &resKey, NULL, 0);
     if (code == 0 && sessionRangeKeyCmpr(key, &resKey) == 0) {
       *curKey = resKey;
@@ -3565,7 +3572,7 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
       goto _end;
     }
     taosMemoryFreeClear(*pVal);
-    streamStateCurNext_rocksdb(pState, pCur);
+    streamStateCurNext_rocksdb(pCur);
   } else {
     *key = originKey;
     streamStateFreeCur(pCur);
@@ -3611,7 +3618,7 @@ int32_t streamStateSessionClear_rocksdb(SStreamState* pState) {
     }
     taosMemoryFreeClear(buf);
 
-    streamStateCurNext_rocksdb(pState, pCur);
+    streamStateCurNext_rocksdb(pCur);
   }
   streamStateFreeCur(pCur);
   return -1;
@@ -3642,7 +3649,7 @@ int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey*
       goto _end;
     }
 
-    streamStateCurNext_rocksdb(pState, pCur);
+    streamStateCurNext_rocksdb(pCur);
   } else {
     *key = tmpKey;
     streamStateFreeCur(pCur);

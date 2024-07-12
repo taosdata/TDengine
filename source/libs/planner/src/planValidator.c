@@ -118,6 +118,7 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return validateSubplanNode(pCxt, (SSubplan*)pNode);

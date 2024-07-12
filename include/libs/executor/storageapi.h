@@ -39,8 +39,9 @@ extern "C" {
 #define META_READER_LOCK   0x0
 #define META_READER_NOLOCK 0x1
 
-#define STREAM_STATE_BUFF_HASH 1
-#define STREAM_STATE_BUFF_SORT 2
+#define STREAM_STATE_BUFF_HASH      1
+#define STREAM_STATE_BUFF_SORT      2
+#define STREAM_STATE_BUFF_HASH_SORT 3
 
 typedef struct SMeta SMeta;
 typedef TSKEY (*GetTsFun)(void*);
@@ -349,6 +350,8 @@ typedef struct SStateStore {
   int32_t (*streamStateFillPut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
   int32_t (*streamStateFillGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
   int32_t (*streamStateFillDel)(SStreamState* pState, const SWinKey* key);
+  int32_t (*streamStateFillGetNext)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen);
+  int32_t (*streamStateFillGetPrev)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen);
 
   int32_t (*streamStateCurNext)(SStreamState* pState, SStreamStateCur* pCur);
   int32_t (*streamStateCurPrev)(SStreamState* pState, SStreamStateCur* pCur);

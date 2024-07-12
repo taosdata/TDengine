@@ -194,14 +194,25 @@ typedef struct SIndefRowsFuncLogicNode {
   bool       isTimeLineFunc;
 } SIndefRowsFuncLogicNode;
 
+typedef struct SStreamOption {
+  int8_t  triggerType;
+  int64_t watermark;
+  int64_t deleteMark;
+  int8_t  igExpired;
+  int8_t  igCheckUpdate;
+  int8_t  destHasPrimaryKey;
+} SStreamOption;
+
 typedef struct SInterpFuncLogicNode {
-  SLogicNode  node;
-  SNodeList*  pFuncs;
-  STimeWindow timeRange;
-  int64_t     interval;
-  EFillMode   fillMode;
-  SNode*      pFillValues;  // SNodeListNode
-  SNode*      pTimeSeries;  // SColumnNode
+  SLogicNode    node;
+  SNodeList*    pFuncs;
+  STimeWindow   timeRange;
+  int64_t       interval;
+  EFillMode     fillMode;
+  SNode*        pFillValues;  // SNodeListNode
+  SNode*        pTimeSeries;  // SColumnNode
+  //todo(liuyao) 补充clone和json等
+  SStreamOption streamOption;
 } SInterpFuncLogicNode;
 
 typedef struct SGroupCacheLogicNode {
@@ -496,16 +507,19 @@ typedef struct SIndefRowsFuncPhysiNode {
 } SIndefRowsFuncPhysiNode;
 
 typedef struct SInterpFuncPhysiNode {
-  SPhysiNode  node;
-  SNodeList*  pExprs;
-  SNodeList*  pFuncs;
-  STimeWindow timeRange;
-  int64_t     interval;
-  int8_t      intervalUnit;
-  EFillMode   fillMode;
-  SNode*      pFillValues;  // SNodeListNode
-  SNode*      pTimeSeries;  // SColumnNode
+  SPhysiNode    node;
+  SNodeList*    pExprs;
+  SNodeList*    pFuncs;
+  STimeWindow   timeRange;
+  int64_t       interval;
+  int8_t        intervalUnit;
+  EFillMode     fillMode;
+  SNode*        pFillValues;  // SNodeListNode
+  SNode*        pTimeSeries;  // SColumnNode
+  SStreamOption streamOption; //todo(liuyao) 补充clone和json等
 } SInterpFuncPhysiNode;
+
+typedef SInterpFuncPhysiNode SStreamInterpFuncPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;
@@ -635,7 +649,7 @@ typedef struct SWindowPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
-  int8_t     destHasPrimayKey;
+  int8_t     destHasPrimaryKey;
   bool       mergeDataBlock;
 } SWindowPhysiNode;
 

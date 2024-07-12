@@ -1684,8 +1684,9 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 
 static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                          SInterpFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
-  SInterpFuncPhysiNode* pInterpFunc =
-      (SInterpFuncPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC);
+  SInterpFuncPhysiNode* pInterpFunc = (SInterpFuncPhysiNode*)makePhysiNode(
+      pCxt, (SLogicNode*)pFuncLogicNode,
+      pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC : QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC);
   if (NULL == pInterpFunc) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1726,6 +1727,10 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pFuncLogicNode, (SPhysiNode*)pInterpFunc);
+  }
+
+  if (pCxt->pPlanCxt->streamQuery) {
+    pInterpFunc->streamOption = pFuncLogicNode->streamOption;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1869,7 +1874,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   pWindow->deleteMark = pWindowLogicNode->deleteMark;
   pWindow->igExpired = pWindowLogicNode->igExpired;
   if (pCxt->pPlanCxt->streamQuery) {
-    pWindow->destHasPrimayKey = pCxt->pPlanCxt->destHasPrimaryKey;
+    pWindow->destHasPrimaryKey = pCxt->pPlanCxt->destHasPrimaryKey;
   }
   pWindow->mergeDataBlock = (GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
   pWindow->node.inputTsOrder = pWindowLogicNode->node.inputTsOrder;

@@ -2317,6 +2317,8 @@ char* getStreamOpName(uint16_t opType) {
       return "stream event";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
       return "stream count";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
+      return "stream interp";
   }
   return "";
 }

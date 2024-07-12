@@ -546,6 +546,8 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
     pOptr = createStreamCountAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     pOptr = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC == type) {
+    pOptr = createStreamTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle);
   } else {
     terrno = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = terrno;

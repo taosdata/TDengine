@@ -161,7 +161,7 @@ int32_t saveResult(SResultWindowInfo winInfo, SSHashObj* pStUpdated) {
   return tSimpleHashPut(pStUpdated, &winInfo.sessionWin, sizeof(SSessionKey), &winInfo, sizeof(SResultWindowInfo));
 }
 
-static int32_t saveWinResult(SWinKey* pKey, SRowBuffPos* pPos, SSHashObj* pUpdatedMap) {
+int32_t saveWinResult(SWinKey* pKey, SRowBuffPos* pPos, SSHashObj* pUpdatedMap) {
   return tSimpleHashPut(pUpdatedMap, pKey, sizeof(SWinKey), &pPos, POINTER_BYTES);
 }
 
@@ -189,7 +189,7 @@ static int32_t compareWinKey(void* pKey, void* data, int32_t index) {
   return winKeyCmprImpl(pKey, pDataPos);
 }
 
-static void removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins) {
+void removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins) {
   taosArraySort(pDelWins, winKeyCmprImpl);
   taosArrayRemoveDuplicate(pDelWins, winKeyCmprImpl, NULL);
   int32_t delSize = taosArrayGetSize(pDelWins);
@@ -364,6 +364,10 @@ STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval) {
 
 static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWins, int32_t* index,
                                 SSDataBlock* pBlock) {
+  doBuildDeleteResultImpl(&pInfo->stateStore, pInfo->pState, pWins, index, pBlock);
+}
+
+void doBuildDeleteResultImpl(SStateStore* pAPI, SStreamState* pState, SArray* pWins, int32_t* index, SSDataBlock* pBlock) {
   blockDataCleanup(pBlock);
   int32_t size = taosArrayGetSize(pWins);
   if (*index == size) {
@@ -376,7 +380,7 @@ static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWin
   for (int32_t i = *index; i < size; i++) {
     SWinKey* pWin = taosArrayGet(pWins, i);
     void*    tbname = NULL;
-    pInfo->stateStore.streamStateGetParName(pInfo->pState, pWin->groupId, &tbname, false);
+    pAPI->streamStateGetParName(pState, pWin->groupId, &tbname, false);
     if (tbname == NULL) {
       appendDataToSpecialBlock(pBlock, &pWin->ts, &pWin->ts, &uid, &pWin->groupId, NULL);
     } else {
@@ -384,7 +388,7 @@ static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWin
       STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
       appendDataToSpecialBlock(pBlock, &pWin->ts, &pWin->ts, &uid, &pWin->groupId, parTbName);
     }
-    pInfo->stateStore.streamStateFreeVal(tbname);
+    pAPI->streamStateFreeVal(tbname);
     (*index)++;
   }
 }
@@ -994,7 +998,7 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDat
   }
 }
 
-static inline int winPosCmprImpl(const void* pKey1, const void* pKey2) {
+int winPosCmprImpl(const void* pKey1, const void* pKey2) {
   SRowBuffPos* pos1 = *(SRowBuffPos**)pKey1;
   SRowBuffPos* pos2 = *(SRowBuffPos**)pKey2;
   SWinKey*     pWin1 = (SWinKey*)pos1->pKey;
@@ -1224,7 +1228,7 @@ void doStreamIntervalSaveCheckpoint(SOperatorInfo* pOperator) {
   }
 }
 
-static void copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins) {
+void copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins) {
   void*   pIte = NULL;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pMap, pIte, &iter)) != NULL) {
@@ -1468,6 +1472,14 @@ int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval) {
   return deleteMark;
 }
 
+int64_t getDeleteMarkFromOption(SStreamOption* pOption) {
+  if (pOption->deleteMark <= 0) {
+    return DEAULT_DELETE_MARK;
+  }
+  int64_t deleteMark = TMAX(pOption->deleteMark, pOption->watermark);
+  return deleteMark;
+}
+
 static TSKEY compareTs(void* pKey) {
   SWinKey* pWinKey = (SWinKey*)pKey;
   return pWinKey->ts;
@@ -1633,7 +1645,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->clearState = false;
   pInfo->pMidPullDatas = taosArrayInit(4, sizeof(SWinKey));
   pInfo->pDeletedMap = tSimpleHashInit(4096, hashFn);
-  pInfo->destHasPrimaryKey = pIntervalPhyNode->window.destHasPrimayKey;
+  pInfo->destHasPrimaryKey = pIntervalPhyNode->window.destHasPrimaryKey;
 
   pOperator->operatorType = pPhyNode->type;
   if (!IS_FINAL_INTERVAL_OP(pOperator) || numOfChild == 0) {
@@ -3080,7 +3092,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->clearState = false;
   pInfo->recvGetAll = false;
-  pInfo->destHasPrimaryKey = pSessionNode->window.destHasPrimayKey;
+  pInfo->destHasPrimaryKey = pSessionNode->window.destHasPrimaryKey;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
@@ -3999,7 +4011,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
   pInfo->recvGetAll = false;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
-  pInfo->destHasPrimaryKey = pStateNode->window.destHasPrimayKey;
+  pInfo->destHasPrimaryKey = pStateNode->window.destHasPrimaryKey;
 
   setOperatorInfo(pOperator, "StreamStateAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -4272,7 +4284,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pDeletedMap = tSimpleHashInit(4096, hashFn);
-  pInfo->destHasPrimaryKey = pIntervalPhyNode->window.destHasPrimayKey;
+  pInfo->destHasPrimaryKey = pIntervalPhyNode->window.destHasPrimaryKey;
 
   // for stream
   void*   buff = NULL;
@@ -4599,6 +4611,6 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
 }
 
 void setStreamOperatorCompleted(SOperatorInfo* pOperator) {
-  setOperatorCompleted(pOperator);
   qDebug("stask:%s  %s status: %d. set completed", GET_TASKID(pOperator->pTaskInfo), getStreamOpName(pOperator->operatorType), pOperator->status);
+  setOperatorCompleted(pOperator);
 }

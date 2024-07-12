@@ -5496,8 +5496,15 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
     if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
       // single point interp every can be omitted
     } else {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                     "Missing RANGE clause, EVERY clause or FILL clause");
+      if (pCxt->createStream) {
+        if (NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                        "Missing EVERY clause or FILL clause");
+        }
+      } else {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                       "Missing RANGE clause, EVERY clause or FILL clause");
+      }
     }
   }
 

@@ -3183,7 +3183,7 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeBool(pEncoder, PHY_WINDOW_CODE_MERGE_DATA_BLOCK, pNode->mergeDataBlock);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY, pNode->destHasPrimayKey);
+    code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY, pNode->destHasPrimaryKey);
   }
 
   return code;
@@ -3227,7 +3227,7 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
         break;
       case PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY:
-        code = tlvDecodeI8(pTlv, &pNode->destHasPrimayKey);
+        code = tlvDecodeI8(pTlv, &pNode->destHasPrimaryKey);
         break;
       default:
         break;
@@ -4539,6 +4539,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = physiIndefRowsFuncNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       code = physiInterpFuncNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
@@ -4701,6 +4702,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToPhysiIndefRowsFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       code = msgToPhysiInterpFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:

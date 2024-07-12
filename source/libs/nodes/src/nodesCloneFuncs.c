@@ -762,7 +762,7 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
-  COPY_SCALAR_FIELD(destHasPrimayKey);
+  COPY_SCALAR_FIELD(destHasPrimaryKey);
   return TSDB_CODE_SUCCESS;
 }
 

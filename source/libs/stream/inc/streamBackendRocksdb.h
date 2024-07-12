@@ -160,7 +160,7 @@ int32_t streamStatePut_rocksdb(SStreamState* pState, const SWinKey* key, const v
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
 int32_t streamStateDel_rocksdb(SStreamState* pState, const SWinKey* key);
 int32_t streamStateClear_rocksdb(SStreamState* pState);
-int32_t streamStateCurNext_rocksdb(SStreamState* pState, SStreamStateCur* pCur);
+int32_t streamStateCurNext_rocksdb(SStreamStateCur* pCur);
 int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key);
 int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
@@ -205,6 +205,7 @@ SStreamStateCur* streamStateFillGetCur_rocksdb(SStreamState* pState, const SWinK
 int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const SWinKey* key);
 SStreamStateCur* streamStateFillSeekKeyNext_rocksdb(SStreamState* pState, const SWinKey* key);
+SStreamStateCur* streamStateFillSeekToLast_rocksdb(SStreamState* pState);
 
 // partag cf
 int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen);

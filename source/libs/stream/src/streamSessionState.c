@@ -20,12 +20,10 @@
 #include "tcommon.h"
 #include "tsimplehash.h"
 
-typedef int (*__session_compare_fn_t)(const SSessionKey* pWin, const void* pDatas, int pos);
-
-int sessionStateKeyCompare(const SSessionKey* pWin1, const void* pDatas, int pos) {
+int sessionStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
   SRowBuffPos* pPos2 = taosArrayGetP(pDatas, pos);
   SSessionKey* pWin2 = (SSessionKey*)pPos2->pKey;
-  return sessionWinKeyCmpr(pWin1, pWin2);
+  return sessionWinKeyCmpr((SSessionKey*)pWin1, pWin2);
 }
 
 int sessionStateRangeKeyCompare(const SSessionKey* pWin1, const void* pDatas, int pos) {
@@ -595,7 +593,7 @@ int32_t sessionWinStateMoveToNext(SStreamStateCur* pCur) {
   if (pCur && pCur->buffIndex >= 0) {
     pCur->buffIndex++;
   } else {
-    streamStateCurNext_rocksdb(NULL, pCur);
+    streamStateCurNext_rocksdb(pCur);
   }
   return TSDB_CODE_SUCCESS;
 }

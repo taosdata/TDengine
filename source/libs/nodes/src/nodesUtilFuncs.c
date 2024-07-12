@@ -723,6 +723,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSubplan));
     case QUERY_NODE_PHYSICAL_PLAN:
       return makeNode(type, sizeof(SQueryPlan));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
+      return makeNode(type, sizeof(SStreamInterpFuncPhysiNode));
     default:
       break;
   }
@@ -1652,7 +1654,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pFuncs);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC: {
       SInterpFuncPhysiNode* pPhyNode = (SInterpFuncPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);

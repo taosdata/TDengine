@@ -894,6 +894,15 @@ static bool isInterpFunc(int32_t funcId) {
   return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId);
 }
 
+static void initStreamOption(SLogicPlanContext* pCxt, SStreamOption* pOption) {
+  pOption->triggerType = pCxt->pPlanCxt->triggerType;
+  pOption->watermark = pCxt->pPlanCxt->watermark;
+  pOption->deleteMark = pCxt->pPlanCxt->deleteMark;
+  pOption->igExpired = pCxt->pPlanCxt->igExpired;
+  pOption->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
+  pOption->destHasPrimaryKey = pCxt->pPlanCxt->destHasPrimaryKey;
+}
+
 static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasInterpFunc) {
     return TSDB_CODE_SUCCESS;
@@ -932,6 +941,10 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    initStreamOption(pCxt, &pInterpFunc->streamOption);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

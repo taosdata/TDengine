@@ -1299,6 +1299,10 @@ static bool isCountWindow(SStreamScanInfo* pInfo) {
   return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT;
 }
 
+static bool isTimeSlice(SStreamScanInfo* pInfo) {
+  return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC;
+}
+
 static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t groupColIndex, int32_t rowIndex) {
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, groupColIndex);
   uint64_t*        groupCol = (uint64_t*)pColInfo->pData;
@@ -1795,6 +1799,11 @@ static int32_t generateCountScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcB
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t generateTimeSliceScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType mode) {
+  // todo(liuyao) add code 获取delete range的左邻居和右邻居，作为range
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType mode) {
   blockDataCleanup(pDestBlock);
   if (pSrcBlock->info.rows == 0) {
@@ -1980,6 +1989,8 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
     code = generateSessionScanRange(pInfo, pSrcBlock, pDestBlock, type);
   } else if (isCountWindow(pInfo)) {
     code = generateCountScanRange(pInfo, pSrcBlock, pDestBlock, type);
+  } else if (isTimeSlice(pInfo)) {
+    code = generateTimeSliceScanRange(pInfo, pSrcBlock, pDestBlock, type);
   } else {
     code = generateDeleteResultBlock(pInfo, pSrcBlock, pDestBlock);
   }
