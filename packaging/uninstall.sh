@@ -9,6 +9,7 @@ CONFIG_DIR="/etc/${PREFIX}"
 SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
+EXPLORER_CONFIG_NAME="explorer"
 csudo=""
 
 target="taosx-agent"
@@ -123,8 +124,11 @@ remove_taosx() {
     stop_explore_service
 
     ${csudo}rm -rf ${INSTALL_DIR}/${xName}
+    remove_data_dir ${CONFIG_DIR}/${xName}.toml
     echo "${xName} is removed successfully!"
+
     ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
+    remove_data_dir ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
     echo "${explorerName} is removed successfully!"
 
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
@@ -132,6 +136,20 @@ remove_taosx() {
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
     echo "${agentname} is removed successfully!"
+}
+
+remove_data_dir() {
+    # find config file
+    CONFIG_FILE=$1
+    if [ ! -e "${CONFIG_FILE}" ]; then
+        return
+    fi
+    # find data dir from config file
+    DATA_DIR=$(grep '^\s*data_dir' ${CONFIG_FILE} | sed 's/.*=.*"\(.*\)"/\1/')
+    # data dir is not empty and is a absolute path
+    if [[ -n "$DATA_DIR" && "$DATA_DIR" == /* ]]; then
+        rm -rf $DATA_DIR
+    fi
 }
 
 # remove taosx-agent
