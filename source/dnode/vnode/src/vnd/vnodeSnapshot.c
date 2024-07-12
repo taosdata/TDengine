@@ -752,7 +752,8 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   }
 
   if (pWriter->pStreamTaskWriter) {
-    code = streamTaskSnapWriterClose(pWriter->pStreamTaskWriter, rollback);
+    code = streamTaskSnapWriterClose(pWriter->pStreamTaskWriter, rollback, pWriter->pStreamStateWriter == NULL ? 1 : 0);
+
     if (code) goto _exit;
   }
 
