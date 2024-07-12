@@ -371,8 +371,15 @@ function handleOptions(options, paramsConfig, id) {
       patternMsg,
       defaultValue: value ?? '',
       if: currentData => {
-        if (!currentData.system_configuration || key == 'host') return true;
-        return currentData.system_configuration == piOptionShowValue;
+        if (id?.startsWith('pi')) {
+          if (!currentData.system_configuration || key == 'host') return true;
+          return currentData.system_configuration == piOptionShowValue;
+        }
+        if (id == 'mongodb') {
+          if (key == 'load_balanced' || key == 'direct_connection' || key == 'host' || key == 'port') return true
+          return currentData.direct_connection
+        }
+        return true
       },
       required: (currentData) => {
         if (id?.startsWith('opcua')) {
@@ -1244,7 +1251,7 @@ export function getAuthentications(authentication, params) {
 function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
-  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout } = data;
+  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout, direct_connection, repl_set_name, local_threshold, local_threshold_type, load_balanced } = data;
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
@@ -1266,6 +1273,17 @@ function getOptionData(data, queryArr, definition) {
   }
   if (connect_timeout) {
     queryArr.push('connect_timeout=' + connect_timeout)
+  }
+  if (load_balanced) {
+    queryArr.push('load_balanced=' + load_balanced)
+  }
+  if (direct_connection) {
+    if (repl_set_name) {
+      queryArr.push('repl_set_name=' + repl_set_name)
+    }
+    if (local_threshold) {
+      queryArr.push('local_threshold=' + local_threshold + local_threshold_type)
+    }
   }
   if (endpoint === undefined&&definition.id!=='csv') {
     result += host.replace(/\w*:\/\//, '');
