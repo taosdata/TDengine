@@ -455,6 +455,8 @@ enum {
 
 void sqlReqLog(int64_t rid,  bool killed, int32_t code, int8_t type);
 
+void tmqMgmtClose(void);
+
 #ifdef __cplusplus
 }
 #endif

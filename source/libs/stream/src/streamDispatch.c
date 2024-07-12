@@ -813,9 +813,20 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   taosThreadMutexLock(&pActiveInfo->lock);
 
   SArray* pList = pActiveInfo->pReadyMsgList;
+  int32_t num = taosArrayGetSize(pList);
+
+  // active checkpoint info is cleared for now
+  if ((pActiveInfo->activeId == 0) && (pActiveInfo->transId == 0) && (num == 0) && (pTask->chkInfo.startTs == 0)) {
+    taosThreadMutexUnlock(&pActiveInfo->lock);
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from readyMsg send tmr, ref:%d", id, vgId, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
   SArray* pNotRspList = taosArrayInit(4, sizeof(int32_t));
 
-  int32_t num = taosArrayGetSize(pList);
   ASSERT(taosArrayGetSize(pTask->upstreamInfo.pList) == num);
 
   for (int32_t i = 0; i < num; ++i) {
