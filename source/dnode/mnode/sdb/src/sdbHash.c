@@ -277,6 +277,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
     case SDB_STATUS_DROPPED:
       code = sdbDeleteRow(pSdb, hash, pRaw, pRow, keySize);
       break;
+      
   }
 
   return code;
