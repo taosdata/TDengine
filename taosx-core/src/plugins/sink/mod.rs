@@ -190,7 +190,8 @@ async fn ipc_tcp_forward(
     let ipc_ack_writer =
         tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream))
             .in_current_span()
-            .await?;
+            .await
+            .context("Create AckWriter error")?;
 
     let schema = ipc_reader.schema.clone();
     let mut schema = schema.as_ref().clone();
@@ -337,10 +338,18 @@ async fn ipc_tcp_forward(
         } else {
             client = FlightClient::new(channel);
         }
-        client.add_header("x-task-id", &task_id.to_string())?;
-        client.add_header("x-token", &token)?;
-        client.add_header("x-version", crate::build::PKG_VERSION)?;
-        client.add_header("x-trace-id", &stream_trace_id.to_string())?;
+        client
+            .add_header("x-task-id", &task_id.to_string())
+            .context("Add header error")?;
+        client
+            .add_header("x-token", &token)
+            .context("Add header error")?;
+        client
+            .add_header("x-version", crate::build::PKG_VERSION)
+            .context("Add header error")?;
+        client
+            .add_header("x-trace-id", &stream_trace_id.to_string())
+            .context("Add header error")?;
         let cur_span_in_map_error = Span::current();
         if let Err(err) = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
@@ -3694,13 +3703,18 @@ pub async fn listen_tcp_socket_with_agent(
                     let res =
                         ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id, config).await;
                     if let Err(err) = res {
-                        tracing::error!("{:?}", err);
-                        tokio::spawn(async move {
-                            let r = se.send(format!("{err:?}")).await;
-                            if let Err(send_err) = r {
-                                tracing::error!("error <{err:?}> reported to server: {send_err:?}");
-                            }
-                        });
+                        let error_msg = format!("{:?}", err);
+                        if error_msg.contains("os error 10060") {
+                            tracing::warn!("IPC reader stopped for client {} with warn: {}", client, error_msg);
+                        } else {
+                            tracing::error!(?client, "{:?}", err);
+                            tokio::spawn(async move {
+                                let r = se.send(format!("{err:?}")).await;
+                                if let Err(send_err) = r {
+                                    tracing::error!("error <{err:?}> reported to server: {send_err:?}");
+                                }
+                            });
+                        }
                     } else {
                         tracing::info!("IPC reader stopped for client {client}",);
                     }
