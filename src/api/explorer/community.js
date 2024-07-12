@@ -8084,7 +8084,7 @@ export function getDataSources(lang) {
         "type": "uri",
         "name": "MongoDB",
         "license_id": "mongodb",
-        "description": "MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品，被广泛应用于内容管理系统、移动应用与物联网等众多领域。\n",
+        "description": "MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品，被广泛应用于内容管理系统、移动应用与物联网等众多领域。\n\nTDengine 可以高效地从 MongoDB 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
         "options": {
           "host": {
             "required": true,
@@ -8096,7 +8096,7 @@ export function getDataSources(lang) {
             "required": true,
             "display": "服务端口",
             "description": "MongoDB 的端口",
-            "placeholder": "3306",
+            "placeholder": "27017",
             "pattern": "^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
             "patternMsg": "端口号的范围是 0-65535",
           },
@@ -8114,7 +8114,8 @@ export function getDataSources(lang) {
             "description": "是否直接连接到单个主机或者自动发现集群中所有服务器。\n- *true*:host 直接连接到 host:port \n- *false*:host 发现集群中其他服务器\n",
             "hint": {
               "type": "bool",
-            }
+            },
+            "value": "true"
           },
           "repl_set_name": {
             "required": false,
@@ -8159,13 +8160,13 @@ export function getDataSources(lang) {
                   "name": "username",
                   "required": false,
                   "display": "用户",
-                  "placeholder": "username"
+                  "placeholder": "请输入用户名"
                 },
                 {
                   "name": "password",
                   "required": false,
                   "display": "密码",
-                  "placeholder": "password"
+                  "placeholder": "请输入密码"
                 },
                 {
                   "name": "mechanism",
@@ -8283,7 +8284,7 @@ export function getDataSources(lang) {
                 "short_description": "源数据库。",
                 "description": "源数据库。\n",
                 "required": true,
-                "placeholder": "",
+                "placeholder": "database_${Y}",
               },
               {
                 "name": "collection",
@@ -8294,7 +8295,7 @@ export function getDataSources(lang) {
                 "short_description": "源集合。",
                 "description": "源集合。\n",
                 "required": true,
-                "placeholder": "",
+                "placeholder": "collection_${md}",
               },
               {
                 "name": "sql",
@@ -8302,10 +8303,10 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
-                "short_description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
-                "description": "用于查询的 SQL 语句，SQL 语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\nSQL使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start}`、`${end}`：表示 RFC3339 格式时间戳，如：2024-03-14T08:00:00+0800\n2. `${start_no_tz}`、`${end_no_tz}`：表示不带时区的 RFC3339 字符串：2024-03-14T08:00:00\n3. `${start_date}`、`${end_date}`：表示仅日期，如：2024-03-14\n",
+                "short_description": "用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
+                "description": "用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\n使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start_datetime}`、`${end_datetime}`：对应后端 datetime 类型字段的筛选，如：{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}} 将被转换为 {\"ddate\":{\"$gte\":{\"$date\":\"2024-06-01T00:00:00+00:00\"},\"$lt\":{\"$date\":\"2024-07-01T00:00:00+00:00\"}}}\n2. `${start_timestamp}`、`${end_timestamp}`：对应后端 timestamp 类型字段的筛选，如：{\"ttime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}} 将被转换为 {\"ttime\":{\"$gte\":{\"$timestamp\":{\"t\":123,\"i\":456}},\"$lt\":{\"$timestamp\":{\"t\":123,\"i\":456}}}}\n",
                 "required": true,
-                "placeholder": "SELECT * FROM table WHERE time >= ${start} AND time < ${end}",
+                "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}",
                 "grid_two": true,
               },
               {
@@ -8416,31 +8417,6 @@ export function getDataSources(lang) {
           "required": true,
           "description": "Kafka 连接器会上传以下六列到服务端：<br>\n\n- **ts**: 采集时间戳。<br>\n- **topic**: 订阅主题名。<br>\n- **partition**: 当前消息所在的分区 ID。<br>\n- **offset**: 当前消息的偏移量。<br>\n- **key**: 当前消息的 Key。<br>\n- **value**: 当前消息的数据内容。<br>\n\ntaosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>\n包括，指定表名称和超级表名，设置普通列和标签列等。\n",
           "fields": [
-            {
-              "name": "ts",
-              "description": "时间戳。",
-              "type": "timestamp"
-            },
-            {
-              "name": "topic",
-              "description": "主题名。",
-              "type": "varchar"
-            },
-            {
-              "name": "partition",
-              "description": "分区 ID。",
-              "type": "int"
-            },
-            {
-              "name": "offset",
-              "description": "偏移。",
-              "type": "bigint"
-            },
-            {
-              "name": "key",
-              "description": "消息 Key。",
-              "type": "varchar"
-            },
             {
               "name": "value",
               "description": "消息体。",
