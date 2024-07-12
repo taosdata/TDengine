@@ -113,16 +113,36 @@ int32_t qwInitSession(QW_FPARAMS_DEF, void** ppSession) {
   return code;
 }
 
-bool qwLowLevelRetire() {
+void qwRetireCollectionCb(uint64_t collectionId) {
 
 }
 
-bool qwRetireCollectionCb(int64_t collectionId, int64_t collectionAllocSize, int64_t retireSize, bool retireLow) {
-  if (retireLow && collectionAllocSize > retireSize) {
-    return qwLowLevelRetire();
+void qwLowLevelRetire(int64_t retireSize) {
+  void* pIter = taosHashIterate(gQueryMgmt.pQueryInfo, NULL);
+  while (pIter) {
+    vgInfo = pIter;
+
+    pInfo->vgHash[i].vgId = vgInfo->vgId;
+    pInfo->vgHash[i].hashBegin = vgInfo->hashBegin;
+    pInfo->vgHash[i].hashEnd = vgInfo->hashEnd;
+    
+    pIter = taosHashIterate(gQueryMgmt.pQueryInfo, pIter);
+    vgInfo = NULL;
+    ++i;
   }
-  
-  return false;
+}
+
+void qwMidLevelRetire(int64_t retireSize) {
+
+}
+
+
+void qwRetireCollectionsCb(int64_t retireSize, bool lowLevelRetire) {
+  if (lowLevelRetire) {
+    qwLowLevelRetire(retireSize);
+  } else {
+    qwMidLevelRetire(retireSize);
+  }
 }
 
 int32_t qwGetQueryMemPoolMaxSize(int64_t* pMaxSize, bool* autoMaxSize) {
@@ -194,7 +214,8 @@ int32_t qwInitQueryPool(void) {
   cfg.cb.setSessFp = qwSetConcurrentTaskNumCb;
   cfg.cb.decSessFp = qwDecConcurrentTaskNumCb;
   cfg.cb.incSessFp = qwIncConcurrentTaskNumCb;
-  cfg.cb.retireFp = qwRetireCollectionCb;
+  cfg.cb.retiresFp = qwRetireCollectionsCb;
+  cfg.cb.retireFp  = qwRetireCollectionCb;
   cfg.cb.cfgUpdateFp = qwCheckUpateCfgCb;
 
   code = qwGetMemPoolChunkSize(cfg.maxSize, cfg.threadNum, &cfg.chunkSize);

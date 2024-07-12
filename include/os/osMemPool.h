@@ -42,15 +42,17 @@ typedef enum MemPoolUsageLevel {
 typedef void (*mpDecConcSessionNum)(void);
 typedef void (*mpIncConcSessionNum)(void);
 typedef void (*mpSetConcSessionNum)(int32_t);
-typedef bool (*mpRetireCollection)(int64_t, int64_t, int64_t, bool);
+typedef void (*mpRetireCollections)(int64_t, bool);
+typedef void (*mpRetireCollection)(uint64_t);
 typedef void (*mpCfgUpdate)(void*, SMemPoolCfg*);
 
 typedef struct SMemPoolCallBack {
-  mpDecConcSessionNum decSessFp;
-  mpIncConcSessionNum incSessFp;
-  mpSetConcSessionNum setSessFp;
-  mpRetireCollection  retireFp;
-  mpCfgUpdate         cfgUpdateFp;
+  mpDecConcSessionNum  decSessFp;
+  mpIncConcSessionNum  incSessFp;
+  mpSetConcSessionNum  setSessFp;
+  mpRetireCollections  retiresFp;
+  mpRetireCollection   retireFp;
+  mpCfgUpdate          cfgUpdateFp;
 } SMemPoolCallBack;
 
 typedef struct SMemPoolCfg {

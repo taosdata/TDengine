@@ -393,7 +393,21 @@ _return:
 }
 
 int32_t memPoolPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
+  if (retireLowLevel) {
+    if (0 == atomic_val_compare_exchange_8(&gMPMgmt.msgQueue.lowLevelRetire, 0, 1)) {
+      atomic_store_ptr(&gMPMgmt.msgQueue.pPool, pPool);
+      tsem2_post(&gMPMgmt.threadSem);
+    }
+    
+    return TSDB_CODE_SUCCESS;
+  }
 
+  if (0 == atomic_val_compare_exchange_8(&gMPMgmt.msgQueue.midLevelRetire, 0, 1)) {
+    atomic_store_ptr(&gMPMgmt.msgQueue.pPool, pPool);
+    tsem2_post(&gMPMgmt.threadSem);
+  }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -403,6 +417,7 @@ int32_t memPoolMemQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t s
   int64_t quota = atomic_load_64(&pPool->cfg.collectionQuota);
   if (quota > 0 && cAllocSize > quota) {
     uWarn("collection %" PRIx64 " allocSize " PRId64 " is over than quota %" PRId64, pCollection->collectionId, cAllocSize, quota);
+    pPool->cfg.cb.retireFp(pCollection->collectionId);
     atomic_sub_fetch_64(&pCollection->allocMemSize, size);
     MP_RET(TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);
   }
@@ -411,6 +426,7 @@ int32_t memPoolMemQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t s
   quota = atomic_load_64(&pPool->memRetireThreshold[2]);
   if (pAllocSize >= quota) {
     uWarn("pool allocSize " PRId64 " reaches the high quota %" PRId64, pAllocSize, quota);
+    pPool->cfg.cb.retireFp(pCollection->collectionId);
     atomic_sub_fetch_64(&pCollection->allocMemSize, size);
     atomic_sub_fetch_64(&pPool->allocMemSize, size);
     MP_RET(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
@@ -419,10 +435,11 @@ int32_t memPoolMemQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t s
   quota = atomic_load_64(&pPool->memRetireThreshold[1]);  
   if (pAllocSize >= quota) {
     uInfo("pool allocSize " PRId64 " reaches the middle quota %" PRId64, pAllocSize, quota);
-    if (cAllocSize >= atomic_load_64(&pPool->memRetireUnit)) {
+    if (cAllocSize >= atomic_load_64(&pPool->memRetireUnit) / 2) {
       uWarn("session retired in middle quota retire choise, sessionAllocSize: %" PRId64 ", collectionSize: %" PRId64, 
         atomic_load_64(&pSession->allocMemSize), cAllocSize);
 
+      pPool->cfg.cb.retireFp(pCollection->collectionId);
       atomic_sub_fetch_64(&pCollection->allocMemSize, size);
       atomic_sub_fetch_64(&pPool->allocMemSize, size);
 
@@ -438,6 +455,8 @@ int32_t memPoolMemQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t s
     uInfo("pool allocSize " PRId64 " reaches the low quota %" PRId64, pAllocSize, quota);
     if (cAllocSize >= atomic_load_64(&pPool->memRetireUnit)) {
       uWarn("session retired in low quota retire choise, sessionAllocSize: %" PRId64, atomic_load_64(&pSession->allocMemSize));
+
+      pPool->cfg.cb.retireFp(pCollection->collectionId);
       atomic_sub_fetch_64(&pCollection->allocMemSize, size);
       atomic_sub_fetch_64(&pPool->allocMemSize, size);
 
@@ -811,21 +830,34 @@ void memPoolLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, 
   }
 }
 
-void* memPoolMgmtThreadFunc(void* param) {
-  while (0 == atomic_load_8(&gMPMgmt.modExit)) {
-    tsem2_timewait(&gMPMgmt.threadSem, gMPMgmt.waitMs);
-
-    (*pPool->cfg.cb.retireFp)(pCollection->collectionId, cAllocSize, atomic_load_64(&pPool->memRetireUnit), true);
-
-    taosRLockLatch(&gMPMgmt.poolLock);
-    int32_t poolNum = taosArrayGetSize(gMPMgmt.poolList);
-    for (int32_t i = 0; i < poolNum; ++i) {
-      SMemPool* pPool = (SMemPool*)taosArrayGetP(gMPMgmt.poolList, i);
-      if (pPool->cfg.cb.cfgUpdateFp) {
-        (*pPool->cfg.cb.cfgUpdateFp)((void*)pPool, &pPool->cfg);
-      }
+void memPoolCheckUpateCfg(void) {
+  taosRLockLatch(&gMPMgmt.poolLock);
+  int32_t poolNum = taosArrayGetSize(gMPMgmt.poolList);
+  for (int32_t i = 0; i < poolNum; ++i) {
+    SMemPool* pPool = (SMemPool*)taosArrayGetP(gMPMgmt.poolList, i);
+    if (pPool->cfg.cb.cfgUpdateFp) {
+      (*pPool->cfg.cb.cfgUpdateFp)((void*)pPool, &pPool->cfg);
     }
-    taosRUnLockLatch(&gMPMgmt.poolLock);
+  }
+  taosRUnLockLatch(&gMPMgmt.poolLock);
+}
+
+void* memPoolMgmtThreadFunc(void* param) {
+  int32_t timeout = 0;
+  while (0 == atomic_load_8(&gMPMgmt.modExit)) {
+    timeout = tsem2_timewait(&gMPMgmt.threadSem, gMPMgmt.waitMs);
+    if (0 != timeout) {
+      memPoolCheckUpateCfg();
+      continue;
+    }
+
+    if (gMPMgmt.msgQueue.midLevelRetire) {
+      (*gMPMgmt.msgQueue.pPool->cfg.cb.retiresFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->memRetireUnit), false);
+    } else if (gMPMgmt.msgQueue.lowLevelRetire) {
+      (*gMPMgmt.msgQueue.pPool->cfg.cb.retiresFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->memRetireUnit), true);
+    }
+    
+    memPoolCheckUpateCfg();
   }
   
   return NULL;

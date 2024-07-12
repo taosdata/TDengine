@@ -194,7 +194,7 @@ typedef struct SMPStatInfo {
 
 
 typedef struct SMPCollection {
-  int64_t            collectionId;
+  uint64_t           collectionId;
   int64_t            allocMemSize;
   int64_t            maxAllocMemSize;
 
@@ -290,11 +290,18 @@ typedef enum EMPMemStrategy {
   E_MP_STRATEGY_CHUNK,
 } EMPMemStrategy;
 
+typedef struct SMPMsgQueue {
+  SMemPool* pPool;
+  bool      lowLevelRetire;
+  bool      midLevelRetire;
+} SMPMsgQueue;
+
 typedef struct SMemPoolMgmt {
   EMPMemStrategy strategy;
   SArray*        poolList;
   SRWLatch       poolLock;
   TdThread       poolMgmtThread;
+  SMPMsgQueue    msgQueue;
   tsem2_t        threadSem;
   int8_t         modExit;
   int64_t        waitMs;
