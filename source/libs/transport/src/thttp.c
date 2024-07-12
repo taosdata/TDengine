@@ -116,9 +116,9 @@ static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t 
       code = TSDB_CODE_OUT_OF_RANGE;
     }
   } else {
-    return TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
   }
-  return 0;
+  return code;
 }
 
 static int32_t taosCompressHttpRport(char* pSrc, int32_t srcLen) {
