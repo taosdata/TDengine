@@ -95,7 +95,7 @@ client_version = conn.client_info
 print("client_version", client_version)  # 3.0.0.0
 
 # Execute a sql and get its result set. It's useful for SELECT statement
-result: taos.TaosResult = conn.query("SELECT count(*) from test.meters")
+result: taos.TaosResult = conn.query("SELECT count(*) from meters")
 
 data = result.fetch_all()
 
