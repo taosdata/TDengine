@@ -2317,6 +2317,8 @@ static int32_t extractNodeListFromStream(SMnode *pMnode, SArray *pNodeList) {
   }
 
   taosHashCleanup(pHash);
+
+  mDebug("numOfNodes for stream after extract nodeInfo from stream", (int32_t)taosArrayGetSize(pNodeList));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2905,7 +2907,6 @@ void mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
   }
 
   addAllStreamTasksIntoBuf(pMnode, pExecInfo);
-  extractNodeListFromStream(pMnode, pExecInfo->pNodeList);
   pExecInfo->initTaskList = true;
 }
 
