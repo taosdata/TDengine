@@ -199,7 +199,7 @@ export default {
   nanoseconds: '纳秒',
   communityTip: "仅企业版和云服务可用，了解更多，请访问 TDengine <a href='https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>官网</a>。",
   communityDemoDataTip: '当前列表仅为示例数据',
-  fullscreen: "全屏显示",
+  fullszhcreen: "全屏显示",
   import: "导入",
   statuses: {
     created: "已创建",
@@ -1207,6 +1207,7 @@ export default {
       jsonDemoError: "第 {0} 条示例数据不是有效的 JSON 格式：{1}",
       texttip:"请输入正确格式文本",
       mappingvaildtip: "请填写正确的主键列的映射规则",
+      nonsupportTypetip: "数据写入暂时不支持 {type} 数据类型",
       mappingvaildColtip: "请至少填写一个普通列和标签列的映射规则",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
       extractdesc: `<strong>taosX 目前支持 3 种规则解析原始消息体</strong>：<br/>

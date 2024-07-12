@@ -1585,6 +1585,12 @@ export default {
           Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
           this.isbreak = true;
         }
+        // 不支持 VARBINARY & GEOMETRY
+        if ((item["Type"] == "VARBINARY" || item["Type"] == "GEOMETRY") && item["Expression"]) {
+          Message.closeAll();
+          Message.warning(this.$t("datasource.transformer.nonsupportTypetip").replace('{type}',item["Type"]));
+          this.isbreak = true;
+        }
         if (item["Expression"]) {
           if (
             this.params_columns.includes(item["Name"])
