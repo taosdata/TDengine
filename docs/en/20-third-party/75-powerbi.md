@@ -25,7 +25,7 @@ description: Use PowerBI and TDengine to analyze time series data
 
 &emsp;&emsp;[DSN]:&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;Data Source Name, required field, such as "MyTDengine"
 
-Depending on your TDengine server version, download appropriate version of TDengine client package from TDengine website [Download Link](../../get-started/package/), or TDengine explorer if you are using a local TDengine cluster. Install the TDengine client package on same Windows machine where PowerBI is running.
+Depending on your TDengine server version, download appropriate version of TDengine client package from TDengine website [Download Link](https://docs.tdengine.com/get-started/package/), or TDengine explorer if you are using a local TDengine cluster. Install the TDengine client package on same Windows machine where PowerBI is running.
 
 
 &emsp;&emsp;[URL]:&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;&nbsp;taos://localhost:6041
