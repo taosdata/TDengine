@@ -378,7 +378,7 @@ function handleOptions(options, paramsConfig, id) {
         }
         if (id == 'mongodb') {
           if (key == 'load_balanced' || key == 'direct_connection' || key == 'host' || key == 'port') return true
-          return currentData.direct_connection
+          return !currentData.direct_connection
         }
         return true
       },
@@ -1300,7 +1300,8 @@ function getOptionData(data, queryArr, definition) {
   if (load_balanced) {
     queryArr.push('load_balanced=' + load_balanced)
   }
-  if (direct_connection) {
+  if (!direct_connection) {
+    queryArr.push('direct_connection=' + direct_connection)
     if (repl_set_name) {
       queryArr.push('repl_set_name=' + repl_set_name)
     }

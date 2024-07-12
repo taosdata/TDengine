@@ -513,7 +513,7 @@ export default {
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
         let editDdata = deepClone([].concat(data.from_detail));
-        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"){
+        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"||data.from_expand.id == "mongodb"){
           this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
         }
         if (data.from_expand && data.from_expand.id == "mqtt") {
@@ -632,7 +632,7 @@ export default {
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
         let editDdata = deepClone([].concat(data.from_detail));
-        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"){
+        if(data.from_detail.id=='mqtt'||data.from_expand.id == "kafka"||data.from_expand.id == "csv"||data.from_expand.id == "mongodb"){
           this.$store.commit('app/SET_TRANSFORM_PARSERDATA',data.parser)
         }
         if (data.from_expand && data.from_expand.id == "mqtt") {

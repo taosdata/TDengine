@@ -100,6 +100,7 @@ export default {
       showtable: false,
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
+      MongoDBDefaultCols: ["value"],
       mappingCol: "SubTableName",
       defaultHeight:510,
       drawer: false
@@ -177,6 +178,9 @@ export default {
       }
       if (this.$store.state.app.currentDBType == "kafka") {
         hiddenCols = this.kafkaDefaultCols;
+      }
+      if (this.$store.state.app.currentDBType == "mongodb") {
+        hiddenCols = this.MongoDBDefaultCols;
       }
       let columns = Object.keys(data[0]).filter((item) => {
         return !hiddenCols.includes(item);

@@ -84,11 +84,11 @@ export default {
         return (this.data.model.using = val);
       }
     },
-    isKafka() {
-      return this.sourceParent.sourceForm.type == 'kafka';
+    isKafkaOrMongoDB() {
+      return this.sourceParent.sourceForm.type == 'kafka' || this.sourceParent.sourceForm.type == 'mongodb';
     },
     jsonParentField() {
-      return this.isKafka ? 'value' : 'payload';
+      return this.isKafkaOrMongoDB ? 'value' : 'payload';
     },
     jsonArray() {
       return this.data.parse?.[this.jsonParentField]?.json ?? [];

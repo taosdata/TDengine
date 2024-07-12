@@ -691,7 +691,7 @@ export default {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
-      mongodbDefaultCols: ["topic", "partition", "offset", "key", "value"],
+      mongodbDefaultCols: ["value"],
       parseTypes: ["regex", "json", "udt"],
       exprformat: "${c1}-${c2}:${c3}",
       exprexpression: "centigrade * 1.8 + 32",
@@ -938,7 +938,7 @@ export default {
         return;
       }
       this.requesting = true;
-      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
+      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt' || this.$store.state.app.currentDBType == 'mongodb'
       let dsn = getDsnData(
         this.$parent.$parent.$parent.sourceForm.data,
         this.$parent.$parent.$parent.currentDefinition
@@ -964,7 +964,14 @@ export default {
         if (result.input.length <= 0) {
           this.$message.warning(this.$t('datasource.transformer.retrieveTip'))
         } else {
-          let type = this.$store.state.app.currentDBType == 'kafka' ? 'Kafka' : 'MQTT';
+          let type = '';
+          if (this.$store.state.app.currentDBType == 'kafka') {
+            type = 'Kafka';
+          } else if (this.$store.state.app.currentDBType == 'mqtt') {
+            type = 'MQTT';
+          } else if (this.$store.state.app.currentDBType == 'mongodb') {
+            type = 'MongoDB';
+          }
           this.$message.success(
             type + this.$t('datasource.transformer.retrieveSuccTip').replace('{n}',result.input.length)
           )
@@ -976,7 +983,7 @@ export default {
         this.msgForm.msgbody = JSON.stringify(result);
       }
       this.requesting = false;
-      // mqtt 和 kafka 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
+      // mqtt、kafka、mongodb 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
       if (!isSupportType) {
         await this.submitParse();
       }
