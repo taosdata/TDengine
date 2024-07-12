@@ -58,6 +58,8 @@ if serverPort == 0:
 system = platform.system()
 
 arch = platform.machine()
+
+databaseName = subprocess.getoutput("hostname")
 # install taospy
 taospy_version = ""
 if system == 'Windows':
@@ -74,15 +76,15 @@ else:
 
 # prepare data by taosBenchmark
 
-print("run taosBenchmark -y -a 3 -n 100 -t 100 -h %s -P %d" % (serverHost, serverPort))
-os.system("taosBenchmark -y -a 3 -n 100 -t 100 -h %s -P %d" % (serverHost, serverPort))
+print("run taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %d" % (databaseName, serverHost, serverPort))
+os.system("taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %d" % (databaseName, serverHost, serverPort))
 taosBenchmark_test_result = True
 import taos
 
 conn = taos.connect(host=serverHost,
                                          user="root",
                                          password="taosdata",
-                                         database="test",
+                                         database=databaseName,
                                          port=serverPort,
                                          timezone="Asia/Shanghai")  # default your host's timezone
 
@@ -107,8 +109,8 @@ if data[0][0] !=10000:
 # drop database of test
 taos_test_result = False
 print("drop database test")
-print("run taos -s 'drop database test;'  -h %s  -P %d" % (serverHost, serverPort))
-taos_cmd_outpur = subprocess.getoutput('taos -s "drop database test;"  -h %s  -P %d' % (serverHost, serverPort))
+print("run taos -s 'drop database -d %s;'  -h %s  -P %d" % (databaseName, serverHost, serverPort))
+taos_cmd_outpur = subprocess.getoutput('taos -s "drop database -d %s;"  -h %s  -P %d' % (databaseName, serverHost, serverPort))
 if ("Drop OK" in taos_cmd_outpur):
     taos_test_result = True
     #print("*******Test Result: taos test passed ************")
