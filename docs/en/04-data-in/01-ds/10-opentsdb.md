@@ -9,7 +9,7 @@ OpenTSDB data source is the process of writing data from the OpenTSDB server to 
 ## Prerequisites
 
 - Create an empty database to store your OpenTSDB data. For more information, see [Database](../../../programming/model/#create-database).
-- Ensure that the connection agent is running on a machine located on the same network as your OPC Server. For more information, see [Install Connection Agent](../install-agent/).
+- (Optional) Ensure that the connection agent is running on a machine located on the same network as your OpenTSDB Server. For more information, see [Install Connection Agent](../install-agent/).
 
 ## Procedure
 

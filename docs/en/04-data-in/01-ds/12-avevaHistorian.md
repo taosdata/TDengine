@@ -9,7 +9,7 @@ AVEVA Historian data source is the process of writing data from the AVEVA Histor
 ## Prerequisites
 
 - Create an empty database to store your AVEVA Historian data. For more information, see [Database](../../../programming/model/#create-database).
-- Ensure that the connection agent is running on a machine located on the same network as your AVEVA Historian Server. For more information, see [Install Connection Agent](../install-agent/).
+- (Optional) Ensure that the connection agent is running on a machine located on the same network as your AVEVA Historian Server. For more information, see [Install Connection Agent](../install-agent/).
 
 ## Procedure
 
