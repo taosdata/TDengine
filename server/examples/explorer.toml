@@ -23,7 +23,6 @@ log_level = "info"
 # All data files are stored in this directory
 # data_dir = "/var/lib/taos/explorer" # Default for Linux
 # data_dir = "C:\\TDengine\\data\\explorer" # Default for Windows
-data_dir = "./data"
 
 # REST API endpoint to connect to the cluster.
 # This configuration is also the target for data migration tasks.
