@@ -86,7 +86,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let mut query = MongoDBQuery::try_new(config.connect).await?;
 
     // results
-    let mut input_sample: Vec<LinkedHashMap<String, serde_json::Value>> = Vec::new();
+    let mut input_sample: Vec<LinkedHashMap<String, String>> = Vec::new();
 
     // generate filter
     let database = config.task.generate_database()?;
@@ -115,7 +115,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // generate sample data
     for document in documents {
         input_sample.push(LinkedHashMap::from_iter(vec![(
-            "value".to_string(),
+            "payload".to_string(),
             generate_payload(document)?,
         )]));
     }
@@ -247,7 +247,7 @@ pub async fn mongodb_to_taos(
     Ok(())
 }
 
-fn generate_payload(document: Document) -> anyhow::Result<serde_json::Value> {
+fn generate_payload(document: Document) -> anyhow::Result<String> {
     let mut payload: LinkedHashMap<String, serde_json::Value> = LinkedHashMap::new();
     let keys = document.keys();
     for key in keys {
@@ -325,7 +325,7 @@ fn generate_payload(document: Document) -> anyhow::Result<serde_json::Value> {
             }
         }
     }
-    Ok(serde_json::json!(payload))
+    Ok(serde_json::json!(payload).to_string())
 }
 
 #[cfg(test)]
