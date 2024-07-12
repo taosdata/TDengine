@@ -24,6 +24,7 @@
 #include "tmisce.h"
 #include "tmsgcb.h"
 
+
 #define MND_COMPACT_VER_NUMBER 1
 #define MND_COMPACT_ID_LEN     11
 
