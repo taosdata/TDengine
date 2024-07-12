@@ -8097,11 +8097,21 @@ export function getDataSources(lang) {
             "display": "服务端口",
             "description": "MongoDB 的端口",
             "placeholder": "3306",
+            "pattern": "^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
+          },
+          "load_balanced": {
+            "required": false,
+            "display": "是否负载均衡",
+            "description": "是否通过负载均衡进行连接。\n- *true*:host 地址被当作负载均衡地址 \n- *false*:host 地址被当作数据库地址\n",
+            "hint": {
+              "type": "bool",
+            }
           },
           "direct_connection": {
             "required": false,
             "display": "是否直连",
-            "description": "是否直接连接到单个主机或者自动发现集群中所有服务器。",
+            "description": "是否直接连接到单个主机或者自动发现集群中所有服务器。\n- *true*:host 直接连接到 host:port \n- *false*:host 发现集群中其他服务器\n",
             "hint": {
               "type": "bool",
             }
@@ -8109,13 +8119,13 @@ export function getDataSources(lang) {
           "repl_set_name": {
             "required": false,
             "display": "副本名称",
-            "description": "客户端连接到指定名称的集群副本。",
+            "description": "客户端连接到指定名称的集群副本。如果指定了副本名称，则只连接到此副本服务器。",
             "placeholder": "",
           },
           "local_threshold": {
             "required": false,
             "display": "超时阈值",
-            "description": "用于确定与所有服务器中最短往返时间相比，客户端与服务器之间的平均往返时间被允许增加多少。",
+            "description": "用于确定与所有服务器中最短往返时间相比，客户端与服务器之间的平均往返时间被允许增加多少。当值为 0 时，表示没有延迟窗口，因此只会连接平均往返时间最低的服务器。默认 15 ms。",
             "hint": {
               "type": "duration",
               "choices": [

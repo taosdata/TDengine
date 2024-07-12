@@ -377,7 +377,7 @@ function handleOptions(options, paramsConfig, id) {
           return currentData.system_configuration == piOptionShowValue;
         }
         if (id == 'mongodb') {
-          if (key == 'direct_connection' || key == 'host' || key == 'port') return true
+          if (key == 'load_balanced' || key == 'direct_connection' || key == 'host' || key == 'port') return true
           return currentData.direct_connection
         }
         return true
@@ -1274,7 +1274,7 @@ export function getAuthentications(authentication, params, definition) {
 function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
-  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout, direct_connection, repl_set_name, local_threshold, local_threshold_type } = data;
+  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout, direct_connection, repl_set_name, local_threshold, local_threshold_type, load_balanced } = data;
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
@@ -1296,6 +1296,9 @@ function getOptionData(data, queryArr, definition) {
   }
   if (connect_timeout) {
     queryArr.push('connect_timeout=' + connect_timeout)
+  }
+  if (load_balanced) {
+    queryArr.push('load_balanced=' + load_balanced)
   }
   if (direct_connection) {
     if (repl_set_name) {
