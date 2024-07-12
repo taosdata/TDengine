@@ -427,6 +427,9 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
+  if (pHead->seqNum != 0) {
+    ASSERT(0);
+  }
   // pHead->noResp = 1,
   // 1. server application should not send resp on handle
   // 2. once send out data, cli conn released to conn pool immediately

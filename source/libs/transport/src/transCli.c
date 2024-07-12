@@ -1182,7 +1182,8 @@ void cliSendBatch_shareConn(SCliConn* pConn) {
   int32_t totalLen = 0;
   if (size == 0) {
     tError("%s conn %p not msg to send", pTransInst->label, pConn);
-    cliHandleExcept(pConn);
+    ASSERT(0);
+    // cliHandleExcept(pConn);
     return;
   }
   uv_buf_t* wb = taosMemoryCalloc(size, sizeof(uv_buf_t));
