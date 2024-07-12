@@ -84,7 +84,7 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 if [[ ${verMode} = "enterprise" ]];then
-    prePackage="TDengine-enterprise-"
+    prePackage="TDengine-enterprise"
     if [[ ${testFile} = "client" ]];then
         prePackage="TDengine-enterprise-${testFile}"
     fi
