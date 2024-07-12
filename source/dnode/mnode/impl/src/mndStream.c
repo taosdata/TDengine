@@ -59,7 +59,6 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
 static int32_t extractNodeListFromStream(SMnode *pMnode, SArray *pNodeList);
 static int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq);
 static int32_t mndProcessCheckpointReport(SRpcMsg *pReq);
-//static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg);
 static int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg);
 static void    doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId, int32_t code);
 
@@ -2318,7 +2317,7 @@ static int32_t extractNodeListFromStream(SMnode *pMnode, SArray *pNodeList) {
 
   taosHashCleanup(pHash);
 
-  mDebug("numOfNodes for stream after extract nodeInfo from stream", (int32_t)taosArrayGetSize(pNodeList));
+  mDebug("numOfNodes:%d for stream after extract nodeInfo from stream", (int32_t)taosArrayGetSize(pNodeList));
   return TSDB_CODE_SUCCESS;
 }
 
