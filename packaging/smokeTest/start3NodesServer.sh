@@ -1,4 +1,5 @@
 #!/bin/bash
+BUILD_ID=dontKillMe
 
 #******This script setup 3 nodes env for remote client installer test. Only for Linux *********
 
