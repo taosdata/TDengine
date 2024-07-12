@@ -4,7 +4,7 @@ title: "MySQL"
 description: This document describes how to extract data from a MySQL server into a TDengine Cloud instance.
 ---
 
-MySQL is one of the most popular RDBMS. Many application systems have been using MySQL to store time series data generated in IoT or Industry fields. With the number of devices in such environments grow, MySQL can't handle the data explosion. 
+MySQL is one of the most popular RDBMS. Many application systems have been using MySQL to store time series data generated in IoT or Industry fields. With the number of devices in such environments grow, MySQL can't handle the data explosion.
 
 MySQL data source is the process of writing data from the MySQL server to the currently selected TDengine Cloud instance optional via a connection agent.
 
@@ -18,7 +18,7 @@ MySQL data source is the process of writing data from the MySQL server to the cu
 1. In TDengine Cloud, open **Data In** page. On the **Data Sources** tab, click **Add Data Source** button to open the new data source page.
    - In the **Name** field, fill in the name of the data source.
    - In the **Type** field, select the type of **MySQL**.
-   - In the **Agent** selection which is not not a mandatory field, select the agent you have already created, or if you have not created a agent, click the **Create New Agent** button to create it.
+   - (Optional) In the **Agent** list, select the agent you have already created, or if you have not created a agent, click the **Create New Agent** button to create it.
 
 2. In the **Target DB**, select the database of the current TDengine Cloud instance as the target database.
 
