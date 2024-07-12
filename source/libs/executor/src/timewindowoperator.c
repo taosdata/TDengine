@@ -1136,7 +1136,8 @@ void destroyIntervalOperatorInfo(void* param) {
 
   tdListFree(pInfo->binfo.resultRowInfo.openWindow);
 
-  pInfo->pInterpCols = taosArrayDestroy(pInfo->pInterpCols);
+  taosArrayDestroy(pInfo->pInterpCols);
+  pInfo->pInterpCols = NULL;
   taosArrayDestroyEx(pInfo->pPrevValues, freeItem);
 
   pInfo->pPrevValues = NULL;

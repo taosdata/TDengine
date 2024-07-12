@@ -495,9 +495,9 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
   QW_SCH_TASK_DLOG("processCQuery start, node:%p, handle:%p", node, pMsg->info.handle);
 
-  QW_ERR_RET(qwProcessCQuery(QW_FPARAMS(), &qwMsg));
+  code = qwProcessCQuery(QW_FPARAMS(), &qwMsg);
 
-  QW_SCH_TASK_DLOG("processCQuery end, node:%p", node);
+  QW_SCH_TASK_DLOG("processCQuery end, node:%p, code:0x%x", node, code);
 
   return TSDB_CODE_SUCCESS;
 }

@@ -503,14 +503,16 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   *pParam = &gQwMgmt.param[paramIdx];
 }
 
-void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
+int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
   char dbFName[TSDB_DB_FNAME_LEN];
   char tbName[TSDB_TABLE_NAME_LEN];
   STbVerInfo tbInfo;
   int32_t i = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   while (true) {
-    if (qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i) < 0) {
+    code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i);
+    if (TSDB_CODE_SUCCESS != code) {
       break;
     }
 
@@ -522,12 +524,19 @@ void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
 
     if (NULL == ctx->tbInfo) {
       ctx->tbInfo = taosArrayInit(1, sizeof(tbInfo));
+      if (NULL == ctx->tbInfo) {
+        QW_ERR_RET(terrno);
+      }
     }
     
-    taosArrayPush(ctx->tbInfo, &tbInfo);
+    if (NULL == taosArrayPush(ctx->tbInfo, &tbInfo)) {
+      QW_ERR_RET(terrno);
+    }
     
     i++;
   }
+
+  QW_RET(code);
 }
 
 void qwCloseRef(void) {

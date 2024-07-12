@@ -406,7 +406,8 @@ void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
     }
     pGroupResInfo->freeItem = false;
   }
-  pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
+  taosArrayDestroy(pGroupResInfo->pRows);
+  pGroupResInfo->pRows = NULL;
   pGroupResInfo->index = 0;
 }
 

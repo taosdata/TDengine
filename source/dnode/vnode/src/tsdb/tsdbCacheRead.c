@@ -311,7 +311,8 @@ void* tsdbCacherowsReaderClose(void* pReader) {
     int32_t iter = 0;
     while ((pe = tSimpleHashIterate(p->pTableMap, pe, &iter)) != NULL) {
       STableLoadInfo* pInfo = *(STableLoadInfo**)pe;
-      pInfo->pTombData = taosArrayDestroy(pInfo->pTombData);
+      taosArrayDestroy(pInfo->pTombData);
+      pInfo->pTombData = NULL;
     }
 
     tSimpleHashCleanup(p->pTableMap);

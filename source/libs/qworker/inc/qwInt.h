@@ -391,7 +391,7 @@ void    qwReleaseTaskCtx(SQWorker *mgmt, void *ctx);
 int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode);
 int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask);
 int32_t qwDropTask(QW_FPARAMS_DEF);
-void    qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx);
+int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx);
 int32_t qwOpenRef(void);
 void    qwSetHbParam(int64_t refId, SQWHbParam **pParam);
 int32_t qwUpdateTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type);

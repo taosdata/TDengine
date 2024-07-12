@@ -195,7 +195,9 @@ void *freeStreamTasks(SArray *pTaskLevel) {
     taosArrayDestroy(pLevel);
   }
 
-  return taosArrayDestroy(pTaskLevel);
+  taosArrayDestroy(pTaskLevel);
+
+  return NULL;
 }
 
 void tFreeStreamObj(SStreamObj *pStream) {
