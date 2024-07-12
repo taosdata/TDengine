@@ -32,7 +32,7 @@ typedef struct SScalableBf {
   _hash_fn_t hashFn2;
 } SScalableBf;
 
-SScalableBf *tScalableBfInit(uint64_t expectedEntries, double errorRate);
+int32_t      tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf **ppSBf);
 int32_t      tScalableBfPutNoCheck(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
 int32_t      tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
 int32_t      tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32_t len);

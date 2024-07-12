@@ -35,13 +35,17 @@ static FORCE_INLINE bool getBit(uint64_t *buf, uint64_t index) {
   return buf[unitIndex] & mask;
 }
 
-SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate) {
+int32_t tBloomFilterInit(uint64_t expectedEntries, double errorRate, SBloomFilter **ppBF) {
+  int32_t code = 0;
+  int32_t lino = 0;
   if (expectedEntries < 1 || errorRate <= 0 || errorRate >= 1.0) {
-    return NULL;
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _error);
   }
   SBloomFilter *pBF = taosMemoryCalloc(1, sizeof(SBloomFilter));
   if (pBF == NULL) {
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _error);
   }
   pBF->expectedEntries = expectedEntries;
   pBF->errorRate = errorRate;
@@ -61,9 +65,16 @@ SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate) {
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
   if (pBF->buffer == NULL) {
     tBloomFilterDestroy(pBF);
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _error);
   }
-  return pBF;
+  (*ppBF) = pBF;
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t tBloomFilterPutHash(SBloomFilter *pBF, uint64_t hash1, uint64_t hash2) {
@@ -133,27 +144,55 @@ int32_t tBloomFilterEncode(const SBloomFilter *pBF, SEncoder *pEncoder) {
   return 0;
 }
 
-SBloomFilter *tBloomFilterDecode(SDecoder *pDecoder) {
+int32_t tBloomFilterDecode(SDecoder *pDecoder, SBloomFilter **ppBF) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
   SBloomFilter *pBF = taosMemoryCalloc(1, sizeof(SBloomFilter));
+  if (!pBF) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
   pBF->buffer = NULL;
-  if (tDecodeU32(pDecoder, &pBF->hashFunctions) < 0) goto _error;
-  if (tDecodeU64(pDecoder, &pBF->expectedEntries) < 0) goto _error;
-  if (tDecodeU64(pDecoder, &pBF->numUnits) < 0) goto _error;
-  if (tDecodeU64(pDecoder, &pBF->numBits) < 0) goto _error;
-  if (tDecodeU64(pDecoder, &pBF->size) < 0) goto _error;
+  if (tDecodeU32(pDecoder, &pBF->hashFunctions) < 0) {
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+  if (tDecodeU64(pDecoder, &pBF->expectedEntries) < 0) {
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+  if (tDecodeU64(pDecoder, &pBF->numUnits) < 0) {
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+  if (tDecodeU64(pDecoder, &pBF->numBits) < 0) {
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+  if (tDecodeU64(pDecoder, &pBF->size) < 0) {
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
   for (int32_t i = 0; i < pBF->numUnits; i++) {
     uint64_t *pUnits = (uint64_t *)pBF->buffer;
-    if (tDecodeU64(pDecoder, pUnits + i) < 0) goto _error;
+    if (tDecodeU64(pDecoder, pUnits + i) < 0) {
+      code = TSDB_CODE_FAILED;
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
-  if (tDecodeDouble(pDecoder, &pBF->errorRate) < 0) goto _error;
+  if (tDecodeDouble(pDecoder, &pBF->errorRate) < 0) {
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
   pBF->hashFn1 = HASH_FUNCTION_1;
   pBF->hashFn2 = HASH_FUNCTION_2;
-  return pBF;
+  (*ppBF) = pBF;
 
 _error:
   tBloomFilterDestroy(pBF);
-  return NULL;
+  uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return TSDB_CODE_FAILED;
 }
 
 bool tBloomFilterIsFull(const SBloomFilter *pBF) { return pBF->size >= pBF->expectedEntries; }

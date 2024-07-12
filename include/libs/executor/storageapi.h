@@ -389,7 +389,7 @@ typedef struct SStateStore {
 
   void (*updateInfoDestroy)(SUpdateInfo* pInfo);
   void (*windowSBfDelete)(SUpdateInfo* pInfo, uint64_t count);
-  void (*windowSBfAdd)(SUpdateInfo* pInfo, uint64_t count);
+  int32_t (*windowSBfAdd)(SUpdateInfo* pInfo, uint64_t count);
 
   SUpdateInfo* (*updateInfoInitP)(SInterval* pInterval, int64_t watermark, bool igUp, int8_t pkType, int32_t pkLen);
   void (*updateInfoAddCloseWindowSBF)(SUpdateInfo* pInfo);

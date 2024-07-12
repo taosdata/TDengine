@@ -66,15 +66,29 @@ int32_t getValueBuff(TSKEY ts, char* pVal, int32_t len, char* buff) {
   return sizeof(TSKEY) + len;
 }
 
-void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
+int32_t windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pInfo->numSBFs < count) {
     count = pInfo->numSBFs;
   }
   for (uint64_t i = 0; i < count; ++i) {
     int64_t      rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
-    SScalableBf *tsSBF = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
-    taosArrayPush(pInfo->pTsSBFs, &tsSBF);
+    SScalableBf *tsSBF = NULL;
+    code = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE, &tsSBF);
+    TSDB_CHECK_CODE(code, lino, _error);
+    void *res = taosArrayPush(pInfo->pTsSBFs, &tsSBF);
+    if (!res) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void clearItemHelper(void *p) {
@@ -183,6 +197,7 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
 }
 
 static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
+  int32_t code = 0;
   if (ts <= 0) {
     return NULL;
   }
@@ -202,7 +217,7 @@ static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
   SScalableBf *res = taosArrayGetP(pInfo->pTsSBFs, index);
   if (res == NULL) {
     int64_t rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
-    res = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
+    code = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE, &res);
     taosArrayPush(pInfo->pTsSBFs, &res);
   }
   return res;
@@ -334,7 +349,11 @@ void updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo) {
     return;
   }
   int64_t rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
-  pInfo->pCloseWinSBF = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
+  int32_t code = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE, &pInfo->pCloseWinSBF);
+  if (code != TSDB_CODE_SUCCESS) {
+    pInfo->pCloseWinSBF = NULL;
+    uError("%s failed to add close window SBF since %s", __func__, tstrerror(code));
+  }
 }
 
 void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo) {
