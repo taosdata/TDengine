@@ -1236,7 +1236,6 @@ static void checkRegexCache(void* param, void* tmrId) {
 }
 
 void regexCacheFree(void *ppUsingRegex) {
-  uInfo("[regex cache] regexCacheFree %p", ppUsingRegex);
   regfree(&(*(UsingRegex **)ppUsingRegex)->pRegex);
   taosMemoryFree(*(UsingRegex **)ppUsingRegex);
 }
