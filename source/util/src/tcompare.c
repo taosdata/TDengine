@@ -1219,6 +1219,7 @@ static RegexCache sRegexCache;
 #define REGEX_CACHE_CLEAR_TIME 30
 
 static void checkRegexCache(void* param, void* tmrId) {
+  taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, NULL, &tmrId);
   if (taosHashGetSize(sRegexCache.regexHash) < MAX_REGEX_CACHE_SIZE) {
     return;
   }
@@ -1232,8 +1233,6 @@ static void checkRegexCache(void* param, void* tmrId) {
       ppUsingRegex = taosHashIterate(sRegexCache.regexHash, ppUsingRegex);
     }
   }
-
-  taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, NULL, &tmrId);
 }
 
 void regexCacheFree(void *ppUsingRegex) {
