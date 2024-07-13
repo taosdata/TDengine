@@ -1211,7 +1211,7 @@ typedef struct UsingRegex {
 
 typedef struct RegexCache {
   SHashObj      *regexHash;
-  void          *regexCacheTimer;
+  void          *regexCacheTmr;
   void          *timer;
 } RegexCache;
 static RegexCache sRegexCache;
@@ -1219,7 +1219,7 @@ static RegexCache sRegexCache;
 #define REGEX_CACHE_CLEAR_TIME 30
 
 static void checkRegexCache(void* param, void* tmrId) {
-  taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, NULL, &tmrId);
+  taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, sRegexCache.regexCacheTmr, &tmrId);
   if (taosHashGetSize(sRegexCache.regexHash) < MAX_REGEX_CACHE_SIZE) {
     return;
   }
@@ -1236,6 +1236,7 @@ static void checkRegexCache(void* param, void* tmrId) {
 }
 
 void regexCacheFree(void *ppUsingRegex) {
+  uInfo("[regex cache] regexCacheFree %p", ppUsingRegex);
   regfree(&(*(UsingRegex **)ppUsingRegex)->pRegex);
   taosMemoryFree(*(UsingRegex **)ppUsingRegex);
 }
@@ -1247,14 +1248,14 @@ int32_t InitRegexCache() {
     return -1;
   }
   taosHashSetFreeFp(sRegexCache.regexHash, regexCacheFree);
-  sRegexCache.regexCacheTimer = taosTmrInit(0, 0, 0, "REGEXCACHE");
-  if (sRegexCache.regexCacheTimer == NULL) {
+  sRegexCache.regexCacheTmr = taosTmrInit(0, 0, 0, "REGEXCACHE");
+  if (sRegexCache.regexCacheTmr == NULL) {
     uError("failed to create regex cache check timer");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  sRegexCache.timer = taosTmrStart(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, NULL, sRegexCache.regexCacheTimer);
+  sRegexCache.timer = taosTmrStart(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, NULL, sRegexCache.regexCacheTmr);
   if (sRegexCache.timer == NULL) {
     uError("failed to start regex cache timer");
     return -1;
@@ -1264,8 +1265,10 @@ int32_t InitRegexCache() {
 }
 
 void DestroyRegexCache(){
+  uInfo("[regex cache] destory regex cache");
   taosTmrStopA(&sRegexCache.timer);
   taosHashCleanup(sRegexCache.regexHash);
+  taosTmrCleanUp(sRegexCache.regexCacheTmr);
 }
 
 int32_t checkRegexPattern(const char *pPattern) {
