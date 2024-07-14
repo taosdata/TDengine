@@ -36,7 +36,7 @@ class TDTestCase(TBase):
             "create table db.st(ts timestamp, age int) tags(area tinyint);",
             "insert into db.t1 using db.st tags(100) values('2024-01-01 10:00:01', 1);",
             "insert into db.t2 using db.st tags(110) values('2024-01-01 10:00:02', 2);",
-            "insert into db.t3 using db.st tags(3) values('2024-01-01 10:00:03', 3);"
+            "insert into db.t3 using db.st tags(3) values('2024-01-01 10:00:03', 3);",
         ]
         tdSql.executes(sqls)
 
@@ -44,7 +44,7 @@ class TDTestCase(TBase):
         results = [
             ["2024-01-01 10:00:01", 1, 100],
             ["2024-01-01 10:00:02", 2, 110],
-            ["2024-01-01 10:00:03", 3, 3]
+            ["2024-01-01 10:00:03", 3, 3],
         ]
         tdSql.checkDataMem(sql, results)
 
@@ -99,11 +99,12 @@ class TDTestCase(TBase):
         for i in range(1, 10):
             new_ts = base_ts + i * 1000
             num = i * 100
+            v1, v2 = i * 10, i * 11
             sqls = [
-                f"insert into ntb1 values({new_ts}, 'nihao{num}', {10*i}, {10*i}, {10*i});",
+                f"insert into ntb1 values({new_ts}, 'nihao{num}', {v1}, {v1}, {v1});",
                 f"insert into ntb1 values({new_ts + 1}, 'nihao{num + 1}', NULL, NULL, NULL);",
                 f"delete from ntb1 where ts = {new_ts};",
-                f"insert into ntb1 values({new_ts + 2}, 'nihao{num + 2}', {11*i}, {11*i}, {11*i});",
+                f"insert into ntb1 values({new_ts + 2}, 'nihao{num + 2}', {v2}, {v2}, {v2});",
             ]
             tdSql.executes(sqls)
 
