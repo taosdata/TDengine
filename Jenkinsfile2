@@ -401,7 +401,7 @@ pipeline {
                     }
                 }
                 stage('linux test') {
-                    agent{label "slave1_52  | slave217 || slave219 "}
+                    agent{label "slave1_52  | slave217 | slave219 "}
                     options { skipDefaultCheckout() } 
                     when {
                         changeRequest()
