@@ -1418,6 +1418,7 @@ export default {
       parse: "1. Parse",
       jsonPlaceholder: "Please select the JSON key which is extracted from the first demo data",
       jsontip: "Please enter the correct JSON format",
+      jsonDemoError: "The json string at pos {0} is not a valid json string: {1}",
       texttip:"Please enter correct text format",
       mappingvaildtip: "Please fill in the correct primary key column",
       mappingvaildColtip: "Enter at least one mapping rule for the common column and the tag column",

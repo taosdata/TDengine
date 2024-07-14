@@ -1809,40 +1809,50 @@ export default {
         console.log(error);
       }
     },
+    // 获取示例数据字符串列表
+    getExampleList() {
+      let demo_string = (this.msgForm.msgbody || "").trim();
+      let demo_string_arr = [];
+      if (demo_string.startsWith("[") && demo_string.endsWith("]")) {
+        let arr_list = demo_string.replace(/\]\s*\[/g, "]&$[").split("&$");
+        let total = 0;
+        for (let i = 0; i < arr_list.length; i++) {
+          try {
+            let item_parsed = JSON.parse(arr_list[i]);
+            total += item_parsed.length;
+          } catch (err) {
+            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
+            throw err;
+          }
+          demo_string_arr.push(arr_list[i]);
+          if (total >= 100) {
+            return demo_string_arr;
+          }
+        }
+      } else if (demo_string.startsWith("{") && demo_string.endsWith("}")) {
+          let obj_list = demo_string.replace(/\}\s*\{/g, "}&${").split("&$");
+          for (let i = 0; i < obj_list.length; i++) {
+            if (i >= 100) {
+              return demo_string_arr;
+            }
+            try {
+              JSON.parse(obj_list[i]);
+            } catch (err) {
+              this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
+              throw err;
+            }
+            demo_string_arr.push(obj_list[i]);
+          }
+      } else {
+        Message.warning(this.$t("datasource.transformer.jsontip"));
+        throw new Error("Invalid JSON format");
+      }
+      return demo_string_arr;
+    },
     //输出input结果
     generateInput() {
-      let inputList = [];
-      let resultMsgbody = "";
-      if (this.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")) {
-        resultMsgbody = this.msgForm.msgbody
-          .replace(/\}\s*\{/g, "}&${")
-          .split("&$");
-      } else {
-        if (
-          /\n/g.test(this.msgForm.msgbody) &&
-          /^[^\{]/.test(this.msgForm.msgbody.trim())
-        ) {
-          //普通文本，目前第一列暂时不能为json格式
-          resultMsgbody = this.msgForm.msgbody
-            .replace(/[\n\s]/g, "*&$*")
-            .split("*&$*");
-        } else {
-          try {
-            if (
-              /^\{/g.test(this.msgForm.msgbody) &&
-              JSON.parse(this.msgForm.msgbody)
-            ) {
-              resultMsgbody = [].concat(this.msgForm.msgbody);
-            }
-          } catch (error) {
-            this.$error(this.$t("datasource.transformer.jsontip"));
-            return;
-          }
-
-          resultMsgbody = this.msgForm.msgbody.split(";");
-        }
-      }
-      inputList = resultMsgbody.map((msg) => {
+      let demo_list = this.getExampleList();
+      let inputList = demo_list.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
           if (msg) {
