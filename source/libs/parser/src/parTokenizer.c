@@ -323,6 +323,9 @@ static SKeyword keywordTable[] = {
     {"_WDURATION",           TK_WDURATION},
     {"_WEND",                TK_WEND},
     {"_WSTART",              TK_WSTART},
+    {"_FLOW",                TK_FLOW},
+    {"_FHIGH",               TK_FHIGH},
+    {"_FFULL",               TK_FFULL},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
     {"S3_CHUNKSIZE",         TK_S3_CHUNKSIZE},
@@ -685,7 +688,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         }
       }
       if (hasNonAsciiChars) {
-        *tokenId = TK_NK_ALIAS; // must be alias
+        *tokenId = TK_NK_ALIAS;  // must be alias
         return i;
       }
       if (IS_TRUE_STR(z, i) || IS_FALSE_STR(z, i)) {
@@ -700,10 +703,10 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         break;
       }
       bool hasNonAsciiChars = false;
-      for (i = 1; ; i++) {
+      for (i = 1;; i++) {
         if ((z[i] & 0x80) != 0) {
           hasNonAsciiChars = true;
-        } else if (isIdChar[(uint8_t)z[i]]){
+        } else if (isIdChar[(uint8_t)z[i]]) {
         } else {
           break;
         }

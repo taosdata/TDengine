@@ -16,6 +16,7 @@
 #include "builtins.h"
 #include "builtinsimpl.h"
 #include "cJSON.h"
+#include "functionMgt.h"
 #include "geomFunc.h"
 #include "query.h"
 #include "querynodes.h"
@@ -1943,9 +1944,9 @@ static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 }
 
 /// forecast function
-// forecast(ts, value, period, num)
-// forecast(ts, value, period, num, predict_start)
-// forecast(ts, value, period, predict_start, predict_end)
+// forecast(ts, value, num)
+// forecast(ts, value, num, level)
+// forecast(ts, value, num, 'level=80;keep_double=1')
 //
 // Result: VARCHAR(256)
 // Format: timestamp,value
@@ -2000,6 +2001,16 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateForecastLevel(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t translateForecastFull(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  uint8_t resultType = TSDB_DATA_TYPE_VARCHAR;
+  int32_t resultBytes = 256;
+  pFunc->node.resType = (SDataType){.bytes = resultBytes, .type = resultType};
+  return TSDB_CODE_SUCCESS;
+}
 static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -3359,6 +3370,40 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = forecastFinalize,
     // .combineFunc  = forecastCombine,
     // .estimateReturnRowsFunc = forecastEstReturnRows,
+  },
+
+  // FUNCTION_TYPE_FORECAST_EXPRESSION,
+  // FUNCTION_TYPE_FORECAST_CONFIDENCE_LOW,
+  // FUNCTION_TYPE_FORECAST_CONFIDENCE_HIGH,
+  {
+    .name = "_flow",
+    .type = FUNCTION_TYPE_FORECAST_CONFIDENCE_LOW,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastLevel,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_fhigh",
+    .type = FUNCTION_TYPE_FORECAST_CONFIDENCE_HIGH,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastLevel,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_ffull",
+    .type = FUNCTION_TYPE_FORECAST_FULL,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastFull,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
   },
   {
     .name = "tail",

@@ -15,6 +15,7 @@
 
 #include "builtinsimpl.h"
 #include <stdint.h>
+#include <string.h>
 #include "cJSON.h"
 #include "function.h"
 #include "query.h"
@@ -29,6 +30,7 @@
 #include "tglobal.h"
 #include "thistogram.h"
 #include "tlog.h"
+#include "tmsg.h"
 #include "tpercentile.h"
 
 #define HISTOGRAM_MAX_BINS_NUM 1000
@@ -3328,6 +3330,7 @@ const char* precision_to_str(uint8_t precision) {
 struct ForecastResult {
   char*    error;
   uint64_t num;
+  int64_t* ts;
   int32_t* offsets;
   char*    data;
   uint64_t data_len;
@@ -3395,6 +3398,7 @@ bool forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) 
   }
 
   pForecastInfo->buf = forecast_new_buf(pForecastInfo->num, precision, TSDB_DATA_TYPE_DOUBLE, n, &level);
+  pResInfo->numOfRes = pForecastInfo->num;
 
   return true;
 }
@@ -3455,28 +3459,47 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return TSDB_CODE_FUNC_FUNTION_ERROR;
   }
 
-  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
   qInfo("forecast slot id: %d", slotId);
   int32_t currentRow = pBlock->info.rows;
   qInfo("forecast current row: %d", currentRow);
   pEntryInfo->numOfRes = currentRow;
+
+  bool                    hasRowTs = pCtx->pTsOutput != NULL;
+  struct SColumnInfoData* pC0 = taosArrayGet(pBlock->pDataBlock, 0);
+  // pCtx->pTsOutput =
   // ASSERT(false);
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   for (int i = 0; i < result.num; i++) {
     qInfo("forecast row: {%d}: {%p}", i, result.data + result.offsets[i]);
     colDataSetVal(pCol, currentRow + i, result.data + result.offsets[i], false);
+    if (hasRowTs) {
+      colDataSetInt64(pCtx->pTsOutput, currentRow + i, &result.ts[i]);
+    }
+
+    for (int j = 0; j < pCtx->subsidiaries.num; j++) {
+      SqlFunctionCtx* pSc = pCtx->subsidiaries.pCtx[j];
+      tExprNode*      expr = pSc->pExpr->pExpr;
+      if (pSc->resDataInfo.type == TSDB_DATA_TYPE_TIMESTAMP && expr->nodeType == QUERY_NODE_FUNCTION &&
+          expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+        int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+        colDataSetInt64(pTsCol, currentRow + i, &result.ts[i]);
+      } else {
+        qInfo("forecast subsidiary: %d, non-timestamp type: %d", j, pSc->resDataInfo.type);
+      }
+      // qInfo("forecast row: {%d}: {%p}", i, result.data + result.offsets[i]);
+    }
     // colDataSetVal(pVal, i, result.data + result.offsets[i], false);
-    
 
     // setSelectivityValue(pCtx, pBlock, &pInfo->tuplePos[i], currentRow + i);
   }
 
   pCol->hasNull = false;
-  pBlock->info.rows += result.num;
-  pEntryInfo->numOfRes = pBlock->info.rows;
+  // pEntryInfo->numOfRes = pBlock->info.rows;
   qInfo("forecast block rows: %ld, %d", pBlock->info.rows, pEntryInfo->numOfRes);
-  pEntryInfo->isNullRes = 0;
-  
+  // pEntryInfo->isNullRes = 0;
+
   return code;
 }
 
