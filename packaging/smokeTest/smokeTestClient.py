@@ -221,7 +221,7 @@ if uninstall:
         process = subprocess.Popen(['unins000','/silent'],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         process.wait()
-        out = subprocess.getoutput("dir C:\TDengine")
+        out = subprocess.getoutput("ls C:\TDengine")
         print(out)
         if len(out.split("\n")) > 3:
             leftFile = True
