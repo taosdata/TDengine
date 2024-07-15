@@ -105,8 +105,19 @@ int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SArray *pExecList) {
   SExplainRsp       rsp = {.numOfPlans = taosArrayGetSize(pExecList), .subplanInfo = pInfo};
 
   int32_t contLen = tSerializeSExplainRsp(NULL, 0, &rsp);
+  if (contLen < 0) {
+    qError("tSerializeSExplainRsp failed, error: %x", terrno);
+    QW_RET(terrno);
+  }
   void   *pRsp = rpcMallocCont(contLen);
-  tSerializeSExplainRsp(pRsp, contLen, &rsp);
+  if (NULL == pRsp) {
+    QW_RET(terrno);
+  }
+  contLen = tSerializeSExplainRsp(pRsp, contLen, &rsp);
+  if (contLen < 0) {
+    qError("tSerializeSExplainRsp second failed, error: %x", terrno);
+    QW_RET(terrno);
+  }
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_SCH_EXPLAIN_RSP,
@@ -123,8 +134,20 @@ int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SArray *pExecList) {
 
 int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
   int32_t contLen = tSerializeSSchedulerHbRsp(NULL, 0, pStatus);
+  if (contLen < 0) {
+    qError("tSerializeSSchedulerHbRsp failed, error: %x", terrno);
+    QW_RET(terrno);
+  }
+
   void   *pRsp = rpcMallocCont(contLen);
-  tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
+  if (NULL == pRsp) {
+    QW_RET(terrno);
+  }
+  contLen = tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
+  if (contLen < 0) {
+    qError("tSerializeSSchedulerHbRsp second failed, error: %x", terrno);
+    QW_RET(terrno);
+  }
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_SCH_QUERY_HEARTBEAT_RSP,

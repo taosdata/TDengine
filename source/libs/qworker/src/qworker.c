@@ -682,7 +682,10 @@ _return:
     qwDbgSimulateRedirect(&qwMsg, ctx, &rsped);
     qwDbgSimulateDead(QW_FPARAMS(), ctx, &rsped);
     if (!rsped) {
-      code = qwSendQueryRsp(QW_FPARAMS(), input->msgType + 1, ctx, code, false);
+      int32_t newCode = qwSendQueryRsp(QW_FPARAMS(), input->msgType + 1, ctx, code, false);
+      if (TSDB_CODE_SUCCESS != newCode && TSDB_CODE_SUCCESS == code) {
+        code = newCode;
+      }
     }
   }
 
@@ -694,7 +697,7 @@ _return:
     }
 
     if (code) {
-      code = qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL, ctx->dynamicTask);
+      (void)qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL, ctx->dynamicTask); // already in error, ignore new error
     }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);
