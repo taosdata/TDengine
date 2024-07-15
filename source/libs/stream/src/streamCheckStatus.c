@@ -308,7 +308,9 @@ int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id) {
 void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo) {
   ASSERT(pInfo->inCheckProcess == 0);
 
-  pInfo->pList = taosArrayDestroy(pInfo->pList);
+  taosArrayDestroy(pInfo->pList);
+  pInfo->pList = NULL;
+  
   if (pInfo->checkRspTmr != NULL) {
     /*bool ret = */ taosTmrStop(pInfo->checkRspTmr);
     pInfo->checkRspTmr = NULL;

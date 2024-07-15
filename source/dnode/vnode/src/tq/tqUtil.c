@@ -54,19 +54,23 @@ static int32_t tqInitTaosxRsp(SMqDataRspCommon* pRsp, STqOffsetVal pOffset) {
 
   if (pRsp->blockData == NULL || pRsp->blockDataLen == NULL || pRsp->blockTbName == NULL || pRsp->blockSchema == NULL) {
     if (pRsp->blockData != NULL) {
-      pRsp->blockData = taosArrayDestroy(pRsp->blockData);
+      taosArrayDestroy(pRsp->blockData);
+      pRsp->blockData = NULL;
     }
 
     if (pRsp->blockDataLen != NULL) {
-      pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
+      taosArrayDestroy(pRsp->blockDataLen);
+      pRsp->blockDataLen = NULL;
     }
 
     if (pRsp->blockTbName != NULL) {
-      pRsp->blockTbName = taosArrayDestroy(pRsp->blockTbName);
+      taosArrayDestroy(pRsp->blockTbName);
+      pRsp->blockTbName = NULL;
     }
 
     if (pRsp->blockSchema != NULL) {
-      pRsp->blockSchema = taosArrayDestroy(pRsp->blockSchema);
+      taosArrayDestroy(pRsp->blockSchema);
+      pRsp->blockSchema = NULL;
     }
     return -1;
   }
