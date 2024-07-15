@@ -22,7 +22,7 @@ class TdDataType(Enum):
     SMALLINT    = 'SMALLINT'
     TINYINT     = 'TINYINT'
     BOOL        = 'BOOL'
-    NCHAR       = 'NCHAR'
+    NCHAR16     = 'NCHAR(16)'
     UTINYINT    = 'TINYINT UNSIGNED'
     USMALLINT   = 'SMALLINT UNSIGNED'
     UINT        = 'INT UNSIGNED'

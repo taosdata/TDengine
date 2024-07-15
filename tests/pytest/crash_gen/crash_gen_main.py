@@ -27,6 +27,7 @@ import datetime
 import random
 import threading
 import argparse
+from decimal import Decimal, getcontext
 
 import sys
 import os
@@ -1992,10 +1993,10 @@ class TaskCreateSuperTable(StateTransitionTask):
                     'usmallint_type_col_name'   : TdDataType.SMALLINT,
                     'uint_type_col_name'        : TdDataType.INT,
                     'ubigint_type_col_name'     : TdDataType.BIGINT,
-                    'ufloat_type_col_name'      : TdDataType.FLOAT,
-                    'udouble_type_col_name'     : TdDataType.DOUBLE,
+                    'float_type_col_name'       : TdDataType.FLOAT,
+                    'double_type_col_name'      : TdDataType.DOUBLE,
                     'bool_type_col_name'        : TdDataType.BOOL,
-                    'udouble_type_col_name'     : TdDataType.DOUBLE,
+                    'nchar_type_col_name'       : TdDataType.NCHAR16,
                     'varchar_type_col_name'     : TdDataType.VARCHAR16,
                     'varbinary_type_col_name'   : TdDataType.VARBINARY16,
                     'geometry_type_col_name'    : TdDataType.GEOMETRY32,
@@ -2008,12 +2009,12 @@ class TaskCreateSuperTable(StateTransitionTask):
                     'int_type_tag_name'         : TdDataType.INT,
                     'bigint_type_tag_name'      : TdDataType.BIGINT,
                     'utinyint_type_tag_name'    : TdDataType.TINYINT,
-                    'usmallint_type_tag_name'   : TdDataType.SMALLINT,
-                    'uint_type_tag_name'        : TdDataType.INT,
+                    'usmallint_type_tag_name'   : TdDataType.USMALLINT,
+                    'uint_type_tag_name'        : TdDataType.UINT,
                     'ubigint_type_tag_name'     : TdDataType.BIGINT,
-                    'udouble_type_tag_name'     : TdDataType.DOUBLE,
+                    'double_type_tag_name'      : TdDataType.DOUBLE,
                     'bool_type_tag_name'        : TdDataType.BOOL,
-                    'udouble_type_tag_name'     : TdDataType.DOUBLE,
+                    'nchar_type_tag_name'       : TdDataType.NCHAR16,
                     'varchar_type_tag_name'     : TdDataType.VARCHAR16,
                     'varbinary_type_tag_name'   : TdDataType.VARBINARY16,
                     'geometry_type_tag_name'    : TdDataType.GEOMETRY32,
@@ -2212,9 +2213,10 @@ class TdSuperTable:
         '''
         dbName = self._dbName
         sql = "select tbname from {}.{} where tbname in ('{}')".format(dbName, self._stName, regTableName)
+        print("======sql:", sql)
         if dbc.query(sql) >= 1:  # reg table exists already
             return
-
+        print("========")
         # acquire a lock first, so as to be able to *verify*. More details in TD-1471
         fullTableName = dbName + '.' + regTableName
         if task is not None:  # Somethime thie operation is requested on behalf of a "task"
@@ -2224,6 +2226,7 @@ class TdSuperTable:
         Progress.emit(Progress.CREATE_TABLE_ATTEMPT)  # ATTEMPT to create a new table
         # print("(" + fullTableName[-3:] + ")", end="", flush=True)  
         try:
+            print("00000000:", self._getTagStrForSql(dbc))
             sql = "CREATE TABLE {} USING {}.{} tags ({})".format(
                 fullTableName, dbName, self._stName, self._getTagStrForSql(dbc)
             )
@@ -2239,17 +2242,25 @@ class TdSuperTable:
     def _getTagStrForSql(self, dbc):
         print("-----", DataBoundary.TINYINT_BOUNDARY.value)
         tags = self._getTags(dbc)
+        print("=====tags:", tags)
         tagStrs = []
+        record_str_idx_lst = list()
+        start_idx = 0
         for tagName in tags:
+            
+            print("tagStrs---------", tagStrs)
+            print("=====tagName:", tagName)
             tagType = tags[tagName]
+            print("=====tagType:", tagType)
             if tagType == 'BINARY':
                 tagStrs.append("'Beijing-Shanghai-LosAngeles'")
-            elif tagType == 'VARCHAR':
-                tagStrs.append(TDCom.get_long_name(16, "VARCHAR"))
-            elif tagType == 'VARBINARY':
-                tagStrs.append(TDCom.get_long_name(16, "VARBINARY"))
+                record_str_idx_lst.append(start_idx)
+            elif tagType == 'VARCHAR' or tagType == 'VARBINARY' or tagType == 'NCHAR':
+                tagStrs.append(TDCom.get_long_name(16))
+                record_str_idx_lst.append(start_idx)
             elif tagType == 'GEOMETRY':
                 tagStrs.append(random.choice(DataBoundary.GEOMETRY_BOUNDARY.value))
+                record_str_idx_lst.append(start_idx)
             elif tagType == 'TINYINT':
                 tagStrs.append(random.randint(DataBoundary.TINYINT_BOUNDARY.value[0], DataBoundary.TINYINT_BOUNDARY.value[1]))
             elif tagType == 'SMALLINT':
@@ -2258,15 +2269,34 @@ class TdSuperTable:
                 tagStrs.append(random.randint(DataBoundary.INT_BOUNDARY.value[0], DataBoundary.INT_BOUNDARY.value[1]))
             elif tagType == 'BIGINT':
                 tagStrs.append(random.randint(DataBoundary.BIGINT_BOUNDARY.value[0], DataBoundary.BIGINT_BOUNDARY.value[1]))
+            elif tagType == 'TINYINT UNSIGNED':
+                tagStrs.append(random.randint(DataBoundary.UTINYINT_BOUNDARY.value[0], DataBoundary.UTINYINT_BOUNDARY.value[1]))
+            elif tagType == 'SMALLINT UNSIGNED':
+                tagStrs.append(random.randint(DataBoundary.USMALLINT_BOUNDARY.value[0], DataBoundary.USMALLINT_BOUNDARY.value[1]))
+            elif tagType == 'INT UNSIGNED':
+                tagStrs.append(random.randint(DataBoundary.UINT_BOUNDARY.value[0], DataBoundary.UINT_BOUNDARY.value[1]))
+            elif tagType == 'BIGINT UNSIGNED':
+                tagStrs.append(random.randint(DataBoundary.UBIGINT_BOUNDARY.value[0], DataBoundary.UBIGINT_BOUNDARY.value[1]))
             elif tagType == 'FLOAT':
                 tagStrs.append(random.uniform(DataBoundary.FLOAT_BOUNDARY.value[0], DataBoundary.FLOAT_BOUNDARY.value[1]))
             elif tagType == 'DOUBLE':
-                tagStrs.append(random.uniform(DataBoundary.DOUBLE_BOUNDARY.value[0], DataBoundary.DOUBLE_BOUNDARY.value[1]))
+                getcontext().prec = 50
+                low = Decimal(DataBoundary.DOUBLE_BOUNDARY.value[0])
+                high = Decimal(DataBoundary.DOUBLE_BOUNDARY.value[1])
+                random_decimal = low + (high - low) * Decimal(random.random())
+                tagStrs.append(float(random_decimal))
             elif tagType == 'BOOL':
                 tagStrs.append(random.choice(DataBoundary.BOOL_BOUNDARY.value))
             else:
                 raise RuntimeError("Unexpected tag type: {}".format(tagType))
-        return ", ".join(str(tagStrs))
+            start_idx += 1
+        print("------------", tagStrs)
+        tagStrs_to_string_list = list(map(lambda x:str(x), tagStrs))
+        trans_tagStrs_to_string_list = list(map(lambda x: f'"{x[1]}"' if x[0] in record_str_idx_lst else x[1], enumerate(tagStrs_to_string_list)))
+
+        print("------------", trans_tagStrs_to_string_list)
+        return ", ".join(trans_tagStrs_to_string_list)
+
 
     def _getTags(self, dbc) -> dict:
         dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
@@ -2274,6 +2304,12 @@ class TdSuperTable:
         # print(stCols)
         ret = {row[0]: row[1] for row in stCols if row[3] == 'TAG'}  # name:type
         # print("Tags retrieved: {}".format(ret))
+        return ret
+
+    def _getCols(self, dbc) -> dict:
+        dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
+        stCols = dbc.getQueryResult()
+        ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
         return ret
 
     def addTag(self, dbc, tagName, tagType):
@@ -2606,6 +2642,9 @@ class TaskAddData(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canAddData()
 
+    def __init__(self, db: Database, dbc, regTableName):
+        self.cols = self._getCols(db, dbc)
+
     def _lockTableIfNeeded(self, fullTableName, extraMsg=''):
         if Config.getConfig().verify_data:
             # Logging.info("Locking table: {}".format(fullTableName))
@@ -2644,6 +2683,64 @@ class TaskAddData(StateTransitionTask):
         finally:
             # Logging.info("Data added in batch: {}".format(sql))
             self._unlockTableIfNeeded(fullTableName)
+
+    def _getCols(self, db: Database, dbc, regTableName):
+        dbc.query("DESCRIBE {}.{}".format(db.getName(), regTableName))
+        stCols = dbc.getQueryResult()
+        ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
+        return ret
+
+    def _getColStrForSql(self, db: Database):
+        colStrs = []
+        record_str_idx_lst = list()
+        start_idx = 0
+        for colName in self.cols:
+            colType = self.cols[colName]
+            if colType == 'TIMESTAMP':
+                nextTick = db.getNextTick()
+                colStrs.append(nextTick)
+                record_str_idx_lst.append(start_idx)
+            elif colType == 'BINARY':
+                colStrs.append("'Beijing-Shanghai-LosAngeles'")
+                record_str_idx_lst.append(start_idx)
+            elif colType == 'VARCHAR' or colType == 'VARBINARY' or colType == 'NCHAR':
+                colStrs.append(TDCom.get_long_name(16))
+                record_str_idx_lst.append(start_idx)
+            elif colType == 'GEOMETRY':
+                colStrs.append(random.choice(DataBoundary.GEOMETRY_BOUNDARY.value))
+                record_str_idx_lst.append(start_idx)
+            elif colType == 'TINYINT':
+                colStrs.append(random.randint(DataBoundary.TINYINT_BOUNDARY.value[0], DataBoundary.TINYINT_BOUNDARY.value[1]))
+            elif colType == 'SMALLINT':
+                colStrs.append(random.randint(DataBoundary.SMALLINT_BOUNDARY.value[0], DataBoundary.SMALLINT_BOUNDARY.value[1]))
+            elif colType == 'INT':
+                colStrs.append(random.randint(DataBoundary.INT_BOUNDARY.value[0], DataBoundary.INT_BOUNDARY.value[1]))
+            elif colType == 'BIGINT':
+                colStrs.append(random.randint(DataBoundary.BIGINT_BOUNDARY.value[0], DataBoundary.BIGINT_BOUNDARY.value[1]))
+            elif colType == 'TINYINT UNSIGNED':
+                colStrs.append(random.randint(DataBoundary.UTINYINT_BOUNDARY.value[0], DataBoundary.UTINYINT_BOUNDARY.value[1]))
+            elif colType == 'SMALLINT UNSIGNED':
+                colStrs.append(random.randint(DataBoundary.USMALLINT_BOUNDARY.value[0], DataBoundary.USMALLINT_BOUNDARY.value[1]))
+            elif colType == 'INT UNSIGNED':
+                colStrs.append(random.randint(DataBoundary.UINT_BOUNDARY.value[0], DataBoundary.UINT_BOUNDARY.value[1]))
+            elif colType == 'BIGINT UNSIGNED':
+                colStrs.append(random.randint(DataBoundary.UBIGINT_BOUNDARY.value[0], DataBoundary.UBIGINT_BOUNDARY.value[1]))
+            elif colType == 'FLOAT':
+                colStrs.append(random.uniform(DataBoundary.FLOAT_BOUNDARY.value[0], DataBoundary.FLOAT_BOUNDARY.value[1]))
+            elif colType == 'DOUBLE':
+                getcontext().prec = 50
+                low = Decimal(DataBoundary.DOUBLE_BOUNDARY.value[0])
+                high = Decimal(DataBoundary.DOUBLE_BOUNDARY.value[1])
+                random_decimal = low + (high - low) * Decimal(random.random())
+                colStrs.append(float(random_decimal))
+            elif colType == 'BOOL':
+                colStrs.append(random.choice(DataBoundary.BOOL_BOUNDARY.value))
+            else:
+                raise RuntimeError("Unexpected col type: {}".format(colType))
+            start_idx += 1
+        colStrs_to_string_list = list(map(lambda x:str(x), colStrs))
+        trans_colStrs_to_string_list = list(map(lambda x: f'"{x[1]}"' if x[0] in record_str_idx_lst else x[1], enumerate(colStrs_to_string_list)))
+        return ", ".join(trans_colStrs_to_string_list)
 
     def _addData(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
@@ -2736,6 +2833,103 @@ class TaskAddData(StateTransitionTask):
                 self.fAddLogDone.flush()
                 os.fsync(self.fAddLogDone.fileno())
 
+    def _addData_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
+
+        for j in range(numRecords):  # number of records per table
+            intToWrite = db.getNextInt()
+            nextTick = db.getNextTick()
+            nextColor = db.getNextColor()
+            colStrs = self._getColStrForSql(db)
+            if Config.getConfig().record_ops:
+                self.prepToRecordOps()
+                if self.fAddLogReady is None:
+                    raise CrashGenError("Unexpected empty fAddLogReady")
+                self.fAddLogReady.write("Ready to write {} to {}\n".format(intToWrite, regTableName))
+                self.fAddLogReady.flush()
+                os.fsync(self.fAddLogReady.fileno())
+
+            # TODO: too ugly trying to lock the table reliably, refactor...
+            fullTableName = db.getName() + '.' + regTableName
+            self._lockTableIfNeeded(
+                fullTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
+
+            try:
+                # sql = "INSERT INTO {} VALUES ('{}', {}, '{}');".format(  # removed: tags ('{}', {})
+                #     fullTableName,
+                #     # ds.getFixedSuperTableName(),
+                #     # ds.getNextBinary(), ds.getNextFloat(),
+                #     nextTick, intToWrite, nextColor)
+                sql = "INSERT INTO {} VALUES ({});".format(  # removed: tags ('{}', {})
+                    fullTableName,
+                    # ds.getFixedSuperTableName(),
+                    # ds.getNextBinary(), ds.getNextFloat(),
+                    colStrs)
+                # Logging.info("Adding data: {}".format(sql))
+                dbc.execute(sql)
+                # Logging.info("Data added: {}".format(sql))
+                intWrote = intToWrite
+
+                # Quick hack, attach an update statement here. TODO: create an "update" task
+                if (not Config.getConfig().use_shadow_db) and Dice.throw(
+                        5) == 0:  # 1 in N chance, plus not using shaddow DB
+                    intToUpdate = db.getNextInt()  # Updated， but should not succeed
+                    nextColor = db.getNextColor()
+                    sql = "INSERt INTO {} VALUES ({});".format(  # "INSERt" means "update" here
+                        fullTableName,
+                        colStrs)
+                    # sql = "UPDATE {} set speed={}, color='{}' WHERE ts='{}'".format(
+                    #     fullTableName, db.getNextInt(), db.getNextColor(), nextTick)
+                    dbc.execute(sql)
+                    intWrote = intToUpdate  # We updated, seems TDengine non-cluster accepts this.
+
+            except:  # Any exception at all
+                self._unlockTableIfNeeded(fullTableName)
+                raise
+
+            # Now read it back and verify, we might encounter an error if table is dropped
+            if Config.getConfig().verify_data:  # only if command line asks for it
+                try:
+                    readBack = dbc.queryScalar("SELECT speed from {}.{} WHERE ts='{}'".
+                                               format(db.getName(), regTableName, nextTick))
+                    if readBack != intWrote:
+                        raise taos.error.ProgrammingError(
+                            "Failed to read back same data, wrote: {}, read: {}"
+                            .format(intWrote, readBack), 0x999)
+                except taos.error.ProgrammingError as err:
+                    errno = Helper.convertErrno(err.errno)
+                    if errno == CrashGenError.INVALID_EMPTY_RESULT:  # empty result
+                        raise taos.error.ProgrammingError(
+                            "Failed to read back same data for tick: {}, wrote: {}, read: EMPTY"
+                            .format(nextTick, intWrote),
+                            errno)
+                    elif errno == CrashGenError.INVALID_MULTIPLE_RESULT:  # multiple results
+                        raise taos.error.ProgrammingError(
+                            "Failed to read back same data for tick: {}, wrote: {}, read: MULTIPLE RESULTS"
+                            .format(nextTick, intWrote),
+                            errno)
+                    elif errno in [0x218, 0x362]:  # table doesn't exist
+                        # do nothing
+                        pass
+                    else:
+                        # Re-throw otherwise
+                        raise
+                finally:
+                    self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
+            # Done with read-back verification, unlock the table now
+            else:
+                self._unlockTableIfNeeded(fullTableName)
+
+                # Successfully wrote the data into the DB, let's record it somehow
+            te.recordDataMark(intWrote)
+
+            if Config.getConfig().record_ops:
+                if self.fAddLogDone is None:
+                    raise CrashGenError("Unexpected empty fAddLogDone")
+                self.fAddLogDone.write("Wrote {} to {}\n".format(intWrote, regTableName))
+                self.fAddLogDone.flush()
+                os.fsync(self.fAddLogDone.fileno())
+
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
         db = self._db
@@ -2754,6 +2948,9 @@ class TaskAddData(StateTransitionTask):
             dbName = db.getName()
             sTable = db.getFixedSuperTable()
             regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)            
+            print("-----dbName:", dbName)
+            print("-----sTable:", sTable)
+            print("-----regTableName:", regTableName)
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
             sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
