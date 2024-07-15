@@ -490,7 +490,7 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamInt
     int32_t code = pAPI->updateInfoInitP(&pInfo->interval, pInfo->twAggSup.waterMark, pScanInfo->igCheckUpdate,
                                          pScanInfo->pkColType, pScanInfo->pkColLen, &pScanInfo->pUpdateInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at  since %s", __func__, __LINE__, tstrerror(code));
+      qError("%s failed at %d since %s", __func__, __LINE__, tstrerror(code));
     }
   }
 
