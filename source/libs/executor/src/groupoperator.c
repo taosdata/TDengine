@@ -17,6 +17,7 @@
 #include "function.h"
 #include "os.h"
 #include "tname.h"
+#include "tutil.h"
 
 #include "tdatablock.h"
 #include "tmsg.h"
@@ -1357,11 +1358,13 @@ static void destroyStreamPartitionOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup, SExprSupp* pExpr, SExprSupp* pTbnameExpr) {
+int32_t initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup, SExprSupp* pExpr, SExprSupp* pTbnameExpr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SStorageAPI* pAPI = &downstream->pTaskInfo->storageAPI;
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    return;
+    return code;
   }
 
   SStreamScanInfo* pScanInfo = downstream->info;
@@ -1369,8 +1372,9 @@ void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup
   pScanInfo->pPartScalarSup = pExpr;
   pScanInfo->pPartTbnameSup = pTbnameExpr;
   if (!pScanInfo->pUpdateInfo) {
-    pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0, pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen, &pScanInfo->pUpdateInfo);
+    code = pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0, pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen, &pScanInfo->pUpdateInfo);
   }
+  return code;
 }
 
 SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag) {
@@ -1421,6 +1425,7 @@ void freePartItem(void* ptr) {
 SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPartitionPhysiNode* pPartNode,
                                                  SExecTaskInfo* pTaskInfo) {
   int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       lino = 0;
   SStreamPartitionOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamPartitionOperatorInfo));
   SOperatorInfo*                pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -1511,14 +1516,19 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
                                          destroyStreamPartitionOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
-  initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup, &pInfo->tbnameCalSup);
+  code = initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup, &pInfo->tbnameCalSup);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   code = appendDownstream(pOperator, &downstream, 1);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   return pOperator;
 
 _error:
   pTaskInfo->code = code;
   destroyStreamPartitionOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return NULL;
 }
 

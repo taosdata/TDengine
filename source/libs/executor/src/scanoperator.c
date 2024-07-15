@@ -2477,26 +2477,53 @@ static void doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBl
   }
 }
 
-int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff) {
- int32_t len = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo);
- len += encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
- *pBuff = taosMemoryCalloc(1, len);
- void* buf = *pBuff;
- encodeSTimeWindowAggSupp(&buf, &pInfo->twAggSup);
- pInfo->stateStore.updateInfoSerialize(buf, len, pInfo->pUpdateInfo);
- return len;
+int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff, int32_t* pLen) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t len = 0;
+  code = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo, &len);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  len += encodeSTimeWindowAggSupp(NULL, &pInfo->twAggSup);
+  *pBuff = taosMemoryCalloc(1, len);
+  if (!(*pBuff)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+  void* buf = *pBuff;
+  encodeSTimeWindowAggSupp(&buf, &pInfo->twAggSup);
+  int32_t tmp = 0;
+  code = pInfo->stateStore.updateInfoSerialize(buf, len, pInfo->pUpdateInfo, &tmp);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  *pLen = len;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 void streamScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (!pInfo->pState) {
     return;
   }
   if (needSaveStreamOperatorInfo(&pInfo->basic)) {
     void* pBuf = NULL;
-    int32_t len = streamScanOperatorEncode(pInfo, &pBuf);
+    int32_t len = 0;
+    code = streamScanOperatorEncode(pInfo, &pBuf, &len);
+    TSDB_CHECK_CODE(code, lino, _end);
     pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_CHECKPOINT_NAME, strlen(STREAM_SCAN_OP_CHECKPOINT_NAME), pBuf, len);
     taosMemoryFree(pBuf);
     saveStreamOperatorStateComplete(&pInfo->basic);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
@@ -3094,17 +3121,35 @@ static void destroyStreamScanOperatorInfo(void* param) {
 }
 
 void streamScanReleaseState(SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SStreamScanInfo* pInfo = pOperator->info;
+  void* pBuff = NULL;
   if (!pInfo->pState) {
     return;
   }
   if (!pInfo->pUpdateInfo) {
     return;
   }
-  int32_t len = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo);
-  void* pBuff = taosMemoryCalloc(1, len);
-  pInfo->stateStore.updateInfoSerialize(pBuff, len, pInfo->pUpdateInfo);
+  int32_t len = 0;
+  code = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo, &len);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pBuff = taosMemoryCalloc(1, len);
+  if (!pBuff) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+  int32_t tmp = 0;
+  code = pInfo->stateStore.updateInfoSerialize(pBuff, len, pInfo->pUpdateInfo, &tmp);
+  TSDB_CHECK_CODE(code, lino, _end);
+
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME), pBuff, len);
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosMemoryFree(pBuff);
 }
 
