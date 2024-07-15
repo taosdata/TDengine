@@ -60,7 +60,7 @@ system = platform.system()
 
 arch = platform.machine()
 
-databaseName = re.sub(r'[^a-zA-Z0-9]', '', subprocess.getoutput("hostname"))
+databaseName = re.sub(r'[^a-zA-Z0-9]', '', subprocess.getoutput("hostname")).lower()
 # install taospy
 taospy_version = ""
 if system == 'Windows':
