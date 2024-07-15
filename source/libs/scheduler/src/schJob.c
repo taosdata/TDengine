@@ -47,6 +47,7 @@ void schUpdateJobErrCode(SSchJob *pJob, int32_t errCode) {
   return;
 
 _return:
+
   SCH_JOB_DLOG("job errCode updated to %s", tstrerror(errCode));
 }
 
