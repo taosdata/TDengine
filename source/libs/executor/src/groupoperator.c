@@ -1369,7 +1369,7 @@ void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup
   pScanInfo->pPartScalarSup = pExpr;
   pScanInfo->pPartTbnameSup = pTbnameExpr;
   if (!pScanInfo->pUpdateInfo) {
-    pScanInfo->pUpdateInfo = pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0, pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen);
+    pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0, pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen, &pScanInfo->pUpdateInfo);
   }
 }
 

@@ -487,8 +487,11 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamInt
   pScanInfo->windowSup.parentType = type;
   pScanInfo->windowSup.pIntervalAggSup = &pInfo->aggSup;
   if (!pScanInfo->pUpdateInfo) {
-    pScanInfo->pUpdateInfo =
-        pAPI->updateInfoInitP(&pInfo->interval, pInfo->twAggSup.waterMark, pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen);
+    int32_t code = pAPI->updateInfoInitP(&pInfo->interval, pInfo->twAggSup.waterMark, pScanInfo->igCheckUpdate,
+                                         pScanInfo->pkColType, pScanInfo->pkColLen, &pScanInfo->pUpdateInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at  since %s", __func__, __LINE__, tstrerror(code));
+    }
   }
 
   pScanInfo->interval = pInfo->interval;
@@ -1769,8 +1772,8 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
   pScanInfo->pState = pAggSup->pState;
   if (!pScanInfo->pUpdateInfo) {
-    pScanInfo->pUpdateInfo = pAggSup->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark,
-                                                                pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen);
+    pAggSup->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark,
+                                                                pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen, &pScanInfo->pUpdateInfo);
   }
   pScanInfo->twAggSup = *pTwSup;
   pAggSup->pUpdateInfo = pScanInfo->pUpdateInfo;
