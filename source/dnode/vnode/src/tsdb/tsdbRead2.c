@@ -246,6 +246,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, TFileSetArray* pFileSetA
   SBlockLoadSuppInfo* pInfo = &pReader->suppInfo;
   size_t              numOfFileset = TARRAY2_SIZE(pFileSetArray);
   bool                asc = ASCENDING_TRAVERSE(pReader->info.order);
+  int32_t             code = TSDB_CODE_SUCCESS;
 
   pIter->index = asc ? -1 : numOfFileset;
   pIter->order = pReader->info.order;
@@ -255,7 +256,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, TFileSetArray* pFileSetA
   if (pIter->pSttBlockReader == NULL) {
     pIter->pSttBlockReader = taosMemoryCalloc(1, sizeof(struct SSttBlockReader));
     if (pIter->pSttBlockReader == NULL) {
-      int32_t code = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       tsdbError("failed to prepare the last block iterator, since:%s %s", tstrerror(code), pReader->idStr);
       return code;
     }
@@ -269,10 +270,14 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, TFileSetArray* pFileSetA
   pSttReader->uid = 0;
 
   tMergeTreeClose(&pSttReader->mergeTree);
-  initRowKey(&pSttReader->currentKey, INT64_MIN, pInfo->numOfPks, pInfo->pk.type, pInfo->pk.bytes, asc);
+  code = initRowKey(&pSttReader->currentKey, INT64_MIN, pInfo->numOfPks, pInfo->pk.type, pInfo->pk.bytes, asc);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("failed init row key, %s", pReader->idStr);
+  } else {
+    tsdbDebug("init fileset iterator, total files:%d %s", pIter->numOfFiles, pReader->idStr);
+  }
 
-  tsdbDebug("init fileset iterator, total files:%d %s", pIter->numOfFiles, pReader->idStr);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bool* hasNext) {
@@ -290,7 +295,8 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
 
   pIter->pSttBlockReader->uid = 0;
   tMergeTreeClose(&pIter->pSttBlockReader->mergeTree);
-  pReader->status.pLDataIterArray = destroySttBlockReader(pReader->status.pLDataIterArray, &pCost->sttCost);
+  destroySttBlockReader(pReader->status.pLDataIterArray, &pCost->sttCost);
+  pReader->status.pLDataIterArray = NULL;
   pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
   // check file the time range of coverage

@@ -146,17 +146,17 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
           }
           case TSDB_DATA_TYPE_INT:{
             int32_t min = INT32_MIN;
-            memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
             break;
           }
           case TSDB_DATA_TYPE_SMALLINT:{
             int16_t min = INT16_MIN;
-            memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
             break;
           }
           case TSDB_DATA_TYPE_TINYINT:{
             int8_t min = INT8_MIN;
-            memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
             break;
           }
           case TSDB_DATA_TYPE_UTINYINT:
@@ -308,7 +308,9 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
       pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
     }
 
-    pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
+    taosArrayDestroy(pInfo->delSkyline);
+    pInfo->delSkyline = NULL;
+
     pInfo->lastProcKey.ts = ts;
     // todo check the nextProcKey info
     pInfo->sttKeyInfo.nextProcKey.ts = ts + step;
@@ -329,11 +331,16 @@ void clearBlockScanInfo(STableBlockScanInfo* p) {
     p->iiter.iter = tsdbTbDataIterDestroy(p->iiter.iter);
   }
 
-  p->delSkyline = taosArrayDestroy(p->delSkyline);
-  p->pBlockList = taosArrayDestroy(p->pBlockList);
-  p->pBlockIdxList = taosArrayDestroy(p->pBlockIdxList);
-  p->pMemDelData = taosArrayDestroy(p->pMemDelData);
-  p->pFileDelData = taosArrayDestroy(p->pFileDelData);
+  taosArrayDestroy(p->delSkyline);
+  p->delSkyline = NULL;
+  taosArrayDestroy(p->pBlockList);
+  p->pBlockList = NULL;
+  taosArrayDestroy(p->pBlockIdxList);
+  p->pBlockIdxList = NULL;
+  taosArrayDestroy(p->pMemDelData);
+  p->pMemDelData = NULL;
+  taosArrayDestroy(p->pFileDelData);
+  p->pFileDelData = NULL;
 
   clearRowKey(&p->lastProcKey);
   clearRowKey(&p->sttRange.skey);
@@ -579,7 +586,8 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     }
 
     taosArrayAddAll(pBlockIter->blockList, pTableScanInfo->pBlockList);
-    pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
+    taosArrayDestroy(pTableScanInfo->pBlockList);
+    pTableScanInfo->pBlockList = NULL;
 
     int64_t et = taosGetTimestampUs();
     tsdbDebug("%p create blocks info struct completed for one table, %d blocks not sorted, elapsed time:%.2f ms %s",
@@ -624,7 +632,8 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, i);
-    pTableScanInfo->pBlockList = taosArrayDestroy(pTableScanInfo->pBlockList);
+    taosArrayDestroy(pTableScanInfo->pBlockList);
+    pTableScanInfo->pBlockList = NULL;
   }
 
   int64_t et = taosGetTimestampUs();

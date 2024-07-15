@@ -438,11 +438,13 @@ void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
   }
 
   if (pMsg->pUpdateNodes != NULL) {
-    pMsg->pUpdateNodes = taosArrayDestroy(pMsg->pUpdateNodes);
+    taosArrayDestroy(pMsg->pUpdateNodes);
+    pMsg->pUpdateNodes = NULL;
   }
 
   if (pMsg->pTaskStatus != NULL) {
-    pMsg->pTaskStatus = taosArrayDestroy(pMsg->pTaskStatus);
+    taosArrayDestroy(pMsg->pTaskStatus);
+    pMsg->pTaskStatus = NULL;
   }
 
   pMsg->msgId = -1;

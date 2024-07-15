@@ -387,13 +387,11 @@ void taosArrayClearP(SArray* pArray, void (*fp)(void*)) {
   taosArrayClear(pArray);
 }
 
-void* taosArrayDestroy(SArray* pArray) {
+void taosArrayDestroy(SArray* pArray) {
   if (pArray) {
     taosMemoryFree(pArray->pData);
     taosMemoryFree(pArray);
   }
-
-  return NULL;
 }
 
 void taosArrayDestroyP(SArray* pArray, FDelete fp) {

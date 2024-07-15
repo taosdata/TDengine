@@ -911,7 +911,7 @@ void    tMergeTreeClose(SMergeTree *pMTree);
 
 SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
 void *             destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
-void *             destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
+void               destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
 
 // tsdbCache ==============================================================================================
 typedef enum {

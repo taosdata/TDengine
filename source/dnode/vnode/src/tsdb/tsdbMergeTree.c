@@ -103,9 +103,9 @@ void destroyLDataIter(SLDataIter *pIter) {
   taosMemoryFree(pIter);
 }
 
-void *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost) {
+void destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost) {
   if (pLDataIterArray == NULL) {
-    return NULL;
+    return;
   }
 
   int32_t numOfLevel = taosArrayGetSize(pLDataIterArray);
@@ -132,7 +132,6 @@ void *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoa
   }
 
   taosArrayDestroy(pLDataIterArray);
-  return NULL;
 }
 
 // choose the unpinned slot to load next data block
