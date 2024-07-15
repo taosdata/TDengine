@@ -57,8 +57,6 @@ void taos_cleanup(void) {
   }
 
   monitorClose();
-  taosHashCleanup(appInfo.pInstMap);
-  taosHashCleanup(appInfo.pInstMapByClusterId);
   tscStopCrashReport();
 
   hbMgrCleanUp();
@@ -84,6 +82,8 @@ void taos_cleanup(void) {
   tscDebug("rpc cleanup");
 
   taosConvDestroy();
+
+  tmqMgmtClose();
 
   tscInfo("all local resources released");
   taosCleanupCfg();

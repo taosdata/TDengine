@@ -1236,8 +1236,15 @@ static void copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins) {
 
 static SSDataBlock* buildIntervalResult(SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
-  uint16_t                     opType = pOperator->operatorType;
+
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  uint16_t       opType = pOperator->operatorType;
+
+  // check if query task is closed or not
+  if (isTaskKilled(pTaskInfo)) {
+    return NULL;
+  }
+
   if (IS_FINAL_INTERVAL_OP(pOperator)) {
     doBuildPullDataBlock(pInfo->pPullWins, &pInfo->pullIndex, pInfo->pPullDataRes);
     if (pInfo->pPullDataRes->info.rows != 0) {
@@ -1546,6 +1553,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
     goto _error;
   }
 
+  pOperator->exprSupp.hasWindowOrGroup = true;
   pOperator->pTaskInfo = pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
@@ -3121,6 +3129,7 @@ _error:
 static void clearStreamSessionOperator(SStreamSessionAggOperatorInfo* pInfo) {
   tSimpleHashClear(pInfo->streamAggSup.pResultRows);
   pInfo->streamAggSup.stateStore.streamStateSessionClear(pInfo->streamAggSup.pState);
+  pInfo->clearState = false;
 }
 
 void deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
@@ -3170,7 +3179,6 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       // semi session operator clear disk buffer
       clearStreamSessionOperator(pInfo);
       setStreamOperatorCompleted(pOperator);
-      pInfo->clearState = false;
       return NULL;
     }
   }
@@ -4209,6 +4217,8 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->ignoreExpiredDataSaved = false;
 
   SExprSupp* pSup = &pOperator->exprSupp;
+  pSup->hasWindowOrGroup = true;
+
   initBasicInfo(&pInfo->binfo, pResBlock);
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 

@@ -349,6 +349,8 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestTime) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->checkpointInfo.latestSize) < 0) return -1;
     if (tEncodeI8(pEncoder, ps->checkpointInfo.remoteBackup) < 0) return -1;
+    if (tEncodeI8(pEncoder, ps->checkpointInfo.consensusChkptId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->checkpointInfo.consensusTs) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startTime) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startCheckpointId) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->startCheckpointVer) < 0) return -1;
@@ -403,6 +405,8 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestTime) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.checkpointInfo.latestSize) < 0) return -1;
     if (tDecodeI8(pDecoder, &entry.checkpointInfo.remoteBackup) < 0) return -1;
+    if (tDecodeI8(pDecoder, &entry.checkpointInfo.consensusChkptId) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.checkpointInfo.consensusTs) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startTime) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startCheckpointId) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.startCheckpointVer) < 0) return -1;
@@ -634,6 +638,7 @@ int32_t tEncodeRestoreCheckpointInfo (SEncoder* pEncoder, const SRestoreCheckpoi
   if (tEncodeI64(pEncoder, pReq->startTs) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->checkpointId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->transId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->nodeId) < 0) return -1;
   tEndEncode(pEncoder);
@@ -645,28 +650,9 @@ int32_t tDecodeRestoreCheckpointInfo(SDecoder* pDecoder, SRestoreCheckpointInfo*
   if (tDecodeI64(pDecoder, &pReq->startTs) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->checkpointId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->transId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->nodeId) < 0) return -1;
   tEndDecode(pDecoder);
-  return 0;
-}
-
-int32_t tEncodeRestoreCheckpointInfoRsp(SEncoder* pCoder, const SRestoreCheckpointInfoRsp* pInfo) {
-  if (tStartEncode(pCoder) < 0) return -1;
-  if (tEncodeI64(pCoder, pInfo->startTs) < 0) return -1;
-  if (tEncodeI64(pCoder, pInfo->streamId) < 0) return -1;
-  if (tEncodeI32(pCoder, pInfo->taskId) < 0) return -1;
-  if (tEncodeI64(pCoder, pInfo->checkpointId) < 0) return -1;
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeRestoreCheckpointInfoRsp(SDecoder* pCoder, SRestoreCheckpointInfoRsp* pInfo) {
-  if (tStartDecode(pCoder) < 0) return -1;
-  if (tDecodeI64(pCoder, &pInfo->startTs) < 0) return -1;
-  if (tDecodeI64(pCoder, &pInfo->streamId) < 0) return -1;
-  if (tDecodeI32(pCoder, &pInfo->taskId) < 0) return -1;
-  if (tDecodeI64(pCoder, &pInfo->checkpointId) < 0) return -1;
-  tEndDecode(pCoder);
   return 0;
 }

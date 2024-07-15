@@ -67,7 +67,7 @@ typedef struct tMemBucket {
   SHashObj          *groupPagesMap;  // disk page map for different groups;
 } tMemBucket;
 
-tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval);
+tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup);
 
 void tMemBucketDestroy(tMemBucket *pBucket);
 

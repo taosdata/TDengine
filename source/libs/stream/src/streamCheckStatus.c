@@ -666,13 +666,18 @@ void rspMonitorFn(void* param, void* tmrId) {
     stDebug("s-task:%s status:%s vgId:%d quit from monitor check-rsp tmr, ref:%d", id, pStat->name, vgId, ref);
 
     streamTaskCompleteCheckRsp(pInfo, true, id);
-    addDownstreamFailedStatusResultAsync(pTask->pMsgCb, vgId, pTask->id.streamId, pTask->id.taskId);
+
+    // not record the failed of the current task if try to close current vnode
+    // otherwise, the put of message operation may incur invalid read of message queue.
+    if (!pMeta->closeFlag) {
+      addDownstreamFailedStatusResultAsync(pTask->pMsgCb, vgId, pTask->id.streamId, pTask->id.taskId);
+    }
 
     streamMetaReleaseTask(pMeta, pTask);
     return;
   }
 
-  if (state == TASK_STATUS__DROPPING || state == TASK_STATUS__READY || state == TASK_STATUS__PAUSE) {
+  if (state == TASK_STATUS__DROPPING || state == TASK_STATUS__READY) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s status:%s vgId:%d quit from monitor check-rsp tmr, ref:%d", id, pStat->name, vgId, ref);
 
@@ -698,29 +703,29 @@ void rspMonitorFn(void* param, void* tmrId) {
 
   if (pStat->state == TASK_STATUS__UNINIT) {
     getCheckRspStatus(pInfo, timeoutDuration, &numOfReady, &numOfFault, &numOfNotRsp, pTimeoutList, pNotReadyList, id);
+
+    numOfNotReady = (int32_t)taosArrayGetSize(pNotReadyList);
+    numOfTimeout = (int32_t)taosArrayGetSize(pTimeoutList);
+
+    // fault tasks detected, not try anymore
+    ASSERT((numOfReady + numOfFault + numOfNotReady + numOfTimeout + numOfNotRsp) == total);
+    if (numOfFault > 0) {
+      int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+      stDebug(
+          "s-task:%s status:%s vgId:%d all rsp. quit from monitor rsp tmr, since vnode-transfer/leader-change/restart "
+          "detected, total:%d, notRsp:%d, notReady:%d, fault:%d, timeout:%d, ready:%d ref:%d",
+          id, pStat->name, vgId, total, numOfNotRsp, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
+
+      streamTaskCompleteCheckRsp(pInfo, false, id);
+      taosThreadMutexUnlock(&pInfo->checkInfoLock);
+      streamMetaReleaseTask(pMeta, pTask);
+
+      taosArrayDestroy(pNotReadyList);
+      taosArrayDestroy(pTimeoutList);
+      return;
+    }
   } else {  // unexpected status
     stError("s-task:%s unexpected task status:%s during waiting for check rsp", id, pStat->name);
-  }
-
-  numOfNotReady = (int32_t)taosArrayGetSize(pNotReadyList);
-  numOfTimeout = (int32_t)taosArrayGetSize(pTimeoutList);
-
-  // fault tasks detected, not try anymore
-  ASSERT((numOfReady + numOfFault + numOfNotReady + numOfTimeout + numOfNotRsp) == total);
-  if (numOfFault > 0) {
-    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stDebug(
-        "s-task:%s status:%s vgId:%d all rsp. quit from monitor rsp tmr, since vnode-transfer/leader-change/restart "
-        "detected, total:%d, notRsp:%d, notReady:%d, fault:%d, timeout:%d, ready:%d ref:%d",
-        id, pStat->name, vgId, total, numOfNotRsp, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
-
-    streamTaskCompleteCheckRsp(pInfo, false, id);
-    taosThreadMutexUnlock(&pInfo->checkInfoLock);
-    streamMetaReleaseTask(pMeta, pTask);
-
-    taosArrayDestroy(pNotReadyList);
-    taosArrayDestroy(pTimeoutList);
-    return;
   }
 
   // checking of downstream tasks has been stopped by other threads

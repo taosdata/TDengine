@@ -431,6 +431,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.traceId = pHead->traceId;
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = forbiddenIp;
+  transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);
