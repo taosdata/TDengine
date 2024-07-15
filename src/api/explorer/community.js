@@ -4048,7 +4048,353 @@ export function getDataSources(lang) {
             }
           ]
         }
-      }
+      },
+      {
+        "id": "mongodb",
+        "type": "uri",
+        "name": "MongoDB",
+        "license_id": "mongodb",
+        "description": "MongoDB is a product between relational and non-relational databases, which is widely used in many fields such as content management systems, mobile applications, and the Internet of Things. \n\nTDengine efficiently reads data from MongoDB and writes it to TDengine for historical data migration or real-time data synchronization. \n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "Host",
+            "description": "The access address of MongoDB. If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "Port",
+            "description": "The port of MongoDB",
+            "placeholder": "27017",
+            "pattern": "^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
+          },
+          "load_balanced": {
+            "required": false,
+            "display": "Load Balanced",
+            "description": "Whether to use load balancing to connect.\n- *true*:The host address is used as the load balancing address \n- *false*:The host address is used as the database address\n",
+            "hint": {
+              "type": "bool",
+            }
+          },
+          "direct_connection": {
+            "required": false,
+            "display": "Direct Connection",
+            "description": "Whether to connect directly to a single host or automatically discover all servers in the cluster.\n- *true*:host connects directly to host:port \n- *false*:host Discovers other servers in the cluster\n",
+            "hint": {
+              "type": "bool",
+            },
+            "value": "true"
+          },
+          "repl_set_name": {
+            "required": false,
+            "display": "Replica Name",
+            "description": "The client connects to the cluster replica with the specified name. If a replica name is specified, only this replica server is connected.",
+            "placeholder": "",
+          },
+          "local_threshold": {
+            "required": false,
+            "display": "Local Threshold",
+            "description": "Used to determine how much the average round trip time between the client and the server is allowed to increase compared to the shortest round trip time among all servers. If the value is 0, it indicates that there is no delay window, so only the server with the lowest average round-trip time will be connected. The default is 15 ms.",
+            "hint": {
+              "type": "duration",
+              "choices": [
+                {
+                  "value": "m",
+                  "label": "Minute"
+                },
+                {
+                  "value": "s",
+                  "label": "Second"
+                },
+              ]
+            },
+            "placeholder": "15",
+            "value": "15",
+            "type_value": "s",
+            "pattern": "^[0-9]+$",
+            "patternMsg": "The value can only be a positive integer or 0",
+          }
+        },
+        "authentication": {
+          "display": "Authentication",
+          "description": "Authentication is the process of verifying the identity before granting access to MongoDB.",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "Username and Password",
+              "params": [
+                {
+                  "name": "username",
+                  "required": false,
+                  "display": "Username",
+                  "placeholder": "Username"
+                },
+                {
+                  "name": "password",
+                  "required": false,
+                  "display": "Password",
+                  "placeholder": "Password"
+                },
+                {
+                  "name": "mechanism",
+                  "required": false,
+                  "display": "Authenticate Mechanism",
+                  "placeholder": "Select an authentication mechanism",
+                  "short_description": "The authentication mechanism to be used, if not provided, will be negotiated with the server.\n",
+                  "description": "The authentication mechanism to be used, if not provided, will be negotiated with the server.\n",
+                  "hint": {
+                    "type": "str",
+                    "choices": [
+                      "MongoDbCr",
+                      "ScramSha1",
+                      "ScramSha256",
+                      "MongoDbX509",
+                      "Gssapi",
+                      "Plain",
+                      "MongoDbAws",
+                      "MongoDbOidc",
+                    ]
+                  },
+                },
+                {
+                  "name": "source",
+                  "required": false,
+                  "display": "Authenticate DB",
+                  "placeholder": "Authenticate DB",
+                  "short_description": "The database for authentication.\n",
+                  "description": "The database for authentication.The default is admin in the SCRAM authentication mechanism, $external in GSSAPI and MONGODB-X509, and the default is the database name or $external in PLAIN.\n",
+                },
+              ],
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "Connection options",
+            "display_order": 1,
+            "short_description": "Other connection options.",
+            "description": "Other connection options.",
+            "collapsible": false,
+            "connection_option": true,
+            "params": [
+              {
+                "name": "app_name",
+                "display": "Application Name",
+                "hint": {
+                  "type": "str",
+                },
+                "short_description": "Identifies a client.",
+                "description": "Identifies a client.",
+                "placeholder": "For example: TDengine",
+              },
+              {
+                "name": "compressors",
+                "display": "Compressor",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "snappy",
+                    "zlib",
+                    "zstd"
+                  ]
+                },
+                "short_description": "Used to compress messages sent to the server and decompress messages received from the server.",
+                "description": "Used to compress messages sent to the server and decompress messages received from the server.",
+                "placeholder": "Please select a compressor",
+              }
+            ]
+          },
+          {
+            "name": "Enable SSL",
+            "short_description": "Use self-signed certificate file and private key.",
+            "description": "Use self-signed certificate file and private key.",
+            "collapsible": true,
+            "connection_option": true,
+            "collapsed": false,
+            "params": [
+              {
+                "name": "ca_file_path",
+                "display": "CA File",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": "CA certificate file",
+                "description": "CA certificate file",
+                "required": true
+              },
+              {
+                "name": "cert_key_file_path",
+                "display": "Cert File",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": ".cert file",
+                "description": ".cert file",
+                "required": true
+              },
+            ]
+          },
+          {
+            "name": "Data Collection",
+            "display_order": 2,
+            "short_description": "Data collection related configuration items.",
+            "description": "Data collection related configuration items.",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "database",
+                "display": "Database",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The source database.",
+                "description": "The source database.\n",
+                "required": true,
+                "placeholder": "database_${Y}",
+              },
+              {
+                "name": "collection",
+                "display": "Collection",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The source collection.",
+                "description": "The source collection.\n",
+                "required": true,
+                "placeholder": "collection_${md}",
+              },
+              {
+                "name": "sql",
+                "display": "Query Template",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs.",
+                "description": "A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs.\nUse different placeholders to indicate different time format requirements, specifically the following placeholder formats:\n1. `${start_datetime}`、`${end_datetime}`:Filters corresponding to back-end datetime fields, for example:{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}} will be converted to {\"ddate\":{\"$gte\":{\"$date\":\"2024-06-01T00:00:00+00:00\"},\"$lt\":{\"$date\":\"2024-07-01T00:00:00+00:00\"}}}\n2. `${start_timestamp}`、`${end_timestamp}`: indicates the filtering of back-end timestamp fields, for example:{\"ttime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}} will be converted to {\"ttime\":{\"$gte\":{\"$timestamp\":{\"t\":123,\"i\":456}},\"$lt\":{\"$timestamp\":{\"t\":123,\"i\":456}}}}\n",
+                "required": true,
+                "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}",
+                "grid_two": true,
+              },
+              {
+                "name": "start",
+                "display": "Start Time",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "Start time of data migration.",
+                "description": "Start time of data migration.\n",
+                "required": true,
+                "placeholder": "如：2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "End Time",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "The end time of data migration can be left blank. If this parameter is set, the migration task is automatically stopped when the end time expires. If left blank, real-time data is continuously synchronized and the task does not automatically stop.",
+                "description": "The end time of data migration can be left blank. If this parameter is set, the migration task is automatically stopped when the end time expires. If left blank, real-time data is continuously synchronized and the task does not automatically stop.\n",
+                "required": false,
+                "placeholder": "如：2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "Interval",
+                "hint": {
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Days"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                  ]
+                },
+                "short_description": "Interval for querying data in segments. The default value is 1 day. To avoid a large amount of query data, a data synchronization task queries data in time intervals.",
+                "description": "Interval for querying data in segments. The default value is 1 day. To avoid a large amount of query data, a data synchronization task queries data in time intervals.\n",
+                "required": false,
+                "placeholder": "1",
+                "type_value": "d",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
+              },
+              {
+                "name": "delay",
+                "display": "Delay",
+                "hint": {
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
+                },
+                "short_description": "In the real-time data synchronization scenario, each synchronization task reads data before the delay to prevent data loss.",
+                "description": "In the real-time data synchronization scenario, each synchronization task reads data before the delay to prevent data loss.\n",
+                "required": false,
+                "placeholder": "10",
+                "type_value": "s",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "Advanced Options",
+          "description": "Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave these options as default to use the recommended settings.\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "Read Concurrency",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "Batch Size",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "Payload Transformation",
+          "required": true,
+          "description": "taosX could let users to specify the data model in the database, for example, the table name pattern and stable name pattern, field names as tags or field names as columns.\n",
+          "fields": [
+            {
+              "name": "value",
+              "description": "Sample Message Body",
+              "type": "varchar"
+            }
+          ]
+        }
+      },
     ]
   } else {
     return [
@@ -8218,7 +8564,7 @@ export function getDataSources(lang) {
                 },
                 "short_description": "用于标识客户端。",
                 "description": "用于标识客户端。",
-                "placeholder": "",
+                "placeholder": "示例: TDengine",
               },
               {
                 "name": "compressors",
