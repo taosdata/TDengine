@@ -221,6 +221,7 @@ if uninstall:
         process = subprocess.Popen(['unins000','/silent'],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         process.wait()
+        time.sleep(10)
         out = subprocess.getoutput("ls C:\TDengine")
         print(out)
         if len(out.split("\n")) > 3:
