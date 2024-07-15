@@ -292,6 +292,7 @@ elif [[ ${packageName} =~ "tar" ]];then
 elif [[ ${packageName} =~ "pkg" ]];then
     cd ${installPath}
     sudo installer -pkg ${packageName} -target /
+    echoColor YD  "===== install Package successfully! ====="
 fi  
 
 cd ${installPath}
@@ -300,6 +301,5 @@ rm -rf ${installPath}/${packageName}
 if [ ${platform} == "Linux" ]; then
   rm -rf ${installPath}/${tdPath}/
 fi
-exit 0
-
+echoColor YD  "===== end of shell file ====="
 
