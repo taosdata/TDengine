@@ -2579,7 +2579,7 @@ typedef struct {
 static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
                             tb_uid_t uid, SCacheRowsReader *pr, int64_t lastTs, int16_t *aCols, int nCols) {
   int32_t code = 0;
-  pr->pLDataIterArray = destroySttBlockReader(pr->pLDataIterArray, NULL);
+  destroySttBlockReader(pr->pLDataIterArray, NULL);
   pr->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
   SMergeTreeConf conf = {

@@ -358,10 +358,10 @@ int32_t pkCompEx(SRowKey* p1, SRowKey* p2);
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
 void    clearRowKey(SRowKey* pKey);
 
-bool shouldFreePkBuf(SBlockLoadSuppInfo *pSupp);
-void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk);
-void clearDataBlockIterator(SDataBlockIter* pIter, bool needFree);
-void cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk);
+bool    shouldFreePkBuf(SBlockLoadSuppInfo* pSupp);
+int32_t resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk);
+void    clearDataBlockIterator(SDataBlockIter* pIter, bool needFree);
+void    cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk);
 
 typedef struct {
   SArray* pTombData;
