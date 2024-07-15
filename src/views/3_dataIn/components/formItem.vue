@@ -506,7 +506,7 @@ export default {
     },
     trimInput() {
       // 在失去焦点时去除输入框值的前后空格
-      this.data[this.field] = this.data[this.field].trim();
+      this.data[this.field] = this.data[this.field].toString().trim();
     }
   },
 };
