@@ -217,7 +217,7 @@ installPath="/usr/local/src/packageTest"
 #oriInstallPath="/usr/local/src/packageTest/3.0"
 
 if [ ${systemType} == "Darwin" ]; then
-    installPath="${JENKINS_HOME}/packageTest"
+    installPath="${WORK_DIR}/packageTest"
 fi
 
 newPath ${installPath}

@@ -218,7 +218,7 @@ if uninstall:
         #    print("*******Test Result: uninstall test passed ************")
 
     elif system == "Windows":
-        process = subprocess.Popen(['unins001','/silent'],
+        process = subprocess.Popen(['unins000','/silent'],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         process.wait()
         out = subprocess.getoutput("ls C:\TDengine")
