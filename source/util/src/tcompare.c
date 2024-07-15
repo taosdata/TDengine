@@ -1228,7 +1228,7 @@ static void checkRegexCache(void* param, void* tmrId) {
     UsingRegex **ppUsingRegex = taosHashIterate(sRegexCache.regexHash, NULL);
     while ((ppUsingRegex != NULL)) {
       if (taosGetTimestampSec() - (*ppUsingRegex)->lastUsedTime > REGEX_CACHE_CLEAR_TIME) {
-        taosHashRelease(sRegexCache.regexHash, ppUsingRegex);
+        taosHashRemove(sRegexCache.regexHash, ppUsingRegex);
       }
       ppUsingRegex = taosHashIterate(sRegexCache.regexHash, ppUsingRegex);
     }
@@ -1312,24 +1312,20 @@ static UsingRegex **getRegComp(const char *pPattern) {
 
   while (true) {
     int code = taosHashPut(sRegexCache.regexHash, pPattern, strlen(pPattern), &pUsingRegex, sizeof(UsingRegex *));
-    if (code != 0) {
-      if (terrno == TSDB_CODE_DUP_KEY) {
-        terrno  = TSDB_CODE_SUCCESS;
-        ppUsingRegex = (UsingRegex **)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
-        if (ppUsingRegex) {
-          if (*ppUsingRegex != pUsingRegex) {
-            regexCacheFree(&pUsingRegex);
-          }
-          pUsingRegex = (*ppUsingRegex);
-          break;
-        } else {
-          continue;
-        }
-      } else {
+    if (code != 0 && code != TSDB_CODE_DUP_KEY) {
+      regexCacheFree(&pUsingRegex);
+      uError("Failed to put regex pattern %s into cache, exception internal error.", pPattern);
+      return NULL;
+    }
+    ppUsingRegex = (UsingRegex **)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
+    if (ppUsingRegex) {
+      if (*ppUsingRegex != pUsingRegex) {
         regexCacheFree(&pUsingRegex);
-        uError("Failed to put regex pattern %s into cache, exception internal error.", pPattern);
-        return NULL;
       }
+      pUsingRegex = (*ppUsingRegex);
+      break;
+    } else {
+      continue;
     }
   }
   pUsingRegex->lastUsedTime = taosGetTimestampSec();
