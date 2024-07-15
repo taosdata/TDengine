@@ -20,7 +20,7 @@
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t deleteCheckpointFile(const char* id, const char* name);
-static int32_t streamTaskUploadCheckpoint(const char* id, const char* path);
+static int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t checkpointId);
 static int32_t deleteCheckpoint(const char* id);
 static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
 static int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask);
@@ -601,7 +601,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = streamTaskUploadCheckpoint(idStr, path);
+    code = streamTaskUploadCheckpoint(idStr, path, checkpointId);
     if (code == TSDB_CODE_SUCCESS) {
       stDebug("s-task:%s upload checkpointId:%" PRId64 " to remote succ", idStr, checkpointId);
     } else {
@@ -1082,7 +1082,7 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
   }
 }
 
-int32_t streamTaskUploadCheckpoint(const char* id, const char* path) {
+int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t checkpointId) {
   int32_t code = 0;
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
     stError("invalid parameters in upload checkpoint, %s", id);
@@ -1090,7 +1090,7 @@ int32_t streamTaskUploadCheckpoint(const char* id, const char* path) {
   }
 
   if (strlen(tsSnodeAddress) != 0) {
-    code = uploadByRsync(id, path);
+    code = uploadByRsync(id, path, checkpointId);
     if (code != 0) {
       return TAOS_SYSTEM_ERROR(errno);
     }
@@ -1117,14 +1117,14 @@ int32_t downloadCheckpointDataByName(const char* id, const char* fname, const ch
   return 0;
 }
 
-int32_t streamTaskDownloadCheckpointData(const char* id, char* path) {
+int32_t streamTaskDownloadCheckpointData(const char* id, char* path, int64_t checkpointId) {
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
     stError("down checkpoint data parameters invalid");
     return -1;
   }
 
   if (strlen(tsSnodeAddress) != 0) {
-    return downloadRsync(id, path);
+    return downloadByRsync(id, path, checkpointId);
   } else if (tsS3StreamEnabled) {
     return s3GetObjectsByPrefix(id, path);
   }

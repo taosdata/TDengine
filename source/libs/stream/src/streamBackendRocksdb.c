@@ -447,7 +447,7 @@ int32_t rebuildFromRemoteChkp_rsync(const char* key, char* checkpointPath, int64
   cleanDir(defaultPath, key);
   stDebug("clear local default dir before downloading checkpoint data:%s succ", defaultPath);
 
-  code = streamTaskDownloadCheckpointData(key, checkpointPath);
+  code = streamTaskDownloadCheckpointData(key, checkpointPath, checkpointId);
   if (code != 0) {
     stError("failed to download checkpoint data:%s", key);
     return code;
@@ -482,7 +482,7 @@ int32_t rebuildDataFromS3(char* chkpPath, int64_t chkpId) {
 
 int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
   int8_t  rename = 0;
-  int32_t code = streamTaskDownloadCheckpointData(key, chkpPath);
+  int32_t code = streamTaskDownloadCheckpointData(key, chkpPath, chkpId);
   if (code != 0) {
     return code;
   }
