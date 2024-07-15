@@ -221,9 +221,6 @@ typedef struct SCreateSubTableFromFileClause {
   bool       ignoreExists;
   SNodeList* pSpecificTags;
   char       filePath[PATH_MAX];
-  TdFilePtr  fp;
-  SArray*    aCreateTbData;
-  SArray*    aTagIndexs;
 } SCreateSubTableFromFileClause;
 
 typedef struct SCreateMultiTablesStmt {
