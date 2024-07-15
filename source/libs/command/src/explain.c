@@ -1920,6 +1920,7 @@ _return:
 }
 
 int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
+  int32_t          code = 0;
   SExplainCtx *pCtx = (SExplainCtx *)ctx;
   int32_t      rowNum = taosArrayGetSize(pCtx->rows);
   if (rowNum <= 0) {
@@ -1929,14 +1930,14 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   SSDataBlock    *pBlock = createDataBlock();
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_EXPLAIN_RESULT_ROW_SIZE, 1);
-  blockDataAppendColInfo(pBlock, &infoData);
-  blockDataEnsureCapacity(pBlock, rowNum);
+  QRY_ERR_JRET(blockDataAppendColInfo(pBlock, &infoData));
+  QRY_ERR_JRET(blockDataEnsureCapacity(pBlock, rowNum));
 
   SColumnInfoData *pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
   for (int32_t i = 0; i < rowNum; ++i) {
     SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
-    colDataSetVal(pInfoData, i, row->buf, false);
+    QRY_ERR_JRET(colDataSetVal(pInfoData, i, row->buf, false));
   }
 
   pBlock->info.rows = rowNum;
@@ -1946,8 +1947,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
     qError("malloc SRetrieveTableRsp failed, size:%d", rspSize);
-    blockDataDestroy(pBlock);
-    QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   rsp->completed = 1;
@@ -1961,10 +1961,11 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   SET_PAYLOAD_LEN(rsp->data, len, len);
 
+_return:
   blockDataDestroy(pBlock);
 
   *pRsp = rsp;
-  return TSDB_CODE_SUCCESS;
+  QRY_RET(code);
 }
 
 int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
