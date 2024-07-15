@@ -1228,7 +1228,9 @@ static void checkRegexCache(void* param, void* tmrId) {
     UsingRegex **ppUsingRegex = taosHashIterate(sRegexCache.regexHash, NULL);
     while ((ppUsingRegex != NULL)) {
       if (taosGetTimestampSec() - (*ppUsingRegex)->lastUsedTime > REGEX_CACHE_CLEAR_TIME) {
-        taosHashRemove(sRegexCache.regexHash, ppUsingRegex);
+        size_t len = 0;
+        char* key = (char*)taosHashGetKey(ppUsingRegex, &len);
+        taosHashRemove(sRegexCache.regexHash, key, len);
       }
       ppUsingRegex = taosHashIterate(sRegexCache.regexHash, ppUsingRegex);
     }
