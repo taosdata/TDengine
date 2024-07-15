@@ -1163,7 +1163,10 @@ int32_t deleteCheckpointFile(const char* id, const char* name) {
 
 int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
+
   taosThreadMutexLock(&pTask->lock);
+  ETaskStatus p = streamTaskGetStatus(pTask)->state;
+
   if (pTask->status.sendConsensusChkptId == true) {
     stDebug("s-task:%s already start to consensus-checkpointId, not start again before it completed", id);
     taosThreadMutexUnlock(&pTask->lock);
@@ -1173,6 +1176,11 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   }
 
   taosThreadMutexUnlock(&pTask->lock);
+
+  if (pTask->pBackend != NULL) {
+    streamFreeTaskState(pTask, p);
+    pTask->pBackend = NULL;
+  }
 
   ASSERT(pTask->pBackend == NULL);
   pTask->status.requireConsensusChkptId = true;
