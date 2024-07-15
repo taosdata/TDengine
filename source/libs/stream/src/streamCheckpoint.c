@@ -182,6 +182,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
             " recv expired checkpoint-trigger block, checkpointId:%" PRId64 " transId:%d, discard",
             id, vgId, pTask->chkInfo.checkpointId, checkpointId, transId);
     taosThreadMutexUnlock(&pTask->lock);
+
+    streamFreeQitem((SStreamQueueItem*)pBlock);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -201,6 +203,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
 
     streamTaskOpenUpstreamInput(pTask, pBlock->srcTaskId);
     taosThreadMutexUnlock(&pTask->lock);
+
+    streamFreeQitem((SStreamQueueItem*)pBlock);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -210,6 +214,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
               " discard",
               id, vgId, pActiveInfo->activeId, checkpointId);
       taosThreadMutexUnlock(&pTask->lock);
+
+      streamFreeQitem((SStreamQueueItem*)pBlock);
       return TSDB_CODE_SUCCESS;
     } else {  // checkpointId == pActiveInfo->activeId
       if (pActiveInfo->allUpstreamTriggerRecv == 1) {
@@ -218,6 +224,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
             "checkpointId:%" PRId64 " transId:%d",
             id, vgId, checkpointId, transId);
         taosThreadMutexUnlock(&pTask->lock);
+        streamFreeQitem((SStreamQueueItem*)pBlock);
         return TSDB_CODE_SUCCESS;
       }
 
@@ -232,6 +239,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
                    pTask->id.idStr, p->upstreamTaskId, p->upstreamNodeId, p->checkpointId, p->recvTs);
 
             taosThreadMutexUnlock(&pTask->lock);
+            streamFreeQitem((SStreamQueueItem*)pBlock);
             return TSDB_CODE_SUCCESS;
           }
         }
@@ -455,6 +463,9 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 id, vgId, pReq->taskId, numOfTasks);
       }
       streamMetaWLock(pMeta);
+      if (streamMetaCommit(pMeta) < 0) {
+        // persist to disk
+      }
     }
 
     return TSDB_CODE_SUCCESS;
