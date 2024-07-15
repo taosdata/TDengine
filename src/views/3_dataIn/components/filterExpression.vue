@@ -247,6 +247,15 @@ export default {
                   ? parsinginZone(new Date())
                   : item.name;
             }
+          } else if (this.$store.state.app.currentDBType == "mongodb") {
+            if (item.name == "value") {
+              inputobj["value"] = msg;
+            } else {
+              inputobj[item.name] =
+                item.type == "timestamp"
+                  ? parsinginZone(new Date())
+                  : item.name;
+            }
           }
         });
         return inputobj;
