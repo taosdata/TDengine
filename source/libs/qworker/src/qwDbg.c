@@ -173,8 +173,21 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
 
   if (pEpSet) {
     contLen = tSerializeSEpSet(NULL, 0, pEpSet);
+    if (contLen < 0) {
+      qError("tSerializeSEpSet failed, code:%x", terrno);
+      return terrno;
+    }
     rsp = rpcMallocCont(contLen);
-    tSerializeSEpSet(rsp, contLen, pEpSet);
+    if (NULL == rsp) {
+      qError("rpcMallocCont %d failed, code:%x", contLen, terrno);
+      return terrno;
+    }
+    
+    contLen = tSerializeSEpSet(rsp, contLen, pEpSet);
+    if (contLen < 0) {
+      qError("tSerializeSEpSet second failed, code:%x", terrno);
+      return terrno;
+    }
   }
 
   SRpcMsg rpcRsp = {
@@ -216,20 +229,20 @@ void qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped) {
       epSet.eps[2].port = 7300;
 
       ctx->phase = QW_PHASE_POST_QUERY;
-      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, &epSet);
+      (void)qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, &epSet); // ignore error
       *rsped = true;
       return;
     }
 
     if (TDMT_SCH_MERGE_QUERY == qwMsg->msgType && (0 == taosRand() % 3)) {
       QW_SET_PHASE(ctx, QW_PHASE_POST_QUERY);
-      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, NULL);
+      (void)qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, NULL); // ignore error
       *rsped = true;
       return;
     }
 
     if ((TDMT_SCH_FETCH == qwMsg->msgType) && (0 == taosRand() % 9)) {
-      qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, NULL);
+      (void)qwDbgBuildAndSendRedirectRsp(qwMsg->msgType + 1, &qwMsg->connInfo, TSDB_CODE_SYN_NOT_LEADER, NULL); // ignore error
       *rsped = true;
       return;
     }

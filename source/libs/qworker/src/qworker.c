@@ -1372,7 +1372,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
 _return:
 
   if (mgmt->refId >= 0) {
-    qwRelease(mgmt->refId); // ignore error
+    (void)qwRelease(mgmt->refId); // ignore error
   } else {
     taosHashCleanup(mgmt->schHash);
     taosHashCleanup(mgmt->ctxHash);
