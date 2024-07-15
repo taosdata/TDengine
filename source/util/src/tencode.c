@@ -72,10 +72,14 @@ int32_t tStartEncode(SEncoder* pCoder) {
   SEncoderNode* pNode;
 
   if (pCoder->data) {
-    if (pCoder->size - pCoder->pos < sizeof(int32_t)) return -1;
+    if (pCoder->size - pCoder->pos < sizeof(int32_t)) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
 
     pNode = tEncoderMalloc(pCoder, sizeof(*pNode));
-    if (pNode == NULL) return -1;
+    if (pNode == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
 
     pNode->data = pCoder->data;
     pNode->pos = pCoder->pos;
@@ -119,10 +123,12 @@ int32_t tStartDecode(SDecoder* pCoder) {
   SDecoderNode* pNode;
   int32_t       len;
 
-  if (tDecodeI32(pCoder, &len) < 0) return -1;
+  TAOS_CHECK_RETURN(tDecodeI32(pCoder, &len));
 
   pNode = tDecoderMalloc(pCoder, sizeof(*pNode));
-  if (pNode == NULL) return -1;
+  if (pNode == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   pNode->data = pCoder->data;
   pNode->pos = pCoder->pos;
