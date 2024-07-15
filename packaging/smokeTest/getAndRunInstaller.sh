@@ -297,7 +297,7 @@ fi
 cd ${installPath}
 
 rm -rf ${installPath}/${packageName}
-if [ ${platfrom} == "Linux" ]; then
+if [ ${platform} == "Linux" ]; then
   rm -rf ${installPath}/${tdPath}/
 fi
 
