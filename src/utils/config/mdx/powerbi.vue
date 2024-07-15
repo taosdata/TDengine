@@ -42,7 +42,9 @@
         <span class="odbc-span">{{ $t('docs.connector.odbc.step22desc') }}</span>
       </li>
       <li>
-        <span class="odbc-span">{{ $t('docs.connector.odbc.step23desc') }}</span>
+        <span class="odbc-span">{{ $t('docs.connector.odbc.step23desc') }} 
+          <span class="docker-tip">{{ $t("dockerTip")}}</span>
+        </span>
         <div class="gf-input">
           <div class="gf-input-label">{{ $t('docs.connector.odbc.step23desc1') }}</div>
           <div class="gf-input-value">{{ $t('docs.connector.odbc.step23desc2') }}</div>

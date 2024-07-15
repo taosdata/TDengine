@@ -31,7 +31,7 @@
     <p>{{ $t("docs.dataout.dump.step2desc2") }}</p>
     <pre v-highlight><code>{{ linuxcode }}
 </code></pre>
-    <p>{{ $t("docs.dataout.dump.step2desc3") }}</p>
+    <p>{{ $t("docs.dataout.dump.step2desc3") }} <span class="docker-tip">{{ $t("dockerTip")}}</span></p>
     <pre
       v-highlight="
         `export TDENGINE_DSN=&quot;${DSN}&quot;
