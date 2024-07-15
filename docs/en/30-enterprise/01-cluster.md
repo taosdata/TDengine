@@ -45,7 +45,7 @@ If one or more nodes in a multi-replica cluster are restarted due to an upgrade 
 ```SQL
 balance vgroup leader; # balance leaders on all vgroups
 balance vgroup leader on <vgroup_id>; # balance leader on a given vgroup
-balance vgroup database <database_name>; # balance leader of all vgroups in a database
+balance vgroup leader database <database_name>; # balance leader of all vgroups in a database
 ```
 
 ### Features
