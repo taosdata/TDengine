@@ -16,9 +16,11 @@
 #include "builtins.h"
 #include "builtinsimpl.h"
 #include "cJSON.h"
+#include "geomFunc.h"
+#include "query.h"
 #include "querynodes.h"
 #include "scalar.h"
-#include "geomFunc.h"
+#include "taos.h"
 #include "taoserror.h"
 #include "ttime.h"
 
@@ -538,7 +540,8 @@ static int32_t translateStddevStateMerge(SFunctionNode* pFunc, char* pErrBuf, in
 
 static int32_t translateWduration(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT,
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes,
+                                    .type = TSDB_DATA_TYPE_BIGINT,
                                     .precision = pFunc->node.resType.precision};
   return TSDB_CODE_SUCCESS;
 }
@@ -561,9 +564,9 @@ static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
 
-  pFunc->node.resType =
-      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP,
-                  .precision = pFunc->node.resType.precision};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
+                                    .type = TSDB_DATA_TYPE_TIMESTAMP,
+                                    .precision = pFunc->node.resType.precision};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -738,13 +741,13 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
       if (!IS_STR_DATA_TYPE(para3Type)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
       }
-      
+
       SNode* pParamNode2 = nodesListGetNode(pFunc->pParameterList, 2);
       if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validateApercentileAlgo((SValueNode*)pParamNode2)) {
         return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                                "Third parameter algorithm of apercentile must be 'default' or 't-digest'");
       }
-      }
+    }
 
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   }
@@ -1395,7 +1398,6 @@ static int32_t translateHLLState(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 }
 
 static int32_t translateHLLStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -1404,7 +1406,7 @@ static int32_t translateHLLStateMerge(SFunctionNode* pFunc, char* pErrBuf, int32
   }
 
   pFunc->node.resType =
-    (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+      (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1730,7 +1732,8 @@ static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t l
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
     int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
-    pFunc->node.resType = (SDataType){.bytes = getIrateInfoSize(pkBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getIrateInfoSize(pkBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != LIST_LENGTH(pFunc->pParameterList)) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -1747,7 +1750,6 @@ static int32_t translateIrateImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t l
       return code;
     }
   }
-
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1875,8 +1877,8 @@ static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       }
     }
     int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
-    pFunc->node.resType =
-        (SDataType){.bytes = getFirstLastInfoSize(paraBytes, pkBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType = (SDataType){.bytes = getFirstLastInfoSize(paraBytes, pkBytes) + VARSTR_HEADER_SIZE,
+                                      .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (TSDB_DATA_TYPE_BINARY != paraType) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -1900,8 +1902,8 @@ static int32_t translateFirstLastState(SFunctionNode* pFunc, char* pErrBuf, int3
   int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
 
   int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
-  pFunc->node.resType =
-    (SDataType){.bytes = getFirstLastInfoSize(paraBytes, pkBytes) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  pFunc->node.resType = (SDataType){.bytes = getFirstLastInfoSize(paraBytes, pkBytes) + VARSTR_HEADER_SIZE,
+                                    .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1939,6 +1941,66 @@ static int32_t translateUnique(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateUniqueMode(pFunc, pErrBuf, len, false);
 }
+
+/// forecast function
+// forecast(ts, value, period, num)
+// forecast(ts, value, period, num, predict_start)
+// forecast(ts, value, period, predict_start, predict_end)
+//
+// Result: VARCHAR(256)
+// Format: timestamp,value
+static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  qInfo("forecast translate: %d params", numOfParams);
+  if (numOfParams < 3) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  // first parameter should be timestamp.
+  uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_TIMESTAMP_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  // second parameter should be value.
+  uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  if (IS_TIMESTAMP_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  // param1
+  if (numOfParams >= 3) {
+    SNode*  pNumNode = nodesListGetNode(pFunc->pParameterList, 2);
+    uint8_t paraType = getSDataTypeFromNode(pNumNode)->type;
+    if (!IS_INTEGER_TYPE(paraType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    SValueNode* pValue = (SValueNode*)pNumNode;
+    if (pValue->datum.i == 0 && pValue->datum.i >= (1 << 16)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "forecast num(4th) param should be > 0 and < 2^16");
+    }
+
+    pValue->notReserved = true;
+  }
+
+  uint8_t resultType = TSDB_DATA_TYPE_VARCHAR;
+  int32_t resultBytes = 256;
+  pFunc->node.resType = (SDataType){.bytes = resultBytes, .type = resultType};
+
+  // uint8_t resType;
+  // if (IS_SIGNED_NUMERIC_TYPE(colType) || IS_TIMESTAMP_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType) {
+  //   resType = TSDB_DATA_TYPE_BIGINT;
+  // } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+  //   resType = TSDB_DATA_TYPE_UBIGINT;
+  // } else {
+  //   resType = TSDB_DATA_TYPE_DOUBLE;
+  // }
+  // pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
@@ -2119,7 +2181,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The number of parameters has been limited by the syntax definition
 
   SExprNode* pPara0 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  uint8_t para0Type = pPara0->resType.type;
+  uint8_t    para0Type = pPara0->resType.type;
   if (TSDB_DATA_TYPE_VARBINARY == para0Type) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -2136,7 +2198,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     if (TSDB_DATA_TYPE_NCHAR == para2Type) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "CAST function converted length should be in range (0, %d] NCHARS",
-                             (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE);
+                             (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE);
     } else {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "CAST function converted length should be in range (0, %d] bytes",
@@ -2356,7 +2418,8 @@ static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   }
 
   SExprNode* pPara = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_VALUE != nodeType(pPara) || TSDB_DATA_TYPE_VARBINARY == pPara->resType.type || (!IS_VAR_DATA_TYPE(pPara->resType.type))) {
+  if (QUERY_NODE_VALUE != nodeType(pPara) || TSDB_DATA_TYPE_VARBINARY == pPara->resType.type ||
+      (!IS_VAR_DATA_TYPE(pPara->resType.type))) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -2374,7 +2437,8 @@ static int32_t translateInStrOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2406,7 +2470,8 @@ static int32_t translateIn2NumOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3206,7 +3271,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
@@ -3276,6 +3341,24 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = sampleFunction,
     .sprocessFunc = sampleScalarFunction,
     .finalizeFunc = sampleFinalize
+  },
+  {
+    .name = "forecast",
+    .type = FUNCTION_TYPE_FORECAST,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_FILL_FUNC,
+    // .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    //                   FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    // .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC| FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    //    FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |                      FUNC_MGT_FORBID_FILL_FUNC,
+    .translateFunc = translateForecast,
+    .getEnvFunc   = getForecastFuncEnv,
+    .initFunc     = forecastFunctionSetup,
+    .processFunc  = forecastFunction,
+    .sprocessFunc = forecastScalarFunction,
+    .finalizeFunc = forecastFinalize,
+    // .combineFunc  = forecastCombine,
+    // .estimateReturnRowsFunc = forecastEstReturnRows,
   },
   {
     .name = "tail",

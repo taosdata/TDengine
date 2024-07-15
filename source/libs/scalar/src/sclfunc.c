@@ -1,5 +1,6 @@
 #include "cJSON.h"
 #include "function.h"
+#include "query.h"
 #include "scalar.h"
 #include "sclInt.h"
 #include "sclvector.h"
@@ -2382,6 +2383,11 @@ int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 }
 
 int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
+int32_t forecastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  qInfo("call forcastScalarFunction");
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 

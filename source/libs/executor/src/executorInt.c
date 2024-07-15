@@ -598,6 +598,7 @@ void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExpr
 
 void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                               SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo) {
+  qInfo("copyResultrowToDataBlock, numOfExprs:%d", numOfExprs);
   for (int32_t j = 0; j < numOfExprs; ++j) {
     int32_t slotId = pExprInfo[j].base.resSchema.slotId;
 

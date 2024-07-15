@@ -35,6 +35,7 @@ target_link_libraries(
     PRIVATE geometry 
     PRIVATE transport 
     PUBLIC uv_a
+    PUBLIC forecast
 )
 
 add_executable(runUdf test/runUdf.c)

@@ -36,3 +36,6 @@ ELSE ()
     target_link_libraries(taosd dnode crypt)
 ENDIF ()
 
+SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.lib")
+# ADD_DEPENDENCIES(taosd forecast)
+target_link_libraries(taosd forecast)
