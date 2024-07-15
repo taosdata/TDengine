@@ -70,12 +70,14 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, normal_bloomFilter) {
 TEST(TD_UTIL_BLOOMFILTER_TEST, scalable_bloomFilter) {
   int64_t ts1 = 1650803518000;
 
-  GTEST_ASSERT_EQ(NULL, tScalableBfInit(100, 0));
-  GTEST_ASSERT_EQ(NULL, tScalableBfInit(100, 1));
-  GTEST_ASSERT_EQ(NULL, tScalableBfInit(100, -0.1));
-  GTEST_ASSERT_EQ(NULL, tScalableBfInit(0, 0.01));
+  SScalableBf *tsSBF = NULL;
+  GTEST_ASSERT_NE(0, tScalableBfInit(100, 0, &tsSBF));
+  GTEST_ASSERT_NE(0, tScalableBfInit(100, 1, &tsSBF));
+  GTEST_ASSERT_NE(0, tScalableBfInit(100, -0.1, &tsSBF));
+  GTEST_ASSERT_NE(0, tScalableBfInit(0, 0.01, &tsSBF));
 
-  SScalableBf *pSBF1 = tScalableBfInit(100, 0.01);
+  SScalableBf *pSBF1 = NULL;
+  GTEST_ASSERT_EQ(0, tScalableBfInit(100, 0.01, &pSBF1));
   GTEST_ASSERT_EQ(pSBF1->numBits, 1152);
   int64_t count = 0;
   int64_t index = 0;
