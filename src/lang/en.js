@@ -221,6 +221,7 @@ export default {
   communityDemoDataTip: 'The current list is only sample data',
   fullscreen: "Full screen",
   import: "Import",
+  dockerTip: "(If docker is installed, use the mapped ip:port)",
   statuses: {
     created: "Created",
     queued: "Queued",

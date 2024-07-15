@@ -40,6 +40,7 @@
       </li>
       <li>
         <span class="seeq-span">{{ $t('docs.tools.seeq.step3desc2') }}</span>
+        <span class="docker-tip">{{ $t("dockerTip")}}</span>
         <pre
           v-highlight="
             `{

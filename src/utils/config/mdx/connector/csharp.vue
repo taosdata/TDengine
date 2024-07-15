@@ -30,7 +30,9 @@ vim example.csproj
       "
     ><code class="language-xml"></code></pre>
     <h2 id="config">{{ $t("docs.connector.csharp.step2") }}</h2>
-    <p>{{ $t("component.docConfig.content", [" DSN "]) }}</p>
+    <p>{{ $t("component.docConfig.content", [" DSN "]) }}
+      <span class="docker-tip">{{ $t("dockerTip")}}</span>
+    </p>
     <el-tabs value="bash">
       <el-tab-pane name="bash" label="Bash">
         <pre

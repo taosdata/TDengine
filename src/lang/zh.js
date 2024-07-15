@@ -201,6 +201,7 @@ export default {
   communityDemoDataTip: '当前列表仅为示例数据',
   fullscreen: "全屏显示",
   import: "导入",
+  dockerTip: "(如果 docker 安装，请使用映射后的 ip:port)",
   statuses: {
     created: "已创建",
     queued: "排队中",

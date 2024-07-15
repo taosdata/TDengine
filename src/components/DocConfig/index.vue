@@ -1,7 +1,9 @@
 <template>
   <div>
     <h2 :id="'{{config}}'">{{ $t("component.docConfig.title") }}</h2>
-    <p>{{ $t("component.docConfig.content", [urlDes]) }}</p>
+    <p>{{ $t("component.docConfig.content", [urlDes]) }} 
+      <span class="docker-tip">{{ $t("dockerTip")}}</span>
+    </p>
     <el-tabs class="doc-config-tab" value="bash">
       <el-tab-pane name="bash" label="Bash">
         <pre v-highlight="contentBash"><code class="language-bash"></code></pre>

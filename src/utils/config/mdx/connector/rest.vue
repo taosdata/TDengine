@@ -8,6 +8,7 @@
           " Token " + $t("docs.connector.bottomand") + " URL ",
         ])
       }}
+      <span class="docker-tip">{{ $t("dockerTip")}}</span>
     </p>
     <el-tabs value="bash">
       <el-tab-pane name="bash" label="Bash">
