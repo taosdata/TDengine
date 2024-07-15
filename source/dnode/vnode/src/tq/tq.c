@@ -655,7 +655,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
   taosRLockLatch(&pTq->lock);
   STqHandle* pHandle = NULL;
-  ret = tqMetaGetHandle(pTq, req.subKey, &pHandle);
+  (void)tqMetaGetHandle(pTq, req.subKey, &pHandle); //ignore return code
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {

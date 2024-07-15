@@ -391,7 +391,7 @@ int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle) {
     int      vLen = 0;
     if (tdbTbGet(pTq->pExecStore, key, (int)strlen(key), &data, &vLen) < 0) {
       tdbFree(data);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
     }
     STqHandle handle = {0};
     if (tqMetaRestoreHandle(pTq, data, vLen, &handle) != 0){
@@ -404,7 +404,7 @@ int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle) {
       tqDestroyTqHandle(&handle);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    *pHandle = taosHashGet(pTq->pCheckInfo, key, strlen(key));
+    *pHandle = taosHashGet(pTq->pHandle, key, strlen(key));
     if(*pHandle == NULL){
       return TSDB_CODE_OUT_OF_MEMORY;
     }
