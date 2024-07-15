@@ -274,7 +274,7 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-static int32_t buildRetension(SArray* pRetension, void **ppRetentions ) {
+static int32_t buildRetension(SArray* pRetension, char **ppRetentions ) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     *ppRetentions = NULL;
