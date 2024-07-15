@@ -300,6 +300,6 @@ rm -rf ${installPath}/${packageName}
 if [ ${platform} == "Linux" ]; then
   rm -rf ${installPath}/${tdPath}/
 fi
-
+exit 0
 
 
