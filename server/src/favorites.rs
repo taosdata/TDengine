@@ -142,14 +142,16 @@ pub struct FavoritesSqlPageData {
 
 /// get favorites sql by page
 pub async fn get_favorites_sql_page(
+    req: HttpRequest,
     favorites: web::Data<FavoritesSql>,
     search: web::Query<SearchParams>,
 ) -> Result<R<FavoritesSqlPageData>> {
     let search = search.into_inner();
+    let username = get_username_from_header(&req)?;
     // get total
     let mut total_query_builder =
         sqlx::QueryBuilder::new(format!("select count(id) as total from {TABLE_NAME}"));
-    build_page_query(&mut total_query_builder, &search);
+    build_page_query(&mut total_query_builder, &search, &username);
     let total = total_query_builder
         .build_query_scalar()
         .fetch_one(&favorites.pool)
@@ -159,8 +161,9 @@ pub async fn get_favorites_sql_page(
 
     // get page result
     let mut query_builder = sqlx::QueryBuilder::new(format!("select * from {TABLE_NAME}"));
-    build_page_query(&mut query_builder, &search);
+    build_page_query(&mut query_builder, &search, &username);
     let rows: Vec<FavoritesSqlData> = query_builder
+        .push(" order by created_at desc")
         .push(" limit ")
         .push_bind(search.page_size)
         .push(" offset ")
@@ -180,10 +183,21 @@ pub async fn get_favorites_sql_page(
     }))
 }
 
-fn build_page_query(query_builder: &mut QueryBuilder<sqlx::Sqlite>, search: &SearchParams) {
-    query_builder
-        .push(" where is_public = ")
-        .push_bind(search.is_public.unwrap_or_default());
+fn build_page_query<'a, 'b>(
+    query_builder: &'a mut QueryBuilder<'b, sqlx::Sqlite>,
+    search: &'a SearchParams,
+    username: &'b str,
+) {
+    match search.is_public {
+        Some(true) => {
+            query_builder.push(" where is_public = true");
+        }
+        Some(false) | None => {
+            query_builder.push(" where is_public = false");
+        }
+    }
+
+    query_builder.push(" and username = ").push_bind(username);
 
     if let Some(fuzzy) = search
         .sql_desc_fuzzy
@@ -201,14 +215,18 @@ fn build_page_query(query_builder: &mut QueryBuilder<sqlx::Sqlite>, search: &Sea
 /// delete favorites sql by id
 pub async fn delete_favorites_sql(
     favorites: web::Data<FavoritesSql>,
+    req: HttpRequest,
     id: web::Path<u32>,
 ) -> Result<R<()>> {
-    sqlx::query(&format!("delete from {TABLE_NAME} where id = ?"))
-        .bind(*id)
-        .execute(&favorites.pool)
-        .await
-        .context("delete favorites sql error")
-        .map_err(R::internal)?;
+    sqlx::query(&format!(
+        "delete from {TABLE_NAME} where id = ? and username = ?"
+    ))
+    .bind(*id)
+    .bind(get_username_from_header(&req)?)
+    .execute(&favorites.pool)
+    .await
+    .context("delete favorites sql error")
+    .map_err(R::internal)?;
     Ok(R::default())
 }
 
@@ -221,24 +239,31 @@ pub struct UpdateParam {
 /// set favorites sql to public/private
 pub async fn update_favorites_sql(
     favorites: web::Data<FavoritesSql>,
+    req: HttpRequest,
     id: web::Path<u32>,
-    mut param: web::Json<UpdateParam>,
+    param: web::Json<UpdateParam>,
 ) -> Result<R<()>> {
     let mut query_builder = sqlx::QueryBuilder::new(format!("update {TABLE_NAME} set "));
     let mut update_public = false;
-    if let Some(public) = param.public.take() {
+    if let Some(public) = param.public.as_ref() {
         query_builder.push(" is_public = ").push_bind(public);
         update_public = true;
     }
-    if let Some(description) = param.description.take().filter(|s| !s.trim().is_empty()) {
+    if let Some(description) = param.description.as_ref().map(|s| s.trim()) {
         if update_public {
             query_builder.push(", ");
         }
-        query_builder.push(" description = ").push_bind(description);
+        if description.is_empty() {
+            query_builder.push(" description = NULL");
+        } else {
+            query_builder.push(" description = ").push_bind(description);
+        }
     }
     query_builder
         .push(" where id = ")
         .push_bind(*id)
+        .push(" and username = ")
+        .push_bind(get_username_from_header(&req)?)
         .build()
         .execute(&favorites.pool)
         .await
