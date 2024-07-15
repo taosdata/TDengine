@@ -116,7 +116,9 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   SNodeListNode *nodeList = (SNodeListNode *)pNode;
   SListCell     *cell = nodeList->pNodeList->pHead;
   SScalarParam   out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
-
+  if (out.columnData == NULL) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   int32_t len = 0;
   void   *buf = NULL;
 
@@ -603,7 +605,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
     SCL_ERR_RET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
     SCL_ERR_RET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
 
-    vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, TSDB_ORDER_ASC, OP_TYPE_EQUAL);
+    SCL_ERR_JRET(vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
 
     bool *equal = (bool *)colDataGetData(pComp->columnData, rowIdx);
     if (*equal) {
