@@ -38,7 +38,8 @@ int32_t tScalableBfInit(uint64_t expectedEntries, double errorRate, SScalableBf 
   }
   SScalableBf *pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
   if (pSBf == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _error);
   }
   pSBf->maxBloomFilters = DEFAULT_MAX_BLOOMFILTERS;
   pSBf->status = SBF_VALID;
