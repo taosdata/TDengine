@@ -63,11 +63,7 @@ struct SActiveCheckpointInfo {
   tmr_h         pChkptTriggerTmr;
   int32_t       sendReadyCheckCounter;
   tmr_h         pSendReadyMsgTmr;
-};
-
-struct SConsensusCheckpoint {
-  int8_t inProcess;
-
+  int64_t       sendReadyTmrChkptId;
 };
 
 typedef struct {
@@ -227,7 +223,7 @@ int32_t      streamMetaSendHbHelper(SStreamMeta* pMeta);
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 
-int32_t streamTaskDownloadCheckpointData(const char* id, char* path);
+int32_t streamTaskDownloadCheckpointData(const char* id, char* path, int64_t checkpointId);
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask);
 

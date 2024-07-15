@@ -815,6 +815,16 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   SArray* pList = pActiveInfo->pReadyMsgList;
   int32_t num = taosArrayGetSize(pList);
 
+  if (pActiveInfo->sendReadyTmrChkptId < pActiveInfo->activeId) {
+    taosThreadMutexUnlock(&pActiveInfo->lock);
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stWarn("s-task:%s vgId:%d tmr launched by previous checkpoint procedure, checkpointId:%" PRId64 ", quit, ref:%d",
+           id, vgId, pActiveInfo->sendReadyTmrChkptId, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
   // active checkpoint info is cleared for now
   if ((pActiveInfo->activeId == 0) && (pActiveInfo->transId == 0) && (num == 0) && (pTask->chkInfo.startTs == 0)) {
     taosThreadMutexUnlock(&pActiveInfo->lock);
@@ -902,7 +912,6 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
             pInfo->upstreamTaskId);
   }
 
-  taosThreadMutexUnlock(&pActiveInfo->lock);
   stDebug("s-task:%s level:%d checkpoint-ready msg sent to all %d upstreams", id, pTask->info.taskLevel, num);
 
   // start to check if checkpoint ready msg has successfully received by upstream tasks.
@@ -916,8 +925,12 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
     } else {
       taosTmrReset(checkpointReadyMsgSendMonitorFn, 100, pTask, streamTimer, &pActiveInfo->pSendReadyMsgTmr);
     }
+
+    // mark the timer monitor checkpointId
+    pActiveInfo->sendReadyTmrChkptId = pActiveInfo->activeId;
   }
 
+  taosThreadMutexUnlock(&pActiveInfo->lock);
   return TSDB_CODE_SUCCESS;
 }
 
