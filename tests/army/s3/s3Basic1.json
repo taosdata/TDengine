@@ -36,7 +36,7 @@
                     "insert_rows": 1000000,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
-                    "timestamp_step": 500,
+                    "timestamp_step": 50,
                     "start_timestamp": 1600000000000,
                     "columns": [
                         { "type": "bool",        "name": "bc"},

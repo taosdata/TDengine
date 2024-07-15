@@ -251,7 +251,6 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
     tTagNew(tagArray, 1, false, (STag**)&pCreateTbReq->ctb.pTag);
     taosArrayDestroy(tagArray);
     tagArray = NULL;
-
     if (pCreateTbReq->ctb.pTag == NULL) {
       tdDestroySVCreateTbReq(pCreateTbReq);
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -509,7 +508,6 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
   if (pTableData->aRowP == NULL || pVals == NULL) {
     taosArrayDestroy(pTableData->aRowP);
     pTableData->aRowP = NULL;
-
     taosArrayDestroy(pVals);
     code = TSDB_CODE_OUT_OF_MEMORY;
     tqError("s-task:%s failed to prepare write stream res blocks, code:%s", id, tstrerror(code));
@@ -536,7 +534,6 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
                   ts, earlyTs);
           taosArrayDestroy(pTableData->aRowP);
           pTableData->aRowP = NULL;
-
           taosArrayDestroy(pVals);
           return TSDB_CODE_SUCCESS;
         }

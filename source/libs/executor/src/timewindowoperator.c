@@ -1138,7 +1138,6 @@ void destroyIntervalOperatorInfo(void* param) {
 
   taosArrayDestroy(pInfo->pInterpCols);
   pInfo->pInterpCols = NULL;
-
   taosArrayDestroyEx(pInfo->pPrevValues, freeItem);
   pInfo->pPrevValues = NULL;
 

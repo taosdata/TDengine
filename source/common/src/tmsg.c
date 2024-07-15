@@ -9507,7 +9507,6 @@ static void tDeleteMqDataRspCommon(void *rsp) {
   SMqDataRspCommon *pRsp = rsp;
   taosArrayDestroy(pRsp->blockDataLen);
   pRsp->blockDataLen = NULL;
-
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
@@ -9562,7 +9561,6 @@ void tDeleteSTaosxRsp(void *rsp) {
   STaosxRsp *pRsp = (STaosxRsp *)rsp;
   taosArrayDestroy(pRsp->createTableLen);
   pRsp->createTableLen = NULL;
-
   taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
   pRsp->createTableReq = NULL;
 }

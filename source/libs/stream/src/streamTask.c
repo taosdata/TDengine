@@ -1059,10 +1059,8 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   taosThreadMutexDestroy(&pInfo->lock);
   taosArrayDestroy(pInfo->pDispatchTriggerList);
   pInfo->pDispatchTriggerList = NULL;
-
   taosArrayDestroy(pInfo->pReadyMsgList);
   pInfo->pReadyMsgList = NULL;
-
   taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
   pInfo->pCheckpointReadyRecvList = NULL;
 

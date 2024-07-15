@@ -310,7 +310,6 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
 
     taosArrayDestroy(pInfo->delSkyline);
     pInfo->delSkyline = NULL;
-
     pInfo->lastProcKey.ts = ts;
     // todo check the nextProcKey info
     pInfo->sttKeyInfo.nextProcKey.ts = ts + step;

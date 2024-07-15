@@ -1398,10 +1398,8 @@ void hbMgrCleanUp() {
 
   taosThreadMutexLock(&clientHbMgr.lock);
   appHbMgrCleanup();
-
   taosArrayDestroy(clientHbMgr.appHbMgrs);
   clientHbMgr.appHbMgrs = NULL;
-
   taosThreadMutexUnlock(&clientHbMgr.lock);
 }
 
