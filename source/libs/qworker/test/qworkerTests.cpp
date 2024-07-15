@@ -137,23 +137,25 @@ int qwtBuildDropReqMsg(STaskDropReq *dropMsg, SRpcMsg *dropRpc) {
   
   int32_t msgSize = tSerializeSTaskDropReq(NULL, 0, dropMsg);
   if (msgSize < 0) {
-    return;
+    return terrno;
   }
   
   char *msg = (char*)taosMemoryCalloc(1, msgSize);
   if (NULL == msg) {
-    return;
+    return terrno;
   }
   
   if (tSerializeSTaskDropReq(msg, msgSize, dropMsg) < 0) {
     taosMemoryFree(msg);
-    return;
+    return terrno;
   }
 
 
   dropRpc->msgType = TDMT_SCH_DROP_TASK;
   dropRpc->pCont = msg;
   dropRpc->contLen = msgSize;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qwtStringToPlan(const char *str, SSubplan **subplan) {
@@ -256,7 +258,7 @@ int qwtRpcSendResponse(const SRpcMsg *pRsp) {
           return code;
         }
         rpcFreeCont(rsp);
-        return;
+        return code;
       }
 
       code = qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
