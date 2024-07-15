@@ -254,8 +254,9 @@ int32_t tScalableBfDecode(SDecoder* pDecoder, SScalableBf** ppSBf) {
   (*ppSBf) = pSBf;
 
 _error:
-  tScalableBfDestroy(pSBf);
+
   if (code != TSDB_CODE_SUCCESS) {
+    tScalableBfDestroy(pSBf);
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;

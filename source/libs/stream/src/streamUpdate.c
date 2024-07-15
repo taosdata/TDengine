@@ -563,9 +563,12 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   if (tDecodeI64(&decoder, &pInfo->interval) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->watermark) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->minTS) < 0) return -1;
-  pInfo->pCloseWinSBF = NULL;
+
   code = tScalableBfDecode(&decoder, &pInfo->pCloseWinSBF);
-  TSDB_CHECK_CODE(code, lino, _error);
+  if (code != TSDB_CODE_SUCCESS) {
+    pInfo->pCloseWinSBF = NULL;
+    code = TSDB_CODE_SUCCESS;
+  }
 
   int32_t mapSize = 0;
   if (tDecodeI32(&decoder, &mapSize) < 0) return -1;

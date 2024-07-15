@@ -188,11 +188,12 @@ int32_t tBloomFilterDecode(SDecoder* pDecoder, SBloomFilter** ppBF) {
   pBF->hashFn1 = HASH_FUNCTION_1;
   pBF->hashFn2 = HASH_FUNCTION_2;
   (*ppBF) = pBF;
+  return TSDB_CODE_SUCCESS;
 
 _error:
   tBloomFilterDestroy(pBF);
   uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return TSDB_CODE_FAILED;
+  return code;
 }
 
 bool tBloomFilterIsFull(const SBloomFilter* pBF) { return pBF->size >= pBF->expectedEntries; }
