@@ -57,6 +57,13 @@ SStreamDataBlock* createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpoint
   pBlock->info.childId = pTask->info.selfChildId;
 
   pChkpoint->blocks = taosArrayInit(4, sizeof(SSDataBlock));  // pBlock;
+  if (pChkpoint->blocks == NULL) {
+    taosMemoryFree(pBlock);
+    taosFreeQitem(pChkpoint);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   taosArrayPush(pChkpoint->blocks, pBlock);
 
   taosMemoryFree(pBlock);
@@ -112,7 +119,12 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
 int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId, int32_t downstreamNodeId,
                                            SRpcHandleInfo* pRpcInfo, int32_t code) {
   int32_t size = sizeof(SMsgHead) + sizeof(SCheckpointTriggerRsp);
-  void*   pBuf = rpcMallocCont(size);
+
+  void* pBuf = rpcMallocCont(size);
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
 
   SCheckpointTriggerRsp* pRsp = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
 
@@ -133,6 +145,7 @@ int32_t streamTaskSendCheckpointTriggerMsg(SStreamTask* pTask, int32_t dstTaskId
 
   SRpcMsg rspMsg = {.code = 0, .pCont = pBuf, .contLen = size, .info = *pRpcInfo};
   tmsgSendRsp(&rspMsg);
+
   return 0;
 }
 
@@ -169,6 +182,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
             " recv expired checkpoint-trigger block, checkpointId:%" PRId64 " transId:%d, discard",
             id, vgId, pTask->chkInfo.checkpointId, checkpointId, transId);
     taosThreadMutexUnlock(&pTask->lock);
+
+    streamFreeQitem((SStreamQueueItem*)pBlock);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -188,6 +203,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
 
     streamTaskOpenUpstreamInput(pTask, pBlock->srcTaskId);
     taosThreadMutexUnlock(&pTask->lock);
+
+    streamFreeQitem((SStreamQueueItem*)pBlock);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -197,6 +214,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
               " discard",
               id, vgId, pActiveInfo->activeId, checkpointId);
       taosThreadMutexUnlock(&pTask->lock);
+
+      streamFreeQitem((SStreamQueueItem*)pBlock);
       return TSDB_CODE_SUCCESS;
     } else {  // checkpointId == pActiveInfo->activeId
       if (pActiveInfo->allUpstreamTriggerRecv == 1) {
@@ -205,6 +224,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
             "checkpointId:%" PRId64 " transId:%d",
             id, vgId, checkpointId, transId);
         taosThreadMutexUnlock(&pTask->lock);
+        streamFreeQitem((SStreamQueueItem*)pBlock);
         return TSDB_CODE_SUCCESS;
       }
 
@@ -219,6 +239,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
                    pTask->id.idStr, p->upstreamTaskId, p->upstreamNodeId, p->checkpointId, p->recvTs);
 
             taosThreadMutexUnlock(&pTask->lock);
+            streamFreeQitem((SStreamQueueItem*)pBlock);
             return TSDB_CODE_SUCCESS;
           }
         }
@@ -405,12 +426,14 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
-
-  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
+
+  taosThreadMutexLock(&pTask->chkInfo.pActiveInfo->lock);
+  streamTaskClearActiveInfo(pTask->chkInfo.pActiveInfo);
   if (clearChkpReadyMsg) {
     streamClearChkptReadyMsg(pTask->chkInfo.pActiveInfo);
   }
+  taosThreadMutexUnlock(&pTask->chkInfo.pActiveInfo->lock);
 }
 
 int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SVUpdateCheckpointInfoReq* pReq) {
@@ -440,20 +463,15 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 id, vgId, pReq->taskId, numOfTasks);
       }
       streamMetaWLock(pMeta);
+      if (streamMetaCommit(pMeta) < 0) {
+        // persist to disk
+      }
     }
 
     return TSDB_CODE_SUCCESS;
   }
 
   SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
-
-  if (restored && (pStatus->state != TASK_STATUS__CK) && (pMeta->role == NODE_ROLE_LEADER)) {
-    stDebug("s-task:0x%x vgId:%d restored:%d status:%s not update checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
-            " failed",
-            pReq->taskId, vgId, restored, pStatus->name, pInfo->checkpointId, pReq->checkpointId);
-    taosThreadMutexUnlock(&pTask->lock);
-    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-  }
 
   if (!restored) {  // during restore procedure, do update checkpoint-info
     stDebug("s-task:%s vgId:%d status:%s update the checkpoint-info during restore, checkpointId:%" PRId64 "->%" PRId64
@@ -528,65 +546,57 @@ void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
 }
 
 static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* list) {
-  char buf[128] = {0};
+  int32_t code = 0;
+  int32_t cap = strlen(path) + 64;
 
-  char* file = taosMemoryCalloc(1, strlen(path) + 32);
-  sprintf(file, "%s%s%s", path, TD_DIRSEP, "META_TMP");
+  char* filePath = taosMemoryCalloc(1, cap);
+  if (filePath == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  int32_t code = downloadCheckpointDataByName(id, "META", file);
+  int32_t nBytes = snprintf(filePath, cap, "%s%s%s", path, TD_DIRSEP, "META_TMP");
+  if (nBytes <= 0 || nBytes >= cap) {
+    taosMemoryFree(filePath);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  code = downloadCheckpointDataByName(id, "META", filePath);
   if (code != 0) {
-    stDebug("%s chkp failed to download meta file:%s", id, file);
-    taosMemoryFree(file);
+    stError("%s chkp failed to download meta file:%s", id, filePath);
+    taosMemoryFree(filePath);
     return code;
   }
 
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    stError("%s failed to open meta file:%s for checkpoint", id, file);
-    code = -1;
-    return code;
+  code = remoteChkpGetDelFile(filePath, list);
+  if (code != 0) {
+    stError("%s chkp failed to get to del:%s", id, filePath);
+    taosMemoryFree(filePath);
   }
-
-  if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
-    stError("%s failed to read meta file:%s for checkpoint", id, file);
-    code = -1;
-  } else {
-    int32_t len = strnlen(buf, tListLen(buf));
-    for (int i = 0; i < len; i++) {
-      if (buf[i] == '\n') {
-        char* item = taosMemoryCalloc(1, i + 1);
-        memcpy(item, buf, i);
-        taosArrayPush(list, &item);
-
-        item = taosMemoryCalloc(1, len - i);
-        memcpy(item, buf + i + 1, len - i - 1);
-        taosArrayPush(list, &item);
-      }
-    }
-  }
-
-  taosCloseFile(&pFile);
-  taosRemoveFile(file);
-  taosMemoryFree(file);
-  return code;
+  return 0;
 }
 
 int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type) {
-  char*        path = NULL;
-  int32_t      code = 0;
-  SArray*      toDelFiles = taosArrayInit(4, POINTER_BYTES);
-  int64_t      now = taosGetTimestampMs();
+  int32_t code = 0;
+  char*   path = NULL;
+
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  idStr = pTask->id.idStr;
+  int64_t      now = taosGetTimestampMs();
+
+  SArray* toDelFiles = taosArrayInit(4, POINTER_BYTES);
+  if (toDelFiles == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   if ((code = taskDbGenChkpUploadData(pTask->pBackend, pMeta->bkdChkptMgt, checkpointId, type, &path, toDelFiles,
                                       pTask->id.idStr)) != 0) {
-    stError("s-task:%s failed to gen upload checkpoint:%" PRId64, idStr, checkpointId);
+    stError("s-task:%s failed to gen upload checkpoint:%" PRId64 ", reason:%s", idStr, checkpointId, tstrerror(code));
   }
 
   if (type == DATA_UPLOAD_S3) {
     if (code == TSDB_CODE_SUCCESS && (code = getCheckpointDataMeta(idStr, path, toDelFiles)) != 0) {
-      stError("s-task:%s failed to get checkpointData for checkpointId:%" PRId64 " meta", idStr, checkpointId);
+      stError("s-task:%s failed to get checkpointData for checkpointId:%" PRId64 ", reason:%s", idStr, checkpointId,
+              tstrerror(code));
     }
   }
 
@@ -595,7 +605,8 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     if (code == TSDB_CODE_SUCCESS) {
       stDebug("s-task:%s upload checkpointId:%" PRId64 " to remote succ", idStr, checkpointId);
     } else {
-      stError("s-task:%s failed to upload checkpointId:%" PRId64 " data:%s", idStr, checkpointId, path);
+      stError("s-task:%s failed to upload checkpointId:%" PRId64 " path:%s,reason:%s", idStr, checkpointId, path,
+              tstrerror(code));
     }
   }
 
@@ -668,7 +679,8 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
     stDebug("s-task:%s level:%d start gen checkpoint, checkpointId:%" PRId64, id, pTask->info.taskLevel, ckId);
 
-    code = streamBackendDoCheckpoint(pTask->pBackend, ckId);
+    int64_t ver = pTask->chkInfo.processedVer;
+    code = streamBackendDoCheckpoint(pTask->pBackend, ckId, ver);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s gen checkpoint:%" PRId64 " failed, code:%s", id, ckId, tstrerror(terrno));
     }
@@ -776,6 +788,11 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   SArray* pList = pTask->upstreamInfo.pList;
   ASSERT(pTask->info.taskLevel > TASK_LEVEL__SOURCE);
   SArray* pNotSendList = taosArrayInit(4, sizeof(SStreamUpstreamEpInfo));
+  if (pNotSendList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    stDebug("s-task:%s start to triggerMonitor, reason:%s", id, tstrerror(terrno));
+    return;
+  }
 
   for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
     SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pList, i);
@@ -982,52 +999,77 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
 }
 
 static int32_t uploadCheckpointToS3(const char* id, const char* path) {
+  int32_t code = 0;
+  int32_t nBytes = 0;
+
+  if (s3Init() != 0) {
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
   TdDirPtr pDir = taosOpenDir(path);
-  if (pDir == NULL) return -1;
+  if (pDir == NULL) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
 
   TdDirEntryPtr de = NULL;
-  s3Init();
   while ((de = taosReadDir(pDir)) != NULL) {
     char* name = taosGetDirEntryName(de);
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0 || taosDirEntryIsDir(de)) continue;
 
     char filename[PATH_MAX] = {0};
     if (path[strlen(path) - 1] == TD_DIRSEP_CHAR) {
-      snprintf(filename, sizeof(filename), "%s%s", path, name);
+      nBytes = snprintf(filename, sizeof(filename), "%s%s", path, name);
+      if (nBytes <= 0 || nBytes >= sizeof(filename)) {
+        code = TSDB_CODE_OUT_OF_RANGE;
+        break;
+      }
     } else {
-      snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
+      nBytes = snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
+      if (nBytes <= 0 || nBytes >= sizeof(filename)) {
+        code = TSDB_CODE_OUT_OF_RANGE;
+        break;
+      }
     }
 
     char object[PATH_MAX] = {0};
-    snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
-
-    if (s3PutObjectFromFile2(filename, object, 0) != 0) {
-      taosCloseDir(&pDir);
-      return -1;
+    nBytes = snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
+    if (nBytes <= 0 || nBytes >= sizeof(object)) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      break;
     }
-    stDebug("[s3] upload checkpoint:%s", filename);
-    // break;
-  }
 
+    code = s3PutObjectFromFile2(filename, object, 0);
+    if (code != 0) {
+      stError("[s3] failed to upload checkpoint:%s, reason:%s", filename, tstrerror(code));
+    } else {
+      stDebug("[s3] upload checkpoint:%s", filename);
+    }
+  }
   taosCloseDir(&pDir);
-  return 0;
+  return code;
 }
 
 int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName) {
-  int32_t code = 0;
-  char*   buf = taosMemoryCalloc(1, strlen(id) + strlen(dstName) + 4);
+  int32_t nBytes;
+  int32_t cap = strlen(id) + strlen(dstName) + 16;
+
+  char* buf = taosMemoryCalloc(1, cap);
   if (buf == NULL) {
-    code = terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return code;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  sprintf(buf, "%s/%s", id, fname);
-  if (s3GetObjectToFile(buf, dstName) != 0) {
-    code = errno;
+  nBytes = snprintf(buf, cap, "%s/%s", id, fname);
+  if (nBytes <= 0 || nBytes >= cap) {
+    taosMemoryFree(buf);
+    return TSDB_CODE_OUT_OF_RANGE;
   }
-
+  int32_t code = s3GetObjectToFile(buf, dstName);
+  if (code != 0) {
+    taosMemoryFree(buf);
+    return TAOS_SYSTEM_ERROR(errno);
+  }
   taosMemoryFree(buf);
-  return code;
+  return 0;
 }
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
@@ -1041,13 +1083,17 @@ ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType() {
 }
 
 int32_t streamTaskUploadCheckpoint(const char* id, const char* path) {
+  int32_t code = 0;
   if (id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX) {
     stError("invalid parameters in upload checkpoint, %s", id);
-    return -1;
+    return TSDB_CODE_INVALID_CFG;
   }
 
   if (strlen(tsSnodeAddress) != 0) {
-    return uploadByRsync(id, path);
+    code = uploadByRsync(id, path);
+    if (code != 0) {
+      return TAOS_SYSTEM_ERROR(errno);
+    }
   } else if (tsS3StreamEnabled) {
     return uploadCheckpointToS3(id, path);
   }
@@ -1059,7 +1105,7 @@ int32_t streamTaskUploadCheckpoint(const char* id, const char* path) {
 int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName) {
   if (id == NULL || fname == NULL || strlen(id) == 0 || strlen(fname) == 0 || strlen(fname) >= PATH_MAX) {
     stError("down load checkpoint data parameters invalid");
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (strlen(tsSnodeAddress) != 0) {
@@ -1089,7 +1135,7 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path) {
 int32_t deleteCheckpoint(const char* id) {
   if (id == NULL || strlen(id) == 0) {
     stError("deleteCheckpoint parameters invalid");
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   if (strlen(tsSnodeAddress) != 0) {
     return deleteRsync(id);
@@ -1101,11 +1147,18 @@ int32_t deleteCheckpoint(const char* id) {
 
 int32_t deleteCheckpointFile(const char* id, const char* name) {
   char object[128] = {0};
-  snprintf(object, sizeof(object), "%s/%s", id, name);
 
-  char* tmp = object;
-  s3DeleteObjects((const char**)&tmp, 1);
-  return 0;
+  int32_t nBytes = snprintf(object, sizeof(object), "%s/%s", id, name);
+  if (nBytes <= 0 || nBytes >= sizeof(object)) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  char*   tmp = object;
+  int32_t code = s3DeleteObjects((const char**)&tmp, 1);
+  if (code != 0) {
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  return code;
 }
 
 int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
@@ -1115,8 +1168,20 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   const char*      id = pTask->id.idStr;
   SCheckpointInfo* pInfo = &pTask->chkInfo;
 
-  ASSERT(pTask->pBackend == NULL);
+  taosThreadMutexLock(&pTask->lock);
+  if (pTask->status.sendConsensusChkptId == true) {
+    stDebug("s-task:%s already start to consensus-checkpointId, not start again before it completed", id);
+    taosThreadMutexUnlock(&pTask->lock);
+    return TSDB_CODE_SUCCESS;
+  } else {
+    pTask->status.sendConsensusChkptId = true;
+  }
 
+  taosThreadMutexUnlock(&pTask->lock);
+
+  ASSERT(pTask->pBackend == NULL);
+  pTask->status.requireConsensusChkptId = true;
+#if 0
   SRestoreCheckpointInfo req = {
       .streamId = pTask->id.streamId,
       .taskId = pTask->id.taskId,
@@ -1128,14 +1193,14 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   tEncodeSize(tEncodeRestoreCheckpointInfo, &req, tlen, code);
   if (code < 0) {
     stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id failed, code:%s", id, vgId, tstrerror(code));
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   void* buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     stError("s-task:%s vgId:%d encode stream task latest-checkpoint-id msg failed, code:%s", id, vgId,
             tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SEncoder encoder;
@@ -1148,10 +1213,27 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
   tEncoderClear(&encoder);
 
   SRpcMsg msg = {0};
-  initRpcMsg(&msg, TDMT_MND_STREAM_CHKPT_CONSEN, buf, tlen);
+  initRpcMsg(&msg, TDMT_MND_STREAM_REQ_CONSEN_CHKPT, buf, tlen);
   stDebug("s-task:%s vgId:%d send latest checkpointId:%" PRId64 " to mnode to get the consensus checkpointId", id, vgId,
           pInfo->checkpointId);
 
   tmsgSendReq(&pTask->info.mnodeEpset, &msg);
+#endif
   return 0;
+}
+
+int32_t streamTaskSendPreparedCheckpointsourceRsp(SStreamTask* pTask) {
+  int32_t code = 0;
+  if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+    return code;
+  }
+
+  taosThreadMutexLock(&pTask->lock);
+  SStreamTaskState* p = streamTaskGetStatus(pTask);
+  if (p->state == TASK_STATUS__CK) {
+    code = streamTaskSendCheckpointSourceRsp(pTask);
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return code;
 }

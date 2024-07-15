@@ -25,6 +25,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
 ,,n,army,python3 ./test.py -f cmdline/fullopt.py
 ,,n,army,python3 ./test.py -f query/show.py -N 3
 ,,n,army,python3 ./test.py -f alter/alterConfig.py -N 3
@@ -32,6 +33,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f storage/compressBasic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f grant/grantBugs.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f query/queryBugs.py -N 3
 
 #
 # system test
@@ -129,6 +131,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py

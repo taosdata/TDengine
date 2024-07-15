@@ -164,7 +164,10 @@ int32_t taosInitSlowLog() {
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
     if (lastC == '\\' || lastC == '/') {
-      snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logFileName);
+      snprintf(fullName, PATH_MAX,
+               "%s"
+               "%s",
+               tsLogDir, logFileName);
     } else {
       snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logFileName);
     }
@@ -193,7 +196,10 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
     if (lastC == '\\' || lastC == '/') {
-      snprintf(fullName, PATH_MAX, "%s" "%s", tsLogDir, logName);
+      snprintf(fullName, PATH_MAX,
+               "%s"
+               "%s",
+               tsLogDir, logName);
     } else {
       snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
     }
@@ -344,9 +350,9 @@ static OldFileKeeper *taosOpenNewFile() {
   return oldFileKeeper;
 }
 
-static void *taosThreadToCloseOldFile(void* param) {
-  if(!param)  return NULL;
-  OldFileKeeper* oldFileKeeper = (OldFileKeeper*)param;
+static void *taosThreadToCloseOldFile(void *param) {
+  if (!param) return NULL;
+  OldFileKeeper *oldFileKeeper = (OldFileKeeper *)param;
   taosSsleep(20);
   taosCloseLogByFd(oldFileKeeper->pOldFile);
   taosKeepOldLog(oldFileKeeper->keepName);
@@ -366,7 +372,7 @@ static int32_t taosOpenNewLogFile() {
     taosThreadAttrInit(&attr);
     taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
 
-    OldFileKeeper* oldFileKeeper = taosOpenNewFile();
+    OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper);
     taosThreadAttrDestroy(&attr);
   }
@@ -856,7 +862,7 @@ static void *taosAsyncOutputLog(void *param) {
   return NULL;
 }
 
-bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...) {
+bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, const char *format, ...) {
   if (condition) return false;
 
   const char *flags = "UTL FATAL ";
@@ -876,7 +882,7 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, const char 
   taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
   taosPrintTrace(flags, level, dflag, -1);
 
-  if (tsAssert) {
+  if (tsAssert || core) {
     taosCloseLog();
     taosMsleep(300);
 

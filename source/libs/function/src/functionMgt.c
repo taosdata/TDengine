@@ -141,6 +141,7 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->process = funcMgtBuiltins[funcId].processFunc;
   pFpSet->finalize = funcMgtBuiltins[funcId].finalizeFunc;
   pFpSet->combine = funcMgtBuiltins[funcId].combineFunc;
+  pFpSet->processFuncByRow = funcMgtBuiltins[funcId].processFuncByRow;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -273,6 +274,8 @@ bool fmIsBlockDistFunc(int32_t funcId) {
   }
   return FUNCTION_TYPE_BLOCK_DIST == funcMgtBuiltins[funcId].type;
 }
+
+bool fmIsProcessByRowFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PROCESS_BY_ROW); }
 
 bool fmIsIgnoreNullFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IGNORE_NULL_FUNC); }
 

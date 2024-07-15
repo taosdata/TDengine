@@ -246,7 +246,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
-  mTrace("receive stream-meta hb from vgId:%d, active numOfTasks:%d, msgId:%d", req.vgId, req.numOfTasks, req.msgId);
+  mDebug("receive stream-meta hb from vgId:%d, active numOfTasks:%d, msgId:%d", req.vgId, req.numOfTasks, req.msgId);
 
   pFailedChkpt = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   pOrphanTasks = taosArrayInit(4, sizeof(SOrphanTask));
@@ -255,7 +255,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   mndInitStreamExecInfo(pMnode, &execInfo);
   if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
-    mError("invalid hbMsg from vgId:%d, discarded", req.vgId);
+    mError("vgId:%d not exists in nodeList buf, discarded", req.vgId);
 
     terrno = TSDB_CODE_INVALID_MSG;
     doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
@@ -284,6 +284,23 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       continue;
     }
 
+    STaskCkptInfo *pChkInfo = &p->checkpointInfo;
+    if (pChkInfo->consensusChkptId != 0) {
+      SRestoreCheckpointInfo cp = {
+          .streamId = p->id.streamId,
+          .taskId = p->id.taskId,
+          .checkpointId = p->checkpointInfo.latestId,
+          .startTs = pChkInfo->consensusTs,
+      };
+
+      SStreamObj *pStream = mndGetStreamObj(pMnode, p->id.streamId);
+      int32_t     numOfTasks = mndGetNumOfStreamTasks(pStream);
+
+      SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, p->id.streamId, numOfTasks);
+      mndAddConsensusTasks(pInfo, &cp);
+      mndReleaseStream(pMnode, pStream);
+    }
+
     if (pTaskEntry->stage != p->stage && pTaskEntry->stage != -1) {
       updateStageInfo(pTaskEntry, p->stage);
       if (pTaskEntry->nodeId == SNODE_HANDLE) {
@@ -292,7 +309,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     } else {
       streamTaskStatusCopy(pTaskEntry, p);
 
-      STaskCkptInfo *pChkInfo = &p->checkpointInfo;
       if ((pChkInfo->activeId != 0) && pChkInfo->failed) {
         mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " transId:%d failed, kill it", p->id.taskId,
                pChkInfo->activeId, pChkInfo->activeTransId);

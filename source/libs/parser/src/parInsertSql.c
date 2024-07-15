@@ -30,6 +30,7 @@ typedef struct SInsertParseContext {
   bool           forceUpdate;
   bool           needTableTagVal;
   bool           needRequest;  // whether or not request server
+  bool           isStmtBind;    // whether is stmt bind
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -1978,7 +1979,6 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
 static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
                        SToken* pToken) {
   SBoundColInfo* pCols = &pTableCxt->boundColsInfo;
-  bool           isParseBindParam = false;
   SSchema*       pSchemas = getTableColumnSchema(pTableCxt->pMeta);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1996,7 +1996,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     SColVal* pVal = taosArrayGet(pTableCxt->pValues, pCols->pColIndex[i]);
 
     if (pToken->type == TK_NK_QUESTION) {
-      isParseBindParam = true;
+      pCxt->isStmtBind = true;
       if (NULL == pCxt->pComCxt->pStmtCb) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pToken->z);
         break;
@@ -2007,8 +2007,8 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
         break;
       }
 
-      if (isParseBindParam) {
-        code = buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and values");
+      if (pCxt->isStmtBind) {
+        code = buildInvalidOperationMsg(&pCxt->msg, "stmt bind param does not support normal value in sql");
         break;
       }
 
@@ -2025,7 +2025,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
+  if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
     if (TSDB_CODE_SUCCESS == code) {
@@ -2035,7 +2035,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
+  if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
     *pGotRow = true;
   }
 
@@ -2410,6 +2410,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
   }
 
   if (TK_NK_QUESTION == pTbName->type) {
+    pCxt->isStmtBind = true;
     if (NULL == pCxt->pComCxt->pStmtCb) {
       return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pTbName->z);
     }
@@ -2441,6 +2442,13 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     }
     pTbName->z = tbName;
     pTbName->n = strlen(tbName);
+  }
+
+  if (pCxt->isStmtBind) {
+    if (TK_NK_ID == pTbName->type || (tbNameAfterDbName != NULL && *(tbNameAfterDbName + 1) != '?')) {
+      // In SQL statements, the table name has already been specified.
+      parserWarn("0x%" PRIx64 " table name is specified in sql, ignore the table name in bind param", pCxt->pComCxt->requestId);
+    }
   }
 
   *pHasData = true;
@@ -2936,7 +2944,8 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
                                  .missCache = false,
                                  .usingDuplicateTable = false,
                                  .needRequest = true,
-                                 .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
+                                 .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false),
+                                 .isStmtBind = pCxt->isStmtBind};
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
   if (TSDB_CODE_SUCCESS == code) {

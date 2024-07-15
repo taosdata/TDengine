@@ -117,6 +117,15 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
   }
 }
 
+#define TAOS_CHECK_ERRNO(CODE)         \
+  do {                                 \
+    terrno = (CODE);                   \
+    if (terrno != TSDB_CODE_SUCCESS) { \
+      terrln = __LINE__;               \
+      goto _exit;                      \
+    }                                  \
+  } while (0)
+
 #define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
   do {                                     \
     if (TSDB_CODE_SUCCESS != (CODE)) {     \

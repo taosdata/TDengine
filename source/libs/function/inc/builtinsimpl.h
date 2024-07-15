@@ -133,6 +133,7 @@ int32_t getApercentileMaxSize();
 bool    getDiffFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool    diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t diffFunction(SqlFunctionCtx* pCtx);
+int32_t diffFunctionByRow(SArray* pCtx);
 
 bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool    derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);

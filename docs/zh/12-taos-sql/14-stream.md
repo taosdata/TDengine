@@ -27,7 +27,7 @@ subquery: SELECT select_list
     from_clause
     [WHERE condition]
     [PARTITION BY tag_list]
-    [window_clause]
+    window_clause
 ```
 
 支持会话窗口、状态窗口、滑动窗口、事件窗口和计数窗口，其中，状态窗口、事件窗口和计数窗口搭配超级表时必须与partition by tbname一起使用。对于数据源表是复合主键的流，不支持状态窗口、事件窗口、计数窗口的计算。
@@ -93,7 +93,7 @@ SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WIN
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
 ```
 
-PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名(从3.2.3.0开始，为了避免 SUBTABLE 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 __stableName_groupId)。
+PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名(从3.2.3.0开始，为了避免 SUBTABLE 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 _stableName_groupId)。
 
 注意，子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
 
@@ -273,3 +273,21 @@ PAUSE STREAM [IF EXISTS] stream_name;
 RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 没有指定IF EXISTS，如果该stream不存在，则报错，如果存在，则恢复流计算；指定了IF EXISTS，如果stream不存在，则返回成功；如果存在，则恢复流计算。如果指定IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
 
+## 状态数据备份与同步
+流计算的中间结果成为计算的状态数据，需要在流计算整个生命周期中进行持久化保存。为了确保流计算中间状态能够在集群环境下在不同的节点间可靠地同步和迁移，至3.3.2.1 版本开始，需要在运行环境中部署 rsync 软件，还需要增加以下的步骤：
+1. 在配置文件中配置 snode 的地址（IP+端口）和状态数据备份目录（该目录系 snode 所在的物理节点的目录）。
+2. 然后创建 snode。
+完成上述两个步骤以后才能创建流。
+如果没有创建 snode 并正确配置 snode 的地址，流计算过程中将无法生成检查点（checkpoint），并可能导致后续的计算结果产生错误。
+
+> snodeAddress           127.0.0.1:873
+> 
+> checkpointBackupDir    /home/user/stream/backup/checkpoint/
+
+
+## 创建 snode 的方式
+使用以下命令创建 snode（stream node）， snode 是流计算中有状态的计算节点，可用于部署聚合任务，同时负责备份不同的流计算任务生成的检查点数据。
+```sql
+CREATE SNODE ON DNODE [id]
+```
+其中的 id 是集群中的 dnode 的序号。请注意选择的dnode，流计算的中间状态将自动在其上进行备份。
