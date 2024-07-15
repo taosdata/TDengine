@@ -123,7 +123,7 @@ static void tColRowGetPriamyKeyDeepCopy(SBlockData* pBlock, int32_t irow, int32_
     pKey->pks[0].val = cv.value.val;
   } else {
     pKey->pks[0].nData = cv.value.nData;
-    memcpy(pKey->pks[0].pData, cv.value.pData, cv.value.nData);
+    /*void* p = */memcpy(pKey->pks[0].pData, cv.value.pData, cv.value.nData);
   }
 }
 
@@ -185,6 +185,10 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
 
     if (IS_VAR_DATA_TYPE(pCols[i].type)) {
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCols[i].bytes);
+      if (pSupInfo->buildBuf[i] == NULL) {
+        tsdbError("failed to prepare memory for set columnId slot list, size:%d, code:out of memory", pCols[i].bytes);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     } else {
       pSupInfo->buildBuf[i] = NULL;
     }
@@ -530,7 +534,10 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   // allocate buffer in order to load data blocks from file
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
+  code = setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
 
   code = initResBlockInfo(&pReader->resBlockInfo, capacity, pResBlock, pCond, pSup);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2496,8 +2503,8 @@ void updateComposedBlockInfo(STsdbReader* pReader, double el, STableBlockScanInf
   pResBlock->info.dataLoad = 1;
   pResBlock->info.version = pReader->info.verRange.maxVer;
 
-  blockDataUpdateTsWindow(pResBlock, pReader->suppInfo.slotId[0]);
-  blockDataUpdatePkRange(pResBlock, pReader->suppInfo.pkDstSlot, ASCENDING_TRAVERSE(pReader->info.order));
+  int32_t code = blockDataUpdateTsWindow(pResBlock, pReader->suppInfo.slotId[0]);
+  code = blockDataUpdatePkRange(pResBlock, pReader->suppInfo.pkDstSlot, ASCENDING_TRAVERSE(pReader->info.order));
   setComposedBlockFlag(pReader, true);
 
   pReader->cost.composedBlocks += 1;
@@ -3205,7 +3212,6 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader, int64_t en
 
 // set the correct start position in case of the first/last file block, according to the query time window
 static void initBlockDumpInfo(STsdbReader* pReader, SDataBlockIter* pBlockIter) {
-  int64_t             lastKey = ASCENDING_TRAVERSE(pReader->info.order) ? INT64_MIN : INT64_MAX;
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(pBlockIter);
   SReaderStatus*      pStatus = &pReader->status;
   SFileBlockDumpInfo* pDumpInfo = &pStatus->fBlockDumpInfo;
@@ -5476,6 +5482,9 @@ void tsdbUntakeReadSnap2(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proact
 void tsdbReaderSetId2(STsdbReader* pReader, const char* idstr) {
   taosMemoryFreeClear(pReader->idStr);
   pReader->idStr = taosStrdup(idstr);
+  if (pReader->idStr == NULL) {
+    // no need to do anything
+  }
   pReader->status.fileIter.pSttBlockReader->mergeTree.idStr = pReader->idStr;
 }
 
