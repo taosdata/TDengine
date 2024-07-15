@@ -1920,7 +1920,7 @@ int taos_stmt2_close(TAOS_STMT2 *stmt) {
 
   return stmtClose2(stmt);
 }
-
+/*
 int taos_stmt2_param_count(TAOS_STMT2 *stmt, int *nums) {
   if (stmt == NULL || nums == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -1930,7 +1930,7 @@ int taos_stmt2_param_count(TAOS_STMT2 *stmt, int *nums) {
 
   return stmtGetParamNum2(stmt, nums);
 }
-
+*/
 int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
   if (stmt == NULL || insert == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -1952,6 +1952,8 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count,
     return stmtGetColFields2(stmt, count, fields);
   } else if (field_type == TAOS_FIELD_TAG) {
     return stmtGetTagFields2(stmt, count, fields);
+  } else if (field_type == TAOS_FIELD_QUERY) {
+    return stmtGetParamNum2(stmt, count);
   } else {
     tscError("invalid parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;

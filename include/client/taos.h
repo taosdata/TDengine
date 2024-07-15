@@ -198,6 +198,7 @@ typedef void TAOS_STMT2;
 typedef enum {
   TAOS_FIELD_COL = 1,
   TAOS_FIELD_TAG,
+  TAOS_FIELD_QUERY,
 } TAOS_FIELD_T;
 
 typedef struct {
@@ -221,7 +222,6 @@ DLL_EXPORT int taos_stmt2_bind_param(TAOS_STMT2 *stmt, const char *tbname, TAOS_
                                      int32_t col_idx);
 DLL_EXPORT int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int taos_stmt2_close(TAOS_STMT2 *stmt);
-DLL_EXPORT int taos_stmt2_param_count(TAOS_STMT2 *stmt, int *count);
 DLL_EXPORT int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);
 DLL_EXPORT int taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields);
 DLL_EXPORT void      taos_stmt2_free_fields(TAOS_STMT2 *stmt, TAOS_FIELD_E *fields);

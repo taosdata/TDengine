@@ -1707,7 +1707,7 @@ int stmtGetColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_E** fields) {
   if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type && pStmt->sql.runTimes) {
     taos_free_result(pStmt->exec.pRequest);
     pStmt->exec.pRequest = NULL;
-    STMT_ERR_RET(stmtCreateRequest(pStmt));
+    // STMT_ERR_RET(stmtCreateRequest(pStmt));
   }
 
   STMT_ERRI_JRET(stmtCreateRequest(pStmt));
@@ -1716,7 +1716,11 @@ int stmtGetColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_E** fields) {
     STMT_ERRI_JRET(stmtParseSql(pStmt));
   }
 
-  STMT_ERRI_JRET(stmtFetchColFields2(stmt, nums, fields));
+  if (STMT_TYPE_QUERY == pStmt->sql.type) {
+    *nums = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
+  } else {
+    STMT_ERRI_JRET(stmtFetchColFields2(stmt, nums, fields));
+  }
 
 _return:
 
