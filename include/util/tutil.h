@@ -147,11 +147,16 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
 
+#define TAOS_RETURN(code)     \
+  do {                        \
+    return (terrno = (code)); \
+  } while (0)
+
 #define TAOS_CHECK_RETURN(CMD)       \
   do {                               \
     int32_t code = (CMD);            \
     if (code != TSDB_CODE_SUCCESS) { \
-      return (terrno = code);        \
+      TAOS_RETURN(code);             \
     }                                \
   } while (0)
 
@@ -163,11 +168,6 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
       }                                    \
       goto LABEL;                          \
     }                                      \
-  } while (0)
-
-#define TAOS_RETURN(code)     \
-  do {                        \
-    return (terrno = (code)); \
   } while (0)
 
 #ifdef __cplusplus
