@@ -128,7 +128,7 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, scalable_bloomFilter) {
 
   int64_t      size = 10000;
   SScalableBf* pSBF4 = NULL;
-  GTEST_ASSERT_EQ(0, tScalableBfInit(size, 0.001, pSBF4));
+  GTEST_ASSERT_EQ(0, tScalableBfInit(size, 0.001, &pSBF4));
   for (int64_t i = 0; i < 1000; i++) {
     int64_t ts = i + ts1;
     GTEST_ASSERT_EQ(tScalableBfPut(pSBF4, &ts, sizeof(int64_t)), TSDB_CODE_SUCCESS);
