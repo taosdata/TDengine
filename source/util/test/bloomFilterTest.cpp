@@ -9,12 +9,13 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, normal_bloomFilter) {
   int64_t ts1 = 1650803518000;
 
   SBloomFilter* pBFTmp = NULL;
-  GTEST_ASSERT_EQ(0, tBloomFilterInit(100, 0, &pBFTmp));
-  GTEST_ASSERT_EQ(0, tBloomFilterInit(100, 1, &pBFTmp));
-  GTEST_ASSERT_EQ(0, tBloomFilterInit(100, -0.1, &pBFTmp));
-  GTEST_ASSERT_EQ(0, tBloomFilterInit(0, 0.01, &pBFTmp));
+  GTEST_ASSERT_NE(0, tBloomFilterInit(100, 0, &pBFTmp));
+  GTEST_ASSERT_NE(0, tBloomFilterInit(100, 1, &pBFTmp));
+  GTEST_ASSERT_NE(0, tBloomFilterInit(100, -0.1, &pBFTmp));
+  GTEST_ASSERT_NE(0, tBloomFilterInit(0, 0.01, &pBFTmp));
 
-  SBloomFilter *pBF1 = NULL, int32_t code = tBloomFilterInit(100, 0.005, &pBF1);
+  SBloomFilter *pBF1 = NULL;
+  int32_t code = tBloomFilterInit(100, 0.005, &pBF1);
   GTEST_ASSERT_EQ(0, code);
   GTEST_ASSERT_EQ(pBF1->numBits, 1152);
   GTEST_ASSERT_EQ(pBF1->numUnits, 1152 / 64);
@@ -33,13 +34,13 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, normal_bloomFilter) {
   GTEST_ASSERT_EQ(pBF2->numUnits, 47925312 / 64);
 
   SBloomFilter* pBF3 = NULL;
-  GTEST_ASSERT_EQ(0, tBloomFilterInit(10000 * 10000, 0.001));
+  GTEST_ASSERT_EQ(0, tBloomFilterInit(10000 * 10000, 0.001, &pBF3));
   GTEST_ASSERT_EQ(pBF3->numBits, 1437758784);
   GTEST_ASSERT_EQ(pBF3->numUnits, 1437758784 / 64);
 
   int64_t       size = 10000;
   SBloomFilter* pBF4 = NULL;
-  GTEST_ASSERT_EQ(0, tBloomFilterInit(size, 0.001));
+  GTEST_ASSERT_EQ(0, tBloomFilterInit(size, 0.001, &pBF4));
   for (int64_t i = 0; i < 1000; i++) {
     int64_t ts = i + ts1;
     GTEST_ASSERT_EQ(tBloomFilterPut(pBF4, &ts, sizeof(int64_t)), TSDB_CODE_SUCCESS);
