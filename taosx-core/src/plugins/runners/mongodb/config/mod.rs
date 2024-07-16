@@ -251,10 +251,22 @@ impl TaskConfig {
         database = database.replace("${Y}", start_tz.format("%Y").to_string().as_str());
         database = database.replace("${y}", start_tz.format("%y").to_string().as_str());
         database = database.replace("${m}", start_tz.format("%m").to_string().as_str());
+        database = database.replace(
+            "${m_short}",
+            start_tz.format("%m").to_string().trim_start_matches("0"),
+        );
         database = database.replace("${b}", start_tz.format("%b").to_string().as_str());
         database = database.replace("${B}", start_tz.format("%B").to_string().as_str());
+        database = database.replace(
+            "${d_short}",
+            start_tz.format("%d").to_string().trim_start_matches("0"),
+        );
         database = database.replace("${d}", start_tz.format("%d").to_string().as_str());
         database = database.replace("${j}", start_tz.format("%j").to_string().as_str());
+        database = database.replace(
+            "${j_short}",
+            start_tz.format("%j").to_string().trim_start_matches("0"),
+        );
         database = database.replace("${F}", start_tz.format("%F").to_string().as_str());
         database = database.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
         database = database.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
@@ -275,10 +287,22 @@ impl TaskConfig {
         collection = collection.replace("${Y}", start_tz.format("%Y").to_string().as_str());
         collection = collection.replace("${y}", start_tz.format("%y").to_string().as_str());
         collection = collection.replace("${m}", start_tz.format("%m").to_string().as_str());
+        collection = collection.replace(
+            "${m_short}",
+            start_tz.format("%m").to_string().trim_start_matches("0"),
+        );
         collection = collection.replace("${b}", start_tz.format("%b").to_string().as_str());
         collection = collection.replace("${B}", start_tz.format("%B").to_string().as_str());
         collection = collection.replace("${d}", start_tz.format("%d").to_string().as_str());
+        collection = collection.replace(
+            "${d_short}",
+            start_tz.format("%d").to_string().trim_start_matches("0"),
+        );
         collection = collection.replace("${j}", start_tz.format("%j").to_string().as_str());
+        collection = collection.replace(
+            "${j_short}",
+            start_tz.format("%j").to_string().trim_start_matches("0"),
+        );
         collection = collection.replace("${F}", start_tz.format("%F").to_string().as_str());
         collection = collection.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
         collection = collection.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
@@ -342,12 +366,22 @@ impl TaskConfig {
             time_range_exist = true;
         }
         if !time_range_exist {
-            anyhow::bail!("invalid query template, missing start and end");
+            if !sql.contains("${start_datetime}") && sql.contains("${end_datetime}") {
+                anyhow::bail!("invalid query template, missing start_datetime");
+            } else if sql.contains("${start_datetime}") && !sql.contains("${end_datetime}") {
+                anyhow::bail!("invalid query template, missing end_datetime");
+            } else if !sql.contains("${start_timestamp}") && sql.contains("${end_timestamp}") {
+                anyhow::bail!("invalid query template, missing start_timestamp");
+            } else if sql.contains("${start_timestamp}") && !sql.contains("${end_timestamp}") {
+                anyhow::bail!("invalid query template, missing end_timestamp");
+            } else {
+                anyhow::bail!("invalid query template, missing start and end");
+            }
         }
         let document: Result<Document, serde_json::Error> = serde_json::from_str(sql.as_str());
         match document {
             Ok(document) => anyhow::Ok(document),
-            Err(e) => anyhow::bail!("failed to parse sql: {}", e),
+            Err(e) => anyhow::bail!("parsing query template failed: {}", e),
         }
     }
 }

@@ -42,26 +42,34 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
         Ok(c) => {
             let query = MongoDBQuery::try_new(c).await;
             match query {
-                Err(err) => DataSourceValidation::invalid(
-                    MONGODB_ID.to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
-                ),
+                Err(err) => {
+                    let mut err = err.to_string();
+                    if err.contains("No available servers") {
+                        err = String::from("No available servers");
+                    } else if err.contains("Unauthorized") {
+                        err = String::from("authentication failed");
+                    }
+                    DataSourceValidation::invalid(
+                        MONGODB_ID.to_string(),
+                        format!("Failed to connect to dsn: {}", err),
+                    )
+                }
                 Ok(query) => {
                     // 通过查询数据库来判断是否连接成功
                     let result = query.client.list_databases().await;
                     match result {
-                        Err(err) => DataSourceValidation::invalid(
-                            MONGODB_ID.to_string(),
-                            format!(
-                                "failed to connect to dsn: {}, cause: {}",
-                                dsn.to_string(),
-                                err.to_string()
-                            ),
-                        ),
+                        Err(err) => {
+                            let mut err = err.to_string();
+                            if err.contains("No available servers") {
+                                err = String::from("No available servers");
+                            } else if err.contains("Unauthorized") {
+                                err = String::from("authentication failed");
+                            }
+                            DataSourceValidation::invalid(
+                                MONGODB_ID.to_string(),
+                                format!("Failed to connect to dsn: {}", err),
+                            )
+                        }
                         Ok(_cli) => DataSourceValidation::valid(MONGODB_ID.to_string(), None),
                     }
                 }
