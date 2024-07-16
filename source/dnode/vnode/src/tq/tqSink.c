@@ -853,8 +853,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = TD_REQ_FROM_APP};
         code = setDstTableDataUid(pVnode, pTask, pDataBlock, stbFullName, &tbData);
         if (code != TSDB_CODE_SUCCESS) {
-          tqError("vgId:%d s-task:%s dst-table not exist, stb:%" PRId64 " discard stream results", vgId, id,
-                  stbFullName);
+          tqError("vgId:%d s-task:%s dst-table not exist, stb:%s discard stream results", vgId, id, stbFullName);
           continue;
         }
 
