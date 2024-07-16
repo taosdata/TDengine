@@ -789,6 +789,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open
 
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory")
 
+//AUDIT
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD,   "Failed to send out audit record")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_GENERATE_JSON,       "Failed to generate json")
 #ifdef TAOS_ERROR_C
 };
 #endif
