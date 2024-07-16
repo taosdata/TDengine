@@ -22,10 +22,7 @@ impl Consumer {
 
     pub async fn consume(&mut self, receiver: Receiver<MongoDBConfig>) -> anyhow::Result<()> {
         // connect to database
-        let mut query = MongoDBQuery::try_new(
-            self.config.connect.clone(),
-        )
-        .await?;
+        let mut query = MongoDBQuery::try_new(self.config.connect.clone()).await?;
 
         // IPC Tcp stream
         let socket = format!("127.0.0.1:{}", &self.config.ipc_port.unwrap_or(0));
