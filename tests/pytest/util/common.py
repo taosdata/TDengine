@@ -537,21 +537,21 @@ class TDCom:
         tdLog.info("cfgPath: %s" % cfgPath)
         return cfgPath
 
-    def newcon(self,host='localhost',port=6030,user='root',password='taosdata', database='None'):
+    def newcon(self,host='localhost',port=6030,user='root',password='taosdata', database=None):
         con=taos.connect(host=host, user=user, password=password, port=port, database=database)
         # print(con)
         return con
 
-    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',databse='None'):
+    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',database=None):
         cfgPath = self.getClientCfgPath()
-        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database='None')
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database=database)
         cur=con.cursor()
         # print(cur)
         return cur
 
-    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata'):
+    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', database = None):
         newTdSql = TDSql()
-        cur = self.newcur(host=host,port=port,user=user,password=password)
+        cur = self.newcur(host=host,port=port,user=user,password=password, database=database)
         newTdSql.init(cur, False)
         return newTdSql
 
