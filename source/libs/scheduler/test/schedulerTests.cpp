@@ -431,8 +431,11 @@ void *schtSendRsp(void *param) {
     taosMsleep(1);
   }
 
-  pJob = schAcquireJob(job);
-
+  code = schAcquireJob(job, &pJob);
+  if (code) {
+    return NULL;
+  }
+  
   void *pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
@@ -457,8 +460,13 @@ void *schtSendRsp(void *param) {
 
 void *schtCreateFetchRspThread(void *param) {
   int64_t  job = *(int64_t *)param;
-  SSchJob *pJob = schAcquireJob(job);
+  SSchJob *pJob = NULL;
 
+  (void)schAcquireJob(job, &pJob);
+  if (NULL == pJob) {
+    return NULL;
+  }
+  
   taosSsleep(1);
 
   int32_t  code = 0;
@@ -572,7 +580,9 @@ void *schtRunJobThread(void *aa) {
     code = schedulerExecJob(&req, &queryJobRefId);
     assert(code == 0);
 
-    pJob = schAcquireJob(queryJobRefId);
+    pJob = NULL;
+    code = schAcquireJob(queryJobRefId, &pJob);
+
     if (NULL == pJob) {
       taosArrayDestroy(qnodeList);
       schtFreeQueryDag(dag);
@@ -728,7 +738,9 @@ TEST(queryTest, normalCase) {
   code = schedulerExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
-  SSchJob *pJob = schAcquireJob(job);
+  SSchJob *pJob = NULL;
+  code = schAcquireJob(job, &pJob);
+  ASSERT_EQ(code, 0);
 
   void *pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
@@ -839,8 +851,10 @@ TEST(queryTest, readyFirstCase) {
   code = schedulerExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
-  SSchJob *pJob = schAcquireJob(job);
-
+  SSchJob *pJob = NULL;
+  code = schAcquireJob(job, &pJob);
+  ASSERT_EQ(code, 0);
+  
   void *pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
@@ -956,7 +970,9 @@ TEST(queryTest, flowCtrlCase) {
   code = schedulerExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
-  SSchJob *pJob = schAcquireJob(job);
+  SSchJob *pJob = NULL;
+  code = schAcquireJob(job, &pJob);
+  ASSERT_EQ(code, 0);
 
   while (!queryDone) {
     void *pIter = taosHashIterate(pJob->execTasks, NULL);
@@ -1094,7 +1110,7 @@ TEST(otherTest, otherCase) {
   schReleaseJob(0);
   schFreeRpcCtx(NULL);
 
-  ASSERT_EQ(schDumpEpSet(NULL), (char *)NULL);
+  ASSERT_EQ(schDumpEpSet(NULL, NULL), TSDB_CODE_SUCCESS);
   ASSERT_EQ(strcmp(schGetOpStr(SCH_OP_NULL), "NULL"), 0);
   ASSERT_EQ(strcmp(schGetOpStr((SCH_OP_TYPE)100), "UNKNOWN"), 0);
 }
