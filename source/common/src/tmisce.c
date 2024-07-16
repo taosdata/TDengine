@@ -15,9 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "tmisce.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tjson.h"
-#include "tdatablock.h"
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
@@ -178,57 +178,57 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
   int32_t code = 0;
-  SJson* pJson = tjsonCreateObject();
+  SJson*  pJson = tjsonCreateObject();
   if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   char tmp[4096] = {0};
 
-  TAOS_CHECK_GOTO(code = tjsonAddDoubleToObject(pJson, "reportVersion", 1), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "reportVersion", 1), NULL, _exit);
 
-  TAOS_CHECK_GOTO(code = tjsonAddIntegerToObject(pJson, "clusterId", clusterId), NULL, _exit);
-  TAOS_CHECK_GOTO(code = tjsonAddIntegerToObject(pJson, "startTime", startTime), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "clusterId", clusterId), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "startTime", startTime), NULL, _exit);
 
   // Do NOT invoke the taosGetFqdn here.
   // this function may be invoked when memory exception occurs,so we should assume that it is running in a memory locked
   // environment. The lock operation by taosGetFqdn may cause this program deadlock.
-  TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "fqdn", tsLocalFqdn), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "fqdn", tsLocalFqdn), NULL, _exit);
 
-  TAOS_CHECK_GOTO(code = tjsonAddIntegerToObject(pJson, "pid", taosGetPId()), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "pid", taosGetPId()), NULL, _exit);
 
   code = taosGetAppName(tmp, NULL);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     TAOS_CHECK_GOTO(code, NULL, _exit);
   }
-  TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "appName", tmp), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "appName", tmp), NULL, _exit);
 
   if (taosGetOsReleaseName(tmp, NULL, NULL, sizeof(tmp)) == 0) {
-    TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "os", tmp), NULL, _exit);
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "os", tmp), NULL, _exit);
   } else {
     // do nothing
   }
 
   float numOfCores = 0;
   if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
-    TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "cpuModel", tmp), NULL, _exit);
-    TAOS_CHECK_GOTO(code = tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores), NULL, _exit);
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "cpuModel", tmp), NULL, _exit);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores), NULL, _exit);
   } else {
-    TAOS_CHECK_GOTO(code = tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores), NULL, _exit);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores), NULL, _exit);
   }
 
   int32_t nBytes = snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
   if (nBytes <= 9 || nBytes >= sizeof(tmp)) {
-    TAOS_CHECK_GOTO(code = TSDB_CODE_OUT_OF_RANGE, NULL, _exit);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_RANGE, NULL, _exit);
   }
-  TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "memory", tmp), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "memory", tmp), NULL, _exit);
 
-  TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "version", version), NULL, _exit);
-  TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "buildInfo", buildinfo), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "version", version), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "buildInfo", buildinfo), NULL, _exit);
 
-  TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "gitInfo", gitinfo), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "gitInfo", gitinfo), NULL, _exit);
 
-  TAOS_CHECK_GOTO(code = tjsonAddIntegerToObject(pJson, "crashSig", signum), NULL, _exit);
-  TAOS_CHECK_GOTO(code = tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs()), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "crashSig", signum), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs()), NULL, _exit);
 
 #ifdef _TD_DARWIN_64
   taosLogTraceToBuf(tmp, sizeof(tmp), 4);
@@ -238,7 +238,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
   taosLogTraceToBuf(tmp, sizeof(tmp), 8);
 #endif
 
-  TAOS_CHECK_GOTO(code = tjsonAddStringToObject(pJson, "stackInfo", tmp), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "stackInfo", tmp), NULL, _exit);
 
   char* pCont = tjsonToString(pJson);
   if (pCont == NULL) {
@@ -256,8 +256,8 @@ _exit:
 }
 
 int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
-  int32_t      code = 0;
-  SConfig*     pConf = taosGetCfg();
+  int32_t  code = 0;
+  SConfig* pConf = taosGetCfg();
   if (pConf == NULL) {
     return TSDB_CODE_INVALID_CFG;
   }
@@ -269,7 +269,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
   int8_t locked = 0;
 
-  TAOS_CHECK_GOTO(code = blockDataEnsureCapacity(pBlock, cfgGetSize(pConf)), NULL, _exit);
+  TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, cfgGetSize(pConf)), NULL, _exit);
 
   pIter = cfgCreateIter(pConf);
   if (pIter == NULL) {
@@ -293,7 +293,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
 
-    TAOS_CHECK_GOTO(code = colDataSetVal(pColInfo, numOfRows, name, false), NULL, _exit);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, name, false), NULL, _exit);
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
@@ -306,7 +306,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
 
-    TAOS_CHECK_GOTO(code = colDataSetVal(pColInfo, numOfRows, value, false), NULL, _exit);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, value, false), NULL, _exit);
 
     char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
     cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
@@ -317,7 +317,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
       code = TSDB_CODE_OUT_OF_RANGE;
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
-    TAOS_CHECK_GOTO(code = colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, scope, false), NULL, _exit);
 
     numOfRows++;
   }
