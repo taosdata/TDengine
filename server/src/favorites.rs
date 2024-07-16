@@ -192,12 +192,14 @@ fn build_page_query<'a, 'b>(
         Some(true) => {
             query_builder.push(" where is_public = true");
         }
-        Some(false) | None => {
-            query_builder.push(" where is_public = false");
+        Some(false) => {
+            query_builder.push(" where is_public = false ");
+            query_builder.push(" and username = ").push_bind(username);
+        }
+        None => {
+            query_builder.push(" where username = ").push_bind(username);
         }
     }
-
-    query_builder.push(" and username = ").push_bind(username);
 
     if let Some(fuzzy) = search
         .sql_desc_fuzzy
