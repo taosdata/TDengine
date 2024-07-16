@@ -14,11 +14,14 @@
  */
 
 #include "command.h"
+#include <unistd.h>
 #include "catalog.h"
 #include "commandInt.h"
 #include "scheduler.h"
 #include "systable.h"
 #include "taosdef.h"
+#include "taoserror.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
@@ -109,7 +112,7 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
   } else {
-    blockDataDestroy(pBlock);
+    (void)blockDataDestroy(pBlock);
   }
   return code;
 }
@@ -222,7 +225,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
       code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
     }
   }
-  blockDataDestroy(pBlock);
+  (void)blockDataDestroy(pBlock);
   return code;
 }
 
@@ -244,7 +247,7 @@ static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
   } else {
-    blockDataDestroy(pBlock);
+    (void)blockDataDestroy(pBlock);
   }
   return code;
 }
@@ -413,7 +416,7 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
   }
-  blockDataDestroy(pBlock);
+  (void)blockDataDestroy(pBlock);
   return code;
 }
 
@@ -433,7 +436,7 @@ static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
   } else {
-    blockDataDestroy(pBlock);
+    (void)blockDataDestroy(pBlock);
   }
   return code;
 }
@@ -454,7 +457,7 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pBlock;
   } else {
-    blockDataDestroy(pBlock);
+    (void)blockDataDestroy(pBlock);
   }
   return code;
 }
@@ -748,7 +751,7 @@ static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRs
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
   }
-  blockDataDestroy(pBlock);
+  (void)blockDataDestroy(pBlock);
   return code;
 }
 
@@ -841,23 +844,39 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
   pBlock->info.hasVarCol = true;
 
   pBlock->pDataBlock = taosArrayInit(SHOW_LOCAL_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
+  if (NULL == pBlock->pDataBlock) {
+    taosMemoryFree(pBlock);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   SColumnInfoData infoData = {0};
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
+  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+    goto _exit;
+  }
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
+  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+    goto _exit;
+  }
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
+  if(taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+    goto _exit;
+  }
 
   *pOutput = pBlock;
-  return TSDB_CODE_SUCCESS;
+
+_exit:
+  if(terrno != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pBlock);
+    taosArrayDestroy(pBlock->pDataBlock);
+  }
+  return terrno;
 }
 
 static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
@@ -869,7 +888,7 @@ static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);
   }
-  blockDataDestroy(pBlock);
+  (void)blockDataDestroy(pBlock);
   return code;
 }
 
@@ -926,7 +945,7 @@ static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** p
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, LIST_LENGTH(pSelect->pProjectionList), pRsp);
   }
-  blockDataDestroy(pBlock);
+  (void)blockDataDestroy(pBlock);
   return code;
 }
 
@@ -939,7 +958,7 @@ static int32_t execShowCreateView(SShowCreateViewStmt* pStmt, SRetrieveTableRsp*
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_VIEW_RESULT_COLS, pRsp);
   }
-  blockDataDestroy(pBlock);
+  (void)blockDataDestroy(pBlock);
   return code;
 }
 
