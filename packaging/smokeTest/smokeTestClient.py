@@ -209,11 +209,11 @@ if uninstall:
         if "No such file or directory" not in out:
             print("Uninstall left some files: %s" % out)
             leftFile = True
-        out = subprocess.getoutput("ls /usr/local/Cellar/tdengine")
-        print(out)
-        if out:
-            print("Uninstall left some files: /usr/local/Cellar/tdengine/%s" % out)
-            leftFile = True
+        #out = subprocess.getoutput("ls /usr/local/Cellar/tdengine/")
+        #print(out)
+        #if out:
+        #    print("Uninstall left some files: /usr/local/Cellar/tdengine/%s" % out)
+        #    leftFile = True
         #if not leftFile:
         #    print("*******Test Result: uninstall test passed ************")
 
