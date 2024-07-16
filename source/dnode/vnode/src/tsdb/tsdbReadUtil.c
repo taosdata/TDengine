@@ -126,8 +126,8 @@ int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScan
 }
 
 int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id) {
-  *pInfo = tSimpleHashGet(pTableMap, &uid, sizeof(uid));
-  if (pInfo == NULL || *pInfo == NULL) {
+  *pInfo = *(STableBlockScanInfo**)tSimpleHashGet(pTableMap, &uid, sizeof(uid));
+  if (pInfo == NULL) {
     int32_t size = tSimpleHashGetSize(pTableMap);
     tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", uid, size, id);
     return TSDB_CODE_INVALID_PARA;

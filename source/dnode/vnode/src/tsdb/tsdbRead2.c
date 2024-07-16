@@ -2884,6 +2884,9 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
 
   size_t  numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
   SArray* pIndexList = taosArrayInit(numOfTables, sizeof(SBrinBlk));
+  if (pIndexList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   while (1) {
     // only check here, since the iterate data in memory is very fast.
@@ -3382,7 +3385,7 @@ static void initBlockDumpInfo(STsdbReader* pReader, SDataBlockIter* pBlockIter) 
   SFileBlockDumpInfo* pDumpInfo = &pStatus->fBlockDumpInfo;
 
   int32_t code = getCurrentBlockInfo(pBlockIter, &pBlockInfo);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     pDumpInfo->totalRows = pBlockInfo->numRow;
     pDumpInfo->rowIndex = ASCENDING_TRAVERSE(pReader->info.order) ? 0 : pBlockInfo->numRow - 1;
   } else {
