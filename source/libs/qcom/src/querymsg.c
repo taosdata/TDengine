@@ -713,6 +713,9 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   }
 
   STableCfgRsp *out = taosMemoryCalloc(1, sizeof(STableCfgRsp));
+  if(out == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   if (tDeserializeSTableCfgRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableCfgRsp failed, msgSize:%d", msgSize);
     tFreeSTableCfgRsp(out);
@@ -731,6 +734,9 @@ int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
   }
 
   SViewMetaRsp *out = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+  if (out == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   if (tDeserializeSViewMetaRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSViewMetaRsp failed, msgSize:%d", msgSize);
     tFreeSViewMetaRsp(out);
