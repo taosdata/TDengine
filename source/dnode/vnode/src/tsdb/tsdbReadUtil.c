@@ -996,6 +996,7 @@ int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet) 
 int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
                               const char* pstr) {
   int32_t numOfRows = 0;
+  int32_t code = 0;
 
   // no data exists, go to end
   int32_t numOfLevels = pFileSet->lvlArr->size;
@@ -1020,7 +1021,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
         conf.file[0] = *pSttLevel->fobjArr->data[i]->f;
 
         const char* pName = pSttLevel->fobjArr->data[i]->fname;
-        int32_t     code = tsdbSttFileReaderOpen(pName, &conf, &pIter->pReader);
+        code = tsdbSttFileReaderOpen(pName, &conf, &pIter->pReader);
         if (code != TSDB_CODE_SUCCESS) {
           tsdbError("open stt file reader error. file:%s, code %s, %s", pName, tstrerror(code), pstr);
           continue;
@@ -1028,8 +1029,8 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
       }
 
       if (pIter->pBlockLoadInfo == NULL) {
-        pIter->pBlockLoadInfo = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
-        if (pIter->pBlockLoadInfo == NULL) {
+        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols, &pIter->pBlockLoadInfo);
+        if (code != TSDB_CODE_SUCCESS) {
           tsdbError("failed to create block load info, code: out of memory, %s", pstr);
           continue;
         }
@@ -1037,7 +1038,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
 
       // load stt blocks statis for all stt-blocks, to decide if the data of queried table exists in current stt file
       TStatisBlkArray* pStatisBlkArray = NULL;
-      int32_t          code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray**)&pStatisBlkArray);
+      code = tsdbSttFileReadStatisBlk(pIter->pReader, (const TStatisBlkArray**)&pStatisBlkArray);
       if (code != TSDB_CODE_SUCCESS) {
         tsdbError("failed to load stt block statistics, code:%s, %s", tstrerror(code), pstr);
         continue;
