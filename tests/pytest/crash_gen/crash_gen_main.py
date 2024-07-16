@@ -557,7 +557,6 @@ class ThreadCoordinator:
         else:
             taskType = db.getStateMachine().balance_pickTaskType()  # and an method can get  balance task types
             pass
-
         return taskType(self._execStats, db)  # create a task from it
 
     def resetExecutedTasks(self):
@@ -1627,6 +1626,7 @@ class ExecutionStats:
                     self._failureReason) if self._failed else "SUCCEEDED"))
         Logging.info("| Task Execution Times (success/total):")
         execTimesAny = 0.0
+        print("----self._execTimes:", self._execTimes)
         for k, n in self._execTimes.items():
             execTimesAny += n[0]
             errStr = None
@@ -2213,10 +2213,8 @@ class TdSuperTable:
         '''
         dbName = self._dbName
         sql = "select tbname from {}.{} where tbname in ('{}')".format(dbName, self._stName, regTableName)
-        print("======sql:", sql)
         if dbc.query(sql) >= 1:  # reg table exists already
             return
-        print("========")
         # acquire a lock first, so as to be able to *verify*. More details in TD-1471
         fullTableName = dbName + '.' + regTableName
         if task is not None:  # Somethime thie operation is requested on behalf of a "task"
@@ -2224,13 +2222,12 @@ class TdSuperTable:
             task.lockTable(fullTableName)  # in which case we'll lock this table to ensure serialized access
             # Logging.info("Table locked for creation".format(fullTableName))
         Progress.emit(Progress.CREATE_TABLE_ATTEMPT)  # ATTEMPT to create a new table
-        # print("(" + fullTableName[-3:] + ")", end="", flush=True)  
+        # print("(" + fullTableName[-3:] + ")", end="", flush=True)
         try:
-            print("00000000:", self._getTagStrForSql(dbc))
             sql = "CREATE TABLE {} USING {}.{} tags ({})".format(
                 fullTableName, dbName, self._stName, self._getTagStrForSql(dbc)
             )
-            # Logging.info("Creating regular with SQL: {}".format(sql))            
+            # Logging.info("Creating regular with SQL: {}".format(sql))
             dbc.execute(sql)
             # Logging.info("Regular table created: {}".format(sql))
         finally:
@@ -2240,18 +2237,12 @@ class TdSuperTable:
                 # Logging.info("Table unlocked after creation: {}".format(fullTableName))
 
     def _getTagStrForSql(self, dbc):
-        print("-----", DataBoundary.TINYINT_BOUNDARY.value)
         tags = self._getTags(dbc)
-        print("=====tags:", tags)
         tagStrs = []
         record_str_idx_lst = list()
         start_idx = 0
         for tagName in tags:
-            
-            print("tagStrs---------", tagStrs)
-            print("=====tagName:", tagName)
             tagType = tags[tagName]
-            print("=====tagType:", tagType)
             if tagType == 'BINARY':
                 tagStrs.append("'Beijing-Shanghai-LosAngeles'")
                 record_str_idx_lst.append(start_idx)
@@ -2290,11 +2281,8 @@ class TdSuperTable:
             else:
                 raise RuntimeError("Unexpected tag type: {}".format(tagType))
             start_idx += 1
-        print("------------", tagStrs)
         tagStrs_to_string_list = list(map(lambda x:str(x), tagStrs))
         trans_tagStrs_to_string_list = list(map(lambda x: f'"{x[1]}"' if x[0] in record_str_idx_lst else x[1], enumerate(tagStrs_to_string_list)))
-
-        print("------------", trans_tagStrs_to_string_list)
         return ", ".join(trans_tagStrs_to_string_list)
 
 
@@ -2642,8 +2630,8 @@ class TaskAddData(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canAddData()
 
-    def __init__(self, db: Database, dbc, regTableName):
-        self.cols = self._getCols(db, dbc)
+    # def __init__(self, db: Database, dbc, regTableName):
+    #     self.cols = self._getCols(db, dbc, regTableName)
 
     def _lockTableIfNeeded(self, fullTableName, extraMsg=''):
         if Config.getConfig().verify_data:
@@ -2684,13 +2672,34 @@ class TaskAddData(StateTransitionTask):
             # Logging.info("Data added in batch: {}".format(sql))
             self._unlockTableIfNeeded(fullTableName)
 
+    def _addDataInBatch_n(self, db, dbc, regTableName, te: TaskExecutor):
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
+
+        fullTableName = db.getName() + '.' + regTableName
+        self._lockTableIfNeeded(fullTableName, 'batch')
+        colStrs = self._getColStrForSql(db, dbc, regTableName)
+        sql = "INSERT INTO {} VALUES ".format(fullTableName)
+        for j in range(numRecords):  # number of records per table
+            # nextInt = db.getNextInt()
+            # nextTick = db.getNextTick()
+            # nextColor = db.getNextColor()
+            sql += "({});".format(colStrs)
+
+        # Logging.info("Adding data in batch: {}".format(sql))
+        try:
+            dbc.execute(sql)
+        finally:
+            # Logging.info("Data added in batch: {}".format(sql))
+            self._unlockTableIfNeeded(fullTableName)
+
     def _getCols(self, db: Database, dbc, regTableName):
         dbc.query("DESCRIBE {}.{}".format(db.getName(), regTableName))
         stCols = dbc.getQueryResult()
         ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
         return ret
 
-    def _getColStrForSql(self, db: Database):
+    def _getColStrForSql(self, db: Database, dbc, regTableName):
+        self.cols = self._getCols(db, dbc, regTableName)
         colStrs = []
         record_str_idx_lst = list()
         start_idx = 0
@@ -2834,13 +2843,16 @@ class TaskAddData(StateTransitionTask):
                 os.fsync(self.fAddLogDone.fileno())
 
     def _addData_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
+        super_table = db.getFixedSuperTable()
+        print(super_table.getName())
+        time.sleep(5)
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
 
         for j in range(numRecords):  # number of records per table
             intToWrite = db.getNextInt()
             nextTick = db.getNextTick()
             nextColor = db.getNextColor()
-            colStrs = self._getColStrForSql(db)
+            colStrs = self._getColStrForSql(db, dbc, regTableName)
             if Config.getConfig().record_ops:
                 self.prepToRecordOps()
                 if self.fAddLogReady is None:
@@ -2930,6 +2942,60 @@ class TaskAddData(StateTransitionTask):
                 self.fAddLogDone.flush()
                 os.fsync(self.fAddLogDone.fileno())
 
+    def _addData_by_auto_create_table_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
+
+        for j in range(numRecords):  # number of records per table
+            intToWrite = db.getNextInt()
+            nextTick = db.getNextTick()
+            nextColor = db.getNextColor()
+            colStrs = self._getColStrForSql(db, dbc, regTableName)
+            if Config.getConfig().record_ops:
+                self.prepToRecordOps()
+                if self.fAddLogReady is None:
+                    raise CrashGenError("Unexpected empty fAddLogReady")
+                self.fAddLogReady.write("Ready to write {} to {}\n".format(intToWrite, regTableName))
+                self.fAddLogReady.flush()
+                os.fsync(self.fAddLogReady.fileno())
+
+            # TODO: too ugly trying to lock the table reliably, refactor...
+            fullTableName = db.getName() + '.' + regTableName
+            self._lockTableIfNeeded(
+                fullTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
+
+            try:
+                # sql = "INSERT INTO {} VALUES ('{}', {}, '{}');".format(  # removed: tags ('{}', {})
+                #     fullTableName,
+                #     # ds.getFixedSuperTableName(),
+                #     # ds.getNextBinary(), ds.getNextFloat(),
+                #     nextTick, intToWrite, nextColor)
+                sql = "INSERT INTO {} VALUES ({});".format(  # removed: tags ('{}', {})
+                    fullTableName,
+                    # ds.getFixedSuperTableName(),
+                    # ds.getNextBinary(), ds.getNextFloat(),
+                    colStrs)
+                # Logging.info("Adding data: {}".format(sql))
+                dbc.execute(sql)
+                # Logging.info("Data added: {}".format(sql))
+                intWrote = intToWrite
+
+                # Quick hack, attach an update statement here. TODO: create an "update" task
+                if (not Config.getConfig().use_shadow_db) and Dice.throw(
+                        5) == 0:  # 1 in N chance, plus not using shaddow DB
+                    intToUpdate = db.getNextInt()  # Updated， but should not succeed
+                    nextColor = db.getNextColor()
+                    sql = "INSERt INTO {} VALUES ({});".format(  # "INSERt" means "update" here
+                        fullTableName,
+                        colStrs)
+                    # sql = "UPDATE {} set speed={}, color='{}' WHERE ts='{}'".format(
+                    #     fullTableName, db.getNextInt(), db.getNextColor(), nextTick)
+                    dbc.execute(sql)
+                    intWrote = intToUpdate  # We updated, seems TDengine non-cluster accepts this.
+
+            except:  # Any exception at all
+                self._unlockTableIfNeeded(fullTableName)
+                raise
+
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
         db = self._db
@@ -2947,20 +3013,16 @@ class TaskAddData(StateTransitionTask):
 
             dbName = db.getName()
             sTable = db.getFixedSuperTable()
-            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)            
-            print("-----dbName:", dbName)
-            print("-----sTable:", sTable)
-            print("-----regTableName:", regTableName)
+            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
-            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
+            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists
             # self._unlockTable(fullTableName)
 
-            if Dice.throw(1) == 0:  # 1 in 2 chance
-                self._addData(db, dbc, regTableName, te)
+            if Dice.throw(2) == 0:  # 1 in 2 chance
+                self._addData_n(db, dbc, regTableName, te)
             else:
-                self._addDataInBatch(db, dbc, regTableName, te)
-
+                self._addDataInBatch_n(db, dbc, regTableName, te)
             self.activeTable.discard(i)  # not raising an error, unlike remove
 
 
