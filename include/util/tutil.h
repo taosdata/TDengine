@@ -160,14 +160,15 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                                \
   } while (0)
 
-#define TAOS_CHECK_GOTO(CODE, LINO, LABEL) \
-  do {                                     \
-    if ((CODE) != TSDB_CODE_SUCCESS) {     \
-      if (LINO) {                          \
-        *((int32_t *)(LINO)) = __LINE__;   \
-      }                                    \
-      goto LABEL;                          \
-    }                                      \
+#define TAOS_CHECK_GOTO(CMD, LINO, LABEL) \
+  do {                                    \
+    code = (CMD);                         \
+    if (code != TSDB_CODE_SUCCESS) {      \
+      if (LINO) {                         \
+        *((int32_t *)(LINO)) = __LINE__;  \
+      }                                   \
+      goto LABEL;                         \
+    }                                     \
   } while (0)
 
 #ifdef __cplusplus

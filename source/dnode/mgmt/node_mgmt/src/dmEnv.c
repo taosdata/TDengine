@@ -18,6 +18,7 @@
 #include "audit.h"
 #include "libs/function/tudf.h"
 #include "tgrant.h"
+#include "tcompare.h"
 
 #define DM_INIT_AUDIT()              \
   do {                               \
@@ -213,6 +214,7 @@ void dmCleanup() {
   udfStopUdfd();
   taosStopCacheRefreshWorker();
   dmDiskClose();
+  DestroyRegexCache();
 
 #if defined(USE_S3)
   s3End();
