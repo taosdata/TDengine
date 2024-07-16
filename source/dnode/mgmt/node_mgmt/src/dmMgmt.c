@@ -305,7 +305,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   }
   taosThreadRwlockUnlock(&pWrapper->lock);
 
-  return terrno = code;
+  return code;
 }
 
 void dmReleaseWrapper(SMgmtWrapper *pWrapper) {

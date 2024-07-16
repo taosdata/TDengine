@@ -17,12 +17,13 @@
 #include "dmMgmt.h"
 
 int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
+  int32_t code = 0;
   SDnode *pDnode = pWrapper->pDnode;
 
   if (taosMkDir(pWrapper->path) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("node:%s, failed to create dir:%s since %s", pWrapper->name, pWrapper->path, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    dError("node:%s, failed to create dir:%s since %s", pWrapper->name, pWrapper->path, tstrerror(code));
+    return terrno = code;
   }
 
   SMgmtOutputOpt output = {0};
@@ -30,7 +31,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
 
   dInfo("node:%s, start to open", pWrapper->name);
   tmsgSetDefault(&input.msgCb);
-  if ((*pWrapper->func.openFp)(&input, &output) != 0) {
+  if ((code = (*pWrapper->func.openFp)(&input, &output)) != 0) {
     dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
     return -1;
   }

@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmMgmt.h"
 #include "audit.h"
+#include "dmMgmt.h"
 #include "libs/function/tudf.h"
-#include "tgrant.h"
 #include "tcompare.h"
+#include "tgrant.h"
 
 #define DM_INIT_AUDIT()              \
   do {                               \
@@ -256,8 +256,8 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
       default:
         code = TSDB_CODE_APP_ERROR;
     }
-    dError("failed to create node since %s", terrstr());
-    return terrno = code;
+    dError("failed to create node since %s", tstrerror(code));
+    return code;
   }
 
   dInfo("start to process create-node-request");
@@ -267,7 +267,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     dmReleaseWrapper(pWrapper);
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
-    return terrno = code;
+    return code;
   }
 
   taosThreadMutexLock(&pDnode->mutex);
@@ -298,7 +298,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     dError("fail to process alter node type since node not exist");
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
   dmReleaseWrapper(pWrapper);
 
@@ -312,7 +312,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     if (role == TAOS_SYNC_ROLE_VOTER) {
       dError("node:%s, failed to alter node type since node already is role:%d", pWrapper->name, role);
       code = TSDB_CODE_MNODE_ALREADY_IS_VOTER;
-      return terrno = code;
+      return code;
     }
   }
 
@@ -320,7 +320,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     dInfo("node:%s, checking node catch up", pWrapper->name);
     if ((*pWrapper->func.isCatchUpFp)(pWrapper->pMgmt) != 1) {
       code = TSDB_CODE_MNODE_NOT_CATCH_UP;
-      return terrno = code;
+      return code;
     }
   }
 
@@ -338,7 +338,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     taosThreadMutexUnlock(&pDnode->mutex);
     code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
-    return terrno = code;
+    return code;
   }
 
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -381,7 +381,7 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
         code = TSDB_CODE_APP_ERROR;
     }
 
-    dError("failed to drop node since %s", terrstr());
+    dError("failed to drop node since %s", tstrerror(code));
     return terrno = code;
   }
 
@@ -439,6 +439,4 @@ void dmReportStartup(const char *pName, const char *pDesc) {
 
 int64_t dmGetClusterId() { return globalDnode.data.clusterId; }
 
-bool dmReadyForTest() {
-  return dmInstance()->data.dnodeVer > 0;
-}
+bool dmReadyForTest() { return dmInstance()->data.dnodeVer > 0; }

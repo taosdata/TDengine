@@ -146,6 +146,15 @@ int64_t taosQueueMemorySize(STaosQueue *queue) {
   return memOfItems;
 }
 
+int32_t taosAllocateQitemWrapper(int32_t size, EQItype itype, int64_t dataSize, void **pItem) {
+  int32_t code = 0;
+  *pItem = taosAllocateQitem(size, itype, dataSize);
+  if (*pItem == NULL) {
+    return terrno;
+  }
+
+  return code;
+}
 void *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize) {
   STaosQnode *pNode = taosMemoryCalloc(1, sizeof(STaosQnode) + size);
   if (pNode == NULL) {
@@ -533,9 +542,7 @@ int64_t taosQallUnAccessedMemSize(STaosQall *qall) { return qall->unAccessMemOfI
 void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
 int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
 
-void taosQueueSetThreadId(STaosQueue* pQueue, int64_t threadId) {
-  pQueue->threadId = threadId;
-}
+void taosQueueSetThreadId(STaosQueue *pQueue, int64_t threadId) { pQueue->threadId = threadId; }
 
 int64_t taosQueueGetThreadId(STaosQueue *pQueue) { return pQueue->threadId; }
 
