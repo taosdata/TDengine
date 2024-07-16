@@ -186,9 +186,7 @@ echoColor G "===== Uninstall all components of TDeingne ====="
 
 if command -v rmtaos ;then
     echoColor YD "uninstall all components of TDeingne:rmtaos"
-    if [ ${platform} == "Linux" ]; then
-        rmtaos
-    fi
+    rmtaos
 else 
      echoColor YD "os doesn't include TDengine"
 fi
