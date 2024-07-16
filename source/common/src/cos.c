@@ -637,6 +637,9 @@ static int32_t s3PutObjectFromFileWithoutCp(S3BucketContext *bucket_context, cha
       {&responsePropertiesCallbackNull, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
 
   manager.etags = (char **)taosMemoryCalloc(totalSeq, sizeof(char *));
+  if (!manager.etags) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+  }
   manager.next_etags_pos = 0;
   do {
     S3_initiate_multipart(bucket_context, object_name, 0, &handler, 0, timeoutMsG, &manager);
@@ -740,6 +743,9 @@ static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, const 
 
   SCheckpoint cp = {0};
   cp.parts = taosMemoryCalloc(max_part_num, sizeof(SCheckpointPart));
+  if (!cp.parts) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+  }
 
   if (taosCheckExistFile(file_cp_path)) {
     if (!cos_cp_load(file_cp_path, &cp) && cos_cp_is_valid_upload(&cp, contentLength, lmtime)) {
@@ -785,6 +791,10 @@ static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, const 
       {&responsePropertiesCallbackNull, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
 
   manager.etags = (char **)taosMemoryCalloc(totalSeq, sizeof(char *));
+  if (!manager.etags) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+  }
+
   manager.next_etags_pos = 0;
 
 upload:
@@ -1538,7 +1548,7 @@ bool s3Get(const char *object_name, const char *path) {
 
 int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_size, bool check, uint8_t **ppBlock) {
   (void)check;
-  int32_t                code = 0;
+  int32_t                code = 0, lino = 0;
   cos_pool_t            *p = NULL;
   int                    is_cname = 0;
   cos_status_t          *s = NULL;
@@ -1591,6 +1601,10 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   cos_list_for_each_entry(cos_buf_t, content, &download_buffer, node) { len += cos_buf_size(content); }
   // char *buf = cos_pcalloc(p, (apr_size_t)(len + 1));
   char *buf = taosMemoryCalloc(1, (apr_size_t)(len));
+  if (!buf) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+  }
+
   // buf[len] = '\0';
   cos_list_for_each_entry(cos_buf_t, content, &download_buffer, node) {
     size = cos_buf_size(content);
@@ -1599,6 +1613,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   }
   // cos_warn_log("Download data=%s", buf);
 
+_exit:
   //销毁内存池
   cos_pool_destroy(p);
 
