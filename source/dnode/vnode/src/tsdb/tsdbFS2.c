@@ -518,7 +518,7 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   if (corrupt) {
     tsdbError("vgId:%d, not to clear dangling files due to fset incompleteness", TD_VID(fs->tsdb->pVnode));
     fs->fsstate = TSDB_FS_STATE_INCOMPLETE;
-    code = 0;
+    code = TSDB_FS_STATE_INCOMPLETE;
     goto _exit;
   }
 
