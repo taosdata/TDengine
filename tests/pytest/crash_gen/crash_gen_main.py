@@ -2698,6 +2698,13 @@ class TaskAddData(StateTransitionTask):
         ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
         return ret
 
+    def getMeta(self, db: Database, sTable, dbc):
+        dbc.query("DESCRIBE {}.{}".format(db.getName(), sTable.getName()))
+        sts = dbc.getQueryResult()
+        cols = {row[0]: row[1] for row in sts if row[3] != 'TAG'}
+        tags = {row[0]: row[1] for row in sts if row[3] == 'TAG'}
+        return cols, tags
+
     def _getColStrForSql(self, db: Database, dbc, regTableName):
         self.cols = self._getCols(db, dbc, regTableName)
         colStrs = []
@@ -2843,9 +2850,6 @@ class TaskAddData(StateTransitionTask):
                 os.fsync(self.fAddLogDone.fileno())
 
     def _addData_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
-        super_table = db.getFixedSuperTable()
-        print(super_table.getName())
-        time.sleep(5)
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
 
         for j in range(numRecords):  # number of records per table
@@ -2942,9 +2946,11 @@ class TaskAddData(StateTransitionTask):
                 self.fAddLogDone.flush()
                 os.fsync(self.fAddLogDone.fileno())
 
-    def _addData_by_auto_create_table_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
+    def _addData_by_auto_create_table_n(self, db: Database, dbc, sTable, te: TaskExecutor):  # implied: NOT in batches
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
-
+        stb_name = db.getFixedSuperTable()
+        print(sTable.getName())
+        time.sleep(5)
         for j in range(numRecords):  # number of records per table
             intToWrite = db.getNextInt()
             nextTick = db.getNextTick()
