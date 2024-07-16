@@ -728,7 +728,7 @@ bool smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg) {
     kvVal->type = TSDB_DATA_TYPE_FLOAT;
     kvVal->f = (float)result;
   } else if ((left == 1 && *endptr == 'i') || (left == 3 && strncasecmp(endptr, "i64", left) == 0)) {
-    if (smlDoubleToInt64OverFlow(result) == 0) {
+    if (smlDoubleToInt64OverFlow(result)) {
       errno = 0;
       int64_t tmp = taosStr2Int64(pVal, &endptr, 10);
       if (errno == ERANGE) {
@@ -1467,7 +1467,7 @@ end:
   taosHashCancelIterate(info->superTables, tmp);
   taosHashCleanup(hashTmp);
   taosMemoryFreeClear(pTableMeta);
-  code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
+  (void)catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);    // ignore refresh meta code if there is an error
   uError("SML:0x%" PRIx64 " smlModifyDBSchemas end failed:%d:%s, format:%d, needModifySchema:%d", info->id, code,
          tstrerror(code), info->dataFormat, info->needModifySchema);
 

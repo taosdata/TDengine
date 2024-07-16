@@ -739,7 +739,8 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   // notice!!! put ts back to tag to ensure get meta->precision
   int64_t ts = smlParseTSFromJSON(info, tsJson);
   if (unlikely(ts < 0)) {
-    uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload", info->id);
+    char* tmp = cJSON_PrintUnformatted(tsJson);
+    uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %s %" PRId64, info->id, info->msgBuf.buf,tmp, ts);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
   SSmlKv kvTs = {0};

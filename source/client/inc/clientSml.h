@@ -246,9 +246,9 @@ void            smlBuildTsKv(SSmlKv *kv, int64_t ts);
 int32_t         smlParseEndTelnetJson(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv);
 int32_t         smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs);
 
-static inline int32_t smlDoubleToInt64OverFlow(double num) {
-  if (num >= (double)INT64_MAX || num <= (double)INT64_MIN) return 0;
-  return -1;
+static inline bool smlDoubleToInt64OverFlow(double num) {
+  if (num >= (double)INT64_MAX || num <= (double)INT64_MIN) return true;
+  return false;
 }
 
 static inline void smlStrReplace(char* src, int32_t len){
