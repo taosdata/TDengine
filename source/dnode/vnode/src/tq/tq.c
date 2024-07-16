@@ -76,7 +76,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   taosInitRWLatch(&pTq->lock);
   pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
 
-  pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
@@ -282,16 +282,25 @@ end:
 }
 
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
-  STqCheckInfo* pCheck = tqMetaGetCheckInfo(pTq, tbUid);
-  if(pCheck == NULL) {
-    return 0;
-  }
+  void* pIter = NULL;
 
-  int32_t sz = taosArrayGetSize(pCheck->colIdList);
-  for (int32_t i = 0; i < sz; i++) {
-    int16_t forbidColId = *(int16_t*)taosArrayGet(pCheck->colIdList, i);
-    if (forbidColId == colId) {
-      return -1;
+  while (1) {
+    pIter = taosHashIterate(pTq->pCheckInfo, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    STqCheckInfo* pCheck = (STqCheckInfo*)pIter;
+
+    if (pCheck->ntbUid == tbUid) {
+      int32_t sz = taosArrayGetSize(pCheck->colIdList);
+      for (int32_t i = 0; i < sz; i++) {
+        int16_t forbidColId = *(int16_t*)taosArrayGet(pCheck->colIdList, i);
+        if (forbidColId == colId) {
+          taosHashCancelIterate(pTq->pCheckInfo, pIter);
+          return -1;
+        }
+      }
     }
   }
 
@@ -585,39 +594,18 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   return 0;
 }
 
-void mergeTwoArray(SArray* a, SArray* b){
-  size_t bLen = taosArrayGetSize(b);
-  for(int i = 0; i < bLen; i++){
-    void* dataB = taosArrayGet(b, i);
-    size_t aLen = taosArrayGetSize(a);
-    int j = 0;
-    for(; j < aLen; j++){
-      void* dataA = taosArrayGet(a, i);
-      if(*(int64_t*)dataA == *(int64_t*)dataB){
-        break;
-      }
-    }
-    if(j == aLen){
-      taosArrayPush(a, dataB);
-    }
-  }
-}
-
 int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   STqCheckInfo info = {0};
   if(tqMetaDecodeCheckInfo(&info, msg, msgLen) != 0){
     return -1;
   }
-  STqCheckInfo *old = tqMetaGetCheckInfo(pTq, info.ntbUid);
-  if (old != NULL){
-    mergeTwoArray(info.colIdList, old->colIdList);
-  }
-  if (taosHashPut(pTq->pCheckInfo, &info.ntbUid, sizeof(info.ntbUid), &info, sizeof(STqCheckInfo)) < 0) {
+
+  if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tDeleteSTqCheckInfo(&info);
     return -1;
   }
-  if (tqMetaSaveInfo(pTq, pTq->pCheckStore, &info.ntbUid, sizeof(info.ntbUid), msg, msgLen) < 0) {
+  if (tqMetaSaveInfo(pTq, pTq->pCheckStore, info.topic, strlen(info.topic), msg, msgLen) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -629,7 +617,8 @@ int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  if (tqMetaDeleteInfo(pTq, pTq->pCheckStore, msg, msgLen) < 0) {
+  if (tqMetaDeleteInfo(pTq, pTq->pCheckStore, msg, strlen(msg)) < 0) {
+    tqError("cannot process tq delete check info req %s, since no such check info", msg);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

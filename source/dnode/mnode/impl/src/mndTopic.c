@@ -725,19 +725,19 @@ static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicO
       continue;
     }
 
-    buf = taosMemoryCalloc(1, sizeof(SMsgHead) + sizeof(pTopic->ntbUid));
+    buf = taosMemoryCalloc(1, sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN);
     if (buf == NULL){
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto end;
     }
     void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
     ((SMsgHead *)buf)->vgId = htonl(pVgroup->vgId);
-    *(int64_t*)abuf = pTopic->ntbUid;
+    memcpy(abuf, pTopic->name, TSDB_TOPIC_FNAME_LEN);
 
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = buf;
-    action.contLen = sizeof(SMsgHead) + sizeof(pTopic->ntbUid);
+    action.contLen = sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN;
     action.msgType = TDMT_VND_TMQ_DEL_CHECKINFO;
     code = mndTransAppendRedoAction(pTrans, &action);
     if (code != 0) {

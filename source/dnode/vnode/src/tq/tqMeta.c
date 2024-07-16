@@ -87,31 +87,6 @@ int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen){
   return code;
 }
 
-void* tqMetaGetCheckInfo(STQ* pTq, int64_t tbUid){
-  void* data = taosHashGet(pTq->pCheckInfo, &tbUid, sizeof(tbUid));
-  if (data == NULL) {
-    int      vLen = 0;
-    if (tdbTbGet(pTq->pCheckStore, &tbUid, sizeof(tbUid), &data, &vLen) < 0) {
-      tdbFree(data);
-      return NULL;
-    }
-    STqCheckInfo info= {0};
-    if(tqMetaDecodeCheckInfo(&info, data, vLen) != 0) {
-      tdbFree(data);
-      return NULL;
-    }
-    tdbFree(data);
-
-    if(taosHashPut(pTq->pCheckInfo, &tbUid, sizeof(tbUid), &info, sizeof(STqCheckInfo)) != 0){
-      tDeleteSTqCheckInfo(&info);
-      return NULL;
-    }
-    return taosHashGet(pTq->pCheckInfo, &tbUid, sizeof(tbUid));
-  } else {
-    return data;
-  }
-}
-
 int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen) {
   int32_t code = TDB_CODE_SUCCESS;
   TXN*     txn = NULL;
@@ -326,7 +301,7 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
   return taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
 }
 
-static int32_t tqMetaTransformStoreInfo(TDB* pMetaDB, TTB* pExecStoreOld, TTB* pExecStoreNew){
+static int32_t tqMetaTransformInfo(TDB* pMetaDB, TTB* pOld, TTB* pNew){
   TBC*     pCur = NULL;
   void*    pKey = NULL;
   int      kLen = 0;
@@ -336,48 +311,17 @@ static int32_t tqMetaTransformStoreInfo(TDB* pMetaDB, TTB* pExecStoreOld, TTB* p
 
   int32_t  code = TDB_CODE_SUCCESS;
 
-  TQ_ERR_GO_TO_END(tdbTbcOpen(pExecStoreOld, &pCur, NULL));
+  TQ_ERR_GO_TO_END(tdbTbcOpen(pOld, &pCur, NULL));
   TQ_ERR_GO_TO_END(tdbBegin(pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED));
 
   TQ_ERR_GO_TO_END(tdbTbcMoveToFirst(pCur));
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    TQ_ERR_GO_TO_END (tdbTbUpsert(pExecStoreNew, pKey, kLen, pVal, vLen, txn));
+    TQ_ERR_GO_TO_END (tdbTbUpsert(pNew, pKey, kLen, pVal, vLen, txn));
   }
 
   TQ_ERR_GO_TO_END (tdbCommit(pMetaDB, txn));
   TQ_ERR_GO_TO_END (tdbPostCommit(pMetaDB, txn));
 
-END:
-  tdbFree(pKey);
-  tdbFree(pVal);
-  (void)tdbTbcClose(pCur);
-  return code;
-}
-
-static int32_t tqMetaTransformCheckInfo(TDB* pMetaDB, TTB* pCheckOld, TTB* pCheckNew){
-  TBC*     pCur = NULL;
-  void*    pKey = NULL;
-  int      kLen = 0;
-  void*    pVal = NULL;
-  int      vLen = 0;
-  TXN*     txn  = NULL;
-
-  int32_t  code = TDB_CODE_SUCCESS;
-
-  TQ_ERR_GO_TO_END(tdbTbcOpen(pCheckOld, &pCur, NULL));
-  TQ_ERR_GO_TO_END(tdbBegin(pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED));
-
-  TQ_ERR_GO_TO_END(tdbTbcMoveToFirst(pCur));
-  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    STqCheckInfo info= {0};
-    TQ_ERR_GO_TO_END(tqMetaDecodeCheckInfo(&info, pVal, vLen));
-    int64_t uid = info.ntbUid;
-    tDeleteSTqCheckInfo(&info);
-    TQ_ERR_GO_TO_END (tdbTbUpsert(pCheckNew, &uid, sizeof(uid), pVal, vLen, txn));
-  }
-
-  TQ_ERR_GO_TO_END (tdbCommit(pMetaDB, txn));
-  TQ_ERR_GO_TO_END (tdbPostCommit(pMetaDB, txn));
 END:
   tdbFree(pKey);
   tdbFree(pVal);
@@ -434,6 +378,32 @@ static int32_t replaceTqPath(char** path){
   return TDB_CODE_SUCCESS;
 }
 
+static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
+  TBC* pCur = NULL;
+  void*    pKey = NULL;
+  int      kLen = 0;
+  void*    pVal = NULL;
+  int      vLen = 0;
+  int32_t  code = 0;
+  STqCheckInfo info = {0};
+
+  TQ_ERR_GO_TO_END(tdbTbcOpen(pTq->pCheckStore, &pCur, NULL));
+  TQ_ERR_GO_TO_END(tdbTbcMoveToFirst(pCur));
+
+  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
+    TQ_ERR_GO_TO_END(tqMetaDecodeCheckInfo(&info, pVal, vLen));
+    TQ_ERR_GO_TO_END(taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)));
+  }
+  info.colIdList = NULL;
+
+END:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+  tDeleteSTqCheckInfo(&info);
+  return code;
+}
+
 int32_t tqMetaOpen(STQ* pTq) {
   char*   maindb = NULL;
   int32_t code = TDB_CODE_SUCCESS;
@@ -444,6 +414,7 @@ int32_t tqMetaOpen(STQ* pTq) {
   }else{
     TQ_ERR_GO_TO_END(tqMetaTransform(pTq));
   }
+  TQ_ERR_GO_TO_END(tqMetaRestoreCheckInfo(pTq));
 
 END:
   taosMemoryFree(maindb);
@@ -466,8 +437,8 @@ int32_t tqMetaTransform(STQ* pTq) {
   TQ_ERR_GO_TO_END(replaceTqPath(&pTq->path));
   TQ_ERR_GO_TO_END(tqMetaOpenTdb(pTq));
 
-  TQ_ERR_GO_TO_END(tqMetaTransformStoreInfo(pTq->pMetaDB, pExecStore, pTq->pExecStore));
-  TQ_ERR_GO_TO_END(tqMetaTransformCheckInfo(pTq->pMetaDB, pCheckStore, pTq->pCheckStore));
+  TQ_ERR_GO_TO_END(tqMetaTransformInfo(pTq->pMetaDB, pExecStore, pTq->pExecStore));
+  TQ_ERR_GO_TO_END(tqMetaTransformInfo(pTq->pMetaDB, pCheckStore, pTq->pCheckStore));
 
   TQ_ERR_GO_TO_END(tqBuildFName(&offsetNew, pTq->path, TQ_OFFSET_NAME));
   if(taosCheckExistFile(offset) && taosCopyFile(offset, offsetNew) < 0){
