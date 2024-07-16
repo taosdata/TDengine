@@ -14,14 +14,11 @@
  */
 
 #include "command.h"
-#include <unistd.h>
 #include "catalog.h"
 #include "commandInt.h"
 #include "scheduler.h"
 #include "systable.h"
 #include "taosdef.h"
-#include "taoserror.h"
-#include "tarray.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
@@ -739,7 +736,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
 _exit:
   taosMemoryFree(buf2);
 
-  return TSDB_CODE_SUCCESS;
+  return terrno;
 }
 
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {

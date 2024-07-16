@@ -16,7 +16,6 @@
 #include "query.h"
 #include "queryInt.h"
 #include "systable.h"
-#include "taoserror.h"
 #include "tmsg.h"
 #include "trpc.h"
 
