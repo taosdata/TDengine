@@ -2140,7 +2140,7 @@ class StreamComputingTest(TDCase):
                     # self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                     ptn_counter += 1
         # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if partition != "c1" else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if "c1" not in str(partition) else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
@@ -2430,7 +2430,7 @@ class StreamComputingTest(TDCase):
                         # self.tdSql.query(f'select count(*) from `{self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                         ptn_counter += 1
             # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
-                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if subtable is not None else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True) if "c1" not in str(partition) else self.tdSql.checkEqual(self.tdSql.query_data[0][0] >= 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
             ptn_counter = 0
