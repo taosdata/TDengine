@@ -76,11 +76,12 @@ else:
     subprocess.getoutput("pip3 install taospy")
 
 # prepare data by taosBenchmark
-cmd = "taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %d" % (databaseName, serverHost, serverPort)
+cmd = "taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %d &" % (databaseName, serverHost, serverPort)
 process_out = subprocess.getoutput(cmd)
 print(cmd)
 #os.system("taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %d" % (databaseName, serverHost, serverPort))
 taosBenchmark_test_result = True
+time.sleep(10)
 import taos
 
 conn = taos.connect(host=serverHost,
