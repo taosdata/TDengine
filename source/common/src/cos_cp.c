@@ -158,6 +158,7 @@ _exit:
 
 int32_t cos_cp_load(char const* filepath, SCheckpoint* checkpoint) {
   int32_t code = 0, lino = 0;
+  char*   cp_body = NULL;
 
   TdFilePtr fd = taosOpenFile(filepath, TD_FILE_READ);
   if (!fd) {
@@ -167,7 +168,7 @@ int32_t cos_cp_load(char const* filepath, SCheckpoint* checkpoint) {
   int64_t size = -1;
   TAOS_CHECK_GOTO(taosStatFile(filepath, &size, NULL, NULL), &lino, _exit);
 
-  char* cp_body = taosMemoryMalloc(size + 1);
+  cp_body = taosMemoryMalloc(size + 1);
   if (!cp_body) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
   }
