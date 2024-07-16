@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "crypt.h"
 #include "sdb.h"
 #include "sync.h"
 #include "tchecksum.h"
-#include "wal.h"
 #include "tglobal.h"
-#include "crypt.h"
+#include "wal.h"
 
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
@@ -251,7 +251,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     taosMemoryFree(pRaw);
     code = TAOS_SYSTEM_ERROR(errno);
     mInfo("read sdb file:%s finished since %s", file, tstrerror(code));
-    TAOS_RETURN(code);
+    return 0;
   }
 
   code = sdbReadFileHead(pSdb, pFile);
@@ -283,7 +283,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
-    if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB ){
+    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
       readLen = ENCRYPTED_LEN(pRaw->dataLen) + sizeof(int32_t);
     }
     if (readLen >= bufLen) {
@@ -313,7 +313,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
-    if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB ){
+    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
@@ -326,8 +326,8 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
 
       count = CBC_Decrypt(&opts);
-      
-      //mDebug("read sdb, CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
+
+      // mDebug("read sdb, CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
 
       memcpy(pRaw->pData, plantContent, pRaw->dataLen);
       taosMemoryFree(plantContent);
@@ -442,8 +442,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
         }
 
         int32_t newDataLen = pRaw->dataLen;
-        char* newData = pRaw->pData;
-        if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB ){
+        char   *newData = pRaw->pData;
+        if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
           newDataLen = ENCRYPTED_LEN(pRaw->dataLen);
           newData = taosMemoryMalloc(newDataLen);
           if (newData == NULL) {
@@ -462,8 +462,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 
           int32_t count = CBC_Encrypt(&opts);
 
-          //mDebug("write sdb, CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s", 
-          //      newDataLen, pRaw->dataLen, __FUNCTION__);
+          // mDebug("write sdb, CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s",
+          //       newDataLen, pRaw->dataLen, __FUNCTION__);
         }
 
         if (taosWriteFile(pFile, newData, newDataLen) != newDataLen) {
@@ -473,7 +473,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
           break;
         }
 
-        if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB ){
+        if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
           taosMemoryFree(newData);
         }
 
@@ -614,7 +614,7 @@ static void sdbCloseIter(SSdbIter *pIter) {
 }
 
 int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config) {
-  int32_t code = 0;
+  int32_t   code = 0;
   SSdbIter *pIter = sdbCreateIter(pSdb);
   if (pIter == NULL) return -1;
 
@@ -687,7 +687,7 @@ int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
 }
 
 int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
-  int32_t code = 0;
+  int32_t   code = 0;
   SSdbIter *pIter = sdbCreateIter(pSdb);
   if (pIter == NULL) {
     code = terrno;
