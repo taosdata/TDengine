@@ -59,6 +59,8 @@ typedef enum { M2C = 0, C2M } ConvType;
     (dst)[(size)-1] = 0;           \
   } while (0)
 
+#define TAOS_STRCPY(_dst, _src) ((void)strcpy(_dst, _src))
+
 char   *tstrdup(const char *src);
 int32_t taosUcs4len(TdUcs4 *ucs4);
 int64_t taosStr2int64(const char *str);
