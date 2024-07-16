@@ -415,6 +415,7 @@ export default {
         case "mysql":
         case "oracle":
         case "mssql":
+        case "mongodb":
           this.date1 = groupsData?.start ? new Date(groupsData?.start) : 0;
           this.date2 = groupsData?.end ? new Date(groupsData?.end) : 0;
           break;
@@ -505,7 +506,7 @@ export default {
     },
     trimInput() {
       // 在失去焦点时去除输入框值的前后空格
-      this.data[this.field] = this.data[this.field].trim();
+      this.data[this.field] = this.data[this.field].toString().trim();
     }
   },
 };
