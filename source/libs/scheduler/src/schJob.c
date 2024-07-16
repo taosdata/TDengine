@@ -822,12 +822,13 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     }
   }
   pJob->pDag = pReq->pDag;
-  pJob->allocatorRefId = nodesMakeAllocatorWeakRef(pReq->allocatorRefId);
-  if (pJob->allocatorRefId <= 0) {
-    qError("QID:0x%" PRIx64 " nodesMakeAllocatorWeakRef failed", pReq->pDag->queryId);
-    SCH_ERR_JRET(terrno);
+  if (pReq->allocatorRefId > 0) {
+    pJob->allocatorRefId = nodesMakeAllocatorWeakRef(pReq->allocatorRefId);
+    if (pJob->allocatorRefId <= 0) {
+      qError("QID:0x%" PRIx64 " nodesMakeAllocatorWeakRef failed", pReq->pDag->queryId);
+      SCH_ERR_JRET(terrno);
+    }
   }
-  
   pJob->chkKillFp = pReq->chkKillFp;
   pJob->chkKillParam = pReq->chkKillParam;
   pJob->userRes.execFp = pReq->execFp;
