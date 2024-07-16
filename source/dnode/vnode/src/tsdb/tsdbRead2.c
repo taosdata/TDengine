@@ -5280,8 +5280,8 @@ int32_t tsdbRetrieveDataBlock2(STsdbReader* pReader, SSDataBlock** pBlock, SArra
   if (pStatus->composedDataBlock || pReader->info.execMode == READER_EXEC_ROWS) {
     //    tsdbReaderSuspend2(pReader);
     //    tsdbReaderResume2(pReader);
-
     *pBlock = pTReader->resBlockInfo.pResBlock;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t code = doRetrieveDataBlock(pTReader, pBlock);
