@@ -199,7 +199,7 @@ int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExecInfo, S
       return TSDB_CODE_APP_ERROR;
     }
     
-    taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
+    if(taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx) == NULL) return terrno;
   } else {
     for (int32_t i = 0; i < group->nodeNum; ++i) {
       rsp = taosArrayGet(group->nodeExecInfo, i);
@@ -208,7 +208,7 @@ int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExecInfo, S
         return TSDB_CODE_APP_ERROR;
       }
 
-      taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
+      if(taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx) == NULL) return terrno;
     }
   }
 
@@ -2100,32 +2100,26 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
     group->nodeExecInfo = taosArrayInit(group->nodeNum, sizeof(SExplainRsp));
     if (NULL == group->nodeExecInfo) {
       qError("taosArrayInit %d explainExecInfo failed", group->nodeNum);
-      tFreeSExplainRsp(pRspMsg);
-      taosWUnLockLatch(&group->lock);
-
-      QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
     }
 
     group->physiPlanExecNum = pRspMsg->numOfPlans;
   } else if (taosArrayGetSize(group->nodeExecInfo) >= group->nodeNum) {
     qError("group execInfo already full, size:%d, nodeNum:%d", (int32_t)taosArrayGetSize(group->nodeExecInfo),
            group->nodeNum);
-    tFreeSExplainRsp(pRspMsg);
-    taosWUnLockLatch(&group->lock);
-
-    QRY_ERR_RET(TSDB_CODE_APP_ERROR);
+    terrno = TSDB_CODE_APP_ERROR;
+    goto _exit;
   }
 
   if (group->physiPlanExecNum != pRspMsg->numOfPlans) {
     qError("physiPlanExecNum %d mismatch with others %d in group %d", pRspMsg->numOfPlans, group->physiPlanExecNum,
            groupId);
-    tFreeSExplainRsp(pRspMsg);
-    taosWUnLockLatch(&group->lock);
-
-    QRY_ERR_RET(TSDB_CODE_APP_ERROR);
+    terrno = TSDB_CODE_APP_ERROR;
+    goto _exit;
   }
 
-  taosArrayPush(group->nodeExecInfo, pRspMsg);
+  if(taosArrayPush(group->nodeExecInfo, pRspMsg) == NULL) goto _exit;
  
   groupDone = (taosArrayGetSize(group->nodeExecInfo) >= group->nodeNum);
 
@@ -2141,6 +2135,11 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   }
 
   return TSDB_CODE_SUCCESS;
+
+_exit:
+  tFreeSExplainRsp(pRspMsg);
+  taosWUnLockLatch(&group->lock);
+  return terrno;
 }
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp) {
