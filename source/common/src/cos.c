@@ -66,7 +66,7 @@ int32_t s3CheckCfg() {
 
   if (!tsS3Enabled) {
     fprintf(stderr, "s3 not configured.\n");
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    goto _exit;
   }
 
   code = s3Begin();
@@ -759,8 +759,7 @@ static int32_t s3PutObjectFromFileWithCp(S3BucketContext *bucket_context, const 
 
     if (manager.upload_id == 0 || manager.status != S3StatusOK) {
       s3PrintError(__FILE__, __LINE__, __func__, manager.status, manager.err_msg);
-      code = TAOS_SYSTEM_ERROR(EIO);
-      goto _exit;
+      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(EIO), &lino, _exit);
     }
 
     cos_cp_build_upload(&cp, file, contentLength, lmtime, manager.upload_id, chunk_size);
