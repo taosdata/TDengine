@@ -1116,9 +1116,9 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (taosHashGetSize(pVgroupHashmap) == 0) {
     goto end;
   }
-  SArray* pBufArray = serializeVgroupsCreateTableBatch(pVgroupHashmap);
-  if (NULL == pBufArray) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  SArray* pBufArray = NULL;
+  code = serializeVgroupsCreateTableBatch(pVgroupHashmap, &pBufArray);
+  if (TSDB_CODE_SUCCESS != code) {
     goto end;
   }
 
@@ -1264,9 +1264,9 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (taosHashGetSize(pVgroupHashmap) == 0) {
     goto end;
   }
-  SArray* pBufArray = serializeVgroupsDropTableBatch(pVgroupHashmap);
-  if (NULL == pBufArray) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  SArray* pBufArray = NULL;
+  code = serializeVgroupsDropTableBatch(pVgroupHashmap, &pBufArray);
+  if (TSDB_CODE_SUCCESS != code) {
     goto end;
   }
 

@@ -98,7 +98,7 @@ SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName
 int32_t tNameExtractFullName(const SName* name, char* dst) {
   // invalid full name format, abort
   if (!tNameIsValid(name)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   int32_t len = snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
@@ -154,8 +154,7 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 const char* tNameGetDbNameP(const SName* name) { return &name->dbname[0]; }
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
-  snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
-  return 0;
+  return snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
 }
 
 bool tNameIsEmpty(const SName* name) { return name->type == 0 || name->acctId == 0; }

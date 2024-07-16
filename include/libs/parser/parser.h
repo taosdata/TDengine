@@ -163,8 +163,8 @@ int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCr
                          int numFields, bool needChangeLength, char* errstr, int32_t errstrLen);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
-SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
-SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
+int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
+int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 void    destoryCatalogReq(SCatalogReq *pCatalogReq);
 bool    isPrimaryKeyImpl(SNode* pExpr);
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx, SStbInterlaceInfo* pBuildInfo);
