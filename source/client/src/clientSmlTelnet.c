@@ -131,7 +131,9 @@ static int32_t smlProcessTagTelnet(SSmlHandle *info, char *data, char *sqlEnd){
         .length = valueLen,
         .keyEscaped = false,
         .valueEscaped = false};
-    taosArrayPush(preLineKV, &kv);
+    if (taosArrayPush(preLineKV, &kv) == NULL){
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     if (info->dataFormat && !isSmlTagAligned(info, cnt, &kv)) {
       return TSDB_CODE_SML_INVALID_DATA;
     }

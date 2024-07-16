@@ -1672,6 +1672,10 @@ static int32_t smlPushCols(SArray *colsArray, SArray *cols) {
   }
   for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
+    if (kv == NULL){
+      taosHashCleanup(kvHash);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
     terrno = 0;
     int32_t code = taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
     if (terrno == TSDB_CODE_DUP_KEY) {
@@ -1884,7 +1888,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
   info->cost.insertRpcTime = taosGetTimestampUs();
 
   SAppClusterSummary *pActivity = &info->taos->pAppInfo->summary;
-  atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
+  (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1); // no need to check return code
 
   (void)launchQueryImpl(info->pRequest, info->pQuery, true, NULL);  // no need to check return code
 
@@ -1921,7 +1925,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
     info->lines = (SSmlLineInfo *)taosMemoryCalloc(info->lineNum, sizeof(SSmlLineInfo));
   }
 
-  memset(&info->preLine, 0, sizeof(SSmlLineInfo));
+  (void)memset(&info->preLine, 0, sizeof(SSmlLineInfo));
   info->currSTableMeta = NULL;
   info->currTableDataCtx = NULL;
 
@@ -1951,7 +1955,7 @@ static bool getLine(SSmlHandle *info, char *lines[], char **rawLine, char *rawLi
 
   if (*rawLine != NULL && (uDebugFlag & DEBUG_DEBUG)) {
     char *print = taosMemoryCalloc(*len + 1, 1);
-    memcpy(print, *tmp, *len);
+    (void)memcpy(print, *tmp, *len);
     uDebug("SML:0x%" PRIx64 " smlParseLine is raw, numLines:%d, protocol:%d, len:%d, data:%s", info->id, numLines,
            info->protocol, *len, print);
     taosMemoryFree(print);
@@ -2114,7 +2118,7 @@ void smlSetReqSQL(SRequestObj *request, char *lines[], char *rawLine, char *rawL
       uError("malloc %d for sml sql failed", rlen + 1);
       return;
     }
-    memcpy(sql, p, rlen);
+    (void)memcpy(sql, p, rlen);
     sql[rlen] = 0;
 
     request->sqlstr = sql;

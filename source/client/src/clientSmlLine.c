@@ -152,7 +152,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
         if(data == NULL){
           return TSDB_CODE_OUT_OF_MEMORY;
         }
-        memcpy(data, pVal->value + (NCHAR_ADD_LEN - 1), pVal->length);
+        (void)memcpy(data, pVal->value + (NCHAR_ADD_LEN - 1), pVal->length);
         pVal->value = data;
       }
 

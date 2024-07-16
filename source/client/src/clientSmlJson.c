@@ -472,7 +472,11 @@ static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
       break;
     }
     case cJSON_String: {
-      smlConvertJSONString(kv, "binary", root);
+      int32_t ret = smlConvertJSONString(kv, "binary", root);
+      if (ret != TSDB_CODE_SUCCESS) {
+        uError("OTD:Failed to parse binary value from JSON Obj");
+        return ret;
+      }
       break;
     }
     case cJSON_Object: {
@@ -521,7 +525,9 @@ static int32_t smlProcessTagJson(SSmlHandle *info, cJSON *tags){
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       return ret;
     }
-    taosArrayPush(preLineKV, &kv);
+    if (taosArrayPush(preLineKV, &kv) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
 
     if (info->dataFormat && !isSmlTagAligned(info, cnt, &kv)) {
       return TSDB_CODE_TSC_INVALID_JSON;

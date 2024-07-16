@@ -55,7 +55,7 @@ typedef enum { M2C = 0, C2M } ConvType;
 
 #define tstrncpy(dst, src, size)   \
   do {                             \
-    strncpy((dst), (src), (size)); \
+    (void)strncpy((dst), (src), (size)); \
     (dst)[(size)-1] = 0;           \
   } while (0)
 
