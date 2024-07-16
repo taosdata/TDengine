@@ -1588,7 +1588,7 @@ export default {
         // 不支持 VARBINARY & GEOMETRY
         if ((item["Type"] == "VARBINARY" || item["Type"] == "GEOMETRY") && item["Expression"]) {
           Message.closeAll();
-          Message.warning(this.$t("datasource.transformer.nonsupportTypetip").replace('{type}',item["Type"]));
+          Message.warning(this.$t("datasource.transformer.nonsupportTypetip",['VARBINARY/GEOMETRY']))
           this.isbreak = true;
         }
         if (item["Expression"]) {
