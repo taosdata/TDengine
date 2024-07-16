@@ -316,18 +316,18 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
   }
 }
 
-int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
+void schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
+  *pTask = NULL;
+  
   int32_t s = taosHashGetSize(pTaskList);
   if (s <= 0) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   SSchTask **task = taosHashGet(pTaskList, &taskId, sizeof(taskId));
   if (NULL == task || NULL == (*task)) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   *pTask = *task;
-
-  return TSDB_CODE_SUCCESS;
 }
