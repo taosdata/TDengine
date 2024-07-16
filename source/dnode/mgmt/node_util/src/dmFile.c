@@ -151,6 +151,12 @@ _OVER:
   return code;
 }
 
+int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile) {
+  *pFile = dmCheckRunning(dataDir);
+  if (*pFile == NULL) return terrno;
+
+  return 0;
+}
 TdFilePtr dmCheckRunning(const char *dataDir) {
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.running", dataDir, TD_DIRSEP);

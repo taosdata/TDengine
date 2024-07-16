@@ -206,6 +206,7 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
 TdFilePtr dmCheckRunning(const char *dataDir);
+int32_t   dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 
 // dmodule.c
 int32_t dmInitDndInfo(SDnodeData *pData);

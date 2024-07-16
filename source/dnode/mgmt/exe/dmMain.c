@@ -310,6 +310,7 @@ static void taosCleanupArgs() {
 }
 
 int main(int argc, char const *argv[]) {
+  int32_t code = 0;
 #ifdef TD_JEMALLOC_ENABLED
   bool jeBackgroundThread = true;
   mallctl("background_thread", NULL, NULL, &jeBackgroundThread, sizeof(bool));
@@ -319,10 +320,10 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  if (dmParseArgs(argc, argv) != 0) {
+  if ((code = dmParseArgs(argc, argv)) != 0) {
     //printf("failed to start since parse args error\n");
     taosCleanupArgs();
-    return -1;
+    return code;
   }
 
 #ifdef WINDOWS
@@ -368,14 +369,15 @@ int mainWindows(int argc, char **argv) {
 #endif
   if(global.generateCode) {
     bool toLogFile = false;
-    if(taosReadDataFolder(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs) != 0){
-      encryptError("failed to generate encrypt code since dataDir can not be set from cfg file");
-      return -1;
+    if ((code = taosReadDataFolder(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs)) != 0) {
+      encryptError("failed to generate encrypt code since dataDir can not be set from cfg file,reason:%s",
+                   tstrerror(code));
+      return code;
     };
-
-    if(dmCheckRunning(tsDataDir) == NULL) {
-      encryptError("failed to generate encrypt code since taosd is running, please stop it first");
-      return -1;
+    TdFilePtr pFile;
+    if ((code = dmCheckRunningWrapper(tsDataDir, &pFile)) != 0) {
+      encryptError("failed to generate encrypt code since taosd is running, please stop it first, reason:%s", tstrerror(code));
+      return code;
     }
     int ret = dmUpdateEncryptKey(global.encryptKey, toLogFile);
     taosCloseLog();

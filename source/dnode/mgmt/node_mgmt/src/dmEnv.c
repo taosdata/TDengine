@@ -34,10 +34,11 @@ static SDnode globalDnode = {0};
 SDnode *dmInstance() { return &globalDnode; }
 
 static int32_t dmCheckRepeatInit(SDnode *pDnode) {
+  int32_t code = 0;
   if (atomic_val_compare_exchange_8(&pDnode->once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
     dError("env is already initialized");
-    terrno = TSDB_CODE_REPEAT_INIT;
-    return -1;
+    code = TSDB_CODE_REPEAT_INIT;
+    return terrno = code;
   }
   return 0;
 }
@@ -107,7 +108,20 @@ static bool dmCheckDiskSpace() {
   }
   return ret;
 }
+static int32_t dmCheckDiskSpaceWrapper() {
+  if (!dmCheckDiskSpace()) {
+    return terrno;
+  }
+  return 0;
+}
 
+int32_t tfsOpenWrapper(SDiskCfg *pCfg, int32_t ndisk, STfs **tfs) {
+  *tfs = tfsOpen(pCfg, ndisk);
+  if (*tfs == NULL) {
+    return terrno;
+  }
+  return 0;
+}
 int32_t dmDiskInit() {
   SDnode  *pDnode = dmInstance();
   SDiskCfg dCfg = {.level = 0, .primary = 1, .disable = 0};
@@ -119,10 +133,10 @@ int32_t dmDiskInit() {
     numOfDisks = 1;
   }
 
-  pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
-  if (pDnode->pTfs == NULL) {
-    dError("failed to init tfs since %s", terrstr());
-    return -1;
+  int32_t code = tfsOpenWrapper(pDisks, numOfDisks, &pDnode->pTfs);
+  if (code != 0) {
+    dError("failed to init tfs since %s", tstrerror(code));
+    return code;
   }
   return 0;
 }
@@ -145,6 +159,12 @@ static bool dmCheckDataDirVersion() {
   return true;
 }
 
+static int32_t dmCheckDataDirVersionWrapper() {
+  if (!dmCheckDataDirVersion()) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  return 0;
+}
 #if defined(USE_S3)
 
 extern int32_t s3Begin();
@@ -155,16 +175,17 @@ extern int8_t  tsS3Enabled;
 
 int32_t dmInit() {
   dInfo("start to init dnode env");
-  if (dmDiskInit() != 0) return -1;
-  if (!dmCheckDataDirVersion()) return -1;
-  if (!dmCheckDiskSpace()) return -1;
-  if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
-  if (dmInitSystem() != 0) return -1;
-  if (dmInitMonitor() != 0) return -1;
-  if (dmInitAudit() != 0) return -1;
-  if (dmInitDnode(dmInstance()) != 0) return -1;
+  int32_t code = 0;
+  if ((code = dmDiskInit()) != 0) return code;
+  if ((code = dmCheckDataDirVersion()) != 0) return code;
+  if ((code = dmCheckDiskSpace()) != 0) return code;
+  if ((code = dmCheckRepeatInit(dmInstance())) != 0) return code;
+  if ((code = dmInitSystem()) != 0) return code;
+  if ((code = dmInitMonitor()) != 0) return code;
+  if ((code = dmInitAudit()) != 0) return code;
+  if ((code = dmInitDnode(dmInstance())) != 0) return code;
 #if defined(USE_S3)
-  if (s3Begin() != 0) return -1;
+  if ((code = s3Begin()) != 0) return code;
 #endif
 
   dInfo("dnode env is initialized");
@@ -214,6 +235,7 @@ int32_t dmRun() {
 }
 
 static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
+  int32_t code = 0;
   SDnode *pDnode = dmInstance();
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
@@ -221,19 +243,19 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     dmReleaseWrapper(pWrapper);
     switch (ntype) {
       case MNODE:
-        terrno = TSDB_CODE_MNODE_ALREADY_DEPLOYED;
+        code = TSDB_CODE_MNODE_ALREADY_DEPLOYED;
         break;
       case QNODE:
-        terrno = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
+        code = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
         break;
       case SNODE:
-        terrno = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
+        code = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
         break;
       default:
-        terrno = TSDB_CODE_APP_ERROR;
+        code = TSDB_CODE_APP_ERROR;
     }
     dError("failed to create node since %s", terrstr());
-    return -1;
+    return terrno = code;
   }
 
   dInfo("start to process create-node-request");
@@ -241,18 +263,18 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
     dmReleaseWrapper(pWrapper);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
+    return terrno = code;
   }
 
   taosThreadMutexLock(&pDnode->mutex);
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
   dInfo("node:%s, start to create", pWrapper->name);
-  int32_t code = (*pWrapper->func.createFp)(&input, pMsg);
+  code = (*pWrapper->func.createFp)(&input, pMsg);
   if (code != 0) {
-    dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
+    dError("node:%s, failed to create since %s", pWrapper->name, tstrerror(code));
   } else {
     dInfo("node:%s, has been created", pWrapper->name);
     code = dmOpenNode(pWrapper);
@@ -268,6 +290,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 }
 
 static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
+  int32_t code = 0;
   SDnode *pDnode = dmInstance();
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
@@ -286,16 +309,16 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     dInfo("node:%s, checking node role:%d", pWrapper->name, role);
     if (role == TAOS_SYNC_ROLE_VOTER) {
       dError("node:%s, failed to alter node type since node already is role:%d", pWrapper->name, role);
-      terrno = TSDB_CODE_MNODE_ALREADY_IS_VOTER;
-      return -1;
+      code = TSDB_CODE_MNODE_ALREADY_IS_VOTER;
+      return terrno = code;
     }
   }
 
   if (pWrapper->func.isCatchUpFp != NULL) {
     dInfo("node:%s, checking node catch up", pWrapper->name);
     if ((*pWrapper->func.isCatchUpFp)(pWrapper->pMgmt) != 1) {
-      terrno = TSDB_CODE_MNODE_NOT_CATCH_UP;
-      return -1;
+      code = TSDB_CODE_MNODE_NOT_CATCH_UP;
+      return terrno = code;
     }
   }
 
@@ -311,17 +334,17 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
     taosThreadMutexUnlock(&pDnode->mutex);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
+    return terrno = code;
   }
 
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
   dInfo("node:%s, start to create", pWrapper->name);
-  int32_t code = (*pWrapper->func.createFp)(&input, pMsg);
+  code = (*pWrapper->func.createFp)(&input, pMsg);
   if (code != 0) {
-    dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
+    dError("node:%s, failed to create since %s", pWrapper->name, tstrerror(code));
   } else {
     dInfo("node:%s, has been created", pWrapper->name);
     code = dmOpenNode(pWrapper);
@@ -337,35 +360,36 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 }
 
 static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
+  int32_t code = 0;
   SDnode *pDnode = dmInstance();
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     switch (ntype) {
       case MNODE:
-        terrno = TSDB_CODE_MNODE_NOT_DEPLOYED;
+        code = TSDB_CODE_MNODE_NOT_DEPLOYED;
         break;
       case QNODE:
-        terrno = TSDB_CODE_QNODE_NOT_DEPLOYED;
+        code = TSDB_CODE_QNODE_NOT_DEPLOYED;
         break;
       case SNODE:
-        terrno = TSDB_CODE_SNODE_NOT_DEPLOYED;
+        code = TSDB_CODE_SNODE_NOT_DEPLOYED;
         break;
       default:
-        terrno = TSDB_CODE_APP_ERROR;
+        code = TSDB_CODE_APP_ERROR;
     }
 
     dError("failed to drop node since %s", terrstr());
-    return -1;
+    return terrno = code;
   }
 
   taosThreadMutexLock(&pDnode->mutex);
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
   dInfo("node:%s, start to drop", pWrapper->name);
-  int32_t code = (*pWrapper->func.dropFp)(&input, pMsg);
+  code = (*pWrapper->func.dropFp)(&input, pMsg);
   if (code != 0) {
-    dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
+    dError("node:%s, failed to drop since %s", pWrapper->name, tstrerror(code));
   } else {
     dInfo("node:%s, has been dropped", pWrapper->name);
     pWrapper->required = false;
