@@ -202,7 +202,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.generateGrant = true;
     } else if (strcmp(argv[i], "-y") == 0) {
       global.generateCode = true;
-      if(i < argc - 1) {
+      if (i < argc - 1) {
         int32_t len = strlen(argv[++i]);
         if (len < ENCRYPT_KEY_LEN_MIN) {
           printf("ERROR: Encrypt key should be at least %d characters\n", ENCRYPT_KEY_LEN_MIN);
@@ -321,7 +321,7 @@ int main(int argc, char const *argv[]) {
   }
 
   if ((code = dmParseArgs(argc, argv)) != 0) {
-    //printf("failed to start since parse args error\n");
+    // printf("failed to start since parse args error\n");
     taosCleanupArgs();
     return code;
   }
@@ -367,7 +367,7 @@ int mainWindows(int argc, char **argv) {
     printf("memory dbg enabled\n");
   }
 #endif
-  if(global.generateCode) {
+  if (global.generateCode) {
     bool toLogFile = false;
     if ((code = taosReadDataFolder(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs)) != 0) {
       encryptError("failed to generate encrypt code since dataDir can not be set from cfg file,reason:%s",
@@ -375,8 +375,9 @@ int mainWindows(int argc, char **argv) {
       return code;
     };
     TdFilePtr pFile;
-    if ((code = dmCheckRunningWrapper(tsDataDir, &pFile)) != 0) {
-      encryptError("failed to generate encrypt code since taosd is running, please stop it first, reason:%s", tstrerror(code));
+    if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
+      encryptError("failed to generate encrypt code since taosd is running, please stop it first, reason:%s",
+                   tstrerror(code));
       return code;
     }
     int ret = dmUpdateEncryptKey(global.encryptKey, toLogFile);
@@ -437,7 +438,7 @@ int mainWindows(int argc, char **argv) {
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 
-  if(dmGetEncryptKey() != 0){
+  if (dmGetEncryptKey() != 0) {
     dError("failed to start since failed to get encrypt key");
     taosCloseLog();
     taosCleanupArgs();
@@ -461,7 +462,8 @@ int mainWindows(int argc, char **argv) {
   dmSetSignalHandle();
   tsDndStart = taosGetTimestampMs();
   tsDndStartOsUptime = taosGetOsUptime();
-  int32_t code = dmRun();
+
+  code = dmRun();
   dInfo("shutting down the service");
 
   dmCleanup();

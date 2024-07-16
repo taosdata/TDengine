@@ -72,7 +72,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
     pWrapper->required = dmRequireNode(pDnode, pWrapper);
   }
 
-  code = dmCheckRunningWrapper(tsDataDir, &pDnode->lockfile);
+  code = dmCheckRunning(tsDataDir, &pDnode->lockfile);
   if (code != 0) {
     goto _OVER;
   }

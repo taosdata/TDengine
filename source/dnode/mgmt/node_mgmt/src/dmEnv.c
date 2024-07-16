@@ -14,11 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "audit.h"
+// clang-format off
 #include "dmMgmt.h"
+#include "audit.h"
 #include "libs/function/tudf.h"
-#include "tcompare.h"
 #include "tgrant.h"
+#include "tcompare.h"
+// clang-format on
 
 #define DM_INIT_AUDIT()              \
   do {                               \
