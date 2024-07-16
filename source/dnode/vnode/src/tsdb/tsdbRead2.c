@@ -5635,7 +5635,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   // lock
   code = taosThreadMutexLock(&pTsdb->mutex);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("failed to lock tsdb, code:%d", tstrerror(code));
+    tsdbError("failed to lock tsdb, code:%s", tstrerror(code));
     return code;
   }
 
