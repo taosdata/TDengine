@@ -1077,10 +1077,17 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
       if (info->pctx.valHash == NULL) {
         info->pctx.valHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE,
                                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
+        if (NULL == info->pctx.valHash) {
+          fltError("taosHashInit failed, size:%d", FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE);
+          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        }
       }
 
       SFilterDataInfo dInfo = {idx, *data};
-      taosHashPut(info->pctx.valHash, *data, dataLen, &dInfo, sizeof(dInfo));
+      if (taosHashPut(info->pctx.valHash, *data, dataLen, &dInfo, sizeof(dInfo))) {
+        fltError("taosHashPut to set failed");
+        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
       if (srcFlag) {
         FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
       }
@@ -1141,6 +1148,10 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
     if (info->pctx.unitHash == NULL) {
       info->pctx.unitHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_UNIT_SIZE,
                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, false);
+      if (NULL == info->pctx.unitHash) {
+        fltError("taosHashInit failed, size:%d", FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_UNIT_SIZE);
+        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
     } else {
       char v[14] = {0};
       FLT_PACKAGE_UNIT_HASH_KEY(&v, optr, optr2, left->idx, (right ? right->idx : -1), (right2 ? right2->idx : -1));
@@ -1198,7 +1209,11 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
   if (FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
     char v[14] = {0};
     FLT_PACKAGE_UNIT_HASH_KEY(&v, optr, optr2, left->idx, (right ? right->idx : -1), (right2 ? right2->idx : -1));
-    taosHashPut(info->pctx.unitHash, v, sizeof(v), uidx, sizeof(*uidx));
+    if (taosHashPut(info->pctx.unitHash, v, sizeof(v), uidx, sizeof(*uidx))) {
+      fltError("taosHashPut to set failed");
+      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
   }
 
   ++info->unitNum;
