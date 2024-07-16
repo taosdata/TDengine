@@ -124,7 +124,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
 
     default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
+      SCL_ERR_RET(colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL));
     }
   }
 
@@ -277,7 +277,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     }
 
     default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
+      SCL_ERR_RET(colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL));
     }
   }
 
@@ -380,6 +380,9 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, int32_t type, VarDataLenT *dataLen) {
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4 *newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
+    if (NULL == newBuf) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     int32_t len = varDataLen(input);
     bool    ret = taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len);
     if (!ret) {
@@ -410,11 +413,18 @@ static int32_t getNumOfNullEntries(SColumnInfoData *pColumnInfoData, int32_t num
 }
 
 int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t           ret = TSDB_CODE_SUCCESS;
+  int32_t           code = TSDB_CODE_SUCCESS;
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData  *pOutputData = pOutput->columnData;
   char            **input = taosMemoryCalloc(inputNum, POINTER_BYTES);
   char             *outputBuf = NULL;
+
+  if (NULL == pInputData) {
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  if (NULL == input) {
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   int32_t inputLen = 0;
   int32_t numOfRows = 0;
@@ -441,6 +451,9 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
   int32_t outputLen = inputLen + numOfRows * VARSTR_HEADER_SIZE;
   outputBuf = taosMemoryCalloc(outputLen, 1);
+  if (NULL == outputBuf) {
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   char *output = outputBuf;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -462,32 +475,36 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       int32_t rowIdx = (pInput[i].numOfRows == 1) ? 0 : k;
       input[i] = colDataGetData(pInputData[i], rowIdx);
 
-      ret = concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen);
-      if (ret != TSDB_CODE_SUCCESS) {
-        goto DONE;
-      }
+      SCL_ERR_JRET(concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen));
     }
     varDataSetLen(output, dataLen);
-    colDataSetVal(pOutputData, k, output, false);
+    SCL_ERR_JRET(colDataSetVal(pOutputData, k, output, false));
     output += varDataTLen(output);
   }
 
   pOutput->numOfRows = numOfRows;
 
-DONE:
+_return:
   taosMemoryFree(input);
   taosMemoryFree(outputBuf);
   taosMemoryFree(pInputData);
 
-  return ret;
+  SCL_RET(code);
 }
 
 int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t           ret = TSDB_CODE_SUCCESS;
+  int32_t           code = TSDB_CODE_SUCCESS;
   SColumnInfoData **pInputData = taosMemoryCalloc(inputNum, sizeof(SColumnInfoData *));
   SColumnInfoData  *pOutputData = pOutput->columnData;
   char            **input = taosMemoryCalloc(inputNum, POINTER_BYTES);
   char             *outputBuf = NULL;
+
+  if (NULL == pInputData) {
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  if (NULL == input) {
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   int32_t inputLen = 0;
   int32_t numOfRows = 0;
@@ -518,6 +535,10 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
   int32_t outputLen = inputLen + numOfRows * VARSTR_HEADER_SIZE;
   outputBuf = taosMemoryCalloc(outputLen, 1);
+  if (NULL == outputBuf) {
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   char *output = outputBuf;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
@@ -537,18 +558,12 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       int32_t rowIdx = (pInput[i].numOfRows == 1) ? 0 : k;
       input[i] = colDataGetData(pInputData[i], rowIdx);
 
-      ret = concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen);
-      if (ret != TSDB_CODE_SUCCESS) {
-        goto DONE;
-      }
+      SCL_ERR_JRET(concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen));
 
       if (i < inputNum - 1) {
         // insert the separator
         char *sep = (pInput[0].numOfRows == 1) ? colDataGetData(pInputData[0], 0) : colDataGetData(pInputData[0], k);
-        ret = concatCopyHelper(sep, output, hasNchar, GET_PARAM_TYPE(&pInput[0]), &dataLen);
-        if (ret != TSDB_CODE_SUCCESS) {
-          goto DONE;
-        }
+        SCL_ERR_JRET(concatCopyHelper(sep, output, hasNchar, GET_PARAM_TYPE(&pInput[0]), &dataLen));
       }
     }
 
@@ -557,19 +572,19 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       memset(output, 0, dataLen);
     } else {
       varDataSetLen(output, dataLen);
-      colDataSetVal(pOutputData, k, output, false);
+      SCL_ERR_JRET(colDataSetVal(pOutputData, k, output, false));
       output += varDataTLen(output);
     }
   }
 
   pOutput->numOfRows = numOfRows;
 
-DONE:
+_return:
   taosMemoryFree(input);
   taosMemoryFree(outputBuf);
   taosMemoryFree(pInputData);
 
-  return ret;
+  return code;
 }
 
 static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, _conv_fn convFn) {
@@ -580,6 +595,10 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
 
   int32_t outputLen = pInputData->varmeta.length;
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
+  if (outputBuf == NULL) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   char   *output = outputBuf;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -600,7 +619,11 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
       }
     }
     varDataSetLen(output, len);
-    colDataSetVal(pOutputData, i, output, false);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(outputBuf);
+      SCL_ERR_RET(code);
+    }
     output += varDataTLen(output);
   }
 
@@ -618,6 +641,10 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
 
   int32_t outputLen = pInputData->varmeta.length;
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
+  if (outputBuf == NULL) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   char   *output = outputBuf;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -631,7 +658,11 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
     trimFn(input, output, type, charLen);
 
-    colDataSetVal(pOutputData, i, output, false);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(outputBuf);
+      SCL_ERR_RET(code);
+    }
     output += varDataTLen(output);
   }
 
@@ -688,7 +719,11 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       varDataSetLen(output, 0);
     }
 
-    colDataSetVal(pOutputData, i, output, false);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(outputBuf);
+      SCL_ERR_RET(code);
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -715,12 +750,21 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
     if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
       pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!pOutputBuf) {
+        qError("md5 function alloc memory failed");
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
     char *output = pOutputBuf;
     memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosCreateMD5Hash(varDataVal(output), varDataLen(input));
     varDataSetLen(output, len);
-    colDataSetVal(pOutputData, i, output, false);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pOutputBuf);
+      SCL_ERR_RET(code);
+    }
+
   }
   pOutput->numOfRows = pInput->numOfRows;
   taosMemoryFree(pOutputBuf);
@@ -1062,7 +1106,10 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
     }
 
-    colDataSetVal(pOutput->columnData, i, output, false);
+    code = colDataSetVal(pOutput->columnData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _end;
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -1167,7 +1214,7 @@ _end:
     memmove(buf + VARSTR_HEADER_SIZE, buf, len);
     varDataSetLen(buf, len);
 
-    colDataSetVal(pOutput->columnData, i, buf, false);
+    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, buf, false));
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -1193,7 +1240,7 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     if (ret != TSDB_CODE_SUCCESS) {
       colDataSetNULL(pOutput->columnData, i);
     } else {
-      colDataSetVal(pOutput->columnData, i, (char *)&timeVal, false);
+      SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&timeVal, false));
     }
   }
 
@@ -1206,12 +1253,21 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   int32_t type = GET_PARAM_TYPE(pInput);
 
   char tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     SArray *pTagVals = taosArrayInit(8, sizeof(STagVal));
+    if (NULL == pTagVals) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     STag   *pTag = NULL;
 
     if (colDataIsNull_s(pInput[0].columnData, i)) {
-      tTagNew(pTagVals, 1, true, &pTag);
+      code = tTagNew(pTagVals, 1, true, &pTag);
+      if (TSDB_CODE_SUCCESS != code) {
+        tTagFree(pTag);
+        taosArrayDestroy(pTagVals);
+        SCL_ERR_RET(code);
+      }
     } else {
       char *input = pInput[0].columnData->pData + pInput[0].columnData->varmeta.offset[i];
       if (varDataLen(input) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
@@ -1221,13 +1277,21 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       memcpy(tmp, varDataVal(input), varDataLen(input));
       tmp[varDataLen(input)] = 0;
       if (parseJsontoTagData(tmp, pTagVals, &pTag, NULL)) {
-        tTagNew(pTagVals, 1, true, &pTag);
+        code = tTagNew(pTagVals, 1, true, &pTag);
+        if (TSDB_CODE_SUCCESS != code) {
+          tTagFree(pTag);
+          taosArrayDestroy(pTagVals);
+          SCL_ERR_RET(code);
+        }
       }
     }
 
-    colDataSetVal(pOutput->columnData, i, (const char *)pTag, false);
+    code = colDataSetVal(pOutput->columnData, i, (const char *)pTag, false);
     tTagFree(pTag);
     taosArrayDestroy(pTagVals);
+    if (TSDB_CODE_SUCCESS != code ) {
+      SCL_ERR_RET(code);
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -1242,6 +1306,9 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
   int32_t len, code = TSDB_CODE_SUCCESS;
   SArray *formats = NULL;
 
+  if (tsStr == NULL || format == NULL) {
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
       colDataSetNULL(pOutput->columnData, i);
@@ -1251,11 +1318,11 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
     char *tsData = colDataGetData(pInput[0].columnData, i);
     char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
     len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
-    strncpy(tsStr, varDataVal(tsData), len);
+    (void)strncpy(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
     tsStr[len] = '\0';
     len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
     if (pInput[1].numOfRows > 1 || i == 0) {
-      strncpy(format, varDataVal(formatData), len);
+      (void)strncpy(format, varDataVal(formatData), len);  // No need to handle the return value.
       format[len] = '\0';
       if (formats) {
         taosArrayDestroy(formats);
@@ -1267,10 +1334,12 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
     code = taosChar2Ts(format, &formats, tsStr, &ts, precision, errMsg, 128);
     if (code) {
       qError("func to_timestamp failed %s", errMsg);
-      break;
+      SCL_ERR_JRET(code);
     }
-    colDataSetVal(pOutput->columnData, i, (char *)&ts, false);
+    SCL_ERR_JRET(colDataSetVal(pOutput->columnData, i, (char *)&ts, false));
   }
+
+_return:
   if (formats) taosArrayDestroy(formats);
   taosMemoryFree(tsStr);
   taosMemoryFree(format);
@@ -1283,6 +1352,10 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   int32_t len;
   SArray *formats = NULL;
   int32_t code = 0;
+
+  if (format == NULL || out == NULL) {
+    SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
       colDataSetNULL(pOutput->columnData, i);
@@ -1293,7 +1366,7 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
     char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
     len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
     if (pInput[1].numOfRows > 1 || i == 0) {
-      strncpy(format, varDataVal(formatData), len);
+      (void)strncpy(format, varDataVal(formatData), len);
       format[len] = '\0';
       if (formats) {
         taosArrayDestroy(formats);
@@ -1301,11 +1374,12 @@ int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       }
     }
     int32_t precision = pInput[0].columnData->info.precision;
-    code = taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN);
-    if (code) break;
+    SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN));
     varDataSetLen(out, strlen(varDataVal(out)));
-    colDataSetVal(pOutput->columnData, i, out, false);
+    SCL_ERR_JRET(colDataSetVal(pOutput->columnData, i, out, false));
   }
+
+_return:
   if (formats) taosArrayDestroy(formats);
   taosMemoryFree(format);
   taosMemoryFree(out);
@@ -1341,7 +1415,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   }
 
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData);
-  memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
+  (void)memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -1373,7 +1447,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     } else {
       timeVal = timeVal / timeUnit * timeUnit;
     }
-    colDataSetVal(pOutput->columnData, i, (char *)&timeVal, false);
+    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&timeVal, false));
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -1507,7 +1581,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       }
     }
 
-    colDataSetVal(pOutput->columnData, i, (char *)&result, false);
+    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&result, false));
   }
 
   pOutput->numOfRows = numOfRows;
@@ -1541,10 +1615,10 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char output[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
-  memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
+  (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
   varDataSetLen(output, strlen(tsTimezoneStr));
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    colDataSetVal(pOutput->columnData, i, output, false);
+    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, output, false));
   }
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
@@ -2259,16 +2333,16 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     char interceptBuf[64] = {0};
     int  n = snprintf(slopBuf, 64, "%.6lf", matrix02);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
-      snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix02);
+      (void)snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix02);
     }
     n = snprintf(interceptBuf, 64, "%.6lf", matrix12);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
-      snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
+      (void) snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }
     size_t len =
         snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
     varDataSetLen(buf, len);
-    colDataSetVal(pOutputData, 0, buf, false);
+    SCL_ERR_RET(colDataSetVal(pOutputData, 0, buf, false));
   }
 
   pOutput->numOfRows = 1;
@@ -2295,7 +2369,7 @@ int32_t percentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalar
   if (hasNull) {
     colDataSetNULL(pOutputData, 0);
   } else {
-    colDataSetVal(pOutputData, 0, (char *)&val, false);
+    SCL_ERR_RET(colDataSetVal(pOutputData, 0, (char *)&val, false));
   }
 
   pOutput->numOfRows = 1;
@@ -2341,7 +2415,7 @@ int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     colDataSetNULL(pOutputData, 0);
   } else {
     double result = max - min;
-    colDataSetVal(pOutputData, 0, (char *)&result, false);
+    SCL_ERR_RET(colDataSetVal(pOutputData, 0, (char *)&result, false));
   }
 
   pOutput->numOfRows = 1;
@@ -2544,7 +2618,7 @@ int32_t stateCountScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalar
     } else {
       count = 0;
     }
-    colDataSetVal(pOutputData, i, (char *)&out, false);
+    SCL_ERR_RET(colDataSetVal(pOutputData, i, (char *)&out, false));
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -2568,7 +2642,7 @@ int32_t stateDurationScalarFunction(SScalarParam *pInput, int32_t inputNum, SSca
     if (ret) {
       out = 0;
     }
-    colDataSetVal(pOutputData, i, (char *)&out, false);
+    SCL_ERR_RET(colDataSetVal(pOutputData, i, (char *)&out, false));
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -2599,7 +2673,7 @@ typedef struct SHistoFuncBin {
   double  percentage;
 } SHistoFuncBin;
 
-static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *binDescStr, int8_t binType,
+static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *binDescStr, int8_t binType,
                                 bool normalized) {
   cJSON  *binDesc = cJSON_Parse(binDescStr);
   int32_t numOfBins;
@@ -2609,7 +2683,7 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
     int32_t startIndex;
     if (numOfParams != 4) {
       cJSON_Delete(binDesc);
-      return false;
+      SCL_ERR_RET(TSDB_CODE_FAILED);
     }
 
     cJSON *start = cJSON_GetObjectItem(binDesc, "start");
@@ -2620,18 +2694,18 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
 
     if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
       cJSON_Delete(binDesc);
-      return false;
+      SCL_RET(TSDB_CODE_SUCCESS);
     }
 
     if (count->valueint <= 0 || count->valueint > 1000) {  // limit count to 1000
       cJSON_Delete(binDesc);
-      return false;
+      SCL_ERR_RET(TSDB_CODE_FAILED);
     }
 
     if (isinf(start->valuedouble) || (width != NULL && isinf(width->valuedouble)) ||
         (factor != NULL && isinf(factor->valuedouble)) || (count != NULL && isinf(count->valuedouble))) {
       cJSON_Delete(binDesc);
-      return false;
+      SCL_ERR_RET(TSDB_CODE_FAILED);
     }
 
     int32_t counter = (int32_t)count->valueint;
@@ -2644,19 +2718,22 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
     }
 
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
+    if (NULL == intervals) {
+      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
     if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
       // linear bin process
       if (width->valuedouble == 0) {
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble + i * width->valuedouble;
         if (isinf(intervals[startIndex])) {
           taosMemoryFree(intervals);
           cJSON_Delete(binDesc);
-          return false;
+          SCL_ERR_RET(TSDB_CODE_FAILED);
         }
         startIndex++;
       }
@@ -2665,26 +2742,26 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
       if (start->valuedouble == 0) {
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
         if (isinf(intervals[startIndex])) {
           taosMemoryFree(intervals);
           cJSON_Delete(binDesc);
-          return false;
+          SCL_ERR_RET(TSDB_CODE_FAILED);
         }
         startIndex++;
       }
     } else {
       taosMemoryFree(intervals);
       cJSON_Delete(binDesc);
-      return false;
+      SCL_ERR_RET(TSDB_CODE_FAILED);
     }
 
     if (infinity->valueint == true) {
@@ -2692,7 +2769,7 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
       if (numOfBins < 4) {
-        return false;
+        SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       if (intervals[1] > intervals[numOfBins - 2]) {
         TSWAP(intervals[0], intervals[numOfBins - 1]);
@@ -2701,15 +2778,18 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
   } else if (cJSON_IsArray(binDesc)) { /* user input bins */
     if (binType != USER_INPUT_BIN) {
       cJSON_Delete(binDesc);
-      return false;
+      SCL_ERR_RET(TSDB_CODE_FAILED);
     }
     numOfBins = cJSON_GetArraySize(binDesc);
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
+    if (NULL == intervals) {
+      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
     cJSON *bin = binDesc->child;
     if (bin == NULL) {
       taosMemoryFree(intervals);
       cJSON_Delete(binDesc);
-      return false;
+      SCL_ERR_RET(TSDB_CODE_FAILED);
     }
     int i = 0;
     while (bin) {
@@ -2717,23 +2797,26 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
       if (!cJSON_IsNumber(bin)) {
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        SCL_ERR_RET(TSDB_CODE_FAILED);
       }
       bin = bin->next;
       i++;
     }
   } else {
     cJSON_Delete(binDesc);
-    return false;
+    SCL_RET(TSDB_CODE_FAILED);
   }
 
   *binNum = numOfBins - 1;
   *bins = taosMemoryCalloc(numOfBins, sizeof(SHistoFuncBin));
+  if (NULL == bins) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   for (int32_t i = 0; i < *binNum; ++i) {
     (*bins)[i].lower = intervals[i] < intervals[i + 1] ? intervals[i] : intervals[i + 1];
     (*bins)[i].upper = intervals[i + 1] > intervals[i] ? intervals[i + 1] : intervals[i];
@@ -2743,7 +2826,7 @@ static bool getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *bin
   taosMemoryFree(intervals);
   cJSON_Delete(binDesc);
 
-  return true;
+  SCL_RET(TSDB_CODE_SUCCESS);
 }
 
 int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -2762,9 +2845,10 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int64_t normalized = *(int64_t *)(pInput[3].columnData->pData);
 
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (!getHistogramBinDesc(&bins, &numOfBins, binDesc, binType, (bool)normalized)) {
+  int32_t code = getHistogramBinDesc(&bins, &numOfBins, binDesc, binType, (bool)normalized);
+  if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(binDesc);
-    return TSDB_CODE_FAILED;
+    return code;
   }
   taosMemoryFree(binDesc);
 
@@ -2796,7 +2880,7 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     }
   }
 
-  colInfoDataEnsureCapacity(pOutputData, numOfBins, false);
+  SCL_ERR_JRET(colInfoDataEnsureCapacity(pOutputData, numOfBins, false));
 
   for (int32_t k = 0; k < numOfBins; ++k) {
     int32_t len;
@@ -2809,11 +2893,12 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
                     bins[k].upper, bins[k].percentage);
     }
     varDataSetLen(buf, len);
-    colDataSetVal(pOutputData, k, buf, false);
+    SCL_ERR_JRET(colDataSetVal(pOutputData, k, buf, false));
   }
-
-  taosMemoryFree(bins);
   pOutput->numOfRows = numOfBins;
+
+_return:
+  taosMemoryFree(bins);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2830,7 +2915,7 @@ int32_t selectScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     }
 
     char *data = colDataGetData(pInputData, i);
-    colDataSetVal(pOutputData, i, data, false);
+    SCL_ERR_RET(colDataSetVal(pOutputData, i, data, false));
   }
 
   pOutput->numOfRows = 1;

@@ -239,7 +239,7 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
     SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
+  (void)memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -893,8 +893,9 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam *pLeft = &params[0];
   SScalarParam *pRight = paramNum > 1 ? &params[1] : NULL;
 
+  terrno = TSDB_CODE_SUCCESS;
   SCL_ERR_JRET(OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC));
-
+  SCL_ERR_JRET(terrno);
 _return:
 
   sclFreeParamList(params, paramNum);
@@ -1218,7 +1219,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  strcpy(res->node.aliasName, node->node.aliasName);
+  (void)strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType.type = output.columnData->info.type;
   res->node.resType.bytes = output.columnData->info.bytes;
   res->node.resType.scale = output.columnData->info.scale;
@@ -1236,7 +1237,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
         ctx->code = TSDB_CODE_OUT_OF_MEMORY;
         return DEAL_RES_ERROR;
       }
-      memcpy(res->datum.p, output.columnData->pData, len);
+      (void)memcpy(res->datum.p, output.columnData->pData, len);
     } else if (IS_VAR_DATA_TYPE(type)) {
       // res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
       res->datum.p = taosMemoryCalloc(varDataTLen(output.columnData->pData) + 1, 1);
@@ -1247,7 +1248,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
         return DEAL_RES_ERROR;
       }
       res->node.resType.bytes = varDataTLen(output.columnData->pData);
-      memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
+      (void)memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
       if (ctx->code) {
@@ -1339,7 +1340,7 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  strcpy(res->node.aliasName, node->node.aliasName);
+  (void)strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
@@ -1402,7 +1403,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
 
   res->translate = true;
 
-  strcpy(res->node.aliasName, node->node.aliasName);
+  (void)strcpy(res->node.aliasName, node->node.aliasName);
   res->node.resType = node->node.resType;
   if (colDataIsNull_s(output.columnData, 0)) {
     res->isNull = true;
@@ -1417,7 +1418,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
         ctx->code = TSDB_CODE_OUT_OF_MEMORY;
         return DEAL_RES_ERROR;
       }
-      memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
+      (void)memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
       ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
       if (ctx->code) {

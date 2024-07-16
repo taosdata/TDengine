@@ -951,8 +951,8 @@ int32_t filterDetachCnfGroup(SFilterGroup *gp1, SFilterGroup *gp2, SArray *group
   if (NULL == gp.unitIdxs) {
     FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  memcpy(gp.unitIdxs, gp1->unitIdxs, gp1->unitNum * sizeof(*gp.unitIdxs));
-  memcpy(gp.unitIdxs + gp1->unitNum, gp2->unitIdxs, gp2->unitNum * sizeof(*gp.unitIdxs));
+  (void)memcpy(gp.unitIdxs, gp1->unitIdxs, gp1->unitNum * sizeof(*gp.unitIdxs));
+  (void)memcpy(gp.unitIdxs + gp1->unitNum, gp2->unitIdxs, gp2->unitNum * sizeof(*gp.unitIdxs));
 
   gp.unitFlags = NULL;
 
@@ -1290,7 +1290,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           break;
         }
-        memcpy(data, nodesGetValueFromNode(valueNode), tDataTypes[type].bytes);
+        (void)memcpy(data, nodesGetValueFromNode(valueNode), tDataTypes[type].bytes);
         code = filterAddField(info, NULL, (void **)&data, FLD_TYPE_VALUE, &right, len, true, NULL);
         if (TSDB_CODE_SUCCESS != code) {
           break;
@@ -1735,7 +1735,7 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
       }
 
       *str = '"';
-      memcpy(str + 1, buf, bufSize);
+      (void)memcpy(str + 1, buf, bufSize);
       *(str + bufSize + 1) = '"';
       n = bufSize + 2;
       break;
@@ -2143,7 +2143,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
 
       size_t valBytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(out.columnData->pData) : out.columnData->info.bytes;
-      memcpy(fi->data, out.columnData->pData, valBytes);
+      (void)memcpy(fi->data, out.columnData->pData, valBytes);
 
       colDataDestroy(out.columnData);
       taosMemoryFree(out.columnData);
@@ -3428,6 +3428,7 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
       if (len < 0) {
         qError("castConvert1 taosUcs4ToMbs error");
+        FLT_ERR_RET(TSDB_CODE_APP_ERROR);
       } else {
         varDataSetLen(newColData, len);
         p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData,
@@ -3501,6 +3502,7 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
               int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData));
               if (len < 0) {
                 qError("castConvert1 taosUcs4ToMbs error");
+                FLT_ERR_RET(TSDB_CODE_APP_ERROR);
               } else {
                 varDataSetLen(newColData, len);
                 p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
