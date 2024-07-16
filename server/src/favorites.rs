@@ -70,6 +70,7 @@ impl FavoritesSql {
 #[derive(serde::Deserialize)]
 pub struct AddSql {
     sql: String,
+    description: Option<String>,
 }
 
 fn err_empty_sql() -> R<()> {
@@ -84,19 +85,25 @@ fn err_sql_already_exists() -> R<()> {
 pub async fn add_favorites_sql(
     favorites: web::Data<FavoritesSql>,
     req: HttpRequest,
-    sql: web::Json<AddSql>,
+    mut sql: web::Json<AddSql>,
 ) -> Result<R<()>> {
     if sql.sql.trim().is_empty() {
         return Err(err_empty_sql());
     }
 
     let username = get_username_from_header(&req)?;
+    let description = sql
+        .description
+        .take()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(String::from("NULL"));
 
     sqlx::query(&format!(
-        "insert into {TABLE_NAME} (username, sql) values (?, ?)"
+        "insert into {TABLE_NAME} (username, sql, description) values (?, ?, ?)"
     ))
     .bind(username)
     .bind(&sql.sql)
+    .bind(description)
     .execute(&favorites.pool)
     .await
     .map_err(|e| {
