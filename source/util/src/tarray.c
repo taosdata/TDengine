@@ -34,14 +34,12 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
 
   SArray* pArray = taosMemoryMalloc(sizeof(SArray));
   if (pArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pArray->size = 0;
   pArray->pData = taosMemoryCalloc(size, elemSize);
   if (pArray->pData == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pArray);
     return NULL;
   }
@@ -387,13 +385,11 @@ void taosArrayClearP(SArray* pArray, void (*fp)(void*)) {
   taosArrayClear(pArray);
 }
 
-void* taosArrayDestroy(SArray* pArray) {
+void taosArrayDestroy(SArray* pArray) {
   if (pArray) {
     taosMemoryFree(pArray->pData);
     taosMemoryFree(pArray);
   }
-
-  return NULL;
 }
 
 void taosArrayDestroyP(SArray* pArray, FDelete fp) {

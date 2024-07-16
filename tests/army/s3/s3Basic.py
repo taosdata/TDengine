@@ -73,7 +73,7 @@ class TDTestCase(TBase):
         # come from s3_basic.json
         self.childtable_count = 6
         self.insert_rows = 2000000
-        self.timestamp_step = 1000
+        self.timestamp_step = 100
 
     def createStream(self, sname):
         sql = f"create stream {sname} fill_history 1 into stm1 as select count(*) from {self.db}.{self.stb} interval(10s);"
@@ -262,7 +262,7 @@ class TDTestCase(TBase):
 
         # come from s3_basic.json
         self.insert_rows += self.insert_rows/4
-        self.timestamp_step = 500
+        self.timestamp_step = 50
 
     # delete
     def checkDelete(self):

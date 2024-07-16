@@ -1675,10 +1675,8 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
           pRes[i] = false;
           continue;
         }
-
         char *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
         char *pRightData = colDataGetData(pRight->columnData, rightIndex);
-
         pRes[i] = filterDoCompare(fp, optr, pLeftData, pRightData);
         if (pRes[i]) {
           ++num;
@@ -1714,7 +1712,6 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       if (!pLeftData || !pRightData) {
         result = false;
       }
-
       if (!result) {
         colDataSetInt8(pOut->columnData, i, (int8_t *)&result);
       } else {

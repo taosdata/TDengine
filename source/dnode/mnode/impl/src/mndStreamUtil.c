@@ -978,7 +978,8 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
 }
 
 void mndClearConsensusRspEntry(SCheckpointConsensusInfo* pInfo) {
-  pInfo->pTaskList = taosArrayDestroy(pInfo->pTaskList);
+  taosArrayDestroy(pInfo->pTaskList);
+  pInfo->pTaskList = NULL;
 }
 
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId) {
