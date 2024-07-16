@@ -287,7 +287,7 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   SMetaReader* mr = (SMetaReader*)pContext;
-  bool isTagCol = false, isTbname = false;
+  bool         isTagCol = false, isTbname = false;
   if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
     SColumnNode* pCol = (SColumnNode*)*pNode;
     if (pCol->colType == COLUMN_TYPE_TBNAME)
@@ -296,8 +296,7 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
       isTagCol = true;
   } else if (nodeType(*pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode* pFunc = (SFunctionNode*)*pNode;
-    if (pFunc->funcType == FUNCTION_TYPE_TBNAME)
-      isTbname = true;
+    if (pFunc->funcType == FUNCTION_TYPE_TBNAME) isTbname = true;
   }
   if (isTagCol) {
     SColumnNode* pSColumnNode = *(SColumnNode**)pNode;
@@ -1463,6 +1462,7 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
   pExp->pExpr->_function.functionId = -1;
 
   int32_t type = nodeType(pNode);
+  qInfo("createExprFromOneNode slot[%d] type: %d", slotId, type);
   // it is a project query, or group by column
   if (type == QUERY_NODE_COLUMN) {
     pExp->pExpr->nodeType = QUERY_NODE_COLUMN;
@@ -1493,9 +1493,15 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
     SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
 
-    SDataType* pType = &pFuncNode->node.resType;
-    pExp->base.resSchema =
-        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pFuncNode->node.aliasName);
+    SDataType*  pType = &pFuncNode->node.resType;
+    const char* pName = pFuncNode->node.aliasName;
+    if (pFuncNode->funcType == FUNCTION_TYPE_FORECAST_CONFIDENCE_LOW ||
+        pFuncNode->funcType == FUNCTION_TYPE_FORECAST_CONFIDENCE_HIGH ||
+        pFuncNode->funcType == FUNCTION_TYPE_FORECAST_EXPR) {
+      pName = pFuncNode->functionName;
+    }
+    qInfo("createExprFromOneNode slot[%d] function: %s %s", slotId, pName, pFuncNode->functionName);
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pName);
 
     tExprNode* pExprNode = pExp->pExpr;
 
@@ -1626,7 +1632,9 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
+    qInfo("set select value column info through %d function name:%s", i, pName);
+    //  || (strcmp(pName, "_fhigh") == 0) || (strcmp(pName, "_ffull") == 0)
+    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0) || (strcmp(pName, "_flow") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       void* data = taosHashGet(pSelectFuncs, pName, strlen(pName));
@@ -1637,6 +1645,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
         taosHashPut(pSelectFuncs, pName, strlen(pName), &num, sizeof(num));
         p = &pCtx[i];
       }
+    } else {
+      qWarn("non-select function name:%s", pName);
     }
   }
   taosHashCleanup(pSelectFuncs);
@@ -2178,17 +2188,18 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
     return code;
   }
   if (group == NULL || groupByTbname) {
-    if (tsCountAlwaysReturnValue && QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode) && ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
+    if (tsCountAlwaysReturnValue && QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode) &&
+        ((STableScanPhysiNode*)pScanNode)->needCountEmptyTable) {
       pTableListInfo->remainGroups =
           taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (pTableListInfo->remainGroups == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
-      
+
       for (int i = 0; i < numOfTables; i++) {
         STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
         info->groupId = info->uid;
-        
+
         taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
                     sizeof(info->uid));
       }

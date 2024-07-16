@@ -14,7 +14,9 @@
  */
 
 #include "parTranslater.h"
+#include "nodes.h"
 #include "parInt.h"
+#include "query.h"
 #include "tdatablock.h"
 
 #include "catalog.h"
@@ -26,6 +28,7 @@
 #include "systable.h"
 #include "tcol.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "ttime.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
@@ -1094,7 +1097,7 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
         FUNCTION_TYPE_LAST_ROW == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
-               FUNCTION_TYPE_IROWTS == pFunc->funcType) {
+               FUNCTION_TYPE_IROWTS == pFunc->funcType) {  // todo(@huolinhe): forecast pseudo column
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
@@ -3370,8 +3373,16 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
        (QUERY_NODE_FUNCTION == nodeType(*pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)*pNode)->funcType))) {
     return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
   }
-  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     pCxt->existCol = true;
+    return DEAL_RES_CONTINUE;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    qInfo("doCheckAggColCoexist with function name:%s", pFunc->functionName);
+    if (isScanPseudoColumnFunc(*pNode)) {
+      pCxt->existCol = true;
+    }
   }
   return DEAL_RES_CONTINUE;
 }
@@ -3430,6 +3441,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {
+    
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
   }
   return TSDB_CODE_SUCCESS;
@@ -7421,7 +7433,7 @@ static int32_t tagDefNodeToField(SNodeList* pList, SArray** pArray, bool calByte
   FOREACH(pNode, pList) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     SField          field = {
-                 .type = pCol->dataType.type,
+        .type = pCol->dataType.type,
     };
     if (calBytes) {
       field.bytes = calcTypeBytes(pCol->dataType);
@@ -8971,7 +8983,7 @@ static int16_t getCreateComponentNodeMsgType(ENodeType type) {
 static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComponentNodeStmt* pStmt) {
   SMCreateQnodeReq createReq = {.dnodeId = pStmt->dnodeId};
   int32_t          code = buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)),
-                                      (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &createReq);
+                             (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &createReq);
   tFreeSMCreateQnodeReq(&createReq);
   return code;
 }
@@ -8995,7 +9007,7 @@ static int16_t getDropComponentNodeMsgType(ENodeType type) {
 static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponentNodeStmt* pStmt) {
   SDDropQnodeReq dropReq = {.dnodeId = pStmt->dnodeId};
   int32_t        code = buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)),
-                                    (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &dropReq);
+                             (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &dropReq);
   tFreeSDDropQnodeReq(&dropReq);
   return code;
 }
@@ -11856,7 +11868,8 @@ static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SN
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createParOperatorNode(EOperatorType opType, const char* pLeftCol, const char* pRightCol, SNode** ppResOp) {
+static int32_t createParOperatorNode(EOperatorType opType, const char* pLeftCol, const char* pRightCol,
+                                     SNode** ppResOp) {
   SOperatorNode* pOper = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
   CHECK_POINTER_OUT_OF_MEM(pOper);
 
@@ -12131,7 +12144,7 @@ static int32_t rewriteShowStableTags(STranslateContext* pCxt, SQuery* pQuery) {
   SShowTableTagsStmt* pShow = (SShowTableTagsStmt*)pQuery->pRoot;
   SSelectStmt*        pSelect = NULL;
   int32_t             code = createSimpleSelectStmtFromCols(((SValueNode*)pShow->pDbName)->literal,
-                                                            ((SValueNode*)pShow->pTbName)->literal, -1, NULL, &pSelect);
+                                                ((SValueNode*)pShow->pTbName)->literal, -1, NULL, &pSelect);
   if (TSDB_CODE_SUCCESS == code) {
     code = createShowTableTagsProjections(&pSelect->pProjectionList, &pShow->pTags);
   }
@@ -12672,7 +12685,7 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  bool      tbnameFound = false;
+  bool tbnameFound = false;
 
   SNode* pTagNode;
   FOREACH(pTagNode, pStmt->pSpecificTags) {
@@ -12731,7 +12744,7 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
   }
 
   if (TSDB_CODE_SUCCESS == code && !tbnameFound) {
-      code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TBNAME_ERROR);
+    code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_TBNAME_ERROR);
   }
 
 _OUT:
@@ -12806,8 +12819,8 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCtx) 
       }
       if (TSDB_CODE_SUCCESS == code) {
         SArray* aTagNames = pParFileCtx->tagNameFilled ? NULL : pParFileCtx->aTagNames;
-        code = parseTagValue(pMsgBuf, &pParFileCtx->pSql, precision, (SSchema*)pTagSchema, &token,
-                             aTagNames, pParFileCtx->aTagVals, &pParFileCtx->pTag);
+        code = parseTagValue(pMsgBuf, &pParFileCtx->pSql, precision, (SSchema*)pTagSchema, &token, aTagNames,
+                             pParFileCtx->aTagVals, &pParFileCtx->pTag);
       }
     } else {
       // parse tbname
@@ -12840,14 +12853,14 @@ typedef struct {
   SVgroupInfo vg;
 } SCreateTableData;
 
-static void clearTagValArrayFp(void *data) {
+static void clearTagValArrayFp(void* data) {
   STagVal* p = (STagVal*)data;
   if (IS_VAR_DATA_TYPE(p->type)) {
     taosMemoryFreeClear(p->pData);
   }
 }
 
-static void clearCreateTbArrayFp(void *data) {
+static void clearCreateTbArrayFp(void* data) {
   SCreateTableData* p = (SCreateTableData*)data;
   taosMemoryFreeClear(p->pTag);
 }
@@ -13765,7 +13778,8 @@ static int32_t createParWhenThenNode(SNode* pWhen, SNode* pThen, SNode** ppResWh
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createParCaseWhenNode(SNode* pCase, SNodeList* pWhenThenList, SNode* pElse, const char* pAias, SNode** ppResCaseWhen) {
+static int32_t createParCaseWhenNode(SNode* pCase, SNodeList* pWhenThenList, SNode* pElse, const char* pAias,
+                                     SNode** ppResCaseWhen) {
   SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)nodesMakeNode(QUERY_NODE_CASE_WHEN);
   CHECK_POINTER_OUT_OF_MEM(pCaseWhen);
 
@@ -13780,7 +13794,8 @@ static int32_t createParCaseWhenNode(SNode* pCase, SNodeList* pWhenThenList, SNo
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createParFunctionNode(const char* pFunName, const char* pAias, SNodeList* pParameterList, SNode** ppResFunc) {
+static int32_t createParFunctionNode(const char* pFunName, const char* pAias, SNodeList* pParameterList,
+                                     SNode** ppResFunc) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_POINTER_OUT_OF_MEM(pFunc);
   strcpy(pFunc->functionName, pFunName);
@@ -13821,13 +13836,13 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
     }
   }
 
-  SValueNode*  pValNode = nodesMakeValueNodeFromString("leader");
+  SValueNode* pValNode = nodesMakeValueNodeFromString("leader");
   CHECK_POINTER_OUT_OF_MEM(pValNode);
 
-  SNode*       pCond1 = NULL;
-  SNode*       pCond2 = NULL;
-  SNode*       pCond3 = NULL;
-  SNode*       pCond4 = NULL;
+  SNode* pCond1 = NULL;
+  SNode* pCond2 = NULL;
+  SNode* pCond3 = NULL;
+  SNode* pCond4 = NULL;
   CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "v1_status", (SNode*)pValNode, &pCond1));
   CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "v2_status", (SNode*)pValNode, &pCond2));
   CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "v3_status", (SNode*)pValNode, &pCond3));
@@ -13852,16 +13867,16 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   SNode* pElse = nodesMakeValueNodeFromInt32(0);
   CHECK_POINTER_OUT_OF_MEM(pElse);
 
-  // case when (v1_status = "leader" or v2_status = "lead er"  or v3_status = "leader" or v4_status = "leader")  then 1 else 0 end
+  // case when (v1_status = "leader" or v2_status = "lead er"  or v3_status = "leader" or v4_status = "leader")  then 1
+  // else 0 end
   SNode* pCaseWhen = NULL;
   CHECK_RES_OUT_OF_MEM(createParCaseWhenNode(NULL, pWhenThenlist, pElse, NULL, &pCaseWhen));
 
   SNodeList* pParaList = NULL;
   CHECK_RES_OUT_OF_MEM(createParListNode(pCaseWhen, &pParaList));
 
-
   // sum( case when ... end) as leader_col
-  SNode* pSumFun = NULL;
+  SNode*      pSumFun = NULL;
   const char* pSumColAlias = "leader_col";
   CHECK_RES_OUT_OF_MEM(createParFunctionNode("sum", pSumColAlias, pParaList, &pSumFun));
 
@@ -13871,7 +13886,7 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   CHECK_RES_OUT_OF_MEM(createParListNode(pPara1, &pParaList));
 
   // count(1) as count_col
-  SNode* pCountFun = NULL;
+  SNode*      pCountFun = NULL;
   const char* pCountColAlias = "count_col";
   CHECK_RES_OUT_OF_MEM(createParFunctionNode("count", pCountColAlias, pParaList, &pCountFun));
 
@@ -13881,11 +13896,13 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
 
   SSelectStmt* pSubSelect = NULL;
   // select sum( case when .... end) as leader_col, count(*) as count_col from information_schema.ins_vgroups
-  CHECK_RES_OUT_OF_MEM(createSimpleSelectStmtFromProjList(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS, pProjList, &pSubSelect));
+  CHECK_RES_OUT_OF_MEM(
+      createSimpleSelectStmtFromProjList(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS, pProjList, &pSubSelect));
 
   if (pDbName && pDbName[0] != 0) {
     // for show db.alive
-    // select sum( case when .... end) as leader_col, count(*) as count_col from information_schema.ins_vgroups where db_name = "..."
+    // select sum( case when .... end) as leader_col, count(*) as count_col from information_schema.ins_vgroups where
+    // db_name = "..."
     SNode* pDbCond = NULL;
     pValNode = nodesMakeValueNodeFromString(pDbName);
     CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_EQUAL, "db_name", (SNode*)pValNode, &pDbCond));
@@ -13895,14 +13912,12 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
     pSubSelect->pWhere = pDbCond;
   }
 
-
-
   pCond1 = NULL;
   CHECK_RES_OUT_OF_MEM(createParOperatorNode(OP_TYPE_EQUAL, pSumColAlias, pCountColAlias, &pCond1));
   pCond2 = NULL;
   SNode* pTempVal = nodesMakeValueNodeFromInt32(0);
   CHECK_RES_OUT_OF_MEM(createOperatorNode(OP_TYPE_GREATER_THAN, pSumColAlias, pTempVal, &pCond2));
-  //leader_col = count_col and leader_col > 0
+  // leader_col = count_col and leader_col > 0
   pTemp1 = NULL;
   CHECK_RES_OUT_OF_MEM(createLogicCondNode(pCond1, pCond2, &pTemp1, LOGIC_COND_TYPE_AND));
 
@@ -13928,7 +13943,8 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   CHECK_RES_OUT_OF_MEM(createParWhenThenNode(pTemp2, pThen, &pWhenThen));
   CHECK_RES_OUT_OF_MEM(nodesListStrictAppend(pWhenThenlist, pWhenThen));
 
-  // case when leader_col = count_col and count_col > 0 then 1 when leader_col < count_col and count_col > 0 then 2 else 0 end as status
+  // case when leader_col = count_col and count_col > 0 then 1 when leader_col < count_col and count_col > 0 then 2 else
+  // 0 end as status
   pCaseWhen = NULL;
   pElse = nodesMakeValueNodeFromInt32(0);
   CHECK_POINTER_OUT_OF_MEM(pElse);
@@ -13939,7 +13955,6 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
 
   SNode* pTempTblNode = NULL;
   CHECK_RES_OUT_OF_MEM(createParTempTableNode(pSubSelect, &pTempTblNode));
-
 
   SSelectStmt* pStmt = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
   CHECK_POINTER_OUT_OF_MEM(pStmt);

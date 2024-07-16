@@ -314,7 +314,7 @@
 #define TK_ISFILLED                       264
 #define TK_FLOW                           265
 #define TK_FHIGH                          266
-#define TK_FFULL                          267
+#define TK_FEXPR                          267
 #define TK_CAST                           268
 #define TK_NOW                            269
 #define TK_TODAY                          270

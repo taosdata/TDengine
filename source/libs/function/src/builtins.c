@@ -17,6 +17,7 @@
 #include "builtinsimpl.h"
 #include "cJSON.h"
 #include "functionMgt.h"
+#include "functionMgtInt.h"
 #include "geomFunc.h"
 #include "query.h"
 #include "querynodes.h"
@@ -24,6 +25,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "ttime.h"
+#include "ttypes.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -1954,18 +1956,18 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   qInfo("forecast translate: %d params", numOfParams);
   if (numOfParams < 3) {
-    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    return invaildFuncParaNumErrMsg(pErrBuf, len, "forecast(ts, value, num[, confidence_level])");
   }
 
   // first parameter should be timestamp.
   uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   if (!IS_TIMESTAMP_TYPE(colType)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast requires 1st parameter to be timestamp");
   }
   // second parameter should be value.
   uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
-  if (IS_TIMESTAMP_TYPE(valType)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  if (IS_TIMESTAMP_TYPE(valType) || IS_VAR_DATA_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast requires second parameter to be a numeric type");
   }
 
   // param1
@@ -1979,25 +1981,29 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     SValueNode* pValue = (SValueNode*)pNumNode;
     if (pValue->datum.i == 0 && pValue->datum.i >= (1 << 16)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "forecast num(4th) param should be > 0 and < 2^16");
+                             "forecast num(3th) param should be > 0 and < 2^16");
     }
-
     pValue->notReserved = true;
+
+    pNumNode = nodesListGetNode(pFunc->pParameterList, 3);
+    paraType = getSDataTypeFromNode(pNumNode)->type;
+    if (!IS_INTEGER_TYPE(paraType)) {
+      static const char* errMsg = "forecast confidence level should be integer that in range [1,99]";
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, errMsg);
+    }
+    pValue = (SValueNode*)pNumNode;
+    if (pValue->datum.i >= 100) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "forecast num(4th) param should be less than 100");
+    }
+    pValue->notReserved = true;
+    for (int i = 4; i < numOfParams; i++) {
+      pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+      pValue->notReserved = true;
+    }
   }
 
-  uint8_t resultType = TSDB_DATA_TYPE_VARCHAR;
-  int32_t resultBytes = 256;
-  pFunc->node.resType = (SDataType){.bytes = resultBytes, .type = resultType};
-
-  // uint8_t resType;
-  // if (IS_SIGNED_NUMERIC_TYPE(colType) || IS_TIMESTAMP_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType) {
-  //   resType = TSDB_DATA_TYPE_BIGINT;
-  // } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
-  //   resType = TSDB_DATA_TYPE_UBIGINT;
-  // } else {
-  //   resType = TSDB_DATA_TYPE_DOUBLE;
-  // }
-  // pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[valType].bytes, .type = valType};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2011,7 +2017,6 @@ static int32_t translateForecastFull(SFunctionNode* pFunc, char* pErrBuf, int32_
   pFunc->node.resType = (SDataType){.bytes = resultBytes, .type = resultType};
   return TSDB_CODE_SUCCESS;
 }
-static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
@@ -3378,7 +3383,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_flow",
     .type = FUNCTION_TYPE_FORECAST_CONFIDENCE_LOW,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateForecastLevel,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
@@ -3388,7 +3393,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_fhigh",
     .type = FUNCTION_TYPE_FORECAST_CONFIDENCE_HIGH,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateForecastLevel,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
@@ -3396,9 +3401,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "_ffull",
-    .type = FUNCTION_TYPE_FORECAST_FULL,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .name = "_fexpr",
+    .type = FUNCTION_TYPE_FORECAST_EXPR,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateForecastFull,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,

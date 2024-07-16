@@ -18,12 +18,16 @@
 #include <string.h>
 #include "cJSON.h"
 #include "function.h"
+#include "functionMgt.h"
+#include "nodes.h"
 #include "query.h"
 #include "querynodes.h"
+#include "taos.h"
 #include "taoserror.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tdataformat.h"
 #include "tdef.h"
 #include "tdigest.h"
 #include "tfunctionInt.h"
@@ -32,6 +36,7 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "tpercentile.h"
+#include "ttypes.h"
 
 #define HISTOGRAM_MAX_BINS_NUM 1000
 #define MAVG_MAX_POINTS_NUM    1000
@@ -3331,6 +3336,13 @@ struct ForecastResult {
   char*    error;
   uint64_t num;
   int64_t* ts;
+  char*    val;
+  int64_t  val_len;
+
+  double* confidence_low;
+  double* confidence_high;
+  int64_t confidence_len;
+
   int32_t* offsets;
   char*    data;
   uint64_t data_len;
@@ -3343,9 +3355,11 @@ bool getForecastFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) 
   return true;
 }
 
-extern void* forecast_new_buf(int64_t num, int8_t precision, uint8_t ty, uint8_t nLevels, uint8_t* levels);
+extern void* forecast_new_buf(int64_t num, int8_t precision, uint8_t ty, uint8_t nLevels, uint8_t* levels,
+                              char* options, uint16_t options_len);
 extern struct ForecastResult forecast_impl(void* buf);
 extern void                  forecast_buf_append_one(void* buf, int64_t ts, char* value);
+extern void                  forecast_free(struct ForecastResult* result);
 
 bool forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   qInfo("forecast function setup");
@@ -3358,16 +3372,18 @@ bool forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) 
   qInfo("forecast setup: %d params", numOfParams);
 
   int8_t precision = pCtx->resDataInfo.precision;
+  qInfo("forecast precision: %s", precision_to_str(precision));
+  qInfo("forecast type: %d", pCtx->resDataInfo.type);
 
   // ASSERTS(pCtx->input.numOfInputCols == 2, "forecast function should have 2 input columns");
 
   SFunctParam* pTsParam = &pCtx->param[0];
-  ASSERTS(pTsParam->type == 2, "forecast 1st param should be type %d != 2", pTsParam->type);
+  ASSERTS(pTsParam->type == FUNC_PARAM_TYPE_COLUMN, "forecast 1st param should be type %d != 2", pTsParam->type);
   ASSERTS(pTsParam->pCol != NULL, "forecast 1st param is not timestamp");
   qInfo("forecast 1st param: type %d, column: %s", pTsParam->type, pTsParam->pCol->name);
 
   SFunctParam* pValParam = &pCtx->param[1];
-  ASSERTS(pTsParam->type == 2, "forecast 2nd param should be type %d != 2", pTsParam->type);
+  ASSERTS(pTsParam->type == FUNC_PARAM_TYPE_COLUMN, "forecast 2nd param should be type %d != 2", pTsParam->type);
   ASSERTS(pTsParam->pCol != NULL, "forecast param 0 is not timestamp");
   qInfo("forecast 2nd param: type %d, column: %s", pTsParam->type, pTsParam->pCol->name);
 
@@ -3380,24 +3396,34 @@ bool forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) 
   }
   qInfo("forecast num: %d", pForecastInfo->num);
 
-  uint8_t level = 0;
-  uint8_t n = 0;
+  uint8_t  level = 0;
+  uint8_t  n = 0;
+  char*    options = NULL;
+  uint16_t options_len = 0;
   if (numOfParams > 3) {
-    pParam = &pCtx->param[1];
-    if (pParam->type == 1) {
-      if (pParam->param.nType == TSDB_DATA_TYPE_BIGINT) {
-        qInfo("forecast 4th param: type %d, value: %ld", pParam->param.nType, pParam->param.i);
-        if (pParam->param.i < 1 || pParam->param.i > 99) {
-          qError("forecast level should be in int range [1, 99]");
-          return false;
+    for (int i = 3; i < numOfParams; i++) {
+      pParam = &pCtx->param[i];
+      if (pParam->type == FUNC_PARAM_TYPE_VALUE) {
+        if (pParam->param.nType == TSDB_DATA_TYPE_BIGINT) {
+          qInfo("forecast 4th param: type %d, value: %ld", pParam->param.nType, pParam->param.i);
+          if (pParam->param.i < 1 || pParam->param.i > 99) {
+            qError("forecast level should be in int range [1, 99]");
+          } else {
+            level = pParam->param.i;
+            n = 1;
+          }
+        } else if (pParam->param.nType == TSDB_DATA_TYPE_BINARY) {
+          // options string is the last param of forecast.
+          options_len = *(uint16_t*)pParam->param.pz;
+          options = pParam->param.pz + 2;
+          break;
         }
-        level = pParam->param.i;
-        n = 1;
       }
     }
   }
 
-  pForecastInfo->buf = forecast_new_buf(pForecastInfo->num, precision, TSDB_DATA_TYPE_DOUBLE, n, &level);
+  pForecastInfo->buf =
+      forecast_new_buf(pForecastInfo->num, precision, pCtx->resDataInfo.type, n, &level, options, options_len);
   pResInfo->numOfRes = pForecastInfo->num;
 
   return true;
@@ -3461,6 +3487,7 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
   qInfo("forecast slot id: %d", slotId);
+  qInfo("forecast result type: %d", pCtx->pExpr->base.resSchema.type);
   int32_t currentRow = pBlock->info.rows;
   qInfo("forecast current row: %d", currentRow);
   pEntryInfo->numOfRes = currentRow;
@@ -3471,22 +3498,87 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   // ASSERT(false);
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   for (int i = 0; i < result.num; i++) {
-    qInfo("forecast row: {%d}: {%p}", i, result.data + result.offsets[i]);
-    colDataSetVal(pCol, currentRow + i, result.data + result.offsets[i], false);
+    int32_t offset = tDataTypes[pCtx->resDataInfo.type].bytes * i;
+    qInfo("forecast row: {%d} offset {%d}: {%p}", i, offset, result.val + offset);
+    switch (pCtx->resDataInfo.type) {
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT:
+        int32_t* v = (int32_t*)(result.val + offset);
+        colDataSetInt32(pCol, currentRow + i, v);
+        break;
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t* v = (int8_t*)(result.val + offset);
+        colDataSetInt8(pCol, currentRow + i, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t* v = (int16_t*)(result.val + offset);
+        colDataSetInt16(pCol, currentRow + i, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t* v = (int64_t*)(result.val + offset);
+        colDataSetInt64(pCol, currentRow + i, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float* v = (float*)(result.val + offset);
+        qInfo("forecast float at %d with offset %d: %f", i, offset, *v);
+        colDataSetFloat(pCol, currentRow + i, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double* v = (double*)(result.val + offset);
+        colDataSetDouble(pCol, currentRow + i, v);
+        break;
+      }
+      default:
+        return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
     if (hasRowTs) {
       colDataSetInt64(pCtx->pTsOutput, currentRow + i, &result.ts[i]);
     }
 
+    int d = 0;
     for (int j = 0; j < pCtx->subsidiaries.num; j++) {
       SqlFunctionCtx* pSc = pCtx->subsidiaries.pCtx[j];
-      tExprNode*      expr = pSc->pExpr->pExpr;
+
+      // pSc->input.pData[0]->info.colId;
+      tExprNode* expr = pSc->pExpr->pExpr;
       if (pSc->resDataInfo.type == TSDB_DATA_TYPE_TIMESTAMP && expr->nodeType == QUERY_NODE_FUNCTION &&
           expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
         int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
         SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
         colDataSetInt64(pTsCol, currentRow + i, &result.ts[i]);
+      } else if (pSc->resDataInfo.type == TSDB_DATA_TYPE_VARCHAR && expr->nodeType == QUERY_NODE_FUNCTION &&
+                 expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+        int32_t          slotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pFullCol = taosArrayGet(pBlock->pDataBlock, slotId);
+        colDataSetVal(pFullCol, currentRow + i, result.data + result.offsets[i], false);
+      } else if (pSc->resDataInfo.type == TSDB_DATA_TYPE_DOUBLE && d < 2) {
+        int32_t          slotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pV = taosArrayGet(pBlock->pDataBlock, slotId);
+        if (result.confidence_len > 0) {
+          if (d == 0) {
+            colDataSetDouble(pV, currentRow + i, &result.confidence_low[i]);
+          } else {
+            colDataSetDouble(pV, currentRow + i, &result.confidence_high[i]);
+          }
+        } else {
+          colDataSetNull_f_s(pV, currentRow + i);
+        }
+        d++;
       } else {
-        qInfo("forecast subsidiary: %d, non-timestamp type: %d", j, pSc->resDataInfo.type);
+        SValueNode* p1 = (SValueNode*)nodesListGetNode(expr->_function.pFunctNode->pParameterList, 0);
+        qWarn("forecast subsidiary: %d, non-timestamp type: %d", j, pSc->resDataInfo.type);
+        // int32_t          slotId = pSc->pExpr->base.resSchema.slotId;
+        // SColumnInfoData* pLow = taosArrayGet(pBlock->pDataBlock, slotId);
+        // colDataSetNull_f_s(pLow, currentRow + i);
       }
       // qInfo("forecast row: {%d}: {%p}", i, result.data + result.offsets[i]);
     }
@@ -3494,6 +3586,8 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
     // setSelectivityValue(pCtx, pBlock, &pInfo->tuplePos[i], currentRow + i);
   }
+
+  forecast_free(&result);
 
   pCol->hasNull = false;
   // pEntryInfo->numOfRes = pBlock->info.rows;
