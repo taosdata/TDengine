@@ -1025,7 +1025,6 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
   int32_t        code = TSDB_CODE_SUCCESS;
   SCmdMsgInfo    pCmdMsg = {0};
   char          *pSql = NULL;
-  char          *msg  = NULL;
 
   // put front for free
   pReq.numOfColumns = taosArrayGetSize(pColumns);
@@ -1110,15 +1109,15 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  msg = taosMemoryMalloc(pCmdMsg.msgLen);
-  if (NULL == msg) {
+  pCmdMsg.pMsg = taosMemoryMalloc(pCmdMsg.msgLen);
+  if (NULL == pCmdMsg.pMsg) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
 
-  pCmdMsg.pMsg = msg;
   if (tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq) < 0){
     code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pCmdMsg.pMsg);
     goto end;
   }
 
@@ -1140,7 +1139,6 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
   code = pRequest->code;
 
 end:
-  taosMemoryFree(msg);
   destroyRequest(pRequest);
   tFreeSMCreateStbReq(&pReq);
   return code;
@@ -1620,12 +1618,12 @@ int32_t smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle) {
     info->taos = acquireTscObj(*(int64_t *)taos);
     if (info->taos == NULL) {
       code = TSDB_CODE_TSC_DISCONNECTED;
-      goto ERROR;
+      goto FAILED;
     }
     code = catalogGetHandle(info->taos->pAppInfo->clusterId, &info->pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " get catalog error %d", info->id, code);
-      goto ERROR;
+      goto FAILED;
     }
   }
 
@@ -1636,7 +1634,7 @@ int32_t smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle) {
   if (info->pVgHash == NULL || info->childTables == NULL || info->superTables == NULL || info->tableUids == NULL) {
     uError("create SSmlHandle hash obj failed");
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto ERROR;
+    goto FAILED;
   }
   taosHashSetFreeFp(info->superTables, smlDestroySTableMeta);
   taosHashSetFreeFp(info->childTables, smlDestroyTableInfo);
@@ -1644,7 +1642,7 @@ int32_t smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle) {
   info->id = smlGenId();
   code = smlInitHandle(&info->pQuery);
   if (code != TSDB_CODE_SUCCESS){
-    goto ERROR;
+    goto FAILED;
   }
   info->dataFormat = true;
 
@@ -1655,13 +1653,13 @@ int32_t smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle) {
   if (info->tagJsonArray == NULL || info->valueJsonArray == NULL || info->preLineTagKV == NULL) {
     uError("SML:0x%" PRIx64 " failed to allocate memory", info->id);
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto ERROR;
+    goto FAILED;
   }
 
   *handle = info;
   return code;
 
-ERROR:
+FAILED:
   smlDestroyInfo(info);
   return code;
 }
