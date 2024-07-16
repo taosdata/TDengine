@@ -77,7 +77,7 @@ else:
 
 # prepare data by taosBenchmark
 cmd = "taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %d &" % (databaseName, serverHost, serverPort)
-#process_out = subprocess.getoutput(cmd)
+process_out = subprocess.getoutput(cmd)
 print(cmd)
 #os.system("taosBenchmark -y -a 3 -n 100 -t 100 -d %s -h %s -P %d" % (databaseName, serverHost, serverPort))
 taosBenchmark_test_result = True
