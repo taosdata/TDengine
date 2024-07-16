@@ -115,7 +115,7 @@ void tEndEncode(SEncoder* pCoder) {
 
     (void)tEncodeI32(pCoder, len);
 
-    TD_CODER_MOVE_POS(pCoder, len);
+    pCoder->pos += len;
   }
 }
 

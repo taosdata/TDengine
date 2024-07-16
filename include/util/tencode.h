@@ -47,11 +47,8 @@ typedef struct {
   SDecoderNode* dStack;
 } SDecoder;
 
-#define TD_CODER_POS(CODER)                            ((CODER)->pos)
-#define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
-#define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
-#define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
-#define TD_CODER_REMAIN_CAPACITY(CODER)                ((CODER)->size - (CODER)->pos)
+#define TD_CODER_CURRENT(CODER)         ((CODER)->data + (CODER)->pos)
+#define TD_CODER_REMAIN_CAPACITY(CODER) ((CODER)->size - (CODER)->pos)
 
 #define tEncodeSize(E, S, SIZE, RET) \
   do {                               \
@@ -134,7 +131,7 @@ static FORCE_INLINE int32_t tEncodeFixed(SEncoder* pCoder, const void* val, uint
   }
 
   pCoder->pos += size;
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tEncodeU8(SEncoder* pCoder, uint8_t val) { return tEncodeFixed(pCoder, &val, sizeof(val)); }
@@ -162,7 +159,7 @@ static FORCE_INLINE int32_t tEncodeU16v(SEncoder* pCoder, uint16_t val) {
     TAOS_CHECK_RETURN(tEncodeU8(pCoder, (val | ENCODE_LIMIT) & 0xff));
     val >>= 7;
   }
-  TAOS_RETURN(tEncodeU8(pCoder, val));
+  return tEncodeU8(pCoder, val);
 }
 static FORCE_INLINE int32_t tEncodeI16v(SEncoder* pCoder, int16_t val) {
   return tEncodeU16v(pCoder, ZIGZAGE(int16_t, val));
@@ -172,7 +169,7 @@ static FORCE_INLINE int32_t tEncodeU32v(SEncoder* pCoder, uint32_t val) {
     TAOS_CHECK_RETURN(tEncodeU8(pCoder, (val | ENCODE_LIMIT) & 0xff));
     val >>= 7;
   }
-  TAOS_RETURN(tEncodeU8(pCoder, val));
+  return tEncodeU8(pCoder, val);
 }
 static FORCE_INLINE int32_t tEncodeI32v(SEncoder* pCoder, int32_t val) {
   return tEncodeU32v(pCoder, ZIGZAGE(int32_t, val));
@@ -182,7 +179,7 @@ static FORCE_INLINE int32_t tEncodeU64v(SEncoder* pCoder, uint64_t val) {
     TAOS_CHECK_RETURN(tEncodeU8(pCoder, (val | ENCODE_LIMIT) & 0xff));
     val >>= 7;
   }
-  TAOS_RETURN(tEncodeU8(pCoder, val));
+  return tEncodeU8(pCoder, val);
 }
 static FORCE_INLINE int32_t tEncodeI64v(SEncoder* pCoder, int64_t val) {
   return tEncodeU64v(pCoder, ZIGZAGE(int64_t, val));
@@ -212,15 +209,15 @@ static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, 
   TAOS_CHECK_RETURN(tEncodeU32v(pCoder, len));
   if (len) {
     if (pCoder->data) {
-      if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, len)) {
+      if (pCoder->pos + len > pCoder->size) {
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
-      memcpy(TD_CODER_CURRENT(pCoder), val, len);
+      memcpy(pCoder->data + pCoder->pos, val, len);
     }
 
-    TD_CODER_MOVE_POS(pCoder, len);
+    pCoder->pos += len;
   }
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tEncodeCStrWithLen(SEncoder* pCoder, const char* val, uint32_t len) {
@@ -239,7 +236,7 @@ static int32_t tDecodeFixed(SDecoder* pCoder, void* val, uint32_t size) {
     memcpy(val, pCoder->data + pCoder->pos, size);
   }
   pCoder->pos += size;
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeU8(SDecoder* pCoder, uint8_t* val) {
@@ -277,10 +274,10 @@ static FORCE_INLINE int32_t tDecodeU16v(SDecoder* pCoder, uint16_t* val) {
   for (int32_t i = 0;; i++) {
     TAOS_CHECK_RETURN(tDecodeU8(pCoder, &byte));
     if (byte < ENCODE_LIMIT) {
-      tval |= (byte << (7 * i));
+      tval |= (((uint16_t)byte) << (7 * i));
       break;
     } else {
-      tval |= ((byte & (ENCODE_LIMIT - 1)) << (7 * i));
+      tval |= ((((uint16_t)byte) & (ENCODE_LIMIT - 1)) << (7 * i));
     }
   }
 
@@ -288,7 +285,7 @@ static FORCE_INLINE int32_t tDecodeU16v(SDecoder* pCoder, uint16_t* val) {
     *val = tval;
   }
 
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeI16v(SDecoder* pCoder, int16_t* val) {
@@ -299,7 +296,7 @@ static FORCE_INLINE int32_t tDecodeI16v(SDecoder* pCoder, int16_t* val) {
     *val = ZIGZAGD(int16_t, tval);
   }
 
-  TAOS_RETURN(0);
+  return 0;
 }
 
 // 32v
@@ -309,10 +306,10 @@ static FORCE_INLINE int32_t tDecodeU32v(SDecoder* pCoder, uint32_t* val) {
   for (int32_t i = 0;; i++) {
     TAOS_CHECK_RETURN(tDecodeU8(pCoder, &byte));
     if (byte < ENCODE_LIMIT) {
-      tval |= (byte << (7 * i));
+      tval |= (((uint32_t)byte) << (7 * i));
       break;
     } else {
-      tval |= ((byte & (ENCODE_LIMIT - 1)) << (7 * i));
+      tval |= ((((uint32_t)byte) & (ENCODE_LIMIT - 1)) << (7 * i));
     }
   }
 
@@ -320,7 +317,7 @@ static FORCE_INLINE int32_t tDecodeU32v(SDecoder* pCoder, uint32_t* val) {
     *val = tval;
   }
 
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeI32v(SDecoder* pCoder, int32_t* val) {
@@ -331,7 +328,7 @@ static FORCE_INLINE int32_t tDecodeI32v(SDecoder* pCoder, int32_t* val) {
     *val = ZIGZAGD(int32_t, tval);
   }
 
-  TAOS_RETURN(0);
+  return 0;
 }
 
 // 64v
@@ -341,10 +338,10 @@ static FORCE_INLINE int32_t tDecodeU64v(SDecoder* pCoder, uint64_t* val) {
   for (int32_t i = 0;; i++) {
     TAOS_CHECK_RETURN(tDecodeU8(pCoder, &byte));
     if (byte < ENCODE_LIMIT) {
-      tval |= (byte << (7 * i));
+      tval |= (((uint64_t)byte) << (7 * i));
       break;
     } else {
-      tval |= ((byte & (ENCODE_LIMIT - 1)) << (7 * i));
+      tval |= ((((uint64_t)byte) & (ENCODE_LIMIT - 1)) << (7 * i));
     }
   }
 
@@ -352,7 +349,7 @@ static FORCE_INLINE int32_t tDecodeU64v(SDecoder* pCoder, uint64_t* val) {
     *val = tval;
   }
 
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeI64v(SDecoder* pCoder, int64_t* val) {
@@ -363,7 +360,7 @@ static FORCE_INLINE int32_t tDecodeI64v(SDecoder* pCoder, int64_t* val) {
     *val = ZIGZAGD(int64_t, tval);
   }
 
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeFloat(SDecoder* pCoder, float* val) {
@@ -377,7 +374,7 @@ static FORCE_INLINE int32_t tDecodeFloat(SDecoder* pCoder, float* val) {
   if (val) {
     *val = v.f;
   }
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeDouble(SDecoder* pCoder, double* val) {
@@ -391,7 +388,7 @@ static FORCE_INLINE int32_t tDecodeDouble(SDecoder* pCoder, double* val) {
   if (val) {
     *val = v.d;
   }
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint32_t* len) {
@@ -402,22 +399,22 @@ static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint3
     *len = length;
   }
 
-  if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, length)) {
+  if (pCoder->pos + length > pCoder->size) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
   if (val) {
-    *val = (uint8_t*)TD_CODER_CURRENT(pCoder);
+    *val = pCoder->data + pCoder->pos;
   }
 
-  TD_CODER_MOVE_POS(pCoder, length);
-  TAOS_RETURN(0);
+  pCoder->pos += length;
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len) {
   TAOS_CHECK_RETURN(tDecodeBinary(pCoder, (uint8_t**)val, len));
   (*len) -= 1;
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeCStr(SDecoder* pCoder, char** val) {
@@ -431,7 +428,7 @@ static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
   TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
 
   memcpy(val, pStr, len + 1);
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uint64_t* len) {
@@ -440,7 +437,7 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uin
   if (length) {
     if (len) *len = length;
 
-    if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, length)) {
+    if (pCoder->pos + length > pCoder->size) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
 
@@ -449,13 +446,13 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uin
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    memcpy(*val, TD_CODER_CURRENT(pCoder), length);
+    memcpy(*val, pCoder->data + pCoder->pos, length);
 
-    TD_CODER_MOVE_POS(pCoder, length);
+    pCoder->pos += length;
   } else {
     *val = NULL;
   }
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, uint32_t* len) {
@@ -464,26 +461,26 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, u
   if (length) {
     if (len) *len = length;
 
-    if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, length)) {
+    if (pCoder->pos + length > pCoder->size) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
     *val = taosMemoryMalloc(length);
     if (*val == NULL) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    memcpy(*val, TD_CODER_CURRENT(pCoder), length);
+    memcpy(*val, pCoder->data + pCoder->pos, length);
 
-    TD_CODER_MOVE_POS(pCoder, length);
+    pCoder->pos += length;
   } else {
     *val = NULL;
   }
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeCStrAndLenAlloc(SDecoder* pCoder, char** val, uint64_t* len) {
   TAOS_CHECK_RETURN(tDecodeBinaryAlloc(pCoder, (void**)val, len));
   (*len) -= 1;
-  TAOS_RETURN(0);
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeCStrAlloc(SDecoder* pCoder, char** val) {
