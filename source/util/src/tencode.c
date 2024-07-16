@@ -95,7 +95,7 @@ int32_t tStartEncode(SEncoder* pCoder) {
     pCoder->pos += sizeof(int32_t);
   }
 
-  TAOS_RETURN(0);
+  return 0;
 }
 
 void tEndEncode(SEncoder* pCoder) {
@@ -141,7 +141,7 @@ int32_t tStartDecode(SDecoder* pCoder) {
   pNode->pNext = pCoder->dStack;
   pCoder->dStack = pNode;
 
-  TAOS_RETURN(0);
+  return 0;
 }
 
 void tEndDecode(SDecoder* pCoder) {
