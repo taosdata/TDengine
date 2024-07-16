@@ -842,9 +842,12 @@ int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileRead
   return doLoadTombDataFromTombBlk(pBlkArray, pReader, pSttFileReader, false);
 }
 
-void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver) {
+int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver) {
   if (*ppMemDelData == NULL) {
     *ppMemDelData = taosArrayInit(4, sizeof(SDelData));
+    if (*ppMemDelData == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   SArray* pMemDelData = *ppMemDelData;
@@ -872,6 +875,8 @@ void loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemT
       p = p->pNext;
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pBlockLoadInfo,

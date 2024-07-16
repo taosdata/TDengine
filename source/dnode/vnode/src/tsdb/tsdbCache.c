@@ -3212,7 +3212,10 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   pIter->pMemDelData = NULL;
 
-  loadMemTombData(&pIter->pMemDelData, pMem, pIMem, pr->info.verRange.maxVer);
+  code = loadMemTombData(&pIter->pMemDelData, pMem, pIMem, pr->info.verRange.maxVer);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
 
   pIter->idx = (SBlockIdx){.suid = suid, .uid = uid};
 
