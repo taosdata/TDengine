@@ -28,6 +28,7 @@ use utils::port_pool::PortPool;
 use crate::runners::historian::historian_to_taos;
 use crate::runners::influxdb::influxdb_to_taos;
 use crate::runners::kafka::kafka_to_taos;
+use crate::runners::mongodb::mongodb_to_taos;
 use crate::runners::mssql::mssql_to_taos;
 use crate::runners::mysql::mysql_to_taos;
 use crate::runners::oracle::oracle_to_taos;
@@ -515,6 +516,23 @@ impl TaskOpts {
                 }
                 (runners::mssql::MSSQL_ID, "taos") => {
                     mssql_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                        task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (runners::mongodb::MONGODB_ID, "taos") => {
+                    mongodb_to_taos(
                         from.clone(),
                         parser.clone(),
                         transform.clone(),

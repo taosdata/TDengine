@@ -352,9 +352,9 @@ pub(super) async fn data_source_is_valid(
     .await;
     match result {
         Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
-        Err(err) => Err(Failed {
+        Err(_) => Err(Failed {
             code: Code::FAILED,
-            message: format!("check data source validation timeout, cause: {:#}", err),
+            message: format!("Failed to connect to dsn: timed out"),
         }),
     }
 }

@@ -17,6 +17,7 @@ mod config;
 pub mod historian;
 pub mod influxdb;
 pub mod kafka;
+pub mod mongodb;
 pub mod mqtt;
 pub mod mssql;
 pub mod mysql;
