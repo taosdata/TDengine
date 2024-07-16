@@ -252,7 +252,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
     if (i < (taskNum - 1)) {
       SSchTask *pLastTask = *(SSchTask **)taosArrayGetLast(ctrl->taskList);
       if (NULL == pLastTask) {
-        SCH_JOB_ELOG("fail to get the last task, num:%d", taosArrayGetSize(ctrl->taskList));
+        SCH_JOB_ELOG("fail to get the last task, num:%d", (int32_t)taosArrayGetSize(ctrl->taskList));
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
       

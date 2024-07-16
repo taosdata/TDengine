@@ -583,7 +583,7 @@ char    *schGetOpStr(SCH_OP_TYPE type);
 int32_t  schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t  schInitJob(int64_t *pJobId, SSchedulerReq *pReq);
 int32_t  schExecJob(SSchJob *pJob, SSchedulerReq *pReq);
-int32_t  schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes);
+void     schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes);
 int32_t  schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet);
 int32_t  schHandleTaskSetRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32_t rspCode);
 void     schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq, int32_t errCode);

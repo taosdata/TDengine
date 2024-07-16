@@ -170,7 +170,7 @@ int32_t qwtPutReqToFetchQueue(void *node, struct SRpcMsg *pMsg) {
     printf("malloc failed");
     assert(0);
   }
-  memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
+  (void)memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
   qwtTestFetchQueue[qwtTestFetchQueueWIdx++] = newMsg;
   if (qwtTestFetchQueueWIdx >= qwtTestFetchQueueSize) {
     qwtTestFetchQueueWIdx = 0;
@@ -199,7 +199,7 @@ int32_t qwtPutReqToQueue(void *node, EQueueType qtype, struct SRpcMsg *pMsg) {
     printf("malloc failed");
     assert(0);
   }
-  memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
+  (void)memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
   qwtTestQueryQueue[qwtTestQueryQueueWIdx++] = newMsg;
   if (qwtTestQueryQueueWIdx >= qwtTestQueryQueueSize) {
     qwtTestQueryQueueWIdx = 0;
