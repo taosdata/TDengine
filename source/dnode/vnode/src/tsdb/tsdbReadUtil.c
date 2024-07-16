@@ -112,22 +112,28 @@ void clearBlockScanInfoBuf(SBlockInfoBuf* pBuf) {
   taosArrayDestroy(pBuf->pData);
 }
 
-void* getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index) {
+int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pInfo) {
+  *pInfo = NULL;
+
   int32_t bucketIndex = index / pBuf->numPerBucket;
   char**  pBucket = taosArrayGet(pBuf->pData, bucketIndex);
-  return (*pBucket) + (index % pBuf->numPerBucket) * sizeof(STableBlockScanInfo);
-}
-
-STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, const char* id) {
-  STableBlockScanInfo** p = tSimpleHashGet(pTableMap, &uid, sizeof(uid));
-  if (p == NULL || *p == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    int32_t size = tSimpleHashGetSize(pTableMap);
-    tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", uid, size, id);
-    return NULL;
+  if (pBucket == NULL) {
+    return TSDB_CODE_FAILED;
   }
 
-  return *p;
+  *pInfo = (STableBlockScanInfo*)((*pBucket) + (index % pBuf->numPerBucket) * sizeof(STableBlockScanInfo));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id) {
+  *pInfo = tSimpleHashGet(pTableMap, &uid, sizeof(uid));
+  if (pInfo == NULL || *pInfo == NULL) {
+    int32_t size = tSimpleHashGetSize(pTableMap);
+    tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", uid, size, id);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc) {
@@ -245,20 +251,27 @@ int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSH
   initLastProcKey(pScanInfo, pReader);
 
   pScanInfo->sttKeyInfo.status = STT_FILE_READER_UNINIT;
-  tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
+  int32_t code = tSimpleHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pReader, pScanInfo->uid,
             pScanInfo->lastProcKey.ts, pReader->idStr);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 // NOTE: speedup the whole processing by preparing the buffer for STableBlockScanInfo in batch model
-SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
-                                   STableUidList* pUidList, int32_t numOfTables) {
+int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
+                                STableUidList* pUidList, int32_t numOfTables, SSHashObj** pHashObj) {
+  int32_t code = 0;
+  *pHashObj = NULL;
+
   // allocate buffer in order to load data blocks from file
   // todo use simple hash instead, optimize the memory consumption
   SSHashObj* pTableMap = tSimpleHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   if (pTableMap == NULL) {
-    return NULL;
+    return terrno;
   }
 
   int64_t st = taosGetTimestampUs();
@@ -267,7 +280,7 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
   pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (pUidList->tableUidList == NULL) {
     tSimpleHashCleanup(pTableMap);
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pUidList->currentIndex = 0;
@@ -275,8 +288,16 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
   for (int32_t j = 0; j < numOfTables; ++j) {
     pUidList->tableUidList[j] = idList[j].uid;
 
-    STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
-    initTableBlockScanInfo(pScanInfo, idList[j].uid, pTableMap, pTsdbReader);
+    STableBlockScanInfo* pScanInfo = NULL;
+    code = getPosInBlockInfoBuf(pBuf, j, &pScanInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    code = initTableBlockScanInfo(pScanInfo, idList[j].uid, pTableMap, pTsdbReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
   }
 
   taosSort(pUidList->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
@@ -286,7 +307,8 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
             (sizeof(STableBlockScanInfo) * numOfTables) / 1024.0, pTsdbReader->cost.createScanInfoList,
             pTsdbReader->idStr);
 
-  return pTableMap;
+  *pHashObj = pTableMap;
+  return code;
 }
 
 void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
@@ -391,11 +413,13 @@ void initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray
   pIter->pBrinBlockList = pList;
 }
 
-SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter) {
+int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord) {
+  *pRecord = NULL;
+
   if (pIter->blockIndex == -1 || (pIter->recordIndex + 1) >= pIter->block.numOfRecords) {
     pIter->blockIndex += 1;
     if (pIter->blockIndex >= taosArrayGetSize(pIter->pBrinBlockList)) {
-      return NULL;
+      return TSDB_CODE_FAILED;
     }
 
     pIter->pCurrentBlk = taosArrayGet(pIter->pBrinBlockList, pIter->blockIndex);
@@ -404,7 +428,7 @@ SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter) {
     int32_t code = tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
     if (code != TSDB_CODE_SUCCESS) {
       tsdbError("failed to read brinBlock from file, code:%s", tstrerror(code));
-      return NULL;
+      return TSDB_CODE_FAILED;
     }
 
     pIter->recordIndex = -1;
@@ -412,7 +436,9 @@ SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter) {
 
   pIter->recordIndex += 1;
   tBrinBlockGet(&pIter->block, pIter->recordIndex, &pIter->record);
-  return &pIter->record;
+  *pRecord = &pIter->record;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void clearBrinBlockIter(SBrinRecordIter* pIter) { tBrinBlockDestroy(&pIter->block); }
@@ -670,7 +696,13 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
   STombRecord record = {0};
 
   uint64_t             uid = pReader->status.uidList.tableUidList[*j];
-  STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
+  STableBlockScanInfo* pScanInfo = NULL;
+
+  code = getTableBlockScanInfo(pReader->status.pTableMap, uid, &pScanInfo, pReader->idStr);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   if (pScanInfo->pFileDelData == NULL) {
     pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
   }
@@ -702,7 +734,11 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
       }
 
       uid = pReader->status.uidList.tableUidList[*j];
-      pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
+      code = getTableBlockScanInfo(pReader->status.pTableMap, uid, &pScanInfo, pReader->idStr);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
       if (pScanInfo->pFileDelData == NULL) {
         pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
       }

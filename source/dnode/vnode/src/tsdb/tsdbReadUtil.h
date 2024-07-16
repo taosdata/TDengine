@@ -315,25 +315,24 @@ typedef struct SBrinRecordIter {
 } SBrinRecordIter;
 
 int32_t uidComparFunc(const void* p1, const void* p2);
+int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id);
 
-STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, const char* id);
-
-SSHashObj* createDataBlockScanInfo(STsdbReader* pReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
-                                   STableUidList* pUidList, int32_t numOfTables);
-int32_t    initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
-                                  STsdbReader* pReader);
-void       clearBlockScanInfo(STableBlockScanInfo* p);
-void       destroyAllBlockScanInfo(SSHashObj* pTableMap);
-void       resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
-void       cleanupInfoForNextFileset(SSHashObj* pTableMap);
-int32_t    ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
-void       clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
-void*      getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index);
+int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
+                                STableUidList* pUidList, int32_t numOfTables, SSHashObj** pHashObj);
+int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
+                               STsdbReader* pReader);
+void    clearBlockScanInfo(STableBlockScanInfo* p);
+void    destroyAllBlockScanInfo(SSHashObj* pTableMap);
+void    resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
+void    cleanupInfoForNextFileset(SSHashObj* pTableMap);
+int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
+void    clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
+int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pRes);
 
 // brin records iterator
-void         initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList);
-SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter);
-void         clearBrinBlockIter(SBrinRecordIter* pIter);
+void    initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList);
+int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord);
+void    clearBrinBlockIter(SBrinRecordIter* pIter);
 
 // initialize block iterator API
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList);
