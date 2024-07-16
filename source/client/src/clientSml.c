@@ -312,9 +312,9 @@ int32_t smlJoinMeasureTag(SSmlLineInfo *elements) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool smlIsPKTable(STableMeta *pTableMeta){
-  for(int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++){
-    if(pTableMeta->schema[i].flags & COL_IS_KEY){
+static bool smlIsPKTable(STableMeta *pTableMeta) {
+  for (int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
+    if (pTableMeta->schema[i].flags & COL_IS_KEY) {
       return true;
     }
   }
@@ -341,7 +341,7 @@ int32_t smlProcessSuperTable(SSmlHandle *info, SSmlLineInfo *elements) {
   info->maxTagKVs = sMeta->tags;
   info->maxColKVs = sMeta->cols;
 
-  if(smlIsPKTable(sMeta->tableMeta)){
+  if (smlIsPKTable(sMeta->tableMeta)) {
     terrno = TSDB_CODE_SML_NOT_SUPPORT_PK;
     return -1;
   }
@@ -832,8 +832,8 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   return result;
 }
 
-static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols, SArray *checkDumplicateCols,
-                                      ESchemaAction *action, bool isTag) {
+static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols,
+                                      SArray *checkDumplicateCols, ESchemaAction *action, bool isTag) {
   int32_t code = TSDB_CODE_SUCCESS;
   for (int j = 0; j < taosArrayGetSize(cols); ++j) {
     if (j == 0 && !isTag) continue;
@@ -846,7 +846,7 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SH
 
   for (int j = 0; j < taosArrayGetSize(checkDumplicateCols); ++j) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(checkDumplicateCols, j);
-    if(taosHashGet(schemaHash, kv->key, kv->keyLen) != NULL){
+    if (taosHashGet(schemaHash, kv->key, kv->keyLen) != NULL) {
       return TSDB_CODE_PAR_DUPLICATED_COLUMN;
     }
   }
@@ -997,13 +997,13 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
 
   pCmdMsg.epSet = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
   pCmdMsg.msgType = TDMT_MND_CREATE_STB;
-  pCmdMsg.msgLen = tSerializeSMCreateStbReq(NULL, 0, &pReq);
+  TAOS_CHECK_GOTO(tSerializeSMCreateStbReq(NULL, 0, &pReq, &pCmdMsg.msgLen), NULL, end);
   pCmdMsg.pMsg = taosMemoryMalloc(pCmdMsg.msgLen);
   if (NULL == pCmdMsg.pMsg) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq);
+  tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq, NULL);
 
   SQuery pQuery;
   memset(&pQuery, 0, sizeof(pQuery));
@@ -1099,8 +1099,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
     } else if (code == TSDB_CODE_SUCCESS) {
-
-      if(smlIsPKTable(pTableMeta)){
+      if (smlIsPKTable(pTableMeta)) {
         code = TSDB_CODE_SML_NOT_SUPPORT_PK;
         goto end;
       }
@@ -1113,7 +1112,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       }
 
       ESchemaAction action = SCHEMA_ACTION_NULL;
-      code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->tags, sTableData->cols, &action, true);
+      code =
+          smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->tags, sTableData->cols, &action, true);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
@@ -1188,7 +1188,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES);
       }
       action = SCHEMA_ACTION_NULL;
-      code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->cols, sTableData->tags, &action, false);
+      code =
+          smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->cols, sTableData->tags, &action, false);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
@@ -1304,17 +1305,18 @@ static int32_t smlInsertMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
     int     ret = taosHashPut(metaHash, kv->key, kv->keyLen, &i, SHORT_BYTES);
     if (ret == 0) {
       taosArrayPush(metaArray, kv);
-      if(taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
+      if (taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
         return TSDB_CODE_PAR_DUPLICATED_COLUMN;
       }
-    }else if(terrno == TSDB_CODE_DUP_KEY){
+    } else if (terrno == TSDB_CODE_DUP_KEY) {
       return TSDB_CODE_PAR_DUPLICATED_COLUMN;
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, bool isTag, SSmlMsgBuf *msg, SHashObj* checkDuplicate) {
+static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, bool isTag, SSmlMsgBuf *msg,
+                             SHashObj *checkDuplicate) {
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
 
@@ -1346,10 +1348,10 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
       int     ret = taosHashPut(metaHash, kv->key, kv->keyLen, &size, SHORT_BYTES);
       if (ret == 0) {
         taosArrayPush(metaArray, kv);
-        if(taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
+        if (taosHashGet(checkDuplicate, kv->key, kv->keyLen) != NULL) {
           return TSDB_CODE_PAR_DUPLICATED_COLUMN;
         }
-      }else{
+      } else {
         return ret;
       }
     }
@@ -1380,7 +1382,7 @@ void freeSSmlKv(void *data) {
 
 void smlDestroyInfo(SSmlHandle *info) {
   if (!info) return;
-//  qDestroyQuery(info->pQuery);
+  //  qDestroyQuery(info->pQuery);
 
   taosHashCleanup(info->pVgHash);
   taosHashCleanup(info->childTables);
@@ -1531,9 +1533,11 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
     if (tableMeta) {  // update meta
       uDebug("SML:0x%" PRIx64 " smlParseLineBottom update meta, format:%d, linenum:%d", info->id, info->dataFormat,
              info->lineNum);
-      ret = smlUpdateMeta((*tableMeta)->colHash, (*tableMeta)->cols, elements->colArray, false, &info->msgBuf, (*tableMeta)->tagHash);
+      ret = smlUpdateMeta((*tableMeta)->colHash, (*tableMeta)->cols, elements->colArray, false, &info->msgBuf,
+                          (*tableMeta)->tagHash);
       if (ret == TSDB_CODE_SUCCESS) {
-        ret = smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, tinfo->tags, true, &info->msgBuf, (*tableMeta)->colHash);
+        ret = smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, tinfo->tags, true, &info->msgBuf,
+                            (*tableMeta)->colHash);
       }
       if (ret != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlUpdateMeta failed, ret:%d", info->id, ret);

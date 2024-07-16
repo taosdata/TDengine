@@ -555,8 +555,6 @@ int32_t tInitSubmitMsgIter(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
-// for debug
-int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 
 struct SSchema {
   int8_t   type;
@@ -894,7 +892,7 @@ typedef struct {
   char*    sql;
 } SMCreateStbReq;
 
-int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
+int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq, int32_t* encodeSize);
 int32_t tDeserializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
 void    tFreeSMCreateStbReq(SMCreateStbReq* pReq);
 
@@ -3317,7 +3315,7 @@ static FORCE_INLINE void tFreeClientHbReq(void* pReq) {
   }
 }
 
-int32_t tSerializeSClientHbBatchReq(void* buf, int32_t bufLen, const SClientHbBatchReq* pReq);
+int32_t tSerializeSClientHbBatchReq(void* buf, int32_t bufLen, const SClientHbBatchReq* pBatchReq, int32_t* encodeSize);
 int32_t tDeserializeSClientHbBatchReq(void* buf, int32_t bufLen, SClientHbBatchReq* pReq);
 
 static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
@@ -3348,35 +3346,37 @@ static FORCE_INLINE void tFreeClientHbBatchRsp(void* pRsp) {
   taosArrayDestroyEx(rsp->rsps, tFreeClientHbRsp);
 }
 
-int32_t tSerializeSClientHbBatchRsp(void* buf, int32_t bufLen, const SClientHbBatchRsp* pBatchRsp);
+int32_t tSerializeSClientHbBatchRsp(void* buf, int32_t bufLen, const SClientHbBatchRsp* pBatchRsp, int32_t* encodeSize);
 int32_t tDeserializeSClientHbBatchRsp(void* buf, int32_t bufLen, SClientHbBatchRsp* pBatchRsp);
 void    tFreeSClientHbBatchRsp(SClientHbBatchRsp* pBatchRsp);
 
 static FORCE_INLINE int32_t tEncodeSKv(SEncoder* pEncoder, const SKv* pKv) {
-  if (tEncodeI32(pEncoder, pKv->key) < 0) return -1;
-  if (tEncodeI32(pEncoder, pKv->valueLen) < 0) return -1;
-  if (tEncodeBinary(pEncoder, (uint8_t*)pKv->value, pKv->valueLen) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pKv->key));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pKv->valueLen));
+  TAOS_CHECK_RETURN(tEncodeBinary(pEncoder, (uint8_t*)pKv->value, pKv->valueLen));
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeSKv(SDecoder* pDecoder, SKv* pKv) {
-  if (tDecodeI32(pDecoder, &pKv->key) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pKv->valueLen) < 0) return -1;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pKv->key));
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pKv->valueLen));
   pKv->value = taosMemoryMalloc(pKv->valueLen + 1);
-  if (pKv->value == NULL) return -1;
-  if (tDecodeCStrTo(pDecoder, (char*)pKv->value) < 0) return -1;
+  if (pKv->value == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, (char*)pKv->value));
   return 0;
 }
 
 static FORCE_INLINE int32_t tEncodeSClientHbKey(SEncoder* pEncoder, const SClientHbKey* pKey) {
-  if (tEncodeI64(pEncoder, pKey->tscRid) < 0) return -1;
-  if (tEncodeI8(pEncoder, pKey->connType) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pKey->tscRid));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pKey->connType));
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeSClientHbKey(SDecoder* pDecoder, SClientHbKey* pKey) {
-  if (tDecodeI64(pDecoder, &pKey->tscRid) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pKey->connType) < 0) return -1;
+  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pKey->tscRid));
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pKey->connType));
   return 0;
 }
 

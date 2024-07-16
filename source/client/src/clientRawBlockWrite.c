@@ -33,7 +33,7 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen
 static tb_uid_t processSuid(tb_uid_t suid, char* db) { return suid + MurmurHash3_32(db, strlen(db)); }
 
 static cJSON* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
-                                  int8_t t, SColCmprWrapper* pColCmprRow) {
+                                   int8_t t, SColCmprWrapper* pColCmprRow) {
   int8_t buildDefaultCompress = 0;
   if (pColCmprRow->nCols <= 0) {
     buildDefaultCompress = 1;
@@ -454,7 +454,7 @@ static cJSON* processCreateTable(SMqMetaRsp* metaRsp) {
       pJson = buildCreateCTableJson(req.pReqs, req.nReqs);
     } else if (pCreateReq->type == TSDB_NORMAL_TABLE) {
       pJson = buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid,
-                                    TSDB_NORMAL_TABLE, &pCreateReq->colCmpr);
+                                   TSDB_NORMAL_TABLE, &pCreateReq->colCmpr);
     }
   }
 
@@ -847,13 +847,13 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   SCmdMsgInfo pCmdMsg = {0};
   pCmdMsg.epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   pCmdMsg.msgType = TDMT_MND_CREATE_STB;
-  pCmdMsg.msgLen = tSerializeSMCreateStbReq(NULL, 0, &pReq);
+  TAOS_CHECK_RETURN(tSerializeSMCreateStbReq(NULL, 0, &pReq, &pCmdMsg.msgLen));
   pCmdMsg.pMsg = taosMemoryMalloc(pCmdMsg.msgLen);
   if (NULL == pCmdMsg.pMsg) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
-  tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq);
+  tSerializeSMCreateStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &pReq, NULL);
 
   SQuery pQuery = {0};
   pQuery.execMode = QUERY_EXEC_MODE_RPC;
@@ -2073,15 +2073,15 @@ static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
 
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddStringToObject(pJson, "tmq_meta_version", TMQ_META_VERSION);
-  cJSON* pMetaArr = cJSON_CreateArray();
+  cJSON*  pMetaArr = cJSON_CreateArray();
   int32_t num = taosArrayGetSize(rsp.batchMetaReq);
   for (int32_t i = 0; i < num; i++) {
-    int32_t len = *(int32_t*)taosArrayGet(rsp.batchMetaLen, i);
-    void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
-    SDecoder metaCoder = {0};
+    int32_t    len = *(int32_t*)taosArrayGet(rsp.batchMetaLen, i);
+    void*      tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
+    SDecoder   metaCoder = {0};
     SMqMetaRsp metaRsp = {0};
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), len - sizeof(SMqRspHead));
-    if(tDecodeMqMetaRsp(&metaCoder, &metaRsp) < 0 ) {
+    if (tDecodeMqMetaRsp(&metaCoder, &metaRsp) < 0) {
       goto _end;
     }
     cJSON* pItem = processSimpleMeta(&metaRsp);
@@ -2117,8 +2117,8 @@ char* tmq_get_json_meta(TAOS_RES* res) {
   }
 
   SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
-  cJSON* pJson = processSimpleMeta(&pMetaRspObj->metaRsp);
-  char* string = cJSON_PrintUnformatted(pJson);
+  cJSON*         pJson = processSimpleMeta(&pMetaRspObj->metaRsp);
+  char*          string = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
   return string;
 }

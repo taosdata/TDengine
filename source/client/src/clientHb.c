@@ -16,10 +16,10 @@
 #include "catalog.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "scheduler.h"
-#include "trpc.h"
-#include "tglobal.h"
 #include "clientMonitor.h"
+#include "scheduler.h"
+#include "tglobal.h"
+#include "trpc.h"
 
 typedef struct {
   union {
@@ -558,8 +558,8 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   pInst->monitorParas = pRsp.monitorParas;
-  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
-           pInst->clusterId, pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
+  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d", pInst->clusterId,
+           pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
   if (rspNum) {
     tscDebug("hb got %d rsp, %d empty rsp received before", rspNum,
@@ -1134,7 +1134,7 @@ int32_t hbGatherAppInfo(void) {
     SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
     if (pAppHbMgr == NULL) continue;
 
-    int64_t   clusterId = pAppHbMgr->pAppInstInfo->clusterId;
+    int64_t    clusterId = pAppHbMgr->pAppInstInfo->clusterId;
     SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
     if (NULL == pApp) {
       memcpy(&req.summary, &pAppHbMgr->pAppInstInfo->summary, sizeof(req.summary));
@@ -1191,7 +1191,11 @@ static void *hbThreadFunc(void *param) {
         tFreeClientHbBatchReq(pReq);
         continue;
       }
-      int   tlen = tSerializeSClientHbBatchReq(NULL, 0, pReq);
+      int32_t tlen;
+      if (tSerializeSClientHbBatchReq(NULL, 0, pReq, &tlen)) {
+        break;
+      }
+
       void *buf = taosMemoryMalloc(tlen);
       if (buf == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1200,7 +1204,9 @@ static void *hbThreadFunc(void *param) {
         break;
       }
 
-      tSerializeSClientHbBatchReq(buf, tlen, pReq);
+      if (tSerializeSClientHbBatchReq(buf, tlen, pReq, NULL)) {
+        break;
+      }
       SMsgSendInfo *pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
 
       if (pInfo == NULL) {
