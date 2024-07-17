@@ -46,7 +46,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                     let mut err = err.to_string();
                     if err.contains("No available servers") {
                         err = String::from("No available servers");
-                    } else if err.contains("Unauthorized") {
+                    } else if err.contains("Unauthorized") || err.contains("Authentication") {
                         err = String::from("authentication failed");
                     }
                     DataSourceValidation::invalid(
@@ -62,7 +62,8 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                             let mut err = err.to_string();
                             if err.contains("No available servers") {
                                 err = String::from("No available servers");
-                            } else if err.contains("Unauthorized") {
+                            } else if err.contains("Unauthorized") || err.contains("Authentication")
+                            {
                                 err = String::from("authentication failed");
                             }
                             DataSourceValidation::invalid(
@@ -448,6 +449,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_valid() {
+        // error host
+        let dsn =
+            Dsn::from_str("mongodb://admin:tbase125!@192.168.1.41:27017?source=admin").unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("mongodb", res.data_source);
+        assert_eq!(
+            "Failed to connect to dsn: No available servers",
+            res.message.unwrap()
+        );
+
+        // error port
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27018?source=admin").unwrap();
         let res = is_valid(&dsn).await;
@@ -455,10 +469,47 @@ mod tests {
         assert_eq!(false, res.support);
         assert_eq!("mongodb", res.data_source);
         assert_eq!(
-            "failed to connect to dsn: mongodb://admin:tbase125%21@192.168.1.40:27018?source=admin, cause: Kind: Server selection timeout: No available servers. Topology: { Type: Unknown, Servers: [ { Address: 192.168.1.40:27018, Type: Unknown, Error: Kind: I/O error: Connection refused (os error 111), labels: {} } ] }, labels: {}",
+            "Failed to connect to dsn: No available servers",
             res.message.unwrap()
         );
 
+        // error user
+        let dsn =
+            Dsn::from_str("mongodb://admin1:tbase125!@192.168.1.40:27017?source=admin").unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("mongodb", res.data_source);
+        assert_eq!(
+            "Failed to connect to dsn: authentication failed",
+            res.message.unwrap()
+        );
+
+        // error password
+        let dsn =
+            Dsn::from_str("mongodb://admin:tbase126!@192.168.1.40:27017?source=admin").unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("mongodb", res.data_source);
+        assert_eq!(
+            "Failed to connect to dsn: authentication failed",
+            res.message.unwrap()
+        );
+
+        // error source
+        let dsn =
+            Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin1").unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("mongodb", res.data_source);
+        assert_eq!(
+            "Failed to connect to dsn: authentication failed",
+            res.message.unwrap()
+        );
+
+        // success
         let dsn =
             Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin").unwrap();
         let res = is_valid(&dsn).await;
