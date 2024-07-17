@@ -193,7 +193,7 @@ int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData
   code = tDecodeSTqHandle(pDecoder, &handle);
   if (code) goto end;
   taosWLockLatch(&pTq->lock);
-  code = tqMetaSaveInfo(pTq, pTq->pExecStore, handle.subKey, (int)strlen(handle.subKey), pData, nData);
+  code = tqMetaSaveInfo(pTq, pTq->pExecStore, handle.subKey, (int)strlen(handle.subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   taosWUnLockLatch(&pTq->lock);
 
 end:
@@ -212,6 +212,7 @@ int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nD
   }
 
   code = tqMetaSaveInfo(pTq, pTq->pCheckStore, &info.topic, strlen(info.topic), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  tDeleteSTqCheckInfo(&info);
   if (code) goto _err;
 
   return code;
