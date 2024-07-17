@@ -235,6 +235,8 @@ typedef struct {
   int64_t         stbUid;
   char            stbFullName[TSDB_TABLE_FNAME_LEN];
   SSchemaWrapper* pSchemaWrapper;
+  SSchemaWrapper* pTagSchema;
+  bool            autoCreateCtb;
   void*           vnode;  // not available to encoder and decoder
   FTbSink*        tbSinkFunc;
   STSchema*       pTSchema;

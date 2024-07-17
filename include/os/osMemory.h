@@ -53,6 +53,9 @@ void    taosPrintBackTrace();
 void    taosMemoryTrim(int32_t size);
 void   *taosMemoryMallocAlign(uint32_t alignment, int64_t size);
 
+#define TAOS_MEMSET(_s, _c, _n) ((void)memset(_s, _c, _n))
+#define TAOS_MEMCPY(_d, _s, _n) ((void)memcpy(_d, _s, _n))
+
 #define taosMemoryFreeClear(ptr)   \
   do {                             \
     if (ptr) {                     \

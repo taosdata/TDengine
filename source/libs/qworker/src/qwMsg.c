@@ -21,7 +21,7 @@ int32_t qwMallocFetchRsp(int8_t rpcMalloc, int32_t length, SRetrieveTableRsp **r
   }
 
   if (NULL == *rsp) {
-    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
+    TAOS_MEMSET(pRsp, 0, sizeof(SRetrieveTableRsp));
   }
 
   *rsp = pRsp;
@@ -169,7 +169,7 @@ int32_t qwBuildAndSendFetchRsp(int32_t rspType, SRpcHandleInfo *pConn, SRetrieve
     if (NULL == pRsp) {
       QW_RET(terrno);
     }
-    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
+    TAOS_MEMSET(pRsp, 0, sizeof(SRetrieveTableRsp));
     dataLength = 0;
   }
 

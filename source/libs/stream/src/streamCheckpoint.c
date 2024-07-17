@@ -29,11 +29,13 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
 static int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList);
 static void    checkpointTriggerMonitorFn(void* param, void* tmrId);
 
-int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId, int32_t transId,
-                                int32_t srcTaskId, SStreamDataBlock** pRes) {
-  SStreamDataBlock* pChkpoint = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
-  if (pChkpoint == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
+                                          int32_t transId, int32_t srcTaskId) {
+  SStreamDataBlock* pChkpoint;
+
+  int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock), (void**)&pChkpoint);
+  if (code) {
+    return code;
   }
 
   pChkpoint->type = checkpointType;
@@ -436,7 +438,7 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 }
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
-  pTask->chkInfo.startTs = 0;  // clear the recorded start time
+  pTask->chkInfo.startTs = 0;             // clear the recorded start time
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
 
   (void) taosThreadMutexLock(&pTask->chkInfo.pActiveInfo->lock);

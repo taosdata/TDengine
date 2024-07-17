@@ -266,6 +266,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->outputInfo.tbSink.pTSchema);
     tSimpleHashCleanup(pTask->outputInfo.tbSink.pTblInfo);
+    tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pTagSchema);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
   }
@@ -1010,10 +1011,13 @@ int32_t createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId
 }
 
 static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
-  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock));
-  if (pData == NULL) {
+  int32_t           code;
+  SStreamDataBlock* pData;
+
+  code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock), (void**)&pData);
+  if (code) {
     stError("s-task:%s failed to allocated retrieve-block", pTask->id.idStr);
-    return terrno;
+    return terrno = code;
   }
 
   // enqueue
@@ -1023,7 +1027,7 @@ static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq*
   pData->type = STREAM_INPUT__DATA_RETRIEVE;
   pData->srcVgId = 0;
 
-  int32_t code = streamRetrieveReqToData(pReq, pData, pTask->id.idStr);
+  code = streamRetrieveReqToData(pReq, pData, pTask->id.idStr);
   if (code != TSDB_CODE_SUCCESS) {
     taosFreeQitem(pData);
     return code;
