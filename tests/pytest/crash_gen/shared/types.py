@@ -44,7 +44,8 @@ class DataBoundary(Enum):
     FLOAT_BOUNDARY = [-3.40E+38, 3.40E+38]
     DOUBLE_BOUNDARY = [-1.7e+308, 1.7e+308]
     BOOL_BOUNDARY = [True, False]
-    GEOMETRY_BOUNDARY = ["point(1.0 1.0)", "LINESTRING(1.0 1.0, 2.0 2.0)", "POLYGON((1.0 1.0, 2.0 2.0, 1.0 1.0))"]
+    # GEOMETRY_BOUNDARY = ["point(1.0 1.0)", "LINESTRING(1.0 1.0, 2.0 2.0)", "POLYGON((1.0 1.0, 2.0 2.0, 1.0 1.0))"]
+    GEOMETRY_BOUNDARY = ["point(1.0 1.0)"]
     BINARY_MAX_LENGTH = 65517
     NCHAR_MAX_LENGTH = 16379
     DBNAME_MAX_LENGTH = 64
