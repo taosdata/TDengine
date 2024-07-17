@@ -708,7 +708,7 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
   while (1) {
     int32_t code = getNextBrinRecord(&iter, &pRecord);
     if (code != TSDB_CODE_SUCCESS) {
-      break;
+      return code;
     }
 
     if (pRecord->suid > pReader->info.suid) {
