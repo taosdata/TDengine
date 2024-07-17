@@ -745,7 +745,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
     if (timerActive > 0) {
       taosMsleep(100);
-      stDebug("s-task:0x%x wait for quit from timer", id.taskId);
+      stDebug("s-task:0x%" PRIx64 " wait for quit from timer", id.taskId);
     } else {
       break;
     }
