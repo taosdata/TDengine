@@ -40,9 +40,17 @@ mod tests {
         let mutate: Mutate = serde_json::from_str(mutate).unwrap();
         dbg!(mutate);
     }
+
     #[test]
     fn test_mutate_as_extract() {
         let mutate = r#"{"extract":{"payload": {"json": ""}}}"#;
+        let mutate: Mutate = serde_json::from_str(mutate).unwrap();
+        dbg!(mutate);
+    }
+
+    #[test]
+    fn test_mutate_as_extract_join() {
+        let mutate = r#"{"extract":{"payload": {"join_with": ","}}}"#;
         let mutate: Mutate = serde_json::from_str(mutate).unwrap();
         dbg!(mutate);
     }

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use self::cast::Cast;
+use self::join::Join;
 use self::json::Json;
 use self::regex::Regex;
 use self::split::Split;
@@ -27,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod cast;
+mod join;
 mod json;
 mod regex;
 mod split;
@@ -99,6 +101,8 @@ pub enum FieldParser {
     Alias { alias: String },
     Split(Split),
     Udt(Udt),
+    Join(Join),
+    // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
 }
 
@@ -109,6 +113,7 @@ impl Parse for FieldParser {
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), ParseError> {
         match self {
+            FieldParser::Join(join) => join.parse_array(field, array),
             FieldParser::Json(json) => json.parse_array(field, array),
             FieldParser::Split(split) => split.parse_array(field, array),
             FieldParser::Udt(udt) => udt.parse_array(field, array),
@@ -439,4 +444,14 @@ fn test_regex() {
     let parse: FieldParser = serde_json::from_str(parse).unwrap();
     dbg!(&parse);
     assert!(matches!(parse, FieldParser::Regex(_)));
+}
+
+#[test]
+fn test_join() {
+    let join = r#"{
+        "join_with": ","
+    }"#;
+    let join: FieldParser = serde_json::from_str(join).unwrap();
+    dbg!(&join);
+    assert!(matches!(join, FieldParser::Join(_)));
 }
