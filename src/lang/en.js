@@ -817,7 +817,15 @@ export default {
     tags: "Tags",
     encode: "Encoding",
     compress: "Compression Algorithm",
-    level: "Compression Level"
+    level: "Compression Level",
+    desc: "Description",
+    share: "Add to shared favorites",
+    unshare: "Unshare",
+    addDesc: "Add description",
+    editDesc: "Edit description",
+    descPlaceholder: "Description of the SQL favorite. The character length is {0}",
+    characterLen: "Only {0} characters are allowed",
+    addToPersonal: "Add to personal favorite"
   },
   sql: {
     analysis: "Analysis",

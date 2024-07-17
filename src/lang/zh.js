@@ -717,7 +717,15 @@ export default {
     tags: "标签数量",
     encode: "编码方法",
     compress: "压缩算法",
-    level: "压缩级别"
+    level: "压缩级别",
+    desc: "描述",
+    share: "添加到共享收藏",
+    unshare: "取消共享",
+    addDesc: "添加描述",
+    editDesc: "编辑描述",
+    descPlaceholder: "对收藏的 SQL 进行描述，可不填，字符长度为{0}",
+    characterLen: "只允许输入{0}个字符",
+    addToPersonal: "添加到个人收藏"
   },
   sql: {
     analysis: "分析",
