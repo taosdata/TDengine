@@ -96,7 +96,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
 
       for (int32_t iDataBlk = 0; iDataBlk < ctx->mDataBlk->nItem; ++iDataBlk) {
         SDataBlk dataBlk[1];
-        TAOS_CHECK_GOTO(tMapDataGetItemByIdx(ctx->mDataBlk, iDataBlk, dataBlk, tGetDataBlk), &lino, _exit);
+        tMapDataGetItemByIdx(ctx->mDataBlk, iDataBlk, dataBlk, tGetDataBlk);
 
         SBrinRecord record = {
             .suid = pBlockIdx->suid,

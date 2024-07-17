@@ -222,11 +222,11 @@ void    tMapDataReset(SMapData *pMapData);
 void    tMapDataClear(SMapData *pMapData);
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));
 int32_t tMapDataCopy(SMapData *pFrom, SMapData *pTo);
-int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
+void    tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
 int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem);
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
-int32_t tGetMapData(uint8_t *p, SMapData *pMapData, int64_t *decodeSize);
+int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
 int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItemFn)(uint8_t *, void *),
                         SArray **ppArray);
 // other
