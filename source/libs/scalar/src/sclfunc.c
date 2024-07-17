@@ -989,7 +989,11 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           len = sprintf(tmp, "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false");
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
-            code = TSDB_CODE_FAILED;
+            if (errno == E2BIG) {
+              code = TSDB_CODE_FUNC_VALUE_TOO_LONG;
+              goto _end;
+            }
+            code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
             goto _end;
           }
 
@@ -999,7 +1003,11 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, (TdUcs4 *)varDataVal(output),
                                    outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
-            code = TSDB_CODE_FAILED;
+            if (errno == E2BIG) {
+              code = TSDB_CODE_FUNC_VALUE_TOO_LONG;
+              goto _end;
+            }
+            code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
             goto _end;
           }
           varDataSetLen(output, len);
@@ -1013,7 +1021,11 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           len = outputCharLen > len ? len : outputCharLen;
           bool ret = taosMbsToUcs4(buf, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
-            code = TSDB_CODE_FAILED;
+            if (errno == E2BIG) {
+              code = TSDB_CODE_FUNC_VALUE_TOO_LONG;
+              goto _end;
+            }
+            code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
             goto _end;
           }
           varDataSetLen(output, len);
