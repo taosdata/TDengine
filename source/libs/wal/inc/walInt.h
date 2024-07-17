@@ -163,7 +163,6 @@ int     walInitWriteFile(SWal* pWal);
 // seek section end
 
 int64_t walGetSeq();
-int     walSeekWriteVer(SWal* pWal, int64_t ver);
 int32_t walRollImpl(SWal* pWal);
 
 #ifdef __cplusplus

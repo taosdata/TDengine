@@ -19,36 +19,6 @@
 #include "tref.h"
 #include "walInt.h"
 
-#if 0
-static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
-  int64_t code = 0;
-
-  TdFilePtr pIdxTFile = pWal->pIdxFile;
-  TdFilePtr pLogTFile = pWal->pLogFile;
-
-  // seek position
-  int64_t idxOff = walGetVerIdxOffset(pWal, ver);
-  code = taosLSeekFile(pIdxTFile, idxOff, SEEK_SET);
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-  SWalIdxEntry entry;
-  // TODO:deserialize
-  code = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-  code = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
-  if (code < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-  return 0;
-}
-#endif
-
 int walInitWriteFile(SWal* pWal) {
   TdFilePtr     pIdxTFile, pLogTFile;
   SWalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
@@ -130,30 +100,3 @@ int64_t walChangeWrite(SWal* pWal, int64_t ver) {
   pWal->writeCur = idx;
   return fileFirstVer;
 }
-
-#if 0
-int walSeekWriteVer(SWal* pWal, int64_t ver) {
-  int64_t code;
-  if (ver == pWal->vers.lastVer) {
-    return 0;
-  }
-  if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
-    terrno = TSDB_CODE_WAL_INVALID_VER;
-    return -1;
-  }
-  if (ver < pWal->vers.snapshotVer) {
-  }
-  if (ver < walGetCurFileFirstVer(pWal) || (ver > walGetCurFileLastVer(pWal))) {
-    code = walChangeWrite(pWal, ver);
-    if (code != 0) {
-      return -1;
-    }
-  }
-  code = walSeekWritePos(pWal, ver);
-  if (code != 0) {
-    return -1;
-  }
-
-  return 0;
-}
-#endif
