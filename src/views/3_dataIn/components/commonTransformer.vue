@@ -1876,7 +1876,17 @@ export default {
     },
     //输出input结果
     generateInput() {
-      let demo_list = this.getExampleList();
+      let demo_list;
+      try {
+        demo_list = getExampleList(this.msgForm.msgbody);
+      } catch (err) {
+        if (err.lineNumber > 0) {
+          this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
+        } else {
+          this.$error(this.$t(err));
+        }
+      }
+
       let inputList = demo_list.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
