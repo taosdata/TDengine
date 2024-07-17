@@ -105,7 +105,7 @@ typedef struct SMTbCursor {
 } SMTbCursor;
 
 typedef struct SMCtbCursor {
-  SMeta*   pMeta;
+  struct SMeta*   pMeta;
   void*    pCur;
   tb_uid_t suid;
   void*    pKey;
@@ -134,7 +134,7 @@ typedef struct SMetaTableInfo {
 } SMetaTableInfo;
 
 typedef struct SSnapContext {
-  SMeta*    pMeta;
+  struct SMeta* pMeta;
   int64_t   snapVersion;
   void*     pCur;
   int64_t   suid;
@@ -178,7 +178,7 @@ typedef struct TsdReader {
   int32_t      (*tsdNextDataBlock)();
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
-  SSDataBlock *(*tsdReaderRetrieveDataBlock)();
+  int32_t      (*tsdReaderRetrieveDataBlock)();
 
   void         (*tsdReaderReleaseDataBlock)();
 

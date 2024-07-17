@@ -388,9 +388,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   pCost->totalCheckedRows += pBlock->info.rows;
   pCost->loadBlocks += 1;
 
-  SSDataBlock* p = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, NULL);
-  if (p == NULL) {
-    return terrno;
+  SSDataBlock* p = NULL;
+  int32_t code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p, NULL);
+  if (p == NULL || code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   ASSERT(p == pBlock);
@@ -1351,7 +1352,12 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
   }
 
   if (hasNext) {
-    /*SSDataBlock* p = */ pAPI->tsdReader.tsdReaderRetrieveDataBlock(pReader, NULL);
+    SSDataBlock* p = NULL;
+    code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pReader, &p, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      return NULL;
+    }
+
     doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
     pBlock->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
   }
@@ -2929,8 +2935,9 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
 
-      SSDataBlock* pBlock = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pInfo->dataReader, NULL);
-      if (pBlock == NULL) {
+      SSDataBlock* pBlock = NULL;
+      code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pInfo->dataReader, &pBlock, NULL);
+      if (pBlock == NULL || code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
 

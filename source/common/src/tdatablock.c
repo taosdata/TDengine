@@ -615,6 +615,10 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
   int32_t index = (tsColumnIndex == -1) ? 0 : tsColumnIndex;
 
   SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, index);
+  if (pColInfoData == NULL) {
+    return 0;
+  }
+
   if (pColInfoData->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
     return 0;
   }
@@ -1514,7 +1518,7 @@ void blockDataFreeRes(SSDataBlock* pBlock) {
 
   taosArrayDestroy(pBlock->pDataBlock);
   pBlock->pDataBlock = NULL;
-  
+
   taosMemoryFreeClear(pBlock->pBlockAgg);
   memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
 }
