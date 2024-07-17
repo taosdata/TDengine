@@ -852,7 +852,6 @@ export default {
       this.isCSV = true;
       this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
       await this.submitParse();
-      // this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     await this.getInitStables();
     this.statisticCol();
@@ -1717,7 +1716,7 @@ export default {
       this.extractArr.forEach((item) => {
         extractObj[item.columnname] = {
           [`${item.type}`]:
-            item.type == "regex"
+            item.type == "regex" || item.type == "join"
               ? item.expression
               : item.type == "split"
               ? this.$store.state.app.splitExpresList
@@ -1726,6 +1725,7 @@ export default {
               : item.expression,
         };
       });
+
       let parserData = {
         parser: {
           parse: this.$store.state.app.topParse.parser.parse,

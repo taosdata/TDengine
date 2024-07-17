@@ -358,11 +358,10 @@ import { getParser, checkParseData, getHistorianMsgbody } from "@/api/explorer/d
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import CreateSTB from "./createSTB.vue";
-import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
-import { extractAllProperties, deepClone, parsinginZone } from "@/utils"
+import { extractAllProperties, parsinginZone } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
 
