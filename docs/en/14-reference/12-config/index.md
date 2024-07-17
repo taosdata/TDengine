@@ -729,6 +729,57 @@ The charset that takes effect is UTF-8.
 | Value Range | -1: none message is compressed; 0: all messages are compressed; N (N>0): messages exceeding N bytes are compressed |
 | Default     | -1                                                                                                                 |
 
+### fPrecision
+
+| Attribute     | Description                           |
+| -------- | -------------------------------- |
+| Application | Server Only                         |
+| Meaning     | Compression precision for float data type    |
+| Value Range | 0.1 ~ 0.00000001                 |
+| Default   | 0.00000001                       |
+| Note | The floating value below this setting will be cut off |
+
+### dPrecision
+
+| Attribute     | Description                            |
+| -------- | -------------------------------- |
+| Applicable | Server Only                        |
+| Meaning     | Compression precision for double data type |
+| Value Range | 0.1 ~ 0.0000000000000001         |
+| Default   | 0.0000000000000001               |
+| Note | The floating value below this setting will be cut off |
+
+### lossyColumn
+
+| Attribute     | Description                             |
+| -------- | -------------------------------- |
+| Applicable | Server Only                         |
+| Meaning     | Enable TSZ lossy compression for float and/or double |
+| Value Range |  float, double        |
+| Default   | none: disable TSZ lossy compression                |
+
+**补充说明**
+1. It's only available since 3.2.0.0 version, and can't downgrade to previous version once upgrading to 3.2.0.0 and enabling this parameter
+2. TSZ compression algorithm compresses data based on data prediction technique, so it's more suitable for data with specific pattern
+3. TSZ compression algorithm may take longer time but it has better compression ratio, so it's suitable when you have enough CPU resources and are more sensitive to disk occupation
+4. Example: enable TSZ for both float and double
+```shell
+lossyColumns     float|double
+```
+5. After configuring, taosd service needs to restarted. After restarting, if you see the following output in taosd logfile, it means the function has been enabled
+```sql
+   02/22 10:49:27.607990 00002933 UTL  lossyColumns     float|double
+```
+
+### ifAdtFse 
+
+| Attribute     | Description                         |
+| -------- | -------------------------------- |
+| Applicable | Server Only                         |
+| Meaning     | Replace HUFFMAN with FSE in TSZ, FSE is faster when compressing but slower when uncompressing |
+| Value Range |  0: Use HUFFMAN, 1: Use FSE         |
+| Default   | 0: Use HUFFMAN               |
+
 
 ## Other Parameters
 
