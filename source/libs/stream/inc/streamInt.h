@@ -65,11 +65,6 @@ struct SActiveCheckpointInfo {
   tmr_h         pSendReadyMsgTmr;
 };
 
-struct SConsensusCheckpoint {
-  int8_t inProcess;
-
-};
-
 typedef struct {
   int8_t       type;
   SSDataBlock* pBlock;

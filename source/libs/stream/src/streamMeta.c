@@ -1104,13 +1104,14 @@ int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, voi
   return taosScheduleTask(pMeta->qHandle, &schedMsg);
 }
 
-SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
+int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
+  *pList = NULL;
   SArray* pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
 
   bool sendMsg = pMeta->sendMsgBeforeClosing;
   if (!sendMsg) {
     stDebug("vgId:%d no need to send msg to mnode before closing tasks", pMeta->vgId);
-    return pTaskList;
+    return TSDB_CODE_SUCCESS;
   }
 
   stDebug("vgId:%d send msg to mnode before closing all tasks", pMeta->vgId);
@@ -1141,7 +1142,7 @@ SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta) {
 
   streamMetaSendHbHelper(pMeta);
   pMeta->sendMsgBeforeClosing = false;
-  return pTaskList;
+  return TSDB_CODE_SUCCESS;
 }
 
 void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader) {
@@ -1311,14 +1312,19 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
   int64_t st = taosGetTimestampMs();
 
   // send hb msg to mnode before closing all tasks.
-  SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
+  SArray* pTaskList = NULL;
+  int32_t code = streamMetaSendMsgBeforeCloseTasks(pMeta, &pTaskList);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   int32_t numOfTasks = taosArrayGetSize(pTaskList);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = NULL;
 
-    int32_t code = streamMetaAcquireTaskNoLock(pMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
+    code = streamMetaAcquireTaskNoLock(pMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
     if (code != TSDB_CODE_SUCCESS) {
       continue;
     }

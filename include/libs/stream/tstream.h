@@ -639,7 +639,7 @@ bool streamTaskShouldPause(const SStreamTask* pStatus);
 bool streamTaskIsIdle(const SStreamTask* pTask);
 bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus);
 
-char*             createStreamTaskIdStr(int64_t streamId, int32_t taskId);
+int32_t           createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId);
 SStreamTaskState  streamTaskGetStatus(const SStreamTask* pTask);
 const char*       streamTaskGetStatusStr(ETaskStatus status);
 void              streamTaskResetStatus(SStreamTask* pTask);
@@ -758,7 +758,7 @@ void    streamMetaRUnLock(SStreamMeta* pMeta);
 void    streamMetaWLock(SStreamMeta* pMeta);
 void    streamMetaWUnLock(SStreamMeta* pMeta);
 void    streamMetaResetStartInfo(STaskStartInfo* pMeta, int32_t vgId);
-SArray* streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta);
+int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pTaskList);
 void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
 void    streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);

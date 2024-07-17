@@ -359,7 +359,7 @@ static void setInitialVersionInfo(SStreamTask* pTask, int64_t ver) {
 }
 
 int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver) {
-  pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
+  (void) createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId, &pTask->id.idStr);
   pTask->refCnt = 1;
 
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
@@ -997,10 +997,16 @@ SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
   return NULL;
 }
 
-char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
+int32_t createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId) {
   char buf[128] = {0};
   sprintf(buf, "0x%" PRIx64 "-0x%x", streamId, taskId);
-  return taosStrdup(buf);
+  *pId = taosStrdup(buf);
+
+  if (*pId == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
