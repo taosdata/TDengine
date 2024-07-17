@@ -344,10 +344,6 @@ int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     tdbFree(data);
-    if(taosHashPut(pTq->pHandle, key, strlen(key), &handle, sizeof(STqHandle)) != 0){
-      tqDestroyTqHandle(&handle);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
     *pHandle = taosHashGet(pTq->pHandle, key, strlen(key));
     if(*pHandle == NULL){
       return TSDB_CODE_OUT_OF_MEMORY;
