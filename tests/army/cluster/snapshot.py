@@ -35,7 +35,8 @@ class TDTestCase(TBase):
         "fPrecision"             : "0.000000001",
         "dPrecision"             : "0.00000000000000001",
         "ifAdtFse"               : "1",
-        'slowLogScope'           : "insert"
+        'slowLogScope'           : "insert",
+        'mDebugFlag'             : "143"
     }
 
     def insertData(self):

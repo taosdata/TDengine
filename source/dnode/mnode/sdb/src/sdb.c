@@ -83,6 +83,8 @@ void sdbCleanup(SSdb *pSdb) {
     SHashObj *hash = pSdb->hashObjs[i];
     if (hash == NULL) continue;
 
+    int32_t count = 0;
+    if (i == SDB_VGROUP) mInfo("vgroup sdb table:%s total %d item", sdbTableName(i), taosHashGetSize(hash));
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
       SSdbRow *pRow = *ppRow;
@@ -90,7 +92,9 @@ void sdbCleanup(SSdb *pSdb) {
 
       sdbFreeRow(pSdb, pRow, true);
       ppRow = taosHashIterate(hash, ppRow);
+      count++;
     }
+    if (i == SDB_VGROUP) mInfo("vgroup sdb table:%s free %d item", sdbTableName(i), count);
   }
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {

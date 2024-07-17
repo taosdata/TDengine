@@ -45,6 +45,8 @@ void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc) {
     (*deleteFp)(pSdb, pRow->pObj, callFunc);
   }
 
+  if (pRow->type == SDB_VGROUP) mInfo("sdbFreeRow %p", pRow);
+
   sdbPrintOper(pSdb, pRow, "free");
 
 #if 1

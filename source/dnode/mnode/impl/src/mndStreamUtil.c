@@ -105,6 +105,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
         mInfo("vgId:%d replica:%d inconsistent with other vgroups replica:%d, not ready for stream operations",
               pVgroup->vgId, pVgroup->replica, replica);
         *allReady = false;
+        // sdbRelease(pSdb, pVgroup);
         break;
       }
     }

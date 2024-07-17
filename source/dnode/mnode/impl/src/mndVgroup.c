@@ -140,6 +140,8 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   }
 
   pRow = sdbAllocRow(sizeof(SVgObj));
+  mInfo("sdbAllocRow len:%ld, %p", sizeof(SVgObj) + sizeof(SSdbRow), pRow);
+
   if (pRow == NULL) goto _OVER;
 
   pVgroup = sdbGetRowObj(pRow);
@@ -202,6 +204,7 @@ static int32_t mndNewVgActionValidate(SMnode *pMnode, STrans *pTrans, SSdbRaw *p
   code = 0;
 _OVER:
   if (pVgroup) mndVgroupActionDelete(pSdb, pVgroup);
+  mInfo("sdbFreeRow %p", pRow);
   taosMemoryFreeClear(pRow);
   return code;
 }
@@ -901,7 +904,7 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
 SEpSet mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId) {
   SEpSet epset = {0};
 
-  SVgObj * pVgroup = mndAcquireVgroup(pMnode, vgId);
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
   if (!pVgroup) return epset;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {

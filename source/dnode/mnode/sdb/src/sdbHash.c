@@ -194,6 +194,8 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   }
   pSdb->tableVer[pRow->type]++;
 
+  if (pRow->type == SDB_VGROUP) mInfo("taosHashGetSize-insert :%d", taosHashGetSize(hash));
+
   return 0;
 }
 
@@ -222,6 +224,9 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   sdbFreeRow(pSdb, pNewRow, false);
 
   pSdb->tableVer[pOldRow->type]++;
+
+  if (pOldRow->type == SDB_VGROUP) mInfo("taosHashGetSize-delete :%d", taosHashGetSize(hash));
+
   return code;
 }
 
@@ -351,7 +356,6 @@ static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
     sdbFreeRow(pSdb, pRow, true);
   }
-
   sdbUnLock(pSdb, type);
 }
 
@@ -514,12 +518,12 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type) {
 }
 
 bool countValid(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
-  int32_t* pInt = p1;
+  int32_t *pInt = p1;
   (*pInt) += 1;
   return true;
 }
 
-int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type) {
+int32_t sdbGetValidSize(SSdb *pSdb, ESdbType type) {
   int32_t num = 0;
   sdbTraverse(pSdb, type, countValid, &num, 0, 0);
   return num;
