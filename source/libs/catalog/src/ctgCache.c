@@ -764,12 +764,10 @@ int32_t ctgReadDBCfgFromCache(SCatalog *pCtg, const char* dbFName, SDbCfgInfo* p
   CTG_LOCK(CTG_READ, &dbCache->cfgCache.cfgLock);
 
   if (dbCache->cfgCache.cfgInfo) {
-    SDbCfgInfo *pInfo = ctgCloneDbCfgInfo(dbCache->cfgCache.cfgInfo);
-    if (NULL == pInfo) {
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-    }
+    SDbCfgInfo *pInfo = NULL;
+    CTG_ERR_JRET(ctgCloneDbCfgInfo(dbCache->cfgCache.cfgInfo, &pInfo));
     
-    memcpy(pDbCfg, pInfo, sizeof(*pInfo));
+    TAOS_MEMCPY(pDbCfg, pInfo, sizeof(*pInfo));
     taosMemoryFree(pInfo);
     CTG_CACHE_HIT_INC(CTG_CI_DB_CFG, 1);
   } else {

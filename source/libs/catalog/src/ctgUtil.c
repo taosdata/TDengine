@@ -1627,23 +1627,41 @@ int32_t ctgAddFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fet
   return TSDB_CODE_SUCCESS;
 }
 
-SName* ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch) {
+int32_t ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch, SName** ppName) {
   STablesReq* pReq = (STablesReq*)taosArrayGet(pNames, pFetch->dbIdx);
-  return (SName*)taosArrayGet(pReq->pTables, pFetch->tbIdx);
+  if (NULL == pReq) {
+    qError("fail to get the %dth tb in pTables, tbNum:%d", pFetch->tbIdx, (int32_t)taosArrayGetSize(pReq->pTables));
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+  
+  *ppName = (SName*)taosArrayGet(pReq->pTables, pFetch->tbIdx);
+  if (NULL == *ppName) {
+    qError("fail to get the %dth tb in pTables, tbNum:%d", pFetch->tbIdx, (int32_t)taosArrayGetSize(pReq->pTables));
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void* ctgCloneDbVgroup(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
 
 static void ctgFreeDbVgroup(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
-void* ctgCloneDbCfgInfo(void* pSrc) {
+int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst) {
   SDbCfgInfo* pDst = taosMemoryMalloc(sizeof(SDbCfgInfo));
   if (NULL == pDst) {
-    return NULL;
+    return terrno;
   }
-  memcpy(pDst, pSrc, sizeof(SDbCfgInfo));
+  TAOS_MEMCPY(pDst, pSrc, sizeof(SDbCfgInfo));
   pDst->pRetensions = taosArrayDup(((SDbCfgInfo *)pSrc)->pRetensions, NULL);
-  return pDst;
+  if (NULL == pDst->pRetensions) {
+    taosMemoryFree(pDst);
+    return terrno;
+  }
+
+  *ppDst = pDst;
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 static void ctgFreeDbCfgInfo(void* p) { 
