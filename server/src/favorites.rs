@@ -19,6 +19,8 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
 const TABLE_NAME: &str = "sql_favorites";
 
+const DESCRIPTION_MAX_LENGTH: usize = 20;
+
 type Result<T> = std::result::Result<T, R<()>>;
 
 #[derive(Clone)]
@@ -81,6 +83,10 @@ fn err_sql_already_exists() -> R<()> {
     R::fail(102, "SQL already exists")
 }
 
+fn err_description_too_long() -> R<()> {
+    R::fail(103, "Description is too long")
+}
+
 /// add new favorites sql
 pub async fn add_favorites_sql(
     favorites: web::Data<FavoritesSql>,
@@ -89,6 +95,14 @@ pub async fn add_favorites_sql(
 ) -> Result<R<()>> {
     if sql.sql.trim().is_empty() {
         return Err(err_empty_sql());
+    }
+
+    if sql
+        .description
+        .as_ref()
+        .is_some_and(|d| d.chars().count() > DESCRIPTION_MAX_LENGTH)
+    {
+        return Err(err_description_too_long());
     }
 
     let mut query_builder = sqlx::QueryBuilder::new(format!(
@@ -262,6 +276,14 @@ pub async fn update_favorites_sql(
     id: web::Path<u32>,
     param: web::Json<UpdateParam>,
 ) -> Result<R<()>> {
+    if param
+        .description
+        .as_ref()
+        .is_some_and(|d| d.chars().count() > DESCRIPTION_MAX_LENGTH)
+    {
+        return Err(err_description_too_long());
+    }
+
     let mut query_builder = sqlx::QueryBuilder::new(format!("update {TABLE_NAME} set "));
     let mut update_public = false;
     if let Some(public) = param.public.as_ref() {
