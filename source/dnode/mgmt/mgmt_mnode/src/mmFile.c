@@ -28,7 +28,7 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
   if (code < 0) return code;
 
   SJson *replicas = tjsonGetObjectItem(pJson, "replicas");
-  if (replicas == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+  if (replicas == NULL) return 0;
   pOption->numOfTotalReplicas = tjsonGetArraySize(replicas);
 
   pOption->numOfReplicas = 0;
