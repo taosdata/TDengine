@@ -17,6 +17,7 @@
 #include "os.h"
 #include "tlog.h"
 #include "tglobal.h"
+#include "tutil.h"
 
 static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary, int8_t disable) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
@@ -26,8 +27,20 @@ static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t prima
   uInfo("dataDir:%s, level:%d primary:%d disable:%" PRIi8 " is configured", v1, level, primary, disable);
 }
 
+// TODO: remove this function
+static int32_t cfgGetItem__(SConfig *pCfg, SConfigItem **ppItem, const char *pName) {
+  *ppItem = cfgGetItem(pCfg, pName);
+  if (*ppItem == NULL) {
+    ASSERTS(terrno != 0, "terrno is 0");
+    return terrno;
+  }
+  return 0;
+}
+
 int32_t taosSetTfsCfg(SConfig *pCfg) {
-  SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
+  int32_t      code = 0;
+  SConfigItem *pItem = NULL;
+  TAOS_CHECK_RETURN(cfgGetItem__(pCfg, &pItem, "dataDir"));
   memset(tsDataDir, 0, PATH_MAX);
 
   int32_t size = taosArrayGetSize(pItem->array);
@@ -35,42 +48,26 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
     tsDiskCfgNum = 1;
     taosAddDataDir(0, pItem->str, 0, 1, 0);
     tstrncpy(tsDataDir, pItem->str, PATH_MAX);
-    if (taosMulMkDir(tsDataDir) != 0) {
+    if ((code = taosMulMkDir(tsDataDir)) != 0) {
       uError("failed to create dataDir:%s", tsDataDir);
-      return -1;
+      TAOS_RETURN(code);
     }
   } else {
     tsDiskCfgNum = size < TFS_MAX_DISKS ? size : TFS_MAX_DISKS;
     for (int32_t index = 0; index < tsDiskCfgNum; ++index) {
-      SDiskCfg *pCfg = taosArrayGet(pItem->array, index);
+      SDiskCfg *pCfg = TARRAY_GET_ELEM(pItem->array, index);
       memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
       uInfo("dataDir:%s, level:%d primary:%d disable:%" PRIi8 " is configured", pCfg->dir, pCfg->level, pCfg->primary,
             pCfg->disable);
       if (pCfg->level == 0 && pCfg->primary == 1) {
         tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
       }
-      if (taosMulMkDir(pCfg->dir) != 0) {
-        uError("failed to create tfsDir:%s", tsDataDir);
-        return -1;
+      if ((code = taosMulMkDir(pCfg->dir)) != 0) {
+        uError("failed to create tfsDir:%s", pCfg->dir);
+        TAOS_RETURN(code);
       }
     }
   }
 
-#if 0
-  if (tsDataDir[0] == 0) {
-    if (pItem->str != NULL) {
-      taosAddDataDir(tsDiskCfgNum, pItem->str, 0, 1);
-      tstrncpy(tsDataDir, pItem->str, PATH_MAX);
-      if (taosMulMkDir(tsDataDir) != 0) {
-        uError("failed to create tfsDir:%s", tsDataDir);
-        return -1;
-      }
-      tsDiskCfgNum++;
-    } else {
-      uError("datadir not set");
-      return -1;
-    }
-  }
-#endif
-  return 0;
+  TAOS_RETURN(code);
 }

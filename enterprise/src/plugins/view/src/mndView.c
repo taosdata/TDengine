@@ -353,12 +353,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
   SUserObj *pUser = NULL;
   SUserObj newUserObj = {0}, *pNewUserDuped = NULL;
 
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) {
-    return -1;
-  }
-
-  
+  TAOS_CHECK_RETURN(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
 
   if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, pReq->info.conn.user) != 0) {
     goto _OVER;
