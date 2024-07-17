@@ -342,7 +342,7 @@ int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     if (NULL == pExec) {
       QW_ERR_JRET(terrno);
     }
-    memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
+    (void)memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
     localRsp.rsp.subplanInfo = pExec;
     localRsp.qId = qId;
     localRsp.tId = tId;
@@ -537,7 +537,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
     }
 
     if (dbFName[0] && tbName[0]) {
-      sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
+      (void)sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
     } else {
       tbInfo.tbFName[0] = 0;
     }
@@ -613,7 +613,7 @@ void qwDestroyImpl(void *pMgmt) {
 
   taosMemoryFree(mgmt);
 
-  atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
+  (void)atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
 
   qwCloseRef();
 

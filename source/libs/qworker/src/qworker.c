@@ -452,8 +452,8 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   pRes->skey = pDelRes->skey;
   pRes->ekey = pDelRes->ekey;
   pRes->affectedRows = pDelRes->affectedRows;
-  strcpy(pRes->tableFName, pDelRes->tableName);
-  strcpy(pRes->tsColName, pDelRes->tsColName);
+  TAOS_STRCPY(pRes->tableFName, pDelRes->tableName);
+  TAOS_STRCPY(pRes->tsColName, pDelRes->tsColName);
   taosMemoryFree(output.pData);
 
   return TSDB_CODE_SUCCESS;
@@ -1126,8 +1126,8 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
     sch->hbConnInfo.handle = NULL;
   }
 
-  memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
-  memcpy(&sch->hbEpId, &req->epId, sizeof(req->epId));
+  (void)memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
+  (void)memcpy(&sch->hbEpId, &req->epId, sizeof(req->epId));
 
   QW_UNLOCK(QW_WRITE, &sch->hbConnLock);
 
@@ -1138,7 +1138,7 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
 
 _return:
 
-  memcpy(&rsp.epId, &req->epId, sizeof(req->epId));
+  (void)memcpy(&rsp.epId, &req->epId, sizeof(req->epId));
   code = qwBuildAndSendHbRsp(&qwMsg->connInfo, &rsp, code);
 
   if (code) {
@@ -1299,19 +1299,19 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
 
   int32_t qwNum = atomic_add_fetch_32(&gQwMgmt.qwNum, 1);
   if (1 == qwNum) {
-    memset(gQwMgmt.param, 0, sizeof(gQwMgmt.param));
+    TAOS_MEMSET(gQwMgmt.param, 0, sizeof(gQwMgmt.param));
   }
 
   int32_t code = qwOpenRef();
   if (code) {
-    atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
+    (void)atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
     QW_RET(code);
   }
 
   SQWorker *mgmt = taosMemoryCalloc(1, sizeof(SQWorker));
   if (NULL == mgmt) {
     qError("calloc %d failed", (int32_t)sizeof(SQWorker));
-    atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
+    (void)atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
     QW_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -1345,7 +1345,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
   if (pMsgCb) {
     mgmt->msgCb = *pMsgCb;
   } else {
-    memset(&mgmt->msgCb, 0, sizeof(mgmt->msgCb));
+    TAOS_MEMSET(&mgmt->msgCb, 0, sizeof(mgmt->msgCb));
   }
 
   mgmt->refId = taosAddRef(gQwMgmt.qwRef, mgmt);
@@ -1379,7 +1379,7 @@ _return:
     taosTmrCleanUp(mgmt->timer);
     taosMemoryFreeClear(mgmt);
 
-    atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
+    (void)atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
   }
 
   QW_RET(code);

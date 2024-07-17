@@ -929,7 +929,7 @@ int32_t  initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, i
                                 SStreamState* pState, int32_t keySize, int16_t keyType, SStateStore* pStore,
                                 SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
                                 SStorageAPI* pApi, int32_t tsIndex);
-void     initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type, int32_t tsColIndex,
+int32_t  initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type, int32_t tsColIndex,
                         STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic);
 void     getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
 void     initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
