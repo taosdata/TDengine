@@ -3697,7 +3697,7 @@ pub async fn listen_tcp_socket_with_agent(
                 let cancel = cancel.clone();
                 let (id, remote, token) = with_agent.clone();
                 let config = config.clone();
-
+                let notify = notified.clone();
                 tokio::spawn(async move {
                     let client = addr.to_string();
                     let res =
@@ -3708,6 +3708,9 @@ pub async fn listen_tcp_socket_with_agent(
                             tracing::warn!("IPC reader stopped for client {} with warn: {}", client, error_msg);
                         } else {
                             tracing::error!(?client, "{:?}", err);
+
+                            // notify the listener to stop
+                            notify.notify_waiters();
                             tokio::spawn(async move {
                                 let r = se.send(format!("{err:?}")).await;
                                 if let Err(send_err) = r {
@@ -3893,6 +3896,7 @@ pub async fn listen_tcp_socket(
                     let transferred = transferred.clone();
                     let task_id = task_id.clone();
                     let notifier = notifier.clone();
+                    let notify = notified.clone();
                     tokio::spawn(async move {
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -3917,6 +3921,8 @@ pub async fn listen_tcp_socket(
                             // panic!("{err:?}");
                             println!("{err:?}");
                             tracing::error!("ipc read err: {:#}", err);
+                            // notify the listener to stop
+                            notify.notify_waiters();
                             let _ = se.send(format!("{:#}", err)).await;
                         } else {
                             tracing::debug!("IPC handler completed");
