@@ -206,17 +206,17 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
-  SyncIndex    index = 0;
   SWalSyncInfo syncMeta = {0};
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
+
   int64_t tsWriteBegin = taosGetTimestampNs();
-  index = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
   int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
 
-  if (index < 0) {
+  if (TSDB_CODE_SUCCESS != code) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
@@ -226,8 +226,6 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
             pEntry->index, err, errStr, sysErr, sysErrStr);
     return -1;
   }
-
-  ASSERT(pEntry->index == index);
 
   walFsync(pWal, forceSync);
 

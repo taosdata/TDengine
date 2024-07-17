@@ -174,13 +174,8 @@ void    walClose(SWal *);
 // write interfaces
 
 // By assigning index by the caller, wal gurantees linearizability
-int32_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen);
-int32_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
-                             int32_t bodyLen);
-
 // Assign version automatically and return to caller,
-// -1 will be returned for failed writes
-int64_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
+int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
 
 void walFsync(SWal *, bool force);
 

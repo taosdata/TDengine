@@ -5,8 +5,13 @@
 
 #include "walInt.h"
 
-const char* ranStr = "tvapq02tcp";
-const int   ranStrLen = strlen(ranStr);
+const char*  ranStr = "tvapq02tcp";
+const int    ranStrLen = strlen(ranStr);
+SWalSyncInfo syncMeta = {
+    .isWeek = -1,
+    .seqNum = UINT64_MAX,
+    .term = UINT64_MAX,
+};
 
 class WalCleanEnv : public ::testing::Test {
  protected:
@@ -194,11 +199,11 @@ TEST_F(WalKeepEnv, readOldMeta) {
   int code;
 
   for (int i = 0; i < 10; i++) {
-    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
-    code = walWrite(pWal, i + 2, i, (void*)ranStr, ranStrLen);
-    ASSERT_EQ(code, -1);
+    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen);
+    ASSERT_EQ(code, TSDB_CODE_WAL_INVALID_VER);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
   char* oldss = walMetaSerialize(pWal);
@@ -223,11 +228,11 @@ TEST_F(WalKeepEnv, readOldMeta) {
 TEST_F(WalCleanEnv, write) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
-    code = walWrite(pWal, i + 2, i, (void*)ranStr, ranStrLen);
-    ASSERT_EQ(code, -1);
+    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen);
+    ASSERT_EQ(code, TSDB_CODE_WAL_INVALID_VER);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
   code = walSaveMeta(pWal);
@@ -237,7 +242,7 @@ TEST_F(WalCleanEnv, write) {
 TEST_F(WalCleanEnv, rollback) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -260,7 +265,7 @@ TEST_F(WalCleanEnv, rollback) {
 TEST_F(WalCleanEnv, rollbackMultiFile) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
     if (i == 5) {
@@ -282,7 +287,7 @@ TEST_F(WalCleanEnv, rollbackMultiFile) {
 
   ASSERT_EQ(pWal->vers.lastVer, 5);
 
-  code = walWrite(pWal, 6, 6, (void*)ranStr, ranStrLen);
+  code = walAppendLog(pWal, 6, 6, syncMeta, (void*)ranStr, ranStrLen);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pWal->vers.lastVer, 6);
 
@@ -294,7 +299,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
   int code;
   int i;
   for (i = 0; i < 100; i++) {
-    code = walWrite(pWal, i, 0, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
     code = walCommit(pWal, i);
@@ -307,11 +312,11 @@ TEST_F(WalCleanDeleteEnv, roll) {
   ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
 
-  code = walWrite(pWal, 5, 0, (void*)ranStr, ranStrLen);
+  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen);
   ASSERT_NE(code, 0);
 
   for (; i < 200; i++) {
-    code = walWrite(pWal, i, 0, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     code = walCommit(pWal, i);
     ASSERT_EQ(pWal->vers.commitVer, i);
@@ -334,7 +339,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walWrite(pWal, i, 0, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
     ASSERT_EQ(code, 0);
   }
   for (int i = 0; i < 1000; i++) {
@@ -370,7 +375,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walWrite(pWal, i, 0, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
     ASSERT_EQ(code, 0);
   }
 
@@ -416,7 +421,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walWrite(pWal, i, 0, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
     ASSERT_EQ(code, 0);
   }
 

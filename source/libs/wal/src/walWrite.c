@@ -617,80 +617,37 @@ END:
   return -1;
 }
 
-int64_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
+int32_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
                      int32_t bodyLen) {
+  int32_t code = 0, lino = 0;
+
   taosThreadMutexLock(&pWal->mutex);
 
   if (index != pWal->vers.lastVer + 1) {
-    terrno = TSDB_CODE_WAL_INVALID_VER;
-    taosThreadMutexUnlock(&pWal->mutex);
-    return -1;
+    TAOS_CHECK_GOTO(TSDB_CODE_WAL_INVALID_VER, &lino, _exit);
   }
 
   if (walCheckAndRoll(pWal) < 0) {
-    taosThreadMutexUnlock(&pWal->mutex);
-    return -1;
+    TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &lino, _exit);
   }
 
   if (pWal->pLogFile == NULL || pWal->pIdxFile == NULL || pWal->writeCur < 0) {
     if (walInitWriteFile(pWal) < 0) {
-      taosThreadMutexUnlock(&pWal->mutex);
-      return -1;
+      TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &lino, _exit);
     }
   }
 
   if (walWriteImpl(pWal, index, msgType, syncMeta, body, bodyLen) < 0) {
-    taosThreadMutexUnlock(&pWal->mutex);
-    return -1;
+    TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &lino, _exit);
   }
 
-  taosThreadMutexUnlock(&pWal->mutex);
-  return index;
-}
-
-int32_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
-                             int32_t bodyLen) {
-  int32_t code = 0;
-
-  taosThreadMutexLock(&pWal->mutex);
-
-  // concurrency control:
-  // if logs are write with assigned index,
-  // smaller index must be write before larger one
-  if (index != pWal->vers.lastVer + 1) {
-    terrno = TSDB_CODE_WAL_INVALID_VER;
-    taosThreadMutexUnlock(&pWal->mutex);
-    return -1;
-  }
-
-  if (walCheckAndRoll(pWal) < 0) {
-    taosThreadMutexUnlock(&pWal->mutex);
-    return -1;
-  }
-
-  if (pWal->pIdxFile == NULL || pWal->pLogFile == NULL || pWal->writeCur < 0) {
-    if (walInitWriteFile(pWal) < 0) {
-      taosThreadMutexUnlock(&pWal->mutex);
-      return -1;
-    }
-  }
-
-  if (walWriteImpl(pWal, index, msgType, syncMeta, body, bodyLen) < 0) {
-    taosThreadMutexUnlock(&pWal->mutex);
-    return -1;
+_exit:
+  if (code) {
+    wError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
   taosThreadMutexUnlock(&pWal->mutex);
   return code;
-}
-
-int32_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
-  SWalSyncInfo syncMeta = {
-      .isWeek = -1,
-      .seqNum = UINT64_MAX,
-      .term = UINT64_MAX,
-  };
-  return walWriteWithSyncInfo(pWal, index, msgType, syncMeta, body, bodyLen);
 }
 
 void walFsync(SWal *pWal, bool forceFsync) {
