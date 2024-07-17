@@ -50,7 +50,7 @@ mod tests {
 
     #[test]
     fn test_mutate_as_extract_join() {
-        let mutate = r#"{"extract":{"payload": {"join_with": ","}}}"#;
+        let mutate = r#"{"extract":{"payload": {"join": ","}}}"#;
         let mutate: Mutate = serde_json::from_str(mutate).unwrap();
         dbg!(mutate);
     }

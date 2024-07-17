@@ -449,7 +449,7 @@ fn test_regex() {
 #[test]
 fn test_join() {
     let join = r#"{
-        "join_with": ","
+        "join": ","
     }"#;
     let join: FieldParser = serde_json::from_str(join).unwrap();
     dbg!(&join);

@@ -12,7 +12,7 @@ use super::{ArrayForTaos, Parse};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Join {
-    join_with: String,
+    join: String,
 }
 
 impl Parse for Join {
@@ -35,7 +35,7 @@ impl Parse for Join {
                         .taos_values()
                         .iter()
                         .map(|item| item.to_string().unwrap_or("".to_string()))
-                        .join(&self.join_with),
+                        .join(&self.join),
                 ),
                 None => None,
             })
@@ -61,9 +61,9 @@ mod tests {
     #[test]
     fn test_join() {
         let array = ["abcdef", "gh", "ijklm nop", "qrst.uvw"];
-        let join_with = String::from(",");
+        let join = String::from(",");
 
-        let string = array.join(join_with.as_str());
+        let string = array.join(join.as_str());
 
         assert_eq!(string, "abcdef,gh,ijklm nop,qrst.uvw");
     }
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn test_join_by_sep() {
         let join = r#"{
-            "join_with": ","
+            "join": ","
         }"#;
         let join: Join = serde_json::from_str(join).unwrap();
         dbg!(join.clone());
