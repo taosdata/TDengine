@@ -252,19 +252,19 @@ impl TaskConfig {
         database = database.replace("${y}", start_tz.format("%y").to_string().as_str());
         database = database.replace("${m}", start_tz.format("%m").to_string().as_str());
         database = database.replace(
-            "${m_short}",
+            "${M}",
             start_tz.format("%m").to_string().trim_start_matches("0"),
         );
         database = database.replace("${b}", start_tz.format("%b").to_string().as_str());
         database = database.replace("${B}", start_tz.format("%B").to_string().as_str());
         database = database.replace(
-            "${d_short}",
+            "${D}",
             start_tz.format("%d").to_string().trim_start_matches("0"),
         );
         database = database.replace("${d}", start_tz.format("%d").to_string().as_str());
         database = database.replace("${j}", start_tz.format("%j").to_string().as_str());
         database = database.replace(
-            "${j_short}",
+            "${J}",
             start_tz.format("%j").to_string().trim_start_matches("0"),
         );
         database = database.replace("${F}", start_tz.format("%F").to_string().as_str());
@@ -288,19 +288,19 @@ impl TaskConfig {
         collection = collection.replace("${y}", start_tz.format("%y").to_string().as_str());
         collection = collection.replace("${m}", start_tz.format("%m").to_string().as_str());
         collection = collection.replace(
-            "${m_short}",
+            "${M}",
             start_tz.format("%m").to_string().trim_start_matches("0"),
         );
         collection = collection.replace("${b}", start_tz.format("%b").to_string().as_str());
         collection = collection.replace("${B}", start_tz.format("%B").to_string().as_str());
         collection = collection.replace("${d}", start_tz.format("%d").to_string().as_str());
         collection = collection.replace(
-            "${d_short}",
+            "${D}",
             start_tz.format("%d").to_string().trim_start_matches("0"),
         );
         collection = collection.replace("${j}", start_tz.format("%j").to_string().as_str());
         collection = collection.replace(
-            "${j_short}",
+            "${J}",
             start_tz.format("%j").to_string().trim_start_matches("0"),
         );
         collection = collection.replace("${F}", start_tz.format("%F").to_string().as_str());
