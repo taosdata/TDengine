@@ -1572,9 +1572,8 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
   }
   //  uError("td23101 0vgId:%d, vgId:%d, name:%s, uid:%"PRIu64, vgData.vgId, pTableMeta->vgId, tbname, pTableMeta->uid);
 
-  pQuery = smlInitHandle();
-  if (pQuery == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  code = smlInitHandle(&pQuery);
+  if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -1656,9 +1655,9 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
-  pQuery = smlInitHandle();
-  if (pQuery == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+
+  code = smlInitHandle(&pQuery);
+  if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -1755,12 +1754,12 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
-  pQuery = smlInitHandle();
-  if (pQuery == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  code = smlInitHandle(&pQuery);
+  if (code != TSDB_CODE_SUCCESS) {
     SET_ERROR_MSG("init sml handle failed");
     goto end;
   }
+
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   while (++rspObj.common.resIter < rspObj.rsp.common.blockNum) {
     void* pRetrieve = taosArrayGetP(rspObj.rsp.common.blockData, rspObj.common.resIter);
@@ -1903,12 +1902,12 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
-  pQuery = smlInitHandle();
-  if (pQuery == NULL) {
+  code = smlInitHandle(&pQuery);
+  if (code != TSDB_CODE_SUCCESS) {
     SET_ERROR_MSG("init sml handle failed");
-    code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
+
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
   uDebug(LOG_ID_TAG " write raw metadata block num:%d", LOG_ID_VALUE, rspObj.rsp.common.blockNum);

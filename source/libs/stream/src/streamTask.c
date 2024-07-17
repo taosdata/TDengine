@@ -280,10 +280,12 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
 
-  pTask->msgInfo.pSendInfo = taosArrayDestroy(pTask->msgInfo.pSendInfo);
+  taosArrayDestroy(pTask->msgInfo.pSendInfo);
+  pTask->msgInfo.pSendInfo = NULL;
   taosThreadMutexDestroy(&pTask->msgInfo.lock);
 
-  pTask->outputInfo.pNodeEpsetUpdateList = taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
+  taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
+  pTask->outputInfo.pNodeEpsetUpdateList = NULL;
 
   if ((pTask->status.removeBackendFiles) && (pTask->pMeta != NULL)) {
     char* path = taosMemoryCalloc(1, strlen(pTask->pMeta->path) + 128);
@@ -1055,9 +1057,12 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   }
 
   taosThreadMutexDestroy(&pInfo->lock);
-  pInfo->pDispatchTriggerList = taosArrayDestroy(pInfo->pDispatchTriggerList);
-  pInfo->pReadyMsgList = taosArrayDestroy(pInfo->pReadyMsgList);
-  pInfo->pCheckpointReadyRecvList = taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
+  taosArrayDestroy(pInfo->pDispatchTriggerList);
+  pInfo->pDispatchTriggerList = NULL;
+  taosArrayDestroy(pInfo->pReadyMsgList);
+  pInfo->pReadyMsgList = NULL;
+  taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
+  pInfo->pCheckpointReadyRecvList = NULL;
 
   if (pInfo->pChkptTriggerTmr != NULL) {
     taosTmrStop(pInfo->pChkptTriggerTmr);

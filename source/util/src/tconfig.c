@@ -96,7 +96,8 @@ void cfgItemFreeVal(SConfigItem *pItem) {
   }
 
   if (pItem->array) {
-    pItem->array = taosArrayDestroy(pItem->array);
+    taosArrayDestroy(pItem->array);
+    pItem->array = NULL;
   }
 }
 
