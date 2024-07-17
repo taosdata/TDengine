@@ -366,9 +366,9 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
-  pTask->inputq.queue = streamQueueOpen(512 << 10);
-  pTask->outputq.queue = streamQueueOpen(512 << 10);
-  if (pTask->inputq.queue == NULL || pTask->outputq.queue == NULL) {
+  int32_t code1 = streamQueueOpen(512 << 10, &pTask->inputq.queue);
+  int32_t code2 = streamQueueOpen(512 << 10, &pTask->outputq.queue);
+  if (code1 || code2) {
     stError("s-task:%s failed to prepare the input/output queue, initialize task failed", pTask->id.idStr);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -379,8 +379,8 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   int32_t code = streamCreateStateMachine(pTask);
   if (pTask->status.pSM == NULL || code != TSDB_CODE_SUCCESS) {
     stError("s-task:%s failed create state-machine for stream task, initialization failed, code:%s", pTask->id.idStr,
-            tstrerror(terrno));
-    return terrno;
+            tstrerror(code));
+    return code;
   }
 
   pTask->execInfo.created = taosGetTimestampMs();

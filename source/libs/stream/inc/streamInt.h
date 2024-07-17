@@ -161,8 +161,7 @@ extern int32_t streamMetaId;
 
 int32_t streamTimerInit();
 void    streamTimerCleanUp();
-
-void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
+void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
 void    streamStartMonitorDispatchData(SStreamTask* pTask, int64_t waitDuration);
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
@@ -202,24 +201,24 @@ EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIt
 int32_t           streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void              streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
 const char*       streamQueueItemGetTypeStr(int32_t type);
-SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
+int32_t           streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem, SStreamQueueItem** pRes);
 int32_t           streamTransferStatePrepare(SStreamTask* pTask);
 
-SStreamQueue* streamQueueOpen(int64_t cap);
-void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
-void          streamQueueProcessSuccess(SStreamQueue* queue);
-void          streamQueueProcessFail(SStreamQueue* queue);
-void*         streamQueueNextItem(SStreamQueue* pQueue);
-void          streamFreeQitem(SStreamQueueItem* data);
-int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
+int32_t streamQueueOpen(int64_t cap, SStreamQueue** pQ);
+void    streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
+void    streamQueueProcessSuccess(SStreamQueue* queue);
+void    streamQueueProcessFail(SStreamQueue* queue);
+void*   streamQueueNextItem(SStreamQueue* pQueue);
+void    streamFreeQitem(SStreamQueueItem* data);
+int32_t streamQueueGetItemSize(const SStreamQueue* pQueue);
 
-void         streamMetaRemoveDB(void* arg, char* key);
-void         streamMetaHbToMnode(void* param, void* tmrId);
-int32_t      createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes);
-void         destroyMetaHbInfo(SMetaHbInfo* pInfo);
-void         streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
-void         streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
-int32_t      streamMetaSendHbHelper(SStreamMeta* pMeta);
+void    streamMetaRemoveDB(void* arg, char* key);
+void    streamMetaHbToMnode(void* param, void* tmrId);
+int32_t createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes);
+void    destroyMetaHbInfo(SMetaHbInfo* pInfo);
+void    streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
+void    streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
+int32_t streamMetaSendHbHelper(SStreamMeta* pMeta);
 
 ECHECKPOINT_BACKUP_TYPE streamGetCheckpointBackupType();
 

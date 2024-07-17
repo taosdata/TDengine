@@ -185,8 +185,8 @@ int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubm
 }
 
 // todo handle memory error
-SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem) {
-  terrno = 0;
+int32_t streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem, SStreamQueueItem** pRes) {
+  *pRes = NULL;
 
   if (dst->type == STREAM_INPUT__DATA_BLOCK && pElem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;
@@ -196,7 +196,8 @@ SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueI
     streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
 
     taosFreeQitem(pElem);
-    return dst;
+    *pRes = dst;
+    return TSDB_CODE_SUCCESS;
   } else if (dst->type == STREAM_INPUT__MERGED_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)dst;
     SStreamDataSubmit*   pBlockSrc = (SStreamDataSubmit*)pElem;
@@ -204,12 +205,13 @@ SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueI
     streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
 
     taosFreeQitem(pElem);
-    return dst;
+    *pRes = dst;
+    *pRes = dst;
+    return TSDB_CODE_SUCCESS;
   } else if (dst->type == STREAM_INPUT__DATA_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = streamMergedSubmitNew();
     if (pMerged == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     streamQueueItemIncSize((SStreamQueueItem*)pMerged, streamQueueItemGetSize(pElem));
@@ -219,11 +221,13 @@ SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueI
 
     taosFreeQitem(dst);
     taosFreeQitem(pElem);
-    return (SStreamQueueItem*)pMerged;
+
+    *pRes = (SStreamQueueItem*)pMerged;
+    return TSDB_CODE_SUCCESS;
   } else {
     stDebug("block type:%s not merged with existed blocks list, type:%d", streamQueueItemGetTypeStr(pElem->type),
             dst->type);
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
 }
 
