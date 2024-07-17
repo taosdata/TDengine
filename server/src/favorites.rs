@@ -85,37 +85,45 @@ fn err_sql_already_exists() -> R<()> {
 pub async fn add_favorites_sql(
     favorites: web::Data<FavoritesSql>,
     req: HttpRequest,
-    mut sql: web::Json<AddSql>,
+    sql: web::Json<AddSql>,
 ) -> Result<R<()>> {
     if sql.sql.trim().is_empty() {
         return Err(err_empty_sql());
     }
 
-    let username = get_username_from_header(&req)?;
-    let description = sql
-        .description
-        .take()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(String::from("NULL"));
-
-    sqlx::query(&format!(
-        "insert into {TABLE_NAME} (username, sql, description) values (?, ?, ?)"
-    ))
-    .bind(username)
-    .bind(&sql.sql)
-    .bind(description)
-    .execute(&favorites.pool)
-    .await
-    .map_err(|e| {
-        if e.as_database_error()
-            .is_some_and(|e| e.is_unique_violation())
-        {
-            err_sql_already_exists()
-        } else {
-            let err = anyhow::Error::new(e).context("add sql error");
-            R::internal(err)
+    let mut query_builder = sqlx::QueryBuilder::new(format!(
+        "insert into {TABLE_NAME} (username, sql, description) values ("
+    ));
+    let mut separated = query_builder.separated(" , ");
+    // username
+    separated.push_bind(get_username_from_header(&req)?);
+    // sql
+    separated.push_bind(&sql.sql);
+    // description
+    match sql.description.as_ref().filter(|s| !s.trim().is_empty()) {
+        Some(description) => {
+            separated.push_bind(description);
         }
-    })?;
+        None => {
+            separated.push(" NULL ");
+        }
+    }
+    separated.push_unseparated(" ) ");
+
+    query_builder
+        .build()
+        .execute(&favorites.pool)
+        .await
+        .map_err(|e| {
+            if e.as_database_error()
+                .is_some_and(|e| e.is_unique_violation())
+            {
+                err_sql_already_exists()
+            } else {
+                let err = anyhow::Error::new(e).context("add sql error");
+                R::internal(err)
+            }
+        })?;
 
     Ok(R::default())
 }
