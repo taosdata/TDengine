@@ -264,15 +264,15 @@ function run_taosd() {
     pid=$!
     wait $pid
     local ret=$?
-    logger "INFO" "taosd exit $ret $pid"
+    logger "INFO" "taosd exit $ret $tdpid"
     if [ -d "/var/log" ]; then
-        logger "INFO" "taosd exit $ret $pid"
+        logger "INFO" "taosd exit $ret $tdpid"
     fi
     if [ $ret -eq 0 ]; then
-        logger "INFO" "$pid exit caused by sigterm"
+        logger "INFO" "$tdpid exit caused by sigterm"
         return
     fi
-    set_service_state "error" "taosd $pid exit"
+    set_service_state "error" "taosd $tdpid exit"
     logger "ERROR" "set taosd state existed"
     # post error msg
     # check crash or OOM
@@ -382,6 +382,7 @@ do
         start_taosadapter_count=0
     fi
     if [ "$status"x = "0"x ]; then
+        logger "INFO" "taos -k output is $output"
         td_cluster_check "CheckClusterStatus"
         if [ $? -eq 0 ]; then
             logger "INFO" "start taosd count: ${start_taosd_count}"
