@@ -741,7 +741,7 @@ static void generateTimedTask(int64_t refId, int32_t type) {
   if (tmq == NULL) return;
 
   code = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0, (void**)&pTaskType);
-  if (code) {
+  if (code == TSDB_CODE_SUCCESS) {
     *pTaskType = type;
     if (taosWriteQitem(tmq->delayedTask, pTaskType) == 0) {
       tsem2_post(&tmq->rspSem);
