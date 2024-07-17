@@ -628,7 +628,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId, SStreamUpstreamEpInfo** pEpInfo);
+#if 0
 SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId);
+#endif
 
 void streamTaskInputFail(SStreamTask* pTask);
 
@@ -638,7 +640,7 @@ bool streamTaskIsIdle(const SStreamTask* pTask);
 bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus);
 
 char*             createStreamTaskIdStr(int64_t streamId, int32_t taskId);
-SStreamTaskState* streamTaskGetStatus(const SStreamTask* pTask);
+SStreamTaskState  streamTaskGetStatus(const SStreamTask* pTask);
 const char*       streamTaskGetStatusStr(ETaskStatus status);
 void              streamTaskResetStatus(SStreamTask* pTask);
 void              streamTaskSetStatusReady(SStreamTask* pTask);

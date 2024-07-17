@@ -799,11 +799,11 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   stDebug("s-task:%s in sending checkpoint-ready msg monitor timer", id);
 
   taosThreadMutexLock(&pTask->lock);
-  SStreamTaskState* pState = streamTaskGetStatus(pTask);
-  if (pState->state != TASK_STATUS__CK) {
+  SStreamTaskState pState = streamTaskGetStatus(pTask);
+  if (pState.state != TASK_STATUS__CK) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s vgId:%d status:%s not in checkpoint, quit from monitor checkpoint-ready send, ref:%d", id, vgId,
-            pState->name, ref);
+            pState.name, ref);
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
@@ -1303,7 +1303,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
         if (delayDispatch) {
           taosThreadMutexLock(&pTask->lock);
           // we only set the dispatch msg info for current checkpoint trans
-          if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK &&
+          if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK &&
               pTask->chkInfo.pActiveInfo->activeId == pMsgInfo->checkpointId) {
             ASSERT(pTask->chkInfo.pActiveInfo->transId == pMsgInfo->transId);
             stDebug("s-task:%s checkpoint-trigger msg to 0x%x rsp for checkpointId:%" PRId64 " transId:%d confirmed",

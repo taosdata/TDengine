@@ -67,7 +67,7 @@ static STaskStateTrans createStateTransform(ETaskStatus current, ETaskStatus nex
 static int32_t dummyFn(SStreamTask* UNUSED_PARAM(p)) { return TSDB_CODE_SUCCESS; }
 
 static int32_t attachWaitedEvent(SStreamTask* pTask, SFutureHandleEventInfo* pEvtInfo) {
-  char* p = streamTaskGetStatus(pTask)->name;
+  char* p = streamTaskGetStatus(pTask).name;
 
   stDebug("s-task:%s status:%s attach event:%s required status:%s, since not allowed to handle it", pTask->id.idStr, p,
           GET_EVT_NAME(pEvtInfo->event), StreamTaskStatusList[pEvtInfo->status].name);
@@ -305,7 +305,7 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
     while (1) {
       // wait for the task to be here
       taosThreadMutexLock(&pTask->lock);
-      ETaskStatus s = streamTaskGetStatus(pTask)->state;
+      ETaskStatus s = streamTaskGetStatus(pTask).state;
       taosThreadMutexUnlock(&pTask->lock);
 
       if ((s == pTrans->next.state) && (pSM->prev.evt == pTrans->event)) {// this event has been handled already
@@ -510,8 +510,8 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   return TSDB_CODE_SUCCESS;
 }
 
-SStreamTaskState* streamTaskGetStatus(const SStreamTask* pTask) {
-  return &pTask->status.pSM->current;  // copy one obj in case of multi-thread environment
+SStreamTaskState streamTaskGetStatus(const SStreamTask* pTask) {
+  return pTask->status.pSM->current;  // copy one obj in case of multi-thread environment
 }
 
 ETaskStatus streamTaskGetPrevStatus(const SStreamTask* pTask) {

@@ -199,9 +199,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
   ETaskStatus status1 = TASK_STATUS__UNINIT;
   taosThreadMutexLock(&pTask->lock);
   if (pTask->status.pSM != NULL) {
-    SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
-    p = pStatus->name;
-    status1 = pStatus->state;
+    SStreamTaskState pStatus = streamTaskGetStatus(pTask);
+    p = pStatus.name;
+    status1 = pStatus.state;
   }
   taosThreadMutexUnlock(&pTask->lock);
 
@@ -728,7 +728,7 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
     if (resetRelHalt) {
       stDebug("s-task:0x%" PRIx64 " set the persistent status attr to be ready, prev:%s, status in sm:%s",
               sTaskId.taskId, streamTaskGetStatusStr((*ppStreamTask)->status.taskStatus),
-              streamTaskGetStatus(*ppStreamTask)->name);
+              streamTaskGetStatus(*ppStreamTask).name);
       (*ppStreamTask)->status.taskStatus = TASK_STATUS__READY;
     }
 
@@ -861,7 +861,7 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
 
   STaskStatusEntry entry = {
       .id = streamTaskGetTaskId(pTask),
-      .status = streamTaskGetStatus(pTask)->state,
+      .status = streamTaskGetStatus(pTask).state,
       .nodeId = pMeta->vgId,
       .stage = pMeta->stage,
 
@@ -906,12 +906,12 @@ void streamTaskPause(SStreamTask* pTask) {
 }
 
 void streamTaskResume(SStreamTask* pTask) {
-  SStreamTaskState prevState = *streamTaskGetStatus(pTask);
+  SStreamTaskState prevState = streamTaskGetStatus(pTask);
 
   SStreamMeta* pMeta = pTask->pMeta;
   int32_t      code = streamTaskRestoreStatus(pTask);
   if (code == TSDB_CODE_SUCCESS) {
-    char*   pNew = streamTaskGetStatus(pTask)->name;
+    char*   pNew = streamTaskGetStatus(pTask).name;
     int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
     stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, prevState.name, num);
   } else {

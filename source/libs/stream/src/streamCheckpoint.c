@@ -219,7 +219,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     return code;
   }
 
-  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) {
     if (pActiveInfo->activeId != checkpointId) {
       stError("s-task:%s vgId:%d active checkpointId:%" PRId64 ", recv invalid checkpoint-trigger checkpointId:%" PRId64
               " discard",
@@ -265,7 +265,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
           id, vgId, pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer, transId, checkpointId);
 
   // set task status
-  if (streamTaskGetStatus(pTask)->state != TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask).state != TASK_STATUS__CK) {
     pActiveInfo->activeId = checkpointId;
     pActiveInfo->transId = transId;
 
@@ -354,9 +354,9 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId
   ASSERT(total > 0);
 
   // 1. not in checkpoint status now
-  SStreamTaskState* pStat = streamTaskGetStatus(pTask);
-  if (pStat->state != TASK_STATUS__CK) {
-    stError("s-task:%s status:%s discard checkpoint-ready msg from task:0x%x", id, pStat->name, downstreamTaskId);
+  SStreamTaskState pStat = streamTaskGetStatus(pTask);
+  if (pStat.state != TASK_STATUS__CK) {
+    stError("s-task:%s status:%s discard checkpoint-ready msg from task:0x%x", id, pStat.name, downstreamTaskId);
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
@@ -364,7 +364,7 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId
   if (pTask->chkInfo.checkpointId > checkpointId || pInfo->activeId != checkpointId) {
     stError("s-task:%s status:%s checkpointId:%" PRId64 " new arrival checkpoint-ready msg (checkpointId:%" PRId64
             ") from task:0x%x, expired and discard ",
-            id, pStat->name, pTask->chkInfo.checkpointId, checkpointId, downstreamTaskId);
+            id, pStat.name, pTask->chkInfo.checkpointId, checkpointId, downstreamTaskId);
     return -1;
   }
 
@@ -482,17 +482,17 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
     return TSDB_CODE_SUCCESS;
   }
 
-  SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
+  SStreamTaskState pStatus = streamTaskGetStatus(pTask);
 
   if (!restored) {  // during restore procedure, do update checkpoint-info
     stDebug("s-task:%s vgId:%d status:%s update the checkpoint-info during restore, checkpointId:%" PRId64 "->%" PRId64
             " checkpointVer:%" PRId64 "->%" PRId64 " checkpointTs:%" PRId64 "->%" PRId64,
-            id, vgId, pStatus->name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer, pReq->checkpointVer,
+            id, vgId, pStatus.name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer, pReq->checkpointVer,
             pInfo->checkpointTime, pReq->checkpointTs);
   } else {  // not in restore status, must be in checkpoint status
     stDebug("s-task:%s vgId:%d status:%s start to update the checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
             " checkpointVer:%" PRId64 "->%" PRId64 " checkpointTs:%" PRId64 "->%" PRId64,
-            id, vgId, pStatus->name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer, pReq->checkpointVer,
+            id, vgId, pStatus.name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer, pReq->checkpointVer,
             pInfo->checkpointTime, pReq->checkpointTs);
   }
 
@@ -505,11 +505,11 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   streamTaskClearCheckInfo(pTask, true);
 
-  if (pStatus->state == TASK_STATUS__CK) {
+  if (pStatus.state == TASK_STATUS__CK) {
     // todo handle error
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
   } else {
-    stDebug("s-task:0x%x vgId:%d not handle checkpoint-done event, status:%s", pReq->taskId, vgId, pStatus->name);
+    stDebug("s-task:0x%x vgId:%d not handle checkpoint-done event, status:%s", pReq->taskId, vgId, pStatus.name);
   }
 
   if (pReq->dropRelHTask) {
@@ -519,7 +519,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   }
 
   stDebug("s-task:0x%x set the persistent status attr to be ready, prev:%s, status in sm:%s", pReq->taskId,
-          streamTaskGetStatusStr(pTask->status.taskStatus), streamTaskGetStatus(pTask)->name);
+          streamTaskGetStatusStr(pTask->status.taskStatus), streamTaskGetStatus(pTask).name);
 
   pTask->status.taskStatus = TASK_STATUS__READY;
 
@@ -770,8 +770,8 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   stDebug("s-task:%s vgId:%d checkpoint-trigger monitor in tmr, ts:%" PRId64, id, vgId, now);
 
   (void) taosThreadMutexLock(&pTask->lock);
-  SStreamTaskState* pState = streamTaskGetStatus(pTask);
-  if (pState->state != TASK_STATUS__CK) {
+  SStreamTaskState pState = streamTaskGetStatus(pTask);
+  if (pState.state != TASK_STATUS__CK) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s vgId:%d not in checkpoint status, quit from monitor checkpoint-trigger, ref:%d", id, vgId, ref);
 
@@ -890,9 +890,9 @@ bool streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId) 
   int64_t                now = taosGetTimestampMs();
   const char*            id = pTask->id.idStr;
   SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
-  SStreamTaskState*      pStatus = streamTaskGetStatus(pTask);
+  SStreamTaskState       pStatus = streamTaskGetStatus(pTask);
 
-  if (pStatus->state != TASK_STATUS__CK) {
+  if (pStatus.state != TASK_STATUS__CK) {
     return false;
   }
 
@@ -1207,8 +1207,8 @@ int32_t streamTaskSendCheckpointsourceRsp(SStreamTask* pTask) {
   }
 
   (void) taosThreadMutexLock(&pTask->lock);
-  SStreamTaskState* p = streamTaskGetStatus(pTask);
-  if (p->state == TASK_STATUS__CK) {
+  SStreamTaskState p = streamTaskGetStatus(pTask);
+  if (p.state == TASK_STATUS__CK) {
     code = streamTaskSendCheckpointSourceRsp(pTask);
   }
   (void) taosThreadMutexUnlock(&pTask->lock);

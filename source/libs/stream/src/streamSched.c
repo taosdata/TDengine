@@ -94,13 +94,13 @@ int32_t streamTaskResumeInFuture(SStreamTask* pTask) {
 void streamTaskResumeHelper(void* param, void* tmrId) {
   SStreamTask*      pTask = (SStreamTask*)param;
   SStreamTaskId*    pId = &pTask->id;
-  SStreamTaskState* p = streamTaskGetStatus(pTask);
+  SStreamTaskState  p = streamTaskGetStatus(pTask);
 
-  if (p->state == TASK_STATUS__DROPPING || p->state == TASK_STATUS__STOP) {
+  if (p.state == TASK_STATUS__DROPPING || p.state == TASK_STATUS__STOP) {
     streamTaskSetSchedStatusInactive(pTask);
 
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stDebug("s-task:%s status:%s not resume task, ref:%d", pId->idStr, p->name, ref);
+    stDebug("s-task:%s status:%s not resume task, ref:%d", pId->idStr, p.name, ref);
 
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
@@ -130,7 +130,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
     return;
   }
 
-  if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) {
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, nextTrigger);
   } else {
     if (status == TASK_TRIGGER_STATUS__ACTIVE) {
