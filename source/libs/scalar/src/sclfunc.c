@@ -147,7 +147,9 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
       colDataSetNULL(pOutputData, i);
       continue;
     }
-    double result = valFn(getValueFn(pInputData->pData, i));
+    double tmp = 0;
+    SCL_ERR_RET(getValueFn(pInputData->pData, i, &tmp));
+    double result = valFn(tmp);
     if (isinf(result) || isnan(result)) {
       colDataSetNULL(pOutputData, i);
     } else {
@@ -182,7 +184,11 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
         colDataSetNULL(pOutputData, i);
         continue;
       }
-      result = valFn(getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, i));
+      double val1 = 0;
+      double val2 = 0;
+      SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1));
+      SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2));
+      result = valFn(val1, val2);
       if (isinf(result) || isnan(result)) {
         colDataSetNULL(pOutputData, i);
       } else {
@@ -198,8 +204,11 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
           colDataSetNULL(pOutputData, i);
           continue;
         }
-
-        result = valFn(getValueFn[0](pInputData[0]->pData, 0), getValueFn[1](pInputData[1]->pData, i));
+        double val1 = 0;
+        double val2 = 0;
+        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, 0, &val1));
+        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2));
+        result = valFn(val1, val2);
         if (isinf(result) || isnan(result)) {
           colDataSetNULL(pOutputData, i);
           continue;
@@ -217,8 +226,11 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
           colDataSetNULL(pOutputData, i);
           continue;
         }
-
-        result = valFn(getValueFn[0](pInputData[0]->pData, i), getValueFn[1](pInputData[1]->pData, 0));
+        double val1 = 0;
+        double val2 = 0;
+        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1));
+        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, 0, &val2));
+        result = valFn(val1, val2);
         if (isinf(result) || isnan(result)) {
           colDataSetNULL(pOutputData, i);
           continue;
