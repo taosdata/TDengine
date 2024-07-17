@@ -287,6 +287,8 @@ int32_t createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes) {
   pInfo->stopFlag = 0;
   pInfo->msgSendTs = -1;
   pInfo->hbCount = 0;
+
+  *pRes = pInfo;
   return TSDB_CODE_SUCCESS;
 }
 
