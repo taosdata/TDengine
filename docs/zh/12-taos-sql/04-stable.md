@@ -33,8 +33,8 @@ table_option: {
     - TAGS 列名不能与其他列名相同。
     - TAGS 列名不能为预留关键字。
     - TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
-4. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考 [按列压缩](./compress)
-5. 关于 table_option 中的参数说明，请参考 [建表 SQL 说明](./table)
+4. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考 [按列压缩](../compress)
+5. 关于 table_option 中的参数说明，请参考 [建表 SQL 说明](../table)
 
 ## 查看超级表
 
