@@ -324,7 +324,8 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     STaskId*     pTaskId = taosArrayGet(pTaskList, i);
-    SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, pTaskId->streamId, pTaskId->taskId);
+    SStreamTask* pTask = NULL;
+    int32_t code = streamMetaAcquireTask(pStreamMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
     if (pTask == NULL) {
       continue;
     }
@@ -337,7 +338,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     *pScanIdle = false;
 
     // seek the stored version and extract data from WAL
-    int32_t code = setWalReaderStartOffset(pTask, vgId);
+    code = setWalReaderStartOffset(pTask, vgId);
     if (code != TSDB_CODE_SUCCESS) {
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;

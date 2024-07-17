@@ -92,7 +92,8 @@ int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) 
   }
 
   // add ref for task
-  SStreamTask* p = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId);
+  SStreamTask* p = NULL;
+  int32_t code = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, &p);
   if (p == NULL) {
     stError("s-task:0x%x failed to acquire task, status:%s, not exec scan-history data", pTask->id.taskId,
             streamTaskGetStatus(pTask)->name);
@@ -223,7 +224,8 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   streamMetaRUnLock(pMeta);
 
   if (pHTask != NULL) {  // it is already added into stream meta store.
-    SStreamTask* pHisTask = streamMetaAcquireTask(pMeta, hStreamId, hTaskId);
+    SStreamTask* pHisTask = NULL;
+    code = streamMetaAcquireTask(pMeta, hStreamId, hTaskId, &pHisTask);
     if (pHisTask == NULL) {
       stDebug("s-task:%s failed acquire and start fill-history task, it may have been dropped/stopped", idStr);
       streamMetaAddTaskLaunchResult(pMeta, hStreamId, hTaskId, pExecInfo->checkTs, pExecInfo->readyTs, false);
@@ -353,7 +355,11 @@ void tryLaunchHistoryTask(void* param, void* tmrId) {
     return;
   }
 
-  SStreamTask* pTask = streamMetaAcquireTaskNoLock(pMeta, pInfo->id.streamId, pInfo->id.taskId);
+  SStreamTask* pTask = NULL;
+  code = streamMetaAcquireTaskNoLock(pMeta, pInfo->id.streamId, pInfo->id.taskId, &pTask);
+  if (code != TSDB_CODE_SUCCESS) {
+    // todo
+  }
   streamMetaWUnLock(pMeta);
 
   if (pTask != NULL) {
@@ -373,7 +379,8 @@ void tryLaunchHistoryTask(void* param, void* tmrId) {
       ASSERT(pTask->status.timerActive >= 1);
 
       // abort the timer if intend to stop task
-      SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pHTaskInfo->id.streamId, pHTaskInfo->id.taskId);
+      SStreamTask* pHTask = NULL;
+      code = streamMetaAcquireTask(pMeta, pHTaskInfo->id.streamId, pHTaskInfo->id.taskId, &pHTask);
       if (pHTask == NULL) {
         doRetryLaunchFillHistoryTask(pTask, pInfo, now);
         streamMetaReleaseTask(pMeta, pTask);

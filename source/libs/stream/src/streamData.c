@@ -131,17 +131,20 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   return TSDB_CODE_SUCCESS;
 }
 
-SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type) {
+int32_t streamDataSubmitNew(SPackedData* pData, int32_t type, SStreamDataSubmit** pSubmit) {
+  *pSubmit = NULL;
+
   SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM, pData->msgLen);
   if (pDataSubmit == NULL) {
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pDataSubmit->ver = pData->ver;
   pDataSubmit->submit = *pData;
   pDataSubmit->type = type;
 
-  return pDataSubmit;
+  *pSubmit = pDataSubmit;
+  return TSDB_CODE_SUCCESS;
 }
 
 void streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit) {

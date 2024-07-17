@@ -314,7 +314,8 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  id = pTask->id.idStr;
 
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
+  SStreamTask* pStreamTask = NULL;
+  int32_t code = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId, &pStreamTask);
   if (pStreamTask == NULL) {
     stError(
         "s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed, destroy the related "
@@ -416,7 +417,8 @@ int32_t streamTransferStatePrepare(SStreamTask* pTask) {
     code = streamTransferStateDoPrepare(pTask);
   } else {
     // no state transfer for sink tasks, and drop fill-history task, followed by opening inputQ of sink task.
-    SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
+    SStreamTask* pStreamTask = NULL;
+    code = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId, &pStreamTask);
     if (pStreamTask != NULL) {
       // halt the related stream sink task
       code = streamTaskHandleEventAsync(pStreamTask->status.pSM, TASK_EVENT_HALT, haltCallback, NULL);
@@ -590,7 +592,8 @@ void flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointB
     ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
 
     STaskId*     pHTaskId = &pTask->hTaskInfo.id;
-    SStreamTask* pHTask = streamMetaAcquireTask(pTask->pMeta, pHTaskId->streamId, pHTaskId->taskId);
+    SStreamTask* pHTask = NULL;
+    int32_t code = streamMetaAcquireTask(pTask->pMeta, pHTaskId->streamId, pHTaskId->taskId, &pHTask);
     if (pHTask != NULL) {
       streamTaskReleaseState(pHTask);
       streamTaskReloadState(pTask);

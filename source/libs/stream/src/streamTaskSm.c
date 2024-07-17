@@ -257,43 +257,41 @@ int32_t streamTaskRestoreStatus(SStreamTask* pTask) {
   return code;
 }
 
-SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask) {
+int32_t streamCreateStateMachine(SStreamTask* pTask) {
   initStateTransferTable();
   const char* id = pTask->id.idStr;
 
   SStreamTaskSM* pSM = taosMemoryCalloc(1, sizeof(SStreamTaskSM));
   if (pSM == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     stError("s-task:%s failed to create task stateMachine, size:%d, code:%s", id, (int32_t)sizeof(SStreamTaskSM),
             tstrerror(terrno));
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pSM->pTask = pTask;
   pSM->pWaitingEventList = taosArrayInit(4, sizeof(SFutureHandleEventInfo));
   if (pSM->pWaitingEventList == NULL) {
     taosMemoryFree(pSM);
-
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     stError("s-task:%s failed to create task stateMachine, size:%d, code:%s", id, (int32_t)sizeof(SStreamTaskSM),
             tstrerror(terrno));
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   // set the initial state for the state-machine of stream task
   pSM->current = StreamTaskStatusList[TASK_STATUS__UNINIT];
   pSM->startTs = taosGetTimestampMs();
-  return pSM;
+
+  pTask->status.pSM = pSM;
+  return TSDB_CODE_SUCCESS;
 }
 
-void* streamDestroyStateMachine(SStreamTaskSM* pSM) {
+void streamDestroyStateMachine(SStreamTaskSM* pSM) {
   if (pSM == NULL) {
-    return NULL;
+    return;
   }
 
   taosArrayDestroy(pSM->pWaitingEventList);
   taosMemoryFree(pSM);
-  return NULL;
 }
 
 static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskStateTrans* pTrans) {

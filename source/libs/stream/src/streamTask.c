@@ -91,14 +91,15 @@ static SStreamUpstreamEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
   return pEpInfo;
 }
 
-SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
-                            SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5) {
+int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int64_t triggerParam,
+                            SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5, SStreamTask** p) {
+  *p = NULL;
+
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     stError("s-task:0x%" PRIx64 " failed malloc new stream task, size:%d, code:%s", streamId,
             (int32_t)sizeof(SStreamTask), tstrerror(terrno));
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pTask->ver = SSTREAM_TASK_VER;
@@ -110,10 +111,10 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, 
   pTask->info.delaySchedParam = triggerParam;
   pTask->subtableWithoutMd5 = subtableWithoutMd5;
 
-  pTask->status.pSM = streamCreateStateMachine(pTask);
-  if (pTask->status.pSM == NULL) {
+  int32_t code = streamCreateStateMachine(pTask);
+  if (pTask->status.pSM == NULL || code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(pTask);
-    return NULL;
+    return code;
   }
 
   char buf[128] = {0};
@@ -135,7 +136,9 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, 
   epsetAssign(&(pTask->info.mnodeEpset), pEpset);
 
   addToTaskset(pTaskList, pTask);
-  return pTask;
+  *p = pTask;
+
+  return code;
 }
 
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo) {
@@ -274,7 +277,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
     tSimpleHashCleanup(pTask->pNameMap);
   }
 
-  pTask->status.pSM = streamDestroyStateMachine(pTask->status.pSM);
+  streamDestroyStateMachine(pTask->status.pSM);
+  pTask->status.pSM = NULL;
+
   streamTaskDestroyUpstreamInfo(&pTask->upstreamInfo);
 
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
@@ -369,8 +374,9 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->status.timerActive = 0;
-  pTask->status.pSM = streamCreateStateMachine(pTask);
-  if (pTask->status.pSM == NULL) {
+
+  int32_t code = streamCreateStateMachine(pTask);
+  if (pTask->status.pSM == NULL || code != TSDB_CODE_SUCCESS) {
     stError("s-task:%s failed create state-machine for stream task, initialization failed, code:%s", pTask->id.idStr,
             tstrerror(terrno));
     return terrno;
@@ -391,7 +397,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   TdThreadMutexAttr attr = {0};
 
-  int code = taosThreadMutexAttrInit(&attr);
+  code = taosThreadMutexAttrInit(&attr);
   if (code != 0) {
     stError("s-task:%s initElapsed mutex attr failed, code:%s", pTask->id.idStr, tstrerror(code));
     return code;
@@ -433,10 +439,10 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   }
 
   if (pTask->chkInfo.pActiveInfo == NULL) {
-    pTask->chkInfo.pActiveInfo = streamTaskCreateActiveChkptInfo();
+     code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
@@ -636,7 +642,13 @@ void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
 }
 
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
-  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
+  SStreamUpstreamEpInfo* pInfo = NULL;
+
+  int32_t code = streamTaskGetUpstreamTaskEpInfo(pTask, taskId, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return;
+  }
+
   if ((pInfo != NULL) && pInfo->dataAllowed) {
     pInfo->dataAllowed = false;
     int32_t t = atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
@@ -645,8 +657,14 @@ void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
 }
 
 void streamTaskOpenUpstreamInput(SStreamTask* pTask, int32_t taskId) {
-  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, taskId);
-  if ((pInfo != NULL) && (!pInfo->dataAllowed)) {
+  SStreamUpstreamEpInfo* pInfo = NULL;
+
+  int32_t code = streamTaskGetUpstreamTaskEpInfo(pTask, taskId, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return;
+  }
+
+  if (pInfo != NULL && (!pInfo->dataAllowed)) {
     int32_t t = atomic_sub_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
     ASSERT(t >= 0);
     pInfo->dataAllowed = true;
@@ -941,17 +959,24 @@ int32_t streamTaskSendCheckpointReq(SStreamTask* pTask) {
   return 0;
 }
 
-SStreamUpstreamEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
+int32_t streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId, SStreamUpstreamEpInfo** pEpInfo) {
+  *pEpInfo = NULL;
+
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < num; ++i) {
     SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
+    if (pInfo == NULL) {
+      return TSDB_CODE_FAILED;
+    }
+
     if (pInfo->taskId == taskId) {
-      return pInfo;
+      *pEpInfo = pInfo;
+      return TSDB_CODE_SUCCESS;
     }
   }
 
   stError("s-task:%s failed to find upstream task:0x%x", pTask->id.idStr, taskId);
-  return NULL;
+  return TSDB_CODE_FAILED;
 }
 
 SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
@@ -1041,14 +1066,23 @@ int32_t streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_
   return TSDB_CODE_SUCCESS;
 }
 
-SActiveCheckpointInfo* streamTaskCreateActiveChkptInfo() {
+int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes) {
   SActiveCheckpointInfo* pInfo = taosMemoryCalloc(1, sizeof(SActiveCheckpointInfo));
-  taosThreadMutexInit(&pInfo->lock, NULL);
+  if (pInfo == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t code = taosThreadMutexInit(&pInfo->lock, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   pInfo->pDispatchTriggerList = taosArrayInit(4, sizeof(STaskTriggerSendInfo));
   pInfo->pReadyMsgList = taosArrayInit(4, sizeof(STaskCheckpointReadyInfo));
   pInfo->pCheckpointReadyRecvList = taosArrayInit(4, sizeof(STaskDownstreamReadyInfo));
-  return pInfo;
+
+  *pRes = pInfo;
+  return TSDB_CODE_SUCCESS;
 }
 
 void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {

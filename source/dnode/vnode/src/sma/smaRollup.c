@@ -297,8 +297,17 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     sprintf(pStreamTask->exec.qmsg, "%s", RSMA_EXEC_TASK_FLAG);
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
-    pStreamTask->status.pSM = streamCreateStateMachine(pStreamTask);
-    pStreamTask->chkInfo.pActiveInfo = streamTaskCreateActiveChkptInfo();
+
+    int32_t code = streamCreateStateMachine(pStreamTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = streamTaskCreateActiveChkptInfo(&pStreamTask->chkInfo.pActiveInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, pStreamTask->id.streamId, pStreamTask->id.taskId);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;

@@ -40,8 +40,11 @@ static SDownstreamStatusInfo* findCheckRspStatus(STaskCheckInfo* pInfo, int32_t 
 
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage,
                               int64_t* oldStage) {
-  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
-  ASSERT(pInfo != NULL);
+  SStreamUpstreamEpInfo* pInfo = NULL;
+  int32_t code = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   *oldStage = pInfo->stage;
   const char* id = pTask->id.idStr;
@@ -166,7 +169,8 @@ void streamTaskProcessCheckMsg(SStreamMeta* pMeta, SStreamTaskCheckReq* pReq, SS
         taskId, pReq->upstreamTaskId, pReq->upstreamNodeId, pMeta->vgId);
     pRsp->status = TASK_DOWNSTREAM_NOT_LEADER;
   } else {
-    SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, taskId);
+    SStreamTask* pTask = NULL;
+    int32_t code = streamMetaAcquireTask(pMeta, pReq->streamId, taskId, &pTask);
     if (pTask != NULL) {
       pRsp->status =
           streamTaskCheckStatus(pTask, pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->stage, &pRsp->oldStage);

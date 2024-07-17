@@ -1118,7 +1118,11 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
     return TSDB_CODE_SUCCESS;
   }
 
-  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
+  SStreamUpstreamEpInfo* pInfo = NULL;
+  int32_t code = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   STaskCheckpointReadyInfo info = {0};
   initCheckpointReadyInfo(&info, pInfo->nodeId, pInfo->taskId, pInfo->childId, &pInfo->epSet, checkpointId);
@@ -1419,8 +1423,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64 ", msgId:%d", id,
           pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen, pReq->msgId);
 
-  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
-  ASSERT(pInfo != NULL);
+  SStreamUpstreamEpInfo* pInfo = NULL;
+  int32_t code = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   if (pMeta->role == NODE_ROLE_FOLLOWER) {
     stError("s-task:%s task on follower received dispatch msgs, dispatch msg rejected", id);
@@ -1453,10 +1460,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 
   {
     // do send response with the input status
-    int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
+    code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to build dispatch rsp, msgId:%d, code:%s", id, pReq->msgId, tstrerror(code));
-      terrno = code;
       return code;
     }
 
@@ -1465,5 +1471,5 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   streamTrySchedExec(pTask);
-  return 0;
+  return code;
 }
