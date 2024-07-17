@@ -233,7 +233,11 @@ int32_t tScalableBfDecode(SDecoder* pDecoder, SScalableBf** ppSBf) {
     SBloomFilter* pBF = NULL;
     code = tBloomFilterDecode(pDecoder, &pBF);
     TSDB_CHECK_CODE(code, lino, _error);
-    taosArrayPush(pSBf->bfArray, &pBF);
+    void* tmpRes = taosArrayPush(pSBf->bfArray, &pBF);
+    if (!tmpRes) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
   if (tDecodeU32(pDecoder, &pSBf->growth) < 0) {
     code = TSDB_CODE_FAILED;

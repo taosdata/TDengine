@@ -183,7 +183,11 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
 
     TSKEY dumy = 0;
     for (uint64_t i = 0; i < DEFAULT_BUCKET_SIZE; ++i) {
-      taosArrayPush(pInfo->pTsBuckets, &dumy);
+      void* tmp = taosArrayPush(pInfo->pTsBuckets, &dumy);
+      if (!tmp) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
     }
     pInfo->numBuckets = DEFAULT_BUCKET_SIZE;
     pInfo->pCloseWinSBF = NULL;
@@ -251,7 +255,11 @@ static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
     code = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE, &res);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    taosArrayPush(pInfo->pTsSBFs, &res);
+    void* tmp = taosArrayPush(pInfo->pTsSBFs, &res);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
   }
   (*ppSBf) = res;
 
@@ -543,7 +551,11 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   TSKEY ts = INT64_MIN;
   for (int32_t i = 0; i < size; i++) {
     if (tDecodeI64(&decoder, &ts) < 0) return -1;
-    taosArrayPush(pInfo->pTsBuckets, &ts);
+    void* tmp = taosArrayPush(pInfo->pTsBuckets, &ts);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
 
   if (tDecodeU64(&decoder, &pInfo->numBuckets) < 0) return -1;
@@ -556,7 +568,11 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     code = tScalableBfDecode(&decoder, &pSBf);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    taosArrayPush(pInfo->pTsSBFs, &pSBf);
+    void* tmp = taosArrayPush(pInfo->pTsSBFs, &pSBf);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
 
   if (tDecodeU64(&decoder, &pInfo->numSBFs) < 0) return -1;

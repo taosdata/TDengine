@@ -1866,17 +1866,29 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   return TSDB_CODE_SUCCESS;
 }
 
-static void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
+static int32_t calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t rowId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   blockDataCleanup(pInfo->pCreateTbRes);
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
   } else {
-    appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup,
-                         pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes, &pInfo->stateStore);
+    code = appendCreateTableRow(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup,
+                                &pInfo->tagCalSup, pBlock->info.id.groupId, pBlock, rowId, pInfo->pCreateTbRes,
+                                &pInfo->stateStore);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t generatePartitionDelResBlock(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   SColumnInfoData* pSrcStartTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pSrcEndTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
   SColumnInfoData* pSrcUidCol = taosArrayGet(pSrcBlock->pDataBlock, UID_COLUMN_INDEX);
@@ -1897,9 +1909,13 @@ static int32_t generatePartitionDelResBlock(SStreamScanInfo* pInfo, SSDataBlock*
     for (int32_t preJ = 0; preJ < pPreRes->info.rows; preJ++) {
       groupId = calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, preJ);
       if (pInfo->pPartTbnameSup) {
-        void* parTbname = NULL;
-        int32_t code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname, false);
-        if (code != TSDB_CODE_SUCCESS) {
+        void*   parTbname = NULL;
+        int32_t winCode = TSDB_CODE_SUCCESS;
+        code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId,
+                                                       &parTbname, false, &winCode);
+        TSDB_CHECK_CODE(code, lino, _end);
+
+        if (winCode != TSDB_CODE_SUCCESS) {
           calBlockTbName(pInfo, pPreRes, preJ);
           memcpy(varDataVal(tbname), pPreRes->info.parTbName, strlen(pPreRes->info.parTbName));
         } else {
@@ -1912,10 +1928,17 @@ static int32_t generatePartitionDelResBlock(SStreamScanInfo* pInfo, SSDataBlock*
                                tbname[0] == 0 ? NULL : tbname);
     }
   }
-  return TSDB_CODE_SUCCESS;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t generateDeleteResultBlockImpl(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+int32_t lino = 0;
   SColumnInfoData* pSrcStartTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pSrcEndTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
   SColumnInfoData* pSrcUidCol = taosArrayGet(pSrcBlock->pDataBlock, UID_COLUMN_INDEX);
@@ -1944,8 +1967,11 @@ static int32_t generateDeleteResultBlockImpl(SStreamScanInfo* pInfo, SSDataBlock
     }
     if (pInfo->tbnameCalSup.pExprInfo) {
       void* parTbname = NULL;
-      int32_t code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname, false);
-      if (code != TSDB_CODE_SUCCESS) {
+      int32_t winCode = TSDB_CODE_SUCCESS;
+      code = pInfo->stateStore.streamStateGetParName(pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, groupId, &parTbname, false, &winCode);
+      TSDB_CHECK_CODE(code, lino, _end);
+
+      if (winCode != TSDB_CODE_SUCCESS) {
         SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, srcUid, srcStartTsCol[i], srcStartTsCol[i], ver);
         printDataBlock(pPreRes, "pre res", GET_TASKID(pInfo->pStreamScanOp->pTaskInfo));
         calBlockTbName(pInfo, pPreRes, 0);
@@ -1959,7 +1985,12 @@ static int32_t generateDeleteResultBlockImpl(SStreamScanInfo* pInfo, SSDataBlock
     appendDataToSpecialBlock(pDestBlock, srcStartTsCol + i, srcEndTsCol + i, srcUidData + i, &groupId,
                                      tbname[0] == 0 ? NULL : tbname);
   }
-  return TSDB_CODE_SUCCESS;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
@@ -2565,6 +2596,8 @@ static bool isStreamWindow(SStreamScanInfo* pInfo) {
 
 static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   const char*    id = GET_TASKID(pTaskInfo);
 
@@ -2667,7 +2700,11 @@ FETCH_NEXT_BLOCK:
     SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
     SSDataBlock* pBlock = pPacked->pDataBlock;
     if (pBlock->info.parTbName[0]) {
-      pAPI->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
+      code =
+          pAPI->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+      }
     }
 
     // TODO move into scan
@@ -3161,17 +3198,27 @@ _end:
 }
 
 void streamScanReloadState(SOperatorInfo* pOperator) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   SStreamScanInfo* pInfo = pOperator->info;
   if (!pInfo->pState) {
     return;
   }
   void*   pBuff = NULL;
   int32_t len = 0;
-  pInfo->stateStore.streamStateGetInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME), &pBuff, &len);
+  code = pInfo->stateStore.streamStateGetInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME,
+                                              strlen(STREAM_SCAN_OP_STATE_NAME), &pBuff, &len);
+  TSDB_CHECK_CODE(code, lino, _end);
+
   SUpdateInfo* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
-  int32_t      code = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
+  if (!pUpInfo) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+  int32_t winCode = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
   taosMemoryFree(pBuff);
-  if (code == TSDB_CODE_SUCCESS && pInfo->pUpdateInfo) {
+  if (winCode == TSDB_CODE_SUCCESS && pInfo->pUpdateInfo) {
     if (pInfo->pUpdateInfo->minTS < 0) {
       pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
       pInfo->pUpdateInfo = pUpInfo;
@@ -3181,9 +3228,9 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
       ASSERT(pInfo->pUpdateInfo->minTS > pUpInfo->minTS);
       pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pUpInfo->maxDataVersion);
       SHashObj* curMap = pInfo->pUpdateInfo->pMap;
-      void *pIte = taosHashIterate(curMap, NULL);
+      void*     pIte = taosHashIterate(curMap, NULL);
       while (pIte != NULL) {
-        size_t keySize = 0;
+        size_t   keySize = 0;
         int64_t* pUid = taosHashGetKey(pIte, &keySize);
         taosHashPut(pUpInfo->pMap, pUid, sizeof(int64_t), pIte, sizeof(TSKEY));
         pIte = taosHashIterate(curMap, pIte);
@@ -3195,6 +3242,11 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
     }
   } else {
     pInfo->stateStore.updateInfoDestroy(pUpInfo);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
