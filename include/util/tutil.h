@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "thash.h"
 #include "tmd5.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
