@@ -74,16 +74,16 @@ typedef struct SRaftStore {
   TdThreadMutex mutex;
 } SRaftStore;
 
-typedef struct SSyncHbTimerData {
+struct SSyncHbTimerData {
   int64_t     syncNodeRid;
   SSyncTimer* pTimer;
   SRaftId     destId;
   uint64_t    logicClock;
   int64_t     execTime;
   int64_t     rid;
-} SSyncHbTimerData;
+};
 
-typedef struct SSyncTimer {
+struct SSyncTimer {
   void*             pTimer;
   TAOS_TMR_CALLBACK timerCb;
   uint64_t          logicClock;
@@ -92,7 +92,7 @@ typedef struct SSyncTimer {
   int64_t           timeStamp;
   SRaftId           destId;
   int64_t           hbDataRid;
-} SSyncTimer;
+};
 
 typedef struct SElectTimerParam {
   uint64_t   logicClock;
@@ -106,7 +106,7 @@ typedef struct SPeerState {
   int64_t   lastSendTime;
 } SPeerState;
 
-typedef struct SSyncNode {
+struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
   SRaftCfg    raftCfg;
@@ -116,7 +116,7 @@ typedef struct SSyncNode {
 
   // sync io
   SSyncLogBuffer* pLogBuf;
-  SWal*           pWal;
+  struct SWal*    pWal;
   const SMsgCb*   msgcb;
   int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*syncEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
@@ -234,7 +234,7 @@ typedef struct SSyncNode {
 
   bool isStart;
 
-} SSyncNode;
+};
 
 // open/close --------------
 SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);

@@ -96,7 +96,8 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
     pGroupResInfo->freeItem = false;
     pGroupResInfo->pRows = NULL;
   } else {
-    pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
+    taosArrayDestroy(pGroupResInfo->pRows);
+    pGroupResInfo->pRows = NULL;
   }
   pGroupResInfo->index = 0;
 }
@@ -2102,7 +2103,8 @@ void* tableListDestroy(STableListInfo* pTableListInfo) {
     return NULL;
   }
 
-  pTableListInfo->pTableList = taosArrayDestroy(pTableListInfo->pTableList);
+  taosArrayDestroy(pTableListInfo->pTableList);
+  pTableListInfo->pTableList = NULL;
   taosMemoryFreeClear(pTableListInfo->groupOffset);
 
   taosHashCleanup(pTableListInfo->map);

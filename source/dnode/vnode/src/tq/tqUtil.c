@@ -54,19 +54,23 @@ static int32_t tqInitTaosxRsp(SMqDataRspCommon* pRsp, STqOffsetVal pOffset) {
 
   if (pRsp->blockData == NULL || pRsp->blockDataLen == NULL || pRsp->blockTbName == NULL || pRsp->blockSchema == NULL) {
     if (pRsp->blockData != NULL) {
-      pRsp->blockData = taosArrayDestroy(pRsp->blockData);
+      taosArrayDestroy(pRsp->blockData);
+      pRsp->blockData = NULL;
     }
 
     if (pRsp->blockDataLen != NULL) {
-      pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
+      taosArrayDestroy(pRsp->blockDataLen);
+      pRsp->blockDataLen = NULL;
     }
 
     if (pRsp->blockTbName != NULL) {
-      pRsp->blockTbName = taosArrayDestroy(pRsp->blockTbName);
+      taosArrayDestroy(pRsp->blockTbName);
+      pRsp->blockTbName = NULL;
     }
 
     if (pRsp->blockSchema != NULL) {
-      pRsp->blockSchema = taosArrayDestroy(pRsp->blockSchema);
+      taosArrayDestroy(pRsp->blockSchema);
+      pRsp->blockSchema = NULL;
     }
     return -1;
   }
@@ -160,7 +164,8 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     taosWUnLockLatch(&pTq->lock);
   }
 
-  tOffsetCopy(&dataRsp.common.reqOffset, pOffset);  // reqOffset represents the current date offset, may be changed if wal not exists
+  tOffsetCopy(&dataRsp.common.reqOffset,
+              pOffset);  // reqOffset represents the current date offset, may be changed if wal not exists
   code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
 
 end : {
@@ -174,25 +179,25 @@ end : {
 }
 }
 
-#define PROCESS_EXCLUDED_MSG(TYPE, DECODE_FUNC, DELETE_FUNC) \
-  SDecoder           decoder = {0};\
-  TYPE               req = {0}; \
-  void*   data = POINTER_SHIFT(pHead->body, sizeof(SMsgHead)); \
-  int32_t len = pHead->bodyLen - sizeof(SMsgHead); \
-  tDecoderInit(&decoder, data, len); \
-  if (DECODE_FUNC(&decoder, &req) == 0 && (req.source & TD_REQ_FROM_TAOX) != 0) { \
-    tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, jump meta for, vgId:%d offset %" PRId64 " msgType %d",  \
-            pRequest->consumerId, pRequest->epoch, vgId, fetchVer, pHead->msgType); \
-    fetchVer++; \
-    DELETE_FUNC(&req); \
-    tDecoderClear(&decoder); \
-    continue; \
-  } \
-  DELETE_FUNC(&req); \
+#define PROCESS_EXCLUDED_MSG(TYPE, DECODE_FUNC, DELETE_FUNC)                                               \
+  SDecoder decoder = {0};                                                                                  \
+  TYPE     req = {0};                                                                                      \
+  void*    data = POINTER_SHIFT(pHead->body, sizeof(SMsgHead));                                            \
+  int32_t  len = pHead->bodyLen - sizeof(SMsgHead);                                                        \
+  tDecoderInit(&decoder, data, len);                                                                       \
+  if (DECODE_FUNC(&decoder, &req) == 0 && (req.source & TD_REQ_FROM_TAOX) != 0) {                          \
+    tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, jump meta for, vgId:%d offset %" PRId64 \
+            " msgType %d",                                                                                 \
+            pRequest->consumerId, pRequest->epoch, vgId, fetchVer, pHead->msgType);                        \
+    fetchVer++;                                                                                            \
+    DELETE_FUNC(&req);                                                                                     \
+    tDecoderClear(&decoder);                                                                               \
+    continue;                                                                                              \
+  }                                                                                                        \
+  DELETE_FUNC(&req);                                                                                       \
   tDecoderClear(&decoder);
 
-static void tDeleteCommon(void* parm) {
-}
+static void tDeleteCommon(void* parm) {}
 
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
@@ -309,9 +314,9 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           tqError("tmq extract meta from log, tEncodeMqMetaRsp error");
           continue;
         }
-        int32_t tLen = sizeof(SMqRspHead) + len;
-        void*   tBuf = taosMemoryCalloc(1, tLen);
-        void*   metaBuff = POINTER_SHIFT(tBuf, sizeof(SMqRspHead));
+        int32_t  tLen = sizeof(SMqRspHead) + len;
+        void*    tBuf = taosMemoryCalloc(1, tLen);
+        void*    metaBuff = POINTER_SHIFT(tBuf, sizeof(SMqRspHead));
         SEncoder encoder = {0};
         tEncoderInit(&encoder, metaBuff, len);
         code = tEncodeMqMetaRsp(&encoder, &tmpMetaRsp);
@@ -370,13 +375,13 @@ end:
 }
 
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg) {
-  int32_t code = 0;
+  int32_t      code = 0;
   STqOffsetVal reqOffset = {0};
   tOffsetCopy(&reqOffset, &pRequest->reqOffset);
 
   // reset the offset if needed
   if (IS_OFFSET_RESET_TYPE(pRequest->reqOffset.type)) {
-    bool    blockReturned = false;
+    bool blockReturned = false;
     code = extractResetOffsetVal(&reqOffset, pTq, pHandle, pRequest, pMsg, &blockReturned);
     if (code != 0) {
       goto END;
@@ -388,7 +393,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
     }
   } else if (reqOffset.type == 0) {  // use the consumer specified offset
     uError("req offset type is 0");
-    code =  TSDB_CODE_TMQ_INVALID_MSG;
+    code = TSDB_CODE_TMQ_INVALID_MSG;
     goto END;
   }
 
@@ -412,8 +417,8 @@ static void initMqRspHead(SMqRspHead* pMsgHead, int32_t type, int32_t epoch, int
   pMsgHead->walever = ever;
 }
 
-int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqBatchMetaRsp* pRsp,
-                               int32_t vgId) {
+int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
+                               const SMqBatchMetaRsp* pRsp, int32_t vgId) {
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeMqBatchMetaRsp, pRsp, len, code);
@@ -440,8 +445,8 @@ int32_t tqSendBatchMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SM
   SRpcMsg resp = {.info = pMsg->info, .pCont = buf, .contLen = tlen, .code = 0};
 
   tmsgSendRsp(&resp);
-  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) send rsp, res msg type: batch meta, size:%ld offset type:%d", vgId,
-          pReq->consumerId, pReq->epoch, taosArrayGetSize(pRsp->batchMetaReq), pRsp->rspOffset.type);
+  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) send rsp, res msg type: batch meta, size:%ld offset type:%d",
+          vgId, pReq->consumerId, pReq->epoch, taosArrayGetSize(pRsp->batchMetaReq), pRsp->rspOffset.type);
 
   return 0;
 }
@@ -523,6 +528,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const void* pRsp, 
 }
 
 int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type) {
+  int32_t     code;
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
 
@@ -566,11 +572,11 @@ int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void*
 
   taosArrayDestroy(pRes->uidList);
   if (type == 0) {
-    *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
-    if (*pRefBlock == NULL) {
+    code = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0, pRefBlock);
+    if (code) {
       blockDataCleanup(pDelBlock);
       taosMemoryFree(pDelBlock);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return code;
     }
 
     ((SStreamRefDataBlock*)(*pRefBlock))->type = STREAM_INPUT__REF_DATA_BLOCK;
@@ -610,7 +616,7 @@ int32_t tqGetStreamExecInfo(SVnode* pVnode, int64_t streamId, int64_t* pDelay, b
       continue;
     }
 
-    STaskId id = {.streamId = pId->streamId, .taskId = pId->taskId};
+    STaskId       id = {.streamId = pId->streamId, .taskId = pId->taskId};
     SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask == NULL) {
       tqError("vgId:%d failed to acquire task:0x%x in retrieving progress", pMeta->vgId, pId->taskId);

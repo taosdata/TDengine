@@ -134,11 +134,14 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, nextTrigger);
   } else {
     if (status == TASK_TRIGGER_STATUS__ACTIVE) {
-      SStreamTrigger* pTrigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0);
-      if (pTrigger == NULL) {
+      SStreamTrigger* pTrigger;
+
+      int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&pTrigger);
+      if (code) {
         stError("s-task:%s failed to prepare retrieve data trigger, code:%s, try again in %dms", id, "out of memory",
                 nextTrigger);
         taosTmrReset(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer);
+        terrno = code;
         return;
       }
 
@@ -156,7 +159,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
       atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
       pTrigger->pBlock->info.type = STREAM_GET_ALL;
 
-      int32_t code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
+      code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
       if (code != TSDB_CODE_SUCCESS) {
         taosTmrReset(streamTaskSchedHelper, nextTrigger, pTask, streamTimer, &pTask->schedInfo.pDelayTimer);
         return;

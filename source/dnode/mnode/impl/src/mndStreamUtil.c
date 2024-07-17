@@ -105,6 +105,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
         mInfo("vgId:%d replica:%d inconsistent with other vgroups replica:%d, not ready for stream operations",
               pVgroup->vgId, pVgroup->replica, replica);
         *allReady = false;
+        sdbRelease(pSdb, pVgroup);
         break;
       }
     }
@@ -978,7 +979,8 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
 }
 
 void mndClearConsensusRspEntry(SCheckpointConsensusInfo* pInfo) {
-  pInfo->pTaskList = taosArrayDestroy(pInfo->pTaskList);
+  taosArrayDestroy(pInfo->pTaskList);
+  pInfo->pTaskList = NULL;
 }
 
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId) {

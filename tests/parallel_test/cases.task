@@ -15,6 +15,7 @@
 ,,n,army,python3 ./test.py -f s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
+,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
@@ -192,6 +193,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 3

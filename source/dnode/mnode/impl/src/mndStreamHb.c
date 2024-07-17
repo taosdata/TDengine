@@ -255,7 +255,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   mndInitStreamExecInfo(pMnode, &execInfo);
   if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
-    mError("invalid hbMsg from vgId:%d, discarded", req.vgId);
+    mError("vgId:%d not exists in nodeList buf, discarded", req.vgId);
 
     terrno = TSDB_CODE_INVALID_MSG;
     doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);

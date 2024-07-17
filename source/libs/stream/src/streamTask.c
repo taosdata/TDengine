@@ -263,6 +263,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->outputInfo.tbSink.pTSchema);
     tSimpleHashCleanup(pTask->outputInfo.tbSink.pTblInfo);
+    tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pTagSchema);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
   }
@@ -280,10 +281,12 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
 
-  pTask->msgInfo.pSendInfo = taosArrayDestroy(pTask->msgInfo.pSendInfo);
+  taosArrayDestroy(pTask->msgInfo.pSendInfo);
+  pTask->msgInfo.pSendInfo = NULL;
   taosThreadMutexDestroy(&pTask->msgInfo.lock);
 
-  pTask->outputInfo.pNodeEpsetUpdateList = taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
+  taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
+  pTask->outputInfo.pNodeEpsetUpdateList = NULL;
 
   if ((pTask->status.removeBackendFiles) && (pTask->pMeta != NULL)) {
     char* path = taosMemoryCalloc(1, strlen(pTask->pMeta->path) + 128);
@@ -977,10 +980,13 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
 }
 
 static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
-  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock));
-  if (pData == NULL) {
+  int32_t           code;
+  SStreamDataBlock* pData;
+
+  code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock), (void**)&pData);
+  if (code) {
     stError("s-task:%s failed to allocated retrieve-block", pTask->id.idStr);
-    return terrno;
+    return terrno = code;
   }
 
   // enqueue
@@ -990,7 +996,7 @@ static int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq*
   pData->type = STREAM_INPUT__DATA_RETRIEVE;
   pData->srcVgId = 0;
 
-  int32_t code = streamRetrieveReqToData(pReq, pData, pTask->id.idStr);
+  code = streamRetrieveReqToData(pReq, pData, pTask->id.idStr);
   if (code != TSDB_CODE_SUCCESS) {
     taosFreeQitem(pData);
     return code;
@@ -1055,9 +1061,12 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   }
 
   taosThreadMutexDestroy(&pInfo->lock);
-  pInfo->pDispatchTriggerList = taosArrayDestroy(pInfo->pDispatchTriggerList);
-  pInfo->pReadyMsgList = taosArrayDestroy(pInfo->pReadyMsgList);
-  pInfo->pCheckpointReadyRecvList = taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
+  taosArrayDestroy(pInfo->pDispatchTriggerList);
+  pInfo->pDispatchTriggerList = NULL;
+  taosArrayDestroy(pInfo->pReadyMsgList);
+  pInfo->pReadyMsgList = NULL;
+  taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
+  pInfo->pCheckpointReadyRecvList = NULL;
 
   if (pInfo->pChkptTriggerTmr != NULL) {
     taosTmrStop(pInfo->pChkptTriggerTmr);

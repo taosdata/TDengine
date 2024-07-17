@@ -223,7 +223,9 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Tag name:%s duplicated";
     case TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC:
       return "Some functions cannot appear in the select list at the same time";
-     default:
+    case TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR:
+      return "Syntax error in regular expression";
+    default:
       return "Unknown error";
   }
 }

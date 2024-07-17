@@ -17,6 +17,7 @@
 #include "tqueue.h"
 #include "taoserror.h"
 #include "tlog.h"
+#include "tutil.h"
 
 int64_t tsRpcQueueMemoryAllowed = 0;
 int64_t tsRpcQueueMemoryUsed = 0;
@@ -58,20 +59,20 @@ struct STaosQall {
 void taosSetQueueMemoryCapacity(STaosQueue *queue, int64_t cap) { queue->memLimit = cap; }
 void taosSetQueueCapacity(STaosQueue *queue, int64_t size) { queue->itemLimit = size; }
 
-STaosQueue *taosOpenQueue() {
-  STaosQueue *queue = taosMemoryCalloc(1, sizeof(STaosQueue));
-  if (queue == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+int32_t taosOpenQueue(STaosQueue **queue) {
+  *queue = taosMemoryCalloc(1, sizeof(STaosQueue));
+  if (*queue == NULL) {
+    return (terrno = TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  if (taosThreadMutexInit(&queue->mutex, NULL) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+  int32_t code = taosThreadMutexInit(&(*queue)->mutex, NULL);
+  if (code) {
+    taosMemoryFreeClear(*queue);
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
 
   uDebug("queue:%p is opened", queue);
-  return queue;
+  return 0;
 }
 
 void taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp) {
@@ -146,11 +147,12 @@ int64_t taosQueueMemorySize(STaosQueue *queue) {
   return memOfItems;
 }
 
-void *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize) {
+int32_t taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize, void **item) {
+  *item = NULL;
+
   STaosQnode *pNode = taosMemoryCalloc(1, sizeof(STaosQnode) + size);
   if (pNode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pNode->dataSize = dataSize;
@@ -165,15 +167,15 @@ void *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize) {
              tsRpcQueueMemoryAllowed);
       atomic_sub_fetch_64(&tsRpcQueueMemoryUsed, size + dataSize);
       taosMemoryFree(pNode);
-      terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE;
-      return NULL;
+      return (terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
     }
     uTrace("item:%p, node:%p is allocated, alloc:%" PRId64, pNode->item, pNode, alloced);
   } else {
     uTrace("item:%p, node:%p is allocated", pNode->item, pNode);
   }
 
-  return pNode->item;
+  *item = pNode->item;
+  return 0;
 }
 
 void taosFreeQitem(void *pItem) {
@@ -221,13 +223,17 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   }
   queue->numOfItems++;
   queue->memOfItems += (pNode->size + pNode->dataSize);
-  if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
+  if (queue->qset) {
+    atomic_add_fetch_32(&queue->qset->numOfItems, 1);
+  }
 
   uTrace("item:%p is put into queue:%p, items:%d mem:%" PRId64, pItem, queue, queue->numOfItems, queue->memOfItems);
 
   taosThreadMutexUnlock(&queue->mutex);
 
-  if (queue->qset) tsem_post(&queue->qset->sem);
+  if (queue->qset) {
+    tsem_post(&queue->qset->sem);
+  }
   return code;
 }
 
@@ -241,10 +247,14 @@ int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
     pNode = queue->head;
     *ppItem = pNode->item;
     queue->head = pNode->next;
-    if (queue->head == NULL) queue->tail = NULL;
+    if (queue->head == NULL) {
+      queue->tail = NULL;
+    }
     queue->numOfItems--;
     queue->memOfItems -= (pNode->size + pNode->dataSize);
-    if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
+    if (queue->qset) {
+      atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
+    }
     code = 1;
     uTrace("item:%p is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems,
            queue->memOfItems);
@@ -255,12 +265,12 @@ int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
   return code;
 }
 
-STaosQall *taosAllocateQall() {
-  STaosQall *qall = taosMemoryCalloc(1, sizeof(STaosQall));
-  if (qall != NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+int32_t taosAllocateQall(STaosQall **qall) {
+  *qall = taosMemoryCalloc(1, sizeof(STaosQall));
+  if (*qall == NULL) {
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
-  return qall;
+  return 0;
 }
 
 void taosFreeQall(STaosQall *qall) { taosMemoryFree(qall); }
@@ -290,7 +300,9 @@ int32_t taosReadAllQitems(STaosQueue *queue, STaosQall *qall) {
     queue->memOfItems = 0;
     uTrace("read %d items from queue:%p, items:%d mem:%" PRId64, numOfItems, queue, queue->numOfItems,
            queue->memOfItems);
-    if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, qall->numOfItems);
+    if (queue->qset) {
+      atomic_sub_fetch_32(&queue->qset->numOfItems, qall->numOfItems);
+    }
   }
 
   taosThreadMutexUnlock(&queue->mutex);
@@ -326,18 +338,17 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
   return num;
 }
 
-STaosQset *taosOpenQset() {
-  STaosQset *qset = taosMemoryCalloc(sizeof(STaosQset), 1);
-  if (qset == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+int32_t taosOpenQset(STaosQset **qset) {
+  *qset = taosMemoryCalloc(sizeof(STaosQset), 1);
+  if (*qset == NULL) {
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  taosThreadMutexInit(&qset->mutex, NULL);
-  tsem_init(&qset->sem, 0, 0);
+  taosThreadMutexInit(&(*qset)->mutex, NULL);
+  tsem_init(&(*qset)->sem, 0, 0);
 
   uDebug("qset:%p is opened", qset);
-  return qset;
+  return 0;
 }
 
 void taosCloseQset(STaosQset *qset) {
@@ -533,9 +544,7 @@ int64_t taosQallUnAccessedMemSize(STaosQall *qall) { return qall->unAccessMemOfI
 void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
 int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
 
-void taosQueueSetThreadId(STaosQueue* pQueue, int64_t threadId) {
-  pQueue->threadId = threadId;
-}
+void taosQueueSetThreadId(STaosQueue *pQueue, int64_t threadId) { pQueue->threadId = threadId; }
 
 int64_t taosQueueGetThreadId(STaosQueue *pQueue) { return pQueue->threadId; }
 
