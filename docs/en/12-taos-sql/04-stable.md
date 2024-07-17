@@ -34,8 +34,8 @@ table_option: {
     - The name of a tag column cannot be the same as the name of any other column.
     - The name of a tag column cannot be a reserved keyword.
     - Each supertable must contain between 1 and 128 tags. The total length of the TAGS keyword cannot exceed 16 KB.
-3. Regarding how to use `ENCODE` and `COMPRESS`, please refer to [Encode and Compress for Column](./compress).
-3. For more information about table parameters, see Create a Table.
+3. Regarding how to use `ENCODE` and `COMPRESS`, please refer to [Encode and Compress for Column](../compress).
+3. For more information about table parameters, see [Create a Table](../table).
 
 ## View a Supertable
 
