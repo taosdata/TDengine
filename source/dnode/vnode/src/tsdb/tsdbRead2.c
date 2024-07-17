@@ -296,8 +296,11 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
   pIter->pSttBlockReader->uid = 0;
   tMergeTreeClose(&pIter->pSttBlockReader->mergeTree);
   destroySttBlockReader(pReader->status.pLDataIterArray, &pCost->sttCost);
-  pReader->status.pLDataIterArray = NULL;
+
   pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
+  if (pReader->status.pLDataIterArray == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   // check file the time range of coverage
   STimeWindow win = {0};
@@ -709,6 +712,10 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     int32_t code = getNextBrinRecord(&iter, &pRecord);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
+    }
+
+    if (pRecord == NULL) {
+      break;
     }
 
     if (pRecord->suid > pReader->info.suid) {
