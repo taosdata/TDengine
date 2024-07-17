@@ -2678,7 +2678,12 @@ async fn consume_flat_record(
     for message in record.records() {
         let batch = message.record();
         let num_rows = batch.num_rows();
-        let batch = parser.parse_message_from_records(batch, true)?;
+        if num_rows == 0 {
+            continue;
+        }
+        let batch = parser
+            .parse_message_from_records(batch, true)
+            .context("Transformer parse error")?;
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),

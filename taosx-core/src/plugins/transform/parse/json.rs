@@ -3,14 +3,14 @@ use std::{borrow::Cow, str::FromStr, sync::Arc};
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array,
-        Int32Array, Int64Array, Int8Array, NullArray, StringArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        Int32Array, Int64Array, Int8Array, ListBuilder, NullArray, StringArray, StringBuilder,
+        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema, TimeUnit},
     record_batch::RecordBatch,
 };
-use arrow_schema::Fields;
+use arrow_schema::{Field, Fields};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -525,6 +525,29 @@ impl Parse for Json {
                         .collect_vec();
                     let array: ArrayRef = Arc::new(BooleanArray::from_iter(values));
                     r_fields.push(f);
+                    r_arrays.push(array);
+                }
+                DataType::List(_) => {
+                    let capacity = json_values.len();
+                    let builder = StringBuilder::new();
+                    let mut list = ListBuilder::with_capacity(builder, capacity);
+                    json_values.iter().for_each(|(_n, v)| {
+                        if let Some(v) = v.as_ref().and_then(getter) {
+                            list.values().append_value(v.to_string().as_str());
+                        } else {
+                            list.append_null();
+                        }
+                        list.append(true);
+                    });
+                    let array = Arc::new(list.finish()) as ArrayRef;
+                    // set field type to List<Utf8>
+                    let field = Field::new_list(
+                        f.name(),
+                        Field::new_list_field(DataType::Utf8, true),
+                        true,
+                    );
+                    // push to arrow
+                    r_fields.push(field);
                     r_arrays.push(array);
                 }
                 DataType::Null => {

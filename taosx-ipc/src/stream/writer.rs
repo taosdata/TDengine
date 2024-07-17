@@ -263,7 +263,7 @@ impl From<&ArrowDataType> for IpcDataType {
             ArrowDataType::Time64(_) => todo!(),
             ArrowDataType::Duration(_) => todo!(),
             ArrowDataType::Interval(_) => todo!(),
-            ArrowDataType::List(_) => todo!(),
+            ArrowDataType::List(_) => IpcDataType::VarChar(4096),
             ArrowDataType::FixedSizeList(_, _) => todo!(),
             ArrowDataType::LargeList(_) => todo!(),
             ArrowDataType::Struct(_) => todo!(),
