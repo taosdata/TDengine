@@ -413,6 +413,7 @@ int32_t tqMetaOpen(STQ* pTq) {
     TQ_ERR_GO_TO_END(tqMetaOpenTdb(pTq));
   }else{
     TQ_ERR_GO_TO_END(tqMetaTransform(pTq));
+    taosRemoveFile(maindb);
   }
   TQ_ERR_GO_TO_END(tqMetaRestoreCheckInfo(pTq));
 
@@ -447,6 +448,7 @@ int32_t tqMetaTransform(STQ* pTq) {
 
   TQ_ERR_GO_TO_END(tqMetaTransformOffsetInfo(pTq, offsetNew));
   (void)taosRemoveFile(offset);
+  (void)taosRemoveFile(offsetNew);
 
 END:
   taosMemoryFree(offset);

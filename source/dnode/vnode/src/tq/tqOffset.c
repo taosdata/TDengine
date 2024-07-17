@@ -39,7 +39,7 @@ int32_t tqOffsetRestoreFromFile(SHashObj* pOffset, char* name) {
 
   TdFilePtr pFile = taosOpenFile(name, TD_FILE_READ);
   if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TDB_CODE_SUCCESS;
     goto END;
   }
 
