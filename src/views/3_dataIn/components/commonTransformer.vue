@@ -658,7 +658,7 @@ import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
-import { extractAllProperties, deepClone } from "@/utils"
+import { extractAllProperties, getExampleList } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
 export default {
@@ -854,7 +854,6 @@ export default {
       this.isCSV = true;
       this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
       await this.submitParse();
-      // this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     await this.getInitStables();
     this.statisticCol();
@@ -1750,7 +1749,7 @@ export default {
       this.extractArr.forEach((item) => {
         extractObj[item.columnname] = {
           [`${item.type}`]:
-            item.type == "regex"
+            item.type == "regex" || item.type == "join"
               ? item.expression
               : item.type == "split"
               ? this.$store.state.app.splitExpresList
@@ -1759,6 +1758,7 @@ export default {
               : item.expression,
         };
       });
+
       let parserData = {
         parser: {
           parse: this.$store.state.app.topParse.parser.parse,
@@ -1883,7 +1883,17 @@ export default {
     },
     //输出input结果
     generateInput() {
-      let demo_list = this.getExampleList();
+      let demo_list;
+      try {
+        demo_list = getExampleList(this.msgForm.msgbody);
+      } catch (err) {
+        if (err.lineNumber > 0) {
+          this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
+        } else {
+          this.$error(this.$t(err));
+        }
+      }
+
       let inputList = demo_list.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
@@ -2336,7 +2346,15 @@ export default {
       // this.dialogVisible = true;
       if (this.parseruleForm.expression && this.parseruleForm.type == "json") {
         // 回显逻辑
-        this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        try {
+          this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        } catch (err) {
+          if (err.lineNumber > 0) {
+            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
+          } else {
+            this.$error(this.$t(err));
+          }
+        }
         let firstSplitArr = this.parseruleForm.expression.split(',')
         let checkedKey = []
         let checkedObj = {}
@@ -2354,7 +2372,15 @@ export default {
           }
         })
       } else {
-        this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        try {
+          this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        } catch (err) {
+          if (err.lineNumber > 0) {
+            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
+          } else {
+            this.$error(this.$t(err));
+          }
+        }
         this.allProperties = this.allProperties.map((item,index) => {
           return  {
             defaultValue: item,

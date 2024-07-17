@@ -51,7 +51,7 @@
             <el-input
               size="small"
               slot="reference"
-              :placeholder="$t('datasource.transformer.expre_input')"
+              :placeholder="$t('datasource.transformer.expre_' + ruleForm.filter_name)"
               v-model="ruleForm.filter_expres"
               @input="changeExtractExpr"
               :disabled="isViewable"
@@ -75,16 +75,6 @@
     </div>
     <ul class="col-list" v-if="tableColumns.length > 0 && !isViewable">
       <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
-        <!-- <template v-if="item.value">
-          <el-tooltip
-            class="item"
-            effect="light"
-            :content="$t('datasource.transformer.sampleval') + ':' + item.value"
-            placement="top-start"
-          >
-            <span>{{ item.name }}</span>
-          </el-tooltip>
-        </template> -->
         <span>{{ item.name }}</span>
       </li>
       <li v-if="tableColumns.length > 9" >
@@ -139,6 +129,9 @@ export default {
         n: "",
         names: "",
       },
+      joinParams: {
+        join_with: "",
+      },
       isJson: true,
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
@@ -148,7 +141,7 @@ export default {
       extractParseData: {},
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
-      extractTypes: ["split", "regex"],
+      extractTypes: ["split", "regex", "join"],
       ruleForm: {
         col_name: "",
         filter_name: "",
@@ -543,7 +536,7 @@ export default {
           return {
             [`${item.columnname}`]: {
               [`${item.type}`]:
-                item.type == "regex"
+                item.type == "regex" || item.type == "join"
                   ? item.expression
                   : item.type == "split"
                   ? splitobj
