@@ -290,7 +290,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       bufLen = pRaw->dataLen * 2;
       SSdbRaw *pNewRaw = taosMemoryMalloc(bufLen + 100);
       if (pNewRaw == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         mError("failed read sdb file since malloc new sdbRaw size:%d failed", bufLen);
         goto _OVER;
       }
@@ -317,6 +317,10 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
+      if (plantContent == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _OVER;
+      }
 
       SCryptOpts opts;
       opts.len = ENCRYPTED_LEN(pRaw->dataLen);
@@ -360,8 +364,7 @@ _OVER:
   taosCloseFile(&pFile);
   sdbFreeRaw(pRaw);
 
-  terrno = code;
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t sdbReadFile(SSdb *pSdb) {
@@ -763,7 +766,7 @@ int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len) {
   if (writelen != len) {
     code = TAOS_SYSTEM_ERROR(errno);
     mError("failed to write len:%d since %s, total:%" PRId64, len, tstrerror(code), pIter->total);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   pIter->total += writelen;
