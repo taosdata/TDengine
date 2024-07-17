@@ -48,7 +48,7 @@ typedef struct {
 static int32_t  getCurrentBlockInfo(SDataBlockIter* pBlockIter, SFileDataBlockInfo** pInfo);
 static int32_t  buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t endKey, int32_t capacity,
                                           STsdbReader* pReader);
-static TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader);
+static int32_t  getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader, TSDBROW** pRow);
 static int32_t  doMergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pScanInfo, SRowKey* pKey,
                                         STsdbReader* pReader);
 static int32_t  doMergeRowsInSttBlock(SSttBlockReader* pSttBlockReader, STableBlockScanInfo* pScanInfo,
@@ -2025,9 +2025,11 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   SArray*             pDelList = pBlockScanInfo->delSkyline;
   int32_t             pkSrcSlot = pReader->suppInfo.pkSrcSlot;
+  TSDBROW*            pRow = NULL;
+  TSDBROW*            piRow = NULL;
 
-  TSDBROW* pRow = getValidMemRow(&pBlockScanInfo->iter, pDelList, pReader);
-  TSDBROW* piRow = getValidMemRow(&pBlockScanInfo->iiter, pDelList, pReader);
+  getValidMemRow(&pBlockScanInfo->iter, pDelList, pReader, &pRow);
+  getValidMemRow(&pBlockScanInfo->iiter, pDelList, pReader, &piRow);
 
   SRowKey* pSttKey = NULL;
   if (hasDataInSttBlock(pBlockScanInfo) && (!pBlockScanInfo->cleanSttBlocks)) {
@@ -2201,9 +2203,10 @@ int32_t doInitMemDataIter(STsdbReader* pReader, STbData** pData, STableBlockScan
 static void doForwardDataIter(SRowKey* pKey, SIterInfo* pIter, STableBlockScanInfo* pBlockScanInfo,
                               STsdbReader* pReader) {
   SRowKey rowKey = {0};
+  TSDBROW* pRow = NULL;
 
   while (1) {
-    TSDBROW* pRow = getValidMemRow(pIter, pBlockScanInfo->delSkyline, pReader);
+    getValidMemRow(pIter, pBlockScanInfo->delSkyline, pReader, &pRow);
     if (!pIter->hasVal) {
       break;
     }
@@ -2559,11 +2562,11 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
   }
 
   if (pBlockScanInfo->iter.hasVal) {
-    pRow = getValidMemRow(&pBlockScanInfo->iter, pBlockScanInfo->delSkyline, pReader);
+    getValidMemRow(&pBlockScanInfo->iter, pBlockScanInfo->delSkyline, pReader, &pRow);
   }
 
   if (pBlockScanInfo->iiter.hasVal) {
-    piRow = getValidMemRow(&pBlockScanInfo->iiter, pBlockScanInfo->delSkyline, pReader);
+    getValidMemRow(&pBlockScanInfo->iiter, pBlockScanInfo->delSkyline, pReader, &piRow);
   }
 
   // two levels of mem-table does contain the valid rows
@@ -2810,13 +2813,16 @@ TSDBKEY getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader)
   TSDBKEY key = {.ts = TSKEY_INITIAL_VAL}, ikey = {.ts = TSKEY_INITIAL_VAL};
 
   bool     hasKey = false, hasIKey = false;
-  TSDBROW* pRow = getValidMemRow(&pScanInfo->iter, pScanInfo->delSkyline, pReader);
+  TSDBROW* pRow = NULL;
+  TSDBROW* pIRow = NULL;
+
+  getValidMemRow(&pScanInfo->iter, pScanInfo->delSkyline, pReader, &pRow);
   if (pRow != NULL) {
     hasKey = true;
     key = TSDBROW_KEY(pRow);
   }
 
-  TSDBROW* pIRow = getValidMemRow(&pScanInfo->iiter, pScanInfo->delSkyline, pReader);
+  getValidMemRow(&pScanInfo->iiter, pScanInfo->delSkyline, pReader, &pIRow);
   if (pIRow != NULL) {
     hasIKey = true;
     ikey = TSDBROW_KEY(pIRow);
@@ -3742,9 +3748,11 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t
   return false;
 }
 
-FORCE_INLINE TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader) {
+FORCE_INLINE int32_t getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader, TSDBROW** pRes) {
+  *pRes = NULL;
+
   if (!pIter->hasVal) {
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t  order = pReader->info.order;
@@ -3754,18 +3762,20 @@ FORCE_INLINE TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, S
   TSDBROW_INIT_KEY(pRow, key);
   if (outOfTimeWindow(key.ts, &pReader->info.window)) {
     pIter->hasVal = false;
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   // it is a valid data version
   if (key.version <= pReader->info.verRange.maxVer && key.version >= pReader->info.verRange.minVer) {
     if (pDelList == NULL || TARRAY_SIZE(pDelList) == 0) {
-      return pRow;
+      *pRes = pRow;
+      return TSDB_CODE_SUCCESS;
     } else {
       bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange,
                                     pReader->suppInfo.numOfPks > 0);
       if (!dropped) {
-        return pRow;
+        *pRes = pRow;
+        return TSDB_CODE_SUCCESS;
       }
     }
   }
@@ -3773,7 +3783,7 @@ FORCE_INLINE TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, S
   while (1) {
     pIter->hasVal = tsdbTbDataIterNext(pIter->iter);
     if (!pIter->hasVal) {
-      return NULL;
+      return TSDB_CODE_SUCCESS;
     }
 
     pRow = tsdbTbDataIterGet(pIter->iter);
@@ -3781,17 +3791,19 @@ FORCE_INLINE TSDBROW* getValidMemRow(SIterInfo* pIter, const SArray* pDelList, S
     TSDBROW_INIT_KEY(pRow, key);
     if (outOfTimeWindow(key.ts, &pReader->info.window)) {
       pIter->hasVal = false;
-      return NULL;
+      return TSDB_CODE_SUCCESS;
     }
 
     if (key.version <= pReader->info.verRange.maxVer && key.version >= pReader->info.verRange.minVer) {
       if (pDelList == NULL || TARRAY_SIZE(pDelList) == 0) {
-        return pRow;
+        *pRes = pRow;
+        return TSDB_CODE_SUCCESS;
       } else {
         bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange,
                                       pReader->suppInfo.numOfPks > 0);
         if (!dropped) {
-          return pRow;
+          *pRes = pRow;
+          return TSDB_CODE_SUCCESS;
         }
       }
     }
@@ -3809,7 +3821,8 @@ int32_t doMergeRowsInBuf(SIterInfo* pIter, uint64_t uid, SRowKey* pCurKey, SArra
     }
 
     // data exists but not valid
-    TSDBROW* pRow = getValidMemRow(pIter, pDelList, pReader);
+    TSDBROW* pRow = NULL;
+    getValidMemRow(pIter, pDelList, pReader, &pRow);
     if (pRow == NULL) {
       break;
     }
@@ -3974,7 +3987,7 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, SRowKey* pKey, uint64_t uid, SIt
       *freeTSRow = false;
       return TSDB_CODE_SUCCESS;
     } else {  // has next point in mem/imem
-      pNextRow = getValidMemRow(pIter, pDelList, pReader);
+      getValidMemRow(pIter, pDelList, pReader, &pNextRow);
       if (pNextRow == NULL) {
         *pResRow = current;
         *freeTSRow = false;
@@ -4118,8 +4131,11 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, SRowKey* pRowKey, TSDBROW* piRow, SRow
 
 static int32_t tsdbGetNextRowInMem(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader, TSDBROW* pResRow,
                                    int64_t endKey, bool* freeTSRow) {
-  TSDBROW* pRow = getValidMemRow(&pBlockScanInfo->iter, pBlockScanInfo->delSkyline, pReader);
-  TSDBROW* piRow = getValidMemRow(&pBlockScanInfo->iiter, pBlockScanInfo->delSkyline, pReader);
+  TSDBROW* pRow = NULL;
+  TSDBROW* piRow = NULL;
+
+  getValidMemRow(&pBlockScanInfo->iter, pBlockScanInfo->delSkyline, pReader, &pRow);
+  getValidMemRow(&pBlockScanInfo->iiter, pBlockScanInfo->delSkyline, pReader, &piRow);
 
   SArray*    pDelList = pBlockScanInfo->delSkyline;
   uint64_t   uid = pBlockScanInfo->uid;
