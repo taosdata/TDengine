@@ -103,6 +103,8 @@ impl MongoDBQuery {
         } else {
             None
         };
+        // tls: if the path of ca_file and cert_key_file is not empty, enable tls
+        let tls = tls || (ca_file_path.is_some() && cert_key_file_path.is_some());
         client_options.tls = if tls {
             let tls_builder = TlsOptions::builder()
                 .allow_invalid_certificates(Some(true))
