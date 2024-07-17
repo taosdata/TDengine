@@ -197,7 +197,7 @@ fn build_page_query<'a, 'b>(
 ) {
     match search.is_public {
         Some(true) => {
-            query_builder.push(" where is_public = true");
+            query_builder.push(" where is_public = true ");
         }
         Some(false) => {
             query_builder.push(" where is_public = false ");
@@ -214,10 +214,12 @@ fn build_page_query<'a, 'b>(
         .filter(|s| !s.trim().is_empty())
     {
         query_builder
-            .push(" and sql like ")
+            .push(" and ( ")
+            .push(" sql like")
             .push_bind(format!("%{fuzzy}%"))
             .push(" or description like ")
-            .push_bind(format!("%{fuzzy}%"));
+            .push_bind(format!("%{fuzzy}%"))
+            .push(" ) ");
     }
 }
 
