@@ -7,11 +7,10 @@
 
 const char*  ranStr = "tvapq02tcp";
 const int    ranStrLen = strlen(ranStr);
-SWalSyncInfo syncMeta = {
-    .isWeek = -1,
-    .seqNum = UINT64_MAX,
-    .term = UINT64_MAX,
-};
+SWalSyncInfo syncMeta = {0};
+syncMeta.isWeek = -1;
+syncMeta.seqNum = UINT64_MAX;
+syncMeta.term = UINT64_MAX;
 
 class WalCleanEnv : public ::testing::Test {
  protected:
