@@ -579,7 +579,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   }
 
   taosWLockLatch(&pTq->lock);
-  if (taosHashRemove(pTq->pOffset, pReq->subKey, strlen(pReq->subKey) != 0)) {
+  if (taosHashRemove(pTq->pOffset, pReq->subKey, strlen(pReq->subKey)) != 0) {
     tqError("cannot process tq delete req %s, since no such offset in hash", pReq->subKey);
   }
   if (tqMetaDeleteInfo(pTq, pTq->pOffsetStore, pReq->subKey, strlen(pReq->subKey)) != 0) {
