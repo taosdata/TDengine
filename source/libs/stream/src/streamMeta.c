@@ -922,7 +922,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    if (taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES) < 0) {
+    if (taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES) != 0) {
       stError("s-task:0x%x failed to put into hashTable, code:%s, continue", pTask->id.taskId, tstrerror(terrno));
       taosArrayPop(pMeta->pTaskList);
       tFreeStreamTask(pTask);

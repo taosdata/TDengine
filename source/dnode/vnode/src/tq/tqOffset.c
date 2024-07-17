@@ -74,7 +74,7 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
     }
 
     tDecoderClear(&decoder);
-    if (taosHashPut(pStore->pHash, offset.subKey, strlen(offset.subKey), &offset, sizeof(STqOffset)) < 0) {
+    if (taosHashPut(pStore->pHash, offset.subKey, strlen(offset.subKey), &offset, sizeof(STqOffset)) != 0) {
       return -1;
     }
 
