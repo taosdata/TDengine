@@ -22,14 +22,14 @@
 #include "tcompare.h"
 // clang-format on
 
-#define DM_INIT_AUDIT()              \
-  do {                               \
-    auditCfg.port = tsMonitorPort;   \
-    auditCfg.server = tsMonitorFqdn; \
-    auditCfg.comp = tsMonitorComp;   \
-    if (auditInit(&auditCfg) != 0) { \
-      return -1;                     \
-    }                                \
+#define DM_INIT_AUDIT()                       \
+  do {                                        \
+    auditCfg.port = tsMonitorPort;            \
+    auditCfg.server = tsMonitorFqdn;          \
+    auditCfg.comp = tsMonitorComp;            \
+    if ((code = auditInit(&auditCfg)) != 0) { \
+      return code;                            \
+    }                                         \
   } while (0)
 
 static SDnode globalDnode = {0};
@@ -41,7 +41,7 @@ static int32_t dmCheckRepeatInit(SDnode *pDnode) {
   if (atomic_val_compare_exchange_8(&pDnode->once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
     dError("env is already initialized");
     code = TSDB_CODE_REPEAT_INIT;
-    return terrno = code;
+    return code;
   }
   return 0;
 }
@@ -61,18 +61,15 @@ static int32_t dmInitMonitor() {
   monCfg.port = tsMonitorPort;
   monCfg.server = tsMonitorFqdn;
   monCfg.comp = tsMonitorComp;
-  if (monInit(&monCfg) != 0) {
-    if (terrno != 0) code = terrno;
-    goto _exit;
+  if ((code = monInit(&monCfg)) != 0) {
+    dError("failed to init monitor since %s", tstrerror(code));
   }
-
-_exit:
-  if (code) terrno = code;
   return code;
 }
 
 static int32_t dmInitAudit() {
   SAuditCfg auditCfg = {0};
+  int32_t   code = 0;
 
   DM_INIT_AUDIT();
 
@@ -91,31 +88,25 @@ static bool dmDataSpaceAvailable() {
   return true;
 }
 
-static bool dmCheckDiskSpace() {
+static int32_t dmCheckDiskSpace() {
   osUpdate();
   // availability
-  bool ret = true;
+  int32_t code = 0;
   if (!dmDataSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_DISKSPACE;
-    ret = false;
+    code = TSDB_CODE_NO_DISKSPACE;
+    return code;
   }
   if (!osLogSpaceAvailable()) {
     dError("log disk space unavailable, i.e. %s", tsLogDir);
-    terrno = TSDB_CODE_NO_DISKSPACE;
-    ret = false;
+    code = TSDB_CODE_NO_DISKSPACE;
+    return code;
   }
   if (!osTempSpaceAvailable()) {
     dError("temp disk space unavailable, i.e. %s", tsTempDir);
-    terrno = TSDB_CODE_NO_DISKSPACE;
-    ret = false;
+    code = TSDB_CODE_NO_DISKSPACE;
+    return code;
   }
-  return ret;
-}
-static int32_t dmCheckDiskSpaceWrapper() {
-  if (!dmCheckDiskSpace()) {
-    return terrno;
-  }
-  return 0;
+  return code;
 }
 
 int32_t tfsOpenWrapper(SDiskCfg *pCfg, int32_t ndisk, STfs **tfs) {
@@ -180,7 +171,10 @@ int32_t dmInit() {
   dInfo("start to init dnode env");
   int32_t code = 0;
   if ((code = dmDiskInit()) != 0) return code;
-  if ((code = dmCheckDataDirVersion()) != 0) return code;
+  if (!dmCheckDataDirVersion()) {
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    return code;
+  }
   if ((code = dmCheckDiskSpace()) != 0) return code;
   if ((code = dmCheckRepeatInit(dmInstance())) != 0) return code;
   if ((code = dmInitSystem()) != 0) return code;

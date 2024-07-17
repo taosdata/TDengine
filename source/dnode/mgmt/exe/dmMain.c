@@ -386,26 +386,26 @@ int mainWindows(int argc, char **argv) {
     return ret;
   }
 
-  if (dmInitLog() != 0) {
+  if ((code = dmInitLog()) != 0) {
     printf("failed to start since init log error\n");
     taosCleanupArgs();
-    return -1;
+    return code;
   }
 
   dmPrintArgs(argc, argv);
 
-  if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
+  if ((code = taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
     dError("failed to start since read config error");
     taosCloseLog();
     taosCleanupArgs();
-    return -1;
+    return code;
   }
 
-  if (taosConvInit() != 0) {
+  if ((code = taosConvInit()) != 0) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();
-    return -1;
+    return code;
   }
 
   if (global.checkS3) {
@@ -438,24 +438,24 @@ int mainWindows(int argc, char **argv) {
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 
-  if (dmGetEncryptKey() != 0) {
+  if ((code = dmGetEncryptKey()) != 0) {
     dError("failed to start since failed to get encrypt key");
     taosCloseLog();
     taosCleanupArgs();
-    return -1;
+    return code;
   };
 
-  if (dmInit() != 0) {
-    if (terrno == TSDB_CODE_NOT_FOUND) {
+  if ((code = dmInit()) != 0) {
+    if (code == TSDB_CODE_NOT_FOUND) {
       dError("failed to init dnode since unsupported platform, please visit https://www.taosdata.com for support");
     } else {
-      dError("failed to init dnode since %s", terrstr());
+      dError("failed to init dnode since %s", tstrerror(code));
     }
 
     taosCleanupCfg();
     taosCloseLog();
     taosConvDestroy();
-    return -1;
+    return code;
   }
 
   dInfo("start to init service");
