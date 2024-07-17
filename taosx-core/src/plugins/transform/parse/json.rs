@@ -533,11 +533,25 @@ impl Parse for Json {
                     let mut list = ListBuilder::with_capacity(builder, capacity);
                     json_values.iter().for_each(|(_n, v)| {
                         if let Some(v) = v.as_ref().and_then(getter) {
-                            list.values().append_value(v.to_string().as_str());
+                            match v.as_array() {
+                                Some(array) => {
+                                    array.iter().for_each(|v| match v {
+                                        JsonValue::String(v) => {
+                                            list.values().append_value(v);
+                                        }
+                                        _ => {
+                                            list.values().append_value(v.to_string());
+                                        }
+                                    });
+                                    list.append(true);
+                                }
+                                None => {
+                                    list.append_null();
+                                }
+                            }
                         } else {
                             list.append_null();
                         }
-                        list.append(true);
                     });
                     let array = Arc::new(list.finish()) as ArrayRef;
                     // set field type to List<Utf8>
@@ -907,6 +921,28 @@ mod tests {
         assert_eq!(records.num_columns(), 3);
         assert_eq!(records.num_rows(), 3);
         assert_eq!(indices, Some(vec![0, 0, 1]));
+    }
+
+    #[test]
+    fn json_de_contains_array() {
+        let extract: Json = serde_json::from_str(
+            r#"{
+                "json": ""
+            }"#,
+        )
+        .unwrap();
+        dbg!(&extract);
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"[{"a1": "a1", "b1": [1,2,3]}, {"a1": "a1", "b1": ["1","2","3"]}, {"a1": "a1", "b1": [true, false, true]}]"#,
+            r#"[{"a1": "a2", "b1": []}, {"a1": "a2", "b1": null}]"#,
+        ]));
+
+        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
     }
 
     #[test]
