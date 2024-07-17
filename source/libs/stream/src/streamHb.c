@@ -275,11 +275,11 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   taosReleaseRef(streamMetaId, rid);
 }
 
-SMetaHbInfo* createMetaHbInfo(int64_t* pRid) {
+int32_t createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes) {
+  *pRes = NULL;
   SMetaHbInfo* pInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
   if (pInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return pInfo;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pInfo->hbTmr = taosTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamTimer);
@@ -287,10 +287,10 @@ SMetaHbInfo* createMetaHbInfo(int64_t* pRid) {
   pInfo->stopFlag = 0;
   pInfo->msgSendTs = -1;
   pInfo->hbCount = 0;
-  return pInfo;
+  return TSDB_CODE_SUCCESS;
 }
 
-void* destroyMetaHbInfo(SMetaHbInfo* pInfo) {
+void destroyMetaHbInfo(SMetaHbInfo* pInfo) {
   if (pInfo != NULL) {
     tCleanupStreamHbMsg(&pInfo->hbMsg);
 
@@ -301,8 +301,6 @@ void* destroyMetaHbInfo(SMetaHbInfo* pInfo) {
 
     taosMemoryFree(pInfo);
   }
-
-  return NULL;
 }
 
 void streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta) {

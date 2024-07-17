@@ -169,11 +169,12 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask);
 void    destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);
 void    clearBufferedDispatchMsg(SStreamTask* pTask);
 
-int32_t           streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
-SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg);
-SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize,
-                                               SArray* pRes);
-void              destroyStreamDataBlock(SStreamDataBlock* pBlock);
+int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
+int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg,
+                                         SStreamDataBlock** pBlock);
+int32_t createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize, SArray* pRes,
+                                     SStreamDataBlock** pBlock);
+void    destroyStreamDataBlock(SStreamDataBlock* pBlock);
 
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData, const char* idstr);
 int32_t streamBroadcastToUpTasks(SStreamTask* pTask, const SSDataBlock* pBlock);
@@ -214,8 +215,8 @@ int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
 void         streamMetaRemoveDB(void* arg, char* key);
 void         streamMetaHbToMnode(void* param, void* tmrId);
-SMetaHbInfo* createMetaHbInfo(int64_t* pRid);
-void*        destroyMetaHbInfo(SMetaHbInfo* pInfo);
+int32_t      createMetaHbInfo(int64_t* pRid, SMetaHbInfo** pRes);
+void         destroyMetaHbInfo(SMetaHbInfo* pInfo);
 void         streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta);
 void         streamMetaGetHbSendInfo(SMetaHbInfo* pInfo, int64_t* pStartTs, int32_t* pSendCount);
 int32_t      streamMetaSendHbHelper(SStreamMeta* pMeta);

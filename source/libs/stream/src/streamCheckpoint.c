@@ -29,10 +29,9 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
 static int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList);
 static void    checkpointTriggerMonitorFn(void* param, void* tmrId);
 
-int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
-                                          int32_t transId, int32_t srcTaskId) {
-  SStreamDataBlock* pChkpoint;
-
+int32_t createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId, int32_t transId,
+                                int32_t srcTaskId, SStreamDataBlock** pRes) {
+  SStreamDataBlock* pChkpoint = NULL;
   int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock), (void**)&pChkpoint);
   if (code) {
     return code;

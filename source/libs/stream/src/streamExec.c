@@ -67,8 +67,10 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
     return TSDB_CODE_SUCCESS;
   }
 
-  SStreamDataBlock* pStreamBlocks = createStreamBlockFromResults(pItem, pTask, size, pRes);
-  if (pStreamBlocks == NULL) {
+  SStreamDataBlock* pStreamBlocks = NULL;
+
+  int32_t code = createStreamBlockFromResults(pItem, pTask, size, pRes, &pStreamBlocks);
+  if (code) {
     stError("s-task:%s failed to create result stream data block, code:%s", pTask->id.idStr, tstrerror(terrno));
     taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -77,7 +79,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
   stDebug("s-task:%s dump stream result data blocks, num:%d, size:%.2fMiB", pTask->id.idStr, numOfBlocks,
          SIZE_IN_MiB(size));
 
-  int32_t code = doOutputResultBlockImpl(pTask, pStreamBlocks);
+  code = doOutputResultBlockImpl(pTask, pStreamBlocks);
   if (code != TSDB_CODE_SUCCESS) {  // back pressure and record position
     return code;
   }
@@ -187,7 +189,12 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
 static int32_t handleSanhistoryResultBlocks(SStreamTask* pTask, SArray* pRes, int32_t size) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (taosArrayGetSize(pRes) > 0) {
-    SStreamDataBlock* pStreamBlocks = createStreamBlockFromResults(NULL, pTask, size, pRes);
+    SStreamDataBlock* pStreamBlocks = NULL;
+    code = createStreamBlockFromResults(NULL, pTask, size, pRes, &pStreamBlocks);
+    if (code) {
+      return code;
+    }
+
     code = doOutputResultBlockImpl(pTask, pStreamBlocks);
     if (code != TSDB_CODE_SUCCESS) {  // should not have error code
       stError("s-task:%s dump fill-history results failed, code:%s", pTask->id.idStr, tstrerror(code));

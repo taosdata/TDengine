@@ -15,13 +15,11 @@
 
 #include "streamInt.h"
 
-SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg) {
-  SStreamDataBlock* pData;
-
+int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg, SStreamDataBlock** pRes) {
+  SStreamDataBlock* pData = NULL;
   int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, pReq->totalLen, (void**)&pData);
   if (code) {
-    terrno = code;
-    return NULL;
+    return terrno = code;
   }
 
   pData->type = blockType;
@@ -32,7 +30,7 @@ SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pRe
   SArray* pArray = taosArrayInit_s(sizeof(SSDataBlock), blockNum);
   if (pArray == NULL) {
     taosFreeQitem(pData);
-    return NULL;
+    return code;
   }
 
   ASSERT((pReq->blockNum == taosArrayGetSize(pReq->data)) && (pReq->blockNum == taosArrayGetSize(pReq->dataLen)));
@@ -69,37 +67,36 @@ SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pRe
   }
 
   pData->blocks = pArray;
-  return pData;
+  *pRes = pData;
+
+  return code;
 }
 
-SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize,
-                                               SArray* pRes) {
-  SStreamDataBlock* pStreamBlocks;
-
-  int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, resultSize, (void**)&pStreamBlocks);
+int32_t createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize, SArray* pRes,
+                                     SStreamDataBlock** pBlock) {
+  int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, resultSize, (void**)pBlock);
   if (code) {
     taosArrayClearEx(pRes, (FDelete)blockDataFreeRes);
-    terrno = code;
-    return NULL;
+    return terrno = code;
   }
 
-  pStreamBlocks->srcTaskId = pTask->id.taskId;
-  pStreamBlocks->type = STREAM_INPUT__DATA_BLOCK;
-  pStreamBlocks->blocks = pRes;
+  (*pBlock)->srcTaskId = pTask->id.taskId;
+  (*pBlock)->type = STREAM_INPUT__DATA_BLOCK;
+  (*pBlock)->blocks = pRes;
 
   if (pItem == NULL) {
-    return pStreamBlocks;
+    return code;
   }
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
-    pStreamBlocks->sourceVer = pSubmit->ver;
+    (*pBlock)->sourceVer = pSubmit->ver;
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)pItem;
-    pStreamBlocks->sourceVer = pMerged->ver;
+    (*pBlock)->sourceVer = pMerged->ver;
   }
 
-  return pStreamBlocks;
+  return code;
 }
 
 void destroyStreamDataBlock(SStreamDataBlock* pBlock) {

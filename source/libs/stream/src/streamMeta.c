@@ -402,9 +402,8 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   memcpy(pRid, &pMeta->rid, sizeof(pMeta->rid));
   metaRefMgtAdd(pMeta->vgId, pRid);
 
-  pMeta->pHbInfo = createMetaHbInfo(pRid);
-  if (pMeta->pHbInfo == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  code = createMetaHbInfo(pRid, &pMeta->pHbInfo);
+  if (code != TSDB_CODE_SUCCESS) {
     goto _err;
   }
 
@@ -538,7 +537,8 @@ void streamMetaCloseImpl(void* arg) {
   taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
   taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
 
-  pMeta->pHbInfo = destroyMetaHbInfo(pMeta->pHbInfo);
+  destroyMetaHbInfo(pMeta->pHbInfo);
+  pMeta->pHbInfo = NULL;
 
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);

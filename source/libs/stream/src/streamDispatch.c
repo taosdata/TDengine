@@ -1408,8 +1408,10 @@ static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchR
 static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq) {
   int8_t status = 0;
 
-  SStreamDataBlock* pBlock = createStreamBlockFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
-  if (pBlock == NULL) {
+  SStreamDataBlock* pBlock = NULL;
+
+  int32_t code = createStreamBlockFromDispatchMsg(pReq, pReq->type, pReq->srcVgId, &pBlock);
+  if (code) {
     streamTaskInputFail(pTask);
     status = TASK_INPUT_STATUS__FAILED;
     stError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
@@ -1419,7 +1421,7 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
       pTask->status.appendTranstateBlock = true;
     }
 
-    int32_t code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pBlock);
+    code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pBlock);
     // input queue is full, upstream is blocked now
     status = (code == TSDB_CODE_SUCCESS) ? TASK_INPUT_STATUS__NORMAL : TASK_INPUT_STATUS__BLOCKED;
   }
