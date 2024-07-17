@@ -266,14 +266,14 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   }
   mInfo("trans:%d, used to create cluster:%" PRId64, pTrans->id, clusterObj.id);
 
-  if (code = mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+  if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  if (code = mndTransPrepare(pMnode, pTrans) != 0) {
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
@@ -369,14 +369,14 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  if (code = mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
-  if (code = mndTransPrepare(pMnode, pTrans) != 0) {
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
@@ -396,7 +396,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   }
 
   mInfo("cluster: start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
-  if (code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER)) != 0) {
     goto _exit;
   }
 

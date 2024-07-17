@@ -248,7 +248,7 @@ static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
 
 static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
   int32_t code = 0;
-  if (code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT) != 0) {
+  if ((code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT)) != 0) {
     TAOS_RETURN(code);
   }
 

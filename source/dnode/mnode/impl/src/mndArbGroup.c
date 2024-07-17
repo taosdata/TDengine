@@ -259,8 +259,8 @@ int32_t mndSetCreateArbGroupRedoLogs(STrans *pTrans, SArbGroup *pGroup) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if (code = mndTransAppendRedolog(pTrans, pRedoRaw) != 0) TAOS_RETURN(code);
-  if (code = sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING) != 0) TAOS_RETURN(code);
+  if ((code = mndTransAppendRedolog(pTrans, pRedoRaw)) != 0) TAOS_RETURN(code);
+  if ((code = sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING)) != 0) TAOS_RETURN(code);
   return 0;
 }
 
@@ -271,8 +271,8 @@ int32_t mndSetCreateArbGroupUndoLogs(STrans *pTrans, SArbGroup *pGroup) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if (code = mndTransAppendUndolog(pTrans, pUndoRaw) != 0) TAOS_RETURN(code);
-  if (code = sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED) != 0) TAOS_RETURN(code);
+  if ((code = mndTransAppendUndolog(pTrans, pUndoRaw)) != 0) TAOS_RETURN(code);
+  if ((code = sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED)) != 0) TAOS_RETURN(code);
   return 0;
 }
 
@@ -283,8 +283,8 @@ int32_t mndSetCreateArbGroupCommitLogs(STrans *pTrans, SArbGroup *pGroup) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if (code = mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) TAOS_RETURN(code);
-  if (code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) TAOS_RETURN(code);
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw) != 0)) TAOS_RETURN(code);
+  if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) TAOS_RETURN(code);
   return 0;
 }
 
@@ -295,8 +295,8 @@ int32_t mndSetDropArbGroupPrepareLogs(STrans *pTrans, SArbGroup *pGroup) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if (code = mndTransAppendPrepareLog(pTrans, pRedoRaw) != 0) TAOS_RETURN(code);
-  if (code = sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) TAOS_RETURN(code);
+  if ((code = mndTransAppendPrepareLog(pTrans, pRedoRaw)) != 0) TAOS_RETURN(code);
+  if ((code = sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING)) != 0) TAOS_RETURN(code);
   return 0;
 }
 
@@ -307,8 +307,8 @@ static int32_t mndSetDropArbGroupRedoLogs(STrans *pTrans, SArbGroup *pGroup) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if (code = mndTransAppendRedolog(pTrans, pRedoRaw) != 0) TAOS_RETURN(code);
-  if (code = sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) TAOS_RETURN(code);
+  if ((code = mndTransAppendRedolog(pTrans, pRedoRaw)) != 0) TAOS_RETURN(code);
+  if ((code = sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING)) != 0) TAOS_RETURN(code);
   return 0;
 }
 
@@ -319,8 +319,8 @@ int32_t mndSetDropArbGroupCommitLogs(STrans *pTrans, SArbGroup *pGroup) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if (code = mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) TAOS_RETURN(code);
-  if (code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) TAOS_RETURN(code);
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) TAOS_RETURN(code);
+  if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) TAOS_RETURN(code);
   return 0;
 }
 
@@ -407,7 +407,7 @@ static int32_t mndProcessArbHbTimer(SRpcMsg *pReq) {
   }
 
   char arbToken[TSDB_ARB_TOKEN_SIZE];
-  if (code = mndGetArbToken(pMnode, arbToken) != 0) {
+  if ((code = mndGetArbToken(pMnode, arbToken)) != 0) {
     mError("failed to get arb token for arb-hb timer");
     pIter = taosHashIterate(pDnodeHash, NULL);
     while (pIter) {
@@ -572,7 +572,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
   void      *pIter = NULL;
 
   char arbToken[TSDB_ARB_TOKEN_SIZE];
-  if (code = mndGetArbToken(pMnode, arbToken) != 0) {
+  if ((code = mndGetArbToken(pMnode, arbToken)) != 0) {
     mError("failed to get arb token for arb-check-sync timer");
     TAOS_RETURN(code);
   }
@@ -792,7 +792,7 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
   size_t sz = 0;
 
   SMArbUpdateGroupBatchReq req = {0};
-  if (code = tDeserializeSMArbUpdateGroupBatchReq(pReq->pCont, pReq->contLen, &req) != 0) {
+  if ((code = tDeserializeSMArbUpdateGroupBatchReq(pReq->pCont, pReq->contLen, &req)) != 0) {
     mError("arb failed to decode arb-update-group request");
     TAOS_RETURN(code);
   }
@@ -830,7 +830,7 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
 
     mndTransAddArbGroupId(pTrans, newGroup.vgId);
 
-    if (code = mndSetCreateArbGroupCommitLogs(pTrans, &newGroup) != 0) {
+    if ((code = mndSetCreateArbGroupCommitLogs(pTrans, &newGroup)) != 0) {
       mError("failed to update arbgroup in set commit log, vgId:%d, trans:%d, since %s", newGroup.vgId, pTrans->id,
              terrstr());
       goto _OVER;
@@ -844,8 +844,8 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pOldGroup);
   }
 
-  if (code = mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
-  if (code = mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  if ((code = mndTransCheckConflict(pMnode, pTrans)) != 0) goto _OVER;
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
   code = 0;
 
@@ -896,16 +896,16 @@ static int32_t mndArbGroupUpdateTrans(SMnode *pMnode, SArbGroup *pNew) {
         pNew->assignedLeader.token, pNew->assignedLeader.acked);
 
   mndTransAddArbGroupId(pTrans, pNew->vgId);
-  if (code = mndTransCheckConflict(pMnode, pTrans) != 0) {
+  if ((code = mndTransCheckConflict(pMnode, pTrans)) != 0) {
     goto _OVER;
   }
 
-  if (code = mndSetCreateArbGroupCommitLogs(pTrans, pNew) != 0) {
+  if ((code = mndSetCreateArbGroupCommitLogs(pTrans, pNew)) != 0) {
     mError("failed to update arbgroup in set commit log, vgId:%d, since %s", pNew->vgId, tstrerror(code));
     goto _OVER;
   }
 
-  if (code = mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
 
   code = 0;
 
@@ -1067,13 +1067,13 @@ static int32_t mndProcessArbHbRsp(SRpcMsg *pRsp) {
   SSdb   *pSdb = pMnode->pSdb;
 
   char arbToken[TSDB_ARB_TOKEN_SIZE];
-  if (code = mndGetArbToken(pMnode, arbToken) != 0) {
+  if ((code = mndGetArbToken(pMnode, arbToken)) != 0) {
     mError("failed to get arb token for arb-hb response");
     TAOS_RETURN(code);
   }
 
   SVArbHeartBeatRsp arbHbRsp = {0};
-  if (code = tDeserializeSVArbHeartBeatRsp(pRsp->pCont, pRsp->contLen, &arbHbRsp) != 0) {
+  if ((code = tDeserializeSVArbHeartBeatRsp(pRsp->pCont, pRsp->contLen, &arbHbRsp)) != 0) {
     mInfo("arb hb-rsp des failed, since:%s", tstrerror(pRsp->code));
     TAOS_RETURN(code);
   }
@@ -1105,13 +1105,13 @@ static int32_t mndProcessArbCheckSyncRsp(SRpcMsg *pRsp) {
   SSdb   *pSdb = pMnode->pSdb;
 
   char arbToken[TSDB_ARB_TOKEN_SIZE];
-  if (code = mndGetArbToken(pMnode, arbToken) != 0) {
+  if ((code = mndGetArbToken(pMnode, arbToken)) != 0) {
     mError("failed to get arb token for arb-check-sync response");
     TAOS_RETURN(code);
   }
 
   SVArbCheckSyncRsp syncRsp = {0};
-  if (code = tDeserializeSVArbCheckSyncRsp(pRsp->pCont, pRsp->contLen, &syncRsp) != 0) {
+  if ((code = tDeserializeSVArbCheckSyncRsp(pRsp->pCont, pRsp->contLen, &syncRsp)) != 0) {
     mInfo("arb check-sync-rsp des failed, since:%s", tstrerror(pRsp->code));
     if (pRsp->code == TSDB_CODE_MND_ARB_TOKEN_MISMATCH) {
       terrno = TSDB_CODE_SUCCESS;
@@ -1128,7 +1128,7 @@ static int32_t mndProcessArbCheckSyncRsp(SRpcMsg *pRsp) {
   }
 
   bool newIsSync = (syncRsp.errCode == TSDB_CODE_SUCCESS);
-  if (code = mndUpdateArbSync(pMnode, syncRsp.vgId, syncRsp.member0Token, syncRsp.member1Token, newIsSync) != 0) {
+  if ((code = mndUpdateArbSync(pMnode, syncRsp.vgId, syncRsp.member0Token, syncRsp.member1Token, newIsSync)) != 0) {
     mInfo("failed to update arb sync for vgId:%d, since:%s", syncRsp.vgId, terrstr());
     goto _OVER;
   }
@@ -1183,13 +1183,13 @@ static int32_t mndProcessArbSetAssignedLeaderRsp(SRpcMsg *pRsp) {
   SSdb   *pSdb = pMnode->pSdb;
 
   char arbToken[TSDB_ARB_TOKEN_SIZE];
-  if (code = mndGetArbToken(pMnode, arbToken) != 0) {
+  if ((code = mndGetArbToken(pMnode, arbToken)) != 0) {
     mError("failed to get arb token for arb-set-assigned response");
     TAOS_RETURN(code);
   }
 
   SVArbSetAssignedLeaderRsp setAssignedRsp = {0};
-  if (code = tDeserializeSVArbSetAssignedLeaderRsp(pRsp->pCont, pRsp->contLen, &setAssignedRsp) != 0) {
+  if ((code = tDeserializeSVArbSetAssignedLeaderRsp(pRsp->pCont, pRsp->contLen, &setAssignedRsp)) != 0) {
     mInfo("arb set-assigned-rsp des failed, since:%s", tstrerror(pRsp->code));
     TAOS_RETURN(code);
   }
@@ -1213,7 +1213,7 @@ static int32_t mndProcessArbSetAssignedLeaderRsp(SRpcMsg *pRsp) {
   bool updateAssigned = mndUpdateArbGroupBySetAssignedLeader(pGroup, setAssignedRsp.vgId, setAssignedRsp.memberToken,
                                                              pRsp->code, &newGroup);
   if (updateAssigned) {
-    if (code = mndPullupArbUpdateGroup(pMnode, &newGroup) != 0) {
+    if ((code = mndPullupArbUpdateGroup(pMnode, &newGroup)) != 0) {
       mInfo("failed to pullup update arb assigned for vgId:%d, since:%s", setAssignedRsp.vgId, tstrerror(code));
       goto _OVER;
     }
