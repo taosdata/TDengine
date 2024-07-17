@@ -222,8 +222,8 @@ typedef struct SMetaInfo {
 int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pReader);
 
 // tsdb
-int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback, bool force);
-int     tsdbClose(STsdb** pTsdb);
+int32_t tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback, bool force);
+int32_t tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbPrepareCommit(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);

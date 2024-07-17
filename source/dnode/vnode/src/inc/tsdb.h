@@ -259,7 +259,6 @@ int32_t tsdbGetNRowsInTbData(STbData *pTbData);
 typedef enum { TSDB_HEAD_FILE = 0, TSDB_DATA_FILE, TSDB_LAST_FILE, TSDB_SMA_FILE } EDataFileT;
 
 bool    tsdbDelFileIsSame(SDelFile *pDelFile1, SDelFile *pDelFile2);
-int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype);
 int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile);
 int32_t tPutDataFile(uint8_t *p, SDataFile *pDataFile);
 int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile);
