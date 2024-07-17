@@ -12815,6 +12815,7 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt) 
   int32_t  numOfTags = getNumOfTags(pParFileCxt->pStbMeta);
   uint8_t  precision = getTableInfo(pParFileCxt->pStbMeta).precision;
   SSchema* pSchemas = getTableTagSchema(pParFileCxt->pStbMeta);
+  bool     isJson = false;
   for (int i = 0; i < sz; i++) {
     const char* pSql = pParFileCxt->pSql;
 
@@ -12832,6 +12833,7 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt) 
       // parse tag
       const SSchema* pTagSchema = &pSchemas[index];
 
+      isJson = (pTagSchema->type == TSDB_DATA_TYPE_JSON);
       code = checkAndTrimValue(&token, pParFileCxt->tmpTokenBuf, pMsgBuf, pTagSchema->type);
       if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
         code = buildInvalidOperationMsg(pMsgBuf, "not expected row value");
@@ -12859,7 +12861,9 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt) 
 
   if (TSDB_CODE_SUCCESS == code) {
     pParFileCxt->tagNameFilled = true;
-    code = tTagNew(pParFileCxt->aTagVals, 1, false, &pParFileCxt->pTag);
+    if (!isJson) {
+      code = tTagNew(pParFileCxt->aTagVals, 1, false, &pParFileCxt->pTag);
+    }
   }
 
   return code;

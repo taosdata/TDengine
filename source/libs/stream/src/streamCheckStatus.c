@@ -310,7 +310,7 @@ void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo) {
 
   taosArrayDestroy(pInfo->pList);
   pInfo->pList = NULL;
-  
+
   if (pInfo->checkRspTmr != NULL) {
     /*bool ret = */ taosTmrStop(pInfo->checkRspTmr);
     pInfo->checkRspTmr = NULL;

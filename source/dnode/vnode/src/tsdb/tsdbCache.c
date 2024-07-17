@@ -2579,7 +2579,7 @@ typedef struct {
 static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
                             tb_uid_t uid, SCacheRowsReader *pr, int64_t lastTs, int16_t *aCols, int nCols) {
   int32_t code = 0;
-  pr->pLDataIterArray = destroySttBlockReader(pr->pLDataIterArray, NULL);
+  destroySttBlockReader(pr->pLDataIterArray, NULL);
   pr->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
   SMergeTreeConf conf = {
@@ -3212,7 +3212,10 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   pIter->pMemDelData = NULL;
 
-  loadMemTombData(&pIter->pMemDelData, pMem, pIMem, pr->info.verRange.maxVer);
+  code = loadMemTombData(&pIter->pMemDelData, pMem, pIMem, pr->info.verRange.maxVer);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
 
   pIter->idx = (SBlockIdx){.suid = suid, .uid = uid};
 

@@ -103,7 +103,7 @@ typedef void* queue[2];
 #define TRANS_MAGIC_NUM           0x5f375a86
 #define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
 
-typedef SRpcMsg      STransMsg;
+typedef struct SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
 typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;

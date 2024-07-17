@@ -336,7 +336,7 @@ extern SSchedulerMgmt schMgmt;
   ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && (!SCH_IS_INSERT_JOB(_job)) && \
    (!SCH_IS_DATA_BIND_QRY_TASK(_task)))
 
-#define SCH_UPDATE_REDIRECT_CODE(job, _code) atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
+#define SCH_UPDATE_REDIRECT_CODE(job, _code) (void)atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
 #define SCH_GET_REDIRECT_CODE(job, _code) \
   (((!NO_RET_REDIRECT_ERROR(_code)) || (job)->redirectCode == 0) ? (_code) : (job)->redirectCode)
 
@@ -413,7 +413,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_START_TS(_task)               \
   do {                                             \
     int64_t us = taosGetTimestampUs();             \
-    taosArrayPush((_task)->profile.execTime, &us); \
+    (void)taosArrayPush((_task)->profile.execTime, &us); \
     if (0 == (_task)->execId) {                    \
       (_task)->profile.startTs = us;               \
     }                                              \
@@ -422,7 +422,10 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_LOG_TASK_WAIT_TS(_task)                                                                         \
   do {                                                                                                      \
     int64_t us = taosGetTimestampUs();                                                                      \
-    (_task)->profile.waitTime += us - *(int64_t *)taosArrayGet((_task)->profile.execTime, (_task)->execId); \
+    int64_t* startus = (int64_t*)taosArrayGet((_task)->profile.execTime, (_task)->execId);                  \
+    if (NULL != startus) {                                                                                  \
+      (_task)->profile.waitTime += us - *startus;                                                           \
+    }                                                                                                       \
   } while (0)
 
 #define SCH_LOG_TASK_END_TS(_task)                                               \
@@ -430,7 +433,9 @@ extern SSchedulerMgmt schMgmt;
     int64_t  us = taosGetTimestampUs();                                          \
     int32_t  idx = (_task)->execId % (_task)->maxExecTimes;                      \
     int64_t *startts = taosArrayGet((_task)->profile.execTime, (_task)->execId); \
-    *startts = us - *startts;                                                    \
+    if (NULL != startts) {                                                       \
+        *startts = us - *startts;                                                \
+    }                                                                            \
     (_task)->profile.endTs = us;                                                 \
   } while (0)
 
@@ -538,7 +543,7 @@ void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
 int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType, void *param);
-SSchJob *schAcquireJob(int64_t refId);
+int32_t  schAcquireJob(int64_t refId, SSchJob **ppJob);
 int32_t  schReleaseJob(int64_t refId);
 void     schFreeFlowCtrl(SSchJob *pJob);
 int32_t  schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel);
@@ -578,12 +583,12 @@ int32_t  schJobFetchRows(SSchJob *pJob);
 int32_t  schJobFetchRowsA(SSchJob *pJob);
 int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execId);
 int32_t  schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList);
-char    *schDumpEpSet(SEpSet *pEpSet);
+int32_t  schDumpEpSet(SEpSet *pEpSet, char** ppRes);
 char    *schGetOpStr(SCH_OP_TYPE type);
 int32_t  schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 int32_t  schInitJob(int64_t *pJobId, SSchedulerReq *pReq);
 int32_t  schExecJob(SSchJob *pJob, SSchedulerReq *pReq);
-int32_t  schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes);
+void     schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes);
 int32_t  schUpdateTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet);
 int32_t  schHandleTaskSetRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32_t rspCode);
 void     schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq, int32_t errCode);
@@ -606,7 +611,7 @@ void     schFreeTask(SSchJob *pJob, SSchTask *pTask);
 void     schDropTaskInHashList(SSchJob *pJob, SHashObj *list);
 int32_t  schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType type, SSchTask *pTask);
 int32_t  schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level);
-int32_t  schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
+void     schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
 int32_t  schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel);
 int32_t  schSwitchTaskCandidateAddr(SSchJob *pJob, SSchTask *pTask);
 void     schDirectPostJobRes(SSchedulerReq *pReq, int32_t errCode);

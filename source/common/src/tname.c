@@ -293,17 +293,19 @@ static int compareKv(const void* p1, const void* p2) {
 /*
  * use stable name and tags to grearate child table name
  */
-void buildChildTableName(RandTableName* rName) {
+int32_t buildChildTableName(RandTableName* rName) {
   SStringBuilder sb = {0};
   taosStringBuilderAppendStringLen(&sb, rName->stbFullName, rName->stbFullNameLen);
   if (sb.buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');
     SSmlKv* tagKv = taosArrayGet(rName->tags, j);
+    if(tagKv == NULL) {
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
     taosStringBuilderAppendChar(&sb, '=');
     if (IS_VAR_DATA_TYPE(tagKv->type)) {
@@ -323,8 +325,9 @@ void buildChildTableName(RandTableName* rName) {
   rName->ctbShortName[0] = 't';
   rName->ctbShortName[1] = '_';
   for (int i = 0; i < 16; i++) {
-    sprintf(temp, "%02x", context.digest[i]);
-    strcat(rName->ctbShortName, temp);
+    (void)sprintf(temp, "%02x", context.digest[i]);
+    (void)strcat(rName->ctbShortName, temp);
   }
   taosStringBuilderDestroy(&sb);
+  return TSDB_CODE_SUCCESS;
 }
