@@ -251,9 +251,9 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) {
-    mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, terrstr());
+    mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, tstrerror(code));
     goto _OVER;
   }
 

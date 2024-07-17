@@ -2851,8 +2851,9 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   int32_t       code = -1;
   STableInfoReq infoReq = {0};
   STableMetaRsp metaRsp = {0};
+  SUserObj     *pUser = NULL;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
 

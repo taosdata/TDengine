@@ -871,6 +871,7 @@ _exit:
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
+  int32_t      lino = 0;
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
@@ -931,10 +932,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
   code = mndCreateDb(pMnode, pReq, &createReq, pUser);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -946,7 +944,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to create since %s", createReq.db, terrstr());
+    mError("db:%s, failed to create at line %d since %s", createReq.db, lino, terrstr());
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -2397,9 +2395,10 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   SDbObj    *pDb = NULL;
+  SUserObj  *pUser = NULL;
   ESdbStatus objStatus = 0;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
 

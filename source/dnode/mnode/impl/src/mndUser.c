@@ -1305,12 +1305,13 @@ static int32_t mndUserActionInsert(SSdb *pSdb, SUserObj *pUser) {
   return 0;
 }
 
-SHashObj *mndDupTableHash(SHashObj *pOld) {
-  SHashObj *pNew =
+int32_t mndDupTableHash(SHashObj *pOld, SHashObj **ppNew) {
+  *ppNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (pNew == NULL) {
+  if (*ppNew == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
+    TAOS_CHECK_RETURN(NULL);
   }
 
   char *tb = taosHashIterate(pOld, NULL);
@@ -1443,17 +1444,18 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   return 0;
 }
 
-SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName) {
+int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser) {
+  int32_t   code = 0;
   SSdb     *pSdb = pMnode->pSdb;
   SUserObj *pUser = sdbAcquire(pSdb, SDB_USER, userName);
   if (pUser == NULL) {
-    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
-      terrno = TSDB_CODE_MND_USER_NOT_EXIST;
+    if (code == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+      code = TSDB_CODE_MND_USER_NOT_EXIST;
     } else {
-      terrno = TSDB_CODE_MND_USER_NOT_AVAILABLE;
+      code = TSDB_CODE_MND_USER_NOT_AVAILABLE;
     }
   }
-  return pUser;
+  TAOS_RETURN(code);
 }
 
 void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
@@ -1552,21 +1554,21 @@ _OVER:
 
 static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
-  int32_t        code = -1;
+  int32_t        code = 0;
+  int32_t        lino = 0;
   SUserObj      *pUser = NULL;
   SUserObj      *pOperUser = NULL;
   SCreateUserReq createReq = {0};
 
   if (tDeserializeSCreateUserReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
   }
 
   mInfo("user:%s, start to create, createdb:%d, is_import:%d", createReq.user, createReq.isImport, createReq.createDb);
 
 #ifndef TD_ENTERPRISE
   if (createReq.isImport == 1) {
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_OPS_NOT_SUPPORT, &lino, _OVER);  // enterprise feature
   }
 #endif
 
@@ -1599,15 +1601,15 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, createReq.user);
+  code = mndAcquireUser(pMnode, createReq.user, &pUser);
   if (pUser != NULL) {
     terrno = TSDB_CODE_MND_USER_ALREADY_EXIST;
     goto _OVER;
   }
 
-  pOperUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
   if (pOperUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    code = TSDB_CODE_MND_NO_USER_FROM_CONN;
     goto _OVER;
   }
 
@@ -1615,6 +1617,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     code = terrno;
     goto _OVER;
   }
+  TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_USER), &lino, _OVER);
 
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1640,7 +1643,7 @@ _OVER:
   mndReleaseUser(pMnode, pOperUser);
   tFreeSCreateUserReq(&createReq);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
@@ -1681,7 +1684,7 @@ int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseUser(pMnode, pUser);
   tFreeSGetUserWhiteListRsp(&wlRsp);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
@@ -1736,32 +1739,34 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
   return 0;
 }
 
-SHashObj *mndDupObjHash(SHashObj *pOld, int32_t dataLen) {
-  SHashObj *pNew =
+static int32_t mndDupObjHash(SHashObj *pOld, int32_t dataLen, SHashObj **ppNew) {
+  int32_t code = 0;
+
+  *ppNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (pNew == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+  if (*ppNew == NULL) {
+    code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
   }
 
   char *db = taosHashIterate(pOld, NULL);
   while (db != NULL) {
     int32_t len = strlen(db) + 1;
-    if (taosHashPut(pNew, db, len, db, dataLen) != 0) {
+    if ((code = taosHashPut(*ppNew, db, len, db, dataLen)) != 0) {
+      if (terrno != 0) code = terrno;  // TODO: remove this line after terrno is removed
       taosHashCancelIterate(pOld, db);
-      taosHashCleanup(pNew);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
+      taosHashCleanup(*ppNew);
+      TAOS_RETURN(code);
     }
     db = taosHashIterate(pOld, db);
   }
 
-  return pNew;
+  TAOS_RETURN(code);
 }
 
-SHashObj *mndDupDbHash(SHashObj *pOld) { return mndDupObjHash(pOld, TSDB_DB_FNAME_LEN); }
+int32_t mndDupDbHash(SHashObj *pOld, SHashObj **ppNew) { return mndDupObjHash(pOld, TSDB_DB_FNAME_LEN, ppNew); }
 
-SHashObj *mndDupTopicHash(SHashObj *pOld) { return mndDupObjHash(pOld, TSDB_TOPIC_FNAME_LEN); }
+int32_t mndDupTopicHash(SHashObj *pOld, SHashObj **ppNew) { return mndDupObjHash(pOld, TSDB_TOPIC_FNAME_LEN, ppNew); }
 
 static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj *useDbHash, SAlterUserReq *alterReq,
                                   SSdb *pSdb) {
@@ -2300,7 +2305,7 @@ _OVER:
 
 static int32_t mndProcessGetUserAuthReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
-  int32_t         code = -1;
+  int32_t         code = 0;
   SUserObj       *pUser = NULL;
   SGetUserAuthReq authReq = {0};
   SGetUserAuthRsp authRsp = {0};
@@ -2312,25 +2317,17 @@ static int32_t mndProcessGetUserAuthReq(SRpcMsg *pReq) {
 
   mTrace("user:%s, start to get auth", authReq.user);
 
-  pUser = mndAcquireUser(pMnode, authReq.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_USER_NOT_EXIST;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, authReq.user, &pUser), NULL, _OVER);
 
-  code = mndSetUserAuthRsp(pMnode, pUser, &authRsp);
-  if (code) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndSetUserAuthRsp(pMnode, pUser, &authRsp), NULL, _OVER);
 
   int32_t contLen = tSerializeSGetUserAuthRsp(NULL, 0, &authRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
   }
 
-  tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp);
+  TAOS_CHECK_GOTO(tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp), NULL, _OVER);
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -2341,7 +2338,7 @@ _OVER:
   mndReleaseUser(pMnode, pUser);
   tFreeSGetUserAuthRsp(&authRsp);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

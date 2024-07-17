@@ -29,14 +29,14 @@ enum {
 };
 int32_t   mndInitUser(SMnode *pMnode);
 void      mndCleanupUser(SMnode *pMnode);
-SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName);
+int32_t   mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser);
 void      mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
 
 // for trans test
 SSdbRaw  *mndUserActionEncode(SUserObj *pUser);
-SHashObj *mndDupDbHash(SHashObj *pOld);
-SHashObj *mndDupTableHash(SHashObj *pOld);
-SHashObj *mndDupTopicHash(SHashObj *pOld);
+int32_t   mndDupDbHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t   mndDupTableHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t mndDupTopicHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t   mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                   int32_t *pRspLen, int64_t ipWhiteListVer);
 int32_t   mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db);
