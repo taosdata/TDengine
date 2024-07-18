@@ -799,11 +799,11 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   stDebug("s-task:%s in sending checkpoint-ready msg monitor timer", id);
 
   taosThreadMutexLock(&pTask->lock);
-  SStreamTaskState* pState = streamTaskGetStatus(pTask);
-  if (pState->state != TASK_STATUS__CK) {
+  SStreamTaskState pState = streamTaskGetStatus(pTask);
+  if (pState.state != TASK_STATUS__CK) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s vgId:%d status:%s not in checkpoint, quit from monitor checkpoint-ready send, ref:%d", id, vgId,
-            pState->name, ref);
+            pState.name, ref);
     taosThreadMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
@@ -1118,7 +1118,11 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
     return TSDB_CODE_SUCCESS;
   }
 
-  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
+  SStreamUpstreamEpInfo* pInfo = NULL;
+  int32_t code = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   STaskCheckpointReadyInfo info = {0};
   initCheckpointReadyInfo(&info, pInfo->nodeId, pInfo->taskId, pInfo->childId, &pInfo->epSet, checkpointId);
@@ -1313,7 +1317,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
         if (delayDispatch) {
           taosThreadMutexLock(&pTask->lock);
           // we only set the dispatch msg info for current checkpoint trans
-          if (streamTaskGetStatus(pTask)->state == TASK_STATUS__CK &&
+          if (streamTaskGetStatus(pTask).state == TASK_STATUS__CK &&
               pTask->chkInfo.pActiveInfo->activeId == pMsgInfo->checkpointId) {
             ASSERT(pTask->chkInfo.pActiveInfo->transId == pMsgInfo->transId);
             stDebug("s-task:%s checkpoint-trigger msg to 0x%x rsp for checkpointId:%" PRId64 " transId:%d confirmed",
@@ -1404,8 +1408,10 @@ static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchR
 static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq) {
   int8_t status = 0;
 
-  SStreamDataBlock* pBlock = createStreamBlockFromDispatchMsg(pReq, pReq->type, pReq->srcVgId);
-  if (pBlock == NULL) {
+  SStreamDataBlock* pBlock = NULL;
+
+  int32_t code = createStreamBlockFromDispatchMsg(pReq, pReq->type, pReq->srcVgId, &pBlock);
+  if (code) {
     streamTaskInputFail(pTask);
     status = TASK_INPUT_STATUS__FAILED;
     stError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
@@ -1415,7 +1421,7 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
       pTask->status.appendTranstateBlock = true;
     }
 
-    int32_t code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pBlock);
+    code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pBlock);
     // input queue is full, upstream is blocked now
     status = (code == TSDB_CODE_SUCCESS) ? TASK_INPUT_STATUS__NORMAL : TASK_INPUT_STATUS__BLOCKED;
   }
@@ -1431,8 +1437,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64 ", msgId:%d", id,
           pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen, pReq->msgId);
 
-  SStreamUpstreamEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
-  ASSERT(pInfo != NULL);
+  SStreamUpstreamEpInfo* pInfo = NULL;
+  int32_t code = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   if (pMeta->role == NODE_ROLE_FOLLOWER) {
     stError("s-task:%s task on follower received dispatch msgs, dispatch msg rejected", id);
@@ -1465,10 +1474,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 
   {
     // do send response with the input status
-    int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
+    code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to build dispatch rsp, msgId:%d, code:%s", id, pReq->msgId, tstrerror(code));
-      terrno = code;
       return code;
     }
 
@@ -1477,5 +1485,5 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   streamTrySchedExec(pTask);
-  return 0;
+  return code;
 }

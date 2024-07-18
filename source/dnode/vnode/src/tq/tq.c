@@ -93,10 +93,11 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
 
 int32_t tqInitialize(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
-  pTq->pStreamMeta =
-      streamMetaOpen(pTq->path, pTq, tqBuildStreamTask, tqExpandStreamTask, vgId, -1, tqStartTaskCompleteCallback);
-  if (pTq->pStreamMeta == NULL) {
-    return -1;
+
+  int32_t code = streamMetaOpen(pTq->path, pTq, tqBuildStreamTask, tqExpandStreamTask, vgId, -1,
+                                tqStartTaskCompleteCallback, &pTq->pStreamMeta);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   streamMetaLoadAllTasks(pTq->pStreamMeta);
@@ -749,7 +750,7 @@ int32_t tqBuildStreamTask(void* pTqObj, SStreamTask* pTask, int64_t nextProcessV
   SCheckpointInfo* pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
 
-  char* p = streamTaskGetStatus(pTask)->name;
+  char* p = streamTaskGetStatus(pTask).name;
   const char* pNext = streamTaskGetStatusStr(pTask->status.taskStatus);
 
   if (pTask->info.fillHistory) {
@@ -838,7 +839,8 @@ int32_t handleStep2Async(SStreamTask* pStreamTask, void* param) {
 
   SStreamMeta* pMeta = pStreamTask->pMeta;
   STaskId      hId = pStreamTask->hTaskInfo.id;
-  SStreamTask* pTask = streamMetaAcquireTask(pStreamTask->pMeta, hId.streamId, hId.taskId);
+  SStreamTask* pTask = NULL;
+  int32_t code = streamMetaAcquireTask(pStreamTask->pMeta, hId.streamId, hId.taskId, &pTask);
   if (pTask == NULL) {
     tqWarn("s-task:0x%x failed to acquired it to exec step 2, scan wal quit", (int32_t) hId.taskId);
     return TSDB_CODE_SUCCESS;
@@ -856,7 +858,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamMeta*           pMeta = pTq->pStreamMeta;
   int32_t                code = TSDB_CODE_SUCCESS;
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+  SStreamTask* pTask = NULL;
+  code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
   if (pTask == NULL) {
     tqError("vgId:%d failed to acquire stream task:0x%x during scan history data, task may have been destroyed",
             pMeta->vgId, pReq->taskId);
@@ -865,7 +868,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
   // do recovery step1
   const char* id = pTask->id.idStr;
-  char*       pStatus = streamTaskGetStatus(pTask)->name;
+  char*       pStatus = streamTaskGetStatus(pTask).name;
 
   // avoid multi-thread exec
   while (1) {
@@ -921,15 +924,15 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (retInfo.ret == TASK_SCANHISTORY_REXEC) {
       streamExecScanHistoryInFuture(pTask, retInfo.idleTime);
     } else {
-      SStreamTaskState* p = streamTaskGetStatus(pTask);
-      ETaskStatus       s = p->state;
+      SStreamTaskState  p = streamTaskGetStatus(pTask);
+      ETaskStatus       s = p.state;
 
       if (s == TASK_STATUS__PAUSE) {
         tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs total:%.2fs, sched-status:%d", pTask->id.idStr,
                 el, pTask->execInfo.step1El, status);
       } else if (s == TASK_STATUS__STOP || s == TASK_STATUS__DROPPING) {
         tqDebug("s-task:%s status:%p not continue scan-history data, total elapsed time:%.2fs quit", pTask->id.idStr,
-                p->name, pTask->execInfo.step1El);
+                p.name, pTask->execInfo.step1El);
       }
     }
 
@@ -943,7 +946,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   ASSERT(pTask->info.fillHistory == 1);
 
   // 1. get the related stream task
-  SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
+  SStreamTask* pStreamTask = NULL;
+  code = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId, &pStreamTask);
   if (pStreamTask == NULL) {
     tqError("failed to find s-task:0x%" PRIx64 ", it may have been destroyed, drop related fill-history task:%s",
             pTask->streamTaskId.taskId, pTask->id.idStr);
@@ -1103,7 +1107,8 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     return TSDB_CODE_SUCCESS;
   }
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
+  SStreamTask* pTask = NULL;
+  code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. checkpointId:%" PRId64
             " transId:%d it may have been destroyed",
@@ -1129,7 +1134,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   // todo save the checkpoint failed info
   taosThreadMutexLock(&pTask->lock);
-  ETaskStatus status = streamTaskGetStatus(pTask)->state;
+  ETaskStatus status = streamTaskGetStatus(pTask).state;
 
   if (req.mndTrigger == 1) {
     if (status == TASK_STATUS__HALT || status == TASK_STATUS__PAUSE) {
