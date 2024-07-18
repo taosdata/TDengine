@@ -1319,7 +1319,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
   if (hasRemainTbName(pInfo)) {
     code = buildStreamCreateTableResult(pOperator);
     TSDB_CHECK_CODE(code, lino, _end);
-    if (pInfo->pCreateTbRes->info.rows > 0) {
+    if (pInfo->pCreateTbRes && pInfo->pCreateTbRes->info.rows > 0) {
       return pInfo->pCreateTbRes;
     }
   }
