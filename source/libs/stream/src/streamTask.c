@@ -1025,14 +1025,16 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->pReadyMsgList = taosArrayDestroy(pInfo->pReadyMsgList);
   pInfo->pCheckpointReadyRecvList = taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
 
-  if (pInfo->pChkptTriggerTmr != NULL) {
-    taosTmrStop(pInfo->pChkptTriggerTmr);
-    pInfo->pChkptTriggerTmr = NULL;
+  SStreamTmrInfo* pTriggerTmr = &pInfo->chkptTriggerMsgTmr;
+  if (pTriggerTmr->tmrHandle != NULL) {
+    taosTmrStop(pTriggerTmr->tmrHandle);
+    pTriggerTmr->tmrHandle = NULL;
   }
 
-  if (pInfo->pSendReadyMsgTmr != NULL) {
-    taosTmrStop(pInfo->pSendReadyMsgTmr);
-    pInfo->pSendReadyMsgTmr = NULL;
+  SStreamTmrInfo* pReadyTmr = &pInfo->chkptReadyMsgTmr;
+  if (pReadyTmr->tmrHandle != NULL) {
+    taosTmrStop(pReadyTmr->tmrHandle);
+    pReadyTmr->tmrHandle = NULL;
   }
 
   taosMemoryFree(pInfo);
