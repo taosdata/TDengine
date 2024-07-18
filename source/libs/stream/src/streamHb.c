@@ -284,7 +284,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
 
     code = taosReleaseRef(streamMetaId, rid);
     if (code) {
-      stError("vgId:%d in meta timer, failed to release the meta rid:%d", pMeta->vgId, rid);
+      stError("vgId:%d in meta timer, failed to release the meta rid:%" PRId64, pMeta->vgId, rid);
     }
     return;
   }
@@ -301,7 +301,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
 
   code = taosReleaseRef(streamMetaId, rid);
   if (code) {
-    stError("vgId:%d in meta timer, failed to release the meta rid:%d", pMeta->vgId, rid);
+    stError("vgId:%d in meta timer, failed to release the meta rid:%" PRId64, pMeta->vgId, rid);
   }
 }
 
