@@ -713,6 +713,7 @@ int32_t sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void
       if (!pNewPos || !pNewPos->pRowBuff) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         taosMemoryFreeClear(pData);
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         return code;
       }
       memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));

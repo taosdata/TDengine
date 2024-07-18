@@ -1374,7 +1374,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
   pInfo->pTbNameIte = taosHashIterate(pInfo->pPartitions, NULL);
   code = buildStreamCreateTableResult(pOperator);
   TSDB_CHECK_CODE(code, lino, _end);
-  if (pInfo->pCreateTbRes->info.rows > 0) {
+  if (pInfo->pCreateTbRes && pInfo->pCreateTbRes->info.rows > 0) {
     return pInfo->pCreateTbRes;
   }
   return buildStreamPartitionResult(pOperator);
