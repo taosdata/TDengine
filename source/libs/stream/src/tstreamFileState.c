@@ -484,9 +484,9 @@ _end:
 
 void deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
   int32_t code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, keyLen);
-  qTrace("%s at line %d res:%s", __func__, __LINE__, code_buff);
+  qTrace("%s at line %d res:%d", __func__, __LINE__, code_buff);
   int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
-  qTrace("%s at line %d res:%s", __func__, __LINE__, code_file);
+  qTrace("%s at line %d res:%d", __func__, __LINE__, code_file);
 }
 
 int32_t resetRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
@@ -682,7 +682,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     if (ts < mark) {
       // statekey winkey.ts < mark
       int32_t tmpRes = forceRemoveCheckpoint(pFileState, i);
-      qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
       break;
     }
   }
@@ -696,7 +696,7 @@ void recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
                        ? INT64_MIN
                        : pFileState->maxTs - pFileState->deleteMark;
     int32_t tmpRes = deleteExpiredCheckPoint(pFileState, mark);
-    qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+    qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
   }
 
   SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileState->pFileStore, INT64_MAX);
@@ -731,7 +731,7 @@ void recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
                        ? INT64_MIN
                        : pFileState->maxTs - pFileState->deleteMark;
     int32_t tmpRes = deleteExpiredCheckPoint(pFileState, mark);
-    qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+    qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
   }
 
   SStreamStateCur* pCur = streamStateSeekToLast_rocksdb(pFileState->pFileStore);

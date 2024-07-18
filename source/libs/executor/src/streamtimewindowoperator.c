@@ -2352,7 +2352,7 @@ int32_t compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeWi
   TSDB_CHECK_CODE(code, lino, _end);
 
   int32_t tmpRes = tSimpleHashRemove(pStUpdated, &pNextWin->sessionWin, sizeof(SSessionKey));
-  qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+  qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
 
   if (pNextWin->isOutput && pStDeleted) {
     qDebug("===stream=== save delete window info %" PRId64 ", %" PRIu64, pNextWin->sessionWin.win.skey,
