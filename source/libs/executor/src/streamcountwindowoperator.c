@@ -140,21 +140,21 @@ static void removeCountResult(SSHashObj* pHashMap, SSHashObj* pResMap, SSessionK
   getSessionHashKey(pKey, &key);
   int32_t code = tSimpleHashRemove(pHashMap, &key, sizeof(SSessionKey));
   if (code != TSDB_CODE_SUCCESS) {
-    qWarn("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    qInfo("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }
 
   code = tSimpleHashRemove(pResMap, &key, sizeof(SSessionKey));
   if (code != TSDB_CODE_SUCCESS) {
-    qWarn("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    qInfo("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }
 }
 
 static int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowInfo* pWinInfo, TSKEY* pTs,
                                      int32_t start, int32_t rows, int32_t maxRows, SSHashObj* pStUpdated,
-                                     SSHashObj* pStDeleted, bool* pRebuild) {
-  SSessionKey sWinKey = pWinInfo->winInfo.sessionWin;
+                                     SSHashObj* pStDeleted, bool* pRebuild, int32_t* pWinRows) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
+  SSessionKey sWinKey = pWinInfo->winInfo.sessionWin;
   int32_t     num = 0;
   for (int32_t i = start; i < rows; i++) {
     if (pTs[i] < pWinInfo->winInfo.sessionWin.win.ekey) {
@@ -173,9 +173,7 @@ static int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowI
     needDelState = true;
     if (pStDeleted && pWinInfo->winInfo.isOutput) {
       code = saveDeleteRes(pStDeleted, pWinInfo->winInfo.sessionWin);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      }
+      TSDB_CHECK_CODE(code, lino, _end);
     }
 
     pWinInfo->winInfo.sessionWin.win.skey = pTs[start];
@@ -194,7 +192,13 @@ static int32_t updateCountWindowInfo(SStreamAggSupporter* pAggSup, SCountWindowI
     }
   }
 
-  return maxNum;
+  (*pWinRows) = maxNum;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 void getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, EStreamType mode, SSessionKey* pDelRange) {
@@ -292,8 +296,9 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     setSessionWinOutputInfo(pStUpdated, &curWin.winInfo);
     slidingRows = *curWin.pWindowCount;
     if (!buffInfo.rebuildWindow) {
-      winRows = updateCountWindowInfo(pAggSup, &curWin, startTsCols, i, rows, pAggSup->windowCount, pStUpdated,
-                                      pStDeleted, &buffInfo.rebuildWindow);
+      code = updateCountWindowInfo(pAggSup, &curWin, startTsCols, i, rows, pAggSup->windowCount, pStUpdated,
+                                      pStDeleted, &buffInfo.rebuildWindow, &winRows);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
     if (buffInfo.rebuildWindow) {
       SSessionKey range = {0};
@@ -655,7 +660,8 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
       continue;
     } else if (pBlock->info.type == STREAM_GET_ALL) {
       pInfo->recvGetAll = true;
-      getAllSessionWindow(pAggSup->pResultRows, pInfo->pStUpdated);
+      code = getAllSessionWindow(pAggSup->pResultRows, pInfo->pStUpdated);
+      TSDB_CHECK_CODE(code, lino, _end);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
       return pBlock;
@@ -696,7 +702,8 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
   TSDB_CHECK_CODE(code, lino, _end);
 
   if (pInfo->destHasPrimaryKey && IS_NORMAL_COUNT_OP(pOperator)) {
-    copyDeleteSessionKey(pInfo->pPkDeleted, pInfo->pStDeleted);
+    code = copyDeleteSessionKey(pInfo->pPkDeleted, pInfo->pStDeleted);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
 
   SSDataBlock* opRes = buildCountResult(pOperator);

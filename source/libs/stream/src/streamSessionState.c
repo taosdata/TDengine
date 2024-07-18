@@ -936,9 +936,7 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
     }
 
     code = tSimpleHashPut(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    }
+    TSDB_CHECK_CODE(code, lino, _end);
   }
 
   TSKEY startTs = pWinKey->win.skey;

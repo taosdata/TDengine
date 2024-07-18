@@ -150,22 +150,6 @@ void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, void* pState, SStora
   resetFillWindow(&pFillSup->nextNext);
 }
 
-void getCurWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
-  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
-
-  void* pState = pOperator->pTaskInfo->streamInfo.pState;
-  resetPrevAndNextWindow(pFillSup, pState, pAPI);
-
-  SWinKey key = {.ts = ts, .groupId = groupId};
-  int32_t curVLen = 0;
-
-  int32_t code = pAPI->stateStore.streamStateFillGet(pState, &key, (void**)&pFillSup->cur.pRowVal, &curVLen);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-  }
-  pFillSup->cur.key = key.ts;
-}
-
 void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
   SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
   void*        pState = pOperator->pTaskInfo->streamInfo.pState;
@@ -477,25 +461,40 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
   ASSERT(pFillInfo->pos != FILL_POS_INVALID);
 }
 
-static bool checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId) {
+static int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId, bool* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SWinKey key = {.groupId = groupId, .ts = ts};
   if (tSimpleHashGet(pFillSup->pResMap, &key, sizeof(SWinKey)) != NULL) {
-    return false;
+    (*pRes) = false;
   }
-  int32_t code = tSimpleHashPut(pFillSup->pResMap, &key, sizeof(SWinKey), NULL, 0);
+  code = tSimpleHashPut(pFillSup->pResMap, &key, sizeof(SWinKey), NULL, 0);
+  TSDB_CHECK_CODE(code, lino, _end);
+  (*pRes) = true;
+
+_end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  return true;
+  return code;
 }
 
-static bool buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFillSup, TSKEY ts, SSDataBlock* pBlock) {
+static int32_t buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFillSup, TSKEY ts, SSDataBlock* pBlock,
+                               bool* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pBlock->info.rows >= pBlock->info.capacity) {
-    return false;
+    (*pRes) = false;
+    goto _end;
   }
   uint64_t groupId = pBlock->info.id.groupId;
-  if (pFillSup->hasDelete && !checkResult(pFillSup, ts, groupId)) {
-    return true;
+  bool     ckRes = true;
+  code = checkResult(pFillSup, ts, groupId, &ckRes);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  if (pFillSup->hasDelete && !ckRes) {
+    (*pRes) = true;
+    goto _end;
   }
   for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
     SFillColInfo*    pFillCol = pFillSup->pAllColInfo + i;
@@ -509,14 +508,18 @@ static bool buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFill
     bool filled = fillIfWindowPseudoColumn(&tmpInfo, pFillCol, pColData, pBlock->info.rows);
     if (!filled) {
       SResultCellData* pCell = getResultCell(pResRow, slotId);
-      int32_t          code = setRowCell(pColData, pBlock->info.rows, pCell);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      }
+      code = setRowCell(pColData, pBlock->info.rows, pCell);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
   }
   pBlock->info.rows++;
-  return true;
+  (*pRes) = true;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static bool hasRemainCalc(SStreamFillInfo* pFillInfo) {
@@ -527,26 +530,37 @@ static bool hasRemainCalc(SStreamFillInfo* pFillInfo) {
 }
 
 static void doStreamFillNormal(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   while (hasRemainCalc(pFillInfo) && pBlock->info.rows < pBlock->info.capacity) {
     STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
     if (inWinRange(&pFillSup->winRange, &st)) {
-      bool res = buildFillResult(pFillInfo->pResRow, pFillSup, pFillInfo->current, pBlock);
-      if (!res) {
-        int32_t code = TSDB_CODE_FAILED;
-        qError("%s failed at line %d since block is full", __func__, __LINE__);
-      }
+      bool res = true;
+      code = buildFillResult(pFillInfo->pResRow, pFillSup, pFillInfo->current, pBlock, &res);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                      pFillSup->interval.precision);
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
 }
 
 static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   while (hasRemainCalc(pFillInfo) && pBlock->info.rows < pBlock->info.capacity) {
     uint64_t    groupId = pBlock->info.id.groupId;
     SWinKey     key = {.groupId = groupId, .ts = pFillInfo->current};
     STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
-    if ((pFillSup->hasDelete && !checkResult(pFillSup, pFillInfo->current, groupId)) ||
+    bool        ckRes = true;
+    code = checkResult(pFillSup, pFillInfo->current, groupId, &ckRes);
+    TSDB_CHECK_CODE(code, lino, _end);
+
+    if ((pFillSup->hasDelete && !ckRes) ||
         !inWinRange(&pFillSup->winRange, &st)) {
       pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                        pFillSup->interval.precision);
@@ -570,10 +584,8 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
       if (pFillCol->notFillCol) {
         bool filled = fillIfWindowPseudoColumn(&tmp, pFillCol, pColData, index);
         if (!filled) {
-          int32_t code = setRowCell(pColData, index, pCell);
-          if (code != TSDB_CODE_SUCCESS) {
-            qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-          }
+          code = setRowCell(pColData, index, pCell);
+          TSDB_CHECK_CODE(code, lino, _end);
         }
       } else {
         if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pCell->isNull) {
@@ -590,16 +602,19 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
         cur.key = pFillInfo->current;
         cur.val = taosMemoryCalloc(1, pCell->bytes);
         taosGetLinearInterpolationVal(&cur, pCell->type, &start, pEnd, pCell->type);
-        int32_t code = colDataSetVal(pColData, index, (const char*)cur.val, false);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        }
+        code = colDataSetVal(pColData, index, (const char*)cur.val, false);
+        TSDB_CHECK_CODE(code, lino, _end);
         destroySPoint(&cur);
       }
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                      pFillSup->interval.precision);
     pBlock->info.rows++;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
@@ -613,17 +628,19 @@ static void keepResultInDiscBuf(SOperatorInfo* pOperator, uint64_t groupId, SRes
 }
 
 static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  bool    res = false;
   if (pFillInfo->needFill == false) {
-    bool res = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes);
-    if (!res) {
-      int32_t code = TSDB_CODE_FAILED;
-      qError("%s failed at line %d since block is full", __func__, __LINE__);
-    }
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    TSDB_CHECK_CODE(code, lino, _end);
     return;
   }
 
   if (pFillInfo->pos == FILL_POS_START) {
-    if (buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes)) {
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    TSDB_CHECK_CODE(code, lino, _end);
+    if (res) {
       pFillInfo->pos = FILL_POS_INVALID;
     }
   }
@@ -633,7 +650,9 @@ static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* 
     doStreamFillLinear(pFillSup, pFillInfo, pRes);
 
     if (pFillInfo->pos == FILL_POS_MID) {
-      if (buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes)) {
+      code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+      TSDB_CHECK_CODE(code, lino, _end);
+      if (res) {
         pFillInfo->pos = FILL_POS_INVALID;
       }
     }
@@ -648,9 +667,16 @@ static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* 
     }
   }
   if (pFillInfo->pos == FILL_POS_END) {
-    if (buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes)) {
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    TSDB_CHECK_CODE(code, lino, _end);
+    if (res) {
       pFillInfo->pos = FILL_POS_INVALID;
     }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 

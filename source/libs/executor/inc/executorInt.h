@@ -939,7 +939,7 @@ void     initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pAr
 void     getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);
 int32_t  deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
                                SSHashObj* pMapDelete, SSHashObj* pPkDelete, bool needAdd);
-void     getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated);
+int32_t  getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated);
 int32_t  closeSessionWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SSHashObj* pClosed);
 int32_t  copyUpdateResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar);
 int32_t  sessionKeyCompareAsc(const void* pKey1, const void* pKey2);
@@ -991,7 +991,7 @@ void doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
 int32_t saveDeleteInfo(SArray* pWins, SSessionKey key);
 void    removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SArray* pWins);
 int32_t copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted);
-void    copyDeleteSessionKey(SSHashObj* source, SSHashObj* dest);
+int32_t copyDeleteSessionKey(SSHashObj* source, SSHashObj* dest);
 
 bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);

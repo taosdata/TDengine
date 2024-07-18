@@ -500,16 +500,24 @@ _error:
 }
 
 SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
   SRowBuffPos* newPos = getNewRowPos(pFileState);
   if (!newPos) {
-    qError("%s failed at line %d since newPos is null", __func__, __LINE__);
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _error);
   }
   newPos->beUsed = true;
   newPos->beFlushed = false;
   newPos->needFree = false;
   newPos->beUpdated = true;
   return newPos;
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return NULL;
 }
 
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,

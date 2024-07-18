@@ -185,12 +185,14 @@ _error:
 
 int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pWinInfo, SSessionKey* pNextWinKey,
                               TSKEY* pTsData, bool* starts, bool* ends, int32_t rows, int32_t start,
-                              SSHashObj* pResultRows, SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool* pRebuild) {
+                              SSHashObj* pResultRows, SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool* pRebuild,
+                              int32_t* pWinRow) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   *pRebuild = false;
   if (!pWinInfo->pWinFlag->startFlag && !(starts[start])) {
-    return 1;
+    (*pWinRow) = 1;
+    goto _end;
   }
 
   TSKEY        maxTs = INT64_MAX;
@@ -204,15 +206,14 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
 
   for (int32_t i = start; i < rows; ++i) {
     if (pTsData[i] >= maxTs) {
-      return i - start;
+      (*pWinRow) = i - start;
+      goto _end;
     }
 
     if (pWin->skey > pTsData[i]) {
       if (pStDeleted && pWinInfo->winInfo.isOutput) {
         code = saveDeleteRes(pStDeleted, pWinInfo->winInfo.sessionWin);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        }
+        TSDB_CHECK_CODE(code, lino, _end);
       }
       removeSessionResult(pAggSup, pStUpdated, pResultRows, &pWinInfo->winInfo.sessionWin);
       pWin->skey = pTsData[i];
@@ -229,7 +230,8 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
     } else {
       *pRebuild = true;
       pWinInfo->pWinFlag->endFlag |= ends[i];
-      return i + 1 - start;
+      (*pWinRow) = i + 1 - start;
+      goto _end;
     }
 
     memcpy(pWinInfo->winInfo.pStatePos->pKey, &pWinInfo->winInfo.sessionWin, sizeof(SSessionKey));
@@ -238,10 +240,17 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
       if (pWinInfo->pWinFlag->endFlag && pWin->skey <= pTsData[i] && pTsData[i] < pWin->ekey) {
         *pRebuild = true;
       }
-      return i + 1 - start;
+      (*pWinRow) = i + 1 - start;
+      goto _end;
     }
   }
-  return rows - start;
+  (*pWinRow) = rows - start;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t compactEventWindow(SOperatorInfo* pOperator, SEventWindowInfo* pCurWin, SSHashObj* pStUpdated,
@@ -362,9 +371,10 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
 
     setSessionWinOutputInfo(pSeUpdated, &curWin.winInfo);
     bool rebuild = false;
-    winRows =
-        updateEventWindowInfo(pAggSup, &curWin, &nextWinKey, tsCols, (bool*)pColStart->pData, (bool*)pColEnd->pData,
-                              rows, i, pAggSup->pResultRows, pSeUpdated, pStDeleted, &rebuild);
+    code = updateEventWindowInfo(pAggSup, &curWin, &nextWinKey, tsCols, (bool*)pColStart->pData, (bool*)pColEnd->pData,
+                                 rows, i, pAggSup->pResultRows, pSeUpdated, pStDeleted, &rebuild, &winRows);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     ASSERT(winRows >= 1);
     if (rebuild) {
       uint64_t uid = 0;
@@ -616,7 +626,8 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       continue;
     } else if (pBlock->info.type == STREAM_GET_ALL) {
       pInfo->recvGetAll = true;
-      getAllSessionWindow(pInfo->streamAggSup.pResultRows, pInfo->pSeUpdated);
+      code = getAllSessionWindow(pInfo->streamAggSup.pResultRows, pInfo->pSeUpdated);
+      TSDB_CHECK_CODE(code, lino, _end);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
       return pBlock;
@@ -668,7 +679,8 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
     taosArrayDestroy(pHisWins);
   }
   if (pInfo->destHasPrimaryKey && IS_NORMAL_EVENT_OP(pOperator)) {
-    copyDeleteSessionKey(pInfo->pPkDeleted, pInfo->pSeDeleted);
+    code = copyDeleteSessionKey(pInfo->pPkDeleted, pInfo->pSeDeleted);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
 
   initGroupResInfoFromArrayList(&pInfo->groupResInfo, pInfo->pUpdated);

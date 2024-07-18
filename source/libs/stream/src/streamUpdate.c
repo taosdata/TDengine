@@ -279,7 +279,8 @@ bool updateInfoIsTableInserted(SUpdateInfo* pInfo, int64_t tbUid) {
   return false;
 }
 
-int32_t updateInfoFillBlockData(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol, int32_t primaryKeyCol, TSKEY* pMaxResTs) {
+int32_t updateInfoFillBlockData(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol, int32_t primaryKeyCol,
+                                TSKEY* pMaxResTs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pBlock == NULL || pBlock->info.rows == 0) {
@@ -652,17 +653,22 @@ _error:
 }
 
 bool isIncrementalTimeStamp(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len) {
-  TSKEY* pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
-  bool   res = true;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  TSKEY*  pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
+  bool    res = true;
   if (pMapMaxTs && pInfo->comparePkRowFn(pMapMaxTs, &ts, pPkVal, pInfo->comparePkCol) == 1) {
     res = false;
   } else {
     int32_t valueLen = getValueBuff(ts, pPkVal, len, pInfo->pValueBuff);
-    int32_t code = taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), pInfo->pValueBuff, valueLen);
-    if (code != TSDB_CODE_SUCCESS) {
-      res = false;
-      uError("%s failed at line %d since %d", __func__, __LINE__, code);
-    }
+    code = taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), pInfo->pValueBuff, valueLen);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
   return res;
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return false;
 }

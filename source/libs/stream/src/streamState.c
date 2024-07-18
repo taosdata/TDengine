@@ -239,7 +239,7 @@ int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal
 // todo refactor
 void streamStateFillDel(SStreamState* pState, const SWinKey* key) {
   int32_t code = streamStateFillDel_rocksdb(pState, key);
-  qError("%s at line %d res %d", __func__, __LINE__, code);
+  qTrace("%s at line %d res %d", __func__, __LINE__, code);
 }
 
 void streamStateClear(SStreamState* pState) { streamFileStateClear(pState->pFileState); }
