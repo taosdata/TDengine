@@ -22,7 +22,14 @@ impl Parse for Join {
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
         // downcast field values to ListArray
-        let array_list = array.as_any().downcast_ref::<ListArray>().unwrap();
+        let array_list = match array.as_any().downcast_ref::<ListArray>() {
+            Some(array) => array,
+            None => {
+                return Err(super::ParseError::UnsupportedDataType(
+                    field.data_type().clone(),
+                ))
+            }
+        };
         // loop and join
         let data: Vec<Option<String>> = array_list
             .as_any()
