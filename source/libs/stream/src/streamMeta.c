@@ -57,10 +57,13 @@ static void streamMetaEnvInit() {
   streamMetaId = taosOpenRef(64, streamMetaCloseImpl);
 
   metaRefMgtInit();
-  streamTimerInit();
+  int32_t code = streamTimerInit();
+  if (code != 0) {
+    stError("failed to init stream meta env, start failed");
+  }
 }
 
-void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
+void streamMetaInit() { (void) taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
 
 void streamMetaCleanup() {
   taosCloseRef(streamBackendId);

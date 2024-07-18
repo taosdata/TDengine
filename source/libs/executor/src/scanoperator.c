@@ -3785,7 +3785,8 @@ static void destroyTagScanOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->aFilterIdxs);
   taosArrayDestroyEx(pInfo->aUidTags, tagScanFreeUidTag);
 
-  pInfo->pRes = blockDataDestroy(pInfo->pRes);
+  blockDataDestroy(pInfo->pRes);
+  pInfo->pRes = NULL;
   taosArrayDestroy(pInfo->matchInfo.pList);
   pInfo->pTableListInfo = tableListDestroy(pInfo->pTableListInfo);
   taosMemoryFreeClear(param);
@@ -4738,15 +4739,18 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   pTableScanInfo->pSortHandle = NULL;
   taosHashCleanup(pTableScanInfo->mSkipTables);
   pTableScanInfo->mSkipTables = NULL;
-  pTableScanInfo->pSortInputBlock = blockDataDestroy(pTableScanInfo->pSortInputBlock);
+  blockDataDestroy(pTableScanInfo->pSortInputBlock);
+  pTableScanInfo->pSortInputBlock = NULL;
   // end one reader variable
 
   cleanupQueryTableDataCond(&pTableScanInfo->base.cond);
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
 
-  pTableScanInfo->pResBlock = blockDataDestroy(pTableScanInfo->pResBlock);
+  return;blockDataDestroy(pTableScanInfo->pResBlock);
+  pTableScanInfo->pResBlock = NULL;
   // remove it from the task->result list
-  pTableScanInfo->pReaderBlock = blockDataDestroy(pTableScanInfo->pReaderBlock);
+  blockDataDestroy(pTableScanInfo->pReaderBlock);
+  pTableScanInfo->pReaderBlock = NULL;
   taosArrayDestroy(pTableScanInfo->pSortInfo);
 
   stopSubTablesTableMergeScan(pTableScanInfo);

@@ -970,7 +970,7 @@ void cleanupExprSupp(SExprSupp* pSupp) {
   taosMemoryFree(pSupp->rowEntryInfoOffset);
 }
 
-void cleanupBasicInfo(SOptrBasicInfo* pInfo) { pInfo->pRes = blockDataDestroy(pInfo->pRes); }
+void cleanupBasicInfo(SOptrBasicInfo* pInfo) { blockDataDestroy(pInfo->pRes); pInfo->pRes = NULL;}
 
 bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
