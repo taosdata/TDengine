@@ -4070,52 +4070,52 @@ export function getDataSources(lang) {
             "pattern": "^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
             "patternMsg": "The port number ranges from 0 to 65535",
           },
-          "load_balanced": {
-            "required": false,
-            "display": "Load Balanced",
-            "description": "Whether to use load balancing to connect.\n- *true*:The host address is used as the load balancing address \n- *false*:The host address is used as the database address\n",
-            "hint": {
-              "type": "bool",
-            }
-          },
-          "direct_connection": {
-            "required": false,
-            "display": "Direct Connection",
-            "description": "Whether to connect directly to a single host or automatically discover all servers in the cluster.\n- *true*:host connects directly to host:port \n- *false*:host Discovers other servers in the cluster\n",
-            "hint": {
-              "type": "bool",
-            },
-            "value": "true"
-          },
-          "repl_set_name": {
-            "required": false,
-            "display": "Replica Name",
-            "description": "The client connects to the cluster replica with the specified name. If a replica name is specified, only this replica server is connected.",
-            "placeholder": "",
-          },
-          "local_threshold": {
-            "required": false,
-            "display": "Local Threshold",
-            "description": "Used to determine how much the average round trip time between the client and the server is allowed to increase compared to the shortest round trip time among all servers. If the value is 0, it indicates that there is no delay window, so only the server with the lowest average round-trip time will be connected. The default is 15 ms.",
-            "hint": {
-              "type": "duration",
-              "choices": [
-                {
-                  "value": "m",
-                  "label": "Minute"
-                },
-                {
-                  "value": "s",
-                  "label": "Second"
-                },
-              ]
-            },
-            "placeholder": "15",
-            "value": "15",
-            "type_value": "s",
-            "pattern": "^[0-9]+$",
-            "patternMsg": "The value can only be a positive integer or 0",
-          }
+          // "load_balanced": {
+          //   "required": false,
+          //   "display": "Load Balanced",
+          //   "description": "Whether to use load balancing to connect.\n- *true*:The host address is used as the load balancing address \n- *false*:The host address is used as the database address\n",
+          //   "hint": {
+          //     "type": "bool",
+          //   }
+          // },
+          // "direct_connection": {
+          //   "required": false,
+          //   "display": "Direct Connection",
+          //   "description": "Whether to connect directly to a single host or automatically discover all servers in the cluster.\n- *true*:host connects directly to host:port \n- *false*:host Discovers other servers in the cluster\n",
+          //   "hint": {
+          //     "type": "bool",
+          //   },
+          //   "value": "true"
+          // },
+          // "repl_set_name": {
+          //   "required": false,
+          //   "display": "Replica Name",
+          //   "description": "The client connects to the cluster replica with the specified name. If a replica name is specified, only this replica server is connected.",
+          //   "placeholder": "",
+          // },
+          // "local_threshold": {
+          //   "required": false,
+          //   "display": "Local Threshold",
+          //   "description": "Used to determine how much the average round trip time between the client and the server is allowed to increase compared to the shortest round trip time among all servers. If the value is 0, it indicates that there is no delay window, so only the server with the lowest average round-trip time will be connected. The default is 15 ms.",
+          //   "hint": {
+          //     "type": "duration",
+          //     "choices": [
+          //       {
+          //         "value": "m",
+          //         "label": "Minute"
+          //       },
+          //       {
+          //         "value": "s",
+          //         "label": "Second"
+          //       },
+          //     ]
+          //   },
+          //   "placeholder": "15",
+          //   "value": "15",
+          //   "type_value": "s",
+          //   "pattern": "^[0-9]+$",
+          //   "patternMsg": "The value can only be a positive integer or 0",
+          // }
         },
         "authentication": {
           "display": "Authentication",
@@ -4128,37 +4128,37 @@ export function getDataSources(lang) {
               "params": [
                 {
                   "name": "username",
-                  "required": false,
+                  "required": true,
                   "display": "Username",
                   "placeholder": "Username"
                 },
                 {
                   "name": "password",
-                  "required": false,
+                  "required": true,
                   "display": "Password",
                   "placeholder": "Password"
                 },
-                {
-                  "name": "mechanism",
-                  "required": false,
-                  "display": "Authenticate Mechanism",
-                  "placeholder": "Select an authentication mechanism",
-                  "short_description": "The authentication mechanism to be used, if not provided, will be negotiated with the server.\n",
-                  "description": "The authentication mechanism to be used, if not provided, will be negotiated with the server.\n",
-                  "hint": {
-                    "type": "str",
-                    "choices": [
-                      "MongoDbCr",
-                      "ScramSha1",
-                      "ScramSha256",
-                      "MongoDbX509",
-                      "Gssapi",
-                      "Plain",
-                      "MongoDbAws",
-                      "MongoDbOidc",
-                    ]
-                  },
-                },
+                // {
+                //   "name": "mechanism",
+                //   "required": false,
+                //   "display": "Authenticate Mechanism",
+                //   "placeholder": "Select an authentication mechanism",
+                //   "short_description": "The authentication mechanism to be used, if not provided, will be negotiated with the server.\n",
+                //   "description": "The authentication mechanism to be used, if not provided, will be negotiated with the server.\n",
+                //   "hint": {
+                //     "type": "str",
+                //     "choices": [
+                //       "MongoDbCr",
+                //       "ScramSha1",
+                //       "ScramSha256",
+                //       "MongoDbX509",
+                //       "Gssapi",
+                //       "Plain",
+                //       "MongoDbAws",
+                //       "MongoDbOidc",
+                //     ]
+                //   },
+                // },
                 {
                   "name": "source",
                   "required": false,
@@ -8446,52 +8446,52 @@ export function getDataSources(lang) {
             "pattern": "^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
             "patternMsg": "端口号的范围是 0-65535",
           },
-          "load_balanced": {
-            "required": false,
-            "display": "是否负载均衡",
-            "description": "是否通过负载均衡进行连接。\n- *true*:host 地址被当作负载均衡地址 \n- *false*:host 地址被当作数据库地址\n",
-            "hint": {
-              "type": "bool",
-            }
-          },
-          "direct_connection": {
-            "required": false,
-            "display": "是否直连",
-            "description": "是否直接连接到单个主机或者自动发现集群中所有服务器。\n- *true*:host 直接连接到 host:port \n- *false*:host 发现集群中其他服务器\n",
-            "hint": {
-              "type": "bool",
-            },
-            "value": "true"
-          },
-          "repl_set_name": {
-            "required": false,
-            "display": "副本名称",
-            "description": "客户端连接到指定名称的集群副本。如果指定了副本名称，则只连接到此副本服务器。",
-            "placeholder": "",
-          },
-          "local_threshold": {
-            "required": false,
-            "display": "超时阈值",
-            "description": "用于确定与所有服务器中最短往返时间相比，客户端与服务器之间的平均往返时间被允许增加多少。当值为 0 时，表示没有延迟窗口，因此只会连接平均往返时间最低的服务器。默认 15 ms。",
-            "hint": {
-              "type": "duration",
-              "choices": [
-                {
-                  "value": "m",
-                  "label": "分钟"
-                },
-                {
-                  "value": "s",
-                  "label": "秒"
-                },
-              ]
-            },
-            "placeholder": "15",
-            "value": "15",
-            "type_value": "s",
-            "pattern": "^[0-9]+$",
-            "patternMsg": "只能输入正整数或者0",
-          }
+          // "load_balanced": {
+          //   "required": false,
+          //   "display": "是否负载均衡",
+          //   "description": "是否通过负载均衡进行连接。\n- *true*:host 地址被当作负载均衡地址 \n- *false*:host 地址被当作数据库地址\n",
+          //   "hint": {
+          //     "type": "bool",
+          //   }
+          // },
+          // "direct_connection": {
+          //   "required": false,
+          //   "display": "是否直连",
+          //   "description": "是否直接连接到单个主机或者自动发现集群中所有服务器。\n- *true*:host 直接连接到 host:port \n- *false*:host 发现集群中其他服务器\n",
+          //   "hint": {
+          //     "type": "bool",
+          //   },
+          //   "value": "true"
+          // },
+          // "repl_set_name": {
+          //   "required": false,
+          //   "display": "副本名称",
+          //   "description": "客户端连接到指定名称的集群副本。如果指定了副本名称，则只连接到此副本服务器。",
+          //   "placeholder": "",
+          // },
+          // "local_threshold": {
+          //   "required": false,
+          //   "display": "超时阈值",
+          //   "description": "用于确定与所有服务器中最短往返时间相比，客户端与服务器之间的平均往返时间被允许增加多少。当值为 0 时，表示没有延迟窗口，因此只会连接平均往返时间最低的服务器。默认 15 ms。",
+          //   "hint": {
+          //     "type": "duration",
+          //     "choices": [
+          //       {
+          //         "value": "m",
+          //         "label": "分钟"
+          //       },
+          //       {
+          //         "value": "s",
+          //         "label": "秒"
+          //       },
+          //     ]
+          //   },
+          //   "placeholder": "15",
+          //   "value": "15",
+          //   "type_value": "s",
+          //   "pattern": "^[0-9]+$",
+          //   "patternMsg": "只能输入正整数或者0",
+          // }
         },
         "authentication": {
           "display": "认证",
@@ -8504,37 +8504,37 @@ export function getDataSources(lang) {
               "params": [
                 {
                   "name": "username",
-                  "required": false,
+                  "required": true,
                   "display": "用户",
                   "placeholder": "请输入用户名"
                 },
                 {
                   "name": "password",
-                  "required": false,
+                  "required": true,
                   "display": "密码",
                   "placeholder": "请输入密码"
                 },
-                {
-                  "name": "mechanism",
-                  "required": false,
-                  "display": "认证机制",
-                  "placeholder": "请选择认证机制",
-                  "short_description": "要使用的身份验证机制，如果没有提供，将与服务器协商一个。\n",
-                  "description": "要使用的身份验证机制，如果没有提供，将与服务器协商一个。\n",
-                  "hint": {
-                    "type": "str",
-                    "choices": [
-                      "MongoDbCr",
-                      "ScramSha1",
-                      "ScramSha256",
-                      "MongoDbX509",
-                      "Gssapi",
-                      "Plain",
-                      "MongoDbAws",
-                      "MongoDbOidc",
-                    ]
-                  },
-                },
+                // {
+                //   "name": "mechanism",
+                //   "required": false,
+                //   "display": "认证机制",
+                //   "placeholder": "请选择认证机制",
+                //   "short_description": "要使用的身份验证机制，如果没有提供，将与服务器协商一个。\n",
+                //   "description": "要使用的身份验证机制，如果没有提供，将与服务器协商一个。\n",
+                //   "hint": {
+                //     "type": "str",
+                //     "choices": [
+                //       "MongoDbCr",
+                //       "ScramSha1",
+                //       "ScramSha256",
+                //       "MongoDbX509",
+                //       "Gssapi",
+                //       "Plain",
+                //       "MongoDbAws",
+                //       "MongoDbOidc",
+                //     ]
+                //   },
+                // },
                 {
                   "name": "source",
                   "required": false,
