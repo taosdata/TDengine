@@ -264,15 +264,15 @@ function run_taosd() {
     pid=$!
     wait $pid
     local ret=$?
-    logger "INFO" "taosd exit $ret $tdpid"
+    logger "INFO" "taosd exit $ret $pid"
     if [ -d "/var/log" ]; then
-        logger "INFO" "taosd exit $ret $tdpid"
+        logger "INFO" "taosd exit $ret $pid"
     fi
     if [ $ret -eq 0 ]; then
-        logger "INFO" "$tdpid exit caused by sigterm"
+        logger "INFO" "$pid exit caused by sigterm"
         return
     fi
-    set_service_state "error" "taosd $tdpid exit"
+    set_service_state "error" "taosd $pid exit"
     logger "ERROR" "set taosd state existed"
     # post error msg
     # check crash or OOM
