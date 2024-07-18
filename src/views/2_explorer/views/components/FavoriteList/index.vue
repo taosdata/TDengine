@@ -193,7 +193,7 @@
         <el-pagination
           class="pagination"
           layout="sizes, total, prev, pager, next"
-          :current-page.sync="currentPage"
+          :current-page.sync="currentPageTwo"
           :page-sizes="[10, 20, 50, 100, 200]"
           :page-size="pageSizeTwo"
           :hide-on-single-page="false"
@@ -314,7 +314,7 @@ export default {
         .then(async ({ value }) => {
           this.favorited = true;
           let params = {
-            description: value,
+            description: value || "",
           };
           const res = await manageFavorite(row.id, params);
           if (res && res.code == 0) {
