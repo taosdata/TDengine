@@ -48,23 +48,29 @@ extern "C" {
 #define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+typedef struct SStreamTmrInfo {
+  int32_t activeCounter;  // make sure only launch one checkpoint trigger check tmr
+  tmr_h   tmrHandle;
+  int64_t launchChkptId;
+  int8_t  isActive;
+} SStreamTmrInfo;
+
 struct SActiveCheckpointInfo {
-  TdThreadMutex lock;
-  int32_t       transId;
-  int64_t       firstRecvTs;  // first time to recv checkpoint trigger info
-  int64_t       activeId;     // current active checkpoint id
-  int64_t       failedId;
-  bool          dispatchTrigger;
-  SArray*       pDispatchTriggerList;  // SArray<STaskTriggerSendInfo>
-  SArray*       pReadyMsgList;         // SArray<STaskCheckpointReadyInfo*>
-  int8_t        allUpstreamTriggerRecv;
-  SArray*       pCheckpointReadyRecvList;  // SArray<STaskDownstreamReadyInfo>
-  int32_t       checkCounter;
-  tmr_h         pChkptTriggerTmr;
-  int32_t       sendReadyCheckCounter;
-  tmr_h         pSendReadyMsgTmr;
-  int64_t       sendReadyTmrChkptId;
+  TdThreadMutex  lock;
+  int32_t        transId;
+  int64_t        firstRecvTs;  // first time to recv checkpoint trigger info
+  int64_t        activeId;     // current active checkpoint id
+  int64_t        failedId;
+  bool           dispatchTrigger;
+  SArray*        pDispatchTriggerList;  // SArray<STaskTriggerSendInfo>
+  SArray*        pReadyMsgList;         // SArray<STaskCheckpointReadyInfo*>
+  int8_t         allUpstreamTriggerRecv;
+  SArray*        pCheckpointReadyRecvList;  // SArray<STaskDownstreamReadyInfo>
+  SStreamTmrInfo chkptTriggerMsgTmr;
+  SStreamTmrInfo chkptReadyMsgTmr;
 };
+
+int32_t streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, SStreamTask* pTask);
 
 typedef struct {
   int8_t       type;
