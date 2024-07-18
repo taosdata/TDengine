@@ -2825,7 +2825,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pTask->msgCtxs = taosArrayInit_s(pCtx->fetchNum, sizeof(SCtgMsgCtx));
+  pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->fetchNum);
   if (NULL == pTask->msgCtxs) {
     ctgError("taosArrayInit_s %d SCtgMsgCtx %d failed", pCtx->fetchNum, (int32_t)sizeof(SCtgMsgCtx));
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);

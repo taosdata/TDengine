@@ -1653,10 +1653,12 @@ int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst) {
     return terrno;
   }
   TAOS_MEMCPY(pDst, pSrc, sizeof(SDbCfgInfo));
-  pDst->pRetensions = taosArrayDup(((SDbCfgInfo *)pSrc)->pRetensions, NULL);
-  if (NULL == pDst->pRetensions) {
-    taosMemoryFree(pDst);
-    return terrno;
+  if (((SDbCfgInfo *)pSrc)->pRetensions) {
+    pDst->pRetensions = taosArrayDup(((SDbCfgInfo *)pSrc)->pRetensions, NULL);
+    if (NULL == pDst->pRetensions) {
+      taosMemoryFree(pDst);
+      return terrno;
+    }
   }
 
   *ppDst = pDst;
