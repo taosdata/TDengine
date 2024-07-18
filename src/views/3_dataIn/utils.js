@@ -1122,8 +1122,8 @@ export function getDsnData(data, definition) {
   let queryArr = [];
   dsn += getAuthentications(data[authenticationField], queryArr, definition);
   dsn += getOptionData(data[optionsField], queryArr, definition);
-  getGroupsQuery(data[groupsFieldBeforeConnection], queryArr);
-  getGroupsQuery(data[groupsFieldAfterConnection], queryArr);
+  getGroupsQuery(data[groupsFieldBeforeConnection], queryArr, definition);
+  getGroupsQuery(data[groupsFieldAfterConnection], queryArr, definition);
   getDatasetsQuery(data[datasetsField], data, queryArr);
   getAdvancedQuery(data[advancedField],queryArr)
   if (queryArr.length) {
@@ -1170,7 +1170,7 @@ function handleProtocolData(protocol, definition) {
 //   return dsn;
 // }
 
-function getGroupsQuery(groups, query) {
+function getGroupsQuery(groups, query, definition) {
   groups = cloneDeep(groups)
   if (!groups) return query;
   for (let key in groups) {
@@ -1194,6 +1194,10 @@ function getGroupsQuery(groups, query) {
           } else if (/_type$/.test(k)) {
             delete groups[key][k+'_type'];
           } else {
+            // todo 临时解决 mongoDB 增加 tsl 参数
+            if (definition.id == 'mongodb') {
+              query.push('tsl' + '=' + checkValue(getQueryParamValue(groups[key]['cert_key_file_path'])));
+            }
             query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
         }
