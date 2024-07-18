@@ -54,7 +54,7 @@ static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
 static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
   SStreamMeta* pMeta = pTask->pMeta;
 
-  (void) taosThreadMutexLock(&pTask->lock);
+  streamMutexLock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pTask->outputInfo.pNodeEpsetUpdateList);
   for (int j = 0; j < num; ++j) {
@@ -73,7 +73,7 @@ static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
   }
 
   taosArrayClear(pTask->outputInfo.pNodeEpsetUpdateList);
-  (void) taosThreadMutexUnlock(&pTask->lock);
+  streamMutexUnlock(&pTask->lock);
 }
 
 static int32_t doSendHbMsgInfo(SStreamHbMsg* pMsg, SStreamMeta* pMeta, SEpSet* pEpset) {
@@ -170,9 +170,9 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
       continue;
     }
 
-    (void) taosThreadMutexLock(&(*pTask)->lock);
+    streamMutexLock(&(*pTask)->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(*pTask);
-    (void) taosThreadMutexUnlock(&(*pTask)->lock);
+    streamMutexUnlock(&(*pTask)->lock);
 
     entry.inputRate = entry.inputQUsed * 100.0 / (2 * STREAM_TASK_QUEUE_CAPACITY_IN_SIZE);
     if ((*pTask)->info.taskLevel == TASK_LEVEL__SINK) {
@@ -190,9 +190,9 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
         stInfo("s-task:%s set kill checkpoint trans in hbMsg, transId:%d, clear the active checkpointInfo",
                (*pTask)->id.idStr, p->transId);
 
-        (void) taosThreadMutexLock(&(*pTask)->lock);
+        streamMutexLock(&(*pTask)->lock);
         streamTaskClearCheckInfo((*pTask), true);
-        (void) taosThreadMutexUnlock(&(*pTask)->lock);
+        streamMutexUnlock(&(*pTask)->lock);
       }
     }
 

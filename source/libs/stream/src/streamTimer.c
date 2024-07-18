@@ -46,6 +46,6 @@ void streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* h
     if (ret) {
       break;
     }
-    stError("vgId:%d failed to reset %s, try again", vgId, pMsg);
+    stError("vgId:%d failed to reset tmr: %s, try again", vgId, pMsg);
   }
 }
