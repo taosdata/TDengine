@@ -291,6 +291,16 @@ pub async fn update_favorites_sql(
         return Err(err_description_too_long());
     }
 
+    if param.public.is_none()
+        && param
+            .description
+            .as_ref()
+            .filter(|s| !s.trim().is_empty())
+            .is_none()
+    {
+        return Ok(R::default());
+    }
+
     let mut query_builder = sqlx::QueryBuilder::new(format!("update {TABLE_NAME} set "));
     let mut update_public = false;
     if let Some(public) = param.public.as_ref() {
