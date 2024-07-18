@@ -157,7 +157,7 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 > 注意:
 >
 > 1. 不可重复添加相同的 SQL 语句到个人收藏中
-> 2. 不可重复共享相同的 SQL 语句到个人收藏中
+> 2. 不可重复共享相同的 SQL 语句到共享收藏中
 >
 >![explorer-23-favoritesNotes.png](./pic/explorer-23-favoritesNotes.png)
 
