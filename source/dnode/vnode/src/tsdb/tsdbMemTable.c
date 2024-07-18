@@ -370,7 +370,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pTbData = vnodeBufPoolMallocAligned(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
   if (pTbData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    goto _exit;
   }
   pTbData->suid = suid;
   pTbData->uid = uid;
@@ -415,11 +415,11 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   taosWUnLockLatch(&pMemTable->latch);
 
 _exit:
-  *ppTbData = pTbData;
-  return code;
-
-_err:
-  *ppTbData = NULL;
+  if (code) {
+    *ppTbData = NULL;
+  } else {
+    *ppTbData = pTbData;
+  }
   return code;
 }
 
