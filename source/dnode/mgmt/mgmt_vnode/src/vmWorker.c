@@ -311,6 +311,7 @@ int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
+  int32_t code;
   if (pRpc->contLen < sizeof(SMsgHead)) {
     dError("invalid rpc msg with no msg head at pCont. pRpc:%p, type:%s, len:%d", pRpc, TMSG_INFO(pRpc->msgType),
            pRpc->contLen);
@@ -320,8 +321,9 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   }
 
   EQItype  itype = APPLY_QUEUE == qtype ? DEF_QITEM : RPC_QITEM;
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen);
-  if (pMsg == NULL) {
+  SRpcMsg *pMsg;
+  code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
+  if (code) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
     return -1;
@@ -335,7 +337,7 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   pRpc->pCont = NULL;
 
-  int32_t code = vmPutMsgToQueue(pMgmt, pMsg, qtype);
+  code = vmPutMsgToQueue(pMgmt, pMsg, qtype);
   if (code != 0) {
     dTrace("msg:%p, is freed", pMsg);
     rpcFreeCont(pMsg->pCont);

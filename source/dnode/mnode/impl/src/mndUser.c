@@ -1579,31 +1579,31 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   } else {
     if (strcmp(pReq->info.conn.user, "root") != 0) {
       mError("The operation is not permitted, user:%s", pReq->info.conn.user);
-      terrno = TSDB_CODE_MND_NO_RIGHTS;
+      code = TSDB_CODE_MND_NO_RIGHTS;
       goto _OVER;
     }
   }
 
   if (createReq.user[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
+    code = TSDB_CODE_MND_INVALID_USER_FORMAT;
     goto _OVER;
   }
 
   if (createReq.pass[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
+    code = TSDB_CODE_MND_INVALID_PASS_FORMAT;
     goto _OVER;
   }
 
   if (createReq.isImport != 1) {
     if (strlen(createReq.pass) >= TSDB_PASSWORD_LEN) {
-      terrno = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+      code = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
       goto _OVER;
     }
   }
 
   code = mndAcquireUser(pMnode, createReq.user, &pUser);
   if (pUser != NULL) {
-    terrno = TSDB_CODE_MND_USER_ALREADY_EXIST;
+    code = TSDB_CODE_MND_USER_ALREADY_EXIST;
     goto _OVER;
   }
 

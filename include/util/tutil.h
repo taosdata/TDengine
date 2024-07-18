@@ -184,6 +184,8 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                                                \
   } while (0)
 
+#define TAOS_UNUSED(expr) (void)(expr)
+
 #ifdef __cplusplus
 }
 #endif
