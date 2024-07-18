@@ -1194,9 +1194,9 @@ function getGroupsQuery(groups, query, definition) {
           } else if (/_type$/.test(k)) {
             delete groups[key][k+'_type'];
           } else {
-            // todo 临时解决 mongoDB 增加 tsl 参数
+            // todo 临时解决 mongoDB 增加 tls 参数
             if (definition.id == 'mongodb') {
-              query.push('tsl' + '=' + checkValue(getQueryParamValue(groups[key]['cert_key_file_path'])));
+              query.push('tls' + '=' + checkValue(getQueryParamValue(groups[key]['cert_key_file_path'])));
             }
             query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
@@ -1301,18 +1301,18 @@ function getOptionData(data, queryArr, definition) {
   if (connect_timeout) {
     queryArr.push('connect_timeout=' + connect_timeout)
   }
-  if (load_balanced) {
-    queryArr.push('load_balanced=' + load_balanced)
-  }
-  if (!direct_connection) {
-    queryArr.push('direct_connection=' + direct_connection)
-    if (repl_set_name) {
-      queryArr.push('repl_set_name=' + repl_set_name)
-    }
-    if (local_threshold) {
-      queryArr.push('local_threshold=' + local_threshold + local_threshold_type)
-    }
-  }
+  // if (load_balanced) {
+  //   queryArr.push('load_balanced=' + load_balanced)
+  // }
+  // if (!direct_connection) {
+  //   queryArr.push('direct_connection=' + direct_connection)
+  //   if (repl_set_name) {
+  //     queryArr.push('repl_set_name=' + repl_set_name)
+  //   }
+  //   if (local_threshold) {
+  //     queryArr.push('local_threshold=' + local_threshold + local_threshold_type)
+  //   }
+  // }
   if (endpoint === undefined&&definition.id!=='csv') {
     result += host.replace(/\w*:\/\//, '');
     if (system_configuration && system_configuration != piOptionShowValue) return result;
