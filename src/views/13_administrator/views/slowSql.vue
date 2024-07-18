@@ -4,7 +4,7 @@
       <el-tab-pane :label="$t('slowSql.tab1')" name="log_desc">
         <div class="dnode-block">
           <section class="flexBetween">
-            <el-form :inline="true" size="mini" :disabled="requestIng" label-position="left">
+            <el-form :inline="true" size="mini" :disabled="requestIng" label-position="left" :rules="rules">
               <!-- <section class="flexBetween"> -->
                 <!-- <div> -->
                   <el-form-item
@@ -26,6 +26,7 @@
                   </el-form-item>
                   <el-form-item
                     :label="$t('slowSql.queryTime')"
+                    prop="query_time"
                    >
                    <el-input-number
                       v-model="filterParams.query_time_1"
@@ -33,6 +34,7 @@
                       placeholder="[min"
                       :min="0"
                       :controls="false"
+                      :precision="1"
                     /> -
                     <el-input-number 
                       v-model="filterParams.query_time_2"
@@ -40,6 +42,7 @@
                       placeholder="max]"
                       :min="0"
                       :controls="false"
+                      :precision="1"
                     />
                   </el-form-item>
                   <el-form-item
@@ -196,14 +199,14 @@
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.queryTime')" prop="query_time" sortable="custom" width="160px">
+            <el-table-column :label="$t('slowSql.queryTime')" prop="query_time" sortable="custom" width="160px" align="right">
               <template slot-scope="scope">
                 <el-tooltip :content="String(numToFixed(scope.row.query_time))" placement="top-start">
                   <span class="nowrap">{{ numToFixed(scope.row.query_time) }}</span>
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.rowsNum')" prop="rows_num">
+            <el-table-column :label="$t('slowSql.rowsNum')" prop="rows_num" align="right">
               <template slot-scope="scope">
                 <el-tooltip :content="String(scope.row.rows_num)" placement="top-start">
                   <span class="nowrap">{{ scope.row.rows_num }}</span>
@@ -229,10 +232,12 @@
           <section class="flexBetween">
             <el-form inline size="mini" :disabled="requestIng">
               <section class="flexBetween">
-                <!-- <div>
-                  <el-form-item>
-                    <el-date-picker
-                      v-model="date"
+                <div>
+                  <el-form-item
+                   :label="$t('slowSql.startTs')"
+                  >
+                    <TimezoneDatePicker
+                      v-model="date_two"
                       size="mini"
                       type="datetimerange"
                       :picker-options="pickerOptions"
@@ -241,37 +246,24 @@
                       :end-placeholder="$t('end')"
                       value-format="timestamp"
                       align="left"
+                      style="width: 320px"
                     >
-                    </el-date-picker>
+                    </TimezoneDatePicker>
                   </el-form-item>
-                  <el-form-item>
-                    <el-input
-                      v-model="filterParams.user_name"
-                      :placeholder="$t('taosuser.user')"
-                      @keyup.enter.native="handlePageChange()"
-                    ></el-input>
-                  </el-form-item>
-                  <el-form-item>
-                    <el-input
-                      v-model="filterParams.operation"
-                      :placeholder="$t('taosuser.operation')"
-                      @keyup.enter.native="handlePageChange()"
-                    ></el-input>
-                  </el-form-item>
-                </div> -->
-                <!-- <el-form-item>
+                 
+                </div>
+                <el-form-item>
                   <el-button
                     icon="el-icon-search"
-                    @click="handlePageChange()"
-                    :disabled="$COMMUNITY"
+                    @click="handlePageChangeTwo()"
                     >{{ $t("search") }}</el-button
                   >
-                </el-form-item> -->
-                <!-- <el-form-item>
-                  <el-button @click="handlePageReset()">{{
+                </el-form-item>
+                <el-form-item>
+                  <el-button @click="handlePageReset('tab2')">{{
                     $t("reset")
                   }}</el-button>
-                </el-form-item> -->
+                </el-form-item>
               </section>
             </el-form>
             <div style="margin-bottom: 18px">
@@ -330,35 +322,35 @@
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.executionTimes')" prop="query_count">
+            <el-table-column :label="$t('slowSql.executionTimes')" prop="query_count" width="130px" align="right">
               <template slot-scope="scope">
                 <el-tooltip :content="String(scope.row.query_count)" placement="top-start">
                   <span class="nowrap">{{ scope.row.query_count }}</span>
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.averageTime')" prop="avg_query_time" width="190px" sortable="custom">
+            <el-table-column :label="$t('slowSql.averageTime')" prop="avg_query_time" width="200px" sortable="custom" align="right">
               <template slot-scope="scope">
                 <el-tooltip :content="String(numToFixed(scope.row.avg_query_time))" placement="top-start">
                   <span class="nowrap">{{ numToFixed(scope.row.avg_query_time) }}</span>
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.maximumTime')" prop="max_query_time" width="200px" sortable="custom">
+            <el-table-column :label="$t('slowSql.maximumTime')" prop="max_query_time" width="200px" sortable="custom" align="right">
               <template slot-scope="scope">
                 <el-tooltip :content="String(numToFixed(scope.row.max_query_time))" placement="top-start">
                   <span class="nowrap">{{ numToFixed(scope.row.max_query_time) }}</span>
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.averageRow')" prop="avg_rows_num">
+            <el-table-column :label="$t('slowSql.averageRow')" prop="avg_rows_num" width="130px" align="right">
               <template slot-scope="scope">
                 <el-tooltip :content="String(scope.row.avg_rows_num)" placement="top-start">
                   <span class="nowrap">{{ scope.row.avg_rows_num }}</span>
                 </el-tooltip>
               </template>
             </el-table-column>
-            <el-table-column :label="$t('slowSql.maximumRow')" prop="max_rows_num">
+            <el-table-column :label="$t('slowSql.maximumRow')" prop="max_rows_num" width="130px" align="right">
               <template slot-scope="scope">
                 <el-tooltip :content="String(scope.row.max_rows_num)" placement="top-start">
                   <span class="nowrap">{{ scope.row.max_rows_num }}</span>
@@ -369,6 +361,7 @@
           <el-pagination
             class="pagination"
             layout="sizes, total, prev, pager, next"
+            :page-sizes="[20, 50, 100, 200]"
             :current-page.sync="currentPageTwo"
             :page-size="pageSizeTwo"
             :hide-on-single-page="false"
@@ -410,17 +403,26 @@ export default {
       statisticsList: [],
       parsinginZone,
       filterParams: {
-        query_time_1: 3,
+        query_time_1: 10,
         query_time_2: undefined,
       },
       de_duplication: false,
       date: [new Date().getTime() - 3600 * 1000 * 24 * 1, new Date().getTime()],
+      date_two: [],
       exportAuditList: [],
       visible: false,
       configData: [],
       data: {},
       query_time_sort: null,
       orderSql: null,
+      rules: {
+        query_time: [
+          {
+            validator: this.checkQueryTime,
+            trigger: "blur",  
+          }
+        ],
+      },
     };
   },
   props: {
@@ -478,6 +480,14 @@ export default {
       conditions = conditions.replace(/ AND$/g, "");
       return conditions;
     },
+    conditions_two() {
+      let conditions = "";
+      if (this.date_two?.length > 0) {
+        conditions = ` start_ts > ${this.date_two[0]} AND start_ts <= ${this.date_two[1]} AND`;
+      }
+      conditions = conditions.replace(/ AND$/g, "");
+      return conditions;
+    },
   },
   methods: {
     handlePageChange() {
@@ -497,9 +507,13 @@ export default {
     refresh() {
       this.getSlowSqlLogData();
     },
-    handlePageReset() {
+    handlePageReset(tab) {
       Object.assign(this.$data, this.$options.data());
-      this.getSlowSqlLogData();
+      if (tab == 'tab2') {
+        this.getStatisticsData()
+      } else {
+        this.getSlowSqlLogData();
+      }
     },
     async getvariables() {
       try {
@@ -528,7 +542,6 @@ export default {
       }
     },
     async getSlowSqlLogData() {
-      console.log('hshshshsh',this.pageSize);
       try {
         if (this.requestIng) return;
         this.requestIng = true;
@@ -543,7 +556,7 @@ export default {
         });
         this.requestIng = false;
       } catch (error) {
-        console.log("err");
+        console.log("err",error);
       }
     },
     async getStatisticsData() {
@@ -554,12 +567,13 @@ export default {
 
         [this.statisticsList, this.totalTwo] = await getSlowSqlStatistics({
           currentPage: this.currentPageTwo,
+          conditions: this.conditions_two,
           pageSize: this.pageSizeTwo,
-          orderSql: this.orderSql
+          orderSql: this.orderSql || ''
         });
         this.requestIng = false;
       } catch (error) {
-        console.log("err");
+        console.log("err",error);
       }
     },
     async getAllSlowSqlData() {
@@ -615,7 +629,15 @@ export default {
         this.orderSql = `${sortBy ? `ORDER BY ${prop} ${sortBy}` : ''}`
         this.getStatisticsData()
       }
-     }
+     },
+     checkQueryTime(_, value, callback) {
+      const { query_time_1, query_time_2} = this.filterParams
+      if (query_time_1 && query_time_2 && query_time_2 < query_time_1 ) {
+        return callback(new Error(this.$t('slowSql.queryTimeTip')));
+      } else {
+        callback()
+      }
+    },
   },
   watch: {
     async activeName(val) {

@@ -23,7 +23,10 @@ const state = {
   shellData: [],
   fields:[],
   previewBtn: true,
-  repeatResult:[]
+  repeatResult:[],
+  sharedTotal: 0,
+  total: 0,
+  selectedSqlStr: ""
 };
 
 const mutations = {
@@ -100,19 +103,21 @@ const actions = {
         handleFail(res, state, commit, rootState, sql, startTime);
       });
   },
-  // getFavorites({ state }) {
-  //   return getFavorites()
-  //     .then(res => {
-  //       state.favorites = res;
-  //     })
-  //     .catch(() => (state.favorites = []));
-  // },
-  getSharedFavorites({ state }) {
-    return getSharedFavorites()
-      .then(data => {
-        state.sharedFavorites = data;
+  getFavorites({ state }, params) {
+    return getFavorites(params)
+      .then(res => {
+        state.favorites = res.data.list;
+        state.total = res.data.total
       })
-      .catch(() => (state.sharedFavorites = []));
+      .catch((err) => (console.log('error', err)));
+  },
+  getSharedFavorites({ state }, params) {
+    return getFavorites(params)
+      .then(res => {
+        state.sharedFavorites = res.data.list;
+        state.sharedTotal = res.data.total
+      })
+      .catch(() => (err) => (console.log('error', err)));
   },
 };
 

@@ -23,6 +23,7 @@ anyhow = "1"
 atty = "0.2.14"
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "2.2.0"
+sqlx = { version = "0.7", features = ["sqlite", "chrono", "runtime-tokio"] }
 tokio-util = "0.7.10"
 tokio-stream = "0.1.14"
 log = { version = "0.4", features = ["serde"] }

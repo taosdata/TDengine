@@ -199,8 +199,9 @@ export default {
   nanoseconds: '纳秒',
   communityTip: "仅企业版和云服务可用，了解更多，请访问 TDengine <a href='https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>官网</a>。",
   communityDemoDataTip: '当前列表仅为示例数据',
-  fullscreen: "全屏显示",
+  fullszhcreen: "全屏显示",
   import: "导入",
+  dockerTip: "(如果 docker 安装，请使用映射后的 ip:port)",
   statuses: {
     created: "已创建",
     queued: "排队中",
@@ -716,7 +717,15 @@ export default {
     tags: "标签数量",
     encode: "编码方法",
     compress: "压缩算法",
-    level: "压缩级别"
+    level: "压缩级别",
+    desc: "描述",
+    share: "添加到共享收藏",
+    unshare: "取消共享",
+    addDesc: "添加描述",
+    editDesc: "编辑描述",
+    descPlaceholder: "对收藏的 SQL 进行描述，可不填，字符长度为{0}",
+    characterLen: "只允许输入{0}个字符",
+    addToPersonal: "添加到个人收藏"
   },
   sql: {
     analysis: "分析",
@@ -1202,10 +1211,12 @@ export default {
       filterunexe: "筛选条件尚未触发，按Enter键触发",
       parsefirst: "请先执行解析,提取或者拆分操作",
       parse: "1. 解析",
-      jsonPlaceholder: "请选择要提取的 json 属性，可选项来自于第一条示例数据，请确保其完整性。",
-      jsontip: "请输入正确JSON格式",
+      jsonPlaceholder: "请选择要提取的 json 属性，不选则默认获取所有属性。",
+      jsontip: "请输入正确 JSON 格式",
+      jsonDemoError: "第 {0} 条示例数据不是有效的 JSON 格式：{1}",
       texttip:"请输入正确格式文本",
       mappingvaildtip: "请填写正确的主键列的映射规则",
+      nonsupportTypetip: "数据写入暂时不支持 {0} 数据类型",
       mappingvaildColtip: "请至少填写一个普通列和标签列的映射规则",
       // 2. <strong>Split</strong>: 用户可以使用分隔符将简单字符串分割为多列，其中 sep 表示分隔符，n 表示分割后的数量，names 是以 , （ 英文逗号 ）分隔的列名字符串。使用 - 作为分隔符，n 为 3，names 为 a,b,c ，可将字符串 1-2-3 分割为三列，分别是：a = 1, b = 2, c = 3。<br/>
       extractdesc: `<strong>taosX 目前支持 3 种规则解析原始消息体</strong>：<br/>
@@ -1250,7 +1261,10 @@ export default {
       upload: "上传样本数据",
       col_select: "请选择列",
       filter_type: "请选择解析规则",
+      expre_: "",
       expre_input: "exp1;exp2;exp3",
+      expre_regex: "请输入正则表达式",
+      expre_join: "请输入 join 字符",
       filter_input: "请输入筛选表达式",
       st_input: "请输入超级表名称",
       create_st: "创建超级表",
@@ -2364,7 +2378,8 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
     averageRow: "平均返回行数",
     maximumRow: "最大返回行数",
     executionTimes: "执行次数",
-    deDuplication: "去除重复 SQL"
+    deDuplication: "去除重复 SQL",
+    queryTimeTip: "min 不能大于 max"
   },
   taosagents: {
     step1: "安装",

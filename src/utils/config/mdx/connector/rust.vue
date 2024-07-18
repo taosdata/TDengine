@@ -16,7 +16,9 @@ tokio = { version = &quot;1&quot;, features = [&quot;full&quot;]}
 anyhow = &quot;1.0.0&quot; 
 </code></pre>
     <h2 id="config">{{ $t("docs.connector.rust.step3") }}</h2>
-    <p>{{ $t("component.docConfig.content", [" DSN "]) }}</p>
+    <p>{{ $t("component.docConfig.content", [" DSN "]) }}
+      <span class="docker-tip">{{ $t("dockerTip")}}</span>
+    </p>
     <el-tabs value="bash">
       <el-tab-pane name="bash" label="Bash">
         <pre

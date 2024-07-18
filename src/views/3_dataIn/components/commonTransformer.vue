@@ -658,7 +658,7 @@ import { createStableReq } from "@/api/gateway/data/stables";
 import SplitExpression from "./splitExpression.vue";
 import { getDsnData, getDataRange } from "../utils.js";
 import DocsContent from "@/views/support/components/editorContentDisplay.vue";
-import { extractAllProperties, deepClone } from "@/utils"
+import { extractAllProperties, getExampleList } from "@/utils"
 import cusSelect from "./cusSelect.vue";
 import VersionMixin from "@/mixins/version";
 export default {
@@ -854,7 +854,6 @@ export default {
       this.isCSV = true;
       this.msgForm.msgbody = this.$store.state.app.csvTransformerParser.msgBody;
       await this.submitParse();
-      // this.formatCSVExtract(this.$store.state.app.csvTransformerParser.columns);
     }
     await this.getInitStables();
     this.statisticCol();
@@ -1611,6 +1610,12 @@ export default {
           Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
           this.isbreak = true;
         }
+        // 不支持 VARBINARY & GEOMETRY
+        if ((item["Type"] == "VARBINARY" || item["Type"] == "GEOMETRY") && item["Expression"]) {
+          Message.closeAll();
+          Message.warning(this.$t("datasource.transformer.nonsupportTypetip",['VARBINARY/GEOMETRY']))
+          this.isbreak = true;
+        }
         if (item["Expression"]) {
           if (
             this.params_columns.includes(item["Name"])
@@ -1744,7 +1749,7 @@ export default {
       this.extractArr.forEach((item) => {
         extractObj[item.columnname] = {
           [`${item.type}`]:
-            item.type == "regex"
+            item.type == "regex" || item.type == "join"
               ? item.expression
               : item.type == "split"
               ? this.$store.state.app.splitExpresList
@@ -1753,6 +1758,7 @@ export default {
               : item.expression,
         };
       });
+
       let parserData = {
         parser: {
           parse: this.$store.state.app.topParse.parser.parse,
@@ -1835,40 +1841,60 @@ export default {
         console.log(error);
       }
     },
+    // 获取示例数据字符串列表
+    getExampleList() {
+      let demo_string = (this.msgForm.msgbody || "").trim();
+      let demo_string_arr = [];
+      if (demo_string.startsWith("[") && demo_string.endsWith("]")) {
+        let arr_list = demo_string.replace(/\]\s*\[/g, "]&$[").split("&$");
+        let total = 0;
+        for (let i = 0; i < arr_list.length; i++) {
+          try {
+            let item_parsed = JSON.parse(arr_list[i]);
+            total += item_parsed.length;
+          } catch (err) {
+            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
+            throw err;
+          }
+          demo_string_arr.push(arr_list[i]);
+          if (total >= 100) {
+            return demo_string_arr;
+          }
+        }
+      } else if (demo_string.startsWith("{") && demo_string.endsWith("}")) {
+          let obj_list = demo_string.replace(/\}\s*\{/g, "}&${").split("&$");
+          for (let i = 0; i < obj_list.length; i++) {
+            if (i >= 100) {
+              return demo_string_arr;
+            }
+            try {
+              JSON.parse(obj_list[i]);
+            } catch (err) {
+              this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
+              throw err;
+            }
+            demo_string_arr.push(obj_list[i]);
+          }
+      } else {
+        Message.warning(this.$t("datasource.transformer.jsontip"));
+        throw new Error("Invalid JSON format");
+      }
+      return demo_string_arr;
+    },
     //输出input结果
     generateInput() {
-      let inputList = [];
-      let resultMsgbody = "";
-      if (this.msgForm.msgbody.replace(/\}\s*\{/g, "}{").includes("}{")) {
-        resultMsgbody = this.msgForm.msgbody
-          .replace(/\}\s*\{/g, "}&${")
-          .split("&$");
-      } else {
-        if (
-          /\n/g.test(this.msgForm.msgbody) &&
-          /^[^\{]/.test(this.msgForm.msgbody.trim())
-        ) {
-          //普通文本，目前第一列暂时不能为json格式
-          resultMsgbody = this.msgForm.msgbody
-            .replace(/[\n\s]/g, "*&$*")
-            .split("*&$*");
+      let demo_list;
+      try {
+        demo_list = getExampleList(this.msgForm.msgbody);
+      } catch (err) {
+        if (err.lineNumber > 0) {
+          this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
         } else {
-          try {
-            if (
-              /^\{/g.test(this.msgForm.msgbody) &&
-              JSON.parse(this.msgForm.msgbody)
-            ) {
-              resultMsgbody = [].concat(this.msgForm.msgbody);
-            }
-          } catch (error) {
-            this.$error(this.$t("datasource.transformer.jsontip"));
-            return;
-          }
-
-          resultMsgbody = this.msgForm.msgbody.split(";");
+          this.$error(this.$t(err));
         }
       }
-      inputList = resultMsgbody.map((msg) => {
+
+      let inputList = demo_list.map((msg) => {
         let inputobj = {};
         this.indentifiedColumns.forEach((item) => {
           if (msg) {
@@ -2320,7 +2346,15 @@ export default {
       // this.dialogVisible = true;
       if (this.parseruleForm.expression && this.parseruleForm.type == "json") {
         // 回显逻辑
-        this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        try {
+          this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        } catch (err) {
+          if (err.lineNumber > 0) {
+            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
+          } else {
+            this.$error(this.$t(err));
+          }
+        }
         let firstSplitArr = this.parseruleForm.expression.split(',')
         let checkedKey = []
         let checkedObj = {}
@@ -2338,7 +2372,15 @@ export default {
           }
         })
       } else {
-        this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        try {
+          this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        } catch (err) {
+          if (err.lineNumber > 0) {
+            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
+          } else {
+            this.$error(this.$t(err));
+          }
+        }
         this.allProperties = this.allProperties.map((item,index) => {
           return  {
             defaultValue: item,

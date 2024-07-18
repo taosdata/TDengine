@@ -30,7 +30,9 @@
         <span class="seeq-span">{{ $t('docs.tools.yonghongbi.step32desc') }}</span>
       </li>
       <li>
-        <span class="seeq-span">{{ $t('docs.tools.yonghongbi.step33desc') }}</span>
+        <span class="seeq-span">{{ $t('docs.tools.yonghongbi.step33desc') }}
+          <span class="docker-tip">{{ $t("dockerTip")}}</span>
+        </span>
         <pre v-highlight="`${jdbcURL}`"><code class="language-json"></code></pre>
       </li>
       <li>

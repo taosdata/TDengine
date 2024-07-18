@@ -40,7 +40,7 @@
       <el-button 
         :disabled=" 
           $store.state.console.partActive == 'sql' 
-          ? (!sqlStr || requestIng) 
+          ? (!selectedSqlStr || requestIng) 
           : (previewBtn || requestIng)" type="success" @click="toggleFavorite" size="mini">
         <template v-if="!favorited">
           <el-icon class="el-icon-star-on" />
@@ -91,6 +91,7 @@
     data() {
       return {
         requestIng: false,
+        favorited: false
       };
     },
     computed: {
@@ -98,11 +99,12 @@
         tabName: state => state.console.tabName,
         sqlStr: state => state.console.sqlStr,
         favorites: state => state.console.favorites,
-        previewBtn: state => state.console.previewBtn
+        previewBtn: state => state.console.previewBtn,
+        selectedSqlStr: state => state.console.selectedSqlStr
       }),
-      favorited() {
-        return this.favorites?(this.favorites.find(item => item.sql == this.sqlStr)?.id || ""):"";
-      },
+      // favorited() {
+      //   return this.favorites?(this.favorites.find(item => item.sql == this.sqlStr)?.id || ""):"";
+      // },
     },
     mounted() {
       this.dragChangeHeight("bar", "sql");
@@ -146,37 +148,32 @@
         this.requestIng = false;
       },
       async toggleFavorite() {
-
-        let obj={
-          accountId:this.$store.state.app.token,
-          appId:this.$store.state.app.token,
-          create_time:moment().format('YYYY-MM-DD HH:mm:ss'),
-          created_by:this.$store.state.app.token,
-          id:new Date().getTime(),
-          sql:this.$store.state.console.partActive =='sql' 
-            ? this.sqlStr 
-            : this.$refs.wizard.generateSql(),
-          update_time:moment().format('YYYY-MM-DD HH:mm:ss'),
-          updated_by:this.$store.state.app.token,
-          userId:this.$store.state.app.token
-        }
-        if( localStorage.getItem('favorite_record')){
-          let favorites=JSON.parse(localStorage.getItem('favorite_record'))
-          favorites.push(obj)
-          localStorage.setItem('favorite_record',JSON.stringify(favorites))
-        }else{
-          localStorage.setItem('favorite_record',JSON.stringify([].concat(obj)))
-        }
-        // this.favorited
-        //   ? await delFavorite(this.favorited)
-        //       .then(() => this.$message.success(this.$t("operateSucc")))
-        //       .catch(() => {})
-        //   : await addFavorite(this.sqlStr)
-        //       .then(() => this.$message.success(this.$t("operateSucc")))
-        //       .catch(() => {});
-        this.$store.commit("console/SET_ACTIVE_TAB", "favorites");
-        this.$store.commit("console/SET_FAVORITE",JSON.parse(localStorage.getItem('favorite_record')));
-        // this.$store.dispatch("console/getFavorites");
+        this.$prompt('', this.$t("console.addDesc"), {
+          closeOnClickModal: false,
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
+          inputPattern: /^.{0,20}$/,
+          inputErrorMessage:  this.$t("console.characterLen", ['20']),
+          inputPlaceholder: this.$t("console.descPlaceholder", ['20']),
+          // center: true
+        }).then(async ({ value }) => {
+          this.favorited = true;
+          let params = {
+            sql: this.$refs.sql.comIns.getSelection() || this.sqlStr,
+            description: value
+          }
+          const res = await addFavorite(params)
+          if (res && res.code == 0) {
+            this.$message.success(this.$t("operateSucc"))
+            this.$store.commit("console/SET_ACTIVE_TAB", "favorites");
+            this.$store.dispatch("console/getFavorites", {page: 1, page_size: 20});
+          } else {
+            this.$error(res.msg)
+          }
+          this.favorited = false;
+        }).catch((err) => {
+           console.log('error', err);     
+        });
       },
       tabClick({ name }) {
         if (name == "detail") return;

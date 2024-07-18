@@ -25,7 +25,11 @@ function blobToJson(blob) {
   reader.onload = () => {
     const text = reader.result;
     const json = JSON.parse(text);
-    this.$error(json?.message)
+    Message.error({
+      message: json?.Message,
+      duration: 20000,
+      showClose: true,
+    })
   };
 }
 request.interceptors.request.use(
@@ -97,6 +101,16 @@ request.interceptors.response.use(
       Message.closeAll();
       return
     }
+
+    if (error?.response?.status === 400) {
+      Message.closeAll();
+      Message.error({
+        message: error.response.data,
+        duration: 20000,
+        showClose: true,
+      })
+      return Promise.reject(error.response);
+    }
    
     const hasToken = getToken();
     if (hasToken) {
@@ -109,7 +123,11 @@ request.interceptors.response.use(
         error.response.data.desc ||
         error.message ||
         "Unexpected error";
-      this.$error(msg);
+      Message.error({
+        message: msg,
+        duration: 20000,
+        showClose: true,
+      })
       let taosx404en =
         "The TaosX API is not configured. Please check the explorer configuration";
       let taosx500en =
@@ -127,7 +145,7 @@ request.interceptors.response.use(
       if (error.config.baseURL.includes("/api/x")) {
         Message.closeAll()
         if (error.response && error.response.status === 404) {
-          this.$error(
+          Message.error(
             localStorage.getItem('local_language')?.includes("zh")
               ? isoem
                 ? taosx404.replace("TaosX", "").replace('taosx','')
@@ -137,7 +155,7 @@ request.interceptors.response.use(
               : taosx404en
           );
         } else if (error.response && error.response.status === 500) {
-          this.$error(
+          Message.error(
             localStorage.getItem('local_language')?.includes("zh")
               ? isoem
                 ? taosx500.replace("TaosX", "").replace('taosx','')
@@ -147,7 +165,7 @@ request.interceptors.response.use(
               : taosx500en
           );
         } else {
-          error.message && this.$error(error.message);
+          error.message && Message.error(error.message);
         }
       }
       error.message = msg;

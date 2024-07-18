@@ -31,7 +31,7 @@
           <el-tooltip :content="scope.row.dsn" placement="top-start">
             <!-- <copy-text :text="scope.row.dsn" isShowBtnText></copy-text> -->
             <el-button class="copy-btn" size="mini" @click="copyDsn(scope.row.dsn)">
-              <el-icon class="el-icon-document-copy"></el-icon>
+              <el-icon class="el-icon-copy-document"></el-icon>
               {{ $t('copy') }}
             </el-button>
           </el-tooltip>
@@ -52,7 +52,7 @@
               class="mini-btn"
               size="mini"
               @click="document(scope.row)"
-              icon="el-icon-document"
+              icon="el-icon-copy-document"
             ></el-button>
           </el-tooltip>
           <el-tooltip
