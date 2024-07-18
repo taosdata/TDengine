@@ -133,6 +133,23 @@ Put the mouse on the super table to be deleted, and the icon as shown in the pic
 When entering multiple statements, you can select the statement you want to refer to, or comment the statement (shortcut key Control-/ Command-/), and then click Execute
 ![explorer-16-sqlEditor.jpeg](pic/explorer-16-sqlEditor.jpeg)
 
+### Usage of SQL Favorites
+
+Select the SQL in the window with the mouse, click the favorites button, and the SQL will be added to your personal favorites area.
+![explorer-17-favoritesAdd.png](./pic/explorer-17-favoritesAdd.png "Add favorite SQL")
+
+In the personal favorites area, click the share button for the SQL, and the current SQL will be added to the shared favorites area.
+![explorer-18-favoritesAddPublic.png](./pic/explorer-18-favoritesAddPublic.png "Add to shared favorites")
+
+The SQL in the shared favorites is visible to all users.
+![explorer-19-favoritesPublic.png](./pic/explorer-19-favoritesPublic.png "Shared favorites")
+
+Click the unshare button to revoke the sharing of this SQL.
+![explorer-20-favoritesCancelPublic.png](./pic/explorer-20-favoritesCancelPublic.png "Unshared favorites")
+
+You can perform a fuzzy search on SQL or descriptions in the search bar.
+![explorer-21-favoritesSearch.png](./pic/explorer-21-favoritesSearch.png "fuzzy search")
+
 ## Stream
 
 With Explorer, you can easily manage your streams to take advantage of the streaming capabilities provided by TDengine.
