@@ -167,23 +167,23 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("config file path overflow");
-          return -1;
+          return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(configDir, argv[i], PATH_MAX);
       } else {
         printf("'-c' requires a parameter, default is %s\n", configDir);
-        return -1;
+        return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-a") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("apollo url overflow");
-          return -1;
+          return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(global.apolloUrl, argv[i], PATH_MAX);
       } else {
         printf("'-a' requires a parameter\n");
-        return -1;
+        return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
@@ -191,12 +191,12 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("env file path overflow");
-          return -1;
+          return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(global.envFile, argv[i], PATH_MAX);
       } else {
         printf("'-E' requires a parameter\n");
-        return -1;
+        return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
@@ -206,16 +206,16 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         int32_t len = strlen(argv[++i]);
         if (len < ENCRYPT_KEY_LEN_MIN) {
           printf("ERROR: Encrypt key should be at least %d characters\n", ENCRYPT_KEY_LEN_MIN);
-          return -1;
+          return TSDB_CODE_INVALID_CFG;
         }
         if (len > ENCRYPT_KEY_LEN) {
           printf("ERROR: Encrypt key overflow, it should be at most %d characters\n", ENCRYPT_KEY_LEN);
-          return -1;
+          return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
       } else {
         printf("'-y' requires a parameter\n");
-        return -1;
+        return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
