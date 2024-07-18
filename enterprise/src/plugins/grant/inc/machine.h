@@ -189,9 +189,10 @@ typedef enum {
   CONN_TYPE_POSTGRES = 11,
   CONN_TYPE_ORACLE = 12,
   CONN_TYPE_MSSQL = 13,
+  CONN_TYPE_MONGODB = 14,
   // add future data ins here
   // CONN_TYPE_FUTURE_DATA_IN = XX,
-  CONN_TYPE_DYN_MAX = 14,
+  CONN_TYPE_DYN_MAX = 15,
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
