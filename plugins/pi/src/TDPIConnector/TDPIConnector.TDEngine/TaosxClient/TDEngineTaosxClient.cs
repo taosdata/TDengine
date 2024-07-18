@@ -292,6 +292,8 @@ namespace TDPIConnector.TDEngine.TaosxClient
         {
             addTablesValue(tablesValue);
         }
+
+        // element id -> timestamp -> values
         public void addTablesValue(in Dictionary<string, Dictionary<string, List<TDValue>>> tables)
         {
             foreach (var table in tables)

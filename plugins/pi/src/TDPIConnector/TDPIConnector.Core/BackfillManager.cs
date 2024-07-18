@@ -67,42 +67,6 @@ namespace TDPIConnector.Core
             });
         }
 
-        public Task BackfillAFElementsFromService(string tdDatabaseName, ConcurrentDictionary<string, AFElementWrapper> elements, DateTime backfillStartLimit)
-        {
-            return Task.Run(async () =>
-            {
-                log.Info("Process backfill, AF Element Mode backfill start...");
-                try
-                {
-                    IEnumerable<string> elementTemplateNames = elements.ToList().Select(e => e.Value.Template.Name).Distinct();
-                    var elementsLastRecordedTimestamps = await backfill.GetTDTableLastRecordedValueFromAFElements(tdDatabaseName, elements.Keys.ToList(), elementTemplateNames);
-                    var elementsLastRecordedTimestampsChecked = new Dictionary<string, DateTime>();
-
-                    //replace element value (last recorded value) with bacfillStartLimit if needed
-                    foreach (var element in elementsLastRecordedTimestamps)
-                    {
-                        elementsLastRecordedTimestampsChecked.Add(element.Key, element.Value < backfillStartLimit ? backfillStartLimit : element.Value);
-                    }
-
-                    Dictionary<AFElementWrapper, DateTime> elementsToBackfill = new Dictionary<AFElementWrapper, DateTime>();
-                    foreach (var item in elementsLastRecordedTimestampsChecked)
-                    {
-                        elementsToBackfill.Add(elements[item.Key], item.Value);
-                    }
-                    if (elementsToBackfill.Count > 0)
-                    {
-                        //backfill points if needed
-                        backfill.BackfillAFElementsFromLastRecordedValue(tdDatabaseName, elementsToBackfill);
-                    }
-                }
-                catch (Exception e)
-                {
-                    log.Error($"Error backfilling AF Elements...{e.Message}");
-                }
-                log.Info("Process backfill, AF Element Mode backfill finished");
-            });
-        }
-
         public async Task BackfillPIPointsFromTool(string tdDatabaseName, string afDatabaseName, DateTime startTime, DateTime endTime, bool toFirstRecorded, bool fromLastRecorded, bool dropTables)
         {
             //ignore drop table flag it backfill to or from recorded values
@@ -155,6 +119,7 @@ namespace TDPIConnector.Core
             log.Info("BackfillPIPointsFromTool completed");
         }
 
+        // 从专门的 backfill 工具启动 backfill 任务
         public async Task BackfillAFElementsFromTool(string tdDatabaseName, string afDatabaseName, List<string> elementTemplateNames, DateTime startTime, DateTime endTime, bool toFirstRecorded, bool fromLastRecorded, bool dropTables)
         {
             //get all AF Templates based on settings

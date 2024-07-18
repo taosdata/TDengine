@@ -29,6 +29,7 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public const string TABLES = "__tables__";
         public const string ATTRS = "__attrs__";
         public const string RECORDS = "__records__";
+        public const string CONTROL = "__control__";
         public const string TABLENAME = "__table_name__";
         public const string LOCATIONTAG = "location";
         public const string POINTID = "point_id";

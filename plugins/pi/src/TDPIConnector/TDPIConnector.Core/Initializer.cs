@@ -40,8 +40,15 @@ namespace TDPIConnector.Core
             List<TDTable> tables = new List<TDTable>();
             List<AFAttribute> attries = new List<AFAttribute>();
             foreach (var element in elements) {
-                TDTable table = ElemenetTableConverter.ConvertV2(element, superTable.Name, ref templateAttributeColumns, ref attries);
-                tables.Add(table);
+                try
+                {
+                    TDTable table = ElemenetTableConverter.ConvertV2(element, superTable.Name, ref templateAttributeColumns, ref attries);
+                    tables.Add(table);
+                }
+                catch (Exception e)
+                {
+                    log.Error($"Convert element {element.Name} to TDTable failed.", e);
+                }
             }
             // 建子表
             tdEngineProxy.CreateTablesForAFElementsV2(superTable.Name, tables);

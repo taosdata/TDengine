@@ -45,28 +45,49 @@ namespace TDPIConnector.Core
 
         internal void OnChanged(object sender, AFChangedEventArgs e)
         {
+            log.Info($"AFChangedEvent:{e.ID},Identity={e.Identity},Action={e.Action}");
+            // e.Identity 表示事件的对象的类型
             if (e.Identity == AFIdentity.ElementTemplate)
-            {
+            { 
+                // 暂不处理模板本身变化的事件， 只在日志中记录事件
                 var template = piSystemManager.GetElementsByTemplateID(e.ID);
-                if (observeSet.Contains(template.Name))
-                {
-                    log.Info($"Object Changed: {e.Action}  {e.Identity} sub: {e.IsSubObjectEvent}");
-                    // elementTemplateEventHandle(template);
-                }
+                log.Info($"AFChangedEvent:{e.ID},Template={template.Name},Action={e.Action}.Ignored");
+                return;
+                //if (observeSet.Contains(template.Name))
+                //{                    
+                //    elementTemplateEventHandle(template);
+                //} 
             }
             else if (e.Identity == AFIdentity.Element)
             {
-                // var element = AFElement.FindElement(piSystem, e.ID);
-                if (e.Action == AFChangeAction.SubObjectAdd) {
-                    var element = piSystemManager.GetElementsById(e.ID);
-                    log.Info($"Object Changed: add a new element. {e.ParentID} {element.Name} {element.ID}");
+                // 模板元素变化事件
+                AFElementWrapper element = piSystemManager.GetElementsById(e.ID);
+                if (e.Action == AFChangeAction.SubObjectAdd)
+                {
+                    // 添加新元素
                     initializer.AddNewElementToTaskAsync(element).Wait();
+                    log.Info($"AFChangedEvent:{e.ID},Add new element {element.Name}");
+                    return;
+                }
+                else if (e.Action == AFChangeAction.SubObjectRefresh)
+                {
+                    // 刷新元素
+                    log.Info($"AFChangedEvent:{e.ID}.Refresh element {element.Name}.Ignored");
+                    return;
+                }
+                else if (e.Action == AFChangeAction.SubObjectChange) {
+                    // 修改元素
+                    log.Info($"AFChangedEvent:{e.ID}.Change element {element.Name}.Ignored");
+                    return;
+                }
+                else if (e.Action == AFChangeAction.SubObjectRemove)
+                {
+                    // TODO：删除元素
+                    log.Info($"AFChangedEvent:{e.ID}.Delete element done");
+                    return;
                 }
             }
-            else
-            {
-                log.Debug($"Object Changed: {e.Action}  {e.Identity}");
-            }
+            log.Info($"AFChangedEvent:{e.ID},Identity={e.Identity},Action={e.Action}.Ingored");
         }
 
         internal void OnTemplateElapsed(object sender, System.Timers.ElapsedEventArgs e)

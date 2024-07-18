@@ -456,6 +456,8 @@ namespace TDPIConnector.TDEngine
             }
             return Task.FromResult<TDEngineResponse>(null);
         }
+
+        // stable -> element_id -> timestamp -> values
         public virtual Task<TDEngineResponse> InsertValuesForAFElements(string database, in Dictionary<string, Dictionary<string, Dictionary<string, List<TDValue>>>> stables, in List<string> columnNames)
         {
             foreach (var tables in stables)
