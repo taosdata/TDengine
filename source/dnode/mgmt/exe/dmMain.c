@@ -409,7 +409,7 @@ int mainWindows(int argc, char **argv) {
   }
 
   if (global.checkS3) {
-    int32_t code = dmCheckS3();
+    code = dmCheckS3();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
