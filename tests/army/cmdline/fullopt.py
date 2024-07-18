@@ -27,13 +27,16 @@ from frame import *
 
 
 class TDTestCase(TBase):
+    clientCfgDict = {'debugFlag': 135}
     updatecfgDict = {
         'queryMaxConcurrentTables': '2K',
         'streamMax': '1M',
         'totalMemoryKB': '1G',
         'streamMax': '1P',
         'streamBufferSize':'1T',
-        'slowLogScope':"query"
+        'slowLogScope':"query",
+        'debugFlag': 135 ,
+        'clientCfg':clientCfgDict
     }
 
     def insertData(self):
@@ -71,6 +74,7 @@ class TDTestCase(TBase):
                      "smlTsDefaultName tsdef",
                      "serverPort 6030",
                      "timezone tz",
+                     "tempDir /var/tmp"
                   ]
         # exec
         for option in options:
@@ -157,16 +161,16 @@ class TDTestCase(TBase):
         sc.dnodeStop(idx)
         etool.exeBinFile("taosd", f"-e def -c {cfg}", False)
 
-        # stop taosd test taos as server
-        sc.dnodeStop(idx)
-        etool.exeBinFile("taos", f'-n server', wait=False)
-        time.sleep(3)
-        eos.exe("pkill -9 taos")
+        # # stop taosd test taos as server
+        # sc.dnodeStop(idx)
+        # etool.exeBinFile("taos", f'-n server', wait=False)
+        # time.sleep(3)
+        # eos.exe("pkill -9 taos")
 
-        # call enter password
-        etool.exeBinFile("taos", f'-p', wait=False)
-        time.sleep(1)
-        eos.exe("pkill -9 taos")
+        # # call enter password
+        # etool.exeBinFile("taos", f'-p', wait=False)
+        # time.sleep(1)
+        # eos.exe("pkill -9 taos")
 
     # run
     def run(self):
