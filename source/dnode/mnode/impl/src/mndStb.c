@@ -884,7 +884,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
 
   if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
-    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
@@ -1148,7 +1148,7 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   }
 
   if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
-    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
@@ -1414,7 +1414,7 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   }
 
   if (pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ntags) {
-    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
@@ -1766,7 +1766,7 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
       uint32_t dst = 0;
       updated = tUpdateCompress(pCmpr->alg, p->bytes, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
                                 TSDB_COLVAL_LEVEL_MEDIUM, &dst);
-      if (updated) pCmpr->alg = dst;
+      if (updated > 0) pCmpr->alg = dst;
       break;
     }
   }
@@ -1774,12 +1774,17 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
   if (updated == 0) {
     terrno = TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST;
     return -1;
+  } else if (updated == -1) {
+    terrno = TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR;
+    return -1;
   }
+
   pNew->colVer++;
 
   return 0;
 }
-static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols) {
+static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols,
+                                      int8_t withCompress) {
   if (pOld->numOfColumns + ncols + pOld->numOfTags > TSDB_MAX_COLUMNS) {
     terrno = TSDB_CODE_MND_TOO_MANY_COLUMNS;
     return -1;
@@ -1801,34 +1806,58 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
   }
 
   if (pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ncols) {
-    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
   for (int32_t i = 0; i < ncols; i++) {
-    SField *pField = taosArrayGet(pFields, i);
-    if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
-      terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
-      return -1;
+    if (withCompress) {
+      SFieldWithOptions *pField = taosArrayGet(pFields, i);
+      if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
+        terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
+        return -1;
+      }
+
+      if (mndFindSuperTableTagIndex(pOld, pField->name) >= 0) {
+        terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
+        return -1;
+      }
+
+      SSchema *pSchema = &pNew->pColumns[pOld->numOfColumns + i];
+      pSchema->bytes = pField->bytes;
+      pSchema->type = pField->type;
+      memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+      pSchema->colId = pNew->nextColId;
+      pNew->nextColId++;
+
+      SColCmpr *pCmpr = &pNew->pCmpr[pOld->numOfColumns + i];
+      pCmpr->id = pSchema->colId;
+      pCmpr->alg = pField->compress;
+      mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
+    } else {
+      SField *pField = taosArrayGet(pFields, i);
+      if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
+        terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
+        return -1;
+      }
+
+      if (mndFindSuperTableTagIndex(pOld, pField->name) >= 0) {
+        terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
+        return -1;
+      }
+
+      SSchema *pSchema = &pNew->pColumns[pOld->numOfColumns + i];
+      pSchema->bytes = pField->bytes;
+      pSchema->type = pField->type;
+      memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+      pSchema->colId = pNew->nextColId;
+      pNew->nextColId++;
+
+      SColCmpr *pCmpr = &pNew->pCmpr[pOld->numOfColumns + i];
+      pCmpr->id = pSchema->colId;
+      pCmpr->alg = createDefaultColCmprByType(pSchema->type);
+      mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     }
-
-    if (mndFindSuperTableTagIndex(pOld, pField->name) >= 0) {
-      terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
-      return -1;
-    }
-
-    SSchema *pSchema = &pNew->pColumns[pOld->numOfColumns + i];
-    pSchema->bytes = pField->bytes;
-    pSchema->type = pField->type;
-    memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
-    pSchema->colId = pNew->nextColId;
-    pNew->nextColId++;
-
-    SColCmpr *pCmpr = &pNew->pCmpr[pOld->numOfColumns + i];
-    pCmpr->id = pSchema->colId;
-    pCmpr->alg = createDefaultColCmprByType(pSchema->type);
-
-    mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
   }
 
   pNew->colVer++;
@@ -2461,7 +2490,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       code = mndAlterStbTagBytes(pMnode, pOld, &stbObj, pField0);
       break;
     case TSDB_ALTER_TABLE_ADD_COLUMN:
-      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
+      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields, 0);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       pField0 = taosArrayGet(pAlter->pFields, 0);
@@ -2477,6 +2506,9 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
+      break;
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields, 1);
       break;
     default:
       needRsp = false;

@@ -104,6 +104,8 @@ fi
 
 function log_print(){
   now=$(date +"%D %T")
+  ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
+  ${csudo} touch ${install_log_path}
   echo "$now  $1" >> ${install_log_path}
 }
 
@@ -241,6 +243,8 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
     ${csudo}rm -f ${bin_link_dir}/*explorer || :
+    ${csudo}rm -f ${bin_link_dir}/start-all.sh || :
+    ${csudo}rm -f ${bin_link_dir}/stop-all.sh || :
 
     ${csudo}chmod 0555 ${bin_dir}/*
 
@@ -278,6 +282,12 @@ function install_bin() {
     fi
     if [ -x ${bin_dir}/taos-explorer ]; then
       ${csudo}ln -s ${bin_dir}/taos-explorer ${bin_link_dir}/taos-explorer           2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/start-all.sh ]; then
+      ${csudo}ln -s ${bin_dir}/start-all.sh ${bin_link_dir}/start-all.sh           2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/stop-all.sh ]; then
+      ${csudo}ln -s ${bin_dir}/stop-all.sh ${bin_link_dir}/stop-all.sh           2>>${install_log_path} || return 1
     fi
     log_print "install bin success"
 }
@@ -626,30 +636,12 @@ function clean_service_on_systemd() {
 
 function install_service_on_systemd() {
     clean_service_on_systemd
+    
+    [ -f ${script_dir}/../cfg/taosd.service ] &&\
+        ${csudo}cp ${script_dir}/../cfg/taosd.service \
+        ${service_config_dir}/ || :
 
-    taosd_service_config="${service_config_dir}/taosd.service"
-
-    ${csudo}bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
-    ${csudo}bash -c "echo                                      >> ${taosd_service_config}"
-    ${csudo}bash -c "echo '[Service]'                          >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'           >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'TimeoutStopSec=1000000s'            >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'TimeoutStartSec=0'                  >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'StandardOutput=null'                >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'Restart=always'                     >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'StartLimitBurst=3'                  >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'StartLimitInterval=60s'             >> ${taosd_service_config}"
-    ${csudo}bash -c "echo                                      >> ${taosd_service_config}"
-    ${csudo}bash -c "echo '[Install]'                          >> ${taosd_service_config}"
-    ${csudo}bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
+    ${csudo}systemctl daemon-reload    
     ${csudo}systemctl enable taosd
 }
 
@@ -790,52 +782,38 @@ function install_TDengine() {
     #echo
     #echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
     echo
-    echo -e "${GREEN_DARK}To configure TDengine      ${NC}: edit /etc/taos/taos.cfg"
-    echo -e "${GREEN_DARK}To configure taosAdapter   ${NC}: edit /etc/taos/taosadapter.toml"
-    echo -e "${GREEN_DARK}To configure taos-explorer ${NC}: edit /etc/taos/explorer.toml"    
+    echo -e "${GREEN_DARK}To configure TDengine      ${NC}\t: edit /etc/taos/taos.cfg"
+    echo -e "${GREEN_DARK}To configure taosAdapter   ${NC}\t: edit /etc/taos/taosadapter.toml"
+    echo -e "${GREEN_DARK}To configure taos-explorer ${NC}\t: edit /etc/taos/explorer.toml"    
     if ((${service_mod}==0)); then
-        echo -e "${GREEN_DARK}To start TDengine      ${NC}: ${csudo}systemctl start taosd${NC}"
-        echo -e "${GREEN_DARK}To start taosAdapter      ${NC}: ${csudo}systemctl start taosadapter${NC}"
-        echo -e "${GREEN_DARK}To start taoskeeper      ${NC}: ${csudo}systemctl start taoskeeper${NC}"
-        echo -e "${GREEN_DARK}To start taos-explorer      ${NC}: ${csudo}systemctl start taos-explorer${NC}"
+        echo -e "${GREEN_DARK}To start TDengine server      ${NC}\t: ${csudo}systemctl start taosd${NC}"
+        echo -e "${GREEN_DARK}To start taosAdapter      ${NC}\t: ${csudo}systemctl start taosadapter${NC}"
+        echo -e "${GREEN_DARK}To start taoskeeper      ${NC}\t: ${csudo}systemctl start taoskeeper${NC}"
+        echo -e "${GREEN_DARK}To start taos-explorer      ${NC}\t: ${csudo}systemctl start taos-explorer${NC}"
     elif ((${service_mod}==1)); then
-        echo -e "${GREEN_DARK}To start TDengine      ${NC}: ${csudo}update-rc.d taosd default  ${RED} for the first time${NC}"
+        echo -e "${GREEN_DARK}To start TDengine server      ${NC}\t: ${csudo}update-rc.d taosd default  ${RED} for the first time${NC}"
         echo -e "                      : ${csudo}service taosd start ${RED} after${NC}"
-        echo -e "${GREEN_DARK}To start taosAdapter      ${NC}: ${csudo}update-rc.d taosadapter default  ${RED} for the first time${NC}"
+        echo -e "${GREEN_DARK}To start taosAdapter      ${NC}\t: ${csudo}update-rc.d taosadapter default  ${RED} for the first time${NC}"
         echo -e "                      : ${csudo}service taosd taosadapter ${RED} after${NC}"
-        echo -e "${GREEN_DARK}To start taoskeeper      ${NC}: ${csudo}update-rc.d taoskeeper default  ${RED} for the first time${NC}"
+        echo -e "${GREEN_DARK}To start taoskeeper      ${NC}\t: ${csudo}update-rc.d taoskeeper default  ${RED} for the first time${NC}"
         echo -e "                      : ${csudo}service taosd taoskeeper ${RED} after${NC}"
-        echo -e "${GREEN_DARK}To start taos-explorer      ${NC}: ${csudo}update-rc.d taos-explorer default  ${RED} for the first time${NC}"
+        echo -e "${GREEN_DARK}To start taos-explorer      ${NC}\t: ${csudo}update-rc.d taos-explorer default  ${RED} for the first time${NC}"
         echo -e "                      : ${csudo}service taosd taos-explorer ${RED} after${NC}"
     else
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
-        echo -e "${GREEN_DARK}To start taosAdapter     ${NC}: ./taosadapter${NC}"
-        echo -e "${GREEN_DARK}To start taoskeeper     ${NC}: ./taoskeeper${NC}"
-        echo -e "${GREEN_DARK}To start taos-explorer     ${NC}: ./taos-explorer${NC}"
+        echo -e "${GREEN_DARK}To start TDengine server     ${NC}\t: ./taosd${NC}"
+        echo -e "${GREEN_DARK}To start taosAdapter     ${NC}\t: ./taosadapter${NC}"
+        echo -e "${GREEN_DARK}To start taoskeeper     ${NC}\t: ./taoskeeper${NC}"
+        echo -e "${GREEN_DARK}To start taos-explorer     ${NC}\t: ./taos-explorer${NC}"
     fi
-
-    if [ ! -z "$firstEp" ]; then
-      tmpFqdn=${firstEp%%:*}
-      substr=":"
-      if [[ $firstEp =~ $substr ]];then
-        tmpPort=${firstEp#*:}
-      else
-        tmpPort=""
-      fi
-      if [[ "$tmpPort" != "" ]];then
-           echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
-      else
-          echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
-      fi
-      echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
-      echo
-    elif [ ! -z "$serverFqdn" ]; then
-      echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $serverFqdn${GREEN_DARK} to login into TDengine server${NC}"
-      echo
-    fi
+    
     log_print "install TDengine successfully!"
     echo
-    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    echo "TDengine is installed successfully!"
+    echo
+    echo -e "\033[44;32;1mTo start all the components         : sudo start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : taos -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
+
 }
 
 

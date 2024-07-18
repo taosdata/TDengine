@@ -342,10 +342,14 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   STransMsgHead* pHead = NULL;
 
-  int msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead);
+  int8_t resetBuf = pConn->status == ConnAcquire ? 0 : 1;
+  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, resetBuf);
   if (msgLen <= 0) {
     tError("%s conn %p read invalid packet", transLabel(pTransInst), pConn);
     return false;
+  }
+  if (resetBuf == 0) {
+    tTrace("%s conn %p not reset read buf", transLabel(pTransInst), pConn);
   }
 
   if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
@@ -359,7 +363,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
   int8_t forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList) {
+  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
       uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
@@ -427,6 +431,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.traceId = pHead->traceId;
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = forbiddenIp;
+  transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);
@@ -619,7 +624,8 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
   STrans* pTransInst = pConn->pTransInst;
-  if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
+  if (pMsg->info.compressed == 0 && pConn->clientIp != pConn->serverIp && pTransInst->compressSize != -1 &&
+      pTransInst->compressSize < pMsg->contLen) {
     len = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
     pHead->msgLen = (int32_t)htonl((uint32_t)len);
   }
@@ -676,7 +682,8 @@ static FORCE_INLINE void destroySmsg(SSvrMsg* smsg) {
   taosMemoryFree(smsg);
 }
 static FORCE_INLINE void destroySmsgWrapper(void* smsg, void* param) { destroySmsg((SSvrMsg*)smsg); }
-static void              destroyAllConn(SWorkThrd* pThrd) {
+
+static void destroyAllConn(SWorkThrd* pThrd) {
   tTrace("thread %p destroy all conn ", pThrd);
   while (!QUEUE_IS_EMPTY(&pThrd->conn)) {
     queue* h = QUEUE_HEAD(&pThrd->conn);

@@ -601,17 +601,21 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
-  ASSERT(iCol > 0);
-
   if (pRow->type == TSDBROW_ROW_FMT) {
     tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
   } else if (pRow->type == TSDBROW_COL_FMT) {
-    SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
-
-    if (pColData) {
-      tColDataGetValue(pColData, pRow->iRow, pColVal);
+    if (iCol == 0) {
+      *pColVal =
+          COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID,
+                        ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pRow->pBlockData->aTSKEY[pRow->iRow]}));
     } else {
-      *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
+
+      if (pColData) {
+        tColDataGetValue(pColData, pRow->iRow, pColVal);
+      } else {
+        *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      }
     }
   } else {
     ASSERT(0);
@@ -628,10 +632,7 @@ void tsdbRowGetKey(TSDBROW *row, STsdbRowKey *key) {
   }
 }
 
-void tColRowGetKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
-  key->ts = pBlock->aTSKEY[irow];
-  key->numOfPKs = 0;
-
+void tColRowGetPrimaryKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
   for (int32_t i = 0; i < pBlock->nColData; i++) {
     SColData *pColData = &pBlock->aColData[i];
     if (pColData->cflag & COL_IS_KEY) {

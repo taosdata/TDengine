@@ -387,6 +387,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
 
+- **thread_bind_vgroup** : 写入时 vgroup 是否和写入线程绑定，绑定后可提升写入速度, 取值为 "yes" 或 "no"，默认值为 “no”, 设置为 “no” 后与原来行为一致。 当设为 “yes” 时，如果 thread_count 数量大小写入数据库的 vgroups 数量， thread_count 自动调整为 vgroups 数量；如果 thread_count 数量小于 vgroups 数量，写入线程数量不做调整，一个线程写完一个 vgroup 数据后再写下一个，同时保持一个 vgroup 同时只能由一个线程写入的规则。
+
 - **create_table_thread_count** : 建表的线程数量，默认为 8。
 
 - **connection_pool_size** : 预先建立的与 TDengine 服务端之间的连接的数量。若不配置，则与所指定的线程数相同。
@@ -407,6 +409,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **prepare_rand** : 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
 
+- **pre_load_tb_meta** ：是否提前加载子表的 meta 数据，取值为 “yes” or "no"。当子表数量非常多时，打开此选项可提高写入速度。
+
 ### 查询场景配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
@@ -422,7 +426,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
-- **threads/concurrent** : 执行查询 SQL 的线程数，默认值为 1。
+- **threads** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls**：
   - **sql**: 执行的 SQL 命令，必填。

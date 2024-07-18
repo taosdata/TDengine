@@ -66,6 +66,8 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
     goto _error;
   }
 
+  pOperator->exprSupp.hasWindowOrGroup = true;
+
   SEventWinodwPhysiNode* pEventWindowNode = (SEventWinodwPhysiNode*)physiNode;
 
   int32_t tsSlotId = ((SColumnNode*)pEventWindowNode->window.pTspk)->slotId;
@@ -202,6 +204,7 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
     }
 
     eventWindowAggImpl(pOperator, pInfo, pBlock);
+    doFilter(pRes, pSup->pFilterInfo, NULL);
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       return pRes;
     }
@@ -220,8 +223,7 @@ static int32_t setSingleOutputTupleBufv1(SResultRowInfo* pResultRowInfo, STimeWi
 
   (*pResult)->win = *win;
 
-  setResultRowInitCtx(*pResult, pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
-  return TSDB_CODE_SUCCESS;
+  return setResultRowInitCtx(*pResult, pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
 }
 
 static void doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* pSup, int32_t startIndex, int32_t endIndex,

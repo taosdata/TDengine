@@ -101,5 +101,269 @@ if $rows != 1 then
   return -1
 endi
 
+print step 2-------------------------------
+
+sql drop database if exists test;
+sql create database test  cachemodel 'both';
+sql use test;
+sql create table stb (ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+
+sql create table t1 using stb tags(1,1,1);
+sql create table t2 using stb tags(2,2,2);
+sql insert into t1 values('2024-06-05 11:00:00',1,2,3);
+sql insert into t1 values('2024-06-05 12:00:00',2,2,3);
+sql insert into t2 values('2024-06-05 13:00:00',3,2,3);
+sql insert into t2 values('2024-06-05 14:00:00',4,2,3);
+
+sql select last(ts) ts1,ts from stb;
+
+if $data00 != $data01 then
+  print $data00
+  return -1
+endi
+
+sql select last(ts) ts1,ts from stb group by tbname;
+
+if $data00 != $data01 then
+  print $data00
+  return -1
+endi
+
+sql select last(ts) ts1,tbname, ts from stb;
+
+if $data00 != $data02 then
+  print $data00
+  return -1
+endi
+
+if $data01 != t2 then
+  print $data01
+  return -1
+endi
+
+sql select last(ts) ts1,tbname, ts from stb group by tbname order by 1 desc;
+
+if $data00 != $data02 then
+  print $data00
+  return -1
+endi
+
+if $data01 != t2 then
+  print $data01
+  return -1
+endi
+
+print step 3-------------------------------
+
+sql drop database if exists test1;
+sql create database test1  cachemodel 'both' vgroups 4;
+sql use test1;
+sql create table stb (ts timestamp,a int primary key,b int,c int) tags(ta int,tb int,tc int);
+
+sql create table aaat1 using stb tags(1,1,1);
+sql create table bbbt2 using stb tags(2,2,2);
+sql insert into aaat1 values('2024-06-05 11:00:00',1,2,3);
+sql insert into aaat1 values('2024-06-05 12:00:00',2,2,3);
+sql insert into bbbt2 values('2024-06-05 13:00:00',3,2,3);
+sql insert into bbbt2 values('2024-06-05 14:00:00',4,2,3);
+
+sql select last(ts) ts1,ts from stb;
+
+if $data00 != $data01 then
+  print $data00
+  return -1
+endi
+
+if $data00 != @24-06-05 14:00:00.000@ then
+  print $data00
+  return -1
+endi
+
+sql select last(ts) ts1,ts from stb group by tbname order by 1 desc;
+
+if $data00 != $data01 then
+  print $data00
+  return -1
+endi
+
+if $data00 != @24-06-05 14:00:00.000@ then
+  print $data00
+  return -1
+endi
+
+sql select last(ts) ts1,tbname, ts from stb;
+
+if $data00 != $data02 then
+  print $data00
+  return -1
+endi
+
+if $data00 != @24-06-05 14:00:00.000@ then
+  print $data00
+  return -1
+endi
+
+if $data01 != bbbt2 then
+  print $data01
+  return -1
+endi
+
+sql select last(ts) ts1,tbname, ts from stb group by tbname order by 1 desc;
+
+if $data00 != $data02 then
+  print $data00
+  return -1
+endi
+
+if $data00 != @24-06-05 14:00:00.000@ then
+  print $data00
+  return -1
+endi
+
+if $data01 != bbbt2 then
+  print $data01
+  return -1
+endi
+
+print step 4-------------------------------
+
+sql select last(a) a,ts from stb;
+
+if $data00 != 4 then
+  print $data00
+  return -1
+endi
+
+if $data01 != @24-06-05 14:00:00.000@ then
+  print $data01
+  return -1
+endi
+
+sql select last(a) a,ts from stb group by tbname order by 1 desc;
+
+if $data00 != 4 then
+  print $data00
+  return -1
+endi
+
+if $data01 != @24-06-05 14:00:00.000@ then
+  print $data01
+  return -1
+endi
+
+sql select last(a) a,tbname, ts from stb;
+
+if $data00 != 4 then
+  print $data00
+  return -1
+endi
+
+if $data01 != bbbt2 then
+  print $data01
+  return -1
+endi
+
+if $data02 != @24-06-05 14:00:00.000@ then
+  print $data02
+  return -1
+endi
+
+sql select last(a) a,tbname, ts from stb group by tbname order by 1 desc;
+
+if $data00 != 4 then
+  print $data00
+  return -1
+endi
+
+if $data01 != bbbt2 then
+  print $data01
+  return -1
+endi
+
+if $data02 != @24-06-05 14:00:00.000@ then
+  print $data02
+  return -1
+endi
+
+print step 5-------------------------------
+
+sql select last(ts) ts1,a from stb;
+
+if $data00 != @24-06-05 14:00:00.000@ then
+  print $data00
+  return -1
+endi
+
+if $data01 != 4 then
+  print $data01
+  return -1
+endi
+
+sql select last(ts) ts1,a from stb group by tbname order by 1 desc;
+
+if $data00 != @24-06-05 14:00:00.000@ then
+  print $data00
+  return -1
+endi
+
+if $data01 != 4 then
+  print $data01
+  return -1
+endi
+
+sql select last(ts) ts1,tbname, a from stb;
+
+if $data00 != @24-06-05 14:00:00.000@ then
+  print $data00
+  return -1
+endi
+
+if $data01 != bbbt2 then
+  print $data01
+  return -1
+endi
+
+if $data02 != 4 then
+  print $data02
+  return -1
+endi
+
+sql select last(ts) ts1,tbname, a from stb group by tbname order by 1 desc;
+
+if $data00 != @24-06-05 14:00:00.000@ then
+  print $data00
+  return -1
+endi
+
+if $data01 != bbbt2 then
+  print $data01
+  return -1
+endi
+
+if $data02 != 4 then
+  print $data02
+  return -1
+endi
+
+$loop_count = 0
+
+loop0:
+
+sql select last(ts), last_row(ts) from stb;
+
+if $data00 != $data01 then
+  print ====data00=$data00
+  print ====data01=$data01
+  return -1
+endi
+
+$loop_count = $loop_count + 1
+if $loop_count < 10 then
+  sleep 200
+  print ====checktimes=$loop_count
+  goto loop0
+endi
+
+print ------------------------end
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

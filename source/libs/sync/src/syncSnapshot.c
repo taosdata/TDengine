@@ -1100,6 +1100,14 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   int32_t   code = -1;
   SSnapshot snapshot = {0};
 
+  if (pMsg->snapBeginIndex > pSyncNode->commitIndex) {
+    sSError(pSender,
+            "snapshot begin index is greater than commit index. snapBeginIndex:%" PRId64 ", commitIndex:%" PRId64,
+            pMsg->snapBeginIndex, pSyncNode->commitIndex);
+    terrno = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+    return -1;
+  }
+
   taosThreadMutexLock(&pSender->pSndBuf->mutex);
   pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 

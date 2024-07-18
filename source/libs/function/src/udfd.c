@@ -691,7 +691,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scriptPlugin->udfScalarProcFunc(&input, &output, udf->scriptUdfCtx);
       freeUdfDataDataBlock(&input);
-      convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
+      if(code == 0) convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
       freeUdfColumn(&output);
       break;
     }
@@ -1242,14 +1242,9 @@ static int32_t udfdParseArgs(int32_t argc, char *argv[]) {
 }
 
 static void udfdPrintVersion() {
-#ifdef TD_ENTERPRISE
-  char *releaseName = "enterprise";
-#else
-  char *releaseName = "community";
-#endif
-  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
-  printf("gitinfo: %s\n", gitinfo);
-  printf("buildInfo: %s\n", buildinfo);
+  printf("udfd version: %s compatible_version: %s\n", version, compatible_version);
+  printf("git: %s\n", gitinfo);
+  printf("build: %s\n", buildinfo);
 }
 
 static int32_t udfdInitLog() {
@@ -1424,7 +1419,7 @@ int main(int argc, char *argv[]) {
     printf("failed to start since init log error\n");
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0, true) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
     fnError("failed to start since read config error");
     return -2;
   }

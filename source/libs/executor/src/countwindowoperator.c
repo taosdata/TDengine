@@ -67,7 +67,12 @@ static void clearWinStateBuff(SCountWindowResult* pBuff) {
 
 static SCountWindowResult* getCountWinStateInfo(SCountWindowSupp* pCountSup) {
   SCountWindowResult* pBuffInfo = taosArrayGet(pCountSup->pWinStates, pCountSup->stateIndex);
-  pCountSup->stateIndex = (pCountSup->stateIndex + 1) % taosArrayGetSize(pCountSup->pWinStates);
+  int32_t size = taosArrayGetSize(pCountSup->pWinStates);
+  // coverity scan
+  ASSERTS(size > 0, "WinStates is empty");
+  if (size > 0) {
+    pCountSup->stateIndex = (pCountSup->stateIndex + 1) % size;
+  }
   return pBuffInfo;
 }
 
@@ -201,6 +206,8 @@ SOperatorInfo* createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
+
+  pOperator->exprSupp.hasWindowOrGroup = true;
 
   int32_t code = TSDB_CODE_SUCCESS;
   SCountWinodwPhysiNode* pCountWindowNode = (SCountWinodwPhysiNode*)physiNode;

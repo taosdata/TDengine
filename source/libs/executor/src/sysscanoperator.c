@@ -1090,6 +1090,10 @@ int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTabl
       continue;
     }
 
+    if(strcmp(pm->name, TSDB_INS_TABLE_USERS_FULL) == 0){
+      continue;
+    }
+
     SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
 
     STR_TO_VARSTR(n, pm->name);
@@ -1651,50 +1655,56 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
 
-  if (isTaskKilled(pOperator->pTaskInfo)) {
-    setOperatorCompleted(pOperator);
-    return NULL;
-  }
+  while (1) {
 
-  blockDataCleanup(pInfo->pRes);
-
-  const char* name = tNameGetTableName(&pInfo->name);
-  if (pInfo->showRewrite) {
-    getDBNameFromCondition(pInfo->pCondition, dbName);
-    if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, TSDB_TABLE_FNAME_LEN) != 0 &&
-        strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
-      sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
-    }
-  } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
-    getDBNameFromCondition(pInfo->pCondition, dbName);
-    if (dbName[0]) sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
-    sysTableIsCondOnOneTable(pInfo->pCondition, pInfo->req.filterTb);
-  }
-
-  SSDataBlock* pBlock = NULL;
-  if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
-    pBlock = sysTableScanUserTables(pOperator);
-  } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
-    pBlock = sysTableScanUserTags(pOperator);
-  } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->readHandle.mnd == NULL) {
-    pBlock = sysTableScanUserCols(pOperator);
-  } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
-             IS_SYS_DBNAME(dbName)) {
-    pBlock = sysTableScanUserSTables(pOperator);
-  } else {  // load the meta from mnode of the given epset
-    pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
-  }
-
-  sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
-  if (pBlock != NULL) {
-    bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
-    if (limitReached) {
+    if (isTaskKilled(pOperator->pTaskInfo)) {
       setOperatorCompleted(pOperator);
+      return NULL;
     }
 
-    return pBlock->info.rows > 0 ? pBlock : NULL;
-  } else {
-    return NULL;
+    blockDataCleanup(pInfo->pRes);
+
+    const char* name = tNameGetTableName(&pInfo->name);
+    if (pInfo->showRewrite) {
+      getDBNameFromCondition(pInfo->pCondition, dbName);
+      if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, TSDB_TABLE_FNAME_LEN) != 0 &&
+          strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
+        sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+      }
+    } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
+      getDBNameFromCondition(pInfo->pCondition, dbName);
+      if (dbName[0]) sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
+      sysTableIsCondOnOneTable(pInfo->pCondition, pInfo->req.filterTb);
+    }
+
+    SSDataBlock* pBlock = NULL;
+    if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
+      pBlock = sysTableScanUserTables(pOperator);
+    } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
+      pBlock = sysTableScanUserTags(pOperator);
+    } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->readHandle.mnd == NULL) {
+      pBlock = sysTableScanUserCols(pOperator);
+    } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
+              IS_SYS_DBNAME(dbName)) {
+      pBlock = sysTableScanUserSTables(pOperator);
+    } else {  // load the meta from mnode of the given epset
+      pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
+    }
+
+    sysTableScanFillTbName(pOperator, pInfo, name, pBlock);
+    if (pBlock != NULL) {
+      bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
+      if (limitReached) {
+        setOperatorCompleted(pOperator);
+      }
+
+      if (pBlock->info.rows == 0) {
+        continue;
+      }
+      return pBlock;
+    } else {
+      return NULL;
+    }
   }
 }
 

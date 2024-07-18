@@ -985,6 +985,10 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
 
       if (pIter->pBlockLoadInfo == NULL) {
         pIter->pBlockLoadInfo = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
+        if (pIter->pBlockLoadInfo == NULL) {
+          tsdbError("failed to create block load info, code: out of memory, %s", pstr);
+          continue;
+        }
       }
 
       // load stt blocks statis for all stt-blocks, to decide if the data of queried table exists in current stt file
@@ -1056,7 +1060,7 @@ static int32_t sortUidComparFn(const void* p1, const void* p2) {
   const SSttKeyRange* px1 = p1;
   const SSttKeyRange* px2 = p2;
 
-  int32_t ret = tRowKeyCompare(&px1, px2);
+  int32_t ret = tRowKeyCompare(&px1->skey, &px2->skey);
   return ret;
 }
 

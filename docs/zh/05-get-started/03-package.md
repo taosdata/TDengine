@@ -126,6 +126,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 **注意**
 - 目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
 - 从 TDengine 3.1.0.0 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine 销售团队升级为企业版。
+- Windows 上需要安装 VC 运行时库，可在此下载安装 [VC运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170), 如果已经安装此运行库可忽略。
 
 按照以下步骤安装：
 
@@ -162,37 +163,24 @@ Note: 从 3.0.1.7 开始，只提供 TDengine 客户端的 Windows 客户端的�
 
 ```bash
 systemctl start taosd
+systemctl start taosadapter
+systemctl start taoskeeper
+systemctl start taos-explorer
 ```
 
-检查服务是否正常工作：
+你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
+```bash
+start-all.sh 
+```
+
+可以使用 systemctl 来单独管理上面的每一个服务
 
 ```bash
+systemctl start taosd
+systemctl stop taosd
+systemctl restart taosd
 systemctl status taosd
 ```
-
-如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
-
-```
-Active: active (running)
-```
-
-如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
-
-```
-Active: inactive (dead)
-```
-
-如果 TDengine 服务正常工作，那么您可以通过 TDengine 的命令行程序 `taos` 来访问并体验 TDengine。
-
-如下 `systemctl` 命令可以帮助你管理 TDengine 服务：
-
-- 启动服务进程：`systemctl start taosd`
-
-- 停止服务进程：`systemctl stop taosd`
-
-- 重启服务进程：`systemctl restart taosd`
-
-- 查看服务状态：`systemctl status taosd`
 
 :::info
 
@@ -202,35 +190,39 @@ Active: inactive (dead)
 
 :::
 
-**TDengine 命令行（CLI）**
-
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` 即可。
-
 </TabItem>
 
 <TabItem label="Windows 系统" value="windows">
 
 安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。如需使用 http/REST 服务，请执行 `sc start taosadapter` 或运行 `taosadapter.exe` 来启动 taosAdapter 服务进程。
 
-**TDengine 命令行（CLI）**
-
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` 即可。
-
 </TabItem>
 
 <TabItem label="macOS 系统" value="macos">
 
-安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start com.tdengine.taosd` 来启动 TDengine 服务进程。
+安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start ` 来启动 TDengine 服务进程。
 
-如下 `launchctl` 命令用于管理 TDengine 服务：
 
-- 启动服务进程：`sudo launchctl start com.tdengine.taosd`
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosadapter
+sudo launchctl start com.tdengine.taoskeeper
+sudo launchctl start com.tdengine.taos-explorer
+```
 
-- 停止服务进程：`sudo launchctl stop com.tdengine.taosd`
+你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
+```bash
+start-all.sh
+```
 
-- 查看服务状态：`sudo launchctl list | grep taosd`
+可以使用  `launchctl` 命令管理上面提到的每个 TDengine 服务，以下示例使用 `taosd` ：
 
-- 查看服务详细信息：`launchctl print system/com.tdengine.taosd`
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl stop com.tdengine.taosd
+sudo launchctl list | grep taosd
+sudo launchctl print system/com.tdengine.taosd
+```
 
 :::info
 
@@ -241,18 +233,13 @@ Active: inactive (dead)
 
 :::
 
-**TDengine 命令行（CLI）**
-
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
-
 </TabItem>
 </Tabs>
 
-```bash
-taos
-```
 
-如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考 [FAQ](../../train-faq/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
+## TDengine 命令行（CLI）
+
+为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` (Linux/Mac) 或 `taos.exe` (Windows) 即可。 TDengine CLI 的提示符号如下：
 
 ```cmd
 taos>
@@ -277,6 +264,12 @@ Query OK, 2 row(s) in set (0.003128s)
 ```
 
 除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在机器上运行，更多细节请参考 [TDengine 命令行](../../reference/taos-shell/)。
+
+## TDengine 图形化界面
+
+从 TDengine 3.3.0.0 开始，TDengine 发布包中增加了一个新的 web 组件：taos-explorer， 可以使用它进行数据库、超级表、子表、数据的查看和管理。其上也有一些只在企业版中才提供的高级特性，如需要可联系 TDengine 销售团队。
+
+使用 taos-explorer，需要从浏览器访问其映射在主机上的端口，假定主机名为 abc.com，映射到主机的端口为 6060，则需从浏览器访问 http://abc.com:6060. taos-explorer 默认在容器内使用 6060 端口。初次使用需要使用企业邮箱进行注册，注册后即可使用数据库中的用户名和密码登录
 
 ## 使用 taosBenchmark 体验写入速度
 

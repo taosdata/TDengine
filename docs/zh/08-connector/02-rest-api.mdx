@@ -69,7 +69,7 @@ curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
 ## HTTP 请求格式
 
 ```text
-http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
+http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
 ```
 
 参数说明：
@@ -79,6 +79,7 @@ http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
 - db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
 - tz: 可选参数，指定返回时间的时区，遵照 IANA Time Zone 规则，如 `America/New_York`。
 - req_id: 可选参数，指定请求 id，可以用于 tracing。
+- row_with_meta: 可选参数，指定是否每行数据都携带列名，缺省为 false。（3.3.2.0 版本开始支持）
 
 例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
@@ -101,13 +102,13 @@ HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据
 使用 `curl` 通过自定义身份认证方式来发起一个 HTTP Request，语法如下：
 
 ```bash
-curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
+curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
 ```
 
 或者，
 
 ```bash
-curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
+curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
 ```
 
 其中，`TOKEN` 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`。
@@ -330,6 +331,82 @@ curl --location 'http://<fqdn>:<port>/rest/sql' \
 
 - code：（`int`）错误码。
 - desc：（`string`）错误描述。
+
+#### 返回key-value形式数据
+
+当指定 url 参数 `row_with_meta=true` 时，返回的 data 中的数据会从数组的形式变成对象的形式，对象的 key 为列名，value 为数据，如下所示：
+
+插入数据返回示例
+
+```json
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "affected_rows",
+            "INT",
+            4
+        ]
+    ],
+    "data": [
+        {
+            "affected_rows": 1
+        }
+    ],
+    "rows": 1
+}
+```
+
+查询数据返回示例
+
+```json
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "ts",
+            "TIMESTAMP",
+            8
+        ],
+        [
+            "current",
+            "FLOAT",
+            4
+        ],
+        [
+            "voltage",
+            "INT",
+            4
+        ],
+        [
+            "phase",
+            "FLOAT",
+            4
+        ],
+        [
+            "groupid",
+            "INT",
+            4
+        ],
+        [
+            "location",
+            "VARCHAR",
+            24
+        ]
+    ],
+    "data": [
+        {
+            "ts": "2017-07-14T02:40:00.000Z",
+            "current": -2.498076,
+            "voltage": 0,
+            "phase": -0.846025,
+            "groupid": 8,
+            "location": "California.Sunnyvale"
+        }
+    ],
+    "rows": 1
+}
+```
 
 ## 自定义授权码
 

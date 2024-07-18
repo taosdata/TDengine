@@ -144,6 +144,7 @@ enum {
   TMQ_MSG_TYPE__EP_RSP,
   TMQ_MSG_TYPE__POLL_DATA_META_RSP,
   TMQ_MSG_TYPE__WALINFO_RSP,
+  TMQ_MSG_TYPE__POLL_BATCH_META_RSP,
 };
 
 enum {
@@ -239,7 +240,7 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
-  SColumnDataAgg** pBlockAgg;
+  SColumnDataAgg*  pBlockAgg;
   SArray*          pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo   info;
 } SSDataBlock;

@@ -20,7 +20,7 @@ int32_t cos_cp_open(char const* cp_path, SCheckpoint* checkpoint) {
 }
 
 void cos_cp_close(TdFilePtr fd) { taosCloseFile(&fd); }
-void cos_cp_remove(char const* filepath) { taosRemoveFile(filepath); }
+void cos_cp_remove(char const* filepath) { (void)taosRemoveFile(filepath); }
 
 static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
   int32_t      code = 0;
@@ -380,7 +380,7 @@ void cos_cp_get_undo_parts(SCheckpoint* checkpoint, int* part_num, SCheckpointPa
 
 void cos_cp_update(SCheckpoint* checkpoint, int32_t part_index, char const* etag, uint64_t crc64) {
   checkpoint->parts[part_index].completed = 1;
-  strncpy(checkpoint->parts[part_index].etag, etag, 128);
+  strncpy(checkpoint->parts[part_index].etag, etag, 127);
   checkpoint->parts[part_index].crc64 = crc64;
 }
 
@@ -389,11 +389,12 @@ void cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t 
   int i = 0;
 
   checkpoint->cp_type = COS_CP_TYPE_UPLOAD;
-  strncpy(checkpoint->file_path, filepath, TSDB_FILENAME_LEN);
+  memset(checkpoint->file_path, 0, TSDB_FILENAME_LEN);
+  strncpy(checkpoint->file_path, filepath, TSDB_FILENAME_LEN - 1);
 
   checkpoint->file_size = size;
   checkpoint->file_last_modified = mtime;
-  strncpy(checkpoint->upload_id, upload_id, 128);
+  strncpy(checkpoint->upload_id, upload_id, 127);
 
   checkpoint->part_size = part_size;
   for (; i * part_size < size; i++) {

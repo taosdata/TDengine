@@ -372,7 +372,7 @@ The specific functions related to the interface are as follows (see also the [pr
   Execute the prepared statement. Currently, a statement can only be executed once.
 
 - `int taos_stmt_affected_rows(TAOS_STMT *stmt)`
- 
+
   Gets the number of rows affected by executing bind statements multiple times.
 
 - `int taos_stmt_affected_rows_once(TAOS_STMT *stmt)`
@@ -451,6 +451,101 @@ In addition to writing data using the SQL method or the parameter binding API, w
   - Within _reqid interfaces can track the entire call chain by passing the reqid parameter.
 
 ### Subscription API
+- `const char *tmq_err2str(int32_t code)`
+    
+  **Description**
+  - This interface is used to convert error codes for data subscriptions into error messages
+  
+  **Parameter description**
+  - code: error code
+  
+  **Return value**
+  - non NULL, return error message, error message may be empty
+
+
+- `tmq_conf_t    *tmq_conf_new()`
+- `tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value)`
+- `void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param)`
+- `void           tmq_conf_destroy(tmq_conf_t *conf)`
+    
+  tmq_conf_res_t defined as follows:
+  ```
+  typedef enum tmq_conf_res_t {
+    TMQ_CONF_UNKNOWN = -2,
+    TMQ_CONF_INVALID = -1,
+    TMQ_CONF_OK = 0,
+  } tmq_conf_res_t;
+  ```
+
+  commit callback function defined as follows:
+  ```
+  typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param))
+  ```
+  **Description**
+  - tmq_conf_new : create a tmq_conf_t structure to configure consumption parameters
+  - tmq_conf_set : set configuration, configuration is key-value pair
+  - tmq_conf_set_auto_commit_cb : set auto commit callback function
+  - tmq_conf_destroy : destroy tmq_conf_t structure
+
+  **Parameter description**
+  - tmq_conf_set : key is parameter name，value is parameter value
+  - tmq_conf_set_auto_commit_cb : cb is callback function, param is callback function parameter
+
+  **Return value**
+  - tmq_conf_new: structure of tmq_conf_t, NULL failed
+  - tmq_conf_set: tmq_conf_res_t, TMQ_CONF_OK means success, others means failure
+
+
+- `tmq_list_t *tmq_list_new()`
+- `int32_t     tmq_list_append(tmq_list_t *, const char *)`
+- `void        tmq_list_destroy(tmq_list_t *)`
+- `int32_t     tmq_list_get_size(const tmq_list_t *)`
+- `char      **tmq_list_to_c_array(const tmq_list_t *)`
+    
+  **Description**
+  - tmq_list_new : build a tmq_list_t constructure, used to save topic
+  - tmq_list_append : add topic to tmq_list_t
+  - tmq_list_destroy : destroy tmq_list_t
+  - tmq_list_get_size : get size of tmq_list_t
+  - tmq_list_to_c_array : convert tmq_list_t to c array, element is string pointer
+
+  **Return value**
+  - tmq_list_new : structure of tmq_list_t, tmq_list_t is a list of strings, NULL failed
+  - tmq_list_append : zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  - tmq_list_get_size : size of tmq_list_t, -1 failed
+  - tmq_list_to_c_array : c array, element is pointer of string, NULL failed
+
+- `tmq_t    *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen)`
+- `int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list)`
+- `int32_t   tmq_unsubscribe(tmq_t *tmq)`
+- `int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topic_list)`
+- `TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout)`
+- `int32_t   tmq_consumer_close(tmq_t *tmq)`
+
+  **Description**
+  - tmq_consumer_new : build a tmq_t constructure, need to be used with tmq_consumer_close
+  - tmq_subscribe : subscribe topic, need to be used with tmq_unsubscribe
+  - tmq_unsubscribe : unsubscribe topic, need to be used with tmq_subscribe
+  - tmq_subscription : obtain a list of topics subscribed by consumer
+  - tmq_consumer_poll : used to consume data
+  - tmq_consumer_close : clost tmq_t, need to be used with tmq_consumer_new
+  
+  **Parameter description**
+  - conf: sed to configure consume parameters
+  - errstr: The error information is stored in this string. Allocation and release of memory are the responsibility of the caller
+  - errstenLen: the length of errstr
+  - tmq: structure of tmq_t returned by tmq_consumer_new
+  - topic_list: a list of topics subscribed by consumers，need to be freed by tmq_list_destroy
+  - timeout: the timeout time, measured in milliseconds, indicates how long it takes for data to expire. If it is negative, it will default to 1 second
+  
+  **Return value**
+  - tmq_consumer_new: structure of tmq_t, NULL failed
+  - tmq_subscribe: zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  - tmq_unsubscribe: zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  - tmq_subscription: zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  - tmq_consumer_poll: structure of TAOS_RES(same like taos_query), NULL if there is no data
+  - tmq_consumer_close: zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  
 
 - `int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
 - `void      tmq_free_assignment(tmq_topic_assignment* pAssignment)`
@@ -474,6 +569,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
   **Return value**
   - zero success,none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
+
 - `int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
 
   **Function description**
@@ -481,6 +577,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
 
   **Return value**
   - the value of committed offset, -2147467247 means no committed value, Other values less than 0 indicate failure
+
 
 - `int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg)`
 - `void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param)`
@@ -499,6 +596,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
   **Return value**
   - zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
+
 - `int64_t     tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId)`
 
   **Function description**
@@ -507,6 +605,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
   **Return value**
   - the current consumption location, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
 
+
 - `int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset)`
 
   **Function description**
@@ -514,25 +613,52 @@ In addition to writing data using the SQL method or the parameter binding API, w
 
   **Return value**
   - zero success, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+
+
+- `int64_t tmq_get_vgroup_offset(TAOS_RES* res)`
+- `int32_t tmq_get_vgroup_id(TAOS_RES *res)`
+
+  **Description**
+  - tmq_get_vgroup_offset : Obtain the starting offset of the consumed data
+  - tmq_get_vgroup_id : Obtain the vgroup id of the consumed data
   
-- `int32_t   int64_t     tmq_get_vgroup_offset(TAOS_RES* res)`
-
-  **Function description**
-  - Obtain the starting offset of the consumed data
-
   **Parameter description**
-  - msg：Message consumed
-
-  **Return value**
-  - the starting offset of the consumed data, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  - msg : Message consumed
   
-- `int32_t   int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics)`
-
-  **Function description**
-  - Obtain a list of topics subscribed by consumers
-
-  **Parameter description**
-  - topics: a list of topics subscribed by consumers，need to be freed by tmq_list_destroy
-
   **Return value**
-  - zero success，none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  - tmq_get_vgroup_offset : the starting offset of the consumed data, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+  - tmq_get_vgroup_id : vgroup id of result, none zero failed, wrong message can be obtained through `char *tmq_err2str(int32_t code)`
+
+
+- `TAOS       *tmq_get_connect(tmq_t *tmq)`
+- `const char *tmq_get_table_name(TAOS_RES *res)`
+- `tmq_res_t   tmq_get_res_type(TAOS_RES *res)`
+- `const char *tmq_get_topic_name(TAOS_RES *res)`
+- `const char *tmq_get_db_name(TAOS_RES *res)`
+
+  tmq_res_t the type of consumed result, defined as follows:
+  ```
+  typedef enum tmq_res_t {
+    TMQ_RES_INVALID = -1,   // invalid
+    TMQ_RES_DATA = 1,       // data
+    TMQ_RES_TABLE_META = 2, // meta
+    TMQ_RES_METADATA = 3    // data & meta
+  } tmq_res_t;
+  ```
+  **Description**
+  - tmq_get_connect : when creating a consumer, a link will be automatically established and saved in the tmq_t structure. This interface allows users to obtain link information(same like taos_connect) from the tmq_t structure
+  - tmq_get_table_name : get the table name of result
+  - tmq_get_res_type : get the type of result
+  - tmq_get_topic_name : get the topic name of result
+  - tmq_get_db_name : get the db name of result
+  
+  **Parameter description**
+  - tmq : tmq_t structure created by tmq_consumer_new
+  - res : TAOS_RES structure returned by tmq_consumer_poll
+  
+  **Return value**
+  - tmq_get_connect : connection info in tmq, NULL if failed
+  - tmq_get_table_name : table name of result, NULL if failed
+  - tmq_get_res_type : result type tmq_res_t
+  - tmq_get_topic_name : topic name of result, NULL if failed
+  - tmq_get_db_name : db name of result, NULL if failed

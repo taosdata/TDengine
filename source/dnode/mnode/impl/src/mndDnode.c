@@ -14,9 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <stdio.h>
-#include "tjson.h"
 #include "mndDnode.h"
+#include <stdio.h>
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDb.h"
@@ -28,9 +27,10 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "taos_monitor.h"
+#include "tjson.h"
 #include "tmisce.h"
 #include "tunit.h"
-#include "taos_monitor.h"
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 40
@@ -49,6 +49,12 @@ static const char *offlineReason[] = {
     "ttlChangeOnWrite not match",
     "enableWhiteList not match",
     "encryptionKey not match",
+    "monitor not match",
+    "monitor switch not match",
+    "monitor interval not match",
+    "monitor slow log threshold not match",
+    "monitor slow log sql max len not match",
+    "monitor slow log scope not match",
     "unknown",
 };
 
@@ -191,8 +197,8 @@ static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
   SDB_SET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDnode->machineId, TSDB_MACHINE_ID_LEN, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, 0, _OVER) // forward/backward compatible
-  SDB_SET_INT16(pRaw, dataPos, 0, _OVER) // forward/backward compatible
+  SDB_SET_INT16(pRaw, dataPos, 0, _OVER)  // forward/backward compatible
+  SDB_SET_INT16(pRaw, dataPos, 0, _OVER)  // forward/backward compatible
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
   terrno = 0;
@@ -438,7 +444,27 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
   }
 }
 
+#define CHECK_MONITOR_PARA(para,err) \
+if (pCfg->monitorParas.para != para) { \
+  mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
+  terrno = err; \
+  return err;\
+}
+
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
+  CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsMonitorInterval, DND_REASON_STATUS_MONITOR_INTERVAL_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogThreshold, DND_REASON_STATUS_MONITOR_SLOW_LOG_THRESHOLD_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogThresholdTest, DND_REASON_STATUS_MONITOR_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogMaxLen, DND_REASON_STATUS_MONITOR_SLOW_LOG_SQL_MAX_LEN_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogScope, DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH);
+
+  if (0 != strcasecmp(pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb)) {
+    mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id, pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
+    terrno = TSDB_CODE_DNODE_INVALID_MONITOR_PARAS;
+    return DND_REASON_STATUS_MONITOR_NOT_MATCH;
+  }
+
   if (pCfg->statusInterval != tsStatusInterval) {
     mError("dnode:%d, statusInterval:%d inconsistent with cluster:%d", pDnode->id, pCfg->statusInterval,
            tsStatusInterval);
@@ -530,205 +556,30 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
   return stateChanged;
 }
 
+extern char* tsMonFwUri;
+extern char* tsMonSlowLogUri;
 static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatisReq statisReq = {0};
   int32_t    code = -1;
-
-  char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
-  sprintf(strClusterId, "%"PRId64, pMnode->clusterId);
 
   if (tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return code;
   }
 
-  if(tsMonitorLogProtocol){
+  if (tsMonitorLogProtocol) {
     mInfo("process statis req,\n %s", statisReq.pCont);
   }
 
-  SJson* pJson = tjsonParse(statisReq.pCont);
-
-  int32_t ts_size = tjsonGetArraySize(pJson);
-
-  for(int32_t i = 0; i < ts_size; i++){
-    SJson* item = tjsonGetArrayItem(pJson, i);
-
-    SJson* tables = tjsonGetObjectItem(item, "tables");
-
-    int32_t tableSize = tjsonGetArraySize(tables);
-    for(int32_t i = 0; i < tableSize; i++){
-      SJson* table = tjsonGetArrayItem(tables, i);
-
-      char tableName[MONITOR_TABLENAME_LEN] = {0};
-      tjsonGetStringValue(table, "name", tableName);
-
-      SJson* metricGroups = tjsonGetObjectItem(table, "metric_groups");
-
-      int32_t size = tjsonGetArraySize(metricGroups);
-      for(int32_t i = 0; i < size; i++){
-        SJson* item = tjsonGetArrayItem(metricGroups, i);
-
-        SJson* arrayTag = tjsonGetObjectItem(item, "tags");
-
-        int32_t tagSize = tjsonGetArraySize(arrayTag);
-        for(int32_t j = 0; j < tagSize; j++){
-          SJson* item = tjsonGetArrayItem(arrayTag, j);
-
-          char tagName[MONITOR_TAG_NAME_LEN] = {0};
-          tjsonGetStringValue(item, "name", tagName);
-
-          if(strncmp(tagName, "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
-            tjsonDeleteItemFromObject(item, "value");
-            tjsonAddStringToObject(item, "value", strClusterId);
-          }
-        }
-      }
-    }
-  }
-
-  char *pCont = tjsonToString(pJson);
-  monSendContent(pCont);
-
-  if(pJson != NULL){
-    tjsonDelete(pJson);
-    pJson = NULL;
-  }
-
-  if(pCont != NULL){
-    taosMemoryFree(pCont);
-    pCont = NULL;
+  if (statisReq.type == MONITOR_TYPE_COUNTER){
+    monSendContent(statisReq.pCont, tsMonFwUri);
+  }else if(statisReq.type == MONITOR_TYPE_SLOW_LOG){
+    monSendContent(statisReq.pCont, tsMonSlowLogUri);
   }
 
   tFreeSStatisReq(&statisReq);
   return 0;
-
-/*
-  SJson* pJson = tjsonParse(statisReq.pCont);
-
-  int32_t ts_size = tjsonGetArraySize(pJson);
-
-  for(int32_t i = 0; i < ts_size; i++){
-    SJson* item = tjsonGetArrayItem(pJson, i);
-
-    SJson* tables = tjsonGetObjectItem(item, "tables");
-
-    int32_t tableSize = tjsonGetArraySize(tables);
-    for(int32_t i = 0; i < tableSize; i++){
-      SJson* table = tjsonGetArrayItem(tables, i);
-
-      char tableName[MONITOR_TABLENAME_LEN] = {0};
-      tjsonGetStringValue(table, "name", tableName);
-
-      SJson* metricGroups = tjsonGetObjectItem(table, "metric_groups");
-
-      int32_t size = tjsonGetArraySize(metricGroups);
-      for(int32_t i = 0; i < size; i++){
-        SJson* item = tjsonGetArrayItem(metricGroups, i);
-
-        SJson* arrayTag = tjsonGetObjectItem(item, "tags");
-
-        int32_t tagSize = tjsonGetArraySize(arrayTag);
-
-        char** labels = taosMemoryMalloc(sizeof(char*) * tagSize);
-        char** sample_labels = taosMemoryMalloc(sizeof(char*) * tagSize);
-
-        for(int32_t j = 0; j < tagSize; j++){
-          SJson* item = tjsonGetArrayItem(arrayTag, j);
-
-          *(labels + j) = taosMemoryMalloc(MONITOR_TAG_NAME_LEN);
-          tjsonGetStringValue(item, "name", *(labels + j));
-
-          *(sample_labels + j) = taosMemoryMalloc(MONITOR_TAG_VALUE_LEN);
-          tjsonGetStringValue(item, "value", *(sample_labels + j));
-          if(strncmp(*(labels + j), "cluster_id", MONITOR_TAG_NAME_LEN) == 0) {
-            strncpy(*(sample_labels + j), strClusterId, MONITOR_TAG_VALUE_LEN);
-          }
-        }
-
-        SJson* metrics = tjsonGetObjectItem(item, "metrics");
-
-        int32_t metricLen = tjsonGetArraySize(metrics);
-        for(int32_t j = 0; j < metricLen; j++){
-          SJson *item = tjsonGetArrayItem(metrics, j);
-
-          char name[MONITOR_METRIC_NAME_LEN] = {0};
-          tjsonGetStringValue(item, "name", name);
-
-          double value = 0;
-          tjsonGetDoubleValue(item, "value", &value);
-
-          double type = 0;
-          tjsonGetDoubleValue(item, "type", &type);
-
-          int32_t metricNameLen = strlen(name) + strlen(tableName) + 2;
-          char* metricName = taosMemoryMalloc(metricNameLen);
-          memset(metricName, 0, metricNameLen);
-          sprintf(metricName, "%s:%s", tableName, name);
-
-          taos_metric_t* metric = taos_collector_registry_get_metric(metricName);
-          if(metric == NULL){
-            if(type == 0){
-              metric = taos_counter_new(metricName, "",  tagSize, (const char**)labels);
-            }
-            if(type == 1){
-              metric = taos_gauge_new(metricName, "",  tagSize, (const char**)labels);
-            }
-            mTrace("fail to get metric from registry, new one metric:%p", metric);
-
-            if(taos_collector_registry_register_metric(metric) == 1){
-              if(type == 0){
-                taos_counter_destroy(metric);
-              }
-              if(type == 1){
-                taos_gauge_destroy(metric);
-              }
-
-              metric = taos_collector_registry_get_metric(metricName);
-
-              mTrace("fail to register metric, get metric from registry:%p", metric);
-            }
-            else{
-              mTrace("succeed to register metric:%p", metric);
-            }
-          }
-          else{
-            mTrace("get metric from registry:%p", metric);
-          }
-
-          if(type == 0){
-            taos_counter_add(metric, value, (const char**)sample_labels);
-          }
-          if(type == 1){
-            taos_gauge_set(metric, value, (const char**)sample_labels);
-          }
-
-          taosMemoryFreeClear(metricName);
-        }
-
-        for(int32_t j = 0; j < tagSize; j++){
-          taosMemoryFreeClear(*(labels + j));
-          taosMemoryFreeClear(*(sample_labels + j));
-        }
-
-        taosMemoryFreeClear(sample_labels);
-        taosMemoryFreeClear(labels);
-      }
-    }
-
-  }
-
-  code = 0;
-
-_OVER:
-  if(pJson != NULL){
-    tjsonDelete(pJson);
-    pJson = NULL;
-  }
-
-  tFreeSStatisReq(&statisReq);
-  return code;
-  */
 }
 
 static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
@@ -816,8 +667,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
   bool    encryptKeyChanged = pDnode->encryptionKeyChksum != statusReq.clusterCfg.encryptionKeyChksum;
+  bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
   bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged ||
-                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged;
+                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -1091,6 +943,32 @@ _OVER:
   return code;
 }
 
+static void getSlowLogScopeString(int32_t scope, char* result){
+  if(scope == SLOW_LOG_TYPE_NULL) {
+    strcat(result, "NONE");
+    return;
+  }
+  while(scope > 0){
+    if(scope & SLOW_LOG_TYPE_QUERY) {
+      strcat(result, "QUERY");
+      scope &= ~SLOW_LOG_TYPE_QUERY;
+    } else if(scope & SLOW_LOG_TYPE_INSERT) {
+      strcat(result, "INSERT");
+      scope &= ~SLOW_LOG_TYPE_INSERT;
+    } else if(scope & SLOW_LOG_TYPE_OTHERS) {
+      strcat(result, "OTHERS");
+      scope &= ~SLOW_LOG_TYPE_OTHERS;
+    } else{
+      printf("invalid slow log scope:%d", scope);
+      return;
+    }
+
+    if(scope > 0) {
+      strcat(result, "|");
+    }
+  }
+}
+
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
   int32_t           code = -1;
@@ -1099,7 +977,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  rsp.variables = taosArrayInit(4, sizeof(SVariablesInfo));
+  rsp.variables = taosArrayInit(16, sizeof(SVariablesInfo));
   if (NULL == rsp.variables) {
     mError("failed to alloc SVariablesInfo array while process show variables req");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1128,6 +1006,33 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   strcpy(info.scope, "both");
   taosArrayPush(rsp.variables, &info);
 
+  strcpy(info.name, "monitor");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "monitorInterval");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "slowLogThreshold");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "slowLogMaxLen");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
+  char scopeStr[64] = {0};
+  getSlowLogScopeString(tsSlowLogScope, scopeStr);
+  strcpy(info.name, "slowLogScope");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
+  strcpy(info.scope, "server");
+  taosArrayPush(rsp.variables, &info);
+
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
   void   *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
@@ -1148,7 +1053,6 @@ _OVER:
   }
 
   tFreeSShowVariablesRsp(&rsp);
-
   return code;
 }
 
@@ -1457,7 +1361,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
-
+  int8_t updateIpWhiteList = 0;
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
     tFreeSMCfgDnodeReq(&cfgReq);
@@ -1492,6 +1396,9 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       terrno = TSDB_CODE_INVALID_CFG;
       goto _err_out;
     }
+    if (strncasecmp(dcfgReq.config, "enableWhiteList", strlen("enableWhiteList")) == 0) {
+      updateIpWhiteList = 1;
+    }
 
     if (cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true) != 0) goto _err_out;
   }
@@ -1505,7 +1412,11 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   tFreeSMCfgDnodeReq(&cfgReq);
 
-  return mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
+  int32_t code = mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
+
+  // dont care suss or succ;
+  if (updateIpWhiteList) mndRefreshUserIpWhiteList(pMnode);
+  return code;
 
 _err_out:
   tFreeSMCfgDnodeReq(&cfgReq);
@@ -1670,6 +1581,28 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
   cfgOpts[totalRows] = "charset";
   snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  totalRows++;
+
+  cfgOpts[totalRows] = "monitor";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
+  totalRows++;
+
+  cfgOpts[totalRows] = "monitorInterval";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
+  totalRows++;
+
+  cfgOpts[totalRows] = "slowLogThreshold";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
+  totalRows++;
+
+  cfgOpts[totalRows] = "slowLogMaxLen";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
+  totalRows++;
+
+  char scopeStr[64] = {0};
+  getSlowLogScopeString(tsSlowLogScope, scopeStr);
+  cfgOpts[totalRows] = "slowLogScope";
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
   totalRows++;
 
   char buf[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};

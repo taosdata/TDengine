@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "cJSON.h"
 #include "taos.h"
 #include "tmsg.h"
 #include "types.h"
@@ -32,6 +33,7 @@ typedef struct {
   int  srcVgroups;
   int  dstVgroups;
   char dir[256];
+  bool btMeta;
 } Config;
 
 Config g_conf = {0};
@@ -61,8 +63,23 @@ static void msg_process(TAOS_RES* msg) {
     if (result) {
       printf("meta result: %s\n", result);
       if (g_fp && strcmp(result, "") != 0) {
-        taosFprintfFile(g_fp, result);
-        taosFprintfFile(g_fp, "\n");
+        // RES_TYPE__TMQ_BATCH_META
+        if ((*(int8_t*)msg) == 5) {
+          cJSON* pJson = cJSON_Parse(result);
+          cJSON* pJsonArray = cJSON_GetObjectItem(pJson, "metas");
+          int32_t num = cJSON_GetArraySize(pJsonArray);
+          for (int32_t i = 0; i < num; i++) {
+            cJSON* pJsonItem = cJSON_GetArrayItem(pJsonArray, i);
+            char* itemStr = cJSON_PrintUnformatted(pJsonItem);
+            taosFprintfFile(g_fp, itemStr);
+            tmq_free_json_meta(itemStr);
+            taosFprintfFile(g_fp, "\n");
+          }
+          cJSON_Delete(pJson);
+        } else {
+          taosFprintfFile(g_fp, result);
+          taosFprintfFile(g_fp, "\n");
+        }
       }
     }
     tmq_free_json_meta(result);
@@ -584,6 +601,10 @@ tmq_t* build_consumer() {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   }
 
+  if (g_conf.btMeta) {
+    tmq_conf_set(conf, "msg.enable.batchmeta", "true");
+  }
+
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
@@ -1064,7 +1085,7 @@ void testConsumeExcluded(int topic_type) {
     char* topic = "create topic topic_excluded with meta as database db_taosx";
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
-      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      printf("failed to create topic topic_excluded1, reason:%s\n", taos_errstr(pRes));
       taos_close(pConn);
       return;
     }
@@ -1073,7 +1094,7 @@ void testConsumeExcluded(int topic_type) {
     char* topic = "create topic topic_excluded as select * from stt";
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
-      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      printf("failed to create topic topic_excluded2, reason:%s\n", taos_errstr(pRes));
       taos_close(pConn);
       return;
     }
@@ -1115,7 +1136,7 @@ void testConsumeExcluded(int topic_type) {
         assert(raw.raw_type != 2 && raw.raw_type != 4 && raw.raw_type != TDMT_VND_CREATE_STB &&
                raw.raw_type != TDMT_VND_ALTER_STB && raw.raw_type != TDMT_VND_CREATE_TABLE &&
                raw.raw_type != TDMT_VND_ALTER_TABLE && raw.raw_type != TDMT_VND_DELETE);
-        assert(raw.raw_type == TDMT_VND_DROP_STB || raw.raw_type == TDMT_VND_DROP_TABLE);
+        assert(raw.raw_type == TDMT_VND_DROP_STB || raw.raw_type == TDMT_VND_DROP_TABLE || raw.raw_type == 5);
       } else if (topic_type == 2) {
         assert(0);
       }
@@ -1168,6 +1189,8 @@ int main(int argc, char* argv[]) {
       g_conf.subTable = true;
     } else if (strcmp(argv[i], "-onlymeta") == 0) {
       g_conf.meta = 1;
+    } else if (strcmp(argv[i], "-bt") == 0) {
+      g_conf.btMeta = true;
     }
   }
 

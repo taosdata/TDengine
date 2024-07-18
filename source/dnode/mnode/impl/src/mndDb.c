@@ -495,7 +495,19 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
 #else
   if (pNewCfg->replications != 1 && pNewCfg->replications != 3) return -1;
 #endif
-  if (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
+
+  if (pNewCfg->walLevel == 0 && pOldCfg->replications > 1) {
+    terrno = TSDB_CODE_MND_INVALID_WAL_LEVEL;
+    return -1;
+  }
+  if (pNewCfg->replications > 1 && pOldCfg->walLevel == 0) {
+    terrno = TSDB_CODE_MND_INVALID_WAL_LEVEL;
+    return -1;
+  }
+
+  if (pNewCfg->sstTrigger != pOldCfg->sstTrigger &&
+      (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER))
+    return -1;
   if (pNewCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pNewCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
   if (pNewCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pNewCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
   if (pNewCfg->minRows > pNewCfg->maxRows) return -1;
@@ -821,6 +833,9 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
 
 #ifdef TD_ENTERPRISE
   if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
+  if ((code = grantCheck(TSDB_GRANT_DB_ENCRYPTION)) != 0) {
+    goto _exit;
+  }
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
     code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
     mError("db:%s, failed to check encryption key:%" PRIi8 " in mnode leader since it's not loaded", pReq->db,
@@ -871,9 +886,6 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 #endif
   mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
-    goto _OVER;
-  }
 
   pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
@@ -898,9 +910,20 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   }
 
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
+    goto _OVER;
+  }
+
   if ((terrno = grantCheck(TSDB_GRANT_DB)) != 0) {
     code = terrno;
     goto _OVER;
+  }
+
+  if (createReq.replications == 2) {
+    if ((terrno = grantCheck(TSDB_GRANT_DUAL_REPLICA_HA)) != 0) {
+      code = terrno;
+      goto _OVER;
+    }
   }
 
   if ((code = mndCheckDbEncryptKey(pMnode, &createReq)) != 0) {
@@ -1104,11 +1127,22 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
         if (pNewDb->cfg.withArbitrator) {
           SArbGroup arbGroup = {0};
           mndArbGroupInitFromVgObj(&newVgroup, &arbGroup);
-          if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+          if (mndSetCreateArbGroupCommitLogs(pTrans, &arbGroup) != 0) {
+            sdbCancelFetch(pSdb, pIter);
+            sdbRelease(pSdb, pVgroup);
+            taosArrayDestroy(pArray);
+            return -1;
+          }
+
         } else {
           SArbGroup arbGroup = {0};
           mndArbGroupInitFromVgObj(pVgroup, &arbGroup);
-          if (mndSetDropArbGroupCommitLogs(pTrans, &arbGroup) != 0) return -1;
+          if (mndSetDropArbGroupCommitLogs(pTrans, &arbGroup) != 0) {
+            sdbCancelFetch(pSdb, pIter);
+            sdbRelease(pSdb, pVgroup);
+            taosArrayDestroy(pArray);
+            return -1;
+          }
         }
       }
     }
@@ -1163,6 +1197,12 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (alterReq.replications == 2) {
+    if ((code = grantCheck(TSDB_GRANT_DUAL_REPLICA_HA)) != 0) {
+      goto _OVER;
+    }
+  }
+
   int32_t numOfTopics = 0;
   if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
     goto _OVER;
@@ -1209,7 +1249,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (terrno != 0) code = terrno;
-    mError("db:%s, failed to alter since %s", alterReq.db, terrstr());
+    mError("db:%s, failed to alter since %s", alterReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
