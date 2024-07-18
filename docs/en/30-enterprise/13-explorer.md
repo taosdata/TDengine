@@ -156,10 +156,8 @@ Clicking the delete button will remove the SQL from personal favorites. If the S
 
 > NOTE:
 >
-> 1. DO NOT add the same SQL statement 
-> to personal favorites area more than once.
-> 2. DO NOT share the same SQL statement 
-> to shared favorites area more than once.
+> 1. If the SQL statement to be favorited is already in personal favorites, it cannot be favorited again. This operation will throw an error without any consequences.
+> 2. If the SQL statement to be shared has already been shared by oneself or others, it cannot be shared again. This operation will throw an error without any consequences.
 >
 >![explorer-23-favoritesNotes.png](./pic/explorer-23-favoritesNotes.png)
 
