@@ -71,7 +71,6 @@ void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
   }
 }
 
-extern char **environ;
 static int32_t udfSpawnUdfd(SUdfdData *pData) {
   fnInfo("start to init udfd");
   uv_process_options_t options = {0};
@@ -118,7 +117,6 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   child_stdio[2].data.fd = 2;
   options.stdio_count = 3;
   options.stdio = child_stdio;
-  options.env = environ;
 
   options.flags = UV_PROCESS_DETACHED;
 
@@ -145,14 +143,29 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   udfdPathLdLib[udfdLdLibPathLen] = ':';
   strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
-    fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
+    fnInfo("[UDFD]udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
-    fnError("can not set correct udfd LD_LIBRARY_PATH");
+    fnError("[UDFD]can not set correct udfd LD_LIBRARY_PATH");
   }
   char ldLibPathEnvItem[1024 + 32] = {0};
   snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", "LD_LIBRARY_PATH", udfdPathLdLib);
 
-  char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, ldLibPathEnvItem, NULL};
+  char *taosFqdnEnvItem = NULL;
+  char *taosFqdn = getenv("TAOS_FQDN");
+  if (taosFqdn != NULL) {
+    taosFqdnEnvItem = taosMemoryMalloc(strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1);
+    if (taosFqdnEnvItem != NULL) {
+      strcpy(taosFqdnEnvItem, "TAOS_FQDN=");
+      strcat(taosFqdnEnvItem, taosFqdn);
+      fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
+    } else {
+      fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, ldLibPathEnvItem,taosFqdnEnvItem, NULL};
+
   options.env = envUdfd;
 
   int err = uv_spawn(&pData->loop, &pData->process, &options);
