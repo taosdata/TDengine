@@ -3389,11 +3389,16 @@ void resetWinRange(STimeWindow* winRange) {
   winRange->ekey = INT64_MAX;
 }
 
-void getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo) {
+int32_t getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t rowSize = pAggSup->resultRowSize;
-  int32_t code =
-      pAggSup->stateStore.streamStateSessionGet(pAggSup->pState, pKey, (void**)&pWinInfo->pStatePos, &rowSize);
-  if (code == TSDB_CODE_SUCCESS) {
+  int32_t winCode = TSDB_CODE_SUCCESS;
+  code = pAggSup->stateStore.streamStateSessionGet(pAggSup->pState, pKey, (void**)&pWinInfo->pStatePos, &rowSize,
+                                                   &winCode);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  if (winCode == TSDB_CODE_SUCCESS) {
     pWinInfo->sessionWin = *pKey;
     pWinInfo->isOutput = true;
     if (pWinInfo->pStatePos->needFree) {
@@ -3402,6 +3407,12 @@ void getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, 
   } else {
     SET_SESSION_WIN_INVALID((*pWinInfo));
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 void reloadAggSupFromDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup) {
@@ -3435,7 +3446,8 @@ void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   ASSERT(size == num * sizeof(SSessionKey) + sizeof(TSKEY));
   for (int32_t i = 0; i < num; i++) {
     SResultWindowInfo winInfo = {0};
-    getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
+    code = getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
+    TSDB_CHECK_CODE(code, lino, _end);
     if (!IS_VALID_SESSION_WIN(winInfo)) {
       continue;
     }
@@ -3488,7 +3500,8 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
   }
   for (int32_t i = 0; i < num; i++) {
     SResultWindowInfo winInfo = {0};
-    getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
+    code = getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
+    TSDB_CHECK_CODE(code, lino, _end);
     if (!IS_VALID_SESSION_WIN(winInfo)) {
       continue;
     }
@@ -3946,14 +3959,19 @@ bool compareWinStateKey(SStateKeys* left, SStateKeys* right) {
   return compareVal(left->pData, right);
 }
 
-void getStateWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SStateWindowInfo* pCurWin,
-                             SStateWindowInfo* pNextWin) {
-  int32_t size = pAggSup->resultRowSize;
+int32_t getStateWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SStateWindowInfo* pCurWin,
+                                SStateWindowInfo* pNextWin) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SStreamStateCur* pCur = NULL;
+  int32_t          size = pAggSup->resultRowSize;
   pCurWin->winInfo.sessionWin.groupId = pKey->groupId;
   pCurWin->winInfo.sessionWin.win.skey = pKey->win.skey;
   pCurWin->winInfo.sessionWin.win.ekey = pKey->win.ekey;
-  getSessionWindowInfoByKey(pAggSup, pKey, &pCurWin->winInfo);
+  code = getSessionWindowInfoByKey(pAggSup, pKey, &pCurWin->winInfo);
+  TSDB_CHECK_CODE(code, lino, _end);
   ASSERT(IS_VALID_SESSION_WIN(pCurWin->winInfo));
+
   pCurWin->pStateKey =
       (SStateKeys*)((char*)pCurWin->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - pAggSup->stateKeySize));
   pCurWin->pStateKey->bytes = pAggSup->stateKeySize - sizeof(SStateKeys);
@@ -3969,12 +3987,11 @@ void getStateWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SS
          pCurWin->winInfo.sessionWin.win.ekey);
 
   pNextWin->winInfo.sessionWin = pCurWin->winInfo.sessionWin;
-  SStreamStateCur* pCur =
-      pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pNextWin->winInfo.sessionWin);
+  pCur = pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pNextWin->winInfo.sessionWin);
   int32_t nextSize = pAggSup->resultRowSize;
-  int32_t code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &pNextWin->winInfo.sessionWin,
-                                                                  (void**)&pNextWin->winInfo.pStatePos, &nextSize);
-  if (code != TSDB_CODE_SUCCESS) {
+  int32_t winCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &pNextWin->winInfo.sessionWin,
+                                                                     (void**)&pNextWin->winInfo.pStatePos, &nextSize);
+  if (winCode != TSDB_CODE_SUCCESS) {
     SET_SESSION_WIN_INVALID(pNextWin->winInfo);
   } else {
     pNextWin->pStateKey =
@@ -3985,9 +4002,15 @@ void getStateWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SS
     pNextWin->pStateKey->isNull = false;
     pNextWin->winInfo.isOutput = true;
   }
+
+_end:
   pAggSup->stateStore.streamStateFreeCur(pCur);
   qDebug("===stream===get state next win buff. skey:%" PRId64 ", endkey:%" PRId64,
          pNextWin->winInfo.sessionWin.win.skey, pNextWin->winInfo.sessionWin.win.ekey);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t setStateOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId, char* pKeyData,

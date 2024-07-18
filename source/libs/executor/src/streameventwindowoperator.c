@@ -744,7 +744,9 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
     SEventWindowInfo curInfo = {0};
     qDebug("===stream=== reload state. try process result %" PRId64 ", %" PRIu64 ", index:%d", pSeKeyBuf[i].win.skey,
            pSeKeyBuf[i].groupId, i);
-    getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo.winInfo);
+    code = getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo.winInfo);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     // event window has been deleted
     if (!IS_VALID_SESSION_WIN(curInfo.winInfo)) {
       continue;

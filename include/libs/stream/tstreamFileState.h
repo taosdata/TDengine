@@ -59,7 +59,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
 bool    hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
-void    putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
+int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
 void             flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState);
@@ -81,7 +81,8 @@ int32_t      getRowStateRowSize(SStreamFileState* pFileState);
 int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, void** pVal, int32_t* pVLen,
                                 int32_t* pWinCode);
 int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
-int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
+int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen,
+                              int32_t* pWinCode);
 int32_t deleteSessionWinStateBuffFn(void* pBuff, const void* key, size_t keyLen);
 void    deleteSessionWinStateBuffByPosFn(SStreamFileState* pFileState, SRowBuffPos* pPos);
 int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStreamStateCur* pCur,

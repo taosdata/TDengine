@@ -353,21 +353,32 @@ void streamStateFreeVal(void* val) { taosMemoryFree(val); }
 
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen) {
   int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
   SRowBuffPos* pos = (SRowBuffPos*)value;
   if (pos->needFree) {
     if (isFlushedState(pState->pFileState, key->win.ekey, 0)) {
       if (!pos->pRowBuff) {
-        return code;
+        goto _end;
       }
       code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
+      TSDB_CHECK_CODE(code, lino, _end);
+
       streamStateReleaseBuf(pState, pos, true);
-      putFreeBuff(pState->pFileState, pos);
+      code = putFreeBuff(pState->pFileState, pos);
+      TSDB_CHECK_CODE(code, lino, _end);
+
       stDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
               key->win.ekey, key->groupId, code);
     } else {
       pos->beFlushed = false;
       code = putSessionWinResultBuff(pState->pFileState, value);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -377,8 +388,8 @@ int32_t streamStateSessionAllocWinBuffByNextPosition(SStreamState* pState, SStre
   return allocSessioncWinBuffByNextPosition(pState->pFileState, pCur, pKey, pVal, pVLen);
 }
 
-int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
-  return getSessionFlushedBuff(pState->pFileState, key, pVal, pVLen);
+int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
+  return getSessionFlushedBuff(pState->pFileState, key, pVal, pVLen, pWinCode);
 }
 
 void streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {

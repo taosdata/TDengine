@@ -124,7 +124,8 @@ static void streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
   *pLen = sizeof(TSKEY);
   (*pVal) = taosMemoryCalloc(1, *pLen);
   void* buff = *pVal;
-  taosEncodeFixedI64(&buff, *pKey);
+  int32_t tmp = taosEncodeFixedI64(&buff, *pKey);
+  ASSERT(tmp == sizeof(TSKEY));
 }
 
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
@@ -255,14 +256,25 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   taosMemoryFree(pFileState);
 }
 
-void putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
+int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pPos->pRowBuff) {
-    tdListAppend(pFileState->freeBuffs, &(pPos->pRowBuff));
+    code = tdListAppend(pFileState->freeBuffs, &(pPos->pRowBuff));
+    TSDB_CHECK_CODE(code, lino, _end);
     pPos->pRowBuff = NULL;
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
   SListIter iter = {0};
   tdListInitIter(pFileState->usedBuffs, &iter, TD_LIST_FORWARD);
 
@@ -270,7 +282,8 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
   while ((pNode = tdListNext(&iter)) != NULL) {
     SRowBuffPos* pPos = *(SRowBuffPos**)(pNode->data);
     if (all || (pFileState->getTs(pPos->pKey) < ts && !pPos->beUsed)) {
-      putFreeBuff(pFileState, pPos);
+      code = putFreeBuff(pFileState, pPos);
+      TSDB_CHECK_CODE(code, lino, _end);
 
       if (!all) {
         pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
@@ -279,6 +292,11 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
       SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
       taosMemoryFreeClear(tmp);
     }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
@@ -392,7 +410,8 @@ int32_t flushRowBuff(SStreamFileState* pFileState) {
   SListNode* pNode = NULL;
   while ((pNode = tdListNext(&fIter)) != NULL) {
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
-    putFreeBuff(pFileState, pPos);
+    code = putFreeBuff(pFileState, pPos);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
 
   tdListFreeP(pFlushList, destroyRowBuffPosPtr);

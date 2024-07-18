@@ -337,7 +337,7 @@ _end:
   return code;
 }
 
-int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
+int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
@@ -348,9 +348,9 @@ int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, v
   pNewPos->needFree = true;
   pNewPos->beFlushed = true;
   void*   pBuff = NULL;
-  int32_t winCode = streamStateSessionGet_rocksdb(getStateFileStore(pFileState), pKey, &pBuff, pVLen);
-  if (winCode != TSDB_CODE_SUCCESS) {
-    return winCode;
+  (*pWinCode) = streamStateSessionGet_rocksdb(getStateFileStore(pFileState), pKey, &pBuff, pVLen);
+  if ((*pWinCode) != TSDB_CODE_SUCCESS) {
+    goto _end;
   }
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   memcpy(pNewPos->pRowBuff, pBuff, *pVLen);

@@ -54,7 +54,7 @@ int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, voi
 int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal, int32_t* pVLen,
                                         int32_t* pWinCode);
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen);
-int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen);
+int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode);
 void    streamStateSessionDel(SStreamState* pState, const SSessionKey* key);
 void    streamStateSessionReset(SStreamState* pState, void* pVal);
 void    streamStateSessionClear(SStreamState* pState);
