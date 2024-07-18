@@ -203,7 +203,7 @@ int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOf
   pReader->pTableList = pTableIdList;
   pReader->numOfTables = numOfTables;
   pReader->lastTs = INT64_MIN;
-  pReader->pLDataIterArray = destroySttBlockReader(pReader->pLDataIterArray, NULL);
+  destroySttBlockReader(pReader->pLDataIterArray, NULL);
   pReader->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
   return TSDB_CODE_SUCCESS;

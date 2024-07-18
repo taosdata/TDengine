@@ -31,9 +31,11 @@ static void    checkpointTriggerMonitorFn(void* param, void* tmrId);
 
 SStreamDataBlock* createChkptTriggerBlock(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
                                           int32_t transId, int32_t srcTaskId) {
-  SStreamDataBlock* pChkpoint = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
-  if (pChkpoint == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SStreamDataBlock* pChkpoint;
+
+  int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock), (void**)&pChkpoint);
+  if (code) {
+    terrno = code;
     return NULL;
   }
 
@@ -425,7 +427,7 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 }
 
 void streamTaskClearCheckInfo(SStreamTask* pTask, bool clearChkpReadyMsg) {
-  pTask->chkInfo.startTs = 0;  // clear the recorded start time
+  pTask->chkInfo.startTs = 0;             // clear the recorded start time
   streamTaskOpenAllUpstreamInput(pTask);  // open inputQ for all upstream tasks
 
   taosThreadMutexLock(&pTask->chkInfo.pActiveInfo->lock);

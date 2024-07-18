@@ -49,6 +49,7 @@ table_option: {
 7. Escape character "\`" can be used to avoid the conflict between table names and reserved keywords, above rules will be bypassed when using escape character on table names, but the upper limit for the name length is still valid. The table names specified using escape character are case sensitive.
    For example \`aBc\` and \`abc\` are different table names but `abc` and `aBc` are same table names because they are both converted to `abc` internally.
    Only ASCII visible characters can be used with escape character.
+8. For the details of using `ENCODE` and `COMPRESS`, please refer to [Encode and Compress for Column](../compress).
 
 **Parameter description**
 

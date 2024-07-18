@@ -126,8 +126,11 @@ void smStopWorker(SSnodeMgmt *pMgmt) {
 }
 
 int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
-  if (pMsg == NULL) {
+  int32_t  code;
+  SRpcMsg *pMsg;
+
+  code = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen, (void **)&pMsg);
+  if (code) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
     return -1;

@@ -612,7 +612,7 @@ int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     return -1;
   }
   tDecoderClear(&decoder);
-  if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) < 0) {
+  if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
