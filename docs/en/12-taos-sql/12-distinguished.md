@@ -38,7 +38,7 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## Windowed Queries
 
-Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are four kinds of windows: time window, status window, session window, and event window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
+Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are five kinds of windows: time window, status window, session window, event window, and count window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
 
 ```sql
 window_clause: {
