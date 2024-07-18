@@ -8,9 +8,6 @@
 const char*  ranStr = "tvapq02tcp";
 const int    ranStrLen = strlen(ranStr);
 SWalSyncInfo syncMeta = {0};
-syncMeta.isWeek = -1;
-syncMeta.seqNum = UINT64_MAX;
-syncMeta.term = UINT64_MAX;
 
 class WalCleanEnv : public ::testing::Test {
  protected:
@@ -196,6 +193,10 @@ TEST_F(WalCleanEnv, removeOldMeta) {
 TEST_F(WalKeepEnv, readOldMeta) {
   walResetEnv();
   int code;
+
+  syncMeta.isWeek = -1;
+  syncMeta.seqNum = UINT64_MAX;
+  syncMeta.term = UINT64_MAX;
 
   for (int i = 0; i < 10; i++) {
     code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
