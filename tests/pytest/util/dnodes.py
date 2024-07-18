@@ -40,7 +40,7 @@ class TDSimClient:
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "dDebugFlag":"131",
-            "cDebugFlag": "135",
+            "cDebugFlag": "131",
             "uDebugFlag": "131",
             "jniDebugFlag": "131",
             "qDebugFlag": "135",
