@@ -210,8 +210,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   pRpc->info.wrapper = pWrapper;
 
   EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsRpcQueueMemoryUsed
-  pMsg = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen);
-  if (pMsg == NULL) goto _OVER;
+  code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
+  if (code) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,

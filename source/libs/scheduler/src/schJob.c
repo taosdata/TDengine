@@ -1165,7 +1165,9 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
   int8_t  status = 0;
 
   SSchTask *pTask = NULL;
-  SSchJob  *pJob = schAcquireJob(rId);
+  SSchJob  *pJob = NULL;
+
+  (void)schAcquireJob(rId, &pJob);
   if (NULL == pJob) {
     qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, qId, tId, rId);
     SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);

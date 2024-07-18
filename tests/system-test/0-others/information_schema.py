@@ -297,7 +297,8 @@ class TDTestCase:
             'mysql':'MySQL',
             'postgres':'PostgreSQL',
             'oracle':'Oracle',
-            'mssql':'SqlServer'
+            'mssql':'SqlServer',
+            'mongodb':'MongoDB',
         }
 
         tdSql.execute('drop database if exists db2')
