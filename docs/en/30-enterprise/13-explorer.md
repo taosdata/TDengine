@@ -135,7 +135,7 @@ When entering multiple statements, you can select the statement you want to refe
 
 ### Usage of SQL Favorites
 
-Select the SQL in the window with the mouse, click the favorites button, and the SQL will be added to your personal favorites area.
+Select the SQL in the window with the mouse, click the favorites button, and the SQL will be added to your personal favorites area, and you can fill in a description for the SQL statement.
 ![explorer-17-favoritesAdd.png](./pic/explorer-17-favoritesAdd.png "Add favorite SQL")
 
 In the personal favorites area, click the share button for the SQL, and the current SQL will be added to the shared favorites area.
@@ -149,6 +149,19 @@ Click the unshare button to revoke the sharing of this SQL.
 
 You can perform a fuzzy search on SQL or descriptions in the search bar.
 ![explorer-21-favoritesSearch.png](./pic/explorer-21-favoritesSearch.png "fuzzy search")
+
+Clicking the delete button will remove the SQL from personal favorites. If the SQL has already been shared to shared favorites, the corresponding SQL in shared favorites will also be deleted synchronously.
+
+![explorer-23-favoritesNotes.png](./pic/explorer-23-favoritesNotes.png)
+
+> NOTE:
+>
+> 1. DO NOT add the same SQL statement 
+> to personal favorites area more than once.
+> 2. DO NOT share the same SQL statement 
+> to shared favorites area more than once.
+>
+>![explorer-23-favoritesNotes.png](./pic/explorer-23-favoritesNotes.png)
 
 ## Stream
 

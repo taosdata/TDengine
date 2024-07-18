@@ -135,7 +135,7 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 ### Sql 收藏功能使用
 
-鼠标选中窗口中的 SQL，点击收藏按钮，即可对 SQL 进行收藏
+鼠标选中窗口中的 SQL，点击收藏按钮，即可对 SQL 进行收藏，并可以填写对该 SQL 语句的描述
 ![explorer-17-favoritesAdd.png](./pic/explorer-17-favoritesAdd.png "添加 SQL 收藏")
 
 个人收藏中，点击 SQL 的共享按钮，当前 SQL 会被添加到共享收藏中
@@ -149,6 +149,17 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 在搜索栏中可以对 SQL 或描述进行模糊搜索
 ![explorer-21-favoritesSearch.png](./pic/explorer-21-favoritesSearch.png "模糊搜索")
+
+点击删除按钮，SQL 将会从个人收藏中删除，如果 SQL 已经共享到共享收藏，那么共享收藏中对应 SQL 也会同步删除
+
+![explorer-22-favoritesDelete.png](./pic/explorer-22-favoritesDelete.png "删除 SQL 收藏")
+
+> 注意:
+>
+> 1. 不可重复添加相同的 SQL 语句到个人收藏中
+> 2. 不可重复共享相同的 SQL 语句到个人收藏中
+>
+>![explorer-23-favoritesNotes.png](./pic/explorer-23-favoritesNotes.png)
 
 ## 流计算
 
