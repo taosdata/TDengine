@@ -254,7 +254,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     if (code == TSDB_CODE_SUCCESS) {
       stDebug("vgId:%d jump out of meta timer", pMeta->vgId);
     } else {
-      stError("vgId:%d jump out of meta timer, failed to release the meta rid:%d", pMeta->vgId, rid);
+      stError("vgId:%d jump out of meta timer, failed to release the meta rid:%" PRId64, pMeta->vgId, rid);
     }
     return;
   }
