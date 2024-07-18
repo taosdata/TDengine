@@ -39,7 +39,7 @@ class TDSimClient:
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "dDebugFlag":"131",
-            "cDebugFlag": "131",
+            "cDebugFlag": "135",
             "uDebugFlag": "131",
             "jniDebugFlag": "131",
             "qDebugFlag": "135",
@@ -49,7 +49,7 @@ class TDSimClient:
             "tqDebugflag": "135",
             "stDebugflag":"135",
         }
-
+    # cdebugflag 135  for tmqClientConsLog 
     def getLogDir(self):
         self.logDir = os.path.join(self.path,"sim","psim","log")
         return self.logDir
