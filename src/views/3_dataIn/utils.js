@@ -1180,9 +1180,9 @@ function getGroupsQuery(groups, query, definition) {
           } else if (/_type$/.test(k)) {
             delete groups[key][k+'_type'];
           } else {
-            // todo 临时解决 mongoDB 增加 tsl 参数
+            // todo 临时解决 mongoDB 增加 tls 参数
             if (definition.id == 'mongodb') {
-              query.push('tsl' + '=' + checkValue(getQueryParamValue(groups[key]['cert_key_file_path'])));
+              query.push('tls' + '=' + checkValue(getQueryParamValue(groups[key]['cert_key_file_path'])));
             }
             query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
