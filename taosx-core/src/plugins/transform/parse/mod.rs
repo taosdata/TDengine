@@ -13,7 +13,7 @@ use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
         Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
-        StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        ListArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
         TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
         UInt8Array,
     },
@@ -293,7 +293,7 @@ pub trait ArrayForTaos: Array {
             arrow::datatypes::DataType::LargeBinary => taos::Ty::VarChar,
             arrow::datatypes::DataType::Utf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::LargeUtf8 => taos::Ty::VarChar,
-            arrow::datatypes::DataType::List(_) => todo!(),
+            arrow::datatypes::DataType::List(_) => taos::Ty::VarChar,
             arrow::datatypes::DataType::FixedSizeList(_, _) => todo!(),
             arrow::datatypes::DataType::LargeList(_) => todo!(),
             arrow::datatypes::DataType::Struct(_) => todo!(),
@@ -421,7 +421,14 @@ pub trait ArrayForTaos: Array {
                     let array = self.as_any().downcast_ref::<LargeStringArray>().unwrap();
                     taos::Value::VarChar(array.value(index).into())
                 }
-                _ => todo!(),
+                arrow::datatypes::DataType::List(_) => {
+                    let array = self.as_any().downcast_ref::<ListArray>().unwrap();
+                    taos::Value::VarChar(format!("{:?}", array.value(index)))
+                }
+                _ => {
+                    tracing::error!("Unsupported data type: {:?}", self.data_type());
+                    taos::Value::VarChar("".to_string())
+                }
             }
         }
     }
