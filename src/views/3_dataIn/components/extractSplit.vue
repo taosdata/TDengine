@@ -496,15 +496,18 @@ export default {
       }
       deepClone(this.$parent.extractArr)
         .map((item) => {
-          let splitobj = Object.fromEntries(
-            Object.entries(item.splitParams).filter(([key, value]) => {
-              return value !== null && value != undefined && value != "";
-            })
-          );
-          splitobj["n"] = Number(splitobj["n"]);
-          Object.hasOwnProperty.call(splitobj, "names")
-            ? (splitobj["names"] = splitobj["names"].split(","))
-            : splitobj;
+          let splitobj = null;
+          if (item.type == "split") {
+            splitobj = Object.fromEntries(
+              Object.entries(item?.splitParams).filter(([key, value]) => {
+                return value !== null && value != undefined && value != "";
+              })
+            );
+            splitobj["n"] = Number(splitobj["n"]);
+            Object.hasOwnProperty.call(splitobj, "names")
+              ? (splitobj["names"] = splitobj["names"].split(","))
+              : splitobj;
+          }
           return {
             [`${item.columnname}`]: {
               [`${item.type}`]:
