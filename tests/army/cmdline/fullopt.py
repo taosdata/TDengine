@@ -54,6 +54,25 @@ class TDTestCase(TBase):
         if rets[-2][:9] != "Query OK,":
             tdLog.exit(f"check taos -s return unexpect: {rets}")
 
+    def getBuildPath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ("taosd" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root) - len("/debug/build/bin")]
+                    break
+        return buildPath
+
+    def getCfgDir(self):
+        return self.getBuildPath() + "/sim/psim/cfg"
+
     def doTaos(self):
         tdLog.info(f"check taos command options...")
 
@@ -76,28 +95,29 @@ class TDTestCase(TBase):
                      "timezone tz",
                      "tempDir /var/tmp"
                   ]
+        cfg = self.getCfgDir()
         # exec
         for option in options:
-            rets = etool.runBinFile("taos", f"-s \"alter local '{option}'\";")
+            rets = etool.runBinFile("taos", f"-c {cfg} -s \"alter local '{option}'\";")
             self.checkQueryOK(rets)
         # error
-        etool.runBinFile("taos", f"-s \"alter local 'nocmd check'\";")
+        etool.runBinFile("taos", f"-c {cfg} -s \"alter local 'nocmd check'\";")
 
         # help
         rets = etool.runBinFile("taos", "--help")
         self.checkListNotEmpty(rets)
         # b r w s
         sql = f"select * from {self.db}.{self.stb} limit 10"
-        rets = etool.runBinFile("taos", f'-B -r -w 100 -s "{sql}" ')
+        rets = etool.runBinFile("taos", f'-c {cfg} -B -r -w 100 -s "{sql}" ')
         self.checkListNotEmpty(rets)
         # -C
-        rets = etool.runBinFile("taos", "-C")
+        rets = etool.runBinFile("taos", f"-c {cfg} -C")
         self.checkListNotEmpty(rets)
         # -t
-        rets = etool.runBinFile("taos", "-t")
+        rets = etool.runBinFile("taos", f"-c {cfg} -t")
         self.checkListNotEmpty(rets)
         # -v
-        rets = etool.runBinFile("taos", "-V")
+        rets = etool.runBinFile("taos", f"-c {cfg} -V")
         self.checkListNotEmpty(rets)
         # -?
         rets = etool.runBinFile("taos", "-?")
@@ -109,18 +129,18 @@ class TDTestCase(TBase):
 
         # except test
         sql = f"show vgroups;"
-        etool.exeBinFile("taos", f'-h {lname} -s "{sql}" ', wait=False)
-        etool.exeBinFile("taos", f'-u {lname} -s "{sql}" ', wait=False)
-        etool.exeBinFile("taos", f'-d {lname} -s "{sql}" ', wait=False)
-        etool.exeBinFile("taos", f'-a {lname} -s "{sql}" ', wait=False)
-        etool.exeBinFile("taos", f'-p{lname}  -s "{sql}" ', wait=False)
-        etool.exeBinFile("taos", f'-w -s "{sql}" ', wait=False)
-        etool.exeBinFile("taos", f'abc', wait=False)
-        etool.exeBinFile("taos", f'-V', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} -h {lname} -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} -u {lname} -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} -d {lname} -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} -a {lname} -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} -p{lname}  -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} -w -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} abc', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} -V', wait=False)
         etool.exeBinFile("taos", f'-?', wait=False)
 
         # others
-        etool.exeBinFile("taos", f'-N 200 -l 2048 -s "{sql}" ', wait=False)
+        etool.exeBinFile("taos", f'-c {cfg} -N 200 -l 2048 -s "{sql}" ', wait=False)
 
 
     def doTaosd(self):
