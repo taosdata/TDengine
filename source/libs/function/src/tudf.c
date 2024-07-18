@@ -71,6 +71,7 @@ void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
   }
 }
 
+extern char **environ;
 static int32_t udfSpawnUdfd(SUdfdData *pData) {
   fnInfo("start to init udfd");
   uv_process_options_t options = {0};
@@ -117,6 +118,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   child_stdio[2].data.fd = 2;
   options.stdio_count = 3;
   options.stdio = child_stdio;
+  options.env = environ;
 
   options.flags = UV_PROCESS_DETACHED;
 
