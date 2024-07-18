@@ -1632,7 +1632,7 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
         cell = cell->pNext;
       }
 
-      taosArrayAddAll(ctx->group, preGroup);
+      (void)taosArrayAddAll(ctx->group, preGroup);
 
       taosArrayDestroy(preGroup);
 
@@ -1825,12 +1825,12 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
             FLT_ERR_RET(fltConverToStr(str + len, type, data, tlen > 32 ? 32 : tlen, &tlen));
           }
         } else {
-          strcat(str, "NULL");
+          (void)strcat(str, "NULL");
         }
-        strcat(str, "]");
+        (void)strcat(str, "]");
 
         if (unit->compare.optr2) {
-          strcat(str, " && ");
+          (void)strcat(str, " && ");
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
             sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
                     operatorTypeStr(unit->compare.optr2));
@@ -1845,9 +1845,9 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
             }
             FLT_ERR_RET(fltConverToStr(str + strlen(str), type, data, tlen > 32 ? 32 : tlen, &tlen));
           } else {
-            strcat(str, "NULL");
+            (void)strcat(str, "NULL");
           }
-          strcat(str, "]");
+          (void)strcat(str, "]");
         }
 
         qDebug("%s", str);  // TODO
@@ -1881,15 +1881,15 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           while (r) {
             char str[256] = {0};
             if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
-              strcat(str, "(NULL)");
+              (void)strcat(str, "(NULL)");
             } else {
               FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str, "(") : strcat(str, "[");
               FLT_ERR_RET(fltConverToStr(str + strlen(str), ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen));
               FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? strcat(str, ")") : strcat(str, "]");
             }
-            strcat(str, " - ");
+            (void)strcat(str, " - ");
             if (FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL)) {
-              strcat(str, "(NULL)");
+              (void)strcat(str, "(NULL)");
             } else {
               FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? strcat(str, "(") : strcat(str, "[");
               FLT_ERR_RET(fltConverToStr(str + strlen(str), ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen));
@@ -2692,7 +2692,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gR
 
           if (gRes[n] == NULL) {
             if (n < ((*gResNum) - 1)) {
-              memmove(&gRes[n], &gRes[n + 1], (*gResNum - n - 1) * POINTER_BYTES);
+              (void)memmove(&gRes[n], &gRes[n + 1], (*gResNum - n - 1) * POINTER_BYTES);
             }
 
             --cEnd;
@@ -2713,7 +2713,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gR
 
         if (gRes[n] == NULL) {
           if (n < ((*gResNum) - 1)) {
-            memmove(&gRes[n], &gRes[n + 1], (*gResNum - n - 1) * POINTER_BYTES);
+            (void)memmove(&gRes[n], &gRes[n + 1], (*gResNum - n - 1) * POINTER_BYTES);
           }
 
           --cEnd;
@@ -2917,10 +2917,9 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
         if (all) {
           (void)filterFreeRangeCtx(info->colRange[m]);  // No need to handle the return value.
           info->colRange[m] = NULL;
-
           if (m < (info->colRangeNum - 1)) {
-            memmove(&info->colRange[m], &info->colRange[m + 1], (info->colRangeNum - m - 1) * POINTER_BYTES);
-            memmove(&idxs[m], &idxs[m + 1], (info->colRangeNum - m - 1) * sizeof(*idxs));
+            (void)memmove(&info->colRange[m], &info->colRange[m + 1], (info->colRangeNum - m - 1) * POINTER_BYTES);
+            (void)memmove(&idxs[m], &idxs[m + 1], (info->colRangeNum - m - 1) * sizeof(*idxs));
           }
 
           --info->colRangeNum;

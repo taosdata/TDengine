@@ -627,7 +627,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
     if (*equal) {
       bool  isNull = colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0));
       char *pData = isNull ? NULL : colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0));
-      colDataSetVal(output->columnData, rowIdx, pData, isNull);
+      SCL_ERR_JRET(colDataSetVal(output->columnData, rowIdx, pData, isNull));
 
       if (0 == rowIdx && 1 == pCase->numOfRows && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && totalRows > 1) {
         SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -641,7 +641,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
   if (pElse) {
     bool  isNull = colDataIsNull_s(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0));
     char *pData = isNull ? NULL : colDataGetData(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0));
-    colDataSetVal(output->columnData, rowIdx, pData, isNull);
+    SCL_ERR_JRET(colDataSetVal(output->columnData, rowIdx, pData, isNull));
 
     if (0 == rowIdx && 1 == pCase->numOfRows && 1 == pElse->numOfRows && totalRows > 1) {
       SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -651,7 +651,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
     goto _return;
   }
 
-  colDataSetVal(output->columnData, rowIdx, NULL, true);
+  SCL_ERR_JRET(colDataSetVal(output->columnData, rowIdx, NULL, true));
 
   if (0 == rowIdx && 1 == pCase->numOfRows && totalRows > 1) {
     SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -690,7 +690,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
     if (*whenValue) {
       bool  isNull = colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0));
       char *pData = isNull ? NULL : colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0));
-      colDataSetVal(output->columnData, rowIdx, pData, isNull);
+      SCL_ERR_JRET(colDataSetVal(output->columnData, rowIdx, pData, isNull));
 
       if (preSingle && 0 == rowIdx && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && totalRows > 1) {
         SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -709,7 +709,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
   if (pElse) {
     bool  isNull = colDataIsNull_s(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0));
     char *pData = isNull ? NULL : colDataGetData(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0));
-    colDataSetVal(output->columnData, rowIdx, pData, isNull);
+    SCL_ERR_JRET(colDataSetVal(output->columnData, rowIdx, pData, isNull));
 
     if (preSingle && 0 == rowIdx && 1 == pElse->numOfRows && totalRows > 1) {
       SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -719,7 +719,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
     goto _return;
   }
 
-  colDataSetVal(output->columnData, rowIdx, NULL, true);
+  SCL_ERR_JRET(colDataSetVal(output->columnData, rowIdx, NULL, true));
 
   if (preSingle && 0 == rowIdx && totalRows > 1) {
     SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));

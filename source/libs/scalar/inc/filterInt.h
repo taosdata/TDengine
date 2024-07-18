@@ -460,11 +460,13 @@ struct SFilterInfo {
 #define FILTER_UNIT_GET_R(i, idx)    ((i)->unitRes[idx])
 #define FILTER_UNIT_SET_R(i, idx, v) (i)->unitRes[idx] = (v)
 
-#define FILTER_PUSH_UNIT(colInfo, u)               \
-  do {                                             \
-    (colInfo).type = RANGE_TYPE_UNIT;              \
-    (colInfo).dataType = FILTER_UNIT_DATA_TYPE(u); \
-    taosArrayPush((SArray *)((colInfo).info), &u); \
+#define FILTER_PUSH_UNIT(colInfo, u)                             \
+  do {                                                           \
+    (colInfo).type = RANGE_TYPE_UNIT;                            \
+    (colInfo).dataType = FILTER_UNIT_DATA_TYPE(u);               \
+    if (taosArrayPush((SArray *)((colInfo).info), &u) == NULL) { \
+      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);                      \
+    }                                                            \
   } while (0)
 #define FILTER_PUSH_VAR_HASH(colInfo, ha) \
   do {                                    \
