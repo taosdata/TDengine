@@ -401,7 +401,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
     code = tsdbMemTableRehash(pMemTable);
     if (code) {
       taosWUnLockLatch(&pMemTable->latch);
-      goto _err;
+      goto _exit;
     }
   }
 
