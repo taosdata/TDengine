@@ -1799,10 +1799,13 @@ class TDCom:
 
     def get_timestamp_n_days_later(self, n=30):
         """
-        Get the timestamp for a date 30 days later than the current date.
+        Get the timestamp of a date n days later from the current date.
+
+        Args:
+            n (int): Number of days to add to the current date. Default is 30.
 
         Returns:
-            float: The timestamp for the date 30 days later.
+            int: Timestamp of the date n days later, in milliseconds.
         """
         now = datetime.now()
         thirty_days_later = now + timedelta(days=n)
