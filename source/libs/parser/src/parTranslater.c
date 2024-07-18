@@ -17,6 +17,7 @@
 #include "nodes.h"
 #include "parInt.h"
 #include "query.h"
+#include "taoserror.h"
 #include "tdatablock.h"
 
 #include "catalog.h"
@@ -2647,6 +2648,10 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** pp
     return TSDB_CODE_SUCCESS;
   }
   if (0 == LIST_LENGTH(pFunc->pParameterList)) {
+    if (pFunc->funcType == FUNCTION_TYPE_FORECAST_CONFIDENCE_LOW ||
+        pFunc->funcType == FUNCTION_TYPE_FORECAST_CONFIDENCE_HIGH || pFunc->funcType == FUNCTION_TYPE_FORECAST_EXPR) {
+      return TSDB_CODE_SUCCESS;
+    }
     if (!isSelectStmt(pCxt->pCurrStmt) || NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
     }
@@ -3441,7 +3446,6 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
     return rewriteColsToSelectValFunc(pCxt, pSelect);
   }
   if (cxt.existCol) {
-    
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
   }
   return TSDB_CODE_SUCCESS;
