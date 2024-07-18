@@ -25,6 +25,7 @@ extern "C" {
 #include "tcommon.h"
 #include "ttimer.h"
 #include "tglobal.h"
+#include "os.h"
 
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER  100

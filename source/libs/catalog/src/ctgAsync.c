@@ -1016,6 +1016,8 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 _return:
 
   ctgFreeJob(*job);
+  *job = NULL;
+  
   CTG_RET(code);
 }
 
