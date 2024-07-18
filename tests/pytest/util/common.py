@@ -1797,7 +1797,7 @@ class TDCom:
             self.sdelete_rows(tbname=self.ctb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
             self.sdelete_rows(tbname=self.tb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
 
-    def get_timestamp_30_days_later(self):
+    def get_timestamp_n_days_later(self, n=30):
         """
         Get the timestamp for a date 30 days later than the current date.
 
@@ -1805,7 +1805,7 @@ class TDCom:
             float: The timestamp for the date 30 days later.
         """
         now = datetime.now()
-        thirty_days_later = now + timedelta(days=30)
+        thirty_days_later = now + timedelta(days=n)
         timestamp_thirty_days_later = thirty_days_later.timestamp()
         return int(timestamp_thirty_days_later*1000)
 
@@ -1839,7 +1839,7 @@ class TDCom:
             "state_window_max": state_window_max,
             "iteration": interation,
             "range_count": range_count,
-            "start_ts": self.get_timestamp_30_days_later(),
+            "start_ts": self.get_timestamp_n_days_later(),
         }
         if range_count is not None:
             self.range_count = range_count
