@@ -15,13 +15,11 @@
 
 #include "streamInt.h"
 
-SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg) {
-  SStreamDataBlock* pData;
-
+int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg, SStreamDataBlock** pRes) {
+  SStreamDataBlock* pData = NULL;
   int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, pReq->totalLen, (void**)&pData);
   if (code) {
-    terrno = code;
-    return NULL;
+    return terrno = code;
   }
 
   pData->type = blockType;
@@ -32,7 +30,7 @@ SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pRe
   SArray* pArray = taosArrayInit_s(sizeof(SSDataBlock), blockNum);
   if (pArray == NULL) {
     taosFreeQitem(pData);
-    return NULL;
+    return code;
   }
 
   ASSERT((pReq->blockNum == taosArrayGetSize(pReq->data)) && (pReq->blockNum == taosArrayGetSize(pReq->dataLen)));
@@ -69,37 +67,36 @@ SStreamDataBlock* createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pRe
   }
 
   pData->blocks = pArray;
-  return pData;
+  *pRes = pData;
+
+  return code;
 }
 
-SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize,
-                                               SArray* pRes) {
-  SStreamDataBlock* pStreamBlocks;
-
-  int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, resultSize, (void**)&pStreamBlocks);
+int32_t createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize, SArray* pRes,
+                                     SStreamDataBlock** pBlock) {
+  int32_t code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, resultSize, (void**)pBlock);
   if (code) {
     taosArrayClearEx(pRes, (FDelete)blockDataFreeRes);
-    terrno = code;
-    return NULL;
+    return terrno = code;
   }
 
-  pStreamBlocks->srcTaskId = pTask->id.taskId;
-  pStreamBlocks->type = STREAM_INPUT__DATA_BLOCK;
-  pStreamBlocks->blocks = pRes;
+  (*pBlock)->srcTaskId = pTask->id.taskId;
+  (*pBlock)->type = STREAM_INPUT__DATA_BLOCK;
+  (*pBlock)->blocks = pRes;
 
   if (pItem == NULL) {
-    return pStreamBlocks;
+    return code;
   }
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
-    pStreamBlocks->sourceVer = pSubmit->ver;
+    (*pBlock)->sourceVer = pSubmit->ver;
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)pItem;
-    pStreamBlocks->sourceVer = pMerged->ver;
+    (*pBlock)->sourceVer = pMerged->ver;
   }
 
-  return pStreamBlocks;
+  return code;
 }
 
 void destroyStreamDataBlock(SStreamDataBlock* pBlock) {
@@ -138,19 +135,19 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   return TSDB_CODE_SUCCESS;
 }
 
-SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type) {
-  SStreamDataSubmit* pDataSubmit;
+int32_t streamDataSubmitNew(SPackedData* pData, int32_t type, SStreamDataSubmit** pSubmit) {
+  SStreamDataSubmit* pDataSubmit = NULL;
   int32_t code = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM, pData->msgLen, (void**)&pDataSubmit);
   if (code) {
-    terrno = code;
-    return NULL;
+    return code;
   }
 
   pDataSubmit->ver = pData->ver;
   pDataSubmit->submit = *pData;
   pDataSubmit->type = type;
 
-  return pDataSubmit;
+  *pSubmit = pDataSubmit;
+  return TSDB_CODE_SUCCESS;
 }
 
 void streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit) {
@@ -188,8 +185,8 @@ int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubm
 }
 
 // todo handle memory error
-SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem) {
-  terrno = 0;
+int32_t streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem, SStreamQueueItem** pRes) {
+  *pRes = NULL;
 
   if (dst->type == STREAM_INPUT__DATA_BLOCK && pElem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;
@@ -199,7 +196,8 @@ SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueI
     streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
 
     taosFreeQitem(pElem);
-    return dst;
+    *pRes = dst;
+    return TSDB_CODE_SUCCESS;
   } else if (dst->type == STREAM_INPUT__MERGED_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)dst;
     SStreamDataSubmit*   pBlockSrc = (SStreamDataSubmit*)pElem;
@@ -207,12 +205,13 @@ SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueI
     streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
 
     taosFreeQitem(pElem);
-    return dst;
+    *pRes = dst;
+    *pRes = dst;
+    return TSDB_CODE_SUCCESS;
   } else if (dst->type == STREAM_INPUT__DATA_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = streamMergedSubmitNew();
     if (pMerged == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     streamQueueItemIncSize((SStreamQueueItem*)pMerged, streamQueueItemGetSize(pElem));
@@ -222,11 +221,13 @@ SStreamQueueItem* streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueI
 
     taosFreeQitem(dst);
     taosFreeQitem(pElem);
-    return (SStreamQueueItem*)pMerged;
+
+    *pRes = (SStreamQueueItem*)pMerged;
+    return TSDB_CODE_SUCCESS;
   } else {
     stDebug("block type:%s not merged with existed blocks list, type:%d", streamQueueItemGetTypeStr(pElem->type),
             dst->type);
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
 }
 
