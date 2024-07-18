@@ -99,6 +99,63 @@ int32_t walCommit(SWal *pWal, int64_t ver) {
   return 0;
 }
 
+static int64_t walChangeWrite(SWal *pWal, int64_t ver) {
+  int       code;
+  TdFilePtr pIdxTFile, pLogTFile;
+  char      fnameStr[WAL_FILE_LEN];
+  if (pWal->pLogFile != NULL) {
+    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pLogFile)) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+    code = taosCloseFile(&pWal->pLogFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+  }
+  if (pWal->pIdxFile != NULL) {
+    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pIdxFile)) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+    code = taosCloseFile(&pWal->pIdxFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+  }
+
+  SWalFileInfo tmpInfo;
+  tmpInfo.firstVer = ver;
+  // bsearch in fileSet
+  int32_t idx = taosArraySearchIdx(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+  /*A(idx != -1);*/
+  SWalFileInfo *pFileInfo = taosArrayGet(pWal->fileInfoSet, idx);
+
+  int64_t fileFirstVer = pFileInfo->firstVer;
+  walBuildIdxName(pWal, fileFirstVer, fnameStr);
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pIdxTFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    pWal->pIdxFile = NULL;
+    return -1;
+  }
+  walBuildLogName(pWal, fileFirstVer, fnameStr);
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pLogTFile == NULL) {
+    taosCloseFile(&pIdxTFile);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    pWal->pLogFile = NULL;
+    return -1;
+  }
+
+  pWal->pLogFile = pLogTFile;
+  pWal->pIdxFile = pIdxTFile;
+  pWal->writeCur = idx;
+  return fileFirstVer;
+}
+
 int32_t walRollback(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
   wInfo("vgId:%d, wal rollback for version %" PRId64, pWal->cfg.vgId, ver);
@@ -221,6 +278,75 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   // unlock
   taosThreadMutexUnlock(&pWal->mutex);
   return 0;
+}
+
+static int32_t walRollImpl(SWal *pWal) {
+  int32_t code = 0;
+
+  if (pWal->pIdxFile != NULL) {
+    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pIdxFile)) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
+    code = taosCloseFile(&pWal->pIdxFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
+  }
+
+  if (pWal->pLogFile != NULL) {
+    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pLogFile)) != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
+    code = taosCloseFile(&pWal->pLogFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
+  }
+
+  TdFilePtr pIdxFile, pLogFile;
+  // create new file
+  int64_t newFileFirstVer = pWal->vers.lastVer + 1;
+  char    fnameStr[WAL_FILE_LEN];
+  walBuildIdxName(pWal, newFileFirstVer, fnameStr);
+  pIdxFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pIdxFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = -1;
+    goto END;
+  }
+  walBuildLogName(pWal, newFileFirstVer, fnameStr);
+  pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
+  if (pLogFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = -1;
+    goto END;
+  }
+  // error code was set inner
+  code = walRollFileInfo(pWal);
+  if (code != 0) {
+    goto END;
+  }
+
+  // switch file
+  pWal->pIdxFile = pIdxFile;
+  pWal->pLogFile = pLogFile;
+  pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
+
+  pWal->lastRollSeq = walGetSeq();
+
+  code = walSaveMeta(pWal);
+  if (code < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
+    goto END;
+  }
+
+END:
+  return code;
 }
 
 static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
@@ -392,75 +518,6 @@ END:
   return code;
 }
 
-int32_t walRollImpl(SWal *pWal) {
-  int32_t code = 0;
-
-  if (pWal->pIdxFile != NULL) {
-    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pIdxFile)) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      goto END;
-    }
-    code = taosCloseFile(&pWal->pIdxFile);
-    if (code != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      goto END;
-    }
-  }
-
-  if (pWal->pLogFile != NULL) {
-    if (pWal->cfg.level != TAOS_WAL_SKIP && (code = taosFsyncFile(pWal->pLogFile)) != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      goto END;
-    }
-    code = taosCloseFile(&pWal->pLogFile);
-    if (code != 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      goto END;
-    }
-  }
-
-  TdFilePtr pIdxFile, pLogFile;
-  // create new file
-  int64_t newFileFirstVer = pWal->vers.lastVer + 1;
-  char    fnameStr[WAL_FILE_LEN];
-  walBuildIdxName(pWal, newFileFirstVer, fnameStr);
-  pIdxFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
-  if (pIdxFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    code = -1;
-    goto END;
-  }
-  walBuildLogName(pWal, newFileFirstVer, fnameStr);
-  pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
-  wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
-  if (pLogFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    code = -1;
-    goto END;
-  }
-  // error code was set inner
-  code = walRollFileInfo(pWal);
-  if (code != 0) {
-    goto END;
-  }
-
-  // switch file
-  pWal->pIdxFile = pIdxFile;
-  pWal->pLogFile = pLogFile;
-  pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
-
-  pWal->lastRollSeq = walGetSeq();
-
-  code = walSaveMeta(pWal);
-  if (code < 0) {
-    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
-    goto END;
-  }
-
-END:
-  return code;
-}
-
 static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalIdxEntry  entry = {.ver = ver, .offset = offset};
   SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
@@ -615,6 +672,31 @@ END:
     exit(EXIT_FAILURE);
   }
   return -1;
+}
+
+static int walInitWriteFile(SWal *pWal) {
+  TdFilePtr     pIdxTFile, pLogTFile;
+  SWalFileInfo *pRet = taosArrayGetLast(pWal->fileInfoSet);
+  int64_t       fileFirstVer = pRet->firstVer;
+
+  char fnameStr[WAL_FILE_LEN];
+  walBuildIdxName(pWal, fileFirstVer, fnameStr);
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pIdxTFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  walBuildLogName(pWal, fileFirstVer, fnameStr);
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pLogTFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  // switch file
+  pWal->pIdxFile = pIdxTFile;
+  pWal->pLogFile = pLogTFile;
+  pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
+  return 0;
 }
 
 int32_t walAppendLog(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body,
