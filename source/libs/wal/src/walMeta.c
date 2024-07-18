@@ -873,6 +873,7 @@ static void walUpdateSyncedOffset(SWal* pWal) {
 }
 
 int walSaveMeta(SWal* pWal) {
+  int  code = 0;
   int  metaVer = walFindCurMetaVer(pWal);
   char fnameStr[WAL_FILE_LEN];
   char tmpFnameStr[WAL_FILE_LEN];
@@ -881,14 +882,14 @@ int walSaveMeta(SWal* pWal) {
   // fsync the idx and log file at first to ensure validity of meta
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pWal->pIdxFile) < 0) {
     wError("vgId:%d, failed to sync idx file due to %s", pWal->cfg.vgId, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
 
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pWal->pLogFile) < 0) {
     wError("vgId:%d, failed to sync log file due to %s", pWal->cfg.vgId, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
 
   // update synced offset
@@ -897,46 +898,47 @@ int walSaveMeta(SWal* pWal) {
   // flush to a tmpfile
   n = walBuildTmpMetaName(pWal, tmpFnameStr);
   if (n >= sizeof(tmpFnameStr)) {
-    return -1;
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
 
   TdFilePtr pMetaFile =
       taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pMetaFile == NULL) {
     wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
 
   char* serialized = walMetaSerialize(pWal);
   int   len = strlen(serialized);
   if (pWal->cfg.level != TAOS_WAL_SKIP && len != taosWriteFile(pMetaFile, serialized, len)) {
     wError("vgId:%d, failed to write file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pMetaFile) < 0) {
     wError("vgId:%d, failed to sync file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   if (taosCloseFile(&pMetaFile) < 0) {
     wError("vgId:%d, failed to close file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   // rename it
   n = walBuildMetaName(pWal, metaVer + 1, fnameStr);
   if (n >= sizeof(fnameStr)) {
+    code = TSDB_CODE_FAILED;
     goto _err;
   }
 
   if (taosRenameFile(tmpFnameStr, fnameStr) < 0) {
     wError("failed to rename file due to %s. dest:%s", strerror(errno), fnameStr);
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
@@ -945,13 +947,14 @@ int walSaveMeta(SWal* pWal) {
     walBuildMetaName(pWal, metaVer, fnameStr);
     taosRemoveFile(fnameStr);
   }
+
   taosMemoryFree(serialized);
-  return 0;
+  return code;
 
 _err:
   taosCloseFile(&pMetaFile);
   taosMemoryFree(serialized);
-  return -1;
+  return code;
 }
 
 int walLoadMeta(SWal* pWal) {
