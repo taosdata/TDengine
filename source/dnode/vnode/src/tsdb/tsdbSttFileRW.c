@@ -535,7 +535,6 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   tb_uid_t         uid = writer->blockData->suid == 0 ? writer->blockData->uid : writer->blockData->suid;
   SColCompressInfo info = {.defaultCmprAlg = writer->config->cmprAlg, .pColCmpr = NULL};
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &(info.pColCmpr));
-  ASSERT(code == TSDB_CODE_SUCCESS);
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
   char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
