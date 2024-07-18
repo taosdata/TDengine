@@ -367,7 +367,8 @@ typedef struct SStateStore {
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                              int32_t* pVLen, int32_t* pWinCode);
   int32_t (*streamStateSessionPut)(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen);
-  int32_t (*streamStateSessionGet)(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode);
+  int32_t (*streamStateSessionGet)(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen,
+                                   int32_t* pWinCode);
   void (*streamStateSessionDel)(SStreamState* pState, const SSessionKey* key);
   void (*streamStateSessionReset)(SStreamState* pState, void* pVal);
   void (*streamStateSessionClear)(SStreamState* pState);
@@ -385,8 +386,8 @@ typedef struct SStateStore {
 
   int32_t (*updateInfoInit)(int64_t interval, int32_t precision, int64_t watermark, bool igUp, int8_t pkType,
                             int32_t pkLen, SUpdateInfo** ppInfo);
-  TSKEY(*updateInfoFillBlockData)
-  (SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol, int32_t primaryKeyCol);
+  int32_t (*updateInfoFillBlockData)(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol,
+                                     int32_t primaryKeyCol, TSKEY* pMaxResTs);
   bool (*updateInfoIsUpdated)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);
   bool (*updateInfoIsTableInserted)(SUpdateInfo* pInfo, int64_t tbUid);
   bool (*isIncrementalTimeStamp)(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);

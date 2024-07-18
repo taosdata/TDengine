@@ -4565,7 +4565,9 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
     SStateWindowInfo nextInfo = {0};
     qDebug("===stream=== reload state. try process result %" PRId64 ", %" PRIu64 ", index:%d", pSeKeyBuf[i].win.skey,
            pSeKeyBuf[i].groupId, i);
-    getStateWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo, &nextInfo);
+    code = getStateWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo, &nextInfo);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     bool cpRes = compareWinStateKey(curInfo.pStateKey, nextInfo.pStateKey);
     qDebug("===stream=== reload state. next window info %" PRId64 ", %" PRIu64 ", compare:%d",
            nextInfo.winInfo.sessionWin.win.skey, nextInfo.winInfo.sessionWin.groupId, cpRes);
