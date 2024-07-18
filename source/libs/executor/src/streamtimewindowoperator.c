@@ -183,7 +183,7 @@ static void removeResults(SArray* pWins, SSHashObj* pUpdatedMap) {
       void* value = *(void**)tmp;
       taosMemoryFree(value);
       int32_t tmpRes = tSimpleHashRemove(pUpdatedMap, pW, sizeof(SWinKey));
-      qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
     }
   }
 }
@@ -225,7 +225,7 @@ static void doDeleteWindow(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId)
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   SWinKey                      key = {.ts = ts, .groupId = groupId};
   int32_t                      tmpRes = tSimpleHashRemove(pInfo->aggSup.pResultRowHashTable, &key, sizeof(SWinKey));
-  qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+  qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
   pAPI->stateStore.streamStateDel(pInfo->pState, &key);
 }
 
@@ -294,7 +294,7 @@ static int32_t doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, S
       }
       if (pUpdatedMap) {
         int32_t tmpRes = tSimpleHashRemove(pUpdatedMap, &winRes, sizeof(SWinKey));
-        qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+        qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
       }
       getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
     } while (win.ekey <= endTsCols[i]);
@@ -370,7 +370,7 @@ static int32_t closeStreamIntervalWindow(SSHashObj* pHashMap, STimeWindowAggSupp
         TSDB_CHECK_CODE(code, lino, _end);
       }
       int32_t tmpRes = tSimpleHashIterateRemove(pHashMap, pWinKey, sizeof(SWinKey), &pIte, &iter);
-      qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
     }
   }
 
@@ -744,14 +744,14 @@ static int32_t processPullOver(SSDataBlock* pBlock, SHashObj* pMap, SHashObj* pF
             // pull data is over
             taosArrayDestroy(chArray);
             int32_t tmpRes = taosHashRemove(pMap, &winRes, sizeof(SWinKey));
-            qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+            qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
             res = true;
             qDebug("===stream===retrive pull data over.window %" PRId64, winRes.ts);
 
             void* pFinalCh = taosHashGet(pFinalMap, &winRes, sizeof(SWinKey));
             if (pFinalCh) {
               int32_t tmpRes = taosHashRemove(pFinalMap, &winRes, sizeof(SWinKey));
-              qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+              qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
               doDeleteWindow(pOperator, winRes.ts, winRes.groupId);
               STimeWindow     nextWin = getFinalTimeWindow(winRes.ts, pInterval);
               SPullWindowInfo pull = {.window = nextWin,
@@ -2215,7 +2215,7 @@ void removeSessionDeleteResults(SSHashObj* pHashMap, SArray* pWins) {
     SSessionKey key = {0};
     getSessionHashKey(&pWin->sessionWin, &key);
     int32_t tmpRes = tSimpleHashRemove(pHashMap, &key, sizeof(SSessionKey));
-    qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+    qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
   }
 }
 
@@ -2233,7 +2233,7 @@ void removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SAr
     if (pVal) {
       releaseOutputBuf(pAggSup->pState, *(void**)pVal, &pAggSup->pSessionAPI->stateStore);
       int32_t tmpRes = tSimpleHashRemove(pHashMap, &key, sizeof(SSessionKey));
-      qTrace("%s at line %d res:%s", __func__, __LINE__, tmpRes);
+      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
     }
   }
 }
@@ -2883,14 +2883,8 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
       }
     }
 
-    int32_t code = pAPI->stateStore.streamStateGetByPos(pState, pPos, (void**)&pRow);
-    if (code == TSDB_CODE_FAILED) {
-      // for history
-      qWarn("===stream===not found session result key:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 "",
-            pKey->win.skey, pKey->win.ekey, pKey->groupId);
-      pGroupResInfo->index += 1;
-      continue;
-    }
+    code = pAPI->stateStore.streamStateGetByPos(pState, pPos, (void**)&pRow);
+    TSDB_CHECK_CODE(code, lino, _end);
 
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
     // no results, continue to check the next one

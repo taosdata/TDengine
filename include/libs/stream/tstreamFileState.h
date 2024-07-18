@@ -32,7 +32,7 @@ typedef SList                   SStreamSnapshot;
 
 typedef void* (*_state_buff_get_fn)(void* pRowBuff, const void* pKey, size_t keyLen);
 typedef int32_t (*_state_buff_remove_fn)(void* pRowBuff, const void* pKey, size_t keyLen);
-typedef int32_t (*_state_buff_remove_by_pos_fn)(SStreamFileState* pState, SRowBuffPos* pPos);
+typedef void (*_state_buff_remove_by_pos_fn)(SStreamFileState* pState, SRowBuffPos* pPos);
 typedef void (*_state_buff_cleanup_fn)(void* pRowBuff);
 typedef void* (*_state_buff_create_statekey_fn)(SRowBuffPos* pPos, int64_t num);
 
@@ -83,7 +83,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
 int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 int32_t deleteSessionWinStateBuffFn(void* pBuff, const void* key, size_t keyLen);
-int32_t deleteSessionWinStateBuffByPosFn(SStreamFileState* pFileState, SRowBuffPos* pPos);
+void    deleteSessionWinStateBuffByPosFn(SStreamFileState* pFileState, SRowBuffPos* pPos);
 int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStreamStateCur* pCur,
                                            const SSessionKey* pWinKey, void** ppVal, int32_t* pVLen);
 
