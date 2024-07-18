@@ -211,10 +211,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   pRpc->info.wrapper = pWrapper;
 
   EQItype itype = IsReq(pRpc) ? RPC_QITEM : DEF_QITEM;  // rsp msg is not restricted by tsRpcQueueMemoryUsed
-  code = taosAllocateQitemWrapper(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
-  if (code != 0) {
-    goto _OVER;
-  }
+  code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
+  if (code) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
@@ -228,7 +226,7 @@ _OVER:
     if (pMsg) {
       dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), tstrerror(code));
     } else {
-      dGTrace("msg:%p, failed to process empty msg since %s", pMsg, terrstr());
+      dGTrace("msg:%p, failed to process empty msg since %s", pMsg, tstrerror(code));
     }
 
     if (IsReq(pRpc)) {
@@ -302,17 +300,19 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   }
 }
 static inline int32_t dmSendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  int32_t code = 0;
   SDnode *pDnode = dmInstance();
   if (pDnode->status != DND_STAT_RUNNING && pMsg->msgType < TDMT_SYNC_MSG_MIN) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
     if (pDnode->status == DND_STAT_INIT) {
-      terrno = TSDB_CODE_APP_IS_STARTING;
+      code = TSDB_CODE_APP_IS_STARTING;
     } else {
-      terrno = TSDB_CODE_APP_IS_STOPPING;
+      code = TSDB_CODE_APP_IS_STOPPING;
     }
-    dError("failed to send rpc msg:%s since %s, handle:%p", TMSG_INFO(pMsg->msgType), terrstr(), pMsg->info.handle);
-    return -1;
+    dError("failed to send rpc msg:%s since %s, handle:%p", TMSG_INFO(pMsg->msgType), tstrerror(code),
+           pMsg->info.handle);
+    return code;
   } else {
     rpcSendRequest(pDnode->trans.syncRpc, pEpSet, pMsg, NULL);
     return 0;

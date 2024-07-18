@@ -312,7 +312,7 @@ int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
-  int32_t code = 0;
+  int32_t code;
   if (pRpc->contLen < sizeof(SMsgHead)) {
     dError("invalid rpc msg with no msg head at pCont. pRpc:%p, type:%s, len:%d", pRpc, TMSG_INFO(pRpc->msgType),
            pRpc->contLen);
@@ -322,9 +322,9 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   }
 
   EQItype  itype = APPLY_QUEUE == qtype ? DEF_QITEM : RPC_QITEM;
-  SRpcMsg *pMsg = NULL;
-  code = taosAllocateQitemWrapper(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
-  if (code != 0) {
+  SRpcMsg *pMsg;
+  code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
+  if (code) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
     return code;

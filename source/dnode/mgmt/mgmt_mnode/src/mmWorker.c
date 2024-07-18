@@ -153,6 +153,8 @@ int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
+  int32_t code;
+
   SSingleWorker *pWorker = NULL;
   switch (qtype) {
     case WRITE_QUEUE:
@@ -177,18 +179,21 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       pWorker = &pMgmt->syncRdWorker;
       break;
     default:
-      terrno = TSDB_CODE_INVALID_PARA;
+      code = TSDB_CODE_INVALID_PARA;
   }
 
-  if (pWorker == NULL) return -1;
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
-  if (pMsg == NULL) return -1;
+  if (pWorker == NULL) return code;
+
+  SRpcMsg *pMsg;
+  code = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen, (void **)&pMsg);
+  if (code) return code;
+
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   pRpc->pCont = NULL;
 
   dTrace("msg:%p, is created and will put into %s queue, type:%s len:%d", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType),
          pRpc->contLen);
-  int32_t code = mmPutMsgToWorker(pMgmt, pWorker, pMsg);
+  code = mmPutMsgToWorker(pMgmt, pWorker, pMsg);
   if (code != 0) {
     dTrace("msg:%p, is freed", pMsg);
     rpcFreeCont(pMsg->pCont);
