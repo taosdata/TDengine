@@ -123,7 +123,7 @@ static void streamFileStateDecode(TSKEY* pKey, void* pBuff, int32_t len) { pBuff
 static void streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
   *pLen = sizeof(TSKEY);
   (*pVal) = taosMemoryCalloc(1, *pLen);
-  void* buff = *pVal;
+  void*   buff = *pVal;
   int32_t tmp = taosEncodeFixedI64(&buff, *pKey);
   ASSERT(tmp == sizeof(TSKEY));
 }
@@ -456,13 +456,13 @@ SRowBuffPos* getNewRowPos(SStreamFileState* pFileState) {
   SRowBuffPos* pPos = taosMemoryCalloc(1, sizeof(SRowBuffPos));
   if (!pPos) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
   pPos->pKey = taosMemoryCalloc(1, pFileState->keyLen);
   if (!pPos->pKey) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
   void* pBuff = getFreeBuff(pFileState);
@@ -481,13 +481,15 @@ SRowBuffPos* getNewRowPos(SStreamFileState* pFileState) {
   }
 
   code = clearRowBuff(pFileState);
-  TSDB_CHECK_CODE(code, lino, _end);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   pPos->pRowBuff = getFreeBuff(pFileState);
-  code = tdListAppend(pFileState->usedBuffs, &pPos);
-  TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
+  code = tdListAppend(pFileState->usedBuffs, &pPos);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     return NULL;
@@ -500,6 +502,7 @@ _end:
 SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState) {
   SRowBuffPos* newPos = getNewRowPos(pFileState);
   if (!newPos) {
+    qError("%s failed at line %d since newPos is null", __func__, __LINE__);
     return NULL;
   }
   newPos->beUsed = true;
