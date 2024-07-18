@@ -49,7 +49,7 @@ class TDSimClient:
             "tqDebugflag": "135",
             "stDebugflag":"135",
         }
-        
+
     def getLogDir(self):
         self.logDir = os.path.join(self.path,"sim","psim","log")
         return self.logDir
