@@ -68,7 +68,7 @@ int32_t ctgInitGetTbMetaTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   TAOS_MEMCPY(ctx->pName, name, sizeof(*name));
   ctx->flag = pParam->flag | CTG_FLAG_UNKNOWN_STB;
 
-  if (NULL != taosArrayPush(pJob->pTasks, &task)) {
+  if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
