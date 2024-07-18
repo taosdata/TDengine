@@ -32,10 +32,9 @@ int32_t tqBuildFName(char** data, const char* path, char* name) {
   return TDB_CODE_SUCCESS;
 }
 
-int32_t tqOffsetRestoreFromFile(SHashObj* pOffset, char* name) {
+int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
   int32_t   code = TDB_CODE_SUCCESS;
   void*     pMemBuf = NULL;
-  SDecoder  decoder = {0};
 
   TdFilePtr pFile = taosOpenFile(name, TD_FILE_READ);
   if (pFile == NULL) {
@@ -65,19 +64,15 @@ int32_t tqOffsetRestoreFromFile(SHashObj* pOffset, char* name) {
       goto END;
     }
 
-    STqOffset offset;
-    tDecoderInit(&decoder, pMemBuf, size);
-    if (tDecodeSTqOffset(&decoder, &offset) < 0) {
-      code = TSDB_CODE_INVALID_MSG;
+    STqOffset offset = {0};
+    TQ_ERR_GO_TO_END(tqMetaDecodeOffsetInfo(&offset, pMemBuf, size));
+    code = taosHashPut(pTq->pOffset, offset.subKey, strlen(offset.subKey), &offset, sizeof(STqOffset));
+    if (code != TDB_CODE_SUCCESS) {
+      tDeleteSTqOffset(&offset);
       goto END;
     }
+    TQ_ERR_GO_TO_END(tqMetaSaveInfo(pTq, pTq->pOffsetStore, offset.subKey, strlen(offset.subKey), pMemBuf, size));
 
-    if (taosHashPut(pOffset, offset.subKey, strlen(offset.subKey), &offset, sizeof(STqOffset)) < 0) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto END;
-    }
-
-    tDecoderClear(&decoder);
     taosMemoryFree(pMemBuf);
     pMemBuf = NULL;
   }
@@ -85,7 +80,6 @@ int32_t tqOffsetRestoreFromFile(SHashObj* pOffset, char* name) {
 END:
   taosCloseFile(&pFile);
   taosMemoryFree(pMemBuf);
-  tDecoderClear(&decoder);
 
   return code;
 }

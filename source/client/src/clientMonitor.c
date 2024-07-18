@@ -691,7 +691,7 @@ static void* monitorThreadFunc(void* param) {
   tscDebug("monitorThreadFunc start");
   int64_t quitTime = 0;
   while (1) {
-    if (atomic_load_32(&slowLogFlag) > 0 > 0) {
+    if (atomic_load_32(&slowLogFlag) > 0) {
       if (quitCnt == 0) {
         monitorSendAllSlowLogAtQuit();
         if (quitCnt == 0) {

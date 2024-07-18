@@ -131,6 +131,7 @@ int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const 
 int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen);
 int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
 int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen);
+int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, int32_t vLen);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);
 void*   tqMetaGetOffset(STQ* pTq, const char* subkey);
 int32_t tqMetaTransform(STQ* pTq);
@@ -141,7 +142,7 @@ void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
 int32_t tqBuildFName(char** data, const char* path, char* name);
-int32_t tqOffsetRestoreFromFile(SHashObj* pOffset, char* name);
+int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name);
 
 // tq util
 int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type);

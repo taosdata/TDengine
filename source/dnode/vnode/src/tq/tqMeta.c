@@ -87,6 +87,18 @@ int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen){
   return code;
 }
 
+int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, int32_t vLen){
+  SDecoder     decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
+  int32_t code = tDecodeSTqOffset(&decoder, info);
+  if (code != 0) {
+    tDeleteSTqOffset(info);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen) {
   int32_t code = TDB_CODE_SUCCESS;
   TXN*     txn = NULL;
@@ -113,21 +125,9 @@ int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen) {
 
 static int32_t tqMetaTransformOffsetInfo(STQ* pTq, char* path) {
   int32_t code = TDB_CODE_SUCCESS;
-  void*  pIter = NULL;
-
-  TQ_ERR_RETURN(tqOffsetRestoreFromFile(pTq->pOffset, path));
-  while (1) {
-    pIter = taosHashIterate(pTq->pOffset, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    STqOffset* offset = (STqOffset*)pIter;
-    TQ_ERR_GO_TO_END(tqMetaSaveInfo(pTq, pTq->pOffsetStore, offset->subKey, strlen(offset->subKey), offset, sizeof(STqOffset)));
-  }
+  TQ_ERR_RETURN(tqOffsetRestoreFromFile(pTq, path));
 
 END:
-  taosHashCancelIterate(pTq->pOffset, pIter);
   return code;
 }
 
@@ -140,7 +140,14 @@ void* tqMetaGetOffset(STQ* pTq, const char* subkey){
       return NULL;
     }
 
-    if(taosHashPut(pTq->pOffset, subkey, strlen(subkey), data, sizeof(STqOffset)) != 0){
+    STqOffset offset = {0};
+    if (tqMetaDecodeOffsetInfo(&offset, data, vLen) != TDB_CODE_SUCCESS) {
+      tdbFree(data);
+      return NULL;
+    }
+
+    if(taosHashPut(pTq->pOffset, subkey, strlen(subkey), &offset, sizeof(STqOffset)) != 0){
+      tDeleteSTqOffset(&offset);
       tdbFree(data);
       return NULL;
     }

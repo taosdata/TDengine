@@ -9258,6 +9258,12 @@ void tOffsetDestroy(void *param) {
     taosMemoryFreeClear(pVal->primaryKey.pData);
   }
 }
+
+void tDeleteSTqOffset(void *param) {
+  STqOffset *pVal = (STqOffset *)param;
+  tOffsetDestroy(&pVal->val);
+}
+
 int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
   if (tEncodeSTqOffsetVal(pEncoder, &pOffset->val) < 0) return -1;
   if (tEncodeCStr(pEncoder, pOffset->subKey) < 0) return -1;
