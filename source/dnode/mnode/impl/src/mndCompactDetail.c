@@ -125,17 +125,17 @@ int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailO
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  
-  if (tDecodeI32(&decoder, &pObj->compactDetailId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->compactId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->vgId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->dnodeId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->numberFileset) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->finished) < 0) return -1;
-  if (tDecodeI64(&decoder, &pObj->startTime) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->newNumberFileset) < 0) return -1;
-  if (tDecodeI32(&decoder, &pObj->newFinished) < 0) return -1;
+  TAOS_CHECK_RETURN(tStartDecode(&decoder));
+
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->compactDetailId));
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->compactId));
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->vgId));
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->dnodeId));
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->numberFileset));
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->finished));
+  TAOS_CHECK_RETURN(tDecodeI64(&decoder, &pObj->startTime));
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->newNumberFileset));
+  TAOS_CHECK_RETURN(tDecodeI32(&decoder, &pObj->newFinished));
 
   tEndDecode(&decoder);
 
@@ -231,12 +231,9 @@ SSdbRow *mndCompactDetailActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, OVER);
 
-  if (tDeserializeSCompactDetailObj(buf, tlen, pCompact) < 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  if ((terrno = tDeserializeSCompactDetailObj(buf, tlen, pCompact)) < 0) {
     goto OVER;
   }
-
-  //taosInitRWLatch(&pView->lock);
 
 OVER:
   taosMemoryFreeClear(buf);
@@ -274,6 +271,7 @@ int32_t mndCompactDetailActionUpdate(SSdb *pSdb, SCompactDetailObj *pOldCompact,
 
 int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* pCompact, SVgObj *pVgroup, 
                                   SVnodeGid *pVgid, int32_t index){
+  int32_t           code = 0;
   SCompactDetailObj compactDetail = {0};
   compactDetail.compactDetailId = index;
   compactDetail.compactId = pCompact->compactId;
@@ -292,9 +290,11 @@ int32_t mndAddCompactDetailToTran(SMnode *pMnode, STrans *pTrans, SCompactObj* p
   if (pVgRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) {
     sdbFreeRaw(pVgRaw);
-    return -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
   }
   (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
 
-  return 0;
+  TAOS_RETURN(code);
 }
