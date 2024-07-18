@@ -1106,7 +1106,12 @@ int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, voi
 
 int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
   *pList = NULL;
+  int32_t code = 0;
   SArray* pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
+  if (pTaskList == NULL) {
+    stError("failed to generate the task list during send hbMsg to mnode, vgId:%d, code: out of memory", pMeta->vgId);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   bool sendMsg = pMeta->sendMsgBeforeClosing;
   if (!sendMsg) {
@@ -1122,8 +1127,8 @@ int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask*   pTask = NULL;
 
-    int32_t code = streamMetaAcquireTaskNoLock(pMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
-    if (code != TSDB_CODE_SUCCESS) {
+    code = streamMetaAcquireTaskNoLock(pMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
+    if (code != TSDB_CODE_SUCCESS) {  // this error is ignored
       continue;
     }
 
@@ -1140,9 +1145,9 @@ int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pList) {
     streamMetaReleaseTask(pMeta, pTask);
   }
 
-  streamMetaSendHbHelper(pMeta);
+  code = streamMetaSendHbHelper(pMeta);
   pMeta->sendMsgBeforeClosing = false;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader) {

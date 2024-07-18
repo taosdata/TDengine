@@ -771,6 +771,8 @@ int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask);
 
 // timer
 tmr_h streamTimerGetInstance();
+void streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
+                    const char* pMsg);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
