@@ -120,10 +120,8 @@ class TDTestCase:
             return True
     def run(self):
         self.initstream()
-        self.restart_stream()
-        time.sleep(60)
+        self.replicate_db()
         self.print_time_info()
-        self.redistribute_vnode()
         self.restart_stream()
         time.sleep(60)
         self.print_time_info()
