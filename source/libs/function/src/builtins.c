@@ -1970,36 +1970,48 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast requires second parameter to be a numeric type");
   }
 
+  // 3th param should be integer
+  SNode*  pNumNode = nodesListGetNode(pFunc->pParameterList, 2);
+  uint8_t paraType = getSDataTypeFromNode(pNumNode)->type;
+  if (!IS_INTEGER_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  SValueNode* pValue = (SValueNode*)pNumNode;
+  if (pValue->datum.i == 0 && pValue->datum.i >= (1 << 16)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "forecast num(3th) param should be > 0 and < 2^16");
+  }
+  pValue->notReserved = true;
+
   // param1
-  if (numOfParams >= 3) {
-    SNode*  pNumNode = nodesListGetNode(pFunc->pParameterList, 2);
-    uint8_t paraType = getSDataTypeFromNode(pNumNode)->type;
-    if (!IS_INTEGER_TYPE(paraType)) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    SValueNode* pValue = (SValueNode*)pNumNode;
-    if (pValue->datum.i == 0 && pValue->datum.i >= (1 << 16)) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "forecast num(3th) param should be > 0 and < 2^16");
-    }
-    pValue->notReserved = true;
-
-    pNumNode = nodesListGetNode(pFunc->pParameterList, 3);
-    paraType = getSDataTypeFromNode(pNumNode)->type;
-    if (!IS_INTEGER_TYPE(paraType)) {
-      static const char* errMsg = "forecast confidence level should be integer that in range [1,99]";
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, errMsg);
-    }
-    pValue = (SValueNode*)pNumNode;
-    if (pValue->datum.i >= 100) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "forecast num(4th) param should be less than 100");
-    }
-    pValue->notReserved = true;
-    for (int i = 4; i < numOfParams; i++) {
-      pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
-      pValue->notReserved = true;
+  if (numOfParams > 3) {
+    bool hasLevel = false;
+    bool hasOptionStr = false;
+    for (int i = 3; i < numOfParams; i++) {
+      SNode*      pExtraNode = nodesListGetNode(pFunc->pParameterList, i);
+      uint8_t     extraType = getSDataTypeFromNode(pExtraNode)->type;
+      SValueNode* pExtraValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+      if (IS_INTEGER_TYPE(extraType)) {
+        if (hasLevel) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast confidence_level should be only set once");
+        }
+        hasLevel = true;
+        if (pExtraValue->datum.i < 1 || pExtraValue->datum.i >= 100) {
+          static const char* forecastLevelError = "forecast confidence level should be integer that in range [1,99]";
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, forecastLevelError);
+        }
+      } else if (IS_VAR_DATA_TYPE(extraType)) {
+        if (hasOptionStr) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast option string should be only set once");
+        }
+        hasOptionStr = true;
+        if (pExtraValue->datum.p == NULL) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast option string should not be NULL");
+        }
+      } else {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast parameter type only allows int/str");
+      }
+      pExtraValue->notReserved = true;
     }
   }
 
