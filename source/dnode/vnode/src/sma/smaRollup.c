@@ -414,7 +414,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     goto _err;
   }
 
-  if (taosHashPut(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) < 0) {
+  if (taosHashPut(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) != 0) {
     goto _err;
   }
 
@@ -540,12 +540,12 @@ static int32_t tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid) 
           taosArrayDestroy(pUidArray);
           return TSDB_CODE_FAILED;
         }
-        if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), &pUidArray, sizeof(pUidArray)) < 0) {
+        if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), &pUidArray, sizeof(pUidArray)) != 0) {
           return TSDB_CODE_FAILED;
         }
       }
     } else {
-      if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), NULL, 0) < 0) {
+      if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), NULL, 0) != 0) {
         return TSDB_CODE_FAILED;
       }
     }
