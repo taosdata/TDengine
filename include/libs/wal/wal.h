@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "tlog.h"
 #include "tmsg.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -123,8 +124,7 @@ typedef struct SWal {
 typedef struct {
   int64_t refId;
   int64_t refVer;
-  //  int64_t refFile;
-  SWal *pWal;
+  SWal   *pWal;
 } SWalRef;
 
 typedef struct {
@@ -135,10 +135,8 @@ typedef struct {
   int8_t enableRef;
 } SWalFilterCond;
 
-typedef struct SWalReader SWalReader;
-
 // todo hide this struct
-struct SWalReader {
+typedef struct SWalReader {
   SWal     *pWal;
   int64_t   readerId;
   TdFilePtr pLogFile;
@@ -151,7 +149,7 @@ struct SWalReader {
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   SWalCkHead    *pHead;
-};
+} SWalReader;
 
 // module initialization
 int32_t walInit();
@@ -175,7 +173,6 @@ int32_t walRollback(SWal *, int64_t ver);
 int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
 int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
-// for tq
 int32_t walApplyVer(SWal *, int64_t ver);
 
 // wal reader
@@ -198,12 +195,11 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver);
 int32_t walFetchBody(SWalReader *pRead);
 int32_t walSkipFetchBody(SWalReader *pRead);
 
-void walRefFirstVer(SWal *, SWalRef *);
-void walRefLastVer(SWal *, SWalRef *);
-
 SWalRef *walOpenRef(SWal *);
 void     walCloseRef(SWal *pWal, int64_t refId);
 int32_t  walSetRefVer(SWalRef *, int64_t ver);
+void     walRefFirstVer(SWal *, SWalRef *);
+void     walRefLastVer(SWal *, SWalRef *);
 
 // helper function for raft
 bool walLogExist(SWal *, int64_t ver);
