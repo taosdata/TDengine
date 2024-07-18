@@ -708,13 +708,13 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
 
       if (pDetail->numberFileset == -1 && pDetail->finished == -1) {
         allFinished = false;
-        sdbCancelFetch(pMnode->pSdb, pDetail);
+        sdbCancelFetch(pMnode->pSdb, pIter);
         sdbRelease(pMnode->pSdb, pDetail);
         break;
       }
       if (pDetail->numberFileset != -1 && pDetail->finished != -1 && pDetail->numberFileset != pDetail->finished) {
         allFinished = false;
-        sdbCancelFetch(pMnode->pSdb, pDetail);
+        sdbCancelFetch(pMnode->pSdb, pIter);
         sdbRelease(pMnode->pSdb, pDetail);
         break;
       }
