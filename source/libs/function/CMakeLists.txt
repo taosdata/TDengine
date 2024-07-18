@@ -35,7 +35,7 @@ target_link_libraries(
     PRIVATE geometry 
     PRIVATE transport 
     PUBLIC uv_a
-    PUBLIC forecast
+    PUBLIC ${TD_SOURCE_DIR}/source/libs/function/lib/libforecast.a
 )
 
 add_executable(runUdf test/runUdf.c)

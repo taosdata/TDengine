@@ -38,4 +38,4 @@ ENDIF ()
 
 SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.lib")
 # ADD_DEPENDENCIES(taosd forecast)
-target_link_libraries(taosd forecast)
+#target_link_libraries(taosd forecast)
