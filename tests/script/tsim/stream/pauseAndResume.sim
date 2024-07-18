@@ -17,7 +17,8 @@ sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
 
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt1 as select  _wstart, count(*) c1, sum(a) c3 from st interval(10s);
-sleep 2000
+
+run tsim/stream/checkTaskStatus.sim
 
 sql_error create stream stream1_same_dst into streamt1 as select _wstart, count(*) c1, sum(a) c3 from st interval(10s);
 
@@ -126,6 +127,7 @@ sql_error create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 
 sql create stream if not exists streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt2 as select  _wstart, count(*) c1, sum(a) c3 from t1 interval(10s);
 
 sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql pause stream streams2;
 
@@ -264,6 +266,8 @@ sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 wate
 sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt5 as select  _wstart, count(*) c1, sum(a) c3 from ts1 interval(10s);
 sleep 1000
 
+run tsim/stream/checkTaskStatus.sim
+
 sql pause stream streams3;
 
 sql insert into ts1 values(1648791213001,1,12,3,1.0);
@@ -337,6 +341,7 @@ sql create table ts4 using st tags(4,2,2);
 sql create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamt6 as select  _wstart, count(*) c1 from st interval(10s);
 
 sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into ts1 values(1648791213001,1,12,3,1.0);
 sql insert into ts2 values(1648791213001,1,12,3,1.0);
