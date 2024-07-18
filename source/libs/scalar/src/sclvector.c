@@ -2117,7 +2117,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   if (NULL == jsonKey) {
     SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
+  (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {
     bool isExist = false;
 
@@ -2151,7 +2151,7 @@ int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   if (NULL == jsonKey) {
     SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
+  (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {
     if (colDataIsNull_var(pLeft->columnData, i)) {
       colDataSetNull_var(pOutputCol, i);

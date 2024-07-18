@@ -1566,7 +1566,7 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   block->info.rows = res->numOfRows;
 
   sclFreeParam(res);
-  taosHashRemove(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);
+  (void)taosHashRemove(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);
   return DEAL_RES_CONTINUE;
 }
 
@@ -1789,7 +1789,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     }
 
     sclFreeParam(res);
-    taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
 
 _return:

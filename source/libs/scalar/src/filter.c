@@ -1172,7 +1172,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     info->units = (SFilterUnit *)tmp;
-    memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
+    (void)memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
   }
 
   SFilterUnit *u = &info->units[info->unitNum];
@@ -1485,7 +1485,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
   if (ctx->notnull) {
     ASSERT(!ctx->isrange);
-    memset(g, 0, sizeof(*g));
+    (void)memset(g, 0, sizeof(*g));
 
     FLT_ERR_RET(filterAddUnit(dst, OP_TYPE_IS_NOT_NULL, &left, NULL, &uidx));
     FLT_ERR_RET(filterAddUnitToGroup(g, uidx));
@@ -1503,7 +1503,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
   SFilterRangeNode *r = ctx->rs;
 
   while (r) {
-    memset(g, 0, sizeof(*g));
+    (void)memset(g, 0, sizeof(*g));
 
     if ((!FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
@@ -2158,7 +2158,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
         return TSDB_CODE_APP_ERROR;
       }
       varDataSetLen(newValData, len);
-      varDataCopy(fi->data, newValData);
+      (void)varDataCopy(fi->data, newValData);
     }
   }
 
@@ -2790,7 +2790,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
     FLT_ERR_JRET(terrno);
   }
 
-  memset(info, 0, sizeof(*info));
+  (void)memset(info, 0, sizeof(*info));
 
   info->colRangeNum = oinfo.colRangeNum;
   info->colRange = oinfo.colRange;
@@ -3009,7 +3009,7 @@ int32_t filterUpdateComUnits(SFilterInfo *info) {
 int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
   int32_t rmUnit = 0;
 
-  memset(info->blkUnitRes, 0, sizeof(*info->blkUnitRes) * info->unitNum);
+  (void)memset(info->blkUnitRes, 0, sizeof(*info->blkUnitRes) * info->unitNum);
 
   for (uint32_t k = 0; k < info->unitNum; ++k) {
     int32_t         index = -1;
@@ -4393,7 +4393,7 @@ int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar
         if (k == varSrcLen) {
           /* NULL */
           varDataLen(dst) = (VarDataLenT)varSrcLen;
-          varDataCopy(dst, src);
+          (void)varDataCopy(dst, src);
           continue;
         }
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len);

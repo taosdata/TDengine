@@ -64,6 +64,9 @@ void flttInitLogFile() {
 
 int32_t flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   SNode      *node = (SNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  if (NULL == node) {
+    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   SValueNode *vnode = (SValueNode *)node;
   vnode->node.resType.type = dataType;
 
