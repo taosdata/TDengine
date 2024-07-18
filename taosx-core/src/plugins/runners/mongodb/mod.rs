@@ -270,7 +270,7 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Array(v) => {
-                    payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                    payload.insert(key.clone(), json!(v));
                 }
                 Bson::Document(v) => {
                     payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
