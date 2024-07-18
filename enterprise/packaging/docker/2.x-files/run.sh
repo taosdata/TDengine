@@ -373,7 +373,12 @@ do
         logger "ERROR" "taos -k error"
         status=""
     else
-        status=${output:0:1}
+        if [[ "${output}" = *"UTL FATAL"* ]]; then
+            logger "ERROR" "taos -k with error: \"${output}\""
+            status=""
+	    else
+            status=${output:0:1}
+	    fi
     fi
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:taos -k output: $output"
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:taos status: $status"
