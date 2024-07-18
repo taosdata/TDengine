@@ -358,7 +358,7 @@ int mainWindows(int argc, char **argv) {
 
 #if defined(LINUX)
   if (global.memDbg) {
-    int32_t code = taosMemoryDbgInit();
+    code = taosMemoryDbgInit();
     if (code) {
       printf("failed to init memory dbg, error:%s\n", tstrerror(code));
       return code;
