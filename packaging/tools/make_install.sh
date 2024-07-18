@@ -500,6 +500,7 @@ function install_service_on_systemd() {
   ${csudo}bash -c "echo                                      >> ${taosd_service_config}"
   ${csudo}bash -c "echo '[Service]'                          >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
+  ${csudo}bash -c "echo 'EnvironmentFile=-/etc/default/${serverName}'>> ${taosd_service_config}"
   ${csudo}bash -c "echo 'ExecStart=/usr/bin/${serverName}'           >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'ExecStartPre=${installDir}/bin/startPre.sh'           >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'TimeoutStopSec=1000000s'            >> ${taosd_service_config}"

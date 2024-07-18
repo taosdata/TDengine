@@ -14,8 +14,6 @@
  */
 
 #include "builtinsimpl.h"
-#include <stdint.h>
-#include <string.h>
 #include "cJSON.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -3355,11 +3353,12 @@ bool getForecastFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) 
   return true;
 }
 
-extern void* forecast_new_buf(int64_t num, int8_t precision, uint8_t ty, uint8_t nLevels, uint8_t* levels,
-                              char* options, uint16_t options_len);
+extern const char* forecast_init();
+extern void*       forecast_new_buf(int64_t num, int8_t precision, uint8_t ty, uint8_t nLevels, uint8_t* levels,
+                                    char* options, uint16_t options_len);
+extern void        forecast_buf_append_one(void* buf, int64_t ts, char* value);
+extern void        forecast_free(struct ForecastResult* result);
 extern struct ForecastResult forecast_impl(void* buf);
-extern void                  forecast_buf_append_one(void* buf, int64_t ts, char* value);
-extern void                  forecast_free(struct ForecastResult* result);
 
 bool forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   qInfo("forecast function setup");
@@ -3430,6 +3429,11 @@ bool forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) 
 }
 
 int32_t forecastFunction(SqlFunctionCtx* pCtx) {
+  const char* pErr = forecast_init();
+  if (pErr != NULL) {
+    return TSDB_CODE_FUNC_FORECAST_API_ERROR;
+  }
+
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SForecastInfo*       pForecastInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -3502,10 +3506,11 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     qInfo("forecast row: {%d} offset {%d}: {%p}", i, offset, result.val + offset);
     switch (pCtx->resDataInfo.type) {
       case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UINT: {
         int32_t* v = (int32_t*)(result.val + offset);
         colDataSetInt32(pCol, currentRow + i, v);
         break;
+      }
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_UTINYINT:
       case TSDB_DATA_TYPE_TINYINT: {

@@ -127,7 +127,7 @@ bool    tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
-char    *tsTelemUri = "/report";
+char *   tsTelemUri = "/report";
 
 #ifdef TD_ENTERPRISE
 bool tsEnableCrashReport = false;
@@ -177,12 +177,12 @@ int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
-int32_t tsMetaCacheMaxSize = -1;  // MB
-int32_t tsSlowLogThreshold = 10;   // seconds
-int32_t tsSlowLogThresholdTest = INT32_MAX;   // seconds
-char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";   // seconds
+int32_t tsMetaCacheMaxSize = -1;                   // MB
+int32_t tsSlowLogThreshold = 10;                   // seconds
+int32_t tsSlowLogThresholdTest = INT32_MAX;        // seconds
+char    tsSlowLogExceptDb[TSDB_DB_NAME_LEN] = "";  // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
-char*   tsSlowLogScopeString = "query";
+char *  tsSlowLogScopeString = "query";
 int32_t tsSlowLogMaxLen = 4096;
 int32_t tsTimeSeriesThreshold = 50;
 bool    tsMultiResultFunctionStarReturnTags = false;
@@ -294,6 +294,7 @@ bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
 int     tsStreamAggCnt = 100000;
 
+char   tsForecastApiKey[128] = "";
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
 char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
 char   tsS3AccessKeyId[TSDB_FQDN_LEN] = "<accesskeyid>";
@@ -391,7 +392,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -785,6 +788,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
 
+  // forecast API
+  if (cfgAddString(pCfg, "forecastApiKey", tsForecastApiKey, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   // clang-format on
 
   // GRANT_CFG_ADD;
@@ -976,9 +981,9 @@ int32_t taosSetSlowLogScope(char *pScope) {
 
   int32_t slowScope = 0;
 
-  char* scope = NULL;
-  char *tmp   = NULL;
-  while((scope = strsep(&pScope, "|")) != NULL){
+  char *scope = NULL;
+  char *tmp = NULL;
+  while ((scope = strsep(&pScope, "|")) != NULL) {
     taosMemoryFreeClear(tmp);
     tmp = taosStrdup(scope);
     strtrim(tmp);
@@ -1150,7 +1155,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
   tsSlowLogMaxLen = cfgGetItem(pCfg, "slowLogMaxLen")->i32;
   int32_t scope = taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str);
-  if(scope < 0){
+  if (scope < 0) {
     return -1;
   }
   tsSlowLogScope = scope;
@@ -1246,6 +1251,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsS3UploadDelaySec = cfgGetItem(pCfg, "s3UploadDelaySec")->i32;
 
   tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
+
+  tstrncpy(tsForecastApiKey, cfgGetItem(pCfg, "forecastApiKey")->str, 127);
 
   // GRANT_CFG_GET;
   return 0;
@@ -1433,7 +1440,7 @@ void taosCleanupCfg() {
 
 typedef struct {
   const char *optionName;
-  void       *optionVar;
+  void *      optionVar;
 } OptionNameAndVar;
 
 static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, SConfigItem *pItem, bool isDebugflag) {
@@ -1445,7 +1452,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
         int32_t flag = pItem->i32;
-        bool   *pVar = pOptions[d].optionVar;
+        bool *  pVar = pOptions[d].optionVar;
         uInfo("%s set from %d to %d", optName, *pVar, flag);
         *pVar = flag;
         terrno = TSDB_CODE_SUCCESS;
@@ -1516,7 +1523,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
   if (strcasecmp("slowLogScope", name) == 0) {
     int32_t scope = taosSetSlowLogScope(pItem->str);
-    if(scope < 0){
+    if (scope < 0) {
       cfgUnLock(pCfg);
       return -1;
     }
@@ -1852,7 +1859,7 @@ static void taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
     return;
   }
 
-  SArray      *noNeedToSetVars = NULL;
+  SArray *     noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(pCfg, "debugFlag");
   if (pItem != NULL) {
     pItem->i32 = flag;
