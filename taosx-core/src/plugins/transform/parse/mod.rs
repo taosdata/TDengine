@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use self::cast::Cast;
+use self::join::Join;
 use self::json::Json;
 use self::regex::Regex;
 use self::split::Split;
@@ -12,7 +13,7 @@ use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
         Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
-        StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        ListArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
         TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
         UInt8Array,
     },
@@ -27,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod cast;
+mod join;
 mod json;
 mod regex;
 mod split;
@@ -99,6 +101,8 @@ pub enum FieldParser {
     Alias { alias: String },
     Split(Split),
     Udt(Udt),
+    Join(Join),
+    // Json must be the last one, because it has default value. If not, other parsers will be ignored.
     Json(Json),
 }
 
@@ -109,6 +113,7 @@ impl Parse for FieldParser {
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), ParseError> {
         match self {
+            FieldParser::Join(join) => join.parse_array(field, array),
             FieldParser::Json(json) => json.parse_array(field, array),
             FieldParser::Split(split) => split.parse_array(field, array),
             FieldParser::Udt(udt) => udt.parse_array(field, array),
@@ -288,7 +293,7 @@ pub trait ArrayForTaos: Array {
             arrow::datatypes::DataType::LargeBinary => taos::Ty::VarChar,
             arrow::datatypes::DataType::Utf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::LargeUtf8 => taos::Ty::VarChar,
-            arrow::datatypes::DataType::List(_) => todo!(),
+            arrow::datatypes::DataType::List(_) => taos::Ty::VarChar,
             arrow::datatypes::DataType::FixedSizeList(_, _) => todo!(),
             arrow::datatypes::DataType::LargeList(_) => todo!(),
             arrow::datatypes::DataType::Struct(_) => todo!(),
@@ -416,7 +421,14 @@ pub trait ArrayForTaos: Array {
                     let array = self.as_any().downcast_ref::<LargeStringArray>().unwrap();
                     taos::Value::VarChar(array.value(index).into())
                 }
-                _ => todo!(),
+                arrow::datatypes::DataType::List(_) => {
+                    let array = self.as_any().downcast_ref::<ListArray>().unwrap();
+                    taos::Value::VarChar(format!("{:?}", array.value(index)))
+                }
+                _ => {
+                    tracing::error!("Unsupported data type: {:?}", self.data_type());
+                    taos::Value::VarChar("".to_string())
+                }
             }
         }
     }
@@ -439,4 +451,14 @@ fn test_regex() {
     let parse: FieldParser = serde_json::from_str(parse).unwrap();
     dbg!(&parse);
     assert!(matches!(parse, FieldParser::Regex(_)));
+}
+
+#[test]
+fn test_join() {
+    let join = r#"{
+        "join": ","
+    }"#;
+    let join: FieldParser = serde_json::from_str(join).unwrap();
+    dbg!(&join);
+    assert!(matches!(join, FieldParser::Join(_)));
 }

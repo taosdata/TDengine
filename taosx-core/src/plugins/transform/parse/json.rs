@@ -3,14 +3,14 @@ use std::{borrow::Cow, str::FromStr, sync::Arc};
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array,
-        Int32Array, Int64Array, Int8Array, NullArray, StringArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        Int32Array, Int64Array, Int8Array, ListBuilder, NullArray, StringArray, StringBuilder,
+        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema, TimeUnit},
     record_batch::RecordBatch,
 };
-use arrow_schema::Fields;
+use arrow_schema::{Field, Fields};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -527,6 +527,43 @@ impl Parse for Json {
                     r_fields.push(f);
                     r_arrays.push(array);
                 }
+                DataType::List(_) => {
+                    let capacity = json_values.len();
+                    let builder = StringBuilder::new();
+                    let mut list = ListBuilder::with_capacity(builder, capacity);
+                    json_values.iter().for_each(|(_n, v)| {
+                        if let Some(v) = v.as_ref().and_then(getter) {
+                            match v.as_array() {
+                                Some(array) => {
+                                    array.iter().for_each(|v| match v {
+                                        JsonValue::String(v) => {
+                                            list.values().append_value(v);
+                                        }
+                                        _ => {
+                                            list.values().append_value(v.to_string());
+                                        }
+                                    });
+                                    list.append(true);
+                                }
+                                None => {
+                                    list.append_null();
+                                }
+                            }
+                        } else {
+                            list.append_null();
+                        }
+                    });
+                    let array = Arc::new(list.finish()) as ArrayRef;
+                    // set field type to List<Utf8>
+                    let field = Field::new_list(
+                        f.name(),
+                        Field::new_list_field(DataType::Utf8, true),
+                        true,
+                    );
+                    // push to arrow
+                    r_fields.push(field);
+                    r_arrays.push(array);
+                }
                 DataType::Null => {
                     let values = json_values
                         .iter()
@@ -884,6 +921,28 @@ mod tests {
         assert_eq!(records.num_columns(), 3);
         assert_eq!(records.num_rows(), 3);
         assert_eq!(indices, Some(vec![0, 0, 1]));
+    }
+
+    #[test]
+    fn json_de_contains_array() {
+        let extract: Json = serde_json::from_str(
+            r#"{
+                "json": ""
+            }"#,
+        )
+        .unwrap();
+        dbg!(&extract);
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"[{"a1": "a1", "b1": [1,2,3]}, {"a1": "a1", "b1": ["1","2","3"]}, {"a1": "a1", "b1": [true, false, true]}]"#,
+            r#"[{"a1": "a2", "b1": []}, {"a1": "a2", "b1": null}]"#,
+        ]));
+
+        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
     }
 
     #[test]

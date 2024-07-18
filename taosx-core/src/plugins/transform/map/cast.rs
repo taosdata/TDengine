@@ -19,7 +19,33 @@ impl ValueBuilder for CastValueBuilder {
 
         schema
             .index_of(&self.cast)
-            .map(|index| Ok(record.column(index).clone()))
+            .map(|index| {
+                match schema.field(index).data_type() {
+                    arrow_schema::DataType::Utf8 => {
+                        let value = record.column(index).as_any().downcast_ref::<StringArray>();
+                        let mut array = Vec::new();
+                        if let Some(value) = value {
+                            value.iter().for_each(|v| {
+                                if v.is_some_and(|v| v.len() > 0) {
+                                    array.push(v);
+                                } else if let Some(default) = &self.default {
+                                    array.push(Some(default));
+                                } else {
+                                    array.push(None);
+                                }
+                            });
+                            return Ok(Arc::new(StringArray::from(array)) as ArrayRef);
+                        }
+                    }
+                    _ => {
+                        tracing::warn!(
+                            "unsupported cast type: {:?}",
+                            schema.field(index).data_type()
+                        );
+                    }
+                }
+                Ok(record.column(index).clone())
+            })
             .unwrap_or_else(|_| {
                 if let Some(default) = &self.default {
                     Ok(
@@ -152,6 +178,29 @@ mod tests {
                 .value(0),
             1704096000000000000
         );
+
+        // test default value with empty value
+        let batch_with_none = RecordBatch::try_from_iter([
+            (
+                "f1",
+                Arc::new(StringArray::from(vec!["a", "b", ""])) as ArrayRef,
+            ),
+            (
+                "int",
+                Arc::new(Int32Array::from(vec![Some(1), Some(2), None])) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+        // empty string
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "f1", "default": "abc"}"#).unwrap();
+        let (field, value) = builder.build_field("n1", &batch_with_none, None).unwrap();
+        dbg!(&field, &value);
+        // none integer
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "int", "default": "10"}"#).unwrap();
+        let (field, value) = builder.build_field("n1", &batch_with_none, None).unwrap();
+        dbg!(&field, &value);
     }
 
     #[test]

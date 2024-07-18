@@ -806,6 +806,23 @@ pub async fn flat_write_with_raw_block(
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     taos.replace(pool.get().await?);
                     continue;
+                } else if err_str.contains("[0x2653]") {
+                    // retry with sql
+                    let records_copy = MessageArrowRecords {
+                        table: records.table.clone(),
+                        records: records.records.clone(),
+                        opts: records.opts.clone(),
+                    };
+                    let retry_messages = vec![records_copy];
+                    let _ = flat_write_with_sql(
+                        &pool,
+                        taos,
+                        target_precision,
+                        &req_id,
+                        retry_messages,
+                        metrics,
+                    )
+                    .await?;
                 } else {
                     error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
                     metrics.add_failed_raw_blocks(1);
