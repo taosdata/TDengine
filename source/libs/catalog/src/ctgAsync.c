@@ -607,8 +607,8 @@ int32_t ctgHandleForceUpdateView(SCatalog* pCtg, const SCatalogReq* pReq) {
 
 int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, const SCatalogReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SHashObj* pDb = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  SHashObj* pTb = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  SHashObj* pDb = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  SHashObj* pTb = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pDb || NULL == pTb) {
     taosHashCleanup(pDb);
     taosHashCleanup(pTb);
@@ -2414,12 +2414,6 @@ int32_t ctgHandleGetTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  SMetaRes*          pRes = taosArrayGet(pCtx->pResList, 0);
-  if (NULL == pRes) {
-    ctgError("fail to get the 0th SMetaRes, totalNum:%d", (int32_t)taosArrayGetSize(pCtx->pResList));
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-  }
-
   STablesReq*        pTbReq = taosArrayGet(pCtx->pNames, 0);
   if (NULL == pTbReq) {
     ctgError("fail to get the 0th STablesReq, totalNum:%d", (int32_t)taosArrayGetSize(pCtx->pNames));
@@ -2445,6 +2439,12 @@ int32_t ctgHandleGetTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
       break;
     } 
     case TDMT_MND_GET_TSMA: {
+      SMetaRes* pRes = taosArrayGet(pCtx->pResList, 0);
+      if (NULL == pRes) {
+        ctgError("fail to get the 0th SMetaRes, totalNum:%d", (int32_t)taosArrayGetSize(pCtx->pResList));
+        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      }
+
       STableTSMAInfoRsp* pOut = pMsgCtx->out;
       pRes->code = 0;
       if (pOut->pTsmas->size > 0) {
