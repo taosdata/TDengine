@@ -87,6 +87,10 @@ fn err_description_too_long() -> R<()> {
     R::fail(103, "Description is too long")
 }
 
+fn err_page_num_is_zero() -> R<()> {
+    R::fail(104, "Page number is zero")
+}
+
 /// add new favorites sql
 pub async fn add_favorites_sql(
     favorites: web::Data<FavoritesSql>,
@@ -175,6 +179,9 @@ pub async fn get_favorites_sql_page(
     favorites: web::Data<FavoritesSql>,
     search: web::Query<SearchParams>,
 ) -> Result<R<FavoritesSqlPageData>> {
+    if search.page == 0 {
+        return Err(err_page_num_is_zero());
+    }
     let search = search.into_inner();
     let username = get_username_from_header(&req)?;
     // get total
