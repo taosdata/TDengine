@@ -465,6 +465,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return code;
   if (pCfg->s3Compact < TSDB_MIN_S3_COMPACT || pCfg->s3Compact > TSDB_MAX_S3_COMPACT) return code;
 
+  code = 0;
   TAOS_RETURN(code);
 }
 
@@ -529,6 +530,7 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   if (pNewCfg->s3KeepLocal < TSDB_MIN_S3_KEEP_LOCAL || pNewCfg->s3KeepLocal > TSDB_MAX_S3_KEEP_LOCAL) return code;
   if (pNewCfg->s3Compact < TSDB_MIN_S3_COMPACT || pNewCfg->s3Compact > TSDB_MAX_S3_COMPACT) return code;
 
+  code = 0;
   TAOS_RETURN(code);
 }
 
@@ -890,7 +892,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
              "-%u in dnode:%d since it's inconsitent with mnode leader:%" PRIi8 "-%u",
              pReq->db, pDnode->encryptionKeyStat, pDnode->encryptionKeyChksum, pDnode->id, tsEncryptionKeyStat,
              tsEncryptionKeyChksum);
-      sdbCancelFetch(pSdb, pDnode);
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pDnode);
       break;
     }
