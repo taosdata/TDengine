@@ -274,7 +274,7 @@ static void walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList) {
   }
 }
 
-void walAlignVersions(SWal* pWal) {
+static void walAlignVersions(SWal* pWal) {
   if (pWal->vers.firstVer > pWal->vers.snapshotVer + 1) {
     wWarn("vgId:%d, firstVer:%" PRId64 " is larger than snapshotVer:%" PRId64 " + 1. align with it.", pWal->cfg.vgId,
           pWal->vers.firstVer, pWal->vers.snapshotVer);
@@ -294,7 +294,7 @@ void walAlignVersions(SWal* pWal) {
   wInfo("vgId:%d, reset commitVer to %" PRId64, pWal->cfg.vgId, pWal->vers.commitVer);
 }
 
-int walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
+static int walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   int32_t fileIdx = -1;
   int32_t lastCloseTs = 0;
@@ -324,7 +324,7 @@ int walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
   return 0;
 }
 
-bool walLogEntriesComplete(const SWal* pWal) {
+static bool walLogEntriesComplete(const SWal* pWal) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   bool    complete = true;
   int32_t fileIdx = -1;
@@ -352,7 +352,7 @@ bool walLogEntriesComplete(const SWal* pWal) {
   return complete;
 }
 
-int walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
+static int walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
   ASSERT(pFileInfo != NULL);
   char fnameStr[WAL_FILE_LEN];
@@ -481,7 +481,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
     pWal->vers.lastVer = ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer;
   }
-  (void)walAlignVersions(pWal);
+  walAlignVersions(pWal);
 
   // repair ts of files
   if (walRepairLogFileTs(pWal, &updateMeta) < 0) {
@@ -500,7 +500,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
   return 0;
 }
 
-int walReadLogHead(TdFilePtr pLogFile, int64_t offset, SWalCkHead* pCkHead) {
+static int walReadLogHead(TdFilePtr pLogFile, int64_t offset, SWalCkHead* pCkHead) {
   if (taosLSeekFile(pLogFile, offset, SEEK_SET) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -519,7 +519,7 @@ int walReadLogHead(TdFilePtr pLogFile, int64_t offset, SWalCkHead* pCkHead) {
   return 0;
 }
 
-int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
+static int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   int32_t       sz = taosArrayGetSize(pWal->fileInfoSet);
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
   char          fnameStr[WAL_FILE_LEN];
@@ -866,7 +866,7 @@ static int walFindCurMetaVer(SWal* pWal) {
   return metaVer;
 }
 
-void walUpdateSyncedOffset(SWal* pWal) {
+static void walUpdateSyncedOffset(SWal* pWal) {
   SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
   if (pFileInfo == NULL) return;
   pFileInfo->syncedOffset = pFileInfo->fileSize;
@@ -892,7 +892,7 @@ int walSaveMeta(SWal* pWal) {
   }
 
   // update synced offset
-  (void)walUpdateSyncedOffset(pWal);
+  walUpdateSyncedOffset(pWal);
 
   // flush to a tmpfile
   n = walBuildTmpMetaName(pWal, tmpFnameStr);
