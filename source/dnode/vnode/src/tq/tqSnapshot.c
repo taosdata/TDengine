@@ -225,9 +225,14 @@ int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nD
 int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t   code = 0;
   STQ*      pTq = pWriter->pTq;
-  STqOffset *info = (STqOffset*)(pData + sizeof(SSnapDataHdr));
 
-  code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, info->subKey, strlen(info->subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  STqOffset info = {0};
+  if(tqMetaDecodeOffsetInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr)) != 0){
+    goto _err;
+  }
+
+  code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, info.subKey, strlen(info.subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  tDeleteSTqOffset(&info);
   if (code) goto _err;
 
   return code;
