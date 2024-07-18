@@ -336,6 +336,7 @@ int main(int argc, char const *argv[]) {
   return 0;
 }
 int mainWindows(int argc, char **argv) {
+  int32_t code = 0;
 #endif
 
   if (global.generateGrant) {
