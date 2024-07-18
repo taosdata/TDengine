@@ -30,7 +30,6 @@ class TDSimClient:
     def __init__(self, path):
         self.testCluster = False
         self.path = path
-        # cdebugflag 135 for tmqClientConsLog
         self.cfgDict = {
             "fqdn": "localhost",
             "numOfLogLines": "100000000",
