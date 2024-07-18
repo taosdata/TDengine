@@ -191,6 +191,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   } else {
     fnInfo("udfd is initialized");
   }
+  if(taosFqdnEnvItem) taosMemoryFree(taosFqdnEnvItem);
   return err;
 }
 
