@@ -13,8 +13,9 @@
         :placeholder="$t('console.sqlTip')"
         ref="sqlStr"
         @blur="blur"
-        @inputRead="cursorActivity"
+        @inputRead="inputRead"
         @ready="onReady"
+        @cursorActivity="cursorActivity"
         v-model="sqlStr"
         :options="cmOptions"
       ></codemirror>
@@ -192,13 +193,16 @@
           this.comIns.focus();
         }
       },
-      cursorActivity(ins, event) {
+      inputRead(ins, event) {
         let text = event?.text[0];
         if (!text) return;
         if (SQLTEXT.test(text)) {
           ins.showHint();
         }
       },
+      cursorActivity(ins, ev) {
+        this.$store.state.console.selectedSqlStr = this.comIns.getSelection()
+      }
     },
   };
 </script>

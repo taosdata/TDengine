@@ -25,7 +25,8 @@ const state = {
   previewBtn: true,
   repeatResult:[],
   sharedTotal: 0,
-  total: 0
+  total: 0,
+  selectedSqlStr: ""
 };
 
 const mutations = {

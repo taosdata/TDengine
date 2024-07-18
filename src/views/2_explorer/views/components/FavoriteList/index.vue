@@ -208,7 +208,6 @@
 
 <script>
 import { mapState } from "vuex";
-import RecordItem from "./components/RecordItem";
 import { copy } from "@/utils";
 import {
   getFavorites,
@@ -217,7 +216,7 @@ import {
   manageFavorite,
 } from "@/api/gateway/console";
 export default {
-  components: { RecordItem },
+  components: {},
   computed: {
     ...mapState({
       favorites: (state) => state.console.favorites,
@@ -378,7 +377,7 @@ export default {
 .favorites_wrapper {
   height: 100%;
   &:deep(.el-tab-pane) {
-    top: 30px !important;
+    top: 51px !important;
   }
   &:deep(.el-tabs--border-card) {
     box-shadow: none;
@@ -386,6 +385,7 @@ export default {
   &:deep(.el-table) {
     display: flex;
     flex-direction: column;
+    margin-top: 0 !important;
   }
   &:deep(.el-table__header-wrapper) {
     min-height: 30px;

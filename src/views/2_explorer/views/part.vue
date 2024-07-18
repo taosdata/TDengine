@@ -40,7 +40,7 @@
       <el-button 
         :disabled=" 
           $store.state.console.partActive == 'sql' 
-          ? (!sqlStr || requestIng) 
+          ? (!selectedSqlStr || requestIng) 
           : (previewBtn || requestIng)" type="success" @click="toggleFavorite" size="mini">
         <template v-if="!favorited">
           <el-icon class="el-icon-star-on" />
@@ -99,7 +99,8 @@
         tabName: state => state.console.tabName,
         sqlStr: state => state.console.sqlStr,
         favorites: state => state.console.favorites,
-        previewBtn: state => state.console.previewBtn
+        previewBtn: state => state.console.previewBtn,
+        selectedSqlStr: state => state.console.selectedSqlStr
       }),
       // favorited() {
       //   return this.favorites?(this.favorites.find(item => item.sql == this.sqlStr)?.id || ""):"";
