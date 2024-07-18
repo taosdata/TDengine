@@ -265,7 +265,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     if (code == TSDB_CODE_SUCCESS) {
       stInfo("vgId:%d role:%d not leader not send hb to mnode", pMeta->vgId, pMeta->role);
     } else {
-      stError("vgId:%d role:%d not leader not send hb to mnodefailed to release the meta rid:%d", pMeta->vgId,
+      stError("vgId:%d role:%d not leader not send hb to mnodefailed to release the meta rid:%" PRId64, pMeta->vgId,
               pMeta->role, rid);
     }
 
