@@ -30,6 +30,7 @@ class TDSimClient:
     def __init__(self, path):
         self.testCluster = False
         self.path = path
+        # cdebugflag 135 for tmqClientConsLog
         self.cfgDict = {
             "fqdn": "localhost",
             "numOfLogLines": "100000000",
@@ -39,7 +40,7 @@ class TDSimClient:
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "dDebugFlag":"131",
-            "cDebugFlag": "131",
+            "cDebugFlag": "135",
             "uDebugFlag": "131",
             "jniDebugFlag": "131",
             "qDebugFlag": "135",
