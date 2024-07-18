@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef _TD_WAL_H_
 #define _TD_WAL_H_
 
@@ -23,15 +24,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// clang-format off
-#define wFatal(...) { if (wDebugFlag & DEBUG_FATAL) { taosPrintLog("WAL FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
-#define wError(...) { if (wDebugFlag & DEBUG_ERROR) { taosPrintLog("WAL ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
-#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN ",  DEBUG_WARN, 255,         __VA_ARGS__); }}
-#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL ",       DEBUG_INFO, 255,         __VA_ARGS__); }}
-#define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL ",       DEBUG_DEBUG, wDebugFlag, __VA_ARGS__); }}
-#define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ",       DEBUG_TRACE, wDebugFlag, __VA_ARGS__); }}
-// clang-format on
 
 #define WAL_PROTO_VER     0
 #define WAL_NOSUFFIX_LEN  20
@@ -172,12 +164,9 @@ int32_t walPersist(SWal *);
 void    walClose(SWal *);
 
 // write interfaces
-
 // By assigning index by the caller, wal gurantees linearizability
-// Assign version automatically and return to caller,
 int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
-
-void walFsync(SWal *, bool force);
+void    walFsync(SWal *, bool force);
 
 // apis for lifecycle management
 int32_t walCommit(SWal *, int64_t ver);
@@ -188,8 +177,6 @@ int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 // for tq
 int32_t walApplyVer(SWal *, int64_t ver);
-
-// int32_t  walDataCorrupted(SWal*);
 
 // wal reader
 SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);
