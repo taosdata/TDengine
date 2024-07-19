@@ -478,7 +478,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
 
 end:
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tags", tags));
-  taosArrayDestroy(pTagVals);
+  (void)taosArrayDestroy(pTagVals);
 }
 
 static void buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs, cJSON** pJson) {

@@ -53,7 +53,7 @@ int32_t  taosGetErrSize();
 #define terrln                              (*taosGetErrln())
 
 #define SET_ERROR_MSG(MSG, ...) \
-  snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
+  (void)snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
