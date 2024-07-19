@@ -70,10 +70,6 @@ typedef struct STsdbSnapRAWReader STsdbSnapRAWReader;
 typedef struct STsdbSnapRAWWriter STsdbSnapRAWWriter;
 typedef struct STqSnapReader      STqSnapReader;
 typedef struct STqSnapWriter      STqSnapWriter;
-typedef struct STqOffsetReader    STqOffsetReader;
-typedef struct STqOffsetWriter    STqOffsetWriter;
-typedef struct STqCheckInfoReader STqCheckInfoReader;
-typedef struct STqCheckInfoWriter STqCheckInfoWriter;
 typedef struct SStreamTaskReader  SStreamTaskReader;
 typedef struct SStreamTaskWriter  SStreamTaskWriter;
 typedef struct SStreamStateReader SStreamStateReader;
@@ -266,7 +262,6 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
 
-int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
 // tq-mq
@@ -349,29 +344,17 @@ int32_t tsdbSnapRAWWrite(STsdbSnapRAWWriter* pWriter, SSnapDataHdr* pHdr);
 int32_t tsdbSnapRAWWriterPrepareClose(STsdbSnapRAWWriter* pWriter);
 int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** ppWriter, int8_t rollback);
 // STqSnapshotReader ==
-int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader);
+int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqSnapReader** ppReader);
 int32_t tqSnapReaderClose(STqSnapReader** ppReader);
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData);
 // STqSnapshotWriter ======================================
 int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter);
 int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback);
-int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
-// STqCheckInfoshotReader ==
-int32_t tqCheckInfoReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoReader** ppReader);
-int32_t tqCheckInfoReaderClose(STqCheckInfoReader** ppReader);
-int32_t tqCheckInfoRead(STqCheckInfoReader* pReader, uint8_t** ppData);
-// STqCheckInfoshotWriter ======================================
-int32_t tqCheckInfoWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoWriter** ppWriter);
-int32_t tqCheckInfoWriterClose(STqCheckInfoWriter** ppWriter, int8_t rollback);
-int32_t tqCheckInfoWrite(STqCheckInfoWriter* pWriter, uint8_t* pData, uint32_t nData);
-// STqOffsetReader ========================================
-int32_t tqOffsetReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetReader** ppReader);
-int32_t tqOffsetReaderClose(STqOffsetReader** ppReader);
-int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData);
-// STqOffsetWriter ========================================
-int32_t tqOffsetWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetWriter** ppWriter);
-int32_t tqOffsetWriterClose(STqOffsetWriter** ppWriter, int8_t rollback);
-int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+
+int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+
 // SStreamTaskWriter ======================================
 
 int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskReader** ppReader);
