@@ -427,7 +427,7 @@ pub trait ArrayForTaos: Array {
                 }
                 _ => {
                     tracing::error!("Unsupported data type: {:?}", self.data_type());
-                    taos::Value::VarChar("".to_string())
+                    taos::Value::Null(ty)
                 }
             }
         }
