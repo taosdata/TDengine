@@ -1421,22 +1421,26 @@ int main(int argc, char *argv[]) {
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
     fnError("failed to start since read config error");
+    taosCloseLog();
     return -2;
   }
 
   initEpSetFromCfg(tsFirst, tsSecond, &global.mgmtEp);
   if (udfdOpenClientRpc() != 0) {
     fnError("open rpc connection to mnode failed");
+    taosCloseLog();
     return -3;
   }
 
   if (udfdCreateUdfSourceDir() != 0) {
     fnError("create udf source directory failed");
+    taosCloseLog();
     return -4;
   }
 
   if (udfdUvInit() != 0) {
     fnError("uv init failure");
+    taosCloseLog();
     return -5;
   }
 
@@ -1452,6 +1456,7 @@ int main(int argc, char *argv[]) {
 
   udfdDeinitScriptPlugins();
 
+  taosCloseLog();
   udfdCleanup();
   return 0;
 }
