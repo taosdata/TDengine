@@ -220,14 +220,14 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
   return code;
 }
 
-static bool doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg* pColsAgg, int32_t numOfCols,
-                               int32_t numOfRows) {
+static int32_t doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg* pColsAgg, int32_t numOfCols,
+                                  int32_t numOfRows, bool *keep) {
   if (pColsAgg == NULL || pFilterInfo == NULL) {
-    return true;
+    *keep = true;
+    return TSDB_CODE_SUCCESS;
   }
 
-  bool keep = filterRangeExecute(pFilterInfo, pColsAgg, numOfCols, numOfRows);
-  return keep;
+  return filterRangeExecute(pFilterInfo, pColsAgg, numOfCols, numOfRows, keep);
 }
 
 static bool doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
@@ -351,7 +351,11 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     bool success = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo);
     if (success) {
       size_t size = taosArrayGetSize(pBlock->pDataBlock);
-      bool   keep = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, pBlockInfo->rows);
+      bool   keep = false;
+      int32_t code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, pBlockInfo->rows, &keep);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       if (!keep) {
         qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
                GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
@@ -3838,7 +3842,8 @@ static void destroyTagScanOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->aFilterIdxs);
   taosArrayDestroyEx(pInfo->aUidTags, tagScanFreeUidTag);
 
-  pInfo->pRes = blockDataDestroy(pInfo->pRes);
+  blockDataDestroy(pInfo->pRes);
+  pInfo->pRes = NULL;
   taosArrayDestroy(pInfo->matchInfo.pList);
   pInfo->pTableListInfo = tableListDestroy(pInfo->pTableListInfo);
   taosMemoryFreeClear(param);
@@ -4791,15 +4796,19 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   pTableScanInfo->pSortHandle = NULL;
   taosHashCleanup(pTableScanInfo->mSkipTables);
   pTableScanInfo->mSkipTables = NULL;
-  pTableScanInfo->pSortInputBlock = blockDataDestroy(pTableScanInfo->pSortInputBlock);
+  blockDataDestroy(pTableScanInfo->pSortInputBlock);
+  pTableScanInfo->pSortInputBlock = NULL;
   // end one reader variable
 
   cleanupQueryTableDataCond(&pTableScanInfo->base.cond);
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
 
-  pTableScanInfo->pResBlock = blockDataDestroy(pTableScanInfo->pResBlock);
+  blockDataDestroy(pTableScanInfo->pResBlock);
+  pTableScanInfo->pResBlock = NULL;
+
   // remove it from the task->result list
-  pTableScanInfo->pReaderBlock = blockDataDestroy(pTableScanInfo->pReaderBlock);
+  blockDataDestroy(pTableScanInfo->pReaderBlock);
+  pTableScanInfo->pReaderBlock = NULL;
   taosArrayDestroy(pTableScanInfo->pSortInfo);
 
   stopSubTablesTableMergeScan(pTableScanInfo);

@@ -208,7 +208,7 @@ int32_t streamQueueOpen(int64_t cap, SStreamQueue** pQ);
 void    streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
 void    streamQueueProcessSuccess(SStreamQueue* queue);
 void    streamQueueProcessFail(SStreamQueue* queue);
-void*   streamQueueNextItem(SStreamQueue* pQueue);
+void    streamQueueNextItem(SStreamQueue* pQueue, SStreamQueueItem** pItem);
 void    streamFreeQitem(SStreamQueueItem* data);
 int32_t streamQueueGetItemSize(const SStreamQueue* pQueue);
 
@@ -226,7 +226,7 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path);
 int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask);
 int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask);
 
-int32_t initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t upstreamNodeId, int32_t upstreamTaskId,
+void    initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t upstreamNodeId, int32_t upstreamTaskId,
                                 int32_t childId, SEpSet* pEpset, int64_t checkpointId);
 int32_t initCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamNodeId, int32_t upstreamTaskId, int32_t childId,
                                int64_t checkpointId, SRpcMsg* pMsg);
@@ -235,6 +235,10 @@ typedef int32_t (*__stream_async_exec_fn_t)(void* param);
 
 int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, void* param, int32_t* code);
 void    flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpointBlock);
+
+void streamMutexLock(TdThreadMutex *pMutex);
+void streamMutexUnlock(TdThreadMutex *pMutex);
+void streamMutexDestroy(TdThreadMutex *pMutex);
 
 #ifdef __cplusplus
 }

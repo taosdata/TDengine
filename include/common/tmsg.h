@@ -3612,6 +3612,7 @@ typedef struct {
 
 int32_t tEncodeSTqOffset(SEncoder* pEncoder, const STqOffset* pOffset);
 int32_t tDecodeSTqOffset(SDecoder* pDecoder, STqOffset* pOffset);
+void    tDeleteSTqOffset(void* val);
 
 typedef struct SMqVgOffset {
   int64_t   consumerId;

@@ -607,7 +607,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       blockDataAppendColInfo(pBlock, &idata);
     }
 
-    blockDecode(pBlock, pStart);
+    (void) blockDecode(pBlock, pStart);
     blockDataEnsureCapacity(pRes, pBlock->info.rows);
 
     // data from mnode

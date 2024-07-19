@@ -27,19 +27,23 @@ typedef struct SQueueReader {
   int32_t       waitDuration;  // maximum wait time to format several block into a batch to process, unit: ms
 } SQueueReader;
 
+#define streamQueueCurItem(_q) ((_q)->qItem)
+
 static bool streamTaskExtractAvailableToken(STokenBucket* pBucket, const char* id);
 static void streamTaskPutbackToken(STokenBucket* pBucket);
 static void streamTaskConsumeQuota(STokenBucket* pBucket, int32_t bytes);
 
 static void streamQueueCleanup(SStreamQueue* pQueue) {
-  void* qItem = NULL;
-  while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
+  SStreamQueueItem* qItem = NULL;
+  while (1) {
+    streamQueueNextItem(pQueue, &qItem);
+    if (qItem == NULL) {
+      break;
+    }
     streamFreeQitem(qItem);
   }
   pQueue->status = STREAM_QUEUE__SUCESS;
 }
-
-static void* streamQueueCurItem(SStreamQueue* queue) { return queue->qItem; }
 
 int32_t streamQueueOpen(int64_t cap, SStreamQueue** pQ) {
   *pQ = NULL;
@@ -81,21 +85,22 @@ void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
   taosMemoryFree(pQueue);
 }
 
-void* streamQueueNextItem(SStreamQueue* pQueue) {
+void streamQueueNextItem(SStreamQueue* pQueue, SStreamQueueItem** pItem) {
+  *pItem = NULL;
   int8_t flag = atomic_exchange_8(&pQueue->status, STREAM_QUEUE__PROCESSING);
 
   if (flag == STREAM_QUEUE__FAILED) {
     ASSERT(pQueue->qItem != NULL);
-    return streamQueueCurItem(pQueue);
+    *pItem = streamQueueCurItem(pQueue);
   } else {
     pQueue->qItem = NULL;
-    taosGetQitem(pQueue->qall, &pQueue->qItem);
+    (void) taosGetQitem(pQueue->qall, &pQueue->qItem);
     if (pQueue->qItem == NULL) {
-      taosReadAllQitems(pQueue->pQueue, pQueue->qall);
-      taosGetQitem(pQueue->qall, &pQueue->qItem);
+      (void) taosReadAllQitems(pQueue->pQueue, pQueue->qall);
+      (void) taosGetQitem(pQueue->qall, &pQueue->qItem);
     }
 
-    return streamQueueCurItem(pQueue);
+    *pItem = streamQueueCurItem(pQueue);
   }
 }
 
@@ -181,7 +186,8 @@ EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIte
       return EXEC_CONTINUE;
     }
 
-    SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputq.queue);
+    SStreamQueueItem* qItem = NULL;
+    streamQueueNextItem(pTask->inputq.queue, (SStreamQueueItem**)&qItem);
     if (qItem == NULL) {
       // restore the token to bucket
       if (*numOfBlocks > 0) {
@@ -338,7 +344,8 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && type != STREAM_INPUT__CHECKPOINT_TRIGGER &&
       (pTask->info.delaySchedParam != 0)) {
-    atomic_val_compare_exchange_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
+    (void)atomic_val_compare_exchange_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE,
+                                        TASK_TRIGGER_STATUS__ACTIVE);
     stDebug("s-task:%s new data arrived, active the sched-trigger, triggerStatus:%d", pTask->id.idStr,
             pTask->schedInfo.status);
   }
@@ -347,18 +354,19 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
 }
 
 int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
-  int32_t           code;
-  SStreamDataBlock* pTranstate;
+  int32_t           code = 0;
+  SStreamDataBlock* pTranstate = NULL;
+  SSDataBlock*      pBlock = NULL;
 
   code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock), (void**)&pTranstate);
   if (code) {
     return code;
   }
 
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
-    taosFreeQitem(pTranstate);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
   }
 
   pTranstate->type = STREAM_INPUT__TRANS_STATE;
@@ -368,15 +376,30 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
   pBlock->info.childId = pTask->info.selfChildId;
 
   pTranstate->blocks = taosArrayInit(4, sizeof(SSDataBlock));  // pBlock;
-  taosArrayPush(pTranstate->blocks, pBlock);
+  if (pTranstate->blocks == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  void* p = taosArrayPush(pTranstate->blocks, pBlock);
+  if (p == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
 
   taosMemoryFree(pBlock);
   if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTranstate) < 0) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
   }
 
   pTask->status.appendTranstateBlock = true;
   return TSDB_CODE_SUCCESS;
+
+_err:
+  taosMemoryFree(pBlock);
+  taosFreeQitem(pTranstate);
+  return code;
 }
 
 // the result should be put into the outputQ in any cases, the result may be lost otherwise.

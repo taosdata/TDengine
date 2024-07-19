@@ -887,8 +887,8 @@ _EXIT:
   rocksdb_options_destroy(opts);
   rocksdb_cache_destroy(cache);
   rocksdb_env_destroy(env);
-  taosThreadMutexDestroy(&pHandle->mutex);
-  taosThreadMutexDestroy(&pHandle->cfMutex);
+  streamMutexDestroy(&pHandle->mutex);
+  streamMutexDestroy(&pHandle->cfMutex);
   taosHashCleanup(pHandle->cfInst);
   tdListFree(pHandle->list);
   taosMemoryFree(pHandle);
@@ -923,9 +923,9 @@ void streamBackendCleanup(void* arg) {
   }
 
   tdListFree(pHandle->list);
-  taosThreadMutexDestroy(&pHandle->mutex);
+  streamMutexDestroy(&pHandle->mutex);
 
-  taosThreadMutexDestroy(&pHandle->cfMutex);
+  streamMutexDestroy(&pHandle->cfMutex);
   stDebug("destroy stream backend :%p", pHandle);
   taosMemoryFree(pHandle);
   return;
@@ -1393,7 +1393,7 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
   // vnode task->db
   SStreamMeta* pMeta = arg;
 
-  taosThreadMutexLock(&pMeta->backendMutex);
+  streamMutexLock(&pMeta->backendMutex);
   void*   pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
   int32_t code = 0;
 
@@ -1434,14 +1434,14 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
 
     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
   }
-  taosThreadMutexUnlock(&pMeta->backendMutex);
+  streamMutexUnlock(&pMeta->backendMutex);
   return code;
 }
 int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo) {
   if (pSnapInfo == NULL) return 0;
   SStreamMeta* pMeta = arg;
   int32_t      code = 0;
-  taosThreadMutexLock(&pMeta->backendMutex);
+  streamMutexLock(&pMeta->backendMutex);
 
   char buf[128] = {0};
   for (int i = 0; i < taosArrayGetSize(pSnapInfo); i++) {
@@ -1457,7 +1457,7 @@ int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo) {
 
     taskDbUnRefChkp(*pTaskDb, pSnap->chkpId);
   }
-  taosThreadMutexUnlock(&pMeta->backendMutex);
+  streamMutexUnlock(&pMeta->backendMutex);
   return 0;
 }
 #ifdef BUILD_NO_CALL
@@ -1697,17 +1697,17 @@ int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId, int64_t processVer)
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)backend;
   SListNode*       node = NULL;
-  taosThreadMutexLock(&pHandle->mutex);
+  streamMutexLock(&pHandle->mutex);
   node = tdListAdd(pHandle->list, arg);
-  taosThreadMutexUnlock(&pHandle->mutex);
+  streamMutexUnlock(&pHandle->mutex);
   return node;
 }
 void streamBackendDelCompare(void* backend, void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)backend;
   SListNode*       node = NULL;
-  taosThreadMutexLock(&pHandle->mutex);
+  streamMutexLock(&pHandle->mutex);
   node = tdListPopNode(pHandle->list, arg);
-  taosThreadMutexUnlock(&pHandle->mutex);
+  streamMutexUnlock(&pHandle->mutex);
   if (node) {
     streamStateDestroyCompar(node->data);
     taosMemoryFree(node);
@@ -2461,9 +2461,9 @@ int32_t taskDbBuildFullPath(char* path, char* key, char** dbFullPath, char** sta
 
 void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId) {
   STaskDbWrapper* p = pTaskDb;
-  taosThreadMutexLock(&p->mutex);
+  streamMutexLock(&p->mutex);
   p->chkpId = chkpId;
-  taosThreadMutexUnlock(&p->mutex);
+  streamMutexUnlock(&p->mutex);
 }
 
 STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
@@ -2622,7 +2622,7 @@ void taskDbDestroy(void* pDb, bool flush) {
   taosMemoryFree(wrapper->pCfOpts);
   taosMemoryFree(wrapper->pCfParams);
 
-  taosThreadMutexDestroy(&wrapper->mutex);
+  streamMutexDestroy(&wrapper->mutex);
 
   taskDbDestroyChkpOpt(wrapper);
 
@@ -2957,7 +2957,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   SBackendWrapper*   handle = backend;
   SBackendCfWrapper* pBackendCfWrapper = taosMemoryCalloc(1, sizeof(SBackendCfWrapper));
 
-  taosThreadMutexLock(&handle->cfMutex);
+  streamMutexLock(&handle->cfMutex);
   RocksdbCfInst** ppInst = taosHashGet(handle->cfInst, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1);
   if (ppInst != NULL && *ppInst != NULL) {
     RocksdbCfInst* inst = *ppInst;
@@ -2970,7 +2970,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     pBackendCfWrapper->param = inst->param;
     pBackendCfWrapper->pBackend = handle;
     pBackendCfWrapper->pComparNode = inst->pCompareNode;
-    taosThreadMutexUnlock(&handle->cfMutex);
+    streamMutexUnlock(&handle->cfMutex);
     pBackendCfWrapper->backendId = pState->streamBackendRid;
     memcpy(pBackendCfWrapper->idstr, pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr));
 
@@ -2987,7 +2987,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     inst->rOpt = NULL;
     return 0;
   }
-  taosThreadMutexUnlock(&handle->cfMutex);
+  streamMutexUnlock(&handle->cfMutex);
 
   char* err = NULL;
   int   cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
@@ -3046,14 +3046,14 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
 
   stInfo("start to close state on backend: %p", pHandle);
 
-  taosThreadMutexLock(&pHandle->cfMutex);
+  streamMutexLock(&pHandle->cfMutex);
   RocksdbCfInst** ppInst = taosHashGet(pHandle->cfInst, wrapper->idstr, strlen(pState->pTdbState->idstr) + 1);
   if (ppInst != NULL && *ppInst != NULL) {
     RocksdbCfInst* inst = *ppInst;
     taosMemoryFree(inst);
     taosHashRemove(pHandle->cfInst, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1);
   }
-  taosThreadMutexUnlock(&pHandle->cfMutex);
+  streamMutexUnlock(&pHandle->cfMutex);
 
   char* status[] = {"close", "drop"};
   stInfo("start to %s state %p on backendWrapper %p %s", status[remove == false ? 0 : 1], pState, wrapper,
@@ -3085,7 +3085,7 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
       return -1;
     }
 
-    taosThreadMutexLock(&wrapper->mutex);
+    streamMutexLock(&wrapper->mutex);
 
     rocksdb_column_family_handle_t* cf = wrapper->pCf[idx];
     if (cf == NULL) {
@@ -3100,7 +3100,7 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
         wrapper->pCf[idx] = cf;
       }
     }
-    taosThreadMutexUnlock(&wrapper->mutex);
+    streamMutexUnlock(&wrapper->mutex);
   }
 
   return idx;

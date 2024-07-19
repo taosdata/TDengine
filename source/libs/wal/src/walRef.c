@@ -52,15 +52,14 @@ int32_t walSetRefVer(SWalRef *pRef, int64_t ver) {
     taosThreadMutexLock(&pWal->mutex);
     if (ver < pWal->vers.firstVer || ver > pWal->vers.lastVer) {
       taosThreadMutexUnlock(&pWal->mutex);
-      terrno = TSDB_CODE_WAL_INVALID_VER;
-      return -1;
+      return TSDB_CODE_WAL_INVALID_VER;
     }
 
     pRef->refVer = ver;
     taosThreadMutexUnlock(&pWal->mutex);
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 void walRefFirstVer(SWal *pWal, SWalRef *pRef) {
