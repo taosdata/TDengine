@@ -135,6 +135,7 @@ export default {
       isJson: true,
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
+      mongodbDefaultCols: ["value"],
       disabled: false,
       splitExpre: {},
       extractParseData: {},
@@ -306,6 +307,14 @@ export default {
                   } else if(this.$store.state.app.supportSQL){
                     return val
                   }
+                  if (
+                    this.$store.state.app.currentDBType == "mongodb" &&
+                    !this.mongodbDefaultCols.includes(val.name)
+                  ) {
+                    return val;
+                  } else if(this.$store.state.app.supportSQL){
+                    return val
+                  }
                 })
         ).map((item) => {
           return {
@@ -440,6 +449,9 @@ export default {
         if (this.$store.state.app.currentDBType == "kafka") {
           hiddenCols = ["ts", "topic", "partition", "offset", "key"];
         }
+        if (this.$store.state.app.currentDBType == "mongodb") {
+          hiddenCols = ["ts"];
+        }
       } else {
         hiddenCols = [];
       }
@@ -466,6 +478,22 @@ export default {
                     : item.name;
               }
             } else if (this.$store.state.app.currentDBType == "kafka") {
+              if (item.name == "value") {
+                inputobj["value"] = isall
+                  ? msg
+                  : this.isJson
+                  ? JSON.stringify({
+                      [`${this.itemData.columnname}`]:
+                        JSON.parse(msg)[this.itemData.columnname],
+                    })
+                  : msg;
+              } else {
+                inputobj[item.name] =
+                  item.type == "timestamp"
+                    ? parsinginZone(new Date())
+                    : item.name;
+              }
+            } else if (this.$store.state.app.currentDBType == "mongodb") {
               if (item.name == "value") {
                 inputobj["value"] = isall
                   ? msg
@@ -575,6 +603,11 @@ export default {
             }
             break
           case 'kafka':
+          if(Object.hasOwnProperty.call(parser.parser.parse.value,'json')){
+              parser.parser.parse.value.json=''
+            }
+            break
+          case 'mongodb':
           if(Object.hasOwnProperty.call(parser.parser.parse.value,'json')){
               parser.parser.parse.value.json=''
             }

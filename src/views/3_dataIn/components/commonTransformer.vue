@@ -691,6 +691,7 @@ export default {
     return {
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
+      mongodbDefaultCols: ["value"],
       parseTypes: ["regex", "json", "udt"],
       exprformat: "${c1}-${c2}:${c3}",
       exprexpression: "centigrade * 1.8 + 32",
@@ -829,7 +830,8 @@ export default {
     if (this.parserColumns) {
       if (
         this.$store.state.app.currentDBType == "mqtt" ||
-        this.$store.state.app.currentDBType == "kafka"
+        this.$store.state.app.currentDBType == "kafka" ||
+        this.$store.state.app.currentDBType == "mongodb"
       ) {
         this.initColumnLists(
           this.parserColumns.filter((item) => item.name != "ts")
@@ -935,7 +937,7 @@ export default {
         return;
       }
       this.requesting = true;
-      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt'
+      let isSupportType = this.$store.state.app.currentDBType == 'kafka' || this.$store.state.app.currentDBType == 'mqtt' || this.$store.state.app.currentDBType == 'mongodb'
       let dsn = getDsnData(
         this.$parent.$parent.$parent.sourceForm.data,
         this.$parent.$parent.$parent.currentDefinition
@@ -961,7 +963,14 @@ export default {
         if (result.input.length <= 0) {
           this.$message.warning(this.$t('datasource.transformer.retrieveTip'))
         } else {
-          let type = this.$store.state.app.currentDBType == 'kafka' ? 'Kafka' : 'MQTT';
+          let type = '';
+          if (this.$store.state.app.currentDBType == 'kafka') {
+            type = 'Kafka';
+          } else if (this.$store.state.app.currentDBType == 'mqtt') {
+            type = 'MQTT';
+          } else if (this.$store.state.app.currentDBType == 'mongodb') {
+            type = 'MongoDB';
+          }
           this.$message.success(
             type + this.$t('datasource.transformer.retrieveSuccTip').replace('{n}',result.input.length)
           )
@@ -973,7 +982,7 @@ export default {
         this.msgForm.msgbody = JSON.stringify(result);
       }
       this.requesting = false;
-      // mqtt 和 kafka 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
+      // mqtt、kafka、mongodb 的从服务器获取数据后，只是追加到示例数据 textarea 中，不触发预览数据
       if (!isSupportType) {
         await this.submitParse();
       }
@@ -1164,6 +1173,8 @@ export default {
           hiddenCols = this.mqttDefaultCols;
         } else if (this.$store.state.app.currentDBType == "kafka") {
           hiddenCols = this.kafkaDefaultCols;
+        } else if (this.$store.state.app.currentDBType == "mongodb") {
+          hiddenCols = this.mongodbDefaultCols;
         }
         let tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
@@ -1192,6 +1203,11 @@ export default {
                 } else if (
                   this.$store.state.app.currentDBType == "kafka" &&
                   !this.kafkaDefaultCols.includes(item.name)
+                ) {
+                  return item;
+                } else if (
+                  this.$store.state.app.currentDBType == "mongodb" &&
+                  !this.mongodbDefaultCols.includes(item.name)
                 ) {
                   return item;
                 } else if (this.$store.state.app.supportSQL) {
@@ -1513,6 +1529,16 @@ export default {
               };
             });
           break;
+        case "mongodb":
+          finalCol = columns
+            .filter((val) => ["value"].includes(val.name))
+            .map((item) => {
+              return {
+                ...item,
+                show: true,
+              };
+            });
+          break;
       }
     },
     validateTransform() {
@@ -1808,6 +1834,46 @@ export default {
         console.log(error);
       }
     },
+    // 获取示例数据字符串列表
+    getExampleList() {
+      let demo_string = (this.msgForm.msgbody || "").trim();
+      let demo_string_arr = [];
+      if (demo_string.startsWith("[") && demo_string.endsWith("]")) {
+        let arr_list = demo_string.replace(/\]\s*\[/g, "]&$[").split("&$");
+        let total = 0;
+        for (let i = 0; i < arr_list.length; i++) {
+          try {
+            let item_parsed = JSON.parse(arr_list[i]);
+            total += item_parsed.length;
+          } catch (err) {
+            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
+            throw err;
+          }
+          demo_string_arr.push(arr_list[i]);
+          if (total >= 100) {
+            return demo_string_arr;
+          }
+        }
+      } else if (demo_string.startsWith("{") && demo_string.endsWith("}")) {
+          let obj_list = demo_string.replace(/\}\s*\{/g, "}&${").split("&$");
+          for (let i = 0; i < obj_list.length; i++) {
+            if (i >= 100) {
+              return demo_string_arr;
+            }
+            try {
+              JSON.parse(obj_list[i]);
+            } catch (err) {
+              this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
+              throw err;
+            }
+            demo_string_arr.push(obj_list[i]);
+          }
+      } else {
+        Message.warning(this.$t("datasource.transformer.jsontip"));
+        throw new Error("Invalid JSON format");
+      }
+      return demo_string_arr;
+    },
     //输出input结果
     generateInput() {
       let demo_list;
@@ -1835,6 +1901,15 @@ export default {
                     : item.name;
               }
             } else if (this.$store.state.app.currentDBType == "kafka") {
+              if (item.name == "value") {
+                inputobj["value"] = msg;
+              } else {
+                inputobj[item.name] =
+                  item.type == "timestamp"
+                    ? "" //parsinginZone(new Date())
+                    : item.name;
+              }
+            } else if (this.$store.state.app.currentDBType == "mongodb") {
               if (item.name == "value") {
                 inputobj["value"] = msg;
               } else {
@@ -2070,6 +2145,11 @@ export default {
                 ) {
                   return val;
                 } else if (
+                  this.$store.state.app.currentDBType == "mongodb" &&
+                  !this.mongodbDefaultCols.includes(val.value)
+                ) {
+                  return val;
+                }  else if (
                   this.$store.state.app.supportSQL
                 ) {
                   return val;
@@ -2392,7 +2472,8 @@ export default {
       handler(val) {
         if (
           this.$store.state.app.currentDBType == "mqtt" ||
-          this.$store.state.app.currentDBType == "kafka"
+          this.$store.state.app.currentDBType == "kafka" ||
+          this.$store.state.app.currentDBType == "mongodb"
         ) {
           this.initColumnLists(val.filter((item) => item.name != "ts"));
         } else {
