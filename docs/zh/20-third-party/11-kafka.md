@@ -93,7 +93,7 @@ curl http://localhost:8083/connectors
 
 TDengine Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database）， 也可按一定规则生成(见配置参数 connection.database.prefix)。
 
-TDengine Sink Connector 内部使用 TDengine [无模式写入接口](../../connector/cpp#无模式写入-api)写数据到 TDengine，目前支持三种格式的数据：[InfluxDB 行协议格式](../../develop/insert-data/influxdb-line)、 [OpenTSDB Telnet 协议格式](../../develop/insert-data/opentsdb-telnet) 和 [OpenTSDB JSON 协议格式](../../develop/insert-data/opentsdb-json)。
+TDengine Sink Connector 内部使用 TDengine [无模式写入接口](../../connector/cpp/#无模式schemaless写入-api)写数据到 TDengine，目前支持三种格式的数据：[InfluxDB 行协议格式](../../develop/insert-data/influxdb-line)、 [OpenTSDB Telnet 协议格式](../../develop/insert-data/opentsdb-telnet) 和 [OpenTSDB JSON 协议格式](../../develop/insert-data/opentsdb-json)。
 
 下面的示例将主题 meters 的数据，同步到目标数据库 power。数据格式为 InfluxDB Line 协议格式。
 

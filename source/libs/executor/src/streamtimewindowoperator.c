@@ -1546,6 +1546,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
     goto _error;
   }
 
+  pOperator->exprSupp.hasWindowOrGroup = true;
   pOperator->pTaskInfo = pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
@@ -3121,6 +3122,7 @@ _error:
 static void clearStreamSessionOperator(SStreamSessionAggOperatorInfo* pInfo) {
   tSimpleHashClear(pInfo->streamAggSup.pResultRows);
   pInfo->streamAggSup.stateStore.streamStateSessionClear(pInfo->streamAggSup.pState);
+  pInfo->clearState = false;
 }
 
 void deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
@@ -3170,7 +3172,6 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       // semi session operator clear disk buffer
       clearStreamSessionOperator(pInfo);
       setStreamOperatorCompleted(pOperator);
-      pInfo->clearState = false;
       return NULL;
     }
   }
@@ -4209,6 +4210,8 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->ignoreExpiredDataSaved = false;
 
   SExprSupp* pSup = &pOperator->exprSupp;
+  pSup->hasWindowOrGroup = true;
+
   initBasicInfo(&pInfo->binfo, pResBlock);
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 

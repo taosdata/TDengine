@@ -242,7 +242,6 @@ _end:
 
 int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
-  memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   pNewPos->needFree = true;
   pNewPos->beFlushed = true;
   void*   pBuff = NULL;
@@ -250,6 +249,7 @@ int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, v
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+  memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   memcpy(pNewPos->pRowBuff, pBuff, *pVLen);
   taosMemoryFreeClear(pBuff);
   (*pVal) = pNewPos;

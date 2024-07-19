@@ -38,7 +38,7 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## Windowed Queries
 
-Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are four kinds of windows: time window, status window, session window, and event window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
+Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are five kinds of windows: time window, status window, session window, event window, and count window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
 
 ```sql
 window_clause: {
@@ -80,7 +80,7 @@ These pseudocolumns occur after the aggregation clause.
 `FILL` clause is used to specify how to fill when there is data missing in any window, including:
 
 1. NONE: No fill (the default fill mode)
-2. VALUE: Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled.
+2. VALUE: Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled. If multiple columns in select list need to be filled, then in the fill clause there must be a fill value for each of these columns, for example, `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`.
 3. PREV: Fill with the previous non-NULL value, `FILL(PREV)`
 4. NULL: Fill with NULL, `FILL(NULL)`
 5. LINEAR: Fill with the closest non-NULL value, `FILL(LINEAR)`

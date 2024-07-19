@@ -444,7 +444,7 @@ FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
 ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-For more information about JOIN operations, please refer to the page [TDengine Join] (../join).
+For more information about JOIN operations, please refer to the page [TDengine Join](../join).
 
 ## Nested Query
 
