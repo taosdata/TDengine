@@ -5,6 +5,8 @@ use arrow::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::plugins::transform::parse::ArrayForTaos;
+
 use super::{ValueBuilder, ValueBuilderError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,31 +22,21 @@ impl ValueBuilder for CastValueBuilder {
         schema
             .index_of(&self.cast)
             .map(|index| {
-                match schema.field(index).data_type() {
-                    arrow_schema::DataType::Utf8 => {
-                        let value = record.column(index).as_any().downcast_ref::<StringArray>();
-                        let mut array = Vec::new();
-                        if let Some(value) = value {
-                            value.iter().for_each(|v| {
-                                if v.is_some_and(|v| v.len() > 0) {
-                                    array.push(v);
-                                } else if let Some(default) = &self.default {
-                                    array.push(Some(default));
-                                } else {
-                                    array.push(None);
-                                }
-                            });
-                            return Ok(Arc::new(StringArray::from(array)) as ArrayRef);
+                let mut values = Vec::new();
+                // get column values and judge if some of them are null
+                let array = record.column(index);
+                for i in 0..array.len() {
+                    if array.is_null(i) || array.taos_value(i).is_null() {
+                        if let Some(default) = &self.default {
+                            values.push(Some(default.clone()));
+                        } else {
+                            values.push(None);
                         }
-                    }
-                    _ => {
-                        tracing::warn!(
-                            "unsupported cast type: {:?}",
-                            schema.field(index).data_type()
-                        );
+                    } else {
+                        values.push(Some(format!("{}", array.taos_value(i))));
                     }
                 }
-                Ok(record.column(index).clone())
+                return Ok(Arc::new(StringArray::from(values)) as ArrayRef);
             })
             .unwrap_or_else(|_| {
                 if let Some(default) = &self.default {
@@ -62,7 +54,10 @@ impl ValueBuilder for CastValueBuilder {
 #[cfg(test)]
 mod tests {
     use arrow::{
-        array::{Array, BooleanArray, Float32Array, Int32Array, TimestampNanosecondArray},
+        array::{
+            Array, BooleanArray, Float32Array, Int16Array, Int32Array, NullArray,
+            TimestampNanosecondArray,
+        },
         datatypes::DataType,
     };
     use taosx_ipc::prelude::IpcDataType;
@@ -200,6 +195,83 @@ mod tests {
         let builder: CastValueBuilder =
             serde_json::from_str(r#"{"cast": "int", "default": "10"}"#).unwrap();
         let (field, value) = builder.build_field("n1", &batch_with_none, None).unwrap();
+        dbg!(&field, &value);
+    }
+
+    #[test]
+    fn test_field_default_full_type() {
+        // test default value with empty value
+        let batch_with_none = RecordBatch::try_from_iter([
+            ("null", Arc::new(NullArray::new(3)) as ArrayRef),
+            (
+                "boolean",
+                Arc::new(BooleanArray::from(vec![Some(true), None, Some(false)])) as ArrayRef,
+            ),
+            (
+                "string",
+                Arc::new(StringArray::from(vec![Some("a"), Some("b"), None])) as ArrayRef,
+            ),
+            (
+                "int16",
+                Arc::new(Int16Array::from(vec![Some(1), Some(2), None])) as ArrayRef,
+            ),
+            (
+                "int32",
+                Arc::new(Int32Array::from(vec![Some(4), None, Some(6)])) as ArrayRef,
+            ),
+            (
+                "float32",
+                Arc::new(Float32Array::from(vec![Some(1.2), None, Some(2.3)])) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+
+        // null
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "null", "default": "n1"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("newcol", &batch_with_none, None)
+            .unwrap();
+        dbg!(&field, &value);
+
+        // boolean
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "boolean", "default": "true"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("newcol", &batch_with_none, None)
+            .unwrap();
+        dbg!(&field, &value);
+
+        // string
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "string", "default": "s3"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("newcol", &batch_with_none, None)
+            .unwrap();
+        dbg!(&field, &value);
+
+        // int16
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "int16", "default": "10"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("newcol", &batch_with_none, None)
+            .unwrap();
+        dbg!(&field, &value);
+
+        // int32
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "int32", "default": "20"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("newcol", &batch_with_none, None)
+            .unwrap();
+        dbg!(&field, &value);
+
+        // float32
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "float32", "default": "1.1"}"#).unwrap();
+        let (field, value) = builder
+            .build_field("newcol", &batch_with_none, None)
+            .unwrap();
         dbg!(&field, &value);
     }
 
