@@ -201,7 +201,6 @@ void schedulerDestroy(void) {
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
 
-  taosTmrCleanUp(schMgmt.timer);
   qWorkerDestroy(&schMgmt.queryMgmt);
   schMgmt.queryMgmt = NULL;
 }
