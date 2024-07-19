@@ -175,6 +175,7 @@ SSdbRaw *mndViewActionEncode(SViewObj *pView) {
 
 
 VIEW_ENCODE_OVER:
+
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("view:%s, failed to encode to raw:%p since %s", pView->fullname, pRaw, terrstr());
@@ -233,6 +234,7 @@ SSdbRow *mndViewActionDecode(SSdbRaw *pRaw) {
   taosInitRWLatch(&pView->lock);
 
 VIEW_DECODE_OVER:
+
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("view:%s, failed to decode from raw:%p since %s", pView == NULL ? "null" : pView->fullname, pRaw,
@@ -247,14 +249,14 @@ VIEW_DECODE_OVER:
 
 int32_t mndViewActionInsert(SSdb *pSdb, SViewObj *pView) {
   mTrace("view:%s, perform insert action", pView->fullname);
-  atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
+  (void)atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
   return 0;
 }
 
 int32_t mndViewActionDelete(SSdb *pSdb, SViewObj *pView) {
   mTrace("view:%s, perform delete action", pView->fullname);
   tFreeViewObj(pView);
-  atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
+  (void)atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
   return 0;
 }
 
@@ -279,7 +281,7 @@ int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView) 
 
   taosWUnLockLatch(&pOldView->lock);
 
-  atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
+  (void)atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
 
   return 0;
 }
@@ -316,7 +318,7 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
   pView->createdTime = taosGetTimestampMs();
   pView->viewId = mndGenerateUid(pCreate->fullname, strlen(pCreate->fullname));
   pView->querySql = tstrdup(pCreate->querySql);
-  if (NULL == pView) {
+  if (NULL == pView->querySql) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
@@ -325,7 +327,7 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
-  memcpy(pView->pSchema, pCreate->pSchema, pCreate->numOfCols * sizeof(SSchema));
+  TAOS_MEMCPY(pView->pSchema, pCreate->pSchema, pCreate->numOfCols * sizeof(SSchema));
   tstrncpy(pView->fullname, pCreate->fullname, sizeof(pView->fullname));
   tstrncpy(pView->name, pCreate->name, sizeof(pView->name));
   tstrncpy(pView->dbFName, dbFName, sizeof(pView->dbFName));
@@ -344,7 +346,7 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
 _OVER:
 
   tFreeViewObj(pView);
-  return -1;
+  return terrno;
 }
 
 static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg *pReq, SViewObj *pOldView) {
@@ -355,21 +357,33 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
-    return -1;
+    return terrno;
   }
 
-  
-
   if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, pReq->info.conn.user) != 0) {
+    code = terrno;
     goto _OVER;
   }
 
   // add view privileges for user
   if (!pUser->superUser) {
-    if (mndUserDupObj(pUser, &newUserObj) != 0) goto _OVER;
-    taosHashPut(newUserObj.readViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
-    taosHashPut(newUserObj.writeViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
-    taosHashPut(newUserObj.alterViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
+    code = mndUserDupObj(pUser, &newUserObj);
+    if (code != 0) {
+      terrno = code;
+      goto _OVER;
+    }
+    if (taosHashPut(newUserObj.readViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2)) {
+      code = terrno;
+      goto _OVER;
+    }
+    if (taosHashPut(newUserObj.writeViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2)) {
+      code = terrno;
+      goto _OVER;
+    }
+    if (taosHashPut(newUserObj.alterViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2)) {
+      code = terrno;
+      goto _OVER;
+    }
     int32_t  dbKeyLen = strlen(pCreate->dbFName) + 1;
     int32_t  ref = 3;
     int32_t *currRef = taosHashGet(newUserObj.useDbs, pCreate->dbFName, dbKeyLen);
@@ -377,6 +391,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
       ref += (*currRef);
     }
     if (taosHashPut(newUserObj.useDbs, pCreate->dbFName, dbKeyLen, &ref, sizeof(ref)) != 0) {
+      code = terrno;
       goto _OVER;
     }
 
@@ -386,6 +401,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-view");
   if (pTrans == NULL) {
     mError("view:%s, failed to create since %s", pCreate->fullname, terrstr());
+    code = terrno;
     goto _OVER;
   }
 
@@ -393,6 +409,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
 
   SSdbRaw *pCommitRaw = mndViewActionEncode(&view);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    code = terrno;
     mError("trans:%d, failed to append view commit log since %s", pTrans->id, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
@@ -412,6 +429,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
   }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
+    code = terrno;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
@@ -427,14 +445,14 @@ _OVER:
   mndUserFreeObj(&newUserObj);  
   tFreeViewObj(&view);
   
-  return 0;
+  return code;
 }
 
 static int32_t mndDropView(SMnode *pMnode, SRpcMsg *pReq, SViewObj *pView) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-view");
   if (pTrans == NULL) {
     mError("view:%s, failed to drop since %s", pView->fullname, terrstr());
-    return -1;
+    return terrno;
   }
   mInfo("trans:%d, used to drop view:%s", pTrans->id, pView->fullname);
 
@@ -442,15 +460,19 @@ static int32_t mndDropView(SMnode *pMnode, SRpcMsg *pReq, SViewObj *pView) {
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    return terrno;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
-  mndUserRemoveView(pMnode, pTrans, pView->fullname);
+  if (mndUserRemoveView(pMnode, pTrans, pView->fullname)) {
+    mError("trans:%d, failed to append user dropo view commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return terrno;
+  }
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    return terrno;
   }
 
   mndTransDrop(pTrans);
@@ -472,14 +494,14 @@ static int32_t dumpViewMetaRspFromView(SViewMetaRsp *pRsp, SViewObj* pView) {
   pRsp->user = tstrdup(pView->user);
   if (pRsp->user == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
   pRsp->dbId = pView->dbId;
   pRsp->viewId = pView->viewId;
   pRsp->querySql = tstrdup(pView->querySql);
   if (pRsp->querySql == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
   pRsp->precision = pView->precision;
   pRsp->type = pView->type;
@@ -488,9 +510,9 @@ static int32_t dumpViewMetaRspFromView(SViewMetaRsp *pRsp, SViewObj* pView) {
   pRsp->pSchema = taosMemoryMalloc(pView->numOfCols * sizeof(SSchema));
   if (pRsp->pSchema == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
-  memcpy(pRsp->pSchema, pView->pSchema, pView->numOfCols * sizeof(SSchema));
+  TAOS_MEMCPY(pRsp->pSchema, pView->pSchema, pView->numOfCols * sizeof(SSchema));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -504,6 +526,7 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
   char* dbFName = pCreateView->dbFName;
 
   if ((terrno = grantCheck(TSDB_GRANT_VIEW)) != 0) {
+    code = terrno;
     goto _OVER;
   }
 
@@ -513,10 +536,12 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
   } else {
     pDb = mndAcquireDb(pMnode, pCreateView->dbFName);
     if (NULL == pDb) {
+      code = terrno;
       goto _OVER;
     }
     
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+      code = terrno;
       goto _OVER;
     }
   }
@@ -531,13 +556,16 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
     }
     
     if (0 != mndCheckViewPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_VIEW, pCreateView->fullname)) {
+      code = terrno;
       goto _OVER;
     }
   } else if (terrno != TSDB_CODE_SUCCESS) {
+    code = terrno;
     goto _OVER;
   }
 
   if (mndCreateView(pMnode, pCreateView, pReq, pOldView) < 0) {
+    code = terrno;
     mError("view:%s, failed to create since %s", pCreateView->fullname, terrstr());
     goto _OVER;
   }
@@ -547,6 +575,7 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
   mndLogCreateViewAudit(pReq, pMnode, pCreateView);
 
 _OVER:
+
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to create view %s since %s", pCreateView->fullname, terrstr());
   }
@@ -571,15 +600,17 @@ int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
     } else {
       terrno = TSDB_CODE_MND_VIEW_NOT_EXIST;
       tFreeSCMDropViewReq(pDropView);
-      return -1;
+      return terrno;
     }
   }
 
   if (0 != mndCheckViewPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_VIEW, pDropView->fullname)) {
+    code = terrno;
     goto _OVER;
   }
 
   if (mndDropView(pMnode, pReq, pView) < 0) {
+    code = terrno;
     goto _OVER;
   }
 
@@ -588,6 +619,7 @@ int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
   mndLogDropViewAudit(pReq, pMnode, pDropView);
 
 _OVER:
+
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to drop view %s since %s", pDropView->fullname, terrstr());
   }
@@ -605,28 +637,35 @@ int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq) {
   SViewObj   *pView = mndAcquireView(pMnode, pMetaReq->fullname);
   if (pView == NULL) {
     terrno = TSDB_CODE_MND_VIEW_NOT_EXIST;
-    return -1;
+    return terrno;
   }
 
   SViewMetaRsp rsp = {0};
   code = dumpViewMetaRspFromView(&rsp, pView);
   if (TSDB_CODE_SUCCESS != code) {
+    code = terrno;
     goto _OVER;
   }
 
   int32_t rspLen = tSerializeSViewMetaRsp(NULL, 0, &rsp);
   if (rspLen < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _OVER;
   }
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _OVER;
   }
 
-  tSerializeSViewMetaRsp(pRsp, rspLen, &rsp);
+  if (tSerializeSViewMetaRsp(pRsp, rspLen, &rsp) < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto _OVER;
+  }
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = rspLen;
   code = 0;
@@ -634,27 +673,29 @@ int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq) {
   mTrace("view %s meta is retrieved", pMetaReq->fullname);
 
 _OVER:
+
   if (code != 0) {
     mError("view:%s, failed to retrieve meta since %s", pMetaReq->fullname, terrstr());
   }
 
   mndReleaseView(pMnode, pView);
   tFreeSViewMetaRsp(&rsp);
+  
   return code;
 }
 
 static void mndGenerateViewTypeStr(char* buf, int8_t type) {
   if (0 == type) {
-    strcpy(buf, "NORMAL");
+    TAOS_STRCPY(buf, "NORMAL");
     return;
   }
 
   *buf = 0;
   if (type | VIEW_TYPE_UPDATABLE) {
-    strcpy(buf, "UPDATABLE");
+    TAOS_STRCPY(buf, "UPDATABLE");
   }
   if (type | VIEW_TYPE_MATERIALIZED) {
-    strcat(buf, buf[0] ? " MATERIALIZED" : "MATERIALIZED");
+    TAOS_STRCAT(buf, buf[0] ? " MATERIALIZED" : "MATERIALIZED");
   }
 }
 
@@ -727,57 +768,84 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->name, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
     if (pDb != NULL || !IS_SYS_DBNAME(pView->dbFName)) {
       SName name = {0};
-      tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB);
-      tNameGetDbName(&name, varDataVal(tmpBuf));
+      (void)tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB);
+      (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     } else {
       tstrncpy(varDataVal(tmpBuf), pView->dbFName, TSDB_SHOW_SQL_LEN);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
 
     STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->user, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pView->createdTime, false);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)&pView->createdTime, false));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
     mndGenerateViewTypeStr(varDataVal(tmpBuf), pView->type);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
 
     STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->querySql, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+    TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
     if (NULL != pView->parameters) {
       STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->parameters, sizeof(tmpBuf));
-      colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
     } else {
-      colDataSetVal(pColInfo, numOfRows, NULL, true);
+      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, NULL, true));
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
     if (NULL != pView->defaultValues) {
       mndGenerateViewDefValsListStr(varDataVal(tmpBuf), sizeof(tmpBuf) - VARSTR_HEADER_SIZE, pView->numOfCols, pView->defaultValues);
-      colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
     } else {
-      colDataSetVal(pColInfo, numOfRows, NULL, true);
+      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, NULL, true));
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (NULL == pColInfo) {
+      TAOS_CHECK_RETURN(TSDB_CODE_QRY_INVALID_INPUT);
+    }
     if (NULL != pView->targetTable) {
       STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->targetTable, sizeof(tmpBuf));
-      colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false));
     } else {
-      colDataSetVal(pColInfo, numOfRows, NULL, true);
+      TAOS_CHECK_RETURN(colDataSetVal(pColInfo, numOfRows, NULL, true));
     }
 
 /*
@@ -804,9 +872,9 @@ static void mndCancelGetNextViewImpl(SMnode *pMnode, void *pIter) {
 
 int32_t mndSetDropViewCommitLogs(SMnode *pMnode, STrans *pTrans, SViewObj *pView) {
   SSdbRaw *pCommitRaw = mndViewActionEncode(pView);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  if (pCommitRaw == NULL) return terrno;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return terrno;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return terrno;
 
   return 0;
 }
@@ -824,7 +892,7 @@ int32_t mndDropViewByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
       if (mndSetDropViewCommitLogs(pMnode, pTrans, pView) != 0) {
         sdbRelease(pSdb, pView);
         sdbCancelFetch(pSdb, pIter);
-        return -1;
+        return terrno;
       }
     }
 
@@ -840,7 +908,7 @@ int32_t mndValidateDynViewVersion(SMnode *pMnode, SDynViewVersion* pReqVer, bool
     *ppRspVer = taosMemoryMalloc(sizeof(SDynViewVersion));
     if (NULL == *ppRspVer) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+      return terrno;
     }
     
     (*ppRspVer)->svrBootTs = gViewVer.svrBootTs;
@@ -864,7 +932,7 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
   hbRsp.pViewRsp = taosArrayInit(numOfViews, POINTER_BYTES);
   if (hbRsp.pViewRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   for (int32_t i = 0; i < numOfViews; ++i) {
@@ -873,20 +941,38 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
     pViewVersion->viewId = be64toh(pViewVersion->viewId);
     pViewVersion->version = ntohl(pViewVersion->version);
 
-    snprintf(viewFName, sizeof(viewFName), "%s.%s", pViewVersion->dbFName, pViewVersion->viewName);
+    (void)snprintf(viewFName, sizeof(viewFName), "%s.%s", pViewVersion->dbFName, pViewVersion->viewName);
 
     SViewObj *pView = mndAcquireView(pMnode, viewFName);
     if (pView == NULL) {
       mTrace("view %s not exists", viewFName);
       SViewMetaRsp *metaRsp = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+      if (NULL == metaRsp) {
+        code = terrno;
+        goto _OVER;
+      }
       metaRsp->numOfCols = -1;
       metaRsp->viewId = pViewVersion->viewId;
       metaRsp->dbId = pViewVersion->dbId;
       metaRsp->user = taosMemoryCalloc(0, 0);
+      if (NULL == metaRsp->user) {
+        code = terrno;
+        tFreeSViewMetaRsp(metaRsp);
+        goto _OVER;
+      }
       metaRsp->querySql = taosMemoryCalloc(0, 0);
+      if (NULL == metaRsp->querySql) {
+        code = terrno;
+        tFreeSViewMetaRsp(metaRsp);
+        goto _OVER;
+      }
       tstrncpy(metaRsp->dbFName, pViewVersion->dbFName, sizeof(metaRsp->dbFName));
       tstrncpy(metaRsp->name, pViewVersion->viewName, sizeof(metaRsp->name));
-      taosArrayPush(hbRsp.pViewRsp, &metaRsp);
+      if (NULL == taosArrayPush(hbRsp.pViewRsp, &metaRsp)) {
+        code = terrno;
+        tFreeSViewMetaRsp(metaRsp);
+        goto _OVER;
+      }
       continue;
     }
 
@@ -894,14 +980,36 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
       mTrace("view %s,%" PRIx64 " viewId mismatch with current %" PRIx64, viewFName, pViewVersion->viewId, pView->viewId);
       
       SViewMetaRsp *metaRsp = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+      if (NULL == metaRsp) {
+        code = terrno;
+        mndReleaseView(pMnode, pView);      
+        goto _OVER;
+      }
       metaRsp->numOfCols = -1;
       metaRsp->viewId = pViewVersion->viewId;
       metaRsp->dbId = pViewVersion->dbId;
       metaRsp->user = taosMemoryCalloc(0, 0);
+      if (NULL == metaRsp->user) {
+        code = terrno;
+        tFreeSViewMetaRsp(metaRsp);
+        mndReleaseView(pMnode, pView);      
+        goto _OVER;
+      }
       metaRsp->querySql = taosMemoryCalloc(0, 0);
+      if (NULL == metaRsp->querySql) {
+        code = terrno;
+        tFreeSViewMetaRsp(metaRsp);
+        mndReleaseView(pMnode, pView);      
+        goto _OVER;
+      }
       tstrncpy(metaRsp->dbFName, pViewVersion->dbFName, sizeof(metaRsp->dbFName));
       tstrncpy(metaRsp->name, pViewVersion->viewName, sizeof(metaRsp->name));
-      taosArrayPush(hbRsp.pViewRsp, &metaRsp);
+      if (NULL == taosArrayPush(hbRsp.pViewRsp, &metaRsp)) {
+        code = terrno;
+        tFreeSViewMetaRsp(metaRsp);
+        mndReleaseView(pMnode, pView);      
+        goto _OVER;
+      }      
     } else if (pView->version == pViewVersion->version) {
       mTrace("view %s version %d match with current", viewFName, pViewVersion->version);
       mndReleaseView(pMnode, pView);
@@ -909,6 +1017,11 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
     }
     
     SViewMetaRsp* rsp = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+    if (NULL == rsp) {
+      code = terrno;
+      mndReleaseView(pMnode, pView);      
+      goto _OVER;
+    }
     int32_t code = dumpViewMetaRspFromView(rsp, pView);
     if (TSDB_CODE_SUCCESS != code) {
       mndReleaseView(pMnode, pView);      
@@ -919,24 +1032,37 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
 
     mTrace("view %s,%" PRIx64 " got lastest meta, current ver:%d, recv ver:%d", viewFName, pView->viewId, pView->version, pViewVersion->version);
 
-    taosArrayPush(hbRsp.pViewRsp, &rsp);
+    if (NULL == taosArrayPush(hbRsp.pViewRsp, &rsp)) {
+      code = terrno;
+      mndReleaseView(pMnode, pView);      
+      tFreeSViewMetaRsp(rsp);
+      taosMemoryFree(rsp);
+      goto _OVER;
+    }
+    
     mndReleaseView(pMnode, pView);
   }
 
   rspLen = tSerializeSViewHbRsp(NULL, 0, &hbRsp);
   if (rspLen < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _OVER;
   }
 
   pRsp = taosMemoryMalloc(rspLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     rspLen = 0;
     goto _OVER;
   }
 
-  tSerializeSViewHbRsp(pRsp, rspLen, &hbRsp);
+  if (tSerializeSViewHbRsp(pRsp, rspLen, &hbRsp) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    code = terrno;
+    goto _OVER;
+  }
   code = 0;
 
 _OVER:
