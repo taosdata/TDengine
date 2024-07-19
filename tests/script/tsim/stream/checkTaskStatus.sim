@@ -7,8 +7,8 @@ loopCheck0:
 sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 30 then
-  return -1
+if $loop_count == 60 then
+  return 1
 endi
 
 print 1 select * from information_schema.ins_stream_tasks;
