@@ -197,7 +197,7 @@ static int32_t setCompressOption(cJSON* json, uint32_t para) {
     cJSON*      levelJson = cJSON_CreateString(levelStr);
     RAW_NULL_CHECK(levelJson);
     RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "level", levelJson));
-    return code
+    return code;
   }
 
 end:
@@ -571,7 +571,8 @@ static void processAutoCreateTable(STaosxRsp* rsp, char** string) {
       goto end;
     }
   }
-  cJSON* pJson = buildCreateCTableJson(pCreateReq, rsp->createTableNum);
+  cJSON* pJson = NULL;
+  buildCreateCTableJson(pCreateReq, rsp->createTableNum, &pJson);
   *string = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
 
@@ -588,7 +589,7 @@ end:
   taosMemoryFree(pCreateReq);
 }
 
-static cJSON* processAlterTable(SMqMetaRsp* metaRsp) {
+static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   SDecoder     decoder = {0};
   SVAlterTbReq vAlterTbReq = {0};
   char*        string = NULL;
@@ -756,7 +757,7 @@ static cJSON* processAlterTable(SMqMetaRsp* metaRsp) {
 end:
   uDebug("alter table return, sql json:%s", cJSON_PrintUnformatted(json));
   tDecoderClear(&decoder);
-  return json;
+  *pJson = json;
 }
 
 static void processDropSTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
