@@ -55,13 +55,13 @@ void destroyStreamCountAggOperatorInfo(void* param) {
   pInfo->pUpdated = NULL;
 
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
+  blockDataDestroy(pInfo->pDelRes);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
   cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
-  pInfo->pCheckpointRes = blockDataDestroy(pInfo->pCheckpointRes);
+  blockDataDestroy(pInfo->pCheckpointRes);
 
   tSimpleHashCleanup(pInfo->pPkDeleted);
 

@@ -123,8 +123,8 @@ void destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
 
 static void destroyStreamFillOperatorInfo(void* param) {
   SStreamFillOperatorInfo* pInfo = (SStreamFillOperatorInfo*)param;
-  pInfo->pFillInfo = destroyStreamFillInfo(pInfo->pFillInfo);
-  pInfo->pFillSup = destroyStreamFillSupporter(pInfo->pFillSup);
+  destroyStreamFillInfo(pInfo->pFillInfo);
+  destroyStreamFillSupporter(pInfo->pFillSup);
   blockDataDestroy(pInfo->pRes);
   pInfo->pRes = NULL;
   blockDataDestroy(pInfo->pSrcBlock);

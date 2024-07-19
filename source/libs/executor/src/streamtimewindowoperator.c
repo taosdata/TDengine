@@ -465,11 +465,11 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   taosHashCleanup(pInfo->pPullDataMap);
   taosHashCleanup(pInfo->pFinalPullDataMap);
   taosArrayDestroy(pInfo->pPullWins);
-  pInfo->pPullDataRes = blockDataDestroy(pInfo->pPullDataRes);
+  blockDataDestroy(pInfo->pPullDataRes);
   taosArrayDestroy(pInfo->pDelWins);
-  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
-  pInfo->pMidRetriveRes = blockDataDestroy(pInfo->pMidRetriveRes);
-  pInfo->pMidPulloverRes = blockDataDestroy(pInfo->pMidPulloverRes);
+  blockDataDestroy(pInfo->pDelRes);
+  blockDataDestroy(pInfo->pMidRetriveRes);
+  blockDataDestroy(pInfo->pMidPulloverRes);
   pInfo->stateStore.streamFileStateDestroy(pInfo->pState->pFileState);
   taosArrayDestroy(pInfo->pMidPullDatas);
 
@@ -486,7 +486,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   pInfo->pUpdatedMap = NULL;
   tSimpleHashCleanup(pInfo->pDeletedMap);
 
-  pInfo->pCheckpointRes = blockDataDestroy(pInfo->pCheckpointRes);
+  blockDataDestroy(pInfo->pCheckpointRes);
 
   taosMemoryFreeClear(param);
 }
@@ -1943,7 +1943,7 @@ _error:
 void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
   tSimpleHashCleanup(pSup->pResultRows);
   destroyDiskbasedBuf(pSup->pResultBuf);
-  pSup->pScanBlock = blockDataDestroy(pSup->pScanBlock);
+  blockDataDestroy(pSup->pScanBlock);
   pSup->stateStore.streamFileStateDestroy(pSup->pState->pFileState);
   taosMemoryFreeClear(pSup->pState);
   taosMemoryFreeClear(pSup->pDummyCtx);
@@ -1968,14 +1968,14 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   }
 
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
-  pInfo->pWinBlock = blockDataDestroy(pInfo->pWinBlock);
+  blockDataDestroy(pInfo->pDelRes);
+  blockDataDestroy(pInfo->pWinBlock);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
   cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
-  pInfo->pCheckpointRes = blockDataDestroy(pInfo->pCheckpointRes);
+  blockDataDestroy(pInfo->pCheckpointRes);
   tSimpleHashCleanup(pInfo->pPkDeleted);
 
   taosMemoryFreeClear(param);
@@ -3946,13 +3946,13 @@ void destroyStreamStateOperatorInfo(void* param) {
     taosArrayDestroy(pInfo->pChildren);
   }
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
+  blockDataDestroy(pInfo->pDelRes);
   tSimpleHashCleanup(pInfo->pSeUpdated);
   tSimpleHashCleanup(pInfo->pSeDeleted);
   cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
-  pInfo->pCheckpointRes = blockDataDestroy(pInfo->pCheckpointRes);
+  blockDataDestroy(pInfo->pCheckpointRes);
   tSimpleHashCleanup(pInfo->pPkDeleted);
 
   taosMemoryFreeClear(param);

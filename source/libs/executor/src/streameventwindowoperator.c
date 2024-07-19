@@ -60,14 +60,14 @@ void destroyStreamEventOperatorInfo(void* param) {
     taosArrayDestroy(pInfo->pChildren);
   }
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
+  blockDataDestroy(pInfo->pDelRes);
   tSimpleHashCleanup(pInfo->pSeUpdated);
   tSimpleHashCleanup(pInfo->pAllUpdated);
   tSimpleHashCleanup(pInfo->pSeDeleted);
   cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosArrayDestroy(pInfo->historyWins);
-  pInfo->pDelRes = blockDataDestroy(pInfo->pCheckpointRes);
+  blockDataDestroy(pInfo->pCheckpointRes);
 
   tSimpleHashCleanup(pInfo->pPkDeleted);
 
