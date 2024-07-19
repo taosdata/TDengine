@@ -1772,10 +1772,9 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       usedbRsp.vgVersion = usedbReq.vgVersion;
       usedbRsp.errCode = terrno;
 
-      if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
-        code = terrno;
-        goto _OVER;
-      }
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      goto _OVER;
     } else {
       TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb), NULL, _OVER);
 
