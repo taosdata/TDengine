@@ -838,6 +838,7 @@ void recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
 void recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int32_t winCode = TSDB_CODE_SUCCESS;
   if (pFileState->maxTs != INT64_MIN) {
     int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs)
                        ? INT64_MIN
@@ -848,7 +849,7 @@ void recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
 
   SStreamStateCur* pCur = streamStateSeekToLast_rocksdb(pFileState->pFileStore);
   int32_t          recoverNum = TMIN(MIN_NUM_OF_RECOVER_ROW_BUFF, pFileState->maxRowCount);
-  while (code == TSDB_CODE_SUCCESS) {
+  while (winCode == TSDB_CODE_SUCCESS) {
     if (pFileState->curRowCount >= recoverNum) {
       break;
     }
@@ -861,8 +862,8 @@ void recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    code = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &vlen);
-    if (code != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
+    winCode = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &vlen);
+    if (winCode != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
       destroyRowBuffPos(pNewPos);
       SListNode* pNode = tdListPopTail(pFileState->usedBuffs);
       taosMemoryFreeClear(pNode);
