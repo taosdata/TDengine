@@ -629,7 +629,7 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
-int32_t streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId, SStreamUpstreamEpInfo** pEpInfo);
+void streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId, SStreamUpstreamEpInfo** pEpInfo);
 #if 0
 SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId);
 #endif
@@ -659,10 +659,10 @@ int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
 int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t clearRelHalt);
 
 int32_t streamExecTask(SStreamTask* pTask);
-int32_t streamResumeTask(SStreamTask* pTask);
+void    streamResumeTask(SStreamTask* pTask);
 int32_t streamTrySchedExec(SStreamTask* pTask);
 int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType);
-int32_t streamTaskResumeInFuture(SStreamTask* pTask);
+void    streamTaskResumeInFuture(SStreamTask* pTask);
 void    streamTaskClearSchedIdleInfo(SStreamTask* pTask);
 void    streamTaskSetIdleInfo(SStreamTask* pTask, int32_t idleTime);
 
@@ -675,8 +675,8 @@ int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTa
 int32_t streamTaskProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
 
 // check downstream status
-int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask);
-int32_t streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id);
+void    streamTaskStartMonitorCheckRsp(SStreamTask* pTask);
+void    streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id);
 void    streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo);
 
 // fill-history task

@@ -1065,7 +1065,8 @@ static void destroyHashJoinOperator(void* param) {
 
   hJoinFreeTableInfo(&pJoinOperator->tbs[0]);
   hJoinFreeTableInfo(&pJoinOperator->tbs[1]);
-  pJoinOperator->finBlk = blockDataDestroy(pJoinOperator->finBlk);
+  blockDataDestroy(pJoinOperator->finBlk);
+  pJoinOperator->finBlk = NULL;
   taosMemoryFreeClear(pJoinOperator->pResColMap);
   taosArrayDestroyEx(pJoinOperator->pRowBufs, hJoinFreeBufPage);
 
