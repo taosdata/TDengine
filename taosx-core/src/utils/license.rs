@@ -5,7 +5,7 @@ use async_backtrace::framed;
 use itertools::Itertools;
 use semver::Version;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, RawResult, TaosBuilder, TaosPool};
-use tracing::{debug, instrument, warn, Instrument};
+use tracing::{debug, instrument, Instrument};
 
 use crate::{
     utils::{constants::*, mask_dsn},
@@ -495,9 +495,13 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 crate::runners::mysql::MYSQL_ID => "mysql",
                 crate::runners::postgres::POSTGRES_ID => "postgres",
                 crate::runners::oracle::ORACLE_ID => "oracle",
-                connector => {
-                    warn!("The current connector {connector} is not supported by license.");
+                crate::runners::mssql::MSSQL_ID => "mssql",
+                crate::runners::mongodb::MONGODB_ID => "mongodb",
+                "csv" => {
                     return Ok(LicenseKind::good());
+                }
+                connector => {
+                    bail!("The current connector {connector} is not supported by license.");
                 }
             };
             return Ok(
