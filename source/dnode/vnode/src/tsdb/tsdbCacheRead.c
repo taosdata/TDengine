@@ -203,7 +203,7 @@ int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOf
   pReader->pTableList = pTableIdList;
   pReader->numOfTables = numOfTables;
   pReader->lastTs = INT64_MIN;
-  pReader->pLDataIterArray = destroySttBlockReader(pReader->pLDataIterArray, NULL);
+  destroySttBlockReader(pReader->pLDataIterArray, NULL);
   pReader->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
   return TSDB_CODE_SUCCESS;
@@ -311,7 +311,8 @@ void* tsdbCacherowsReaderClose(void* pReader) {
     int32_t iter = 0;
     while ((pe = tSimpleHashIterate(p->pTableMap, pe, &iter)) != NULL) {
       STableLoadInfo* pInfo = *(STableLoadInfo**)pe;
-      pInfo->pTombData = taosArrayDestroy(pInfo->pTombData);
+      taosArrayDestroy(pInfo->pTombData);
+      pInfo->pTombData = NULL;
     }
 
     tSimpleHashCleanup(p->pTableMap);

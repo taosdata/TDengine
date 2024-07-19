@@ -59,7 +59,6 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
 static int32_t extractNodeListFromStream(SMnode *pMnode, SArray *pNodeList);
 static int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq);
 static int32_t mndProcessCheckpointReport(SRpcMsg *pReq);
-//static int32_t mndProcessConsensusCheckpointId(SRpcMsg *pMsg);
 static int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg);
 static void    doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId, int32_t code);
 
@@ -966,8 +965,8 @@ static int32_t doSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask
     return -1;
   }
 
-  code =
-      setTransAction(pTrans, buf, tlen, TDMT_VND_STREAM_CHECK_POINT_SOURCE, &epset, TSDB_CODE_SYN_PROPOSE_NOT_READY, 0);
+  code = setTransAction(pTrans, buf, tlen, TDMT_VND_STREAM_CHECK_POINT_SOURCE, &epset, TSDB_CODE_SYN_PROPOSE_NOT_READY,
+                        TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != 0) {
     taosMemoryFree(buf);
   }
@@ -2317,6 +2316,8 @@ static int32_t extractNodeListFromStream(SMnode *pMnode, SArray *pNodeList) {
   }
 
   taosHashCleanup(pHash);
+
+  mDebug("numOfNodes:%d for stream after extract nodeInfo from stream", (int32_t)taosArrayGetSize(pNodeList));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2905,7 +2906,6 @@ void mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
   }
 
   addAllStreamTasksIntoBuf(pMnode, pExecInfo);
-  extractNodeListFromStream(pMnode, pExecInfo->pNodeList);
   pExecInfo->initTaskList = true;
 }
 

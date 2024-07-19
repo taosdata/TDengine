@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "thash.h"
 #include "tmd5.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,7 +57,7 @@ void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
 
 void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 
-int32_t parseCfgReal(const char* str, double* out);
+int32_t parseCfgReal(const char *str, double *out);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
@@ -84,9 +85,9 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
   T_MD5_CTX ctx;
   tMD5Init(&ctx);
-  tMD5Update(&ctx, (uint8_t*)pBuf, len);
+  tMD5Update(&ctx, (uint8_t *)pBuf, len);
   tMD5Final(&ctx);
-  char* p = pBuf;
+  char   *p = pBuf;
   int32_t resLen = 0;
   for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
     resLen += snprintf(p, 3, "%02x", ctx.digest[i]);
@@ -146,6 +147,32 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 #define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)
 
 #define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
+
+#define TAOS_RETURN(code)     \
+  do {                        \
+    return (terrno = (code)); \
+  } while (0)
+
+#define TAOS_CHECK_RETURN(CMD)       \
+  do {                               \
+    int32_t code = (CMD);            \
+    if (code != TSDB_CODE_SUCCESS) { \
+      TAOS_RETURN(code);             \
+    }                                \
+  } while (0)
+
+#define TAOS_CHECK_GOTO(CMD, LINO, LABEL) \
+  do {                                    \
+    code = (CMD);                         \
+    if (code != TSDB_CODE_SUCCESS) {      \
+      if (LINO) {                         \
+        *((int32_t *)(LINO)) = __LINE__;  \
+      }                                   \
+      goto LABEL;                         \
+    }                                     \
+  } while (0)
+
+#define TAOS_UNUSED(expr) (void)(expr)
 
 #ifdef __cplusplus
 }

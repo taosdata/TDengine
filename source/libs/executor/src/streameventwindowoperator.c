@@ -28,9 +28,9 @@
 #include "tlog.h"
 #include "ttime.h"
 
-#define IS_NORMAL_EVENT_OP(op)             ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT)
-#define STREAM_EVENT_OP_STATE_NAME         "StreamEventHistoryState"
-#define STREAM_EVENT_OP_CHECKPOINT_NAME    "StreamEventOperator_Checkpoint"
+#define IS_NORMAL_EVENT_OP(op)          ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT)
+#define STREAM_EVENT_OP_STATE_NAME      "StreamEventHistoryState"
+#define STREAM_EVENT_OP_CHECKPOINT_NAME "StreamEventOperator_Checkpoint"
 
 typedef struct SEventWinfowFlag {
   bool startFlag;
@@ -86,10 +86,11 @@ void destroyStreamEventOperatorInfo(void* param) {
 
 void setEventWindowFlag(SStreamAggSupporter* pAggSup, SEventWindowInfo* pWinInfo) {
   char* pFlagInfo = (char*)pWinInfo->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - pAggSup->stateKeySize);
-  pWinInfo->pWinFlag = (SEventWinfowFlag*) pFlagInfo;
+  pWinInfo->pWinFlag = (SEventWinfowFlag*)pFlagInfo;
 }
 
-void setEventWindowInfo(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SRowBuffPos* pPos, SEventWindowInfo* pWinInfo) {
+void setEventWindowInfo(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SRowBuffPos* pPos,
+                        SEventWindowInfo* pWinInfo) {
   pWinInfo->winInfo.sessionWin = *pKey;
   pWinInfo->winInfo.pStatePos = pPos;
   setEventWindowFlag(pAggSup, pWinInfo);
@@ -122,22 +123,23 @@ void setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupI
   pCurWin->winInfo.sessionWin.groupId = groupId;
   pCurWin->winInfo.sessionWin.win.skey = ts;
   pCurWin->winInfo.sessionWin.win.ekey = ts;
-  SStreamStateCur* pCur = pAggSup->stateStore.streamStateSessionSeekKeyCurrentPrev(pAggSup->pState, &pCurWin->winInfo.sessionWin);
-  SSessionKey  leftWinKey = {.groupId = groupId};
-  void* pVal = NULL;
-  int32_t len = 0;
+  SStreamStateCur* pCur =
+      pAggSup->stateStore.streamStateSessionSeekKeyCurrentPrev(pAggSup->pState, &pCurWin->winInfo.sessionWin);
+  SSessionKey leftWinKey = {.groupId = groupId};
+  void*       pVal = NULL;
+  int32_t     len = 0;
   code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &leftWinKey, &pVal, &len);
-  if (code == TSDB_CODE_SUCCESS && inWinRange(&pAggSup->winRange, &leftWinKey.win) ) {
+  if (code == TSDB_CODE_SUCCESS && inWinRange(&pAggSup->winRange, &leftWinKey.win)) {
     bool inWin = isInTimeWindow(&leftWinKey.win, ts, 0);
     setEventWindowInfo(pAggSup, &leftWinKey, pVal, pCurWin);
-    if(inWin || (pCurWin->pWinFlag->startFlag && !pCurWin->pWinFlag->endFlag) ) {
+    if (inWin || (pCurWin->pWinFlag->startFlag && !pCurWin->pWinFlag->endFlag)) {
       pCurWin->winInfo.isOutput = !isWindowIncomplete(pCurWin);
       goto _end;
     }
   }
   pAggSup->stateStore.streamStateFreeCur(pCur);
   pCur = pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pCurWin->winInfo.sessionWin);
-  SSessionKey  rightWinKey = {.groupId = groupId};
+  SSessionKey rightWinKey = {.groupId = groupId};
   code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &rightWinKey, &pVal, &len);
   bool inWin = isInTimeWindow(&rightWinKey.win, ts, 0);
   if (code == TSDB_CODE_SUCCESS && inWinRange(&pAggSup->winRange, &rightWinKey.win) && (inWin || (start && !end))) {
@@ -149,7 +151,7 @@ void setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupI
     }
   }
 
-  SSessionKey  winKey = {.win.skey = ts, .win.ekey = ts, .groupId = groupId};
+  SSessionKey winKey = {.win.skey = ts, .win.ekey = ts, .groupId = groupId};
   pAggSup->stateStore.streamStateSessionAllocWinBuffByNextPosition(pAggSup->pState, pCur, &winKey, &pVal, &len);
   setEventWindowInfo(pAggSup, &winKey, pVal, pCurWin);
   pCurWin->pWinFlag->startFlag = start;
@@ -164,7 +166,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     SET_SESSION_WIN_KEY_INVALID(pNextWinKey);
   }
-  if(pCurWin->winInfo.pStatePos->needFree) {
+  if (pCurWin->winInfo.pStatePos->needFree) {
     pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &pCurWin->winInfo.sessionWin);
   }
   pAggSup->stateStore.streamStateFreeCur(pCur);
@@ -173,14 +175,14 @@ _end:
 }
 
 int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pWinInfo, SSessionKey* pNextWinKey,
-                              TSKEY* pTsData, bool* starts, bool* ends, int32_t rows, int32_t start, SSHashObj* pResultRows,
-                              SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool* pRebuild) {
+                              TSKEY* pTsData, bool* starts, bool* ends, int32_t rows, int32_t start,
+                              SSHashObj* pResultRows, SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool* pRebuild) {
   *pRebuild = false;
-  if (!pWinInfo->pWinFlag->startFlag && !(starts[start]) ) {
+  if (!pWinInfo->pWinFlag->startFlag && !(starts[start])) {
     return 1;
   }
 
-  TSKEY maxTs = INT64_MAX;
+  TSKEY        maxTs = INT64_MAX;
   STimeWindow* pWin = &pWinInfo->winInfo.sessionWin.win;
   if (pWinInfo->pWinFlag->endFlag) {
     maxTs = pWin->ekey + 1;
@@ -219,7 +221,7 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
     memcpy(pWinInfo->winInfo.pStatePos->pKey, &pWinInfo->winInfo.sessionWin, sizeof(SSessionKey));
 
     if (ends[i]) {
-      if (pWinInfo->pWinFlag->endFlag && pWin->skey <= pTsData[i] && pTsData[i] < pWin->ekey ) {
+      if (pWinInfo->pWinFlag->endFlag && pWin->skey <= pTsData[i] && pTsData[i] < pWin->ekey) {
         *pRebuild = true;
       }
       return i + 1 - start;
@@ -230,26 +232,28 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
 
 static int32_t compactEventWindow(SOperatorInfo* pOperator, SEventWindowInfo* pCurWin, SSHashObj* pStUpdated,
                                   SSHashObj* pStDeleted, bool addGap) {
-  SExprSupp*                     pSup = &pOperator->exprSupp;
-  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI*                   pAPI = &pOperator->pTaskInfo->storageAPI;
-  int32_t                        winNum = 0;
-  SStreamEventAggOperatorInfo*   pInfo = pOperator->info;
-  SResultRow*                    pCurResult = NULL;
-  int32_t                        numOfOutput = pOperator->exprSupp.numOfExprs;
-  SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  SExprSupp*                   pSup = &pOperator->exprSupp;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*                 pAPI = &pOperator->pTaskInfo->storageAPI;
+  int32_t                      winNum = 0;
+  SStreamEventAggOperatorInfo* pInfo = pOperator->info;
+  SResultRow*                  pCurResult = NULL;
+  int32_t                      numOfOutput = pOperator->exprSupp.numOfExprs;
+  SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
   while (1) {
     if (!pCurWin->pWinFlag->startFlag || pCurWin->pWinFlag->endFlag) {
       break;
     }
     SEventWindowInfo nextWinInfo = {0};
     getNextSessionWinInfo(pAggSup, pStUpdated, &pCurWin->winInfo, &nextWinInfo.winInfo);
-    if (!IS_VALID_SESSION_WIN(nextWinInfo.winInfo) || !inWinRange(&pAggSup->winRange, &nextWinInfo.winInfo.sessionWin.win)) {
+    if (!IS_VALID_SESSION_WIN(nextWinInfo.winInfo) ||
+        !inWinRange(&pAggSup->winRange, &nextWinInfo.winInfo.sessionWin.win)) {
       releaseOutputBuf(pAggSup->pState, nextWinInfo.winInfo.pStatePos, &pAggSup->pSessionAPI->stateStore);
       break;
     }
     setEventWindowFlag(pAggSup, &nextWinInfo);
-    compactTimeWindow(pSup, pAggSup, &pInfo->twAggSup, pTaskInfo, &pCurWin->winInfo, &nextWinInfo.winInfo, pStUpdated, pStDeleted, false);
+    compactTimeWindow(pSup, pAggSup, &pInfo->twAggSup, pTaskInfo, &pCurWin->winInfo, &nextWinInfo.winInfo, pStUpdated,
+                      pStDeleted, false);
     pCurWin->pWinFlag->endFlag = nextWinInfo.pWinFlag->endFlag;
     winNum++;
   }
@@ -275,7 +279,7 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   int32_t                      winRows = 0;
   SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
   SColumnInfoData*             pColStart = NULL;
-  SColumnInfoData*             pColEnd = NULL;  
+  SColumnInfoData*             pColEnd = NULL;
 
   pInfo->dataVersion = TMAX(pInfo->dataVersion, pSDataBlock->info.version);
   pAggSup->winRange = pTaskInfo->streamInfo.fillHistoryWindow;
@@ -290,7 +294,8 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     return;
   }
 
-  SFilterColumnParam paramStart = {.numOfCols = taosArrayGetSize(pSDataBlock->pDataBlock), .pDataBlock = pSDataBlock->pDataBlock};
+  SFilterColumnParam paramStart = {.numOfCols = taosArrayGetSize(pSDataBlock->pDataBlock),
+                                   .pDataBlock = pSDataBlock->pDataBlock};
   code = filterSetDataFromSlotId(pInfo->pStartCondInfo, &paramStart);
   if (code != TSDB_CODE_SUCCESS) {
     qError("set data from start slotId error.");
@@ -299,7 +304,8 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   int32_t statusStart = 0;
   filterExecute(pInfo->pStartCondInfo, pSDataBlock, &pColStart, NULL, paramStart.numOfCols, &statusStart);
 
-  SFilterColumnParam paramEnd = {.numOfCols = taosArrayGetSize(pSDataBlock->pDataBlock), .pDataBlock = pSDataBlock->pDataBlock};
+  SFilterColumnParam paramEnd = {.numOfCols = taosArrayGetSize(pSDataBlock->pDataBlock),
+                                 .pDataBlock = pSDataBlock->pDataBlock};
   code = filterSetDataFromSlotId(pInfo->pEndCondInfo, &paramEnd);
   if (code != TSDB_CODE_SUCCESS) {
     qError("set data from end slotId error.");
@@ -320,20 +326,23 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     int32_t          winIndex = 0;
     bool             allEqual = true;
     SEventWindowInfo curWin = {0};
-    SSessionKey nextWinKey = {0};
-    setEventOutputBuf(pAggSup, tsCols, groupId, (bool*)pColStart->pData, (bool*)pColEnd->pData, i, rows, &curWin, &nextWinKey);
+    SSessionKey      nextWinKey = {0};
+    setEventOutputBuf(pAggSup, tsCols, groupId, (bool*)pColStart->pData, (bool*)pColEnd->pData, i, rows, &curWin,
+                      &nextWinKey);
     setSessionWinOutputInfo(pSeUpdated, &curWin.winInfo);
     bool rebuild = false;
-    winRows = updateEventWindowInfo(pAggSup, &curWin, &nextWinKey, tsCols, (bool*)pColStart->pData, (bool*)pColEnd->pData, rows, i,
-                                    pAggSup->pResultRows, pSeUpdated, pStDeleted, &rebuild);
+    winRows =
+        updateEventWindowInfo(pAggSup, &curWin, &nextWinKey, tsCols, (bool*)pColStart->pData, (bool*)pColEnd->pData,
+                              rows, i, pAggSup->pResultRows, pSeUpdated, pStDeleted, &rebuild);
     ASSERT(winRows >= 1);
     if (rebuild) {
       uint64_t uid = 0;
       appendDataToSpecialBlock(pAggSup->pScanBlock, &curWin.winInfo.sessionWin.win.skey,
-                                       &curWin.winInfo.sessionWin.win.ekey, &uid, &groupId, NULL);
+                               &curWin.winInfo.sessionWin.win.ekey, &uid, &groupId, NULL);
       tSimpleHashRemove(pSeUpdated, &curWin.winInfo.sessionWin, sizeof(SSessionKey));
       doDeleteEventWindow(pAggSup, pSeUpdated, &curWin.winInfo.sessionWin);
-      if (pInfo->destHasPrimaryKey && curWin.winInfo.isOutput && IS_NORMAL_EVENT_OP(pOperator) && !isWindowIncomplete(&curWin)) {
+      if (pInfo->destHasPrimaryKey && curWin.winInfo.isOutput && IS_NORMAL_EVENT_OP(pOperator) &&
+          !isWindowIncomplete(&curWin)) {
         saveDeleteRes(pInfo->pPkDeleted, curWin.winInfo.sessionWin);
       }
       releaseOutputBuf(pAggSup->pState, curWin.winInfo.pStatePos, &pAPI->stateStore);
@@ -603,7 +612,8 @@ void streamEventReleaseState(SOperatorInfo* pOperator) {
   char*                        pBuff = taosMemoryCalloc(1, resSize);
   memcpy(pBuff, pInfo->historyWins->pData, winSize);
   memcpy(pBuff + winSize, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
-  qDebug("===stream=== event window operator relase state. save result count:%d", (int32_t)taosArrayGetSize(pInfo->historyWins));
+  qDebug("===stream=== event window operator relase state. save result count:%d",
+         (int32_t)taosArrayGetSize(pInfo->historyWins));
   pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_EVENT_OP_STATE_NAME,
                                                      strlen(STREAM_EVENT_OP_STATE_NAME), pBuff, resSize);
   pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
@@ -647,7 +657,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
     qDebug("===stream=== reload state. try process result %" PRId64 ", %" PRIu64 ", index:%d", pSeKeyBuf[i].win.skey,
            pSeKeyBuf[i].groupId, i);
     getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo.winInfo);
-    //event window has been deleted
+    // event window has been deleted
     if (!IS_VALID_SESSION_WIN(curInfo.winInfo)) {
       continue;
     }
@@ -659,7 +669,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
 
     compactEventWindow(pOperator, &curInfo, pInfo->pSeUpdated, pInfo->pSeDeleted, false);
     qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, curInfo.winInfo.sessionWin.win.skey,
-            curInfo.winInfo.sessionWin.groupId);
+           curInfo.winInfo.sessionWin.groupId);
     if (IS_VALID_SESSION_WIN(curInfo.winInfo)) {
       saveSessionOutputBuf(pAggSup, &curInfo.winInfo);
     }
@@ -693,6 +703,7 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
   SStreamEventWinodwPhysiNode* pEventNode = (SStreamEventWinodwPhysiNode*)pPhyNode;
   int32_t                      tsSlotId = ((SColumnNode*)pEventNode->window.pTspk)->slotId;
   int32_t                      code = TSDB_CODE_SUCCESS;
+  int32_t                      lino = 0;
   SStreamEventAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamEventAggOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -783,20 +794,18 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamEventAgg, NULL, destroyStreamEventOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamEventReleaseState, streamEventReloadState);
-  initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup, &pInfo->basic);
+  code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
+                        &pInfo->twAggSup, &pInfo->basic);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   code = appendDownstream(pOperator, &downstream, 1);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pEventNode->pStartCond, &pInfo->pStartCondInfo, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
+
   code = filterInitFromNode((SNode*)pEventNode->pEndCond, &pInfo->pEndCondInfo, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
   return pOperator;
 
@@ -804,5 +813,6 @@ _error:
   destroyStreamEventOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return NULL;
 }

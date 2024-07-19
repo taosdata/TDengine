@@ -369,7 +369,7 @@ int mainWindows(int argc, char **argv) {
   if(global.generateCode) {
     bool toLogFile = false;
     if(taosReadDataFolder(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs) != 0){
-      encryptError("failed to generate encrypt code since taosd is running, please stop it first");
+      encryptError("failed to generate encrypt code since dataDir can not be set from cfg file");
       return -1;
     };
 

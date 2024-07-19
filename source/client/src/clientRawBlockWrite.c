@@ -1203,9 +1203,8 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (taosHashGetSize(pVgroupHashmap) == 0) {
     goto end;
   }
-  SArray* pBufArray = serializeVgroupsCreateTableBatch(pVgroupHashmap);
-  RAW_NULL_CHECK(pBufArray);
-
+  SArray* pBufArray = NULL;
+  RAW_RETURN_CHECK(serializeVgroupsCreateTableBatch(pVgroupHashmap, &pBufArray));
   pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
   RAW_NULL_CHECK(pQuery);
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
@@ -1333,9 +1332,8 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (taosHashGetSize(pVgroupHashmap) == 0) {
     goto end;
   }
-  SArray* pBufArray = serializeVgroupsDropTableBatch(pVgroupHashmap);
-  RAW_NULL_CHECK(pBufArray);
-
+  SArray* pBufArray = NULL;
+  RAW_RETURN_CHECK(serializeVgroupsDropTableBatch(pVgroupHashmap, &pBufArray));
   pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
   RAW_NULL_CHECK(pQuery);
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
@@ -1558,9 +1556,7 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
   SVgroupInfo vgData = {0};
   RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgData));
   RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta));
-
-  pQuery = smlInitHandle();
-  RAW_NULL_CHECK(pQuery);
+  RAW_RETURN_CHECK(smlInitHandle(&pQuery));
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   RAW_NULL_CHECK(pVgHash);
   RAW_RETURN_CHECK(taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData)));
@@ -1619,8 +1615,7 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   SVgroupInfo vgData = {0};
   RAW_RETURN_CHECK(catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgData));
   RAW_RETURN_CHECK(catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta));
-  pQuery = smlInitHandle();
-  RAW_NULL_CHECK(pRequest);
+  RAW_RETURN_CHECK(smlInitHandle(&pQuery));
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   RAW_NULL_CHECK(pVgHash);
   RAW_RETURN_CHECK(taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData)));
@@ -1698,8 +1693,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
-  pQuery = smlInitHandle();
-  RAW_NULL_CHECK(pQuery);
+  RAW_RETURN_CHECK(smlInitHandle(&pQuery));
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   RAW_NULL_CHECK(pVgHash);
   while (++rspObj.common.resIter < rspObj.rsp.common.blockNum) {
@@ -1811,8 +1805,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   conn.requestObjRefId = pRequest->self;
   conn.mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
-  pQuery = smlInitHandle();
-  RAW_NULL_CHECK(pQuery);
+  RAW_RETURN_CHECK(smlInitHandle(&pQuery));
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   RAW_NULL_CHECK(pVgHash);
 

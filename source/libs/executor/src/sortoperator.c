@@ -368,7 +368,8 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
 
 void destroySortOperatorInfo(void* param) {
   SSortOperatorInfo* pInfo = (SSortOperatorInfo*)param;
-  pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
+  blockDataDestroy(pInfo->binfo.pRes);
+  pInfo->binfo.pRes = NULL;
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
@@ -611,7 +612,8 @@ int32_t getGroupSortExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, u
 
 void destroyGroupSortOperatorInfo(void* param) {
   SGroupSortOperatorInfo* pInfo = (SGroupSortOperatorInfo*)param;
-  pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
+  blockDataDestroy(pInfo->binfo.pRes);
+  pInfo->binfo.pRes = NULL;
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);

@@ -9258,6 +9258,12 @@ void tOffsetDestroy(void *param) {
     taosMemoryFreeClear(pVal->primaryKey.pData);
   }
 }
+
+void tDeleteSTqOffset(void *param) {
+  STqOffset *pVal = (STqOffset *)param;
+  tOffsetDestroy(&pVal->val);
+}
+
 int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
   if (tEncodeSTqOffsetVal(pEncoder, &pOffset->val) < 0) return -1;
   if (tEncodeCStr(pEncoder, pOffset->subKey) < 0) return -1;
@@ -9297,12 +9303,12 @@ int32_t tEncodeSTqCheckInfo(SEncoder *pEncoder, const STqCheckInfo *pInfo) {
 int32_t tDecodeSTqCheckInfo(SDecoder *pDecoder, STqCheckInfo *pInfo) {
   if (tDecodeCStrTo(pDecoder, pInfo->topic) < 0) return -1;
   if (tDecodeI64(pDecoder, &pInfo->ntbUid) < 0) return -1;
-  int32_t sz;
+  int32_t sz = 0;
   if (tDecodeI32(pDecoder, &sz) < 0) return -1;
   pInfo->colIdList = taosArrayInit(sz, sizeof(int16_t));
   if (pInfo->colIdList == NULL) return -1;
   for (int32_t i = 0; i < sz; i++) {
-    int16_t colId;
+    int16_t colId = 0;
     if (tDecodeI16(pDecoder, &colId) < 0) return -1;
     taosArrayPush(pInfo->colIdList, &colId);
   }
@@ -9505,7 +9511,8 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, void *pRsp) {
 
 static void tDeleteMqDataRspCommon(void *rsp) {
   SMqDataRspCommon *pRsp = rsp;
-  pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
+  taosArrayDestroy(pRsp->blockDataLen);
+  pRsp->blockDataLen = NULL;
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
@@ -9558,7 +9565,8 @@ void tDeleteSTaosxRsp(void *rsp) {
   tDeleteMqDataRspCommon(rsp);
 
   STaosxRsp *pRsp = (STaosxRsp *)rsp;
-  pRsp->createTableLen = taosArrayDestroy(pRsp->createTableLen);
+  taosArrayDestroy(pRsp->createTableLen);
+  pRsp->createTableLen = NULL;
   taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
   pRsp->createTableReq = NULL;
 }

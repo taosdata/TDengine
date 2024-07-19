@@ -126,10 +126,14 @@ static void destroyStreamFillOperatorInfo(void* param) {
   SStreamFillOperatorInfo* pInfo = (SStreamFillOperatorInfo*)param;
   pInfo->pFillInfo = destroyStreamFillInfo(pInfo->pFillInfo);
   pInfo->pFillSup = destroyStreamFillSupporter(pInfo->pFillSup);
-  pInfo->pRes = blockDataDestroy(pInfo->pRes);
-  pInfo->pSrcBlock = blockDataDestroy(pInfo->pSrcBlock);
-  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
-  pInfo->matchInfo.pList = taosArrayDestroy(pInfo->matchInfo.pList);
+  blockDataDestroy(pInfo->pRes);
+  pInfo->pRes = NULL;
+  blockDataDestroy(pInfo->pSrcBlock);
+  pInfo->pSrcBlock = NULL;
+  blockDataDestroy(pInfo->pDelRes);
+  pInfo->pDelRes = NULL;
+  taosArrayDestroy(pInfo->matchInfo.pList);
+  pInfo->matchInfo.pList = NULL;
   taosMemoryFree(pInfo);
 }
 
