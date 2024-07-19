@@ -23,11 +23,12 @@ import time
 
 # input for server
 
-opts, args = getopt.gnu_getopt(sys.argv[1:], 'v:u', ['version='])
+opts, args = getopt.gnu_getopt(sys.argv[1:], 'v:u:e', ['version='])
 serverHost = ""
 serverPort = 0
 version = ""
 uninstall = False
+isEnterprise = False
 for key, value in opts:
     if key in ['--help']:
         print('A collection of test cases written using Python')
@@ -39,6 +40,8 @@ for key, value in opts:
         version = value
     if key in ['-u']:
         uninstall = True
+    if key in ['-e']:
+        isEnterprise = True
 if not version:
     print("No version specified, will not run version check.")
 
@@ -97,27 +100,34 @@ if version:
     taoskeeper_V_output = ""
     taosx_V_output = ""
     taosB_V_output = ""
+    taosxVersion = False
     if system == "Windows":
         taos_V_output = subprocess.getoutput("taos -V | findstr version")
         taosd_V_output = subprocess.getoutput("taosd -V | findstr version")
         taosadapter_V_output = subprocess.getoutput("taosadapter -V | findstr version")
         taoskeeper_V_output = subprocess.getoutput("taoskeeper -V | findstr version")
-        taosx_V_output = subprocess.getoutput("taosx -V | findstr version")
         taosB_V_output = subprocess.getoutput("taosBenchmark -V | findstr version")
+        if isEnterprise:
+            taosx_V_output = subprocess.getoutput("taosx -V | findstr version")
     else:
         taos_V_output = subprocess.getoutput("taos -V | grep version | awk -F ' ' '{print $3}'")
         taosd_V_output = subprocess.getoutput("taosd -V | grep version | awk -F ' ' '{print $3}'")
         taosadapter_V_output = subprocess.getoutput("taosadapter -V | grep version | awk -F ' ' '{print $3}'")
         taoskeeper_V_output = subprocess.getoutput("taoskeeper -V | grep version | awk -F ' ' '{print $3}'")
-        taosx_V_output = subprocess.getoutput("taosx -V | grep version | awk -F ' ' '{print $3}'")
         taosB_V_output = subprocess.getoutput("taosBenchmark -V | grep version | awk -F ' ' '{print $3}'")
+        if isEnterprise:
+            taosx_V_output = subprocess.getoutput("taosx -V | grep version | awk -F ' ' '{print $3}'")
 
     print("taos -V output is: %s" % taos_V_output)
     print("taosd -V output is: %s" % taosd_V_output)
     print("taosadapter -V output is: %s" % taosadapter_V_output)
     print("taoskeeper -V output is: %s" % taoskeeper_V_output)
     print("taosBenchmark -V output is: %s" % taosB_V_output)
-    print("taosx -V output is: %s" % taosx_V_output)
+    if isEnterprise:
+        print("taosx -V output is: %s" % taosx_V_output)
+        taosxVersion = version in taosx_V_output
+    else:
+        taosxVersion = True
     if (version in client_version
         and version in server_version
         and version in select_server
@@ -127,7 +137,7 @@ if version:
         and version in taosadapter_V_output
         and version in taoskeeper_V_output
         and version in taosB_V_output
-        and version in taosx_V_output
+        and taosxVersion
     ):
         version_test_result = True
 leftFile = False
