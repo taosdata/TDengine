@@ -172,7 +172,8 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _end);
     }
-    windowSBfAdd(pInfo, bfSize);
+    code = windowSBfAdd(pInfo, bfSize);
+    TSDB_CHECK_CODE(code, lino, _end);
 
     pInfo->pTsBuckets = taosArrayInit(DEFAULT_BUCKET_SIZE, sizeof(TSKEY));
     if (pInfo->pTsBuckets == NULL) {
@@ -183,7 +184,11 @@ int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, b
 
     TSKEY dumy = 0;
     for (uint64_t i = 0; i < DEFAULT_BUCKET_SIZE; ++i) {
-      taosArrayPush(pInfo->pTsBuckets, &dumy);
+      void* tmp = taosArrayPush(pInfo->pTsBuckets, &dumy);
+      if (!tmp) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
     }
     pInfo->numBuckets = DEFAULT_BUCKET_SIZE;
     pInfo->pCloseWinSBF = NULL;
@@ -242,7 +247,9 @@ static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
   if (index >= pInfo->numSBFs) {
     uint64_t count = index + 1 - pInfo->numSBFs;
     windowSBfDelete(pInfo, count);
-    windowSBfAdd(pInfo, count);
+    code = windowSBfAdd(pInfo, count);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     index = pInfo->numSBFs - 1;
   }
   SScalableBf* res = taosArrayGetP(pInfo->pTsSBFs, index);
@@ -251,7 +258,11 @@ static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
     code = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE, &res);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    taosArrayPush(pInfo->pTsSBFs, &res);
+    void* tmp = taosArrayPush(pInfo->pTsSBFs, &res);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
   }
   (*ppSBf) = res;
 
@@ -268,9 +279,14 @@ bool updateInfoIsTableInserted(SUpdateInfo* pInfo, int64_t tbUid) {
   return false;
 }
 
-TSKEY updateInfoFillBlockData(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol, int32_t primaryKeyCol) {
+int32_t updateInfoFillBlockData(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol, int32_t primaryKeyCol,
+                                TSKEY* pMaxResTs) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pBlock == NULL || pBlock->info.rows == 0) return INT64_MIN;
+  int32_t lino = 0;
+  if (pBlock == NULL || pBlock->info.rows == 0) {
+    (*pMaxResTs) = INT64_MIN;
+    goto _end;
+  }
   TSKEY   maxTs = INT64_MIN;
   void*   pPkVal = NULL;
   void*   pMaxPkVal = NULL;
@@ -294,10 +310,9 @@ TSKEY updateInfoFillBlockData(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t p
       }
     }
     SScalableBf* pSBf = NULL;
-    int32_t      code = getSBf(pInfo, ts, &pSBf);
-    if (code != TSDB_CODE_SUCCESS) {
-      uWarn("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    }
+    code = getSBf(pInfo, ts, &pSBf);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     if (pSBf) {
       if (primaryKeyCol >= 0) {
         pPkVal = colDataGetData(pPkDataInfo, i);
@@ -305,18 +320,29 @@ TSKEY updateInfoFillBlockData(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t p
       }
       int32_t buffLen = getKeyBuff(ts, tbUid, pPkVal, len, pInfo->pKeyBuff);
       // we don't care whether the data is updated or not
-      tScalableBfPut(pSBf, pInfo->pKeyBuff, buffLen);
+      int32_t winRes = 0;
+      code = tScalableBfPut(pSBf, pInfo->pKeyBuff, buffLen, &winRes);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
   }
   void* pMaxTs = taosHashGet(pInfo->pMap, &tbUid, sizeof(int64_t));
   if (pMaxTs == NULL || pInfo->comparePkRowFn(pMaxTs, &maxTs, pMaxPkVal, pInfo->comparePkCol) == -1) {
     int32_t valueLen = getValueBuff(maxTs, pMaxPkVal, maxLen, pInfo->pValueBuff);
-    taosHashPut(pInfo->pMap, &tbUid, sizeof(int64_t), pInfo->pValueBuff, valueLen);
+    code = taosHashPut(pInfo->pMap, &tbUid, sizeof(int64_t), pInfo->pValueBuff, valueLen);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
-  return maxTs;
+  (*pMaxResTs) = maxTs;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 bool updateInfoIsUpdated(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t res = TSDB_CODE_FAILED;
   int32_t buffLen = 0;
 
@@ -327,7 +353,8 @@ bool updateInfoIsUpdated(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* p
   if (ts < maxTs - pInfo->watermark) {
     // this window has been closed.
     if (pInfo->pCloseWinSBF) {
-      res = tScalableBfPut(pInfo->pCloseWinSBF, pInfo->pKeyBuff, buffLen);
+      code = tScalableBfPut(pInfo->pCloseWinSBF, pInfo->pKeyBuff, buffLen, &res);
+      TSDB_CHECK_CODE(code, lino, _end);
       if (res == TSDB_CODE_SUCCESS) {
         return false;
       } else {
@@ -338,16 +365,16 @@ bool updateInfoIsUpdated(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* p
   }
 
   SScalableBf* pSBf = NULL;
-  int32_t      code = getSBf(pInfo, ts, &pSBf);
-  if (code != TSDB_CODE_SUCCESS) {
-    uWarn("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-  }
+  code = getSBf(pInfo, ts, &pSBf);
+  TSDB_CHECK_CODE(code, lino, _end);
 
   int32_t size = taosHashGetSize(pInfo->pMap);
   if ((!pMapMaxTs && size < DEFAULT_MAP_SIZE) ||
       (pMapMaxTs && pInfo->comparePkRowFn(pMapMaxTs, &ts, pPkVal, pInfo->comparePkCol) == -1)) {
     int32_t valueLen = getValueBuff(ts, pPkVal, len, pInfo->pValueBuff);
-    taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), pInfo->pValueBuff, valueLen);
+    code = taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), pInfo->pValueBuff, valueLen);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     // pSBf may be a null pointer
     if (pSBf) {
       res = tScalableBfPutNoCheck(pSBf, pInfo->pKeyBuff, buffLen);
@@ -357,7 +384,8 @@ bool updateInfoIsUpdated(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* p
 
   // pSBf may be a null pointer
   if (pSBf) {
-    res = tScalableBfPut(pSBf, pInfo->pKeyBuff, buffLen);
+    code = tScalableBfPut(pSBf, pInfo->pKeyBuff, buffLen, &res);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
 
   if (!pMapMaxTs && maxTs < ts) {
@@ -369,6 +397,11 @@ bool updateInfoIsUpdated(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* p
     return true;
   } else if (res == TSDB_CODE_SUCCESS) {
     return false;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   // check from tsdb api
   return true;
@@ -543,7 +576,11 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   TSKEY ts = INT64_MIN;
   for (int32_t i = 0; i < size; i++) {
     if (tDecodeI64(&decoder, &ts) < 0) return -1;
-    taosArrayPush(pInfo->pTsBuckets, &ts);
+    void* tmp = taosArrayPush(pInfo->pTsBuckets, &ts);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
 
   if (tDecodeU64(&decoder, &pInfo->numBuckets) < 0) return -1;
@@ -556,7 +593,11 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
     code = tScalableBfDecode(&decoder, &pSBf);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    taosArrayPush(pInfo->pTsSBFs, &pSBf);
+    void* tmp = taosArrayPush(pInfo->pTsSBFs, &pSBf);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
 
   if (tDecodeU64(&decoder, &pInfo->numSBFs) < 0) return -1;
@@ -580,7 +621,8 @@ int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo) {
   for (int32_t i = 0; i < mapSize; i++) {
     if (tDecodeU64(&decoder, &uid) < 0) return -1;
     if (tDecodeBinary(&decoder, (uint8_t**)&pVal, &valSize) < 0) return -1;
-    taosHashPut(pInfo->pMap, &uid, sizeof(uint64_t), pVal, valSize);
+    code = taosHashPut(pInfo->pMap, &uid, sizeof(uint64_t), pVal, valSize);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
   ASSERT(mapSize == taosHashGetSize(pInfo->pMap));
   if (tDecodeU64(&decoder, &pInfo->maxDataVersion) < 0) return -1;
@@ -611,13 +653,22 @@ _error:
 }
 
 bool isIncrementalTimeStamp(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len) {
-  TSKEY* pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
-  bool   res = true;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  TSKEY*  pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
+  bool    res = true;
   if (pMapMaxTs && pInfo->comparePkRowFn(pMapMaxTs, &ts, pPkVal, pInfo->comparePkCol) == 1) {
     res = false;
   } else {
     int32_t valueLen = getValueBuff(ts, pPkVal, len, pInfo->pValueBuff);
-    taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), pInfo->pValueBuff, valueLen);
+    code = taosHashPut(pInfo->pMap, &tableId, sizeof(uint64_t), pInfo->pValueBuff, valueLen);
+    TSDB_CHECK_CODE(code, lino, _error);
   }
   return res;
+
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return false;
 }
