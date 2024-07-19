@@ -373,7 +373,12 @@ do
         logger "ERROR" "taos -k error"
         status=""
     else
-        status=${output:0:1}
+        if [[ "${output}" = *"UTL FATAL"* ]]; then
+            logger "ERROR" "taos -k with error: \"${output}\""
+            status=""
+	    else
+            status=${output:0:1}
+	    fi
     fi
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:taos -k output: $output"
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:taos status: $status"
@@ -382,6 +387,7 @@ do
         start_taosadapter_count=0
     fi
     if [ "$status"x = "0"x ]; then
+        logger "INFO" "taos -k output is $output"
         td_cluster_check "CheckClusterStatus"
         if [ $? -eq 0 ]; then
             logger "INFO" "start taosd count: ${start_taosd_count}"

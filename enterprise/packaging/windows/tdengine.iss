@@ -38,6 +38,7 @@ OutputDir={#MyAppOutputDir}
 OutputBaseFilename={#MyAppInstallName}
 SetupIconFile={#MyAppIco}
 Compression=lzma
+CloseApplications=force
 SolidCompression=yes
 DisableDirPage=yes
 Uninstallable=yes
@@ -369,7 +370,7 @@ begin
   CustomFinishedLabel3 := TLabel.Create(WizardForm);  
   CustomFinishedLabel3.Parent := WizardForm.FinishedPage;  
   CustomFinishedLabel3.Left := WizardForm.FinishedHeadingLabel.Left;
-  CustomFinishedLabel3.Top := CustomFinishedLabel1.Top + CustomFinishedLabel1.Height;
+  CustomFinishedLabel3.Top := CustomFinishedLabel1.Top + CustomFinishedLabel1.Height + ScaleY(8);
   CustomFinishedLabel3.Width := WizardForm.FinishedHeadingLabel.Width; 
   CustomFinishedLabel3.Caption := 'To use all TDengine services, please run start-all.bat under ' + InstallPath + ' directory';
 
@@ -479,6 +480,12 @@ RunOnceId: "deltaosx-agent"; Filename: "{app}\\taosx-agent-srv.exe"; Parameters:
 RunOnceId: "deltaos-explorer"; Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
 RunOnceId: "deltaosd"; Filename: {sys}\sc.exe; Parameters: "delete taosd" ; Flags: runhidden
+RunOnceId: "taskkilltaos"; Filename: "taskkill"; Parameters: "/im ""taos.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaosd"; Filename: "taskkill"; Parameters: "/im ""taosd.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaosadapter"; Filename: "taskkill"; Parameters: "/im ""taosadapter.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaoskeeper"; Filename: "taskkill"; Parameters: "/im ""taoskeeper.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaosx"; Filename: "taskkill"; Parameters: "/im ""taosx.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaos-explorer"; Filename: "taskkill"; Parameters: "/im ""taos-explorer.exe"" /f"; Flags: runhidden
 
 RunOnceId: "uninstall"; Filename: "{uninstallexe}"; Parameters: "/SILENT"; Check: fileexists('{uninstallexe}')
 RunOnceId: "removeopc1"; Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC

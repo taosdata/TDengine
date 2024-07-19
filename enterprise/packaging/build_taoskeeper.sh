@@ -43,12 +43,12 @@ checkout_latest_tag() {
   if [ -n "$TAG" ] && [ $(git tag -l "$TAG") ]; then
     latest=$TAG
   else
-    latest=`git tag --sort=-creatordate | head -1`
+    latest=main
   fi
 
   echo $latest
 
-  latestv=$(echo "$latest" | sed 's/ver-//')
+  latestv=$(echo "$TAG" | sed 's/ver-//')
 
   gitinfo=`git rev-parse HEAD`
   buildinfo=`date +"%F %T %:z"`

@@ -14,11 +14,23 @@ else
     services=(${prefix}"d" ${prefix}"adapter" ${prefix}"-explorer" ${prefix}"keeper")
 fi
 
-for service in "${services[@]}"; do    
-    ${csudo}systemctl stop $service
-    if systemctl is-active $service >/dev/null; then
-        echo "failed to stop $service"
-    else        
-        echo "$service has been stoped"
+osType=$(uname)
+
+for service in "${services[@]}"; do
+    if [ "$osType" == "Linux" ]; then    
+        ${csudo}systemctl stop $service	
+        if systemctl is-active $service >/dev/null; then
+            echo "failed to stop $service"
+        else        
+            echo "$service has been stoped"
+        fi
+    elif [ "$osType" == "Darwin" ]; then
+        ${csudo}launchctl stop com.tdengine.${service}
+        sleep 1
+        if launchctl print system/com.tdengine.${service} | grep 'state = running' > /dev/null; then
+            echo "failed to stop $service"
+        else
+            echo "$service has been stoped"
+        fi
     fi
 done
