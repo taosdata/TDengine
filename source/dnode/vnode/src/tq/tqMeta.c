@@ -123,14 +123,6 @@ int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen) {
   return 0;
 }
 
-static int32_t tqMetaTransformOffsetInfo(STQ* pTq, char* path) {
-  int32_t code = TDB_CODE_SUCCESS;
-  TQ_ERR_RETURN(tqOffsetRestoreFromFile(pTq, path));
-
-END:
-  return code;
-}
-
 void* tqMetaGetOffset(STQ* pTq, const char* subkey){
   void* data = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
   if (data == NULL) {
@@ -408,7 +400,8 @@ END:
 }
 
 int32_t tqMetaOpen(STQ* pTq) {
-  char*   maindb = NULL;
+  char*   maindb    = NULL;
+  char*   offsetNew = NULL;
   int32_t code = TDB_CODE_SUCCESS;
   TQ_ERR_GO_TO_END(tqBuildFName(&maindb, pTq->path, TDB_MAINDB_NAME));
   if(!taosCheckExistFile(maindb)){
@@ -416,12 +409,20 @@ int32_t tqMetaOpen(STQ* pTq) {
     TQ_ERR_GO_TO_END(tqMetaOpenTdb(pTq));
   }else{
     TQ_ERR_GO_TO_END(tqMetaTransform(pTq));
-    taosRemoveFile(maindb);
+    (void)taosRemoveFile(maindb);
   }
+
+  TQ_ERR_GO_TO_END(tqBuildFName(&offsetNew, pTq->path, TQ_OFFSET_NAME));
+  if(taosCheckExistFile(offsetNew)){
+    TQ_ERR_GO_TO_END(tqOffsetRestoreFromFile(pTq, offsetNew));
+    (void)taosRemoveFile(offsetNew);
+  }
+
   TQ_ERR_GO_TO_END(tqMetaRestoreCheckInfo(pTq));
 
 END:
   taosMemoryFree(maindb);
+  taosMemoryFree(offsetNew);
   return code;
 }
 
@@ -445,13 +446,13 @@ int32_t tqMetaTransform(STQ* pTq) {
   TQ_ERR_GO_TO_END(tqMetaTransformInfo(pTq->pMetaDB, pCheckStore, pTq->pCheckStore));
 
   TQ_ERR_GO_TO_END(tqBuildFName(&offsetNew, pTq->path, TQ_OFFSET_NAME));
-  if(taosCheckExistFile(offset) && taosCopyFile(offset, offsetNew) < 0){
-    tqError("copy offset file error");
+  if(taosCheckExistFile(offset)) {
+    if (taosCopyFile(offset, offsetNew) < 0) {
+      tqError("copy offset file error");
+    } else {
+      (void)taosRemoveFile(offset);
+    }
   }
-
-  TQ_ERR_GO_TO_END(tqMetaTransformOffsetInfo(pTq, offsetNew));
-  (void)taosRemoveFile(offset);
-  (void)taosRemoveFile(offsetNew);
 
 END:
   taosMemoryFree(offset);
