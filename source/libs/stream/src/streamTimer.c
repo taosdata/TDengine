@@ -41,11 +41,11 @@ tmr_h streamTimerGetInstance() {
 
 void streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
                     const char* pMsg) {
-  while (1) {
+//  while (1) {
     bool ret = taosTmrReset(fp, mseconds, param, handle, pTmrId);
     if (ret) {
-      break;
+//      break;
     }
-    stError("vgId:%d failed to reset tmr: %s, try again", vgId, pMsg);
-  }
+//    stError("vgId:%d failed to reset tmr: %s, try again", vgId, pMsg);
+//  }
 }
