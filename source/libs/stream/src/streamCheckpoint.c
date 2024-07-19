@@ -799,10 +799,15 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   // send msg to retrieve checkpoint trigger msg
   SArray* pList = pTask->upstreamInfo.pList;
   ASSERT(pTask->info.taskLevel > TASK_LEVEL__SOURCE);
+
   SArray* pNotSendList = taosArrayInit(4, sizeof(SStreamUpstreamEpInfo));
   if (pNotSendList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    stDebug("s-task:%s start to triggerMonitor, reason:%s", id, tstrerror(terrno));
+    stError("s-task:%s quit tmr function due to out of memory", id);
+    taosThreadMutexUnlock(&pActiveInfo->lock);
+
+    stDebug("s-task:%s start to monitor checkpoint-trigger in 10s", id);
+    taosTmrReset(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle);
     return;
   }
 
@@ -967,18 +972,14 @@ void streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
   taosThreadMutexUnlock(&pInfo->lock);
 }
 
-int32_t streamTaskGetNumOfConfirmed(SStreamTask* pTask) {
-  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
-
+int32_t streamTaskGetNumOfConfirmed(SActiveCheckpointInfo* pInfo) {
   int32_t num = 0;
-  taosThreadMutexLock(&pInfo->lock);
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
     STaskTriggerSendInfo* p = taosArrayGet(pInfo->pDispatchTriggerList, i);
     if (p->recved) {
       num++;
     }
   }
-  taosThreadMutexUnlock(&pInfo->lock);
   return num;
 }
 
@@ -1000,9 +1001,9 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
     }
   }
 
+  int32_t numOfConfirmed = streamTaskGetNumOfConfirmed(pInfo);
   taosThreadMutexUnlock(&pInfo->lock);
 
-  int32_t numOfConfirmed = streamTaskGetNumOfConfirmed(pTask);
   int32_t total = streamTaskGetNumOfDownstream(pTask);
   stDebug("s-task:%s set downstream:0x%x(vgId:%d) checkpoint-trigger dispatch confirmed, total confirmed:%d/%d",
           pTask->id.idStr, taskId, vgId, numOfConfirmed, total);
