@@ -2007,7 +2007,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
           sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (tTagIsJson(data)) {
-          char* jsonString = parseTagDatatoJson(data);
+          char* jsonString = NULL;
+          parseTagDatatoJson(data, &jsonString);
           STR_TO_VARSTR(dst, jsonString);
           taosMemoryFree(jsonString);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
