@@ -1553,11 +1553,13 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   if (pBlock->info.rows == 0) {
     if (pRes) {
       (*pRes) = false;
+      goto _end;
     }
   }
   if ((*pRowIndex) == pBlock->info.rows) {
     if (pRes) {
       (*pRes) = false;
+      goto _end;
     }
   }
 
@@ -1611,6 +1613,9 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   if (pRes) {
     (*pRes) = true;
   }
+
+_end:
+  qTrace("%s success", __func__);
 }
 
 static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
