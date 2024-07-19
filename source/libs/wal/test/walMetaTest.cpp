@@ -283,7 +283,7 @@ TEST_F(WalCleanEnv, rollbackMultiFile) {
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pWal->vers.lastVer, 5);
   code = walRollback(pWal, 5);
-  ASSERT_EQ(code, -1);
+  ASSERT_NE(code, 0);
 
   ASSERT_EQ(pWal->vers.lastVer, 5);
 
