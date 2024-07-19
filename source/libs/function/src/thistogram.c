@@ -50,7 +50,7 @@ SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
 }
 
 SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins) {
-  memset(pBuf, 0, sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfBins + 1));
+  (void)memset(pBuf, 0, sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfBins + 1));
 
   SHistogramInfo* pHisto = (SHistogramInfo*)pBuf;
   pHisto->elems = (SHistBin*)((char*)pBuf + sizeof(SHistogramInfo));
