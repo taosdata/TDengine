@@ -732,9 +732,11 @@ _exit:
   return code;
 }
 
-void walFsync(SWal *pWal, bool forceFsync) {
+int32_t walFsync(SWal *pWal, bool forceFsync) {
+  int32_t code = 0;
+
   if (pWal->cfg.level == TAOS_WAL_SKIP) {
-    return;
+    return code;
   }
 
   taosThreadMutexLock(&pWal->mutex);
@@ -743,7 +745,10 @@ void walFsync(SWal *pWal, bool forceFsync) {
     if (taosFsyncFile(pWal->pLogFile) < 0) {
       wError("vgId:%d, file:%" PRId64 ".log, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),
              strerror(errno));
+      code = TAOS_SYSTEM_ERROR(errno);
     }
   }
   taosThreadMutexUnlock(&pWal->mutex);
+
+  return code;
 }

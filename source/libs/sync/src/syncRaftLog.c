@@ -227,7 +227,11 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     return -1;
   }
 
-  walFsync(pWal, forceSync);
+  code = walFsync(pWal, forceSync);
+  if (TSDB_CODE_SUCCESS != code) {
+    sNError(pData->pSyncNode, "wal fsync failed since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
 
   sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
           TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
