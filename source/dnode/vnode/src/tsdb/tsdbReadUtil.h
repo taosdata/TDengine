@@ -247,7 +247,6 @@ typedef struct SDataBlockIter {
 typedef struct SFileBlockDumpInfo {
   int32_t totalRows;
   int32_t rowIndex;
-//  STsdbRowKey lastKey;  // this key should be removed
   bool    allDumped;
 } SFileBlockDumpInfo;
 

@@ -41,34 +41,34 @@ static void streamQueueCleanup(SStreamQueue* pQueue) {
 
 static void* streamQueueCurItem(SStreamQueue* queue) { return queue->qItem; }
 
-SStreamQueue* streamQueueOpen(int64_t cap) {
-  int32_t code;
+int32_t streamQueueOpen(int64_t cap, SStreamQueue** pQ) {
+  *pQ = NULL;
+  int32_t code = 0;
 
   SStreamQueue* pQueue = taosMemoryCalloc(1, sizeof(SStreamQueue));
   if (pQueue == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   code = taosOpenQueue(&pQueue->pQueue);
   if (code) {
     taosMemoryFreeClear(pQueue);
-    terrno = code;
-    return NULL;
+    return code;
   }
 
   code = taosAllocateQall(&pQueue->qall);
   if (code) {
     taosCloseQueue(pQueue->pQueue);
     taosMemoryFree(pQueue);
-    terrno = code;
-    return NULL;
+    return code;
   }
 
   pQueue->status = STREAM_QUEUE__SUCESS;
   taosSetQueueCapacity(pQueue->pQueue, cap);
   taosSetQueueMemoryCapacity(pQueue->pQueue, cap * 1024);
-  return pQueue;
+
+  *pQ = pQueue;
+  return code;
 }
 
 void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
@@ -227,12 +227,11 @@ EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIte
         *pInput = qItem;
       } else {
         // merge current block failed, let's handle the already merged blocks.
-        void* newRet = streamQueueMergeQueueItem(*pInput, qItem);
-        if (newRet == NULL) {
-          if (terrno != 0) {
-            stError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
-                    tstrerror(terrno));
-          }
+        void*   newRet = NULL;
+        int32_t code = streamQueueMergeQueueItem(*pInput, qItem, (SStreamQueueItem**)&newRet);
+        if (code != TSDB_CODE_SUCCESS) {
+          stError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
+                  tstrerror(terrno));
 
           *blockSize = streamQueueItemGetSize(*pInput);
           if (taskLevel == TASK_LEVEL__SINK) {
