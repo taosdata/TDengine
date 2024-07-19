@@ -723,7 +723,7 @@ export default {
     unshare: "取消共享",
     addDesc: "添加描述",
     editDesc: "编辑描述",
-    descPlaceholder: "对收藏的 SQL 进行描述，可不填，字符长度为{0}",
+    descPlaceholder: "对收藏的 SQL 进行描述，可不填，不超过{0}个字符。",
     characterLen: "只允许输入{0}个字符",
     addToPersonal: "添加到个人收藏"
   },
