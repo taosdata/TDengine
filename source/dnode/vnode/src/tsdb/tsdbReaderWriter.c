@@ -759,7 +759,7 @@ int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *m
   // decode
   int32_t n;
   code = tGetMapData(pReader->aBuf[0], mDataBlk, &n);
-  if (code) goto _err;
+  if (code) goto _exit;
   ASSERT(n == size);
 
 _exit:
