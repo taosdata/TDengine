@@ -2731,6 +2731,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
 
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (NULL == intervals) {
+      cJSON_Delete(binDesc);
       SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
@@ -2795,6 +2796,7 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
     numOfBins = cJSON_GetArraySize(binDesc);
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (NULL == intervals) {
+      cJSON_Delete(binDesc);
       SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     cJSON *bin = binDesc->child;

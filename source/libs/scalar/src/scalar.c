@@ -1234,6 +1234,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
       if (NULL == res->datum.p) {
         sclError("calloc %d failed", len);
         sclFreeParam(&output);
+        nodesDestroyNode((SNode *)res);
         ctx->code = TSDB_CODE_OUT_OF_MEMORY;
         return DEAL_RES_ERROR;
       }
@@ -1244,6 +1245,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
       if (NULL == res->datum.p) {
         sclError("calloc %d failed", (int)(varDataTLen(output.columnData->pData) + 1));
         sclFreeParam(&output);
+        nodesDestroyNode((SNode *)res);
         ctx->code = TSDB_CODE_OUT_OF_MEMORY;
         return DEAL_RES_ERROR;
       }
@@ -1253,6 +1255,7 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
       ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
       if (ctx->code) {
         sclFreeParam(&output);
+        nodesDestroyNode((SNode *)res);
         return DEAL_RES_ERROR;
       }
     }
@@ -1415,6 +1418,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
       if (NULL == res->datum.p) {
         sclError("calloc %d failed", (int)(varDataTLen(output.columnData->pData) + 1));
         sclFreeParam(&output);
+        nodesDestroyNode((SNode *)res);
         ctx->code = TSDB_CODE_OUT_OF_MEMORY;
         return DEAL_RES_ERROR;
       }
@@ -1423,6 +1427,7 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
       ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
       if (ctx->code) {
         sclFreeParam(&output);
+        nodesDestroyNode((SNode *)res);
         return DEAL_RES_ERROR;
       }
     }
