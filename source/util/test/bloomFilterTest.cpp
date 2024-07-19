@@ -14,8 +14,8 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, normal_bloomFilter) {
   GTEST_ASSERT_NE(0, tBloomFilterInit(100, -0.1, &pBFTmp));
   GTEST_ASSERT_NE(0, tBloomFilterInit(0, 0.01, &pBFTmp));
 
-  SBloomFilter *pBF1 = NULL;
-  int32_t code = tBloomFilterInit(100, 0.005, &pBF1);
+  SBloomFilter* pBF1 = NULL;
+  int32_t       code = tBloomFilterInit(100, 0.005, &pBF1);
   GTEST_ASSERT_EQ(0, code);
   GTEST_ASSERT_EQ(pBF1->numBits, 1152);
   GTEST_ASSERT_EQ(pBF1->numUnits, 1152 / 64);
@@ -83,7 +83,9 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, scalable_bloomFilter) {
   int64_t index = 0;
   for (; count < 100; index++) {
     int64_t ts = index + ts1;
-    if (tScalableBfPut(pSBF1, &ts, sizeof(int64_t)) == TSDB_CODE_SUCCESS) {
+    int32_t res = TSDB_CODE_SUCCESS;
+    int32_t code = tScalableBfPut(pSBF1, &ts, sizeof(int64_t), &res);
+    if (res == TSDB_CODE_SUCCESS) {
       count++;
     }
   }
@@ -91,7 +93,9 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, scalable_bloomFilter) {
 
   for (; count < 300; index++) {
     int64_t ts = index + ts1;
-    if (tScalableBfPut(pSBF1, &ts, sizeof(int64_t)) == TSDB_CODE_SUCCESS) {
+    int32_t res = TSDB_CODE_SUCCESS;
+    int32_t code = tScalableBfPut(pSBF1, &ts, sizeof(int64_t), &res);
+    if (res == TSDB_CODE_SUCCESS) {
       count++;
     }
   }
@@ -99,7 +103,9 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, scalable_bloomFilter) {
 
   for (; count < 700; index++) {
     int64_t ts = index + ts1;
-    if (tScalableBfPut(pSBF1, &ts, sizeof(int64_t)) == TSDB_CODE_SUCCESS) {
+    int32_t res = TSDB_CODE_SUCCESS;
+    int32_t code = tScalableBfPut(pSBF1, &ts, sizeof(int64_t), &res);
+    if (res == TSDB_CODE_SUCCESS) {
       count++;
     }
   }
@@ -107,7 +113,9 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, scalable_bloomFilter) {
 
   for (; count < 1500; index++) {
     int64_t ts = index + ts1;
-    if (tScalableBfPut(pSBF1, &ts, sizeof(int64_t)) == TSDB_CODE_SUCCESS) {
+    int32_t res = TSDB_CODE_SUCCESS;
+    int32_t code = tScalableBfPut(pSBF1, &ts, sizeof(int64_t), &res);
+    if (res == TSDB_CODE_SUCCESS) {
       count++;
     }
   }
@@ -132,7 +140,9 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, scalable_bloomFilter) {
   GTEST_ASSERT_EQ(0, tScalableBfInit(size, 0.001, &pSBF4));
   for (int64_t i = 0; i < 1000; i++) {
     int64_t ts = i + ts1;
-    GTEST_ASSERT_EQ(tScalableBfPut(pSBF4, &ts, sizeof(int64_t)), TSDB_CODE_SUCCESS);
+    int32_t res = TSDB_CODE_SUCCESS;
+    int32_t code = tScalableBfPut(pSBF4, &ts, sizeof(int64_t), &res);
+    GTEST_ASSERT_EQ(res, TSDB_CODE_SUCCESS);
   }
 
   for (int64_t i = 0; i < 1000; i++) {

@@ -602,7 +602,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
   return (numOfRes > maxNumOfRows) ? maxNumOfRows : numOfRes;
 }
 
-int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2,
+void taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2,
                                       int32_t inputType) {
   double v1 = -1, v2 = -1;
   GET_TYPED_DATA(v1, double, inputType, point1->val);
@@ -615,8 +615,6 @@ int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint*
     r = (v1 < 1 || v2 < 1) ? 0 : 1;
   }
   SET_TYPED_DATA(point->val, outputType, r);
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity) {
