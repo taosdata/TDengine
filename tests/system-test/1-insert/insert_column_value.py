@@ -530,6 +530,7 @@ class TDTestCase:
         self.__insert_query_exec()
         self.__insert_query_ts5184()
 
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
