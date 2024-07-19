@@ -4,6 +4,7 @@ $loop_count = 0
 
 loopCheck0:
 
+print loop_count=$loop_count
 sleep 1000
 
 $loop_count = $loop_count + 1

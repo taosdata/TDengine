@@ -114,6 +114,7 @@ print ===== idle 60 sec completed , continue
 print ===== step 1 over
 
 print ===== step2
+sql drop database if exists test;
 sql drop stream if exists streams2;
 sql drop database if exists test2;
 sql create database test2  vgroups 1;
@@ -251,6 +252,7 @@ print ===== step 2 over
 
 
 print ===== step3
+sql drop database if exists test2;
 sql drop stream if exists streams3;
 sql drop database if exists test3;
 sql create database test3  vgroups 3;
@@ -329,6 +331,7 @@ sql resume stream IF EXISTS streams66666666;
 print ===== step 4 over
 
 print ===== step5
+sql drop database if exists test3;
 sql drop stream if exists streams6;
 sql drop database if exists test6;
 sql create database test6  vgroups 10;
