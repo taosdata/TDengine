@@ -1553,14 +1553,14 @@ static void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   if (pBlock->info.rows == 0) {
     if (pRes) {
       (*pRes) = false;
-      goto _end;
     }
+    goto _end;
   }
   if ((*pRowIndex) == pBlock->info.rows) {
     if (pRes) {
       (*pRes) = false;
-      goto _end;
     }
+    goto _end;
   }
 
   ASSERT(taosArrayGetSize(pBlock->pDataBlock) >= 3);
