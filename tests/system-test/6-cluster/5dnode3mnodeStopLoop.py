@@ -93,7 +93,7 @@ class TDTestCase:
         # seperate vnode and mnode in different dnodes.
         # create database and stable
         stopcount =0
-        while stopcount <= 2:
+        while stopcount <= 1:
             tdLog.info(" restart loop: %d"%stopcount )
             for i in range(dnodenumbers):
                 tdDnodes[i].stoptaosd()

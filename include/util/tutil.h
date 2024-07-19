@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "thash.h"
 #include "tmd5.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -170,6 +171,8 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
       goto LABEL;                         \
     }                                     \
   } while (0)
+
+#define TAOS_UNUSED(expr) (void)(expr)
 
 #ifdef __cplusplus
 }

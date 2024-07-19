@@ -29,43 +29,54 @@ typedef struct SSclVectorConvCtx {
   int16_t outType;
 } SSclVectorConvCtx;
 
-typedef double (*_getDoubleValue_fn_t)(void *src, int32_t index);
+typedef int32_t (*_getDoubleValue_fn_t)(void *src, int32_t index, double *out);
 
-static FORCE_INLINE double getVectorDoubleValue_TINYINT(void *src, int32_t index) {
-  return (double)*((int8_t *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_TINYINT(void *src, int32_t index, double *out) {
+  *out = (double)*((int8_t *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_UTINYINT(void *src, int32_t index) {
-  return (double)*((uint8_t *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_UTINYINT(void *src, int32_t index, double *out) {
+  *out = (double)*((uint8_t *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_SMALLINT(void *src, int32_t index) {
-  return (double)*((int16_t *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_SMALLINT(void *src, int32_t index, double *out) {
+  *out = (double)*((int16_t *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_USMALLINT(void *src, int32_t index) {
-  return (double)*((uint16_t *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_USMALLINT(void *src, int32_t index, double *out) {
+  *out = (double)*((uint16_t *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_INT(void *src, int32_t index) {
-  return (double)*((int32_t *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_INT(void *src, int32_t index, double *out) {
+  *out = (double)*((int32_t *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_UINT(void *src, int32_t index) {
-  return (double)*((uint32_t *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_UINT(void *src, int32_t index, double *out) {
+  *out = (double)*((uint32_t *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_BIGINT(void *src, int32_t index) {
-  return (double)*((int64_t *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_BIGINT(void *src, int32_t index, double *out) {
+  *out = (double)*((int64_t *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_UBIGINT(void *src, int32_t index) {
-  return (double)*((uint64_t *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_UBIGINT(void *src, int32_t index, double *out) {
+  *out = (double)*((uint64_t *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_FLOAT(void *src, int32_t index) {
-  return (double)*((float *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_FLOAT(void *src, int32_t index, double *out) {
+  *out = (double)*((float *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_DOUBLE(void *src, int32_t index) {
-  return (double)*((double *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_DOUBLE(void *src, int32_t index, double *out) {
+  *out = (double)*((double *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE double getVectorDoubleValue_BOOL(void *src, int32_t index) {
-  return (double)*((bool *)src + index);
+static FORCE_INLINE int32_t getVectorDoubleValue_BOOL(void *src, int32_t index, double *out) {
+  *out = (double)*((bool *)src + index);
+  return TSDB_CODE_SUCCESS;
 }
 
-double getVectorDoubleValue_JSON(void *src, int32_t index);
+int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out);
 
 static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
   _getDoubleValue_fn_t p = NULL;
@@ -103,8 +114,8 @@ static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType)
   return p;
 }
 
-typedef void (*_bufConverteFunc)(char *buf, SScalarParam *pOut, int32_t outType, int32_t *overflow);
-typedef void (*_bin_scalar_fn_t)(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *output, int32_t order);
+typedef int32_t (*_bufConverteFunc)(char *buf, SScalarParam *pOut, int32_t outType, int32_t *overflow);
+typedef int32_t (*_bin_scalar_fn_t)(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *output, int32_t order);
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binOperator);
 
 #ifdef __cplusplus

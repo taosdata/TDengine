@@ -339,10 +339,8 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       memcpy(data, pBody, len);
       SPackedData data1 = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
 
-      *pItem = (SStreamQueueItem*)streamDataSubmitNew(&data1, STREAM_INPUT__DATA_SUBMIT);
-      if (*pItem == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        terrno = code;
+      code = streamDataSubmitNew(&data1, STREAM_INPUT__DATA_SUBMIT, (SStreamDataSubmit**)pItem);
+      if (code != 0) {
         tqError("%s failed to create data submit for stream since out of memory", id);
         return code;
       }
