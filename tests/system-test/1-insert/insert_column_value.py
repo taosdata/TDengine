@@ -527,7 +527,7 @@ class TDTestCase:
             tdSql.checkRows(4)
 
     def run(self):
-        # self.__insert_query_exec()
+        self.__insert_query_exec()
         self.__insert_query_ts5184()
 
 
