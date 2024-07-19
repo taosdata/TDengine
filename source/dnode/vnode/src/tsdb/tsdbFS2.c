@@ -154,7 +154,9 @@ int32_t save_fs(const TFileSetArray *arr, const char *fname) {
   int32_t lino = 0;
 
   cJSON *json = cJSON_CreateObject();
-  TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  if (json == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  }
 
   // fmtv
   if (cJSON_AddNumberToObject(json, "fmtv", 1) == NULL) {
