@@ -133,7 +133,7 @@ typedef struct SDiffInfo {
 } SDiffInfo;
 
 typedef struct SForecastInfo {
-  int32_t offset;
+  int32_t interval;
   int32_t num;  // number of the forecast result rows
   void*   buf;  // external buffer to store the forecast result
 } SForecastInfo;
@@ -3345,6 +3345,8 @@ struct ForecastResult {
   char*    data;
   uint64_t data_len;
   uint64_t data_cap;
+
+  char* buf;
 } ForecastResult;
 
 bool getForecastFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -3353,12 +3355,18 @@ bool getForecastFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) 
   return true;
 }
 
-extern const char* forecast_init();
+extern const char* forecast_init(const char* key);
 extern void*       forecast_new_buf(int64_t num, int8_t precision, uint8_t ty, uint8_t nLevels, uint8_t* levels,
                                     char* options, uint16_t options_len);
 extern void        forecast_buf_append_one(void* buf, int64_t ts, char* value);
+extern int32_t     forecast_buf_len(void* buf);
+extern int64_t*    forecast_buf_ts(void* ts);
+extern int64_t     forecast_buf_val(void* val, int32_t idx);
 extern void        forecast_free(struct ForecastResult* result);
-extern struct ForecastResult forecast_impl(void* buf);
+extern struct ForecastResult forecast_rs(void* buf);
+extern struct ForecastResult historic_rs(void* buf);
+extern struct ForecastResult historic_forecast_rs(void* buf);
+extern struct ForecastResult anomaly_rs(void* buf);
 
 bool forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   qInfo("forecast function setup");
@@ -3429,7 +3437,7 @@ bool forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) 
 }
 
 int32_t forecastFunction(SqlFunctionCtx* pCtx) {
-  const char* pErr = forecast_init();
+  const char* pErr = forecast_init(NULL);
   if (pErr != NULL) {
     return TSDB_CODE_FUNC_FORECAST_API_ERROR;
   }
@@ -3469,8 +3477,8 @@ int32_t forecastFunction(SqlFunctionCtx* pCtx) {
     forecast_buf_append_one(pForecastInfo->buf, row.ts, row.pData);
   }
 
-  pForecastInfo->offset += pInput->numOfRows;
-  qInfo("forecast input elements: %d, offset: %d", numOfElems, pForecastInfo->offset);
+  // pForecastInfo->offset += pInput->numOfRows;
+  // qInfo("forecast input elements: %d, offset: %d", numOfElems, pForecastInfo->offset);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3482,7 +3490,7 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   pEntryInfo->complete = true;
 
-  struct ForecastResult result = forecast_impl(pInfo->buf);
+  struct ForecastResult result = forecast_rs(pInfo->buf);
 
   if (result.error != NULL) {
     qError("forecast error: %s", result.error);
@@ -3599,6 +3607,598 @@ int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   qInfo("forecast block rows: %ld, %d", pBlock->info.rows, pEntryInfo->numOfRes);
   // pEntryInfo->isNullRes = 0;
 
+  return code;
+}
+
+bool anomalyFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  qInfo("anomaly function setup");
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;
+  }
+  SForecastInfo* pForecastInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t numOfParams = pCtx->numOfParams;
+  qInfo("anomaly setup: %d params", numOfParams);
+
+  int8_t precision = pCtx->resDataInfo.precision;
+  qInfo("anomaly precision: %s", precision_to_str(precision));
+  qInfo("anomaly type: %d", pCtx->resDataInfo.type);
+
+  // ASSERTS(pCtx->input.numOfInputCols == 2, "anomaly function should have 2 input columns");
+
+  SFunctParam* pTsParam = &pCtx->param[0];
+  ASSERTS(pTsParam->type == FUNC_PARAM_TYPE_COLUMN, "anomaly 1st param should be type %d != 2", pTsParam->type);
+  ASSERTS(pTsParam->pCol != NULL, "anomaly 1st param is not timestamp");
+  qInfo("anomaly 1st param: type %d, column: %s", pTsParam->type, pTsParam->pCol->name);
+
+  SFunctParam* pValParam = &pCtx->param[1];
+  ASSERTS(pTsParam->type == FUNC_PARAM_TYPE_COLUMN, "anomaly 2nd param should be type %d != 2", pTsParam->type);
+  ASSERTS(pTsParam->pCol != NULL, "anomaly param 0 is not timestamp");
+  qInfo("anomaly 2nd param: type %d, column: %s", pTsParam->type, pTsParam->pCol->name);
+
+  uint8_t  level = 0;
+  uint8_t  n = 0;
+  char*    options = NULL;
+  uint16_t options_len = 0;
+  if (numOfParams > 2) {
+    for (int i = 2; i < numOfParams; i++) {
+      SFunctParam* pParam = &pCtx->param[i];
+      if (pParam->type == FUNC_PARAM_TYPE_VALUE) {
+        if (pParam->param.nType == TSDB_DATA_TYPE_BIGINT) {
+          qInfo("anomaly 4th param: type %d, value: %ld", pParam->param.nType, pParam->param.i);
+          if (pParam->param.i < 1 || pParam->param.i > 99) {
+            qError("anomaly level should be in int range [1, 99]");
+          } else {
+            level = pParam->param.i;
+            n = 1;
+          }
+        } else if (pParam->param.nType == TSDB_DATA_TYPE_BINARY) {
+          // options string is the last param of anomaly.
+          options_len = *(uint16_t*)pParam->param.pz;
+          options = pParam->param.pz + 2;
+          break;
+        }
+      }
+    }
+  }
+
+  pForecastInfo->buf =
+      forecast_new_buf(pForecastInfo->num, precision, pCtx->resDataInfo.type, n, &level, options, options_len);
+
+  qInfo("anomaly num: %d", pResInfo->numOfRes);
+  pResInfo->numOfRes = 0;
+
+  return true;
+}
+
+int32_t anomalyFunction(SqlFunctionCtx* pCtx) {
+  const char* pErr = forecast_init(NULL);
+  if (pErr != NULL) {
+    return TSDB_CODE_FUNC_FORECAST_API_ERROR;
+  }
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SForecastInfo*       pForecastInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t numOfElems = 0;
+  int32_t startOffset = pCtx->offset;
+
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pTsCol = pInput->pData[0];
+  int8_t                inputType = pTsCol->info.type;
+  uint8_t               precision = pTsCol->info.precision;
+  qInfo("anomaly ts address: %p", pTsCol->pData);
+  qInfo("anomaly ts address: %p", pInput->pPTS->pData);
+  qInfo("anomaly input type should be timestamp: %d, precision: %s", inputType, precision_to_str(precision));
+
+  qInfo("anomaly number of input cols: %d, finished: %s, total: %d", pCtx->input.numOfInputCols,
+        pCtx->bInputFinished ? "true" : "false", pCtx->input.totalRows);
+
+  qInfo("result info: complete: %s, ", pCtx->resultInfo->complete ? "true" : "false");
+
+  SColumnInfoData* pValCol = pInput->pData[1];
+  int8_t           valType = pValCol->info.type;
+  TSKEY*           tsList = (int64_t*)pInput->pPTS->pData;
+
+  funcInputUpdateForecast(pCtx);
+
+  SFuncInputRow row = {0};
+  while (funcInputGetNextRow(pCtx, &row)) {
+    int32_t pos = startOffset + numOfElems;
+    numOfElems += 1;
+    if (row.isDataNull) {
+      forecast_buf_append_one(pForecastInfo->buf, row.ts, NULL);
+    } else {
+      forecast_buf_append_one(pForecastInfo->buf, row.ts, row.pData);
+    }
+  }
+
+  // pForecastInfo->offset += pInput->numOfRows;
+  // qInfo("anomaly input elements: %d, offset: %d", numOfElems, pForecastInfo->offset);
+  pResInfo->numOfRes += numOfElems;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t anomalyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
+  SForecastInfo*       pInfo = GET_ROWCELL_INTERBUF(pEntryInfo);
+
+  pEntryInfo->complete = true;
+
+  struct ForecastResult result = anomaly_rs(pInfo->buf);
+
+  if (result.error != NULL) {
+    qError("anomaly error: %s", result.error);
+    return TSDB_CODE_FUNC_FUNTION_ERROR;
+  }
+
+  int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t currentRow = pBlock->info.rows;
+
+  bool                    hasRowTs = pCtx->pTsOutput != NULL;
+  struct SColumnInfoData* pC0 = taosArrayGet(pBlock->pDataBlock, 0);
+  // pCtx->pTsOutput =
+  // ASSERT(false);
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  int64_t*         bufTs = forecast_buf_ts(pInfo->buf);
+  int32_t          bufLen = forecast_buf_len(pInfo->buf);
+  int32_t          bufOffset = 0;
+  for (int i = 0; i < result.num; i++) {
+    int64_t ts = result.ts[i];
+    for (; bufOffset < bufLen && bufTs[bufOffset] < ts; bufOffset++) {
+      colDataSetNull_f_s(pCol, currentRow + bufOffset);
+
+      for (int j = 0; j < pCtx->subsidiaries.num; j++) {
+        SqlFunctionCtx* pSc = pCtx->subsidiaries.pCtx[j];
+
+        // pSc->input.pData[0]->info.colId;
+        tExprNode* expr = pSc->pExpr->pExpr;
+        if (pSc->resDataInfo.type == TSDB_DATA_TYPE_TIMESTAMP && expr->nodeType == QUERY_NODE_FUNCTION &&
+            expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+          int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+          SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+          colDataSetInt64(pTsCol, currentRow + bufOffset, &bufTs[bufOffset]);
+        } else {
+          int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+          SColumnInfoData* pV = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+          colDataSetNull_f_s(pV, currentRow + bufOffset);
+        }
+      }
+    }
+    int32_t offset = tDataTypes[pCtx->resDataInfo.type].bytes * i;
+    switch (pCtx->resDataInfo.type) {
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT: {
+        int32_t* v = (int32_t*)(result.val + offset);
+        colDataSetInt32(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t* v = (int8_t*)(result.val + offset);
+        colDataSetInt8(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t* v = (int16_t*)(result.val + offset);
+        colDataSetInt16(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t* v = (int64_t*)(result.val + offset);
+        colDataSetInt64(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float* v = (float*)(result.val + offset);
+        colDataSetFloat(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double* v = (double*)(result.val + offset);
+        colDataSetDouble(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      default:
+        return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+    if (hasRowTs) {
+      colDataSetInt64(pCtx->pTsOutput, currentRow + bufOffset, &ts);
+    }
+
+    int d = 0;
+    for (int j = 0; j < pCtx->subsidiaries.num; j++) {
+      SqlFunctionCtx* pSc = pCtx->subsidiaries.pCtx[j];
+
+      // pSc->input.pData[0]->info.colId;
+      tExprNode* expr = pSc->pExpr->pExpr;
+      if (pSc->resDataInfo.type == TSDB_DATA_TYPE_TIMESTAMP && expr->nodeType == QUERY_NODE_FUNCTION &&
+          expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+        int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+        colDataSetInt64(pTsCol, currentRow + bufOffset, &ts);
+      } else if (pSc->resDataInfo.type == TSDB_DATA_TYPE_VARCHAR && expr->nodeType == QUERY_NODE_FUNCTION &&
+                 expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+        int32_t          slotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pFullCol = taosArrayGet(pBlock->pDataBlock, slotId);
+        colDataSetVal(pFullCol, currentRow + bufOffset, result.data + result.offsets[i], false);
+      } else if (pSc->resDataInfo.type == TSDB_DATA_TYPE_DOUBLE && d < 2) {
+        int32_t          slotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pV = taosArrayGet(pBlock->pDataBlock, slotId);
+        if (result.confidence_len > 0) {
+          if (d == 0) {
+            colDataSetDouble(pV, currentRow + bufOffset, &result.confidence_low[i]);
+          } else {
+            colDataSetDouble(pV, currentRow + bufOffset, &result.confidence_high[i]);
+          }
+        } else {
+          colDataSetNull_f_s(pV, currentRow + bufOffset);
+        }
+        d++;
+      } else {
+        SValueNode* p1 = (SValueNode*)nodesListGetNode(expr->_function.pFunctNode->pParameterList, 0);
+        qWarn("anomaly subsidiary: %d, non-timestamp type: %d", j, pSc->resDataInfo.type);
+      }
+    }
+    bufOffset++;
+  }
+
+  for (; bufOffset < bufLen; bufOffset++) {
+    colDataSetNull_f_s(pCol, currentRow + bufOffset);
+
+    for (int j = 0; j < pCtx->subsidiaries.num; j++) {
+      SqlFunctionCtx* pSc = pCtx->subsidiaries.pCtx[j];
+
+      // pSc->input.pData[0]->info.colId;
+      tExprNode* expr = pSc->pExpr->pExpr;
+      if (pSc->resDataInfo.type == TSDB_DATA_TYPE_TIMESTAMP && expr->nodeType == QUERY_NODE_FUNCTION &&
+          expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+        int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+        colDataSetInt64(pTsCol, currentRow + bufOffset, &bufTs[bufOffset]);
+      } else {
+        int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pV = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+        colDataSetNull_f_s(pV, currentRow + bufOffset);
+      }
+    }
+  }
+  forecast_free(&result);
+  pCol->hasNull = true;
+  return code;
+}
+
+bool historicFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  qInfo("historic function setup");
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;
+  }
+  SForecastInfo* pForecastInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t numOfParams = pCtx->numOfParams;
+
+  int8_t precision = pCtx->resDataInfo.precision;
+  qInfo("historic precision: %s", precision_to_str(precision));
+
+  // ASSERTS(pCtx->input.numOfInputCols == 2, "historic function should have 2 input columns");
+
+  SFunctParam* pTsParam = &pCtx->param[0];
+  ASSERTS(pTsParam->type == FUNC_PARAM_TYPE_COLUMN, "historic 1st param should be type %d != 2", pTsParam->type);
+  ASSERTS(pTsParam->pCol != NULL, "historic 1st param is not timestamp");
+  qInfo("historic 1st param: type %d, column: %s", pTsParam->type, pTsParam->pCol->name);
+
+  SFunctParam* pValParam = &pCtx->param[1];
+  ASSERTS(pValParam->type == FUNC_PARAM_TYPE_COLUMN, "historic 2nd param should be type %d != 2", pTsParam->type);
+  ASSERTS(pValParam->pCol != NULL, "historic 2nd column should be numeric");
+  qInfo("historic 2nd param: type %d, column: %s", pTsParam->type, pTsParam->pCol->name);
+
+  SFunctParam* pInterParam = &pCtx->param[2];
+  ASSERTS(pInterParam->type == FUNC_PARAM_TYPE_VALUE, "historic 3rd param should be value");
+  pForecastInfo->interval = (int32_t)pInterParam->param.i;
+
+  uint8_t  level = 0;
+  uint8_t  n = 0;
+  char*    options = NULL;
+  uint16_t options_len = 0;
+  if (numOfParams > 3) {
+    for (int i = 3; i < numOfParams; i++) {
+      SFunctParam* pParam = &pCtx->param[i];
+      if (pParam->type == FUNC_PARAM_TYPE_VALUE) {
+        if (pParam->param.nType == TSDB_DATA_TYPE_BIGINT) {
+          if (pParam->param.i < 1 || pParam->param.i > 99) {
+            qError("historic level should be in int range [1, 99]");
+          } else {
+            level = pParam->param.i;
+            n = 1;
+          }
+        } else if (pParam->param.nType == TSDB_DATA_TYPE_BINARY) {
+          // options string is the last param of historic.
+          options_len = *(uint16_t*)pParam->param.pz;
+          options = pParam->param.pz + 2;
+          break;
+        }
+      }
+    }
+  }
+
+  pForecastInfo->buf =
+      forecast_new_buf(pForecastInfo->num, precision, pCtx->resDataInfo.type, n, &level, options, options_len);
+
+  qInfo("historic num: %d", pResInfo->numOfRes);
+  pResInfo->numOfRes = 0;
+
+  return true;
+}
+
+int32_t historicFunction(SqlFunctionCtx* pCtx) {
+  const char* pErr = forecast_init(NULL);
+  if (pErr != NULL) {
+    return TSDB_CODE_FUNC_FORECAST_API_ERROR;
+  }
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SForecastInfo*       pForecastInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t numOfElems = 0;
+  int32_t startOffset = pCtx->offset;
+
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pTsCol = pInput->pData[0];
+  int8_t                inputType = pTsCol->info.type;
+  uint8_t               precision = pTsCol->info.precision;
+  qInfo("historic ts address: %p", pTsCol->pData);
+  qInfo("historic ts address: %p", pInput->pPTS->pData);
+  qInfo("historic input type should be timestamp: %d, precision: %s", inputType, precision_to_str(precision));
+
+  qInfo("historic number of input cols: %d, finished: %s, total: %d", pCtx->input.numOfInputCols,
+        pCtx->bInputFinished ? "true" : "false", pCtx->input.totalRows);
+
+  qInfo("result info: complete: %s, ", pCtx->resultInfo->complete ? "true" : "false");
+
+  SColumnInfoData* pValCol = pInput->pData[1];
+  int8_t           valType = pValCol->info.type;
+  TSKEY*           tsList = (int64_t*)pInput->pPTS->pData;
+
+  funcInputUpdateForecast(pCtx);
+
+  SFuncInputRow row = {0};
+  int64_t       lastTs = 0;
+  char*         lastVal = NULL;
+  while (funcInputGetNextRow(pCtx, &row)) {
+    int32_t pos = startOffset + numOfElems;
+
+    if (lastTs > 0 && pForecastInfo->interval > 0) {
+      for (lastTs = lastTs + pForecastInfo->interval; lastTs < row.ts; lastTs += pForecastInfo->interval) {
+        qInfo("historic missing ts: %ld", lastTs);
+        // colDataSetNull_f_s(pOutput, pos);
+        forecast_buf_append_one(pForecastInfo->buf, lastTs, NULL);
+        pos++;
+        numOfElems++;
+      }
+    }
+
+    if (row.isDataNull) {
+      forecast_buf_append_one(pForecastInfo->buf, row.ts, NULL);
+    } else {
+      forecast_buf_append_one(pForecastInfo->buf, row.ts, row.pData);
+    }
+
+    numOfElems += 1;
+    lastTs = row.ts;
+    lastVal = row.pData;
+  }
+
+  pResInfo->numOfRes += numOfElems;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t historicFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
+  SForecastInfo*       pInfo = GET_ROWCELL_INTERBUF(pEntryInfo);
+
+  pEntryInfo->complete = true;
+
+  struct ForecastResult result = historic_forecast_rs(pInfo->buf);
+
+  if (result.error != NULL) {
+    qError("historic error: %s", result.error);
+    return TSDB_CODE_FUNC_FUNTION_ERROR;
+  }
+
+  int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t currentRow = pBlock->info.rows;
+
+  bool                    hasRowTs = pCtx->pTsOutput != NULL;
+  struct SColumnInfoData* pC0 = taosArrayGet(pBlock->pDataBlock, 0);
+
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  int64_t*         bufTs = forecast_buf_ts(pInfo->buf);
+  int32_t          bufLen = forecast_buf_len(pInfo->buf);
+  int32_t          bufOffset = 0;
+  int64_t          lastTs = 0;
+  for (int i = 0; i < result.num; i++) {
+    int64_t ts = result.ts[i];
+    for (; bufOffset < bufLen && bufTs[bufOffset] < ts; bufOffset++) {
+      int64_t bufV = forecast_buf_val(pInfo->buf, bufOffset);
+      char*   pBV = (char*)&bufV;
+      if (bufV == 0) {
+        colDataSetNull_f_s(pCol, currentRow + bufOffset);
+      } else {
+        switch (pCtx->resDataInfo.type) {
+          case TSDB_DATA_TYPE_INT:
+          case TSDB_DATA_TYPE_UINT: {
+            int32_t* v = (int32_t*)pBV;
+            colDataSetInt32(pCol, currentRow + bufOffset, v);
+            break;
+          }
+          case TSDB_DATA_TYPE_BOOL:
+          case TSDB_DATA_TYPE_UTINYINT:
+          case TSDB_DATA_TYPE_TINYINT: {
+            int8_t* v = (int8_t*)(pBV);
+            colDataSetInt8(pCol, currentRow + bufOffset, v);
+            break;
+          }
+          case TSDB_DATA_TYPE_USMALLINT:
+          case TSDB_DATA_TYPE_SMALLINT: {
+            int16_t* v = (int16_t*)(pBV);
+            colDataSetInt16(pCol, currentRow + bufOffset, v);
+            break;
+          }
+          case TSDB_DATA_TYPE_TIMESTAMP:
+          case TSDB_DATA_TYPE_UBIGINT:
+          case TSDB_DATA_TYPE_BIGINT: {
+            int64_t* v = (int64_t*)(pBV);
+            colDataSetInt64(pCol, currentRow + bufOffset, v);
+            break;
+          }
+          case TSDB_DATA_TYPE_FLOAT: {
+            float* v = (float*)(pBV);
+            colDataSetFloat(pCol, currentRow + bufOffset, v);
+            break;
+          }
+          case TSDB_DATA_TYPE_DOUBLE: {
+            double* v = (double*)(pBV);
+            colDataSetDouble(pCol, currentRow + bufOffset, v);
+            break;
+          }
+          default:
+            return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+        }
+      }
+
+      for (int j = 0; j < pCtx->subsidiaries.num; j++) {
+        SqlFunctionCtx* pSc = pCtx->subsidiaries.pCtx[j];
+
+        // pSc->input.pData[0]->info.colId;
+        tExprNode* expr = pSc->pExpr->pExpr;
+        if (pSc->resDataInfo.type == TSDB_DATA_TYPE_TIMESTAMP && expr->nodeType == QUERY_NODE_FUNCTION &&
+            expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+          int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+          SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+          colDataSetInt64(pTsCol, currentRow + bufOffset, &bufTs[bufOffset]);
+        } else {
+          int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+          SColumnInfoData* pV = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+          colDataSetNull_f_s(pV, currentRow + bufOffset);
+        }
+      }
+    }
+    int32_t offset = tDataTypes[pCtx->resDataInfo.type].bytes * i;
+    switch (pCtx->resDataInfo.type) {
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT: {
+        int32_t* v = (int32_t*)(result.val + offset);
+        colDataSetInt32(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t* v = (int8_t*)(result.val + offset);
+        colDataSetInt8(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t* v = (int16_t*)(result.val + offset);
+        colDataSetInt16(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t* v = (int64_t*)(result.val + offset);
+        colDataSetInt64(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float* v = (float*)(result.val + offset);
+        colDataSetFloat(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double* v = (double*)(result.val + offset);
+        colDataSetDouble(pCol, currentRow + bufOffset, v);
+        break;
+      }
+      default:
+        return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+    if (hasRowTs) {
+      colDataSetInt64(pCtx->pTsOutput, currentRow + bufOffset, &ts);
+    }
+
+    int d = 0;
+    for (int j = 0; j < pCtx->subsidiaries.num; j++) {
+      SqlFunctionCtx* pSc = pCtx->subsidiaries.pCtx[j];
+
+      // pSc->input.pData[0]->info.colId;
+      tExprNode* expr = pSc->pExpr->pExpr;
+      if (pSc->resDataInfo.type == TSDB_DATA_TYPE_TIMESTAMP && expr->nodeType == QUERY_NODE_FUNCTION &&
+          expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+        int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+        colDataSetInt64(pTsCol, currentRow + bufOffset, &ts);
+      } else if (pSc->resDataInfo.type == TSDB_DATA_TYPE_VARCHAR && expr->nodeType == QUERY_NODE_FUNCTION &&
+                 expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+        int32_t          slotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pFullCol = taosArrayGet(pBlock->pDataBlock, slotId);
+        colDataSetVal(pFullCol, currentRow + bufOffset, result.data + result.offsets[i], false);
+      } else if (pSc->resDataInfo.type == TSDB_DATA_TYPE_DOUBLE && d < 2) {
+        int32_t          slotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pV = taosArrayGet(pBlock->pDataBlock, slotId);
+        if (result.confidence_len > 0) {
+          if (d == 0) {
+            colDataSetDouble(pV, currentRow + bufOffset, &result.confidence_low[i]);
+          } else {
+            colDataSetDouble(pV, currentRow + bufOffset, &result.confidence_high[i]);
+          }
+        } else {
+          colDataSetNull_f_s(pV, currentRow + bufOffset);
+        }
+        d++;
+      } else {
+        SValueNode* p1 = (SValueNode*)nodesListGetNode(expr->_function.pFunctNode->pParameterList, 0);
+        qWarn("historic subsidiary: %d, non-timestamp type: %d", j, pSc->resDataInfo.type);
+      }
+    }
+    if (bufTs[bufOffset] == ts) {
+      bufOffset++;
+    }
+  }
+
+  for (; bufOffset < bufLen; bufOffset++) {
+    colDataSetNull_f_s(pCol, currentRow + bufOffset);
+
+    for (int j = 0; j < pCtx->subsidiaries.num; j++) {
+      SqlFunctionCtx* pSc = pCtx->subsidiaries.pCtx[j];
+
+      // pSc->input.pData[0]->info.colId;
+      tExprNode* expr = pSc->pExpr->pExpr;
+      if (pSc->resDataInfo.type == TSDB_DATA_TYPE_TIMESTAMP && expr->nodeType == QUERY_NODE_FUNCTION &&
+          expr->_function.functionType == FUNCTION_TYPE_SELECT_VALUE) {
+        int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+        colDataSetInt64(pTsCol, currentRow + bufOffset, &bufTs[bufOffset]);
+      } else {
+        int32_t          tsSlotId = pSc->pExpr->base.resSchema.slotId;
+        SColumnInfoData* pV = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+        colDataSetNull_f_s(pV, currentRow + bufOffset);
+      }
+    }
+  }
+  forecast_free(&result);
+  pCol->hasNull = true;
   return code;
 }
 

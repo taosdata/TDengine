@@ -61,7 +61,7 @@ bool              getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEn
 int32_t           countFunction(SqlFunctionCtx* pCtx);
 
 #ifdef BUILD_NO_CALL
-int32_t           countInvertFunction(SqlFunctionCtx* pCtx);
+int32_t countInvertFunction(SqlFunctionCtx* pCtx);
 #endif
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
@@ -69,10 +69,10 @@ bool              getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv)
 int32_t           sumFunction(SqlFunctionCtx* pCtx);
 
 #ifdef BUILD_NO_CALL
-int32_t           sumInvertFunction(SqlFunctionCtx* pCtx);
+int32_t sumInvertFunction(SqlFunctionCtx* pCtx);
 #endif
 
-int32_t           sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool    minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 bool    getMinmaxFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
@@ -138,7 +138,14 @@ bool    getForecastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool    forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t forecastFunction(SqlFunctionCtx* pCtx);
 int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t forecastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+
+bool anomalyFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t anomalyFunction(SqlFunctionCtx* pCtx);
+int32_t anomalyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool historicFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t historicFunction(SqlFunctionCtx* pCtx);
+int32_t historicFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool    derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
