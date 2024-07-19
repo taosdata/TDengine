@@ -88,7 +88,7 @@ class TDTestCase:
             tdSql.execute("resume stream s1")
     def initstream(self):
         tdLog.debug("========case1 start========")
-        os.system("nohup taosBenchmark -y -B 1 -t 4 -S 1000 -n 5000 -i 1000 -v 3  > /dev/null 2>&1 &")
+        os.system("nohup taosBenchmark -y -B 1 -t 4 -S 500 -n 1000  -v 3  > /dev/null 2>&1 &")
         time.sleep(5)
         tdSql.execute("create snode on dnode 1")
         tdSql.execute("use test")
