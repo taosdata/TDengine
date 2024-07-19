@@ -45,7 +45,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
   int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
-  void               *pHead = rpcMallocCont(contLen);
+  void *              pHead = rpcMallocCont(contLen);
   tSerializeRetrieveIpWhite(pHead, contLen, &req);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
@@ -146,7 +146,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
-  void   *pHead = rpcMallocCont(contLen);
+  void *  pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
@@ -180,7 +180,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
 void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
   int32_t contLen = tSerializeSNotifyReq(NULL, 0, pReq);
-  void   *pHead = rpcMallocCont(contLen);
+  void *  pHead = rpcMallocCont(contLen);
   tSerializeSNotifyReq(pHead, contLen, pReq);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
@@ -285,24 +285,27 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SServerStatusRsp statusRsp = {0};
   dmGetServerRunStatus(pMgmt, &statusRsp);
 
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+
   SRpcMsg rspMsg = {.info = pMsg->info};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    return rspMsg.code;
+    return TSDB_CODE_OUT_OF_MEMORY;
+    // rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    // return rspMsg.code;
   }
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    return rspMsg.code;
+    return TSDB_CODE_OUT_OF_MEMORY;
+    // rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    // return rspMsg.code;
   }
 
-  code = tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
-  if (code != 0) {
-    rpcFreeCont(pRsp);
-    rspMsg.code = code;
-    return code;
+  rspLen = tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
+  if (rspLen < 0) {
+    return TSDB_CODE_INVALID_MSG;
   }
 
   pMsg->info.rsp = pRsp;
