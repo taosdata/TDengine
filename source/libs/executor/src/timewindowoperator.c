@@ -1086,12 +1086,13 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
   return (rows == 0) ? NULL : pBlock;
 }
 
-static void doClearWindowImpl(SResultRowPosition* p1, SDiskbasedBuf* pResultBuf, SExprSupp* pSup, int32_t numOfOutput) {
+static int32_t doClearWindowImpl(SResultRowPosition* p1, SDiskbasedBuf* pResultBuf, SExprSupp* pSup, int32_t numOfOutput) {
   SResultRow* pResult = getResultRowByPos(pResultBuf, p1, false);
   if (NULL == pResult) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   SqlFunctionCtx* pCtx = pSup->pCtx;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].resultInfo = getResultEntryInfo(pResult, i, pSup->rowEntryInfoOffset);
@@ -1101,15 +1102,19 @@ static void doClearWindowImpl(SResultRowPosition* p1, SDiskbasedBuf* pResultBuf,
     }
     pResInfo->initialized = false;
     if (pCtx[i].functionId != -1) {
-      pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+      code = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
     }
   }
   SFilePage* bufPage = getBufPage(pResultBuf, p1->pageId);
   if (NULL == bufPage) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
   setBufPageDirty(bufPage, true);
   releaseBufPage(pResultBuf, bufPage);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void destroyStateWindowOperatorInfo(void* param) {

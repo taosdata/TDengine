@@ -521,8 +521,8 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
 
     if (!pResInfo->initialized) {
       if (pCtx[i].functionId != -1) {
-        bool ini = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
-        if (!ini && fmIsUserDefinedFunc(pCtx[i].functionId)) {
+        int32_t code = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+        if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)){
           pResInfo->initialized = false;
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
         }
