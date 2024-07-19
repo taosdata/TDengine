@@ -27,20 +27,12 @@ static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t prima
   uInfo("dataDir:%s, level:%d primary:%d disable:%" PRIi8 " is configured", v1, level, primary, disable);
 }
 
-// TODO: remove this function
-static int32_t cfgGetItem__(SConfig *pCfg, SConfigItem **ppItem, const char *pName) {
-  *ppItem = cfgGetItem(pCfg, pName);
-  if (*ppItem == NULL) {
-    ASSERTS(terrno != 0, "terrno is 0");
-    return terrno;
-  }
-  return 0;
-}
-
 int32_t taosSetTfsCfg(SConfig *pCfg) {
   int32_t      code = 0;
-  SConfigItem *pItem = NULL;
-  TAOS_CHECK_RETURN(cfgGetItem__(pCfg, &pItem, "dataDir"));
+  SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
+  if (pItem == NULL) {
+    TAOS_RETURN(terrno);  // TODO: remove this terrno if possible
+  }
   memset(tsDataDir, 0, PATH_MAX);
 
   int32_t size = taosArrayGetSize(pItem->array);
