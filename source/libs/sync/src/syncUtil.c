@@ -43,17 +43,16 @@ void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
 
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = 0xFFFFFFFF;
-  sDebug("vgId:%d, start to resolve sync addr fqdn in %d seconds, "
-        "dnode:%d cluster:%" PRId64 " fqdn:%s port:%u ",
-        vgId, tsResolveFQDNRetryTime,
-        pInfo->nodeId, pInfo->clusterId, pInfo->nodeFqdn, pInfo->nodePort);
-  for(int i = 0; i < tsResolveFQDNRetryTime; i++){
+  sDebug(
+      "vgId:%d, start to resolve sync addr fqdn in %d seconds, "
+      "dnode:%d cluster:%" PRId64 " fqdn:%s port:%u ",
+      vgId, tsResolveFQDNRetryTime, pInfo->nodeId, pInfo->clusterId, pInfo->nodeFqdn, pInfo->nodePort);
+  for (int i = 0; i < tsResolveFQDNRetryTime; i++) {
     ipv4 = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
     if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
       sError("failed to resolve ipv4 addr, fqdn:%s, wait one second", pInfo->nodeFqdn);
       taosSsleep(1);
-    }
-    else{
+    } else {
       break;
     }
   }
@@ -501,8 +500,7 @@ void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteRepl
 int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size) {
   void* data = taosMemoryRealloc(pSnap->data, size);
   if (data == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   pSnap->data = data;
   return 0;
