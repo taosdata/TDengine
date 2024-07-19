@@ -23,7 +23,7 @@
 #define UNIT_ONE_PEBIBYTE        (UNIT_ONE_TEBIBYTE * UNIT_SIZE_CONVERT_FACTOR)
 #define UNIT_ONE_EXBIBYTE        (UNIT_ONE_PEBIBYTE * UNIT_SIZE_CONVERT_FACTOR)
 
-static int32_t parseCfgIntWithUnit(const char* str, double *res) {
+static int32_t parseCfgIntWithUnit(const char* str, double* res) {
   double val, temp = (double)INT64_MAX;
   char*  endPtr;
   errno = 0;
@@ -33,8 +33,7 @@ static int32_t parseCfgIntWithUnit(const char* str, double *res) {
     val = taosStr2Double(str, &endPtr);
   }
   if (endPtr == str || errno == ERANGE || isnan(val)) {
-    terrno = TSDB_CODE_INVALID_CFG_VALUE;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;
   uint64_t factor = 1;
@@ -66,28 +65,25 @@ static int32_t parseCfgIntWithUnit(const char* str, double *res) {
         factor = UNIT_ONE_KIBIBYTE;
       } break;
       default:
-        terrno = TSDB_CODE_INVALID_CFG_VALUE;
-        return -1;
+        return terrno = TSDB_CODE_INVALID_CFG_VALUE;
     }
     if ((val > 0 && val > temp) || (val < 0 && val < -temp)) {
-      terrno = TSDB_CODE_OUT_OF_RANGE;
-      return -1;
+      return terrno = TSDB_CODE_OUT_OF_RANGE;
     }
     endPtr++;
     val *= factor;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;
   if (*endPtr) {
-    terrno = TSDB_CODE_INVALID_CFG_VALUE;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   val = rint(val);
   *res = val;
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t taosStrHumanToInt64(const char* str, int64_t *out) {
-  double res;
+int32_t taosStrHumanToInt64(const char* str, int64_t* out) {
+  double  res;
   int32_t code = parseCfgIntWithUnit(str, &res);
   if (code == TSDB_CODE_SUCCESS) *out = (int64_t)res;
   return code;
@@ -113,12 +109,11 @@ void taosInt64ToHumanStr(int64_t val, char* outStr) {
 #endif
 
 int32_t taosStrHumanToInt32(const char* str, int32_t* out) {
-  double res;
+  double  res;
   int32_t code = parseCfgIntWithUnit(str, &res);
   if (code == TSDB_CODE_SUCCESS) {
     if (res < INT32_MIN || res > INT32_MAX) {
-      terrno = TSDB_CODE_OUT_OF_RANGE;
-      return -1;
+      return terrno = TSDB_CODE_OUT_OF_RANGE;
     }
     *out = (int32_t)res;
   }
