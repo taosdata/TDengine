@@ -17,7 +17,9 @@
 #include "vnd.h"
 
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
-  if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   lvl[0]->level = level;
   TARRAY2_INIT(lvl[0]->fobjArr);
   return 0;
@@ -81,14 +83,14 @@ static int32_t tsdbSttLvlFilteredInitEx(STsdb *pTsdb, const SSttLvl *lvl1, int64
         return code;
       }
 
-      TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
+      TAOS_CHECK_RETURN(TARRAY2_APPEND(lvl[0]->fobjArr, fobj));
     } else {
       STFileOp op = {
           .optype = TSDB_FOP_REMOVE,
           .fid = fobj1->f->fid,
           .of = fobj1->f[0],
       };
-      TARRAY2_APPEND(fopArr, op);
+      TAOS_CHECK_RETURN(TARRAY2_APPEND(fopArr, op));
     }
   }
   return 0;
