@@ -4746,8 +4746,9 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   cleanupQueryTableDataCond(&pTableScanInfo->base.cond);
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
 
-  return;blockDataDestroy(pTableScanInfo->pResBlock);
+  blockDataDestroy(pTableScanInfo->pResBlock);
   pTableScanInfo->pResBlock = NULL;
+
   // remove it from the task->result list
   blockDataDestroy(pTableScanInfo->pReaderBlock);
   pTableScanInfo->pReaderBlock = NULL;
