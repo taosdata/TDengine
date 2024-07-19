@@ -181,6 +181,7 @@ int32_t dmInit() {
   if ((code = dmInitMonitor()) != 0) return code;
   if ((code = dmInitAudit()) != 0) return code;
   if ((code = dmInitDnode(dmInstance())) != 0) return code;
+  if ((code = InitRegexCache() != 0)) return code;
 #if defined(USE_S3)
   if ((code = s3Begin()) != 0) return code;
 #endif
