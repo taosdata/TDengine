@@ -4,7 +4,7 @@ mkdir %WIN_TDENGINE_ROOT_DIR%\debug\build
 mkdir %WIN_TDENGINE_ROOT_DIR%\debug\build\bin
 xcopy C:\TDengine\taos*.exe %WIN_TDENGINE_ROOT_DIR%\debug\build\bin
 
-case_out_file=%cd%\case.out
+set case_out_file=%cd%\case.out
 cd %WIN_TDENGINE_ROOT_DIR%\tests\army
 python3 test.py -f query\query_basic.py -N 3 >> %case_out_file%
 
