@@ -17,6 +17,9 @@ sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
 sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt2 as select  _wstart as ts, count(*) c1, max(a)+min(c), avg(b) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.0,'aaa');
 sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.0,'aaa') (1648791220000,3,3,3,3.0,'aaa');
 
@@ -265,6 +268,9 @@ sql use test5;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
 sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt5 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
 sql create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt6 as select  _wstart as ts, count(*) c1, max(a)+min(c), avg(b) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.0,'aaa') (1648791220000,3,3,3,3.0,'aaa');
 sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.0,'aaa');
 

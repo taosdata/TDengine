@@ -41,7 +41,7 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
 
-  char *p = streamTaskGetStatus(pTask)->name;
+  char *p = streamTaskGetStatus(pTask).name;
   if (pTask->info.fillHistory) {
     sndInfo("vgId:%d build stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
@@ -71,9 +71,9 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   startRsync();
 
   pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskBuild *)sndBuildStreamTask, tqExpandStreamTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
-  if (pSnode->pMeta == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  int32_t code = streamMetaOpen(path, pSnode, (FTaskBuild *)sndBuildStreamTask, tqExpandStreamTask, SNODE_HANDLE,
+                                taosGetTimestampMs(), tqStartTaskCompleteCallback, &pSnode->pMeta);
+  if (code != TSDB_CODE_SUCCESS) {
     goto FAIL;
   }
 

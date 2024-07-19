@@ -28,8 +28,9 @@ from util.common import *
 from util.constant import *
 from dataclasses import dataclass,field
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
+
 @dataclass
 class DataSet:
     ts_data     : List[int]     = field(default_factory=list)
@@ -1797,6 +1798,21 @@ class TDCom:
             self.sdelete_rows(tbname=self.ctb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
             self.sdelete_rows(tbname=self.tb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
 
+    def get_timestamp_n_days_later(self, n=30):
+        """
+        Get the timestamp of a date n days later from the current date.
+
+        Args:
+            n (int): Number of days to add to the current date. Default is 30.
+
+        Returns:
+            int: Timestamp of the date n days later, in milliseconds.
+        """
+        now = datetime.now()
+        thirty_days_later = now + timedelta(days=n)
+        timestamp_thirty_days_later = thirty_days_later.timestamp()
+        return int(timestamp_thirty_days_later*1000)
+
     def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None, custom_col_index=None, col_value_type="random"):
         """prepare stream data
 
@@ -1827,7 +1843,7 @@ class TDCom:
             "state_window_max": state_window_max,
             "iteration": interation,
             "range_count": range_count,
-            "start_ts": 1655903478508,
+            "start_ts": self.get_timestamp_n_days_later(),
         }
         if range_count is not None:
             self.range_count = range_count

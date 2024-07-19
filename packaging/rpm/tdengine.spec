@@ -56,6 +56,10 @@ mkdir -p %{buildroot}%{homepath}/include
 #mkdir -p %{buildroot}%{homepath}/init.d
 mkdir -p %{buildroot}%{homepath}/script
 
+if [ -f %{_compiledir}/../packaging/cfg/taosd.service ]; then
+    cp %{_compiledir}/../packaging/cfg/taosd.service %{buildroot}%{homepath}/cfg
+fi
+
 cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
 if [ -f %{_compiledir}/test/cfg/taosadapter.toml ]; then
     cp %{_compiledir}/test/cfg/taosadapter.toml         %{buildroot}%{homepath}/cfg
@@ -91,6 +95,10 @@ cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
+cp %{_compiledir}/../../enterprise/packaging/start-all.sh  %{buildroot}%{homepath}/bin
+cp %{_compiledir}/../../enterprise/packaging/stop-all.sh  %{buildroot}%{homepath}/bin
+sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
+sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh
 
 if [ -f %{_compiledir}/../../../explorer/target/release/taos-explorer ]; then
     cp %{_compiledir}/../../../explorer/target/release/taos-explorer %{buildroot}%{homepath}/bin

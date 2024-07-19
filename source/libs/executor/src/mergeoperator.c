@@ -232,8 +232,11 @@ int32_t getSortMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, u
 
 void destroySortMergeOperatorInfo(void* param) {
   SSortMergeInfo* pSortMergeInfo = param;
-  pSortMergeInfo->pInputBlock = blockDataDestroy(pSortMergeInfo->pInputBlock);
-  pSortMergeInfo->pIntermediateBlock = blockDataDestroy(pSortMergeInfo->pIntermediateBlock);
+  blockDataDestroy(pSortMergeInfo->pInputBlock);
+  pSortMergeInfo->pInputBlock = NULL;
+
+  blockDataDestroy(pSortMergeInfo->pIntermediateBlock);
+  pSortMergeInfo->pIntermediateBlock = NULL;
 
   taosArrayDestroy(pSortMergeInfo->matchInfo.pList);
 
@@ -429,7 +432,8 @@ SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
 
 void destroyMultiwayMergeOperatorInfo(void* param) {
   SMultiwayMergeOperatorInfo* pInfo = (SMultiwayMergeOperatorInfo*)param;
-  pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
+  blockDataDestroy(pInfo->binfo.pRes);
+  pInfo->binfo.pRes = NULL;
 
   if (NULL != gMultiwayMergeFps[pInfo->type].closeFn) {
     (*gMultiwayMergeFps[pInfo->type].closeFn)(&pInfo->sortMergeInfo);

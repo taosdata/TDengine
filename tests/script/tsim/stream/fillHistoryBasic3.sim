@@ -19,7 +19,8 @@ sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
 
 sql create stream streams2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a interval(10s);
 
-sleep 3000
+run tsim/stream/checkTaskStatus.sim
+
 
 $loop_count = 0
 
