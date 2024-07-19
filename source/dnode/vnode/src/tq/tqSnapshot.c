@@ -23,9 +23,10 @@ struct STqSnapReader {
   int64_t sver;
   int64_t ever;
   TBC*    pCur;
+  int8_t type;
 };
 
-int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader) {
+int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqSnapReader** ppReader) {
   int32_t        code = 0;
   STqSnapReader* pReader = NULL;
 
@@ -38,9 +39,20 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** p
   pReader->pTq = pTq;
   pReader->sver = sver;
   pReader->ever = ever;
-
+  pReader->type = type;
   // impl
-  code = tdbTbcOpen(pTq->pExecStore, &pReader->pCur, NULL);
+  TTB *pTb = NULL;
+  if (type == SNAP_DATA_TQ_CHECKINFO) {
+    pTb = pTq->pCheckStore;
+  } else if (type == SNAP_DATA_TQ_HANDLE) {
+    pTb = pTq->pExecStore;
+  } else if (type == SNAP_DATA_TQ_OFFSET) {
+    pTb = pTq->pOffsetStore;
+  } else {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
+  code = tdbTbcOpen(pTb, &pReader->pCur, NULL);
   if (code) {
     taosMemoryFree(pReader);
     goto _err;
@@ -107,7 +119,7 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
   }
 
   SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
-  pHdr->type = SNAP_DATA_TQ_HANDLE;
+  pHdr->type = pReader->type;
   pHdr->size = vLen;
   memcpy(pHdr->data, pVal, vLen);
 
@@ -163,7 +175,6 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
   int32_t        code = 0;
   STqSnapWriter* pWriter = *ppWriter;
   STQ*           pTq = pWriter->pTq;
-
   if (rollback) {
     tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
   } else {
@@ -172,25 +183,16 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
     code = tdbPostCommit(pWriter->pTq->pMetaDB, pWriter->txn);
     if (code) goto _err;
   }
-
-  int vgId = TD_VID(pWriter->pTq->pVnode);
-
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
-
-  // restore from metastore
-  if (tqMetaRestoreHandle(pTq) < 0) {
-    goto _err;
-  }
-
   return code;
 
 _err:
-  tqError("vgId:%d, tq snapshot writer close failed since %s", vgId, tstrerror(code));
+  tqError("vgId:%d, tq snapshot writer close failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }
 
-int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+int32_t tqSnapHandleWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t   code = 0;
   STQ*      pTq = pWriter->pTq;
   SDecoder  decoder = {0};
@@ -201,7 +203,7 @@ int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   code = tDecodeSTqHandle(pDecoder, &handle);
   if (code) goto _err;
   taosWLockLatch(&pTq->lock);
-  code = tqMetaSaveHandle(pTq, handle.subKey, &handle);
+  code = tqMetaSaveInfo(pTq, pTq->pExecStore, handle.subKey, (int)strlen(handle.subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   taosWUnLockLatch(&pTq->lock);
   if (code < 0) goto _err;
   tDecoderClear(pDecoder);
@@ -213,3 +215,42 @@ _err:
   tqError("vgId:%d, vnode snapshot tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }
+
+int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  int32_t   code = 0;
+  STQ*      pTq = pWriter->pTq;
+  STqCheckInfo info = {0};
+  if(tqMetaDecodeCheckInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr)) != 0){
+    goto _err;
+  }
+
+  code = tqMetaSaveInfo(pTq, pTq->pCheckStore, &info.topic, strlen(info.topic), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  tDeleteSTqCheckInfo(&info);
+  if (code) goto _err;
+
+  return code;
+
+  _err:
+  tqError("vgId:%d, vnode check info tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+  int32_t   code = 0;
+  STQ*      pTq = pWriter->pTq;
+
+  STqOffset info = {0};
+  if(tqMetaDecodeOffsetInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr)) != 0){
+    goto _err;
+  }
+
+  code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, info.subKey, strlen(info.subKey), pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  if (code) goto _err;
+
+  return code;
+
+  _err:
+  tqError("vgId:%d, vnode check info tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  return code;
+}
+
