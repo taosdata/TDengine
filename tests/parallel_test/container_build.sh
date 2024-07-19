@@ -69,7 +69,7 @@ docker run \
     -v ${REP_REAL_PATH}/community/contrib/cpp-stub/:${REP_DIR}/community/contrib/cpp-stub \
     -v ${REP_REAL_PATH}/community/contrib/curl/:${REP_DIR}/community/contrib/curl \
     -v ${REP_REAL_PATH}/community/contrib/curl2/:${REP_DIR}/community/contrib/curl2 \
-    -v ${REP_REAL_PATH}/community/contrib/geo/:${REP_DIR}/community/contrib/geos \
+    -v ${REP_REAL_PATH}/community/contrib/geos/:${REP_DIR}/community/contrib/geos \
     -v ${REP_REAL_PATH}/community/contrib/googletest/:${REP_DIR}/community/contrib/googletest \
     -v ${REP_REAL_PATH}/community/contrib/libs3/:${REP_DIR}/community/contrib/libs3 \
     -v ${REP_REAL_PATH}/community/contrib/libuv/:${REP_DIR}/community/contrib/libuv \
@@ -116,7 +116,7 @@ docker run \
     -v ${REP_REAL_PATH}/community/contrib/cpp-stub/:${REP_DIR}/community/contrib/cpp-stub \
     -v ${REP_REAL_PATH}/community/contrib/curl/:${REP_DIR}/community/contrib/curl \
     -v ${REP_REAL_PATH}/community/contrib/curl2/:${REP_DIR}/community/contrib/curl2 \
-    -v ${REP_REAL_PATH}/community/contrib/geo/:${REP_DIR}/community/contrib/geos \
+    -v ${REP_REAL_PATH}/community/contrib/geos/:${REP_DIR}/community/contrib/geos \
     -v ${REP_REAL_PATH}/community/contrib/googletest/:${REP_DIR}/community/contrib/googletest \
     -v ${REP_REAL_PATH}/community/contrib/libs3/:${REP_DIR}/community/contrib/libs3 \
     -v ${REP_REAL_PATH}/community/contrib/libuv/:${REP_DIR}/community/contrib/libuv \
