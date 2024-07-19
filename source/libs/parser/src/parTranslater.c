@@ -1523,7 +1523,7 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
       if (!multiResFunc) {
         code = TSDB_CODE_OUT_OF_MEMORY;
       }
-      
+
       if (TSDB_CODE_SUCCESS == code) {
         tstrncpy(multiResFunc->functionName, funcName, TSDB_FUNC_NAME_LEN);
         code = nodesListMakeStrictAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
@@ -5210,7 +5210,8 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
 }
 
 static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit) {
-  int64_t days = convertTimeFromPrecisionToUnit(val, fromPrecision, 'd');
+  int64_t days = -1;
+  convertTimeFromPrecisionToUnit(val, fromPrecision, 'd', &days);
   switch (unit) {
     case 'b':
     case 'u':
@@ -8209,7 +8210,8 @@ static SNode* makeIntervalVal(SRetention* pRetension, int8_t precision) {
   if (NULL == pVal) {
     return NULL;
   }
-  int64_t timeVal = convertTimeFromPrecisionToUnit(pRetension->freq, precision, pRetension->freqUnit);
+  int64_t timeVal = -1;
+  convertTimeFromPrecisionToUnit(pRetension->freq, precision, pRetension->freqUnit, &timeVal);
   char    buf[20] = {0};
   int32_t len = snprintf(buf, sizeof(buf), "%" PRId64 "%c", timeVal, pRetension->freqUnit);
   pVal->literal = strndup(buf, len);
@@ -8758,7 +8760,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   if (TSDB_CODE_SUCCESS == code) {
     code = tNameExtractFullName(&name, usedbReq.db);
   }
-  if (TSDB_CODE_SUCCESS == code) 
+  if (TSDB_CODE_SUCCESS == code)
     code = getDBVgVersion(pCxt, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId, &usedbReq.numOfTable, &usedbReq.stateTs);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_USE_DB, (FSerializeFunc)tSerializeSUseDbReq, &usedbReq);

@@ -98,7 +98,7 @@ int32_t mndInitSma(SMnode *pMnode) {
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveIdx);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelRetrieveIdx);
-  
+
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TSMA, mndProcessCreateTSMAReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TSMA, mndProcessDropTSMAReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_TSMA, mndProcessGetTbTSMAReq);
@@ -616,7 +616,12 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 
   // check the maxDelay
   if (streamObj.conf.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
-    int64_t msInterval = convertTimeFromPrecisionToUnit(pCreate->interval, pDb->cfg.precision, TIME_UNIT_MILLISECOND);
+    int64_t msInterval = -1;
+    int32_t code = convertTimeFromPrecisionToUnit(pCreate->interval, pDb->cfg.precision, TIME_UNIT_MILLISECOND, &msInterval);
+    if (TSDB_CODE_SUCCESS != code) {
+      mError("sma:%s, failed to create since convert time failed: %s", smaObj.name, tstrerror(code));
+      return code;
+    }
     streamObj.conf.triggerParam = msInterval > TSDB_MIN_ROLLUP_MAX_DELAY ? msInterval : TSDB_MIN_ROLLUP_MAX_DELAY;
   }
   if (streamObj.conf.triggerParam > TSDB_MAX_ROLLUP_MAX_DELAY) {
