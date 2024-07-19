@@ -1166,7 +1166,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
     int32_t winCode = TSDB_CODE_SUCCESS;
     code = pAPI->stateStore.streamStateGetParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, &tbname,
                                                   false, &winCode);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (winCode == TSDB_CODE_SUCCESS) {
       memcpy(pDest->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
@@ -1199,7 +1199,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   void*   pValue = NULL;
   int32_t winCode = TSDB_CODE_SUCCESS;
   code = pAPI->streamStateGetParName(pState, groupId, &pValue, true, &winCode);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (winCode != TSDB_CODE_SUCCESS) {
     SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
@@ -1209,7 +1209,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
     if (pTableSup->numOfExprs > 0) {
       code = projectApplyFunctions(pTableSup->pExprInfo, pDestBlock, pTmpBlock, pTableSup->pCtx, pTableSup->numOfExprs,
                                    NULL);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       SColumnInfoData* pTbCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
       memset(tbName, 0, TSDB_TABLE_NAME_LEN);
@@ -1222,7 +1222,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
         len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
         memcpy(tbName, varDataVal(pData), len);
         code = pAPI->streamStatePutParName(pState, groupId, tbName);
-        TSDB_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
@@ -1234,7 +1234,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
 
     if (pTagSup->numOfExprs > 0) {
       code = projectApplyFunctions(pTagSup->pExprInfo, pDestBlock, pTmpBlock, pTagSup->pCtx, pTagSup->numOfExprs, NULL);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
       pDestBlock->info.rows--;
     } else {
       memcpy(pDestBlock->info.parTbName, pTmpBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
@@ -1242,7 +1242,7 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
     code = colDataSetVal(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
     pDestBlock->info.rows++;
     blockDataDestroy(pTmpBlock);
   } else {
@@ -1269,14 +1269,14 @@ static int32_t buildStreamCreateTableResult(SOperatorInfo* pOperator) {
   }
   blockDataCleanup(pInfo->pCreateTbRes);
   code = blockDataEnsureCapacity(pInfo->pCreateTbRes, taosHashGetSize(pInfo->pPartitions));
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (pInfo->pTbNameIte != NULL) {
     SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->pTbNameIte;
     int32_t             rowId = *(int32_t*)taosArrayGet(pParInfo->rowIds, 0);
     code = appendCreateTableRow(pTask->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup, pParInfo->groupId,
                                 pSrc, rowId, pInfo->pCreateTbRes, &pTask->storageAPI.stateStore);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
     pInfo->pTbNameIte = taosHashIterate(pInfo->pPartitions, pInfo->pTbNameIte);
   }
 
@@ -1318,7 +1318,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
 
   if (hasRemainTbName(pInfo)) {
     code = buildStreamCreateTableResult(pOperator);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
     if (pInfo->pCreateTbRes && pInfo->pCreateTbRes->info.rows > 0) {
       return pInfo->pCreateTbRes;
     }
@@ -1373,7 +1373,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
   pInfo->parIte = taosHashIterate(pInfo->pPartitions, NULL);
   pInfo->pTbNameIte = taosHashIterate(pInfo->pPartitions, NULL);
   code = buildStreamCreateTableResult(pOperator);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
   if (pInfo->pCreateTbRes && pInfo->pCreateTbRes->info.rows > 0) {
     return pInfo->pCreateTbRes;
   }
@@ -1569,10 +1569,10 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
   code = initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup, &pInfo->tbnameCalSup);
-  TSDB_CHECK_CODE(code, lino, _error);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   code = appendDownstream(pOperator, &downstream, 1);
-  TSDB_CHECK_CODE(code, lino, _error);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   return pOperator;
 
