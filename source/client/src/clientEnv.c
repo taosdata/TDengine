@@ -886,7 +886,11 @@ void taos_init_imp(void) {
 #endif
 
   initTaskQueue();
-  fmFuncMgtInit();
+  if (fmFuncMgtInit() != TSDB_CODE_SUCCESS) {
+    tscInitRes = -1;
+    tscError("failed to init function manager");
+    return;
+  }
   nodesInitAllocatorSet();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
