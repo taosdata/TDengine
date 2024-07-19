@@ -93,7 +93,6 @@ class TDTestCase(TBase):
                      "smlTsDefaultName tsdef",
                      "serverPort 6030",
                      "timezone tz",
-                     "tempDir /var/tmp"
                   ]
         cfg = self.getCfgDir()
         # exec
