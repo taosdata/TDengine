@@ -495,7 +495,9 @@ static int32_t tfsMount(STfs *pTfs, SDiskCfg *pCfg) {
   }
 
   SDiskID   did = {.level = pCfg->level};
-  STfsDisk *pDisk = tfsMountDiskToTier(TFS_TIER_AT(pTfs, did.level), pCfg);
+  STfsDisk *pDisk = NULL;
+  
+  tfsMountDiskToTier(TFS_TIER_AT(pTfs, did.level), pCfg, &pDisk);
   if (pDisk == NULL) {
     fError("failed to mount disk %s to level %d since %s", pCfg->dir, pCfg->level, terrstr());
     return -1;
@@ -515,33 +517,28 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
 
   if (pCfg->level < 0 || pCfg->level >= TFS_MAX_TIERS) {
     fError("failed to mount %s to FS since invalid level %d", pCfg->dir, pCfg->level);
-    terrno = TSDB_CODE_FS_INVLD_CFG;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
   if (pCfg->primary < 0 || pCfg->primary > 1) {
     fError("failed to mount %s to FS since invalid primary %d", pCfg->dir, pCfg->primary);
-    terrno = TSDB_CODE_FS_INVLD_CFG;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
   if (pCfg->disable < 0 || pCfg->disable > 1) {
     fError("failed to mount %s to FS since invalid disable %" PRIi8, pCfg->dir, pCfg->disable);
-    terrno = TSDB_CODE_FS_INVLD_CFG;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
   if (pCfg->primary) {
     if (pCfg->level != 0) {
       fError("failed to mount %s to FS since disk is primary but level %d not 0", pCfg->dir, pCfg->level);
-      terrno = TSDB_CODE_FS_INVLD_CFG;
-      return -1;
+      TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
     }
 
     if (TFS_PRIMARY_DISK(pTfs) != NULL) {
       fError("failed to mount %s to FS since duplicate primary mount", pCfg->dir);
-      terrno = TSDB_CODE_FS_DUP_PRIMARY;
-      return -1;
+      TAOS_RETURN(TSDB_CODE_FS_DUP_PRIMARY);
     }
   }
 
@@ -578,15 +575,14 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
 
   int32_t code = wordexp(idir, &wep, 0);
   if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(code));
   }
 
   char tmp[PATH_MAX] = {0};
   if (taosRealPath(wep.we_wordv[0], tmp, PATH_MAX) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     wordfree(&wep);
-    return -1;
+    TAOS_RETURN(code);
   }
   strcpy(odir, tmp);
 
@@ -597,23 +593,20 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
 static int32_t tfsCheck(STfs *pTfs) {
   if (TFS_PRIMARY_DISK(pTfs) == NULL) {
     fError("no primary disk is set");
-    terrno = TSDB_CODE_FS_NO_PRIMARY_DISK;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_FS_NO_PRIMARY_DISK);
   }
 
   for (int32_t level = 0; level < pTfs->nlevel; level++) {
     if (TFS_TIER_AT(pTfs, level)->ndisk == 0) {
       fError("no disk at level %d", level);
-      terrno = TSDB_CODE_FS_NO_MOUNT_AT_TIER;
-      return -1;
+      TAOS_RETURN(TSDB_CODE_FS_NO_MOUNT_AT_TIER);
     }
 
     if (level == 0) {
       tfsUpdateTierSize(TFS_TIER_AT(pTfs, level));
       if (TFS_TIER_AT(pTfs, level)->nAvailDisks == 0) {
         fError("no disk to create new file at level %d", level);
-        terrno = TSDB_CODE_FS_NO_VALID_DISK;
-        return -1;
+        TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
       }
     }
   }
@@ -684,7 +677,9 @@ static STfsDisk *tfsNextDisk(STfs *pTfs, SDiskIter *pIter) {
 
 int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
   pInfo->datadirs = taosArrayInit(32, sizeof(SMonDiskDesc));
-  if (pInfo->datadirs == NULL) return -1;
+  if (pInfo->datadirs == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   tfsUpdateSize(pTfs);
 
@@ -697,7 +692,12 @@ int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
       dinfo.size = pDisk->size;
       dinfo.level = pDisk->level;
       tstrncpy(dinfo.name, pDisk->path, sizeof(dinfo.name));
-      taosArrayPush(pInfo->datadirs, &dinfo);
+      if (taosArrayPush(pInfo->datadirs, &dinfo) == NULL) {
+        tfsUnLock(pTfs);
+        taosArrayDestroy(pInfo->datadirs);
+        pInfo->datadirs = NULL;
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
   }
   tfsUnLock(pTfs);
