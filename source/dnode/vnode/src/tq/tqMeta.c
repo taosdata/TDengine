@@ -263,7 +263,7 @@ static int buildHandle(STQ* pTq, STqHandle* handle) {
 
   handle->pRef = walOpenRef(pVnode->pWal);
   if (handle->pRef == NULL) {
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   TAOS_CHECK_RETURN(walSetRefVer(handle->pRef, handle->snapshotVer));
