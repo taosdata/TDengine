@@ -183,6 +183,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   }
 
   pBoundInfo->numOfBound = 0;
+  pBoundInfo->hasBoundCols = true;
 
   bool    hasPK = pTableMeta->tableInfo.numOfPKs;
   int16_t numOfBoundPKs = 0;
@@ -1379,6 +1380,8 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOp
 
   if (NULL != pStmt->pBoundCols) {
     return parseBoundColumns(pCxt, &pStmt->pBoundCols, BOUND_COLUMNS, pStmt->pTableMeta, &pTableCxt->boundColsInfo);
+  } else if (pTableCxt->boundColsInfo.hasBoundCols) {
+    insResetBoundColsInfo(&pTableCxt->boundColsInfo);
   }
 
   return TSDB_CODE_SUCCESS;
