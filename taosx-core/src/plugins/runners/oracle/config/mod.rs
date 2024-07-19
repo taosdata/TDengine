@@ -289,10 +289,22 @@ impl TaskConfig {
         sql = sql.replace("${Y}", start_tz.format("%Y").to_string().as_str());
         sql = sql.replace("${y}", start_tz.format("%y").to_string().as_str());
         sql = sql.replace("${m}", start_tz.format("%m").to_string().as_str());
+        sql = sql.replace(
+            "${M}",
+            start_tz.format("%m").to_string().trim_start_matches("0"),
+        );
         sql = sql.replace("${b}", start_tz.format("%b").to_string().as_str());
         sql = sql.replace("${B}", start_tz.format("%B").to_string().as_str());
         sql = sql.replace("${d}", start_tz.format("%d").to_string().as_str());
+        sql = sql.replace(
+            "${D}",
+            start_tz.format("%d").to_string().trim_start_matches("0"),
+        );
         sql = sql.replace("${j}", start_tz.format("%j").to_string().as_str());
+        sql = sql.replace(
+            "${J}",
+            start_tz.format("%j").to_string().trim_start_matches("0"),
+        );
         sql = sql.replace("${F}", start_tz.format("%F").to_string().as_str());
         sql = sql.replace("${Ymd}", start_tz.format("%Y%m%d").to_string().as_str());
         sql = sql.replace("${ymd}", start_tz.format("%y%m%d").to_string().as_str());
