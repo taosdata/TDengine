@@ -41,7 +41,7 @@
 
 #define RAW_RETURN_CHECK(c)                \
   do {                                     \
-    code == c;                            \
+    code = c;                            \
     if (code != 0) {                     \
       goto end;                          \
     }                                    \
@@ -1949,12 +1949,13 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
   SDecoder        coder;
   SMqBatchMetaRsp rsp = {0};
   int32_t         code = 0;
+  cJSON*          pJson = NULL;
   tDecoderInit(&coder, pMsgRsp->pMetaBuff, pMsgRsp->metaBuffLen);
   if (tDecodeMqBatchMetaRsp(&coder, &rsp) < 0) {
     goto end;
   }
 
-  cJSON* pJson = cJSON_CreateObject();
+  pJson = cJSON_CreateObject();
   RAW_NULL_CHECK(pJson);
   RAW_FALSE_CHECK(cJSON_AddStringToObject(pJson, "tmq_meta_version", TMQ_META_VERSION));
   cJSON* pMetaArr = cJSON_CreateArray();
@@ -1982,6 +1983,7 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
   char* fullStr = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
   *string = fullStr;
+  return;
 
 end:
   cJSON_Delete(pJson);
