@@ -357,7 +357,7 @@ static int32_t mOuterJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, bool* contLoop)
 
   do {
     startRowIdx = build->grpRowIdx;
-    mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build);
+    (void)mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build);
 
     if (pCtx->midBlk->info.rows > 0) {
       if (build->rowBitmapSize > 0) {
@@ -1283,7 +1283,7 @@ static int32_t mSemiJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, SMJoinGrpRows* p
   do {
     blockDataCleanup(pCtx->midBlk);
 
-    mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build);
+    (void)mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build);
 
     if (pCtx->midBlk->info.rows > 0) {
       MJ_ERR_RET(mJoinFilterAndKeepSingleRow(pCtx->midBlk, pCtx->pJoin->pPreFilter));
@@ -1358,7 +1358,7 @@ static int32_t mSemiJoinHashFullCart(SMJoinMergeCtx* pCtx) {
     build->pHashCurGrp = *(SArray**)pGrp;
     ASSERT(1 == taosArrayGetSize(build->pHashCurGrp));
     build->grpRowIdx = 0;
-    mJoinHashGrpCart(pCtx->finBlk, probeGrp, true, probe, build);
+    (void)mJoinHashGrpCart(pCtx->finBlk, probeGrp, true, probe, build);
     ASSERT(build->grpRowIdx < 0);
   }
 
@@ -1616,7 +1616,7 @@ static int32_t mAntiJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, SMJoinGrpRows* p
   do {
     blockDataCleanup(pCtx->midBlk);
 
-    mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build);
+    (void)mJoinHashGrpCart(pCtx->midBlk, probeGrp, true, probe, build);
 
     if (pCtx->midBlk->info.rows > 0) {
       MJ_ERR_RET(mJoinFilterAndNoKeepRows(pCtx->midBlk, pCtx->pJoin->pPreFilter));
@@ -2102,7 +2102,9 @@ int32_t mAsofBackwardHandleGrpRemains(SMJoinWindowCtx* pCtx) {
   return (pCtx->lastEqGrp) ? mAsofBackwardDumpUpdateEqRows(pCtx, pCtx->pJoin, false, true) : mAsofBackwardDumpGrpCache(pCtx);
 }
 
-static bool mAsofBackwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin, SMJoinWindowCtx* pCtx) {
+static int32_t mAsofBackwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin, SMJoinWindowCtx* pCtx, bool* newBlock) {
+  *newBlock = false;
+  
   bool probeGot = mJoinRetrieveBlk(pJoin, &pJoin->probe->blkRowIdx, &pJoin->probe->blk, pJoin->probe);
   bool buildGot = false;
 
@@ -2116,7 +2118,7 @@ static bool mAsofBackwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* 
         mJoinSetDone(pOperator);
       }
 
-      return false;
+      return TSDB_CODE_SUCCESS;
     }
     
     break;
@@ -2124,13 +2126,18 @@ static bool mAsofBackwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* 
 
   if (buildGot && NULL == pCtx->cache.outBlk) {
     pCtx->cache.outBlk = createOneDataBlock(pJoin->build->blk, false);
-    blockDataEnsureCapacity(pCtx->cache.outBlk, pCtx->jLimit);
+    if (NULL == pCtx->cache.outBlk) {
+      MJ_ERR_RET(terrno);
+    }
+    MJ_ERR_RET(blockDataEnsureCapacity(pCtx->cache.outBlk, pCtx->jLimit));
   }
 
   pCtx->probeGrp.blk = pJoin->probe->blk;
   pCtx->buildGrp.blk = pJoin->build->blk;
 
-  return true;
+  *newBlock = true;
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -2142,6 +2149,7 @@ SSDataBlock* mAsofBackwardJoinDo(struct SOperatorInfo* pOperator) {
   int64_t buildTs = 0;
   SColumnInfoData* pBuildCol = NULL;
   SColumnInfoData* pProbeCol = NULL;
+  bool newBlock = false;
 
   blockDataCleanup(pCtx->finBlk);
 
@@ -2154,7 +2162,8 @@ SSDataBlock* mAsofBackwardJoinDo(struct SOperatorInfo* pOperator) {
   }
 
   do {
-    if (!mAsofBackwardRetrieve(pOperator, pJoin, pCtx)) {
+    MJ_ERR_JRET(mAsofBackwardRetrieve(pOperator, pJoin, pCtx, &newBlock));
+    if (!newBlock) {
       if (pCtx->groupJoin && pCtx->finBlk->info.rows <= 0 && !mJoinIsDone(pOperator)) {
         continue;
       }
@@ -2271,7 +2280,7 @@ int32_t mAsofForwardChkFillGrpCache(SMJoinWindowCtx* pCtx) {
         pGrp->readIdx = 0;
         //pGrp->endIdx = pGrp->blk->info.rows - 1;
       } else {
-        taosArrayPop(pCache->grps);
+        (void)taosArrayPop(pCache->grps);
         pGrp = taosArrayGet(pCache->grps, 0);
         ASSERT(pGrp->blk == pCache->outBlk);
         //pGrp->endIdx = pGrp->blk->info.rows - pGrp->beginIdx;
@@ -2479,7 +2488,9 @@ int32_t mAsofForwardSkipBuildGrp(SMJoinWindowCtx* pCtx, SMJoinOperatorInfo* pJoi
   return TSDB_CODE_SUCCESS;
 }
 
-static bool mAsofForwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin, SMJoinWindowCtx* pCtx) {
+static int32_t mAsofForwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin, SMJoinWindowCtx* pCtx, bool* newBlock) {
+  *newBlock = false;
+
   bool probeGot = mJoinRetrieveBlk(pJoin, &pJoin->probe->blkRowIdx, &pJoin->probe->blk, pJoin->probe);
   bool buildGot = false;
 
@@ -2516,7 +2527,10 @@ static bool mAsofForwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* p
   if (buildGot && pJoin->build->newBlk) {
     if (NULL == pCtx->cache.outBlk) {
       pCtx->cache.outBlk = createOneDataBlock(pJoin->build->blk, false);
-      blockDataEnsureCapacity(pCtx->cache.outBlk, pCtx->jLimit);
+      if (NULL == pCtx->cache.outBlk) {
+        MJ_ERR_RET(terrno);
+      }
+      MJ_ERR_RET(blockDataEnsureCapacity(pCtx->cache.outBlk, pCtx->jLimit));
     }
     
     MJOIN_PUSH_BLK_TO_CACHE(&pCtx->cache, pJoin->build->blk);
@@ -2537,6 +2551,7 @@ SSDataBlock* mAsofForwardJoinDo(struct SOperatorInfo* pOperator) {
   int64_t buildTs = 0;
   SColumnInfoData* pBuildCol = NULL;
   SColumnInfoData* pProbeCol = NULL;
+  bool newBlock = false;
 
   blockDataCleanup(pCtx->finBlk);
 
@@ -2549,7 +2564,8 @@ SSDataBlock* mAsofForwardJoinDo(struct SOperatorInfo* pOperator) {
   }
 
   do {
-    if (!mAsofForwardRetrieve(pOperator, pJoin, pCtx)) {
+    MJ_ERR_JRET(mAsofForwardRetrieve(pOperator, pJoin, pCtx, &newBlock));
+    if (!newBlock) {
       if (pCtx->groupJoin && pCtx->finBlk->info.rows <= 0 && !mJoinIsDone(pOperator)) {
         continue;
       }
@@ -2643,7 +2659,7 @@ static FORCE_INLINE void mWinJoinPopFrontGroup(SMJoinWindowCtx* pCtx, SMJoinGrpR
   if (pGrp->blk == pCtx->cache.outBlk) {
     blockDataCleanup(pGrp->blk);
   } else if (pGrp->clonedBlk) {
-    blockDataDestroy(pGrp->blk);
+    (void)blockDataDestroy(pGrp->blk);
   }
   
   taosArrayPopFrontBatch(pCtx->cache.grps, 1);
@@ -2667,6 +2683,10 @@ static int32_t mWinJoinCloneCacheBlk(SMJoinWindowCtx* pCtx) {
       pGrp->beginIdx = 0;
       pGrp->readIdx = 0;
     }
+
+    if (NULL == pGrp->blk) {
+      MJ_ERR_RET(terrno);
+    }
     
     pGrp->clonedBlk = true;
   }
@@ -2674,14 +2694,16 @@ static int32_t mWinJoinCloneCacheBlk(SMJoinWindowCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool mWinJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin, SMJoinWindowCtx* pCtx) {
+static int32_t mWinJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin, SMJoinWindowCtx* pCtx, bool* newBlock) {
+  *newBlock = false;
+  
   bool probeGot = mJoinRetrieveBlk(pJoin, &pJoin->probe->blkRowIdx, &pJoin->probe->blk, pJoin->probe);
   bool buildGot = false;
 
   do {
     if (probeGot || MJOIN_DS_NEED_INIT(pOperator, pJoin->build)) { 
       if (NULL == pJoin->build->blk) {
-        mWinJoinCloneCacheBlk(pCtx);
+        MJ_ERR_RET(mWinJoinCloneCacheBlk(pCtx));
       }
       
       buildGot = mJoinRetrieveBlk(pJoin, &pJoin->build->blkRowIdx, &pJoin->build->blk, pJoin->build);
@@ -2692,7 +2714,7 @@ static bool mWinJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin
         mJoinSetDone(pOperator);
       }
       
-      return false;
+      return TSDB_CODE_SUCCESS;
     }
 
     if (buildGot && pCtx->forwardRowsAcq) {
@@ -2709,8 +2731,9 @@ static bool mWinJoinRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo* pJoin
   } while (true);
 
   pCtx->probeGrp.blk = pJoin->probe->blk;
-
-  return true;
+  *newBlock = true;
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mWinJoinTryAddWinBeginBlk(SMJoinWindowCtx* pCtx, SMJoinWinCache* pCache, SMJoinTableCtx* build, bool* winEnd) {
@@ -3220,6 +3243,7 @@ SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t probeTs = 0;
   SColumnInfoData* pProbeCol = NULL;
+  bool newBlock = false;
 
   blockDataCleanup(pCtx->finBlk);
 
@@ -3232,7 +3256,8 @@ SSDataBlock* mWinJoinDo(struct SOperatorInfo* pOperator) {
   }
 
   do {
-    if (!mWinJoinRetrieve(pOperator, pJoin, pCtx)) {
+    MJ_ERR_JRET(mWinJoinRetrieve(pOperator, pJoin, pCtx, &newBlock));
+    if (!newBlock) {
       if (pCtx->groupJoin && pCtx->finBlk->info.rows <= 0 && !mJoinIsDone(pOperator)) {
         continue;
       }
@@ -3367,7 +3392,7 @@ int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* p
   }
 
   pCtx->finBlk = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
-  blockDataEnsureCapacity(pCtx->finBlk, mJoinGetFinBlkCapacity(pJoin, pJoinNode));
+  MJ_ERR_RET(blockDataEnsureCapacity(pCtx->finBlk, mJoinGetFinBlkCapacity(pJoin, pJoinNode)));
 
   pCtx->blkThreshold = pCtx->finBlk->info.capacity * MJOIN_BLK_THRESHOLD_RATIO;
 
@@ -3407,11 +3432,14 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
   pCtx->finBlk = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
   ASSERT(pJoinNode->node.pOutputDataBlockDesc->totalRowSize > 0);
 
-  blockDataEnsureCapacity(pCtx->finBlk, mJoinGetFinBlkCapacity(pJoin, pJoinNode));
+  MJ_ERR_RET(blockDataEnsureCapacity(pCtx->finBlk, mJoinGetFinBlkCapacity(pJoin, pJoinNode)));
   
   if (pJoin->pFPreFilter) {
     pCtx->midBlk = createOneDataBlock(pCtx->finBlk, false);
-    blockDataEnsureCapacity(pCtx->midBlk, pCtx->finBlk->info.capacity);
+    if (NULL == pCtx->midBlk) {
+      MJ_ERR_RET(terrno);
+    }
+    MJ_ERR_RET(blockDataEnsureCapacity(pCtx->midBlk, pCtx->finBlk->info.capacity));
   }
 
   pCtx->blkThreshold = pCtx->finBlk->info.capacity * MJOIN_BLK_THRESHOLD_RATIO;

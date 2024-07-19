@@ -1147,6 +1147,7 @@ void mJoinResetForBuildTable(SMJoinTableCtx* pTable) {
 int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart) {
   SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCtx.targetSlotId);
   SMJoinGrpRows* pGrp = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   if (*(int64_t*)colDataGetNumData(pCol, pTable->blkRowIdx) != timestamp) {
     return TSDB_CODE_SUCCESS;
@@ -1207,7 +1208,12 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
     
     if (0 == pGrp->beginIdx && pTable->multiEqGrpRows && 0 == pTable->eqRowLimit) {
       pGrp->blk = createOneDataBlock(pTable->blk, true);
-      taosArrayPush(pTable->createdBlks, &pGrp->blk);
+      if (NULL == pGrp->blk) {
+        MJ_ERR_JRET(terrno);
+      }
+      if (NULL == taosArrayPush(pTable->createdBlks, &pGrp->blk)) {
+        MJ_ERR_JRET(terrno);
+      }
     } else {
       if (!pTable->multiEqGrpRows) {
         pGrp->endIdx = pGrp->beginIdx;
