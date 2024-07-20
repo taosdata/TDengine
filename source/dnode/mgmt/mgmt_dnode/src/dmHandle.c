@@ -45,7 +45,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
   int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
-  void *              pHead = rpcMallocCont(contLen);
+  void               *pHead = rpcMallocCont(contLen);
   tSerializeRetrieveIpWhite(pHead, contLen, &req);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
@@ -146,7 +146,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
-  void *  pHead = rpcMallocCont(contLen);
+  void   *pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
@@ -180,7 +180,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
 void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
   int32_t contLen = tSerializeSNotifyReq(NULL, 0, pReq);
-  void *  pHead = rpcMallocCont(contLen);
+  void   *pHead = rpcMallocCont(contLen);
   tSerializeSNotifyReq(pHead, contLen, pReq);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
@@ -218,9 +218,10 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SConfig *pCfg = taosGetCfg();
 
   code = cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
-  if (code != 0) {
-    return code;
-  }
+  // not care succ or not
+  // if (code != 0) {
+  //   return code;
+  // }
 
   return taosCfgDynamicOptions(pCfg, cfgReq.config, true);
 }
