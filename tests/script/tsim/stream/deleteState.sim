@@ -18,6 +18,8 @@ sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(b) c3 from t1 state_window(a);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sleep 1000
 sql delete from t1 where ts = 1648791213000;
@@ -194,6 +196,8 @@ sql create table t2 using st tags(2,2,2);
 
 print create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4 as select  _wstart, count(*) c1 from st partition by tbname state_window(c);
 sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname state_window(c);
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791210000,1,2,1);
 sql insert into t1 values(1648791220000,2,2,2);

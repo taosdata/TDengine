@@ -555,7 +555,8 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
         pSource->pageIndex = -1;
-        pSource->src.pBlock = blockDataDestroy(pSource->src.pBlock);
+        blockDataDestroy(pSource->src.pBlock);
+        pSource->src.pBlock = NULL;
       } else {
         if (pSource->pageIndex % 512 == 0) {
           qDebug("begin source %p page %d", pSource, pSource->pageIndex);

@@ -180,6 +180,7 @@ void insInitColValues(STableMeta* pTableMeta, SArray* aColValues) { initColValue
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   pInfo->numOfCols = numOfBound;
   pInfo->numOfBound = numOfBound;
+  pInfo->hasBoundCols = false;
   pInfo->pColIndex = taosMemoryCalloc(numOfBound, sizeof(int16_t));
   if (NULL == pInfo->pColIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -188,6 +189,14 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
     pInfo->pColIndex[i] = i;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+void insResetBoundColsInfo(SBoundColInfo* pInfo) {
+  pInfo->numOfBound = pInfo->numOfCols;
+  pInfo->hasBoundCols = false;
+  for (int32_t i = 0; i < pInfo->numOfCols; ++i) {
+    pInfo->pColIndex[i] = i;
+  }
 }
 
 void insCheckTableDataOrder(STableDataCxt* pTableCxt, SRowKey* rowKey) {
