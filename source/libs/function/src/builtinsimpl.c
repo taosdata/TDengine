@@ -2213,8 +2213,8 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
       double v = 0;
       GET_TYPED_DATA(v, double, type, data);
       int32_t code = tHistogramAdd(&pInfo->pHisto, v);
-      if (code != 0) {
-        return TSDB_CODE_FAILED;
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
     }
 
@@ -2227,7 +2227,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* pOutput, bool* hasRes) {
+static int32_t apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* pOutput, bool* hasRes) {
   pOutput->percent = pInput->percent;
   pOutput->algo = pInput->algo;
   if (pOutput->algo == APERCT_ALGO_TDIGEST) {
@@ -2276,7 +2276,12 @@ static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* 
       qDebug("%s input histogram, elem:%" PRId64 ", entry:%d, %p", __FUNCTION__, pHisto->numOfElems,
              pHisto->numOfEntries, pInput->pHisto);
 
-      SHistogramInfo* pRes = tHistogramMerge(pHisto, pInput->pHisto, MAX_HISTOGRAM_BIN);
+      SHistogramInfo* pRes = NULL;
+      int32_t code = tHistogramMerge(pHisto, pInput->pHisto, MAX_HISTOGRAM_BIN, &pRes);
+      if (TSDB_CODE_SUCCESS != pRes) {
+        tHistogramDestroy(&pRes);
+        return code;
+      }
       (void)memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
       pHisto->elems = (SHistBin*)((char*)pHisto + sizeof(SHistogramInfo));
 
@@ -2307,7 +2312,10 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
     char* data = colDataGetData(pCol, i);
 
     SAPercentileInfo* pInputInfo = (SAPercentileInfo*)varDataVal(data);
-    apercentileTransferInfo(pInputInfo, pInfo, &hasRes);
+    int32_t code = apercentileTransferInfo(pInputInfo, pInfo, &hasRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   if (pInfo->algo != APERCT_ALGO_TDIGEST) {
@@ -2340,7 +2348,12 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
              pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto, pInfo->pHisto->elems);
 
       double  ratio[] = {pInfo->percent};
-      double* res = tHistogramUniform(pInfo->pHisto, ratio, 1);
+      double* res = NULL;
+      int32_t code = tHistogramUniform(pInfo->pHisto, ratio, 1, &res);
+      if (TSDB_CODE_SUCCESS != code) {
+        taosMemoryFree(res);
+        return code;
+      }
       pInfo->result = *res;
       // memcpy(pCtx->pOutput, res, sizeof(double));
       taosMemoryFree(res);
@@ -2391,7 +2404,10 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
 
   qDebug("%s start to combine apercentile, %p", __FUNCTION__, pDBuf->pHisto);
 
-  apercentileTransferInfo(pSBuf, pDBuf, NULL);
+  int32_t code = apercentileTransferInfo(pSBuf, pDBuf, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
