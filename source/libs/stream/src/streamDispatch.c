@@ -1226,10 +1226,6 @@ static bool setDispatchRspInfo(SDispatchMsgInfo* pMsgInfo, int32_t vgId, int32_t
     SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, i);
     if (pEntry->rspTs != -1) {
       numOfRsp += 1;
-    } else {
-      if (pEntry->status != TSDB_CODE_SUCCESS || isDispatchRspTimeout(pEntry, now)) {
-        numOfFailed += 1;
-      }
     }
   }
 
@@ -1250,6 +1246,14 @@ static bool setDispatchRspInfo(SDispatchMsgInfo* pMsgInfo, int32_t vgId, int32_t
                 numOfRsp, numOfDispatchBranch);
       }
       break;
+    }
+  }
+
+  // this code may be error code.
+  for (int32_t i = 0; i < numOfDispatchBranch; ++i) {
+    SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, i);
+    if (pEntry->status != TSDB_CODE_SUCCESS || isDispatchRspTimeout(pEntry, now)) {
+      numOfFailed += 1;
     }
   }
 
