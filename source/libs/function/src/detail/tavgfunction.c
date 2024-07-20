@@ -853,14 +853,17 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t              resultBytes = getAvgInfoSize();
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
-  memcpy(varDataVal(res), pInfo, resultBytes);
+  if (NULL == res) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
-  colDataSetVal(pCol, pBlock->info.rows, res, false);
+  int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
 
   taosMemoryFree(res);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
