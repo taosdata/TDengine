@@ -202,8 +202,9 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
 
     SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, i, pTableScanInfo->base.pdInfo.pExprSup->rowEntryInfoOffset);
 
-    int32_t reqStatus = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo);
-    if (reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD) {
+    int32_t reqStatus;
+    code = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo, &reqStatus);
+    if (code != TSDB_CODE_SUCCESS || reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD) {
       notLoadBlock = false;
       break;
     }
@@ -595,11 +596,20 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     if (fmIsScanPseudoColumnFunc(functionId)) {
       int32_t fType = pExpr1->pExpr->_function.functionType;
       if (fType == FUNCTION_TYPE_TBNAME) {
-        setTbNameColData(pBlock, pColInfoData, functionId, val.pName);
+        code = setTbNameColData(pBlock, pColInfoData, functionId, val.pName);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       } else if (fType == FUNCTION_TYPE_VGID) {
-        setVgIdColData(pBlock, pColInfoData, functionId, pTask->id.vgId);
+        code = setVgIdColData(pBlock, pColInfoData, functionId, pTask->id.vgId);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       } else if (fType == FUNCTION_TYPE_VGVER) {
-        setVgVerColData(pBlock, pColInfoData, functionId, pBlock->info.version);
+        code = setVgVerColData(pBlock, pColInfoData, functionId, pBlock->info.version);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
     } else {  // these are tags
       STagVal tagVal = {0};
@@ -644,9 +654,13 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   return TSDB_CODE_SUCCESS;
 }
 
-void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, const char* name) {
+int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, const char* name) {
   struct SScalarFuncExecFuncs fpSet = {0};
-  fmGetScalarFuncExecFuncs(functionId, &fpSet);
+  int32_t code = fmGetScalarFuncExecFuncs(functionId, &fpSet);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("fmGetFuncExecFuncs failed, funcId:%d, code:%s", functionId, tstrerror(code));
+    return code;
+  }
 
   size_t len = TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE;
   char   buf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -667,12 +681,16 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
   }
 
   colDataDestroy(&infoData);
+  return code;
 }
 
-void setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int32_t vgId) {
+int32_t setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int32_t vgId) {
   struct SScalarFuncExecFuncs fpSet = {0};
-  fmGetScalarFuncExecFuncs(functionId, &fpSet);
-
+  int32_t code = fmGetScalarFuncExecFuncs(functionId, &fpSet);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("fmGetFuncExecFuncs failed, funcId:%d, code:%s", functionId, tstrerror(code));
+    return code;
+  }
   SColumnInfoData infoData = createColumnInfoData(pColInfoData->info.type, pColInfoData->info.bytes, 1);
 
   colInfoDataEnsureCapacity(&infoData, 1, false);
@@ -688,12 +706,16 @@ void setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, in
   }
 
   colDataDestroy(&infoData);
+  return code;
 }
 
-void setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer) {
+int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer) {
   struct SScalarFuncExecFuncs fpSet = {0};
-  fmGetScalarFuncExecFuncs(functionId, &fpSet);
-
+  int32_t code = fmGetScalarFuncExecFuncs(functionId, &fpSet);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("fmGetFuncExecFuncs failed, funcId:%d, code:%s", functionId, tstrerror(code));
+    return code;
+  }
   SColumnInfoData infoData = createColumnInfoData(pColInfoData->info.type, pColInfoData->info.bytes, 1);
 
   colInfoDataEnsureCapacity(&infoData, 1, false);
@@ -709,6 +731,7 @@ void setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, i
   }
 
   colDataDestroy(&infoData);
+  return code;
 }
 
 static void initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo, int32_t* size) {
