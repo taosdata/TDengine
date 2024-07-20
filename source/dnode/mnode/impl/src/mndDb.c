@@ -911,6 +911,7 @@ _exit:
 static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
+  int32_t      lino = 0;
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
@@ -947,15 +948,15 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), NULL, _OVER);
+  TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
 
   if (createReq.replications == 2) {
-    TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), NULL, _OVER);
+    TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), &lino, _OVER);
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _OVER);
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
@@ -974,7 +975,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to create since %s", createReq.db, terrstr());
+    mError("db:%s, failed to create at line:%d since %s", createReq.db, lino, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -1620,6 +1621,8 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDb(pMnode, dropReq.db);
   if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     if (dropReq.ignoreNotExists) {
       code = mndBuildDropDbRsp(pDb, &pReq->info.rspLen, &pReq->info.rsp, true);
     }
