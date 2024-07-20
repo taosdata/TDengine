@@ -24,6 +24,8 @@ sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   in
 sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(prev);
 sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt5 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(linear);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791210000,0,0,0,0.0,'aaa');
 sql insert into t1 values(1648791213000,1,1,1,1.0,'bbb');
 sql insert into t1 values(1648791215000,5,5,5,5.0,'ccc');

@@ -297,8 +297,17 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     sprintf(pStreamTask->exec.qmsg, "%s", RSMA_EXEC_TASK_FLAG);
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
-    pStreamTask->status.pSM = streamCreateStateMachine(pStreamTask);
-    pStreamTask->chkInfo.pActiveInfo = streamTaskCreateActiveChkptInfo();
+
+    int32_t code = streamCreateStateMachine(pStreamTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = streamTaskCreateActiveChkptInfo(&pStreamTask->chkInfo.pActiveInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, pStreamTask->id.streamId, pStreamTask->id.taskId);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
@@ -414,7 +423,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     goto _err;
   }
 
-  if (taosHashPut(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) < 0) {
+  if (taosHashPut(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) != 0) {
     goto _err;
   }
 
@@ -540,12 +549,12 @@ static int32_t tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid) 
           taosArrayDestroy(pUidArray);
           return TSDB_CODE_FAILED;
         }
-        if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), &pUidArray, sizeof(pUidArray)) < 0) {
+        if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), &pUidArray, sizeof(pUidArray)) != 0) {
           return TSDB_CODE_FAILED;
         }
       }
     } else {
-      if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), NULL, 0) < 0) {
+      if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), NULL, 0) != 0) {
         return TSDB_CODE_FAILED;
       }
     }

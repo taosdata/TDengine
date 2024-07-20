@@ -22,6 +22,8 @@ print create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   
 
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1 from t1 state_window(a);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1(ts) values(1648791213000);
 
 $loop_count = 0
@@ -105,6 +107,8 @@ sql create table t1(ts timestamp, a int, b int , c int, d double);
 print create stream streams2 trigger at_once  watermark 1000s IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select  _wstart, count(*) c1, count(d) c2 from t1 partition by b state_window(a)
 sql create stream streams2 trigger at_once  watermark 1000s IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select  _wstart, count(*) c1, count(d) c2 from t1 partition by b state_window(a);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791213010,1,2,3,1.1);
 
@@ -164,7 +168,7 @@ sql insert into t1 values(1648791213001,1,2,3,1.0);
 print create stream streams3 trigger at_once ignore expired 0 ignore update 0 fill_history 1 into streamt3 as select  _wstart, max(a), count(*) c1 from t1 state_window(a);
 sql create stream streams3 trigger at_once ignore expired 0 ignore update 0 fill_history 1 into streamt3 as select  _wstart, max(a), count(*) c1 from t1 state_window(a);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791203000,2,2,3,1.0);
 

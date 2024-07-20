@@ -220,7 +220,7 @@ void syslog(int unused, const char *format, ...);
 // Linux, length of name must <= 16 (the last '\0' included)
 #define setThreadName(name)     \
   do {                          \
-    prctl(PR_SET_NAME, (name)); \
+    (void)prctl(PR_SET_NAME, (name)); \
   } while (0)
 #define getThreadName(name)     \
   do {                          \

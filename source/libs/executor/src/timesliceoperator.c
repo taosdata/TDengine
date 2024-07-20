@@ -1087,7 +1087,8 @@ _error:
 void destroyTimeSliceOperatorInfo(void* param) {
   STimeSliceOperatorInfo* pInfo = (STimeSliceOperatorInfo*)param;
 
-  pInfo->pRes = blockDataDestroy(pInfo->pRes);
+  blockDataDestroy(pInfo->pRes);
+  pInfo->pRes = NULL;
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pPrevRow); ++i) {
     SGroupKeys* pKey = taosArrayGet(pInfo->pPrevRow, i);

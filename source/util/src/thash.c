@@ -316,7 +316,7 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t size) {
   if (pHashObj == NULL || key == NULL || keyLen == 0) {
     terrno = TSDB_CODE_INVALID_PTR;
-    return -1;
+    return TSDB_CODE_INVALID_PTR;
   }
 
   uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
@@ -331,6 +331,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   // disable resize
   taosHashRLock(pHashObj);
 
+  int32_t code = TSDB_CODE_SUCCESS;
   uint32_t    slot = HASH_INDEX(hashVal, pHashObj->capacity);
   SHashEntry *pe = pHashObj->hashList[slot];
 
@@ -352,36 +353,34 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     // no data in hash table with the specified key, add it into hash table
     SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
     if (pNewNode == NULL) {
-      return -1;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
+      goto _exit;
     }
 
     pushfrontNodeInEntryList(pe, pNewNode);
-    taosHashEntryWUnlock(pHashObj, pe);
-
-    // enable resize
-    taosHashRUnlock(pHashObj);
     atomic_add_fetch_64(&pHashObj->size, 1);
-
-    return 0;
   } else {
     // not support the update operation, return error
     if (pHashObj->enableUpdate) {
       SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
       if (pNewNode == NULL) {
-        return -1;
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
+        goto _exit;
       }
 
       doUpdateHashNode(pHashObj, pe, prev, pNode, pNewNode);
     } else {
       terrno = TSDB_CODE_DUP_KEY;
+      code = terrno;
+      goto _exit;
     }
-
-    taosHashEntryWUnlock(pHashObj, pe);
-
-    // enable resize
-    taosHashRUnlock(pHashObj);
-    return pHashObj->enableUpdate ? 0 : -2;
   }
+_exit:
+  taosHashEntryWUnlock(pHashObj, pe);
+  taosHashRUnlock(pHashObj);
+  return code;
 }
 
 static void *taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void **d, int32_t *size, bool addRef);

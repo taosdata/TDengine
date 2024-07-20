@@ -1523,9 +1523,9 @@ void blockDataFreeRes(SSDataBlock* pBlock) {
   memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
 }
 
-void* blockDataDestroy(SSDataBlock* pBlock) {
+void blockDataDestroy(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
-    return NULL;
+    return;
   }
 
   if (IS_VAR_DATA_TYPE(pBlock->info.pks[0].type)) {
@@ -1535,7 +1535,6 @@ void* blockDataDestroy(SSDataBlock* pBlock) {
 
   blockDataFreeRes(pBlock);
   taosMemoryFreeClear(pBlock);
-  return NULL;
 }
 
 // todo remove it
@@ -2468,19 +2467,18 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
 
 int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, char* cname) {
   if (stbFullName[0] == 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   SArray* tags = taosArrayInit(0, sizeof(SSmlKv));
   if (tags == NULL) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   if (cname == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     taosArrayDestroy(tags);
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
 
   int8_t      type = TSDB_DATA_TYPE_UBIGINT;

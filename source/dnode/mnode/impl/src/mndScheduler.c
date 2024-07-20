@@ -242,11 +242,11 @@ static int32_t doAddSinkTask(SStreamObj* pStream, SMnode* pMnode, SVgObj* pVgrou
   int64_t  uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
   SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
 
-  SStreamTask* pTask = tNewStreamTask(uid, TASK_LEVEL__SINK, pEpset, isFillhistory, 0, *pTaskList,
-                                      pStream->conf.fillHistory, pStream->subTableWithoutMd5);
-  if (pTask == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return terrno;
+  SStreamTask* pTask = NULL;
+  int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, pEpset, isFillhistory, 0, *pTaskList, pStream->conf.fillHistory,
+                                pStream->subTableWithoutMd5, &pTask);
+  if (code != 0) {
+    return code;
   }
 
   mDebug("doAddSinkTask taskId:%s, vgId:%d, isFillHistory:%d", pTask->id.idStr, pVgroup->vgId, isFillhistory);
@@ -353,18 +353,13 @@ static void haltInitialTaskStatus(SStreamTask* pTask, SSubplan* pPlan, bool isFi
   }
 }
 
-static SStreamTask* buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam) {
+static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam, SStreamTask** pTask) {
   uint64_t uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
   SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
 
-  SStreamTask* pTask =
-      tNewStreamTask(uid, TASK_LEVEL__SOURCE, pEpset, isFillhistory, useTriggerParam ? pStream->conf.triggerParam : 0,
-                     *pTaskList, pStream->conf.fillHistory, pStream->subTableWithoutMd5);
-  if (pTask == NULL) {
-    return NULL;
-  }
-
-  return pTask;
+  int32_t code = tNewStreamTask(uid, TASK_LEVEL__SOURCE, pEpset, isFillhistory, useTriggerParam ? pStream->conf.triggerParam : 0,
+                     *pTaskList, pStream->conf.fillHistory, pStream->subTableWithoutMd5, pTask);
+  return code;
 }
 
 static void addNewTaskList(SStreamObj* pStream) {
@@ -398,10 +393,10 @@ static void setHTasksId(SStreamObj* pStream) {
 
 static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream, SEpSet* pEpset, int64_t skey,
                                SArray* pVerList, SVgObj* pVgroup, bool isFillhistory, bool useTriggerParam) {
-  SStreamTask* pTask = buildSourceTask(pStream, pEpset, isFillhistory, useTriggerParam);
-  if (pTask == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return terrno;
+  SStreamTask* pTask = NULL;
+  int32_t code = buildSourceTask(pStream, pEpset, isFillhistory, useTriggerParam, &pTask);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   mDebug("doAddSourceTask taskId:%s, vgId:%d, isFillHistory:%d", pTask->id.idStr, pVgroup->vgId, isFillhistory);
@@ -412,10 +407,9 @@ static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStre
 
   streamTaskSetDataRange(pTask, skey, pVerList, pVgroup->vgId);
 
-  int32_t code = mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup);
-  if (code != 0) {
-    terrno = code;
-    return terrno;
+  code = mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   return TDB_CODE_SUCCESS;
@@ -498,28 +492,29 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
   return TSDB_CODE_SUCCESS;
 }
 
-static SStreamTask* buildAggTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam) {
+static int32_t buildAggTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam,
+                            SStreamTask** pAggTask) {
+  *pAggTask = NULL;
+
   uint64_t uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
   SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
 
-  SStreamTask* pAggTask =
+  int32_t code =
       tNewStreamTask(uid, TASK_LEVEL__AGG, pEpset, isFillhistory, useTriggerParam ? pStream->conf.triggerParam : 0,
-                     *pTaskList, pStream->conf.fillHistory, pStream->subTableWithoutMd5);
-  if (pAggTask == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  return pAggTask;
+                     *pTaskList, pStream->conf.fillHistory, pStream->subTableWithoutMd5, pAggTask);
+  return code;
 }
 
 static int32_t doAddAggTask(SStreamObj* pStream, SMnode* pMnode, SSubplan* plan, SEpSet* pEpset, SVgObj* pVgroup,
                             SSnodeObj* pSnode, bool isFillhistory, bool useTriggerParam) {
   int32_t      code = 0;
-  SStreamTask* pTask = buildAggTask(pStream, pEpset, isFillhistory, useTriggerParam);
-  if (pTask == NULL) {
-    return terrno;
+  SStreamTask* pTask = NULL;
+
+  code = buildAggTask(pStream, pEpset, isFillhistory, useTriggerParam, &pTask);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
+
   if (pSnode != NULL) {
     code = mndAssignStreamTaskToSnode(pMnode, pTask, plan, pSnode);
     mDebug("doAddAggTask taskId:%s, snode id:%d, isFillHistory:%d", pTask->id.idStr, pSnode->id, isFillhistory);

@@ -253,7 +253,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
 SSDataBlock* createDataBlock();
-void*        blockDataDestroy(SSDataBlock* pBlock);
+void         blockDataDestroy(SSDataBlock* pBlock);
 void         blockDataFreeRes(SSDataBlock* pBlock);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 SSDataBlock* createSpecialDataBlock(EStreamType type);

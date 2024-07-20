@@ -43,7 +43,9 @@ SStreamState *stateCreate(const char *path) {
   pTask->ver = 1024;
   pTask->id.streamId = 1023;
   pTask->id.taskId = 1111111;
-  SStreamMeta *pMeta = streamMetaOpen((path), NULL, NULL, NULL, 0, 0, NULL);
+  SStreamMeta *pMeta = NULL;
+
+  int32_t code = streamMetaOpen((path), NULL, NULL, NULL, 0, 0, NULL, &pMeta);
   pTask->pMeta = pMeta;
 
   SStreamState *p = streamStateOpen((char *)path, pTask, 0, 0);
