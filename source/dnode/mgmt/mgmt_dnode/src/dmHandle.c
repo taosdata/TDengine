@@ -218,10 +218,13 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SConfig *pCfg = taosGetCfg();
 
   code = cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
-  // not care succ or not
-  // if (code != 0) {
-  //   return code;
-  // }
+  if (code != 0) {
+    if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
+      code = 0;
+    } else {
+      return code;
+    }
+  }
 
   return taosCfgDynamicOptions(pCfg, cfgReq.config, true);
 }
