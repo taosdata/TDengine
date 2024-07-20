@@ -2278,7 +2278,7 @@ static int32_t apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInf
 
       SHistogramInfo* pRes = NULL;
       int32_t code = tHistogramMerge(pHisto, pInput->pHisto, MAX_HISTOGRAM_BIN, &pRes);
-      if (TSDB_CODE_SUCCESS != pRes) {
+      if (TSDB_CODE_SUCCESS != code) {
         tHistogramDestroy(&pRes);
         return code;
       }
