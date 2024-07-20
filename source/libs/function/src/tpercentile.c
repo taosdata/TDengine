@@ -28,9 +28,12 @@
 
 int32_t getGroupId(int32_t numOfSlots, int32_t slotIndex, int32_t times) { return (times * numOfSlots) + slotIndex; }
 
-static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) {
-  SFilePage *buffer =
+static int32_t loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx, SFilePage ** buffer) {
+  *buffer =
       (SFilePage *)taosMemoryCalloc(1, pMemBucket->bytes * pMemBucket->pSlots[slotIdx].info.size + sizeof(SFilePage));
+  if (NULL == *buffer) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   int32_t groupId = getGroupId(pMemBucket->numOfSlots, slotIdx, pMemBucket->times);
 
@@ -39,8 +42,8 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
   if (p != NULL) {
     pIdList = *(SArray **)p;
   } else {
-    taosMemoryFree(buffer);
-    return NULL;
+    taosMemoryFree(*buffer);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int32_t offset = 0;
@@ -49,16 +52,16 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
 
     SFilePage *pg = getBufPage(pMemBucket->pBuffer, *pageId);
     if (pg == NULL) {
-      taosMemoryFree(buffer);
-      return NULL;
+      taosMemoryFree(*buffer);
+      return terrno;
     }
 
-    memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
+    (void)memcpy((*buffer)->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
     offset += (int32_t)(pg->num * pMemBucket->bytes);
   }
 
-  taosSort(buffer->data, pMemBucket->pSlots[slotIdx].info.size, pMemBucket->bytes, pMemBucket->comparFn);
-  return buffer;
+  taosSort((*buffer)->data, pMemBucket->pSlots[slotIdx].info.size, pMemBucket->bytes, pMemBucket->comparFn);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void resetBoundingBox(MinMaxEntry *range, int32_t type) {
@@ -398,7 +401,14 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
       void *p = taosHashGet(pBucket->groupPagesMap, &groupId, sizeof(groupId));
       if (p == NULL) {
         pPageIdList = taosArrayInit(4, sizeof(int32_t));
-        taosHashPut(pBucket->groupPagesMap, &groupId, sizeof(groupId), &pPageIdList, POINTER_BYTES);
+        if (NULL == pPageIdList) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        int32_t code = taosHashPut(pBucket->groupPagesMap, &groupId, sizeof(groupId), &pPageIdList, POINTER_BYTES);
+        if (TSDB_CODE_SUCCESS != code) {
+          taosArrayDestroy(pPageIdList);
+          return code;
+        }
       } else {
         pPageIdList = *(SArray **)p;
       }
@@ -408,10 +418,13 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
         return terrno;
       }
       pSlot->info.pageId = pageId;
-      taosArrayPush(pPageIdList, &pageId);
+      if (taosArrayPush(pPageIdList, &pageId) == NULL) {
+        taosArrayDestroy(pPageIdList);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
 
-    memcpy(pSlot->info.data->data + pSlot->info.data->num * pBucket->bytes, d, pBucket->bytes);
+    (void)memcpy(pSlot->info.data->data + pSlot->info.data->num * pBucket->bytes, d, pBucket->bytes);
 
     pSlot->info.data->num += 1;
     pSlot->info.size += 1;
@@ -497,9 +510,10 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
 
       if (pSlot->info.size <= pMemBucket->maxCapacity) {
         // data in buffer and file are merged together to be processed.
-        SFilePage *buffer = loadDataFromFilePage(pMemBucket, i);
-        if (buffer == NULL) {
-          return terrno;
+        SFilePage *buffer = NULL;
+        int32_t code = loadDataFromFilePage(pMemBucket, i, &buffer);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
         }
 
         int32_t    currentIdx = count - num;

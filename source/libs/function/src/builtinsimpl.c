@@ -2235,7 +2235,7 @@ static int32_t apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInf
     tdigestAutoFill(pInput->pTDigest, COMPRESSION);
 
     if (pInput->pTDigest->num_centroids == 0 && pInput->pTDigest->num_buffered_pts == 0) {
-      return;
+      return TSDB_CODE_SUCCESS;
     }
 
     if (hasRes) {
@@ -2255,7 +2255,7 @@ static int32_t apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInf
   } else {
     buildHistogramInfo(pInput);
     if (pInput->pHisto->numOfElems <= 0) {
-      return;
+      return TSDB_CODE_SUCCESS;
     }
 
     if (hasRes) {
@@ -2290,6 +2290,7 @@ static int32_t apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInf
       tHistogramDestroy(&pRes);
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
