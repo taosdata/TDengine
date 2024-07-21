@@ -3655,7 +3655,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = qVgIdFunction,
     .finalizeFunc = NULL
   },
-  
+  {
+    .name = "_select_tag",
+    .type = FUNCTION_TYPE_SELECT_TAG,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateGroupKey,
+    .getEnvFunc   = getGroupKeyFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = groupKeyFunction,
+    .finalizeFunc = groupKeyFinalize,
+  },
 };
 // clang-format on
 

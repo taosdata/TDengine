@@ -6043,6 +6043,41 @@ _group_key_over:
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t selectValueFunciton(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SGroupKeyInfo*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  int32_t startIndex = pInput->startRowIndex;
+
+  // escape rest of data blocks to avoid first entry to be overwritten.
+  if (pInfo->hasResult) {
+    goto _group_key_over;
+  }
+
+  if (pInputCol->pData == NULL || colDataIsNull_s(pInputCol, startIndex)) {
+    pInfo->isNull = true;
+    pInfo->hasResult = true;
+    goto _group_key_over;
+  }
+
+  char* data = colDataGetData(pInputCol, startIndex);
+  if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
+    memcpy(pInfo->data, data,
+           (pInputCol->info.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(data) : varDataTLen(data));
+  } else {
+    memcpy(pInfo->data, data, pInputCol->info.bytes);
+  }
+  pInfo->hasResult = true;
+
+_group_key_over:
+
+  SET_VAL(pResInfo, 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);

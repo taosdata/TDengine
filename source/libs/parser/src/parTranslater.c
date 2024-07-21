@@ -2357,6 +2357,25 @@ static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode
   return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
 }
 
+static EDealRes rewriteExprToSelectTagFunc(STranslateContext* pCxt, SNode** pNode) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
+
+  strcpy(pFunc->functionName, "_select_tag");
+  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
+  strcpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias);
+  pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    *pNode = (SNode*)pFunc;
+    pCxt->errCode = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  }
+
+  return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -2445,6 +2464,17 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
     }
   }
+<<<<<<< HEAD
+=======
+  if (partionByTbname &&
+      (QUERY_NODE_FUNCTION == nodeType(*pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)*pNode)->funcType)) {
+    return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
+  }
+  if (partionByTbname &&
+      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
+    return rewriteExprToSelectTagFunc(pCxt->pTranslateCxt, pNode);
+  }
+>>>>>>> ebe0074da4 (fix: interp crash)
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     pCxt->existCol = true;
   }
@@ -3205,7 +3235,8 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static EDealRes needFillImpl(SNode* pNode, void* pContext) {
-  if ((isAggFunc(pNode) || isInterpFunc(pNode)) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType) {
+  if ((isAggFunc(pNode) || isInterpFunc(pNode)) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType
+  && FUNCTION_TYPE_SELECT_TAG != ((SFunctionNode*)pNode)->funcType) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
   }
