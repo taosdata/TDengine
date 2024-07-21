@@ -23,11 +23,14 @@
 extern "C" {
 #endif
 
-#define COL_DATA_SET_VAL_RET(pData, isNull, pObj)                              \
+#define COL_DATA_SET_VAL_GOTO(pData, isNull, pObj, LINO)                       \
   do {                                                                         \
     if ((code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
       if (pObj) sdbRelease(pSdb, (pObj));                                      \
-      return code;                                                             \
+      if (LINO) {                                                              \
+        *((int32_t *)(LINO)) = __LINE__;                                       \
+      }                                                                        \
+      goto _OVER;                                                              \
     }                                                                          \
   } while (0)
 

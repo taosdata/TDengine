@@ -123,7 +123,7 @@ static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 SHashObj       *mndFetchAllIpWhite(SMnode *pMnode);
 static int32_t  mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq);
-bool            mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type);
+static int32_t  mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, int8_t *pUpdate);
 
 void ipWhiteMgtUpdateAll(SMnode *pMnode);
 typedef struct {
@@ -136,8 +136,11 @@ static SIpWhiteMgt ipWhiteMgt;
 
 const static SIpV4Range defaultIpRange = {.ip = 16777343, .mask = 32};
 
-void ipWhiteMgtInit() {
+static int32_t ipWhiteMgtInit() {
   ipWhiteMgt.pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
+  if (ipWhiteMgt.pIpWhiteTab == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   ipWhiteMgt.ver = 0;
   taosThreadRwlockInit(&ipWhiteMgt.rw, NULL);
 }
@@ -147,13 +150,21 @@ void ipWhiteMgtCleanup() {
 }
 
 int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
-  bool update = true;
+  int32_t code = 0;
+  int32_t lino = 0;
+  bool    update = true;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   SIpWhiteList **ppList = taosHashGet(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
 
   if (ppList == NULL || *ppList == NULL) {
     SIpWhiteList *p = cloneIpWhiteList(pNew);
-    taosHashPut(ipWhiteMgt.pIpWhiteTab, user, strlen(user), &p, sizeof(void *));
+    if (p == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+    if ((code = taosHashPut(ipWhiteMgt.pIpWhiteTab, user, strlen(user), &p, sizeof(void *))) != 0) {
+      taosMemoryFree(p);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
+    }
   } else {
     SIpWhiteList *pOld = *ppList;
     if (isIpWhiteListEqual(pOld, pNew)) {
@@ -161,7 +172,13 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
     } else {
       taosMemoryFree(pOld);
       SIpWhiteList *p = cloneIpWhiteList(pNew);
-      taosHashPut(ipWhiteMgt.pIpWhiteTab, user, strlen(user), &p, sizeof(void *));
+      if (p == NULL) {
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
+      if ((code = taosHashPut(ipWhiteMgt.pIpWhiteTab, user, strlen(user), &p, sizeof(void *))) != 0) {
+        taosMemoryFree(p);
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
+      }
     }
   }
   SArray *fqdns = mndGetAllDnodeFqdns(pMnode);
@@ -185,6 +202,7 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
 
   if (update) ipWhiteMgt.ver++;
 
+_OVER:
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
   return 0;
 }
@@ -212,6 +230,7 @@ bool isRangeInWhiteList(SIpWhiteList *pList, SIpV4Range *range) {
   }
   return false;
 }
+#if 0
 int32_t ipWhiteUpdateForAllUser(SIpWhiteList *pList) {
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
 
@@ -256,6 +275,7 @@ int32_t ipWhiteUpdateForAllUser(SIpWhiteList *pList) {
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
   return 0;
 }
+#endif
 
 void ipWhiteMgtUpdateAll(SMnode *pMnode) {
   ipWhiteMgt.ver++;
@@ -292,7 +312,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   return ver;
 }
 
-bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type) {
+int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, bool *pUpdate) {
   bool       update = false;
   SIpV4Range range = {.ip = taosGetIpv4FromFqdn(fqdn), .mask = 32};
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
@@ -500,7 +520,7 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
 }
 
 int32_t mndInitUser(SMnode *pMnode) {
-  ipWhiteMgtInit();
+  TAOS_CHECK_REUTNR(ipWhiteMgtInit());
 
   SSdbTable table = {
       .sdbType = SDB_USER,
