@@ -806,7 +806,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
     taosThreadMutexUnlock(&pActiveInfo->lock);
 
     stDebug("s-task:%s start to monitor checkpoint-trigger in 10s", id);
-    taosTmrReset(checkpointTriggerMonitorFn, 100, pTask, streamTimer, &pActiveInfo->pChkptTriggerTmr);
+    taosTmrReset(checkpointTriggerMonitorFn, 200, pTask, streamTimer, &pTmrInfo->tmrHandle);
     return;
   }
 

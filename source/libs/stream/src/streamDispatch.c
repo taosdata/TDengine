@@ -838,8 +838,6 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   }
 
   SArray* pNotRspList = taosArrayInit(4, sizeof(int32_t));
-
-  int32_t num = taosArrayGetSize(pList);
   ASSERT(taosArrayGetSize(pTask->upstreamInfo.pList) == num);
 
   for (int32_t i = 0; i < num; ++i) {
