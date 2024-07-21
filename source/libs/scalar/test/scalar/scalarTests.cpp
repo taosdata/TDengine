@@ -143,9 +143,10 @@ int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t
 }
 
 int32_t scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
-  SNode      *node = (SNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  SNode  *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &node);
   if (NULL == node) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(code);
   }
   SValueNode *vnode = (SValueNode *)node;
   vnode->node.resType.type = dataType;
@@ -168,9 +169,10 @@ int32_t scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 
 int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum,
                            void *value) {
-  SNode       *node = (SNode *)nodesMakeNode(QUERY_NODE_COLUMN);
+  SNode       *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, &node);
   if (NULL == node) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(code);
   }
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
@@ -182,7 +184,6 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
     SCL_RET(TSDB_CODE_SUCCESS);
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == *block) {
     SSDataBlock *res = createDataBlock();
     for (int32_t i = 0; i < 2; ++i) {
@@ -266,9 +267,10 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
 
 int32_t scltMakeOpNode2(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight,
                      bool isReverse) {
-  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_OPERATOR);
+  SNode  *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, &node);
   if (NULL == node) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(code);
   }
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
@@ -288,9 +290,10 @@ int32_t scltMakeOpNode2(SNode **pNode, EOperatorType opType, int32_t resType, SN
 }
 
 int32_t scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight) {
-  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_OPERATOR);
+  SNode         *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, &node);
   if (NULL == node) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(code);
   }
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
@@ -305,9 +308,10 @@ int32_t scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNo
 }
 
 int32_t scltMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
-  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNode         *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_NODE_LIST, &node);
   if (NULL == node) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(code);
   }
   SNodeListNode *lnode = (SNodeListNode *)node;
   lnode->node.resType.type = resType;
@@ -318,16 +322,21 @@ int32_t scltMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 }
 
 int32_t scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeList, int32_t nodeNum) {
-  SNode               *node = (SNode *)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SNode               *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &node);
   if (NULL == node) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(code);
   }
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
   onode->node.resType.bytes = sizeof(bool);
 
-  onode->pParameterList = nodesMakeList();
+  onode->pParameterList = NULL;
+  code = nodesMakeList(&onode->pParameterList);
+  if (TSDB_CODE_SUCCESS != code) {
+    SCL_ERR_RET(code);
+  }
   for (int32_t i = 0; i < nodeNum; ++i) {
     SCL_ERR_RET(nodesListAppend(onode->pParameterList, nodeList[i]));
   }
@@ -337,9 +346,10 @@ int32_t scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nod
 }
 
 int32_t scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
-  SNode       *node = (SNode *)nodesMakeNode(QUERY_NODE_TARGET);
+  SNode       *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_TARGET, &node);
   if (NULL == node) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(code);
   }
   STargetNode *onode = (STargetNode *)node;
   onode->pExpr = snode;
@@ -632,7 +642,8 @@ TEST(constantTest, int_in_smallint1) {
   int32_t code = TSDB_CODE_SUCCESS;
   code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  SNodeList *list = nodesMakeList();
+  SNodeList *list = NULL;
+  code = nodesMakeList(&list);
   ASSERT_NE(list, nullptr);
   code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv1);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -669,7 +680,8 @@ TEST(constantTest, int_in_smallint2) {
   int32_t code = TSDB_CODE_SUCCESS;
   code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  SNodeList *list = nodesMakeList();
+  SNodeList* list = NULL;
+  code = nodesMakeList(&list);
   ASSERT_NE(list, nullptr);
   code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv1);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -704,7 +716,8 @@ TEST(constantTest, int_not_in_smallint1) {
   int32_t code = TSDB_CODE_SUCCESS;
   code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  SNodeList *list = nodesMakeList();
+  SNodeList *list = NULL;
+  code = nodesMakeList(&list);
   ASSERT_NE(list, nullptr);
   code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv1);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -741,7 +754,8 @@ TEST(constantTest, int_not_in_smallint2) {
   int32_t code = TSDB_CODE_SUCCESS;
   code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  SNodeList *list = nodesMakeList();
+  SNodeList *list = NULL;
+  code = nodesMakeList(&list);
   ASSERT_NE(list, nullptr);
   code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv1);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -2084,7 +2098,8 @@ TEST(columnTest, int_column_in_double_list) {
   int32_t      code = TSDB_CODE_SUCCESS;
   code = scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  SNodeList *list = nodesMakeList();
+  SNodeList *list = NULL;
+  code = nodesMakeList(&list);
   ASSERT_NE(list, nullptr);
   code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv1);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -2157,7 +2172,8 @@ TEST(columnTest, binary_column_in_binary_list) {
   int32_t code = TSDB_CODE_SUCCESS;
   code = scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  SNodeList *list = nodesMakeList();
+  SNodeList *list = NULL;
+  code = nodesMakeList(&list);
   ASSERT_NE(list, nullptr);
   code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv[0]);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);

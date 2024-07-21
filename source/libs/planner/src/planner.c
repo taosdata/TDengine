@@ -72,10 +72,15 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 }
 
 static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDownstreamSourceNode* pSource) {
+  int32_t code = 0;
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
     if (groupId >= pExchange->srcStartGroupId && groupId <= pExchange->srcEndGroupId) {
-      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode((SNode*)pSource));
+      SNode* pNew = NULL;
+      code = nodesCloneNode((SNode*)pSource, &pNew);
+      if (TSDB_CODE_SUCCESS == code) {
+        return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, pNew);
+      }
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
     SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
@@ -87,17 +92,23 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
       } else {
         --(pMerge->numOfChannels);
       }
-      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode((SNode*)pSource));
+      SNode* pNew = NULL;
+      code = nodesCloneNode((SNode*)pSource, &pNew);
+      if (TSDB_CODE_SUCCESS == code) {
+        return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, pNew);
+      }
     }
   }
 
   SNode* pChild = NULL;
-  FOREACH(pChild, pNode->pChildren) {
-    if (TSDB_CODE_SUCCESS != setSubplanExecutionNode((SPhysiNode*)pChild, groupId, pSource)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+  if (TSDB_CODE_SUCCESS == code) {
+    FOREACH(pChild, pNode->pChildren) {
+      if (TSDB_CODE_SUCCESS != (code = setSubplanExecutionNode((SPhysiNode*)pChild, groupId, pSource))) {
+        return code;
+      }
     }
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t qContinuePlanPostQuery(void *pPostPlan) {

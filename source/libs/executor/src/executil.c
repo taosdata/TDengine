@@ -33,7 +33,13 @@ typedef struct tagFilterAssist {
   SHashObj* colHash;
   int32_t   index;
   SArray*   cInfoList;
+  int32_t   code;
 } tagFilterAssist;
+
+typedef struct STransTagExprCtx {
+  int32_t      code;
+  SMetaReader* pReader;
+} STransTagExprCtx;
 
 typedef enum {
   FILTER_NO_LOGIC = 1,
@@ -287,7 +293,8 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
 }
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
-  SMetaReader* mr = (SMetaReader*)pContext;
+  STransTagExprCtx* pCtx = pContext;
+  SMetaReader* mr = pCtx->pReader;
   bool isTagCol = false, isTbname = false;
   if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
     SColumnNode* pCol = (SColumnNode*)*pNode;
@@ -303,7 +310,8 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   if (isTagCol) {
     SColumnNode* pSColumnNode = *(SColumnNode**)pNode;
 
-    SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* res = NULL;
+    pCtx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
     if (NULL == res) {
       return DEAL_RES_ERROR;
     }
@@ -330,7 +338,8 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
     nodesDestroyNode(*pNode);
     *pNode = (SNode*)res;
   } else if (isTbname) {
-    SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* res = NULL;
+    pCtx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
     if (NULL == res) {
       return DEAL_RES_ERROR;
     }
@@ -362,10 +371,20 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
     return TSDB_CODE_SUCCESS;
   }
 
-  SNode* pTagCondTmp = nodesCloneNode(pTagCond);
-
-  nodesRewriteExprPostOrder(&pTagCondTmp, doTranslateTagExpr, &mr);
+  SNode* pTagCondTmp = NULL;
+  code = nodesCloneNode(pTagCond, &pTagCondTmp);
+  if (TSDB_CODE_SUCCESS != code) {
+    *pQualified = false;
+    return code;
+  }
+  STransTagExprCtx ctx = {.code = 0, .pReader = &mr};
+  nodesRewriteExprPostOrder(&pTagCondTmp, doTranslateTagExpr, &ctx);
   pAPI->metaReaderFn.clearReader(&mr);
+  if (TSDB_CODE_SUCCESS != ctx.code) {
+    *pQualified = false;
+    terrno = code;
+    return code;
+  }
 
   SNode* pNew = NULL;
   code = scalarCalculateConstants(pTagCondTmp, &pNew);
@@ -385,13 +404,14 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
 }
 
 static EDealRes getColumn(SNode** pNode, void* pContext) {
+  tagFilterAssist* pData = (tagFilterAssist*)pContext;
   SColumnNode* pSColumnNode = NULL;
   if (QUERY_NODE_COLUMN == nodeType((*pNode))) {
     pSColumnNode = *(SColumnNode**)pNode;
   } else if (QUERY_NODE_FUNCTION == nodeType((*pNode))) {
     SFunctionNode* pFuncNode = *(SFunctionNode**)(pNode);
     if (pFuncNode->funcType == FUNCTION_TYPE_TBNAME) {
-      pSColumnNode = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      pData->code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pSColumnNode);
       if (NULL == pSColumnNode) {
         return DEAL_RES_ERROR;
       }
@@ -408,7 +428,6 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  tagFilterAssist* pData = (tagFilterAssist*)pContext;
   void*            data = taosHashGet(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId));
   if (!data) {
     taosHashPut(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), pNode, sizeof((*pNode)));
@@ -533,12 +552,20 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   SNode* pNode = NULL;
   FOREACH(pNode, group) {
     nodesRewriteExprPostOrder(&pNode, getColumn, (void*)&ctx);
+    if (TSDB_CODE_SUCCESS != ctx.code) {
+      code = ctx.code;
+      goto end;
+    }
     REPLACE_NODE(pNode);
   }
 
   T_MD5_CTX context = {0};
   if (tsTagFilterCache) {
-    SNodeListNode* listNode = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+    SNodeListNode* listNode = NULL;
+    code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&listNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto end;
+    }
     listNode->pNodeList = group;
     genTbGroupDigest((SNode*)listNode, digest, &context);
     nodesFree(listNode);
@@ -1054,6 +1081,10 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
   }
 
   nodesRewriteExprPostOrder(&pTagCond, getColumn, (void*)&ctx);
+  if (TSDB_CODE_SUCCESS != ctx.code) {
+    terrno = code = ctx.code;
+    goto end;
+  }
 
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
@@ -1280,9 +1311,20 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
     return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
-  SNodeList* groupNew = nodesCloneList(pGroupNode);
+  SNodeList* groupNew = NULL;
+  int32_t code = nodesCloneList(pGroupNode, &groupNew);
+  if (TSDB_CODE_SUCCESS != code) {
+    pAPI->metaReaderFn.clearReader(&mr);
+    return code;
+  }
 
-  nodesRewriteExprsPostOrder(groupNew, doTranslateTagExpr, &mr);
+  STransTagExprCtx ctx = {.code = 0, .pReader = &mr};
+  nodesRewriteExprsPostOrder(groupNew, doTranslateTagExpr, &ctx);
+  if (TSDB_CODE_SUCCESS != ctx.code) {
+    nodesDestroyList(groupNew);
+    pAPI->metaReaderFn.clearReader(&mr);
+    return code;
+  }
   char* isNull = (char*)keyBuf;
   char* pStart = (char*)keyBuf + sizeof(int8_t) * LIST_LENGTH(pGroupNode);
 
@@ -1513,9 +1555,13 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 
     if (!pFuncNode->pParameterList && (memcmp(pExprNode->_function.functionName, name, len) == 0) &&
         pExprNode->_function.functionName[len] == 0) {
-      pFuncNode->pParameterList = nodesMakeList();
-      SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-      if (NULL == res) {  // todo handle error
+      pFuncNode->pParameterList = NULL;
+      int32_t code = nodesMakeList(&pFuncNode->pParameterList);
+      SValueNode* res = NULL;
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
+      }
+      if (TSDB_CODE_SUCCESS != code) {  // todo handle error
       } else {
         res->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
         nodesListAppend(pFuncNode->pParameterList, (SNode*)res);

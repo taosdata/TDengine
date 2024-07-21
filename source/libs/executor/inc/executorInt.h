@@ -365,6 +365,7 @@ typedef struct STagScanFilterContext {
   SHashObj* colHash;
   int32_t   index;
   SArray*   cInfoList;
+  int32_t   code;
 } STagScanFilterContext;
 
 typedef struct STagScanInfo {
