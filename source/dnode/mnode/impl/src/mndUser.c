@@ -648,7 +648,7 @@ SIpWhiteList *createIpWhiteList(void *buf, int32_t len) {
 static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList) {
   *ppWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * 1);
   if (*ppWhiteList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
   (*ppWhiteList)->num = 1;
   SIpV4Range *range = &((*ppWhiteList)->pIpRange[0]);
@@ -722,7 +722,7 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
 }
 
 SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  int32_t code = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t ipWhiteReserve =
       pUser->pIpWhiteList ? (sizeof(SIpV4Range) * pUser->pIpWhiteList->num + sizeof(SIpWhiteList) + 4) : 16;
@@ -835,8 +835,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
   if (pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
   }
 
   int32_t dataPos = 0;
@@ -981,8 +980,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t tlen = sizeof(SIpWhiteList) + num * sizeof(SIpV4Range) + 4;
   char   *buf = taosMemoryCalloc(1, tlen);
   if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
   }
   int32_t len = tSerializeIpWhiteList(buf, tlen, pUser->pIpWhiteList);
 
@@ -995,11 +993,11 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
-  terrno = 0;
+  code = 0;
 
 _OVER:
-  if (terrno != 0) {
-    mError("user:%s, failed to encode to raw:%p since %s", pUser->user, pRaw, terrstr());
+  if (code != 0) {
+    mError("user:%s, failed to encode to raw:%p since %s", pUser->user, pRaw, tstrerror(code));
     sdbFreeRaw(pRaw);
     return NULL;
   }

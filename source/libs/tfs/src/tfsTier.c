@@ -44,7 +44,7 @@ int32_t tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg, STfsDisk **ppDisk) {
   STfsDisk *pDisk = NULL;
 
   if (pTier->ndisk >= TFS_MAX_DISKS_PER_TIER) {
-    TAOS_CHECK_GOTO(TSDB_CODE_FS_TOO_MANY_MOUNT, &lino, _OVER);
+    TAOS_CHECK_GOTO(TSDB_CODE_FS_TOO_MANY_MOUNT, &lino, _exit);
   }
 
   int32_t id = 0;
@@ -63,15 +63,15 @@ int32_t tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg, STfsDisk **ppDisk) {
   }
 
   if (id >= TFS_MAX_DISKS_PER_TIER) {
-    TAOS_CHECK_GOTO(TSDB_CODE_FS_TOO_MANY_MOUNT, &lino, _OVER);
+    TAOS_CHECK_GOTO(TSDB_CODE_FS_TOO_MANY_MOUNT, &lino, _exit);
   }
 
-  TAOS_CHECK_GOTO(tfsNewDisk(pCfg->level, id, pCfg->disable, pCfg->dir, &pDisk), &lino, _OVER);
+  TAOS_CHECK_GOTO(tfsNewDisk(pCfg->level, id, pCfg->disable, pCfg->dir, &pDisk), &lino, _exit);
 
   pTier->disks[id] = pDisk;
   pTier->ndisk++;
 
-_OVER:
+_exit:
   if (code != 0) {
     pDisk = tfsFreeDisk(pDisk);
     fError("%s failed at line %d since %s, disk:%s level:%d id:%d", __func__, lino, tstrerror(code), pCfg->dir,

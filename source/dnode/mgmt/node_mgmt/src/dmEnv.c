@@ -110,6 +110,7 @@ static bool dmCheckDiskSpace() {
 }
 
 int32_t dmDiskInit() {
+  int32_t  code = 0;
   SDnode  *pDnode = dmInstance();
   SDiskCfg dCfg = {.level = 0, .primary = 1, .disable = 0};
   tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
@@ -120,10 +121,10 @@ int32_t dmDiskInit() {
     numOfDisks = 1;
   }
 
-  pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
+  code = tfsOpen(pDisks, numOfDisks, &pDnode->pTfs);
   if (pDnode->pTfs == NULL) {
-    dError("failed to init tfs since %s", terrstr());
-    return -1;
+    dError("failed to init tfs since %s", tstrerror(code));
+    TAOS_RETURN(code);
   }
   return 0;
 }
