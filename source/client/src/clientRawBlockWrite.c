@@ -1214,12 +1214,14 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
   SArray* pBufArray = NULL;
   RAW_RETURN_CHECK(serializeVgroupsCreateTableBatch(pVgroupHashmap, &pBufArray));
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  RAW_NULL_CHECK(pQuery);
+  pQuery = NULL;
+  code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_CREATE_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT);
+  code = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT, &pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_NULL_CHECK(pQuery->pRoot);
 
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
@@ -1343,13 +1345,14 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
   SArray* pBufArray = NULL;
   RAW_RETURN_CHECK(serializeVgroupsDropTableBatch(pVgroupHashmap, &pBufArray));
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  RAW_NULL_CHECK(pQuery);
+  code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_DROP_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT);
-  RAW_NULL_CHECK(pQuery->pRoot);
+  pQuery->pRoot = NULL;
+  code = nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT, &pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
   (void)launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1486,13 +1489,15 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   pVgData->numOfTables = 1;
   RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
 
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  RAW_NULL_CHECK(pQuery);
+  pQuery = NULL;
+  code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
+  if (NULL == pQuery) goto end;
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_ALTER_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
-  RAW_NULL_CHECK(pQuery->pRoot);
+  pQuery->pRoot = NULL;
+  code = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, &pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
 
 
