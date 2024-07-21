@@ -4108,6 +4108,18 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = md5Function,
     .finalizeFunc = NULL
   },
+  {
+    .name = "_select_tag",
+    .type = FUNCTION_TYPE_SELECT_TAG,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .translateFunc = translateGroupKey,
+    .getEnvFunc   = getGroupKeyFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = groupKeyFunction,
+    .finalizeFunc = groupKeyFinalize,
+    .pPartialFunc = "_group_key",
+    .pMergeFunc   = "_group_key"
+  },
 };
 // clang-format on
 
