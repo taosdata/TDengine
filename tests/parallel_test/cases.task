@@ -417,6 +417,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/orderBy.py -N 5
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py
