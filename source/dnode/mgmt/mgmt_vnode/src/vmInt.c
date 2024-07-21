@@ -395,6 +395,8 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
   dInfo("start to close all vnodes");
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
   dInfo("vnodes mgmt worker is stopped");
+  tSingleWorkerCleanup(&pMgmt->mgmtMultiWorker);
+  dInfo("vnodes multiple mgmt worker is stopped");
 
   int32_t     numOfVnodes = 0;
   SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
@@ -462,6 +464,7 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   vmStopWorker(pMgmt);
   vnodeCleanup();
   taosThreadRwlockDestroy(&pMgmt->lock);
+  taosThreadMutexDestroy(&pMgmt->createLock);
   taosMemoryFree(pMgmt);
 }
 
@@ -534,6 +537,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.qsizeFp = (GetQueueSizeFp)vmGetQueueSize;
   pMgmt->msgCb.mgmt = pMgmt;
   taosThreadRwlockInit(&pMgmt->lock, NULL);
+  taosThreadMutexInit(&pMgmt->createLock, NULL);
 
   pMgmt->pTfs = pInput->pTfs;
   if (pMgmt->pTfs == NULL) {

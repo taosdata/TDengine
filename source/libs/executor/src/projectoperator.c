@@ -98,6 +98,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
     goto _error;
   }
 
+  pOperator->exprSupp.hasWindowOrGroup = false;
   pOperator->pTaskInfo = pTaskInfo;
 
   int32_t    numOfCols = 0;
@@ -397,6 +398,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   pOperator->pTaskInfo = pTaskInfo;
 
   SExprSupp* pSup = &pOperator->exprSupp;
+  pSup->hasWindowOrGroup = false;
 
   SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
 

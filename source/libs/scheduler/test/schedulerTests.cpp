@@ -36,9 +36,9 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmisce.h"
 #include "trpc.h"
 #include "tvariant.h"
-#include "tmisce.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -75,6 +75,7 @@ void schtInitLogFile() {
   const char   *defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10;
 
+  rpcInit();
   tsAsyncLog = 0;
   qDebugFlag = 159;
   strcpy(tsLogDir, TD_LOG_DIR_PATH);
@@ -1006,6 +1007,7 @@ TEST(multiThread, forceFree) {
 }
 
 int main(int argc, char **argv) {
+  schtInitLogFile();
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

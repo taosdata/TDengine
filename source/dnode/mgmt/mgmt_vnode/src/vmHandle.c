@@ -328,11 +328,14 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
+  //taosThreadMutexLock(&pMgmt->createLock);
   code = vmWriteVnodeListToFile(pMgmt);
   if (code != 0) {
     code = terrno != 0 ? terrno : code;
+    //taosThreadMutexUnlock(&pMgmt->createLock);
     goto _OVER;
   }
+  //taosThreadMutexUnlock(&pMgmt->createLock);
 
 _OVER:
   if (code != 0) {
