@@ -967,10 +967,9 @@ void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResult
     return;
   }
 
-  pNewRequest->pQuery = (SQuery *)nodesMakeNode(QUERY_NODE_QUERY);
-  if (NULL == pNewRequest->pQuery) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-  } else {
+  pNewRequest->pQuery = NULL;
+  code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pNewRequest->pQuery);
+  if (pNewRequest->pQuery) {
     pNewRequest->pQuery->pRoot = pRoot;
     pRoot = NULL;
     pNewRequest->pQuery->execStage = QUERY_EXEC_STAGE_ANALYSE;

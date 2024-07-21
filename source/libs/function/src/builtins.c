@@ -219,9 +219,10 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   }
   int32_t len = (int32_t)strlen(buf);
 
-  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode* pVal = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pVal->literal = strndup(buf, len);
@@ -238,9 +239,10 @@ static int32_t addTimezoneParam(SNodeList* pList) {
 }
 
 static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
-  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode* pVal = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pVal->literal = NULL;
@@ -822,9 +824,13 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 static int32_t reserveFirstMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
   int32_t code = nodesListMakeAppend(pParameters, pPartialRes);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 1)));
+    SNode* pNew = NULL;
+    code = nodesCloneNode(nodesListGetNode(pRawParameters, 1), &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(*pParameters, pNew);
+    }
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t topBotCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
@@ -834,7 +840,11 @@ int32_t topBotCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SN
 int32_t apercentileCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
   int32_t code = reserveFirstMergeParam(pRawParameters, pPartialRes, pParameters);
   if (TSDB_CODE_SUCCESS == code && pRawParameters->length >= 3) {
-    code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 2)));
+    SNode* pNew = NULL;
+    code = nodesCloneNode(nodesListGetNode(pRawParameters, 2), &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(*pParameters, pNew);
+    }
   }
   return code;
 }

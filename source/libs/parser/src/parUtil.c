@@ -762,10 +762,11 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   return code;
 }
 
-SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint) {
-  SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint, SNode** ppSelect) {
+  SSelectStmt* select = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&select);
   if (NULL == select) {
-    return NULL;
+    return code;
   }
   select->isDistinct = isDistinct;
   select->pProjectionList = pProjectionList;
@@ -777,7 +778,8 @@ SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* 
   select->timeRange = TSWINDOW_INITIALIZER;
   select->pHint = pHint;
   select->lastProcessByRowFuncId = -1;
-  return (SNode*)select;
+  *ppSelect = (SNode*)select;
+  return code;
 }
 
 static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj** pHash) {

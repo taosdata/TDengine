@@ -372,8 +372,10 @@ static int32_t getFuncInfo(SFunctionNode* pFunc) {
 }
 
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
-  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  SFunctionNode* pFunc = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (NULL == pFunc) {
+    terrno = code;
     return NULL;
   }
   snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pName);
@@ -387,8 +389,10 @@ SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
 }
 
 static SNode* createColumnByFunc(const SFunctionNode* pFunc) {
-  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+  SColumnNode* pCol = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (NULL == pCol) {
+    terrno = code;
     return NULL;
   }
   strcpy(pCol->colName, pFunc->node.aliasName);
@@ -407,14 +411,15 @@ bool fmIsDistExecFunc(int32_t funcId) {
 }
 
 static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNode** pPartialFunc) {
-  SNodeList* pParameterList = nodesCloneList(pSrcFunc->pParameterList);
+  SNodeList* pParameterList = NULL;
+  int32_t code = nodesCloneList(pSrcFunc->pParameterList, &pParameterList);
   if (NULL == pParameterList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   *pPartialFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pPartialFunc, pParameterList);
   if (NULL == *pPartialFunc) {
     nodesDestroyList(pParameterList);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*pPartialFunc)->hasOriginalFunc = true;
   (*pPartialFunc)->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
@@ -430,6 +435,7 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
 static int32_t createMergeFuncPara(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
                                    SNodeList** pParameterList) {
   SNode* pRes = createColumnByFunc(pPartialFunc);
+  if (!pRes) return terrno;
   if (NULL != funcMgtBuiltins[pSrcFunc->funcId].createMergeParaFuc) {
     return funcMgtBuiltins[pSrcFunc->funcId].createMergeParaFuc(pSrcFunc->pParameterList, pRes, pParameterList);
   } else {
@@ -450,7 +456,7 @@ static int32_t createMidFunction(const SFunctionNode* pSrcFunc, const SFunctionN
       pFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList);
     }
     if (NULL == pFunc) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -476,7 +482,7 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   if (TSDB_CODE_SUCCESS == code) {
     pFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList);
     if (NULL == pFunc) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -532,12 +538,13 @@ char* fmGetFuncName(int32_t funcId) {
 /// @retval 0 for succ, otherwise err occured
 static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pStateFunc) {
   if (funcMgtBuiltins[pFunc->funcId].pStateFunc) {
-    SNodeList* pParams = nodesCloneList(pFunc->pParameterList);
-    if (!pParams) return TSDB_CODE_OUT_OF_MEMORY;
+    SNodeList* pParams = NULL;
+    int32_t code = nodesCloneList(pFunc->pParameterList, &pParams);
+    if (!pParams) return code;
     *pStateFunc = createFunction(funcMgtBuiltins[pFunc->funcId].pStateFunc, pParams);
     if (!*pStateFunc) {
       nodesDestroyList(pParams);
-      return TSDB_CODE_FUNC_FUNTION_ERROR;
+      return terrno;
     }
     strcpy((*pStateFunc)->node.aliasName, pFunc->node.aliasName);
     strcpy((*pStateFunc)->node.userAlias, pFunc->node.userAlias);
@@ -578,12 +585,13 @@ int32_t fmCreateStateFuncs(SNodeList* pFuncs) {
 
 static int32_t fmCreateStateMergeFunc(SFunctionNode* pFunc, SFunctionNode** pStateMergeFunc) {
   if (funcMgtBuiltins[pFunc->funcId].pMergeFunc) {
-    SNodeList* pParams = nodesCloneList(pFunc->pParameterList);
-    if (!pParams) return TSDB_CODE_OUT_OF_MEMORY;
+    SNodeList* pParams = NULL;
+    int32_t code = nodesCloneList(pFunc->pParameterList, &pParams);
+    if (!pParams) return code;
     *pStateMergeFunc = createFunction(funcMgtBuiltins[pFunc->funcId].pMergeFunc, pParams);
     if (!*pStateMergeFunc) {
       nodesDestroyList(pParams);
-      return TSDB_CODE_FUNC_FUNTION_ERROR;
+      return terrno;
     }
     strcpy((*pStateMergeFunc)->node.aliasName, pFunc->node.aliasName);
     strcpy((*pStateMergeFunc)->node.userAlias, pFunc->node.userAlias);

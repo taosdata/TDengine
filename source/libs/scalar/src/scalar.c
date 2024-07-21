@@ -1016,10 +1016,10 @@ _return:
 
 EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opType) {
   if (opType <= OP_TYPE_CALC_MAX) {
-    SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode *res = NULL;
+    ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
     if (NULL == res) {
       sclError("make value node failed");
-      ctx->code = TSDB_CODE_OUT_OF_MEMORY;
       return DEAL_RES_ERROR;
     }
 
@@ -1028,10 +1028,10 @@ EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opTy
     nodesDestroyNode(*pNode);
     *pNode = (SNode *)res;
   } else {
-    SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode *res = NULL;
+    ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
     if (NULL == res) {
       sclError("make value node failed");
-      ctx->code = TSDB_CODE_OUT_OF_MEMORY;
       return DEAL_RES_ERROR;
     }
 
@@ -1209,11 +1209,11 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
-  SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *res = NULL;
+  ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
   if (NULL == res) {
     sclError("make value node failed");
     sclFreeParam(&output);
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1283,11 +1283,11 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_CONTINUE;
   }
 
-  SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *res = NULL;
+  ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
   if (NULL == res) {
     sclError("make value node failed");
     sclFreeParam(&output);
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1333,11 +1333,11 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
-  SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *res = NULL;
+  ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
   if (NULL == res) {
     sclError("make value node failed");
     sclFreeParam(&output);
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
@@ -1396,11 +1396,11 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
 
-  SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *res = NULL;
+  ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
   if (NULL == res) {
     sclError("make value node failed");
     sclFreeParam(&output);
-    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 

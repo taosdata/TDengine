@@ -796,9 +796,10 @@ typedef struct SRewriteTagCondCxt {
 } SRewriteTagCondCxt;
 
 static int32_t rewriteTagCondColumnImpl(STagVal* pVal, SNode** pNode) {
-  SValueNode* pValue = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode* pValue = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValue);
   if (NULL == pValue) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pValue->node.resType = ((SColumnNode*)*pNode)->node.resType;
@@ -1240,7 +1241,8 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
       pCxt->needTableTagVal = (NULL != pTagCond);
       pCxt->missCache = (NULL != pTagCond);
     } else {
-      pStmt->pTagCond = nodesCloneNode(pTagCond);
+      pStmt->pTagCond = NULL;
+      code = nodesCloneNode(pTagCond, &pStmt->pTagCond);
     }
   }
   nodesDestroyNode(pTagCond);
@@ -2535,9 +2537,10 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 static void destroySubTableHashElem(void* p) { taosMemoryFree(*(STableMeta**)p); }
 
 static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, SNode** pOutput) {
-  SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
+  SVnodeModifyOpStmt* pStmt = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT, (SNode**)&pStmt);
   if (NULL == pStmt) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   if (pCxt->pComCxt->pStmtCb) {
@@ -2575,16 +2578,17 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
 }
 
 static int32_t createInsertQuery(SInsertParseContext* pCxt, SQuery** pOutput) {
-  SQuery* pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  SQuery* pQuery = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
   if (NULL == pQuery) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->haveResultSet = false;
   pQuery->msgType = TDMT_VND_SUBMIT;
 
-  int32_t code = createVnodeModifOpStmt(pCxt, false, &pQuery->pRoot);
+  code = createVnodeModifOpStmt(pCxt, false, &pQuery->pRoot);
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pQuery;
   } else {
@@ -2601,10 +2605,10 @@ static int32_t checkAuthFromMetaData(const SArray* pUsers, SNode** pTagCond) {
   SMetaRes* pRes = taosArrayGet(pUsers, 0);
   if (TSDB_CODE_SUCCESS == pRes->code) {
     SUserAuthRes* pAuth = pRes->pRes;
-    if (NULL != pAuth->pCond) {
-      *pTagCond = nodesCloneNode(pAuth->pCond[AUTH_RES_BASIC]);
+    pRes->code = nodesCloneNode(pAuth->pCond[AUTH_RES_BASIC], pTagCond);
+    if (TSDB_CODE_SUCCESS == pRes->code) {
+      return pAuth->pass[AUTH_RES_BASIC] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED;
     }
-    return pAuth->pass[AUTH_RES_BASIC] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   return pRes->code;
 }

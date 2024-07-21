@@ -3899,8 +3899,9 @@ int32_t fltSclGetOrCreateColumnRange(SColumnNode *colNode, SArray *colRangeList,
   }
   // TODO(smj):wait for nodesCloneNode change it's return value, use terrno for now.
   terrno = TSDB_CODE_SUCCESS;
-  SColumnNode       *pColumnNode = (SColumnNode *)nodesCloneNode((SNode *)colNode);
-  FLT_ERR_RET(terrno);
+  SColumnNode       *pColumnNode = NULL;
+  int32_t code = nodesCloneNode((SNode *)colNode, (SNode**)&pColumnNode);
+  FLT_ERR_RET(code);
   SFltSclColumnRange newColRange = {.colNode = pColumnNode, .points = taosArrayInit(4, sizeof(SFltSclPoint))};
   if (NULL == newColRange.points) {
     FLT_ERR_RET(terrno);
@@ -4871,16 +4872,22 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
 
   SValueNode *valNode = (SValueNode *)pOper->pRight;
   if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    SFltSclOperator sclOp = {.colNode = (SColumnNode *)nodesCloneNode(pOper->pLeft),
-                             .valNode = (SValueNode *)nodesCloneNode(pOper->pRight),
+    SNode* pLeft = NULL, *pRight = NULL;
+    int32_t code = nodesCloneNode(pOper->pLeft, &pLeft);
+    if (TSDB_CODE_SUCCESS != code) {
+      FLT_ERR_RET(code);
+    }
+    code = nodesCloneNode(pOper->pRight, &pRight);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pLeft);
+      FLT_ERR_RET(code);
+    }
+    SFltSclOperator sclOp = {.colNode = (SColumnNode *)pLeft,
+                             .valNode = (SValueNode *)pRight,
                              .type = pOper->opType};
-    if (NULL == sclOp.colNode) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-    }
-    if (NULL == sclOp.valNode) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-    }
     if (NULL == taosArrayPush(sclOpList, &sclOp)) {
+      nodesDestroyNode(pLeft);
+      nodesDestroyNode(pRight);
       FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
@@ -5154,8 +5161,12 @@ EConditionType filterClassifyCondition(SNode *pNode) {
 }
 
 int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res) {
-  SNodeList *pCondCols = nodesMakeList();
-  int32_t    code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  SNodeList *pCondCols = NULL;
+  int32_t code = nodesMakeList(&pCondCols);
+  if (TSDB_CODE_SUCCESS!= code) {
+    return code;
+  }
+  code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
   if (code == TSDB_CODE_SUCCESS) {
     if (LIST_LENGTH(pCondCols) >= 2) {
       SColumnNode *pFirstCol = (SColumnNode *)nodesListGetNode(pCondCols, 0);
@@ -5194,32 +5205,56 @@ static int32_t partitionLogicCond(SNode **pCondition, SNode **pPrimaryKeyCond, S
     }
     if (result) {
       if (NULL != pOtherCond) {
-        code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
+        SNode* pNew = NULL;
+        code = nodesCloneNode(pCond, &pNew);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodesListMakeAppend(&pOtherConds, pNew);
+        }
       }
     } else {
       switch (filterClassifyCondition(pCond)) {
         case COND_TYPE_PRIMARY_KEY:
           if (NULL != pPrimaryKeyCond) {
-            code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
+            SNode* pNew = NULL;
+            code = nodesCloneNode(pCond, &pNew);
+            if (TSDB_CODE_SUCCESS == code) {
+              code = nodesListMakeAppend(&pPrimaryKeyConds, pNew);
+            }
           }
           break;
         case COND_TYPE_TAG_INDEX:
           if (NULL != pTagIndexCond) {
-            code = nodesListMakeAppend(&pTagIndexConds, nodesCloneNode(pCond));
+            SNode* pNew = NULL;
+            code = nodesCloneNode(pCond, &pNew);
+            if (TSDB_CODE_SUCCESS == code) {
+              code = nodesListMakeAppend(&pTagIndexConds, pNew);
+            }
           }
           if (NULL != pTagCond) {
-            code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
+            SNode* pNew = NULL;
+            code = nodesCloneNode(pCond, &pNew);
+            if (TSDB_CODE_SUCCESS == code) {
+              code = nodesListMakeAppend(&pTagConds, pNew);
+            }
           }
           break;
         case COND_TYPE_TAG:
           if (NULL != pTagCond) {
-            code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
+            SNode* pNew = NULL;
+            code = nodesCloneNode(pCond, &pNew);
+            if (TSDB_CODE_SUCCESS == code) {
+              code = nodesListMakeAppend(&pTagConds, pNew);
+            }
           }
           break;
         case COND_TYPE_NORMAL:
         default:
           if (NULL != pOtherCond) {
-            code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
+            SNode* pNew = NULL;
+            code = nodesCloneNode(pCond, &pNew);
+            if (TSDB_CODE_SUCCESS == code) {
+              code = nodesListMakeAppend(&pOtherConds, pNew);
+            }
           }
           break;
       }
@@ -5306,9 +5341,10 @@ int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode *
         if (NULL != pTagCond) {
           SNode *pTempCond = *pCondition;
           if (NULL != pTagIndexCond) {
-            pTempCond = nodesCloneNode(*pCondition);
+            pTempCond = NULL;
+            int32_t code = nodesCloneNode(*pCondition, &pTempCond);
             if (NULL == pTempCond) {
-              return TSDB_CODE_OUT_OF_MEMORY;
+              return code;
             }
           }
           *pTagCond = pTempCond;
