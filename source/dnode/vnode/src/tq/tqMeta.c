@@ -103,24 +103,32 @@ int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const 
   int32_t code = TDB_CODE_SUCCESS;
   TXN*     txn = NULL;
 
-  TQ_ERR_RETURN(tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED));
-  TQ_ERR_RETURN(tdbTbUpsert(ttb, key, kLen, value, vLen, txn));
-  TQ_ERR_RETURN(tdbCommit(pTq->pMetaDB, txn));
-  TQ_ERR_RETURN(tdbPostCommit(pTq->pMetaDB, txn));
+  TQ_ERR_GO_TO_END(tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED));
+  TQ_ERR_GO_TO_END(tdbTbUpsert(ttb, key, kLen, value, vLen, txn));
+  TQ_ERR_GO_TO_END(tdbCommit(pTq->pMetaDB, txn));
+  TQ_ERR_GO_TO_END(tdbPostCommit(pTq->pMetaDB, txn));
 
   return 0;
+
+END:
+  tdbAbort(pTq->pMetaDB, txn);
+  return code;
 }
 
 int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen) {
   int32_t code = TDB_CODE_SUCCESS;
   TXN*     txn = NULL;
 
-  TQ_ERR_RETURN(tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED));
-  TQ_ERR_RETURN(tdbTbDelete(ttb, key, kLen, txn));
-  TQ_ERR_RETURN(tdbCommit(pTq->pMetaDB, txn));
-  TQ_ERR_RETURN(tdbPostCommit(pTq->pMetaDB, txn));
+  TQ_ERR_GO_TO_END(tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED));
+  TQ_ERR_GO_TO_END(tdbTbDelete(ttb, key, kLen, txn));
+  TQ_ERR_GO_TO_END(tdbCommit(pTq->pMetaDB, txn));
+  TQ_ERR_GO_TO_END(tdbPostCommit(pTq->pMetaDB, txn));
 
   return 0;
+
+END:
+  tdbAbort(pTq->pMetaDB, txn);
+  return code;
 }
 
 void* tqMetaGetOffset(STQ* pTq, const char* subkey){
