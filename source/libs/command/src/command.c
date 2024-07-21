@@ -512,6 +512,7 @@ void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
 }
 
 int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagVals = NULL;
   STag*   pTag = (STag*)pCfg->pTags;
 
@@ -530,7 +531,6 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 
   QRY_ERR_RET(tTagToValArray((const STag*)pCfg->pTags, &pTagVals));
-
   int16_t valueNum = taosArrayGetSize(pTagVals);
   int32_t num = 0;
   int32_t j = 0;
@@ -548,15 +548,18 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
     if (pSchema->colId > pTagVal->cid) {
       qError("tag value and column mismatch, schemaId:%d, valId:%d", pSchema->colId, pTagVal->cid);
-      TAOS_CHECK_ERRNO(TSDB_CODE_APP_ERROR);
+      code = TSDB_CODE_APP_ERROR;
+      TAOS_CHECK_ERRNO(code);
     } else if (pSchema->colId == pTagVal->cid) {
       char    type = pTagVal->type;
       int32_t tlen = 0;
 
       if (IS_VAR_DATA_TYPE(type)) {
-        TAOS_CHECK_ERRNO(dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen));
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
+        TAOS_CHECK_ERRNO(code);
       } else {
-        TAOS_CHECK_ERRNO(dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen));
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
+        TAOS_CHECK_ERRNO(code);
       }
       *len += tlen;
       j++;
@@ -596,7 +599,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
 _exit:
   taosArrayDestroy(pTagVals);
 
-  return terrno;
+  return code;
 }
 
 void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
@@ -661,6 +664,7 @@ void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* 
 }
 
 static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg) {
+  int32_t code = TSDB_CODE_SUCCESS;
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
   pBlock->info.rows = 1;
 
@@ -688,7 +692,8 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` USING `%s` (", tbName, pCfg->stbName);
     appendTagNameFields(buf2, &len, pCfg);
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
-    TAOS_CHECK_ERRNO(appendTagValues(buf2, &len, pCfg));
+    code = appendTagValues(buf2, &len, pCfg);
+    TAOS_CHECK_ERRNO(code);
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else {
@@ -700,12 +705,13 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
 
   varDataLen(buf2) = (len > 65535) ? 65535 : len;
 
-  TAOS_CHECK_ERRNO(colDataSetVal(pCol2, 0, buf2, false));
+  code = colDataSetVal(pCol2, 0, buf2, false);
+  TAOS_CHECK_ERRNO(code);
 
 _exit:
   taosMemoryFree(buf2);
 
-  return terrno;
+  return code;
 }
 
 static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateViewStmt* pStmt) {
@@ -731,12 +737,10 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
            pStmt->dbName, pStmt->viewName, pMeta->querySql);
   int32_t len = strlen(varDataVal(buf2));
   varDataLen(buf2) = (len > 65535) ? 65535 : len;
-  TAOS_CHECK_ERRNO(colDataSetVal(pCol2, 0, buf2, false));
-
-_exit:
+  code = colDataSetVal(pCol2, 0, buf2, false);
   taosMemoryFree(buf2);
 
-  return terrno;
+  return code;
 }
 
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
