@@ -123,7 +123,9 @@ static int32_t dmInitPrerequisites() {
     DM_ERR_RTN(0);
   }
   if (taosGetOsReleaseName(reName, stName, ver, 64) != 0) {
-    DM_ERR_RTN(code);
+    int32_t errCode = TAOS_SYSTEM_ERROR(errno);
+    if (errCode != 0) code = errCode;
+    TAOS_CHECK_GOTO(code, NULL, _exit);
   }
   if (STR_CASE_CMP(stName, dmOS[0])) {
     if (STR_INT_CMP(ver, 17, >)) {
@@ -143,10 +145,9 @@ static int32_t dmInitPrerequisites() {
   }
 
 _exit:
-  if (code) terrno = code;
-  return code;
+  TAOS_RETURN(code);
 #else
-  return 0;
+  TAOS_RETURN(0);
 #endif
 }
 
@@ -169,46 +170,47 @@ static void *dmDecodeDFHeader(void *buf, SDFHeader *pHeader) {
 static int32_t dmEncodeVars(void *buf, int32_t bufLen, SEngineInfo *pInfo) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
-  int32_t ret = -1;
+  int32_t code = -1;
 
-  if (tStartEncode(&encoder) < 0) goto _exit;
-  if (tEncodeI8(&encoder, pInfo->type) < 0) goto _exit;
-  if (tEncodeI32v(&encoder, pInfo->dnodeId) < 0) goto _exit;
-  if (tEncodeI32v(&encoder, pInfo->engineVer) < 0) goto _exit;
-  if (tEncodeI64v(&encoder, pInfo->clusterId) < 0) goto _exit;
-  if (tEncodeI64v(&encoder, pInfo->createMs) < 0) goto _exit;
-  if (tEncodeI64v(&encoder, pInfo->updateMs) < 0) goto _exit;
+  TAOS_CHECK_GOTO(tStartEncode(&encoder), NULL, _exit);
+  TAOS_CHECK_GOTO(tEncodeI8(&encoder, pInfo->type), NULL, _exit);
+  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, pInfo->dnodeId), NULL, _exit);
+  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, pInfo->engineVer), NULL, _exit);
+  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pInfo->clusterId), NULL, _exit);
+  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pInfo->createMs), NULL, _exit);
+  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pInfo->updateMs), NULL, _exit);
 
   tEndEncode(&encoder);
-  ret = encoder.pos;
+  code = encoder.pos;
 _exit:
   tEncoderClear(&encoder);
-  return ret;
+  return code;
 }
 
 static int32_t dmDecodeVars(void *buf, int32_t bufLen, SEngineInfo *pInfo) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
-  int32_t ret = -1;
+  int32_t code = 0;
 
-  if (tStartDecode(&decoder) < 0) goto _exit;
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), NULL, _exit);
 
-  if (tDecodeI8(&decoder, &pInfo->type) < 0) goto _exit;
-  if (tDecodeI32v(&decoder, &pInfo->dnodeId) < 0) goto _exit;
-  if (tDecodeI32v(&decoder, &pInfo->engineVer) < 0) goto _exit;
-  if (tDecodeI64v(&decoder, &pInfo->clusterId) < 0) goto _exit;
-  if (tDecodeI64v(&decoder, &pInfo->createMs) < 0) goto _exit;
-  if (tDecodeI64v(&decoder, &pInfo->updateMs) < 0) goto _exit;
+  TAOS_CHECK_GOTO(tDecodeI8(&decoder, &pInfo->type), NULL, _exit);
+  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &pInfo->dnodeId), NULL, _exit);
+  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &pInfo->engineVer), NULL, _exit);
+  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pInfo->clusterId), NULL, _exit);
+  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pInfo->createMs), NULL, _exit);
+  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pInfo->updateMs), NULL, _exit);
 
   tEndDecode(&decoder);
-  ret = 0;
+
 _exit:
   tDecoderClear(&decoder);
-  return ret;
+  TAOS_RETURN(code);
 }
 
 static int32_t dmReadVars(SEngineInfo *pInfo) {
   int32_t   code = 0;
+  int32_t   lino = 0;
   TdFilePtr pFile = NULL;
   void     *buffer = NULL;
   void     *ptr;
@@ -220,41 +222,36 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
   errno = 0;  // clear errno
 
   if (!taosCheckExistFile(fname)) {
-    code = TSDB_CODE_NOT_FOUND;
-    goto _exit;
+    TAOS_CHECK_GOTO(TSDB_CODE_NOT_FOUND, &lino, _exit);
   }
 
   pFile = taosOpenFile(fname, TD_FILE_READ);
   if (!pFile) {
     if (errno == ENOENT) {
-      code = TSDB_CODE_NOT_FOUND;
+      TAOS_CHECK_GOTO(TSDB_CODE_NOT_FOUND, &lino, _exit);
     } else {
-      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
     }
-    goto _exit;
   }
 
   if (!(buffer = taosMemoryMalloc(DM_FILE_HEAD_SIZE))) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
   }
 
   int64_t nRead = taosReadFile(pFile, buffer, DM_FILE_HEAD_SIZE);
   if (nRead < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
   }
 
   if (nRead != DM_FILE_HEAD_SIZE) {
     code = TSDB_CODE_FILE_CORRUPTED;
     dTrace("failed to read %d bytes from vars head since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)buffer, DM_FILE_HEAD_SIZE)) {
     dTrace("failed to read vars head since wrong checksum");
-    code = TSDB_CODE_CHECKSUM_ERROR;
-    goto _exit;
+    TAOS_CHECK_GOTO(TSDB_CODE_CHECKSUM_ERROR, &lino, _exit);
   }
 
   ptr = buffer;
@@ -268,7 +265,7 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
     if (dHeader.len > DM_FILE_HEAD_SIZE) {
       void *tmpBuf = NULL;
       if (!(tmpBuf = taosMemoryRealloc(buffer, dHeader.len))) {
-        goto _exit;
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
       buffer = tmpBuf;
     }
@@ -276,31 +273,27 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
     nRead = (int)taosReadFile(pFile, buffer, dHeader.len);
     if (nRead < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     if (nRead != dHeader.len) {
       code = TSDB_CODE_FILE_CORRUPTED;
       dTrace("failed to read %d bytes from vars body since %s", dHeader.len, tstrerror(code));
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)buffer, dHeader.len)) {
       dTrace("failed to read vars body since wrong checksum");
-      code = TSDB_CODE_FILE_CORRUPTED;
-      goto _exit;
+      TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit);
     }
 
     ptr = buffer;
-    if (dmDecodeVars(ptr, dHeader.len, pInfo) != 0) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
+    TAOS_CHECK_GOTO(dmDecodeVars(ptr, dHeader.len, pInfo), &lino, _exit);
   }
 
 _exit:
   if (code != 0) {
-    dError("failed to read vars since %s", tstrerror(code));
+    dError("failed to read vars at line %d since %s", lino, tstrerror(code));
   }
   taosMemoryFreeClear(buffer);
   taosCloseFile(&pFile);
@@ -344,9 +337,9 @@ int32_t dmInitDndInfo(SDnodeData *pData) {
   if ((code = dmWriteVars(&eInfo)) != 0) goto _exit;
 
 _exit:
-  return code;
+  TAOS_RETURN(code);
 #else
-  return 0;
+  TAOS_RETURN(0);
 #endif
 }
 
@@ -358,6 +351,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   char      tfname[PATH_MAX] = "\0";
   char      cfname[PATH_MAX] = "\0";
   int32_t   code = 0;
+  int32_t   lino = 0;
 
   dmGetFname(DM_ENGINE_FILE_T, tfname);
   dmGetFname(DM_ENGINE_FILE, cfname);
@@ -367,7 +361,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   TdFilePtr tFile = taosOpenFile(tfname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!tFile) {
     code = TAOS_SYSTEM_ERROR(errno);
-    return code;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
   fHeader.version = DM_ENG_FVER_MAX;
@@ -379,13 +373,13 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
 
   if (taosWriteFile(tFile, hbuf, DM_FILE_HEAD_SIZE) < DM_FILE_HEAD_SIZE) {
     code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
   if (fHeader.len > 0) {
     if (!(pBuf = taosMemoryMalloc(fHeader.len))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     ptr = pBuf;
@@ -394,28 +388,28 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
 
     if (taosWriteFile(tFile, pBuf, fHeader.len) < fHeader.len) {
       code = TAOS_SYSTEM_ERROR(errno);
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
   }
 
   // fsync, close and rename
   if (taosFsyncFile(tFile) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
   if (taosCloseFile(&tFile) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
   if (taosRenameFile(tfname, cfname) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
 _exit:
   taosMemoryFreeClear(pBuf);
   if (code != 0) {
-    dError("failed to write vars since %s", tstrerror(code));
+    dError("failed to write vars at line %d since %s", lino, tstrerror(code));
     taosCloseFile(&tFile);
     taosRemoveFile(tfname);
   }
@@ -440,6 +434,7 @@ static void dmFetchEType(int8_t *type) {
 static int32_t dmInitVersion(SDnode *pDnode) {
 #ifndef _TD_DM_SKIP_CHECK
   int32_t     code = 0;
+  int32_t     lino = 0;
   int8_t      eType = 0;
   SEngineInfo eInfo = {0};
 
@@ -456,7 +451,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
   }
   if (((code = dmReadVars(&eInfo)) != 0) && (code != TSDB_CODE_NOT_FOUND)) {
     taosThreadRwlockUnlock(&pDnode->data.lock);
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
   taosThreadRwlockUnlock(&pDnode->data.lock);
 
@@ -472,16 +467,14 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       taosThreadRwlockWrlock(&pDnode->data.lock);
       if ((code = dmWriteVars(&eInfo)) != 0) {
         taosThreadRwlockUnlock(&pDnode->data.lock);
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       taosThreadRwlockUnlock(&pDnode->data.lock);
-      code = dmSyncEps(&pDnode->data);
-      goto _exit;
+      TAOS_CHECK_GOTO(dmSyncEps(&pDnode->data), &lino, _exit);
     }
   } else if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // not history version, but without DM_ENGINE_FILE, fail
-    code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
     dError("failed to init since inconsistent ver");
-    goto _exit;
+    TAOS_CHECK_GOTO(TSDB_CODE_VERSION_NOT_COMPATIBLE, &lino, _exit);
   } else if (pDnode->data.clusterId !=
              eInfo.clusterId) {  // not history version, DM_ENGINE_FILE exists, check clusterId
     if (eInfo.clusterId == 0) {
@@ -492,24 +485,22 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       taosThreadRwlockWrlock(&pDnode->data.lock);
       if ((code = dmWriteVars(&eInfo)) != 0) {
         taosThreadRwlockUnlock(&pDnode->data.lock);
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       taosThreadRwlockUnlock(&pDnode->data.lock);
       dInfo("update clusterId from 0 to %" PRId64, pDnode->data.clusterId);
     } else {
-      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
       dError("failed to init since inconsistent cluster:%" PRIi64 ",%" PRIi64, eInfo.clusterId, pDnode->data.clusterId);
-      goto _exit;
+      TAOS_CHECK_GOTO(TSDB_CODE_VERSION_NOT_COMPATIBLE, &lino, _exit);
     }
   } else if (pDnode->data.engineVer != tsVersion) {  // update to latest engineVer
-    dmSyncEps(&pDnode->data);
+    TAOS_CHECK_GOTO(dmSyncEps(&pDnode->data), &lino, _exit);
   }
 
   if (eType == DM_ETYPE_OS) {        // oss
     if (eInfo.type > DM_ETYPE_OS) {  // enterprise to oss not allowed
-      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
       dError("failed to init since incompatible ver");
-      goto _exit;
+      TAOS_CHECK_GOTO(TSDB_CODE_VERSION_NOT_COMPATIBLE, &lino, _exit);
     }
   } else if (eInfo.type == DM_ETYPE_OS) {  // update oss to enterprise
     eInfo.type = eType;
@@ -518,15 +509,18 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     taosThreadRwlockWrlock(&pDnode->data.lock);
     if ((code = dmWriteVars(&eInfo)) != 0) {
       taosThreadRwlockUnlock(&pDnode->data.lock);
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
     taosThreadRwlockUnlock(&pDnode->data.lock);
   }
 
 _exit:
-  return code;
+  if (code != 0) {
+    dError("failed to init version at line %d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
 #else
-  return 0;
+  TAOS_RETURN(0);
 #endif
 }
 
@@ -540,41 +534,34 @@ static int32_t dmSyncEps(SDnodeData *pData) {
     code = dmWriteEps(pData);
   }
   taosThreadRwlockUnlock(&pData->lock);
-  return code;
+  TAOS_RETURN(code);
 }
 
 // invoker
 int32_t dmInitModule(SDnode *pDnode) {
-  int32_t code = -1;
+  int32_t code = 0;
+  int32_t lino = 0;
 
 #ifdef _TD_DM_CHECK_OFFSET
   dmCheckOffset(pDnode);
 #endif
 
-  if (dmInitPrerequisites() != 0) {
-    goto _err;
-  }
+  TAOS_CHECK_GOTO(dmInitPrerequisites(), &lino, _exit);
+
   if (dmInitVersion(pDnode) != 0) {
-    terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-    goto _err;
+    TAOS_CHECK_GOTO(TSDB_CODE_VERSION_NOT_COMPATIBLE, &lino, _exit);
   }
 
-  if (dmInitMsgHandle(pDnode) != 0) {
-    dError("failed to init msg handles since %s", terrstr());
-    goto _err;
-  }
+  TAOS_CHECK_GOTO(dmInitMsgHandle(pDnode), &lino, _exit);
 
-  if (dmInitServer(pDnode) != 0) {
-    dError("failed to init transport since %s", terrstr());
-    goto _err;
-  }
+  TAOS_CHECK_GOTO(dmInitServer(pDnode), &lino, _exit);
 
-  if (dmInitClient(pDnode) != 0) {
-    goto _err;
-  }
+  TAOS_CHECK_GOTO(dmInitClient(pDnode), &lino, _exit);
+
 _exit:
-  code = 0;
-_err:
+  if (code != 0) {
+    dError("failed to init module at line %d since %s", lino, tstrerror(code));
+  }
 
-  return code;
+  TAOS_RETURN(code);
 }
