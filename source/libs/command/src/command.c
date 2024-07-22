@@ -503,11 +503,10 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 
   if (tTagIsJson(pTag)) {
-    char* pJson = parseTagDatatoJson(pTag);
-    if (pJson) {
-      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
-      taosMemoryFree(pJson);
-    }
+    char* pJson = NULL;
+    parseTagDatatoJson(pTag, &pJson);
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
+    taosMemoryFree(pJson);
 
     return TSDB_CODE_SUCCESS;
   }

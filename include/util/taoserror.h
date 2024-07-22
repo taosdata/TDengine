@@ -53,7 +53,7 @@ int32_t  taosGetErrSize();
 #define terrln                              (*taosGetErrln())
 
 #define SET_ERROR_MSG(MSG, ...) \
-  snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
+  (void)snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
@@ -556,6 +556,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER  TAOS_DEF_ERROR_CODE(0, 0x061B)
 #define TSDB_CODE_TDB_TDB_ENV_OPEN_ERROR        TAOS_DEF_ERROR_CODE(0, 0x061C)
 #define TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE     TAOS_DEF_ERROR_CODE(0, 0x061D)
+#define TSDB_CODE_TDB_INCONSISTENT_DB_ID        TAOS_DEF_ERROR_CODE(0, 0x061E)
 
 // query
 #define TSDB_CODE_QRY_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0700)

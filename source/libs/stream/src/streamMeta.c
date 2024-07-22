@@ -742,7 +742,10 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     streamMetaRLock(pMeta);
     ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask) {
+      // to make sure check status will not start the check downstream status when we start to check timerActive count.
+      streamMutexLock(&pTask->taskCheckInfo.checkInfoLock);
       timerActive = (*ppTask)->status.timerActive;
+      streamMutexUnlock(&pTask->taskCheckInfo.checkInfoLock);
     }
     streamMetaRUnLock(pMeta);
 
