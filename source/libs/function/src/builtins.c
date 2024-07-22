@@ -4109,14 +4109,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "_select_tag",
-    .type = FUNCTION_TYPE_SELECT_TAG,
+    .name = "_group_const_value",
+    .type = FUNCTION_TYPE_GROUP_CONST_VALUE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateGroupKey,
-    .getEnvFunc   = getGroupKeyFuncEnv,
+    .translateFunc = translateSelectValue,
+    .getEnvFunc   = getSelectivityFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = groupKeyFunction,
-    .finalizeFunc = groupKeyFinalize,
+    .processFunc  = groupConstValueFunction,
+    .finalizeFunc = groupConstValueFinalize,
   },
 };
 // clang-format on
