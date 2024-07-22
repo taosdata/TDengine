@@ -181,7 +181,7 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
 int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
   // too long account id or too long db name
   if (nameLen >= tListLen(dst->tname) || nameLen <= 0) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dst->type = TSDB_TABLE_NAME_T;
@@ -225,14 +225,14 @@ bool tNameTbNameEqual(SName* left, SName* right) {
 
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   if (strlen(str) == 0) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   char* p = NULL;
   if ((type & T_NAME_ACCT) == T_NAME_ACCT) {
     p = strstr(str, TS_PATH_DELIMITER);
     if (p == NULL) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     dst->acctId = taosStr2Int32(str, NULL, 10);
@@ -252,7 +252,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
 
     // too long account id or too long db name
     if ((len >= tListLen(dst->dbname)) || (len <= 0)) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     memcpy(dst->dbname, start, len);
@@ -266,7 +266,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     // too long account id or too long db name
     int32_t len = (int32_t)strlen(start);
     if ((len >= tListLen(dst->tname)) || (len <= 0)) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     memcpy(dst->tname, start, len);
@@ -302,7 +302,7 @@ int32_t buildChildTableName(RandTableName* rName) {
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');
     SSmlKv* tagKv = taosArrayGet(rName->tags, j);
-    if(tagKv == NULL) {
+    if (tagKv == NULL) {
       return TSDB_CODE_SML_INVALID_DATA;
     }
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
