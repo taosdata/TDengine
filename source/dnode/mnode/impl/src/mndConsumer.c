@@ -604,7 +604,9 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   if (buf == NULL) goto CM_ENCODE_OVER;
 
   void *abuf = buf;
-  tEncodeSMqConsumerObj(&abuf, pConsumer);
+  if(tEncodeSMqConsumerObj(&abuf, pConsumer) < 0){
+    goto CM_ENCODE_OVER;
+  }
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, tlen, CM_ENCODE_OVER);

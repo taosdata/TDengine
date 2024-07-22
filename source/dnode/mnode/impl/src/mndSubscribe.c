@@ -1109,7 +1109,9 @@ static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
   if (buf == NULL) goto SUB_ENCODE_OVER;
 
   void *abuf = buf;
-  tEncodeSubscribeObj(&abuf, pSub);
+  if (tEncodeSubscribeObj(&abuf, pSub) < 0){
+    goto SUB_ENCODE_OVER;
+  }
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, tlen, SUB_ENCODE_OVER);
@@ -1342,7 +1344,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
 
     // consumer id
     char consumerIdHex[32] = {0};
-    sprintf(varDataVal(consumerIdHex), "0x%" PRIx64, consumerId);
+    (void)sprintf(varDataVal(consumerIdHex), "0x%" PRIx64, consumerId);
     varDataSetLen(consumerIdHex, strlen(varDataVal(consumerIdHex)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

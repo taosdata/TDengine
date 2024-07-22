@@ -134,7 +134,9 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
       goto TOPIC_ENCODE_OVER;
     }
     void *aswBuf = swBuf;
-    taosEncodeSSchemaWrapper(&aswBuf, &pTopic->schema);
+    if(taosEncodeSSchemaWrapper(&aswBuf, &pTopic->schema) < 0){
+      goto TOPIC_ENCODE_OVER;
+    }
     SDB_SET_BINARY(pRaw, dataPos, swBuf, schemaLen, TOPIC_ENCODE_OVER);
   }
 
@@ -264,7 +266,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     }
     int16_t colId;
     SDB_GET_INT16(pRaw, dataPos, &colId, TOPIC_DECODE_OVER);
-    taosArrayPush(pTopic->ntbColIds, &colId);
+    (void)taosArrayPush(pTopic->ntbColIds, &colId);
   }
 
   SDB_GET_INT64(pRaw, dataPos, &pTopic->ctbStbUid, TOPIC_DECODE_OVER);
