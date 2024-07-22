@@ -759,25 +759,27 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   SVgObj*     pVgroup = NULL;
   SQueryPlan* pPlan = NULL;
   SSubplan*   pSubplan = NULL;
+  int32_t     code = 0;
 
   if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
     pPlan = qStringToQueryPlan(pTopic->physicalPlan);
     if (pPlan == NULL) {
-      terrno = TSDB_CODE_QRY_INVALID_INPUT;
-      return -1;
+      return TSDB_CODE_QRY_INVALID_INPUT;
     }
   } else if (pTopic->subType == TOPIC_SUB_TYPE__TABLE && pTopic->ast != NULL) {
     SNode* pAst = NULL;
-    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
+    code = nodesStringToNode(pTopic->ast, &pAst);
+    if (code != 0) {
       mError("topic:%s, failed to create since %s", pTopic->name, terrstr());
-      return -1;
+      return code;
     }
 
     SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
-    if (qCreateQueryPlan(&cxt, &pPlan, NULL) != 0) {
+    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
+    if (code != 0) {
       mError("failed to create topic:%s since %s", pTopic->name, terrstr());
       nodesDestroyNode(pAst);
-      return -1;
+      return code;
     }
     nodesDestroyNode(pAst);
   }
@@ -785,18 +787,19 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   if (pPlan) {
     int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
     if (levelNum != 1) {
-      qDestroyQueryPlan(pPlan);
-      terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
-      return -1;
+      code = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
+      goto END;
     }
 
     SNodeListNode* pNodeListNode = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
-
+    if (pNodeListNode == NULL){
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
     int32_t opNum = LIST_LENGTH(pNodeListNode->pNodeList);
     if (opNum != 1) {
-      qDestroyQueryPlan(pPlan);
-      terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
-      return -1;
+      code = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
+      goto END;
     }
 
     pSubplan = (SSubplan*)nodesListGetNode(pNodeListNode->pNodeList, 0);
@@ -817,12 +820,18 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     pSub->vgNum++;
 
     SMqVgEp* pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
+    if (pVgEp == NULL){
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
     pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
     pVgEp->vgId = pVgroup->vgId;
-    taosArrayPush(pSub->unassignedVgs, &pVgEp);
-
+    if (taosArrayPush(pSub->unassignedVgs, &pVgEp) == NULL){
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(pVgEp);
+      goto END;
+    }
     mInfo("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp->vgId);
-
     sdbRelease(pSdb, pVgroup);
   }
 
@@ -830,14 +839,14 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     int32_t msgLen;
 
     if (qSubPlanToString(pSubplan, &pSub->qmsg, &msgLen) < 0) {
-      qDestroyQueryPlan(pPlan);
-      terrno = TSDB_CODE_QRY_INVALID_INPUT;
-      return -1;
+      code = TSDB_CODE_QRY_INVALID_INPUT;
+      goto END;
     }
   } else {
     pSub->qmsg = taosStrdup("");
   }
 
+END:
   qDestroyQueryPlan(pPlan);
-  return 0;
+  return code;
 }

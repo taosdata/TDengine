@@ -255,15 +255,17 @@ void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
 
 static void *topicNameDup(void *p) { return taosStrdup((char *)p); }
 
-SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType, char *topic, SCMSubscribeReq *subscribe) {
+int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
+                                   char *topic, SCMSubscribeReq *subscribe, SMqConsumerObj** ppConsumer) {
+  int32_t code = 0;
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
   }
 
   pConsumer->consumerId = consumerId;
-  memcpy(pConsumer->cgroup, cgroup, TSDB_CGROUP_LEN);
+  (void)memcpy(pConsumer->cgroup, cgroup, TSDB_CGROUP_LEN);
 
   pConsumer->epoch = 0;
   pConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
@@ -276,20 +278,26 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t upda
   if (updateType == CONSUMER_ADD_REB){
     pConsumer->rebNewTopics = taosArrayInit(0, sizeof(void *));
     if(pConsumer->rebNewTopics == NULL){
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
 
     char* topicTmp = taosStrdup(topic);
-    taosArrayPush(pConsumer->rebNewTopics, &topicTmp);
+    if (taosArrayPush(pConsumer->rebNewTopics, &topicTmp) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
   }else if (updateType == CONSUMER_REMOVE_REB) {
     pConsumer->rebRemovedTopics = taosArrayInit(0, sizeof(void *));
     if(pConsumer->rebRemovedTopics == NULL){
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
     char* topicTmp = taosStrdup(topic);
-    taosArrayPush(pConsumer->rebRemovedTopics, &topicTmp);
+    if (taosArrayPush(pConsumer->rebRemovedTopics, &topicTmp) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
   }else if (updateType == CONSUMER_INSERT_SUB){
     tstrncpy(pConsumer->clientId, subscribe->clientId, tListLen(pConsumer->clientId));
     pConsumer->withTbName = subscribe->withTbName;
@@ -297,10 +305,9 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t upda
     pConsumer->autoCommitInterval = subscribe->autoCommitInterval;
     pConsumer->resetOffsetCfg = subscribe->resetOffsetCfg;
 
-
     pConsumer->rebNewTopics = taosArrayDup(subscribe->topicNames, topicNameDup);
     if (pConsumer->rebNewTopics == NULL){
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
     pConsumer->assignedTopics = subscribe->topicNames;
@@ -310,11 +317,12 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t upda
     subscribe->topicNames = NULL;
   }
 
-  return pConsumer;
+  *ppConsumer = pConsumer;
+  return 0;
 
 END:
   tDeleteSMqConsumerObj(pConsumer);
-  return NULL;
+  return code;
 }
 
 void tClearSMqConsumerObj(SMqConsumerObj *pConsumer) {
@@ -530,27 +538,36 @@ void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t s
   return (void *)buf;
 }
 
-SMqSubscribeObj *tNewSubscribeObj(const char *key) {
+int32_t tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub) {
+  int32_t code = 0;
   SMqSubscribeObj *pSubObj = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
-  if (pSubObj == NULL) {
-    return NULL;
-  }
+  MND_TMQ_NULL_CHECK(pSubObj);
 
-  memcpy(pSubObj->key, key, TSDB_SUBSCRIBE_KEY_LEN);
+  (void)memcpy(pSubObj->key, key, TSDB_SUBSCRIBE_KEY_LEN);
   taosInitRWLatch(&pSubObj->lock);
   pSubObj->vgNum = 0;
   pSubObj->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-
-  // TODO set hash free fp
-  /*taosHashSetFreeFp(pSubObj->consumerHash, tDeleteSMqConsumerEp);*/
+  MND_TMQ_NULL_CHECK(pSubObj->consumerHash);
   pSubObj->unassignedVgs = taosArrayInit(0, POINTER_BYTES);
-  return pSubObj;
+  MND_TMQ_NULL_CHECK(pSubObj->unassignedVgs);
+  if (ppSub){
+    *ppSub = pSubObj;
+  }
+  return code;
+
+END:
+  taosMemoryFree(pSubObj);
+  return code;
 }
 
-SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
+int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub) {
+  int32_t code = 0;
   SMqSubscribeObj *pSubNew = taosMemoryMalloc(sizeof(SMqSubscribeObj));
-  if (pSubNew == NULL) return NULL;
-  memcpy(pSubNew->key, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
+  if (pSubNew == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
+  (void)memcpy(pSubNew->key, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
   taosInitRWLatch(&pSubNew->lock);
 
   pSubNew->dbUid = pSub->dbUid;
@@ -560,8 +577,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
 
   pSubNew->vgNum = pSub->vgNum;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  // TODO set hash free fp
-  /*taosHashSetFreeFp(pSubNew->consumerHash, tDeleteSMqConsumerEp);*/
+
   void          *pIter = NULL;
   SMqConsumerEp *pConsumerEp = NULL;
   while (1) {
@@ -576,9 +592,11 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
   }
   pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, (__array_item_dup_fn_t)tCloneSMqVgEp);
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
-  memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
+  (void)memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   pSubNew->qmsg = taosStrdup(pSub->qmsg);
-  return pSubNew;
+
+END:
+  return code;
 }
 
 void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
