@@ -411,7 +411,7 @@ int32_t tqStreamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   SStreamTask* pTask = NULL;
   int32_t code = streamMetaAcquireTask(pMeta, pRsp->streamId, pRsp->upstreamTaskId, &pTask);
-  if (pTask) {
+  if (pTask && (code == 0)) {
     code = streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pMeta, pTask);
     return code;
