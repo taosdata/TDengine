@@ -133,6 +133,34 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 当输入多条语句，可以鼠标选中需要指执行的语句，也可以对语句进行注释（快捷键 Control-/ Command-/），然后再点击执行即可
 ![explorer-16-sqlEditor.jpeg](./pic/explorer-16-sqlEditor.jpeg "Sql 编辑器")
 
+### Sql 收藏功能使用
+
+鼠标选中窗口中的 SQL，点击收藏按钮，即可对 SQL 进行收藏，并可以填写对该 SQL 语句的描述
+![explorer-17-favoritesAdd.png](./pic/explorer-17-favoritesAdd.png "添加 SQL 收藏")
+
+个人收藏中，点击 SQL 的共享按钮，当前 SQL 会被添加到共享收藏中
+![explorer-18-favoritesAddPublic.png](./pic/explorer-18-favoritesAddPublic.png "添加共享")
+
+共享收藏中的 SQL 对所有用户可见
+![explorer-19-favoritesPublic.png](./pic/explorer-19-favoritesPublic.png "共享页面")
+
+点击取消共享按钮，可以撤回对此 SQL 的共享
+![explorer-20-favoritesCancelPublic.png](./pic/explorer-20-favoritesCancelPublic.png "取消共享")
+
+在搜索栏中可以对 SQL 或描述进行模糊搜索
+![explorer-21-favoritesSearch.png](./pic/explorer-21-favoritesSearch.png "模糊搜索")
+
+点击删除按钮，SQL 将会从个人收藏中删除，如果 SQL 已经共享到共享收藏，那么共享收藏中对应 SQL 也会同步删除
+
+![explorer-22-favoritesDelete.png](./pic/explorer-22-favoritesDelete.png "删除 SQL 收藏")
+
+> 注意:
+>
+> 1. 如果欲收藏的 SQL 已经在个人收藏中，则无法重复收藏，该操作会报错但不产生任何后果
+> 2. 如果欲共享的 SQL 已经被自己或他人共享过，则无法重复共享，该操作会报错但不产生任何后果
+>
+>![explorer-23-favoritesNotes.png](./pic/explorer-23-favoritesNotes.png)
+
 ## 流计算
 
 通过 Explorer， 您可以轻松地完成对流的管理，从而更好地利用 TDengine 提供的流计算能力。
