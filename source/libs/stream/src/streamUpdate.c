@@ -241,8 +241,8 @@ static int32_t getSBf(SUpdateInfo* pInfo, TSKEY ts, SScalableBf** ppSBf) {
   }
   int64_t index = (int64_t)((ts - pInfo->minTS) / pInfo->interval);
   if (index < 0) {
-    code = TSDB_CODE_FAILED;
-    QUERY_CHECK_CODE(code, lino, _end);
+    (*ppSBf) = NULL;
+    goto _end;
   }
   if (index >= pInfo->numSBFs) {
     uint64_t count = index + 1 - pInfo->numSBFs;

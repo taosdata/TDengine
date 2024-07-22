@@ -221,8 +221,9 @@ int32_t tScalableBfDecode(SDecoder* pDecoder, SScalableBf** ppSBf) {
     QUERY_CHECK_CODE(code, lino, _error);
   }
   if (size == 0) {
-    code = TSDB_CODE_FAILED;
-    QUERY_CHECK_CODE(code, lino, _error);
+    (*ppSBf) = NULL;
+    tScalableBfDestroy(pSBf);
+    goto _error;
   }
   pSBf->bfArray = taosArrayInit(size * 2, POINTER_BYTES);
   if (!pSBf->bfArray) {
