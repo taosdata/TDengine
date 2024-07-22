@@ -731,8 +731,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
 _end:
 
-  int32_t tmpRes = cleanUpUdfs();
-  qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
+  (void)cleanUpUdfs();
 
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
   qDebug("%s task suspended, %d rows in %d blocks returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
