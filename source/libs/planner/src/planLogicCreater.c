@@ -1013,7 +1013,7 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
       pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
   pWindow->pStateExpr = NULL;
   code = nodesCloneNode(pState->pExpr, &pWindow->pStateExpr);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pWindow);
     return code;
   }
@@ -1231,13 +1231,13 @@ static int32_t partFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNode
       SNode* pExpr = ((SOrderByExprNode*)pOrderExpr)->pExpr;
       if (needFillValue(pExpr)) {
         SNode* pNew = NULL;
-        code = nodesCloneNode(pProject, &pExpr);
+        code = nodesCloneNode(pExpr, &pNew);
         if (TSDB_CODE_SUCCESS == code) {
           code = nodesListMakeStrictAppend(pFillExprs, pNew);
         }
       } else if (QUERY_NODE_VALUE != nodeType(pExpr)) {
         SNode* pNew = NULL;
-        code = nodesCloneNode(pProject, &pExpr);
+        code = nodesCloneNode(pExpr, &pNew);
         if (TSDB_CODE_SUCCESS == code) {
           code = nodesListMakeStrictAppend(pNotFillExprs, pNew);
         }
@@ -1293,7 +1293,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->pValues = NULL;
   code = nodesCloneNode(pFillNode->pValues, &pFill->pValues);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCloneNode(pFillNode->pWStartTs, &pFillNode->pWStartTs);
+    code = nodesCloneNode(pFillNode->pWStartTs, &pFill->pWStartTs);
   }
 
   if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {

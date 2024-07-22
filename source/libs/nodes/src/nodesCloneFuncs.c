@@ -1083,5 +1083,6 @@ int32_t nodesCloneList(const SNodeList* pList, SNodeList** ppList) {
       return code;
     }
   }
+  *ppList = pDst;
   return TSDB_CODE_SUCCESS;
 }

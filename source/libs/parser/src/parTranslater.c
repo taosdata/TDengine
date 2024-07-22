@@ -8368,6 +8368,7 @@ static int32_t createRollupFuncs(SCreateTableStmt* pStmt, SNodeList** ppList) {
       }
     }
   }
+  *ppList = pFuncs;
 
   return code;;
 }
@@ -12760,14 +12761,14 @@ static int32_t rewriteShowTags(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
-static int32_t createTagsFunction(SNode** ppNode) {
+static int32_t createTagsFunction(SFunctionNode** ppNode) {
   SFunctionNode* pFunc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (NULL == pFunc) {
     return code;
   }
   strcpy(pFunc->functionName, "_tags");
-  *ppNode = (SNode*)pFunc;
+  *ppNode = pFunc;
   return code;
 }
 
@@ -12781,11 +12782,12 @@ static int32_t createShowTableTagsProjections(SNodeList** pProjections, SNodeLis
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(pProjections, (SNode*)pTbNameFunc);
   }
+  SFunctionNode* pTagsFunc = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    code = createTbnameFunction(&pTbNameFunc);
+    code = createTagsFunction(&pTagsFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListStrictAppend(*pProjections, (SNode*)pTbNameFunc);
+    code = nodesListStrictAppend(*pProjections, (SNode*)pTagsFunc);
   }
   return code;
 }
