@@ -26,12 +26,11 @@
 #include "ttime.h"
 
 #include "function.h"
+#include "operator.h"
 #include "querynodes.h"
+#include "querytask.h"
 #include "tdatablock.h"
 #include "tfill.h"
-#include "operator.h"
-#include "querytask.h"
-
 
 #define FILL_POS_INVALID 0
 #define FILL_POS_START   1
@@ -56,8 +55,8 @@ TSKEY getPrevWindowTs(TSKEY ts, SInterval* pInterval) {
   return win.skey;
 }
 
-void setRowCell(SColumnInfoData* pCol, int32_t rowId, const SResultCellData* pCell) {
-  colDataSetVal(pCol, rowId, pCell->pData, pCell->isNull);
+int32_t setRowCell(SColumnInfoData* pCol, int32_t rowId, const SResultCellData* pCell) {
+  return colDataSetVal(pCol, rowId, pCell->pData, pCell->isNull);
 }
 
 SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index) {
@@ -83,7 +82,7 @@ void* destroyFillColumnInfo(SFillColInfo* pFillCol, int32_t start, int32_t end) 
   return NULL;
 }
 
-void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
+void destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pAllColInfo = destroyFillColumnInfo(pFillSup->pAllColInfo, pFillSup->numOfFillCols, pFillSup->numOfAllCols);
   tSimpleHashCleanup(pFillSup->pResMap);
   pFillSup->pResMap = NULL;
@@ -96,39 +95,42 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   taosMemoryFree(pFillSup->nextNext.pRowVal);
 
   taosMemoryFree(pFillSup);
-  return NULL;
 }
 
 void destroySPoint(void* ptr) {
-  SPoint* point = (SPoint*) ptr;
+  SPoint* point = (SPoint*)ptr;
   taosMemoryFreeClear(point->val);
 }
 
-void* destroyStreamFillLinearInfo(SStreamFillLinearInfo* pFillLinear) {
+void destroyStreamFillLinearInfo(SStreamFillLinearInfo* pFillLinear) {
   taosArrayDestroyEx(pFillLinear->pEndPoints, destroySPoint);
   taosArrayDestroyEx(pFillLinear->pNextEndPoints, destroySPoint);
   taosMemoryFree(pFillLinear);
-  return NULL;
 }
-void* destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
+
+void destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
   if (pFillInfo->type == TSDB_FILL_SET_VALUE || pFillInfo->type == TSDB_FILL_SET_VALUE_F ||
       pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
     taosMemoryFreeClear(pFillInfo->pResRow->pRowVal);
     taosMemoryFreeClear(pFillInfo->pResRow);
   }
-  pFillInfo->pLinearInfo = destroyStreamFillLinearInfo(pFillInfo->pLinearInfo);
+  destroyStreamFillLinearInfo(pFillInfo->pLinearInfo);
+  pFillInfo->pLinearInfo = NULL;
+
   taosArrayDestroy(pFillInfo->delRanges);
   taosMemoryFree(pFillInfo);
-  return NULL;
 }
 
 static void destroyStreamFillOperatorInfo(void* param) {
   SStreamFillOperatorInfo* pInfo = (SStreamFillOperatorInfo*)param;
-  pInfo->pFillInfo = destroyStreamFillInfo(pInfo->pFillInfo);
-  pInfo->pFillSup = destroyStreamFillSupporter(pInfo->pFillSup);
-  pInfo->pRes = blockDataDestroy(pInfo->pRes);
-  pInfo->pSrcBlock = blockDataDestroy(pInfo->pSrcBlock);
-  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
+  destroyStreamFillInfo(pInfo->pFillInfo);
+  destroyStreamFillSupporter(pInfo->pFillSup);
+  blockDataDestroy(pInfo->pRes);
+  pInfo->pRes = NULL;
+  blockDataDestroy(pInfo->pSrcBlock);
+  pInfo->pSrcBlock = NULL;
+  blockDataDestroy(pInfo->pDelRes);
+  pInfo->pDelRes = NULL;
   taosArrayDestroy(pInfo->matchInfo.pList);
   pInfo->matchInfo.pList = NULL;
   taosMemoryFree(pInfo);
@@ -151,29 +153,15 @@ void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, void* pState, SStora
   resetFillWindow(&pFillSup->nextNext);
 }
 
-void getCurWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
-  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
-
-  void* pState = pOperator->pTaskInfo->streamInfo.pState;
-  resetPrevAndNextWindow(pFillSup, pState, pAPI);
-
-  SWinKey key = {.ts = ts, .groupId = groupId};
-  int32_t curVLen = 0;
-
-  int32_t code = pAPI->stateStore.streamStateFillGet(pState, &key, (void**)&pFillSup->cur.pRowVal, &curVLen);
-  ASSERT(code == TSDB_CODE_SUCCESS);
-  pFillSup->cur.key = key.ts;
-}
-
 void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
   SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
-  void* pState = pOperator->pTaskInfo->streamInfo.pState;
+  void*        pState = pOperator->pTaskInfo->streamInfo.pState;
   resetPrevAndNextWindow(pFillSup, pState, pAPI);
 
   SWinKey key = {.ts = ts, .groupId = groupId};
   void*   curVal = NULL;
   int32_t curVLen = 0;
-  bool hasCurKey = true;
+  bool    hasCurKey = true;
   int32_t code = pAPI->stateStore.streamStateFillGet(pState, &key, (void**)&curVal, &curVLen);
   if (code == TSDB_CODE_SUCCESS) {
     pFillSup->cur.key = key.ts;
@@ -196,15 +184,10 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
     pFillSup->prev.pRowVal = preVal;
 
     if (hasCurKey) {
-      code = pAPI->stateStore.streamStateCurNext(pState, pCur);
-      ASSERT(code == TSDB_CODE_SUCCESS);
+      pAPI->stateStore.streamStateCurNext(pState, pCur);
     }
 
-    code = pAPI->stateStore.streamStateCurNext(pState, pCur);
-    if (code != TSDB_CODE_SUCCESS) {
-      pAPI->stateStore.streamStateFreeCur(pCur);
-      pCur = NULL;
-    }
+    pAPI->stateStore.streamStateCurNext(pState, pCur);
   } else {
     pAPI->stateStore.streamStateFreeCur(pCur);
     pCur = pAPI->stateStore.streamStateFillSeekKeyNext(pState, &key);
@@ -218,16 +201,14 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
     pFillSup->next.key = nextKey.ts;
     pFillSup->next.pRowVal = nextVal;
     if (pFillSup->type == TSDB_FILL_PREV || pFillSup->type == TSDB_FILL_NEXT) {
-      code = pAPI->stateStore.streamStateCurNext(pState, pCur);
+      pAPI->stateStore.streamStateCurNext(pState, pCur);
+      SWinKey nextNextKey = {.groupId = groupId};
+      void*   nextNextVal = NULL;
+      int32_t nextNextVLen = 0;
+      code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextNextKey, (const void**)&nextNextVal, &nextNextVLen);
       if (code == TSDB_CODE_SUCCESS) {
-        SWinKey nextNextKey = {.groupId = groupId};
-        void*   nextNextVal = NULL;
-        int32_t nextNextVLen = 0;
-        code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextNextKey, (const void**)&nextNextVal, &nextNextVLen);
-        if (code == TSDB_CODE_SUCCESS) {
-          pFillSup->nextNext.key = nextNextKey.ts;
-          pFillSup->nextNext.pRowVal = nextNextVal;
-        }
+        pFillSup->nextNext.key = nextNextKey.ts;
+        pFillSup->nextNext.pRowVal = nextNextVal;
       }
     }
   }
@@ -286,13 +267,12 @@ static void calcDeltaData(SSDataBlock* pBlock, int32_t rowId, SResultRowData* pR
   }
 }
 
-static void calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol,
-                             int32_t numOfCol) {
+static void calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol, int32_t numOfCol) {
   for (int32_t i = 0; i < numOfCol; i++) {
     if (!pFillCol[i].notFillCol) {
       int32_t          slotId = GET_DEST_SLOT_ID(pFillCol + i);
       SResultCellData* pECell = getResultCell(pEndRow, slotId);
-      SPoint* pPoint = taosArrayGet(pEndPoins, slotId);
+      SPoint*          pPoint = taosArrayGet(pEndPoins, slotId);
       pPoint->key = pEndRow->key;
       memcpy(pPoint->val, pECell->pData, pECell->bytes);
     }
@@ -484,22 +464,40 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
   ASSERT(pFillInfo->pos != FILL_POS_INVALID);
 }
 
-static bool checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId) {
+static int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId, bool* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SWinKey key = {.groupId = groupId, .ts = ts};
   if (tSimpleHashGet(pFillSup->pResMap, &key, sizeof(SWinKey)) != NULL) {
-    return false;
+    (*pRes) = false;
   }
-  tSimpleHashPut(pFillSup->pResMap, &key, sizeof(SWinKey), NULL, 0);
-  return true;
+  code = tSimpleHashPut(pFillSup->pResMap, &key, sizeof(SWinKey), NULL, 0);
+  TSDB_CHECK_CODE(code, lino, _end);
+  (*pRes) = true;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-static bool buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFillSup, TSKEY ts, SSDataBlock* pBlock) {
+static int32_t buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFillSup, TSKEY ts, SSDataBlock* pBlock,
+                               bool* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pBlock->info.rows >= pBlock->info.capacity) {
-    return false;
+    (*pRes) = false;
+    goto _end;
   }
   uint64_t groupId = pBlock->info.id.groupId;
-  if (pFillSup->hasDelete && !checkResult(pFillSup, ts, groupId)) {
-    return true;
+  bool     ckRes = true;
+  code = checkResult(pFillSup, ts, groupId, &ckRes);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  if (pFillSup->hasDelete && !ckRes) {
+    (*pRes) = true;
+    goto _end;
   }
   for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
     SFillColInfo*    pFillCol = pFillSup->pAllColInfo + i;
@@ -513,11 +511,18 @@ static bool buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFill
     bool filled = fillIfWindowPseudoColumn(&tmpInfo, pFillCol, pColData, pBlock->info.rows);
     if (!filled) {
       SResultCellData* pCell = getResultCell(pResRow, slotId);
-      setRowCell(pColData, pBlock->info.rows, pCell);
+      code = setRowCell(pColData, pBlock->info.rows, pCell);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
   }
   pBlock->info.rows++;
-  return true;
+  (*pRes) = true;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static bool hasRemainCalc(SStreamFillInfo* pFillInfo) {
@@ -528,22 +533,38 @@ static bool hasRemainCalc(SStreamFillInfo* pFillInfo) {
 }
 
 static void doStreamFillNormal(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   while (hasRemainCalc(pFillInfo) && pBlock->info.rows < pBlock->info.capacity) {
     STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
     if (inWinRange(&pFillSup->winRange, &st)) {
-      buildFillResult(pFillInfo->pResRow, pFillSup, pFillInfo->current, pBlock);
+      bool res = true;
+      code = buildFillResult(pFillInfo->pResRow, pFillSup, pFillInfo->current, pBlock, &res);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                      pFillSup->interval.precision);
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
 }
 
 static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   while (hasRemainCalc(pFillInfo) && pBlock->info.rows < pBlock->info.capacity) {
-    uint64_t groupId = pBlock->info.id.groupId;
-    SWinKey  key = {.groupId = groupId, .ts = pFillInfo->current};
+    uint64_t    groupId = pBlock->info.id.groupId;
+    SWinKey     key = {.groupId = groupId, .ts = pFillInfo->current};
     STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
-    if ( ( pFillSup->hasDelete && !checkResult(pFillSup, pFillInfo->current, groupId) ) || !inWinRange(&pFillSup->winRange, &st) ) {
+    bool        ckRes = true;
+    code = checkResult(pFillSup, pFillInfo->current, groupId, &ckRes);
+    TSDB_CHECK_CODE(code, lino, _end);
+
+    if ((pFillSup->hasDelete && !ckRes) ||
+        !inWinRange(&pFillSup->winRange, &st)) {
       pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                        pFillSup->interval.precision);
       pFillInfo->pLinearInfo->winIndex++;
@@ -566,7 +587,8 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
       if (pFillCol->notFillCol) {
         bool filled = fillIfWindowPseudoColumn(&tmp, pFillCol, pColData, index);
         if (!filled) {
-          setRowCell(pColData, index, pCell);
+          code = setRowCell(pColData, index, pCell);
+          TSDB_CHECK_CODE(code, lino, _end);
         }
       } else {
         if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pCell->isNull) {
@@ -575,7 +597,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
         }
         SPoint* pEnd = taosArrayGet(pFillInfo->pLinearInfo->pEndPoints, slotId);
         double  vCell = 0;
-        SPoint start = {0};
+        SPoint  start = {0};
         start.key = pFillInfo->pResRow->key;
         start.val = pCell->pData;
 
@@ -583,13 +605,19 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
         cur.key = pFillInfo->current;
         cur.val = taosMemoryCalloc(1, pCell->bytes);
         taosGetLinearInterpolationVal(&cur, pCell->type, &start, pEnd, pCell->type);
-        colDataSetVal(pColData, index, (const char*)cur.val, false);
+        code = colDataSetVal(pColData, index, (const char*)cur.val, false);
+        TSDB_CHECK_CODE(code, lino, _end);
         destroySPoint(&cur);
       }
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                      pFillSup->interval.precision);
     pBlock->info.rows++;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
@@ -603,13 +631,19 @@ static void keepResultInDiscBuf(SOperatorInfo* pOperator, uint64_t groupId, SRes
 }
 
 static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  bool    res = false;
   if (pFillInfo->needFill == false) {
-    buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes);
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    TSDB_CHECK_CODE(code, lino, _end);
     return;
   }
 
   if (pFillInfo->pos == FILL_POS_START) {
-    if (buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes)) {
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    TSDB_CHECK_CODE(code, lino, _end);
+    if (res) {
       pFillInfo->pos = FILL_POS_INVALID;
     }
   }
@@ -619,7 +653,9 @@ static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* 
     doStreamFillLinear(pFillSup, pFillInfo, pRes);
 
     if (pFillInfo->pos == FILL_POS_MID) {
-      if (buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes)) {
+      code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+      TSDB_CHECK_CODE(code, lino, _end);
+      if (res) {
         pFillInfo->pos = FILL_POS_INVALID;
       }
     }
@@ -634,9 +670,16 @@ static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* 
     }
   }
   if (pFillInfo->pos == FILL_POS_END) {
-    if (buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes)) {
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    TSDB_CHECK_CODE(code, lino, _end);
+    if (res) {
       pFillInfo->pos = FILL_POS_INVALID;
     }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
@@ -663,6 +706,8 @@ static void doFillResults(SOperatorInfo* pOperator, SStreamFillSupporter* pFillS
 }
 
 static void doStreamFillImpl(SOperatorInfo* pOperator) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   SStreamFillSupporter*    pFillSup = pInfo->pFillSup;
@@ -685,20 +730,28 @@ static void doStreamFillImpl(SOperatorInfo* pOperator) {
     keepBlockRowInDiscBuf(pOperator, pFillInfo, pBlock, tsCol, pInfo->srcRowIndex, groupId, pFillSup->rowSize);
     doFillResults(pOperator, pFillSup, pFillInfo, pBlock, tsCol, pInfo->srcRowIndex - 1, pRes);
     if (pInfo->pRes->info.rows == pInfo->pRes->info.capacity) {
-      blockDataUpdateTsWindow(pRes, pInfo->primaryTsCol);
+      code = blockDataUpdateTsWindow(pRes, pInfo->primaryTsCol);
+      TSDB_CHECK_CODE(code, lino, _end);
       return;
     }
     pInfo->srcRowIndex++;
   }
   doFillResults(pOperator, pFillSup, pFillInfo, pBlock, tsCol, pInfo->srcRowIndex - 1, pRes);
-  blockDataUpdateTsWindow(pRes, pInfo->primaryTsCol);
+  code = blockDataUpdateTsWindow(pRes, pInfo->primaryTsCol);
+  TSDB_CHECK_CODE(code, lino, _end);
   blockDataCleanup(pInfo->pSrcBlock);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
 }
 
-static void buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_t groupId, SSDataBlock* delRes) {
-  SStorageAPI* pAPI = &pOp->pTaskInfo->storageAPI;
-  void* pState = pOp->pTaskInfo->streamInfo.pState;
-
+static int32_t buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_t groupId, SSDataBlock* delRes) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SStorageAPI*     pAPI = &pOp->pTaskInfo->storageAPI;
+  void*            pState = pOp->pTaskInfo->streamInfo.pState;
   SSDataBlock*     pBlock = delRes;
   SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pEndCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -707,61 +760,101 @@ static void buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_
   SColumnInfoData* pCalStartCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pCalEndCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   SColumnInfoData* pTbNameCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
-  colDataSetVal(pStartCol, pBlock->info.rows, (const char*)&start, false);
-  colDataSetVal(pEndCol, pBlock->info.rows, (const char*)&end, false);
+  code = colDataSetVal(pStartCol, pBlock->info.rows, (const char*)&start, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  code = colDataSetVal(pEndCol, pBlock->info.rows, (const char*)&end, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
   colDataSetNULL(pUidCol, pBlock->info.rows);
-  colDataSetVal(pGroupCol, pBlock->info.rows, (const char*)&groupId, false);
+  code = colDataSetVal(pGroupCol, pBlock->info.rows, (const char*)&groupId, false);
+  TSDB_CHECK_CODE(code, lino, _end);
+
   colDataSetNULL(pCalStartCol, pBlock->info.rows);
   colDataSetNULL(pCalEndCol, pBlock->info.rows);
 
   SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
-  void* tbname = NULL;
-  pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, groupId, &tbname, false);
-  if (tbname == NULL) {
+  void*   tbname = NULL;
+  int32_t winCode = TSDB_CODE_SUCCESS;
+  code = pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, groupId, &tbname, false, &winCode);
+  TSDB_CHECK_CODE(code, lino, _end);
+  if (winCode != TSDB_CODE_SUCCESS) {
     colDataSetNULL(pTableCol, pBlock->info.rows);
   } else {
+    ASSERT(tbname);
     char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
     STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
-    colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+    code = colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+    TSDB_CHECK_CODE(code, lino, _end);
     pAPI->stateStore.streamStateFreeVal(tbname);
   }
 
   pBlock->info.rows++;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-static void buildDeleteResult(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId,
-                              SSDataBlock* delRes) {
+static int32_t buildDeleteResult(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId,
+                                 SSDataBlock* delRes) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SStreamFillSupporter*    pFillSup = pInfo->pFillSup;
   if (hasPrevWindow(pFillSup)) {
     TSKEY start = getNextWindowTs(pFillSup->prev.key, &pFillSup->interval);
-    buildDeleteRange(pOperator, start, endTs, groupId, delRes);
+    code = buildDeleteRange(pOperator, start, endTs, groupId, delRes);
+    TSDB_CHECK_CODE(code, lino, _end);
   } else if (hasNextWindow(pFillSup)) {
     TSKEY end = getPrevWindowTs(pFillSup->next.key, &pFillSup->interval);
-    buildDeleteRange(pOperator, startTs, end, groupId, delRes);
+    code = buildDeleteRange(pOperator, startTs, end, groupId, delRes);
+    TSDB_CHECK_CODE(code, lino, _end);
   } else {
-    buildDeleteRange(pOperator, startTs, endTs, groupId, delRes);
+    code = buildDeleteRange(pOperator, startTs, endTs, groupId, delRes);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-static void doDeleteFillResultImpl(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId) {
-  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
+static int32_t doDeleteFillResultImpl(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SStorageAPI*             pAPI = &pOperator->pTaskInfo->storageAPI;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   getWindowFromDiscBuf(pOperator, startTs, groupId, pInfo->pFillSup);
   setDeleteFillValueInfo(startTs, endTs, pInfo->pFillSup, pInfo->pFillInfo);
   SWinKey key = {.ts = startTs, .groupId = groupId};
   pAPI->stateStore.streamStateFillDel(pOperator->pTaskInfo->streamInfo.pState, &key);
   if (!pInfo->pFillInfo->needFill) {
-    buildDeleteResult(pOperator, startTs, endTs, groupId, pInfo->pDelRes);
+    code = buildDeleteResult(pOperator, startTs, endTs, groupId, pInfo->pDelRes);
+    TSDB_CHECK_CODE(code, lino, _end);
   } else {
     STimeRange tw = {
         .skey = startTs,
         .ekey = endTs,
         .groupId = groupId,
     };
-    taosArrayPush(pInfo->pFillInfo->delRanges, &tw);
+    void* tmp = taosArrayPush(pInfo->pFillInfo->delRanges, &tw);
+    if (!tmp) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void getWindowInfoByKey(SStorageAPI* pAPI, void* pState, TSKEY ts, int64_t groupId, SResultRowData* pWinData) {
@@ -799,7 +892,8 @@ static void doDeleteFillFinalize(SOperatorInfo* pOperator) {
     getWindowFromDiscBuf(pOperator, range->skey, range->groupId, pInfo->pFillSup);
     TSKEY realEnd = range->ekey + 1;
     if (pInfo->pFillInfo->type == TSDB_FILL_NEXT && pInfo->pFillSup->next.key != realEnd) {
-      getWindowInfoByKey(pAPI, pOperator->pTaskInfo->streamInfo.pState, realEnd, range->groupId, &pInfo->pFillSup->next);
+      getWindowInfoByKey(pAPI, pOperator->pTaskInfo->streamInfo.pState, realEnd, range->groupId,
+                         &pInfo->pFillSup->next);
     }
     setDeleteFillValueInfo(range->skey, range->ekey, pInfo->pFillSup, pInfo->pFillInfo);
     pFillInfo->delIndex++;
@@ -810,9 +904,10 @@ static void doDeleteFillFinalize(SOperatorInfo* pOperator) {
   }
 }
 
-static void doDeleteFillResult(SOperatorInfo* pOperator) {
-  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
-
+static int32_t doDeleteFillResult(SOperatorInfo* pOperator) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SStorageAPI*             pAPI = &pOperator->pTaskInfo->storageAPI;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SStreamFillInfo*         pFillInfo = pInfo->pFillInfo;
   SSDataBlock*             pBlock = pInfo->pSrcDelBlock;
@@ -837,7 +932,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
     while (pInfo->srcDelRowIndex < pBlock->info.rows) {
       TSKEY    delTs = tsStarts[pInfo->srcDelRowIndex];
       uint64_t delGroupId = groupIds[pInfo->srcDelRowIndex];
-      int32_t  code = TSDB_CODE_SUCCESS;
+      int32_t  winCode = TSDB_CODE_SUCCESS;
       if (groupId != delGroupId) {
         break;
       }
@@ -847,10 +942,8 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
 
       SWinKey delKey = {.groupId = delGroupId, .ts = delTs};
       if (delTs == nextKey.ts) {
-        code = pAPI->stateStore.streamStateCurNext(pOperator->pTaskInfo->streamInfo.pState, pCur);
-        if (code == TSDB_CODE_SUCCESS) {
-          code = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextKey, NULL, NULL);
-        }
+        pAPI->stateStore.streamStateCurNext(pOperator->pTaskInfo->streamInfo.pState, pCur);
+        winCode = pAPI->stateStore.streamStateGetGroupKVByCur(pCur, &nextKey, NULL, NULL);
         // ts will be deleted later
         if (delTs != ts) {
           pAPI->stateStore.streamStateFillDel(pOperator->pTaskInfo->streamInfo.pState, &delKey);
@@ -858,7 +951,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
           pCur = pAPI->stateStore.streamStateGetAndCheckCur(pOperator->pTaskInfo->streamInfo.pState, &nextKey);
         }
         endTs = TMAX(delTs, nextKey.ts - 1);
-        if (code != TSDB_CODE_SUCCESS) {
+        if (winCode != TSDB_CODE_SUCCESS) {
           break;
         }
       }
@@ -866,10 +959,17 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
     }
 
     pAPI->stateStore.streamStateFreeCur(pCur);
-    doDeleteFillResultImpl(pOperator, ts, endTs, groupId);
+    code = doDeleteFillResultImpl(pOperator, ts, endTs, groupId);
+    TSDB_CHECK_CODE(code, lino, _end);
   }
 
   pFillInfo->current = pFillInfo->end + 1;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void resetStreamFillInfo(SStreamFillOperatorInfo* pInfo) {
@@ -879,25 +979,41 @@ static void resetStreamFillInfo(SStreamFillOperatorInfo* pInfo) {
   pInfo->pFillInfo->delIndex = 0;
 }
 
-static void doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pSrcBlock, SSDataBlock* pDstBlock) {
+static int32_t doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pSrcBlock,
+                                              SSDataBlock* pDstBlock) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SExprSupp*               pSup = &pOperator->exprSupp;
 
   blockDataCleanup(pDstBlock);
-  blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows);
+  code = blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows);
+  TSDB_CHECK_CODE(code, lino, _end);
+
   setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
-  projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+  code = projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+  TSDB_CHECK_CODE(code, lino, _end);
 
   pDstBlock->info.rows = 0;
   pSup = &pInfo->pFillSup->notFillExprSup;
   setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
-  projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+  code = projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+  TSDB_CHECK_CODE(code, lino, _end);
+
   pDstBlock->info.id.groupId = pSrcBlock->info.id.groupId;
 
-  blockDataUpdateTsWindow(pDstBlock, pInfo->primaryTsCol);
+  code = blockDataUpdateTsWindow(pDstBlock, pInfo->primaryTsCol);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
 
@@ -959,7 +1075,9 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           pInfo->srcDelRowIndex = 0;
           blockDataCleanup(pInfo->pDelRes);
           pInfo->pFillSup->hasDelete = true;
-          doDeleteFillResult(pOperator);
+          code = doDeleteFillResult(pOperator);
+          TSDB_CHECK_CODE(code, lino, _end);
+
           if (pInfo->pDelRes->info.rows > 0) {
             printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
             return pInfo->pDelRes;
@@ -967,9 +1085,11 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           continue;
         } break;
         case STREAM_NORMAL:
-        case STREAM_INVALID: 
+        case STREAM_INVALID:
         case STREAM_PULL_DATA: {
-          doApplyStreamScalarCalculation(pOperator, pBlock, pInfo->pSrcBlock);
+          code = doApplyStreamScalarCalculation(pOperator, pBlock, pInfo->pSrcBlock);
+          TSDB_CHECK_CODE(code, lino, _end);
+
           memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
           pInfo->srcRowIndex = -1;
         } break;
@@ -983,7 +1103,9 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
     }
 
     doStreamFillImpl(pOperator);
-    doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     memcpy(pInfo->pRes->info.parTbName, pInfo->pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
     if (pInfo->pRes->info.rows > 0) {
@@ -1003,6 +1125,14 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
   pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
   printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
   return pInfo->pRes;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  setOperatorCompleted(pOperator);
+  resetStreamFillInfo(pInfo);
+  return NULL;
 }
 
 static int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
@@ -1026,9 +1156,12 @@ static int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
 
 static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNode, SInterval* pInterval,
                                                SExprInfo* pFillExprInfo, int32_t numOfFillCols, SStorageAPI* pAPI) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
   SStreamFillSupporter* pFillSup = taosMemoryCalloc(1, sizeof(SStreamFillSupporter));
   if (!pFillSup) {
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _end);
   }
   pFillSup->numOfFillCols = numOfFillCols;
   int32_t    numOfNotFillCols = 0;
@@ -1040,48 +1173,89 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   pFillSup->interval = *pInterval;
   pFillSup->pAPI = pAPI;
 
-  int32_t code = initResultBuf(pFillSup);
-  if (code != TSDB_CODE_SUCCESS) {
-    destroyStreamFillSupporter(pFillSup);
-    return NULL;
-  }
+  code = initResultBuf(pFillSup);
+  TSDB_CHECK_CODE(code, lino, _end);
 
   SExprInfo* noFillExpr = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
   code = initExprSupp(&pFillSup->notFillExprSup, noFillExpr, numOfNotFillCols, &pAPI->functionStore);
-  if (code != TSDB_CODE_SUCCESS) {
-    destroyStreamFillSupporter(pFillSup);
-    return NULL;
-  }
+  TSDB_CHECK_CODE(code, lino, _end);
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pFillSup->pResMap = tSimpleHashInit(16, hashFn);
   pFillSup->hasDelete = false;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    destroyStreamFillSupporter(pFillSup);
+    pFillSup = NULL;
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return pFillSup;
 }
 
 SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   SStreamFillInfo* pFillInfo = taosMemoryCalloc(1, sizeof(SStreamFillInfo));
+  if (!pFillInfo) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
   pFillInfo->start = INT64_MIN;
   pFillInfo->current = INT64_MIN;
   pFillInfo->end = INT64_MIN;
   pFillInfo->preRowKey = INT64_MIN;
   pFillInfo->needFill = false;
   pFillInfo->pLinearInfo = taosMemoryCalloc(1, sizeof(SStreamFillLinearInfo));
+  if (!pFillInfo) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
   pFillInfo->pLinearInfo->hasNext = false;
   pFillInfo->pLinearInfo->nextEnd = INT64_MIN;
   pFillInfo->pLinearInfo->pEndPoints = NULL;
   pFillInfo->pLinearInfo->pNextEndPoints = NULL;
   if (pFillSup->type == TSDB_FILL_LINEAR) {
     pFillInfo->pLinearInfo->pEndPoints = taosArrayInit(pFillSup->numOfAllCols, sizeof(SPoint));
+    if (!pFillInfo->pLinearInfo->pEndPoints) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+
     pFillInfo->pLinearInfo->pNextEndPoints = taosArrayInit(pFillSup->numOfAllCols, sizeof(SPoint));
+    if (!pFillInfo->pLinearInfo->pNextEndPoints) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+
     for (int32_t i = 0; i < pFillSup->numOfAllCols; i++) {
       SColumnInfoData* pColData = taosArrayGet(pRes->pDataBlock, i);
-      SPoint value = {0};
+      SPoint           value = {0};
       value.val = taosMemoryCalloc(1, pColData->info.bytes);
-      taosArrayPush(pFillInfo->pLinearInfo->pEndPoints, &value);
+      if (!value.val) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
+
+      void* tmpRes = taosArrayPush(pFillInfo->pLinearInfo->pEndPoints, &value);
+      if (!tmpRes) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
 
       value.val = taosMemoryCalloc(1, pColData->info.bytes);
-      taosArrayPush(pFillInfo->pLinearInfo->pNextEndPoints, &value);
+      if (!value.val) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
+
+      tmpRes = taosArrayPush(pFillInfo->pLinearInfo->pNextEndPoints, &value);
+      if (!tmpRes) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
     }
   }
   pFillInfo->pLinearInfo->winIndex = 0;
@@ -1090,8 +1264,18 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
   if (pFillSup->type == TSDB_FILL_SET_VALUE || pFillSup->type == TSDB_FILL_SET_VALUE_F ||
       pFillSup->type == TSDB_FILL_NULL || pFillSup->type == TSDB_FILL_NULL_F) {
     pFillInfo->pResRow = taosMemoryCalloc(1, sizeof(SResultRowData));
+    if (!pFillInfo->pResRow) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+
     pFillInfo->pResRow->key = INT64_MIN;
     pFillInfo->pResRow->pRowVal = taosMemoryCalloc(1, pFillSup->rowSize);
+    if (!pFillInfo->pResRow->pRowVal) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+
     for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
       SColumnInfoData* pColData = taosArrayGet(pRes->pDataBlock, i);
       SResultCellData* pCell = getResultCell(pFillInfo->pResRow, i);
@@ -1102,17 +1286,32 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
 
   pFillInfo->type = pFillSup->type;
   pFillInfo->delRanges = taosArrayInit(16, sizeof(STimeRange));
+  if (!pFillInfo->delRanges) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
   pFillInfo->delIndex = 0;
   pFillInfo->curGroupId = 0;
   return pFillInfo;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  destroyStreamFillInfo(pFillInfo);
+  return NULL;
 }
 
 SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode,
                                             SExecTaskInfo* pTaskInfo) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamFillOperatorInfo));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    goto _error;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
   SInterval* pInterval = &((SStreamIntervalOperatorInfo*)downstream->info)->interval;
@@ -1120,14 +1319,18 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   SExprInfo* pFillExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &numOfFillCols);
   pInfo->pFillSup = initStreamFillSup(pPhyFillNode, pInterval, pFillExprInfo, numOfFillCols, &pTaskInfo->storageAPI);
   if (!pInfo->pFillSup) {
-    goto _error;
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _error);
   }
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   pInfo->pSrcBlock = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
-  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
-  blockDataEnsureCapacity(pInfo->pSrcBlock, pOperator->resultInfo.capacity);
+  code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = blockDataEnsureCapacity(pInfo->pSrcBlock, pOperator->resultInfo.capacity);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->pFillInfo = initStreamFillInfo(pInfo->pFillSup, pInfo->pRes);
   if (!pInfo->pFillInfo) {
@@ -1166,42 +1369,43 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   }
 
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
-  blockDataEnsureCapacity(pInfo->pDelRes, pOperator->resultInfo.capacity);
+  if (!pInfo->pDelRes) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+
+  code = blockDataEnsureCapacity(pInfo->pDelRes, pOperator->resultInfo.capacity);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->primaryTsCol = ((STargetNode*)pPhyFillNode->pWStartTs)->slotId;
   pInfo->primarySrcSlotId = ((SColumnNode*)((STargetNode*)pPhyFillNode->pWStartTs)->pExpr)->slotId;
 
   int32_t numOfOutputCols = 0;
-  int32_t code = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
-                                     &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  code = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc, &numOfOutputCols,
+                             COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pPhyFillNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols, &pTaskInfo->storageAPI.functionStore);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->srcRowIndex = -1;
   setOperatorInfo(pOperator, "StreamFillOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo,
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
   code = appendDownstream(pOperator, &downstream, 1);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
   return pOperator;
 
 _error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   destroyStreamFillOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;

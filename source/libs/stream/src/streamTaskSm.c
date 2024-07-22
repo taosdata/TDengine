@@ -201,7 +201,7 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
 
     pSM->pActiveTrans = pNextTrans;
     pSM->startTs = taosGetTimestampMs();
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
 
     code = pNextTrans->pAction(pSM->pTask);
     if (pNextTrans->autoInvokeEndFn) {
@@ -210,7 +210,7 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
       return code;
     }
   } else {
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
     stDebug("s-task:%s state:%s event:%s in waiting list, req state:%s not fulfilled, put it back", pTask->id.idStr,
             pSM->current.name, GET_EVT_NAME(pEvtInfo->event),
             StreamTaskStatusList[pEvtInfo->status].name);
@@ -247,7 +247,7 @@ int32_t streamTaskRestoreStatus(SStreamTask* pTask) {
   SStreamTaskSM* pSM = pTask->status.pSM;
   int32_t        code = 0;
 
-  (void) taosThreadMutexLock(&pTask->lock);
+  streamMutexLock(&pTask->lock);
 
   if (pSM->current.state == TASK_STATUS__PAUSE && pSM->pActiveTrans == NULL) {
     SStreamTaskState state = pSM->current;
@@ -326,13 +326,13 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
       return code;
     }
 
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
 
     while (1) {
       // wait for the task to be here
-      (void) taosThreadMutexLock(&pTask->lock);
+      streamMutexLock(&pTask->lock);
       ETaskStatus s = streamTaskGetStatus(pTask).state;
-      (void) taosThreadMutexUnlock(&pTask->lock);
+      streamMutexUnlock(&pTask->lock);
 
       if ((s == pTrans->next.state) && (pSM->prev.evt == pTrans->event)) {// this event has been handled already
         stDebug("s-task:%s attached event:%s handled", id, GET_EVT_NAME(pTrans->event));
@@ -349,7 +349,7 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
   } else {  // override current active trans
     pSM->pActiveTrans = pTrans;
     pSM->startTs = taosGetTimestampMs();
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
 
     code = pTrans->pAction(pTask);
 
@@ -374,11 +374,11 @@ static int32_t doHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, ST
     info.callBackFn = callbackFn;
 
     code = attachWaitedEvent(pTask, &info);
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
   } else {  // override current active trans
     pSM->pActiveTrans = pTrans;
     pSM->startTs = taosGetTimestampMs();
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
 
     code = pTrans->pAction(pTask);
     // todo handle error code;
@@ -400,11 +400,11 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
   STaskStateTrans* pTrans = NULL;
 
   while (1) {
-    (void) taosThreadMutexLock(&pTask->lock);
+    streamMutexLock(&pTask->lock);
 
     if (pSM->pActiveTrans != NULL && pSM->pActiveTrans->autoInvokeEndFn) {
       EStreamTaskEvent evt = pSM->pActiveTrans->event;
-      (void) taosThreadMutexUnlock(&pTask->lock);
+      streamMutexUnlock(&pTask->lock);
 
       stDebug("s-task:%s status:%s handling event:%s by some other thread, wait for 100ms and check if completed",
               pTask->id.idStr, pSM->current.name, GET_EVT_NAME(evt));
@@ -414,7 +414,7 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
       pTrans = streamTaskFindTransform(pSM->current.state, event);
       if (pTrans == NULL) {
         stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, GET_EVT_NAME(event));
-        (void) taosThreadMutexUnlock(&pTask->lock);
+        streamMutexUnlock(&pTask->lock);
         return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
 
@@ -439,11 +439,11 @@ int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, _
   STaskStateTrans* pTrans = NULL;
 
   while (1) {
-    (void) taosThreadMutexLock(&pTask->lock);
+    streamMutexLock(&pTask->lock);
 
     if (pSM->pActiveTrans != NULL && pSM->pActiveTrans->autoInvokeEndFn) {
       EStreamTaskEvent evt = pSM->pActiveTrans->event;
-      (void) taosThreadMutexUnlock(&pTask->lock);
+      streamMutexUnlock(&pTask->lock);
 
       stDebug("s-task:%s status:%s handling event:%s by some other thread, wait for 100ms and check if completed",
               pTask->id.idStr, pSM->current.name, GET_EVT_NAME(evt));
@@ -453,7 +453,7 @@ int32_t streamTaskHandleEventAsync(SStreamTaskSM* pSM, EStreamTaskEvent event, _
       pTrans = streamTaskFindTransform(pSM->current.state, event);
       if (pTrans == NULL) {
         stDebug("s-task:%s failed to handle event:%s, status:%s", pTask->id.idStr, GET_EVT_NAME(event), pSM->current.name);
-        (void) taosThreadMutexUnlock(&pTask->lock);
+        streamMutexUnlock(&pTask->lock);
         return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
 
@@ -485,7 +485,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   int32_t code = 0;
 
   // do update the task status
-  (void) taosThreadMutexLock(&pTask->lock);
+  streamMutexLock(&pTask->lock);
 
   STaskStateTrans* pTrans = pSM->pActiveTrans;
   if (pTrans == NULL) {
@@ -497,14 +497,14 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     stDebug("s-task:%s event:%s handled failed, current status:%s, trigger event:%s", id, GET_EVT_NAME(event),
             pSM->current.name, GET_EVT_NAME(pSM->prev.evt));
 
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
     return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
   if (pTrans->event != event) {
     stWarn("s-task:%s handle event:%s failed, current status:%s, active trans evt:%s", id, GET_EVT_NAME(event),
            pSM->current.name, GET_EVT_NAME(pTrans->event));
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
     return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
@@ -518,7 +518,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   // on success callback, add into lock if necessary, or maybe we should add an option for this?
   code = pTrans->pSuccAction(pTask);
 
-  (void) taosThreadMutexUnlock(&pTask->lock);
+  streamMutexUnlock(&pTask->lock);
 
   // todo: add parameter to control lock
   // after handling the callback function assigned by invoker, go on handling the waiting tasks
@@ -532,13 +532,13 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     stDebug("s-task:%s handle user-specified callback fn for event:%s completed", id, GET_EVT_NAME(pTrans->event));
   }
 
-  (void) taosThreadMutexLock(&pTask->lock);
+  streamMutexLock(&pTask->lock);
 
   // tasks in waiting list
   if (taosArrayGetSize(pSM->pWaitingEventList) > 0) {
     code = doHandleWaitingEvent(pSM, GET_EVT_NAME(pTrans->event), pTask);
   } else {
-    (void) taosThreadMutexUnlock(&pTask->lock);
+    streamMutexUnlock(&pTask->lock);
 
     int64_t el = (taosGetTimestampMs() - pSM->startTs);
     stDebug("s-task:%s handle event:%s completed, elapsed time:%" PRId64 "ms state:%s -> %s", id,
@@ -563,14 +563,14 @@ const char* streamTaskGetStatusStr(ETaskStatus status) {
 void streamTaskResetStatus(SStreamTask* pTask) {
   SStreamTaskSM* pSM = pTask->status.pSM;
 
-  (void) taosThreadMutexLock(&pTask->lock);
+  streamMutexLock(&pTask->lock);
   stDebug("s-task:%s level:%d fill-history:%d vgId:%d set uninit, prev status:%s", pTask->id.idStr,
           pTask->info.taskLevel, pTask->info.fillHistory, pTask->pMeta->vgId, pSM->current.name);
 
   pSM->current = StreamTaskStatusList[TASK_STATUS__UNINIT];
   pSM->pActiveTrans = NULL;
   taosArrayClear(pSM->pWaitingEventList);
-  (void) taosThreadMutexUnlock(&pTask->lock);
+  streamMutexUnlock(&pTask->lock);
 
   // clear the downstream ready status
   pTask->status.downstreamReady = 0;

@@ -4648,7 +4648,8 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   }
 
   if (pReader->resBlockInfo.freeBlock) {
-    pReader->resBlockInfo.pResBlock = blockDataDestroy(pReader->resBlockInfo.pResBlock);
+    blockDataDestroy(pReader->resBlockInfo.pResBlock);
+    pReader->resBlockInfo.pResBlock = NULL;
   }
 
   taosMemoryFree(pSupInfo->colId);

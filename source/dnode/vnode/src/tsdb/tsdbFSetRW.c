@@ -44,9 +44,10 @@ static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *t
   writer->ctx->tbid->uid = tbid->uid;
 
   code = tsdbUpdateSkmTb(writer->config->tsdb, writer->ctx->tbid, writer->skmTb);
+  TSDB_CHECK_CODE(code , lino, _exit);
 
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, tbid->suid ? tbid->suid : tbid->uid, &writer->pColCmprObj);
-  // TSDB_CHECK_CODE(code, lino, _exit);
+  // TODO: TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->blockDataIdx = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(writer->blockData); i++) {
@@ -136,7 +137,9 @@ int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer) {
   int32_t lino = 0;
 
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
-  if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (writer[0] == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   writer[0]->config[0] = config[0];
 
