@@ -600,15 +600,20 @@ static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
   pDnode->updateTime = taosGetTimestampMs();
 
   SSdbRaw *pCommitRaw = mndDnodeActionEncode(pDnode);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _exit;
+  }
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
     code = terrno;
     goto _exit;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     goto _exit;
   }
 
@@ -949,7 +954,7 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
 _OVER:
 
   if (code != 0) {
-    mError("failed to get dnode list since %s", terrstr());
+    mError("failed to get dnode list since %s", tstrerror(code));
   }
 
   tFreeSDnodeListRsp(&rsp);
@@ -1063,7 +1068,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 _OVER:
 
   if (code != 0) {
-    mError("failed to get show variables info since %s", terrstr());
+    mError("failed to get show variables info since %s", tstrerror(code));
   }
 
   tFreeSShowVariablesRsp(&rsp);
@@ -1111,7 +1116,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());
+    mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, tstrerror(code));
   }
 
   mndReleaseDnode(pMnode, pDnode);
@@ -1271,7 +1276,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   if (isonline && force) {
     code = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
-    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
+    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, tstrerror(code),
            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
@@ -1279,7 +1284,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   bool isEmpty = mndIsEmptyDnode(pMnode, pDnode->id);
   if (!isonline && !force && !isEmpty) {
     code = TSDB_CODE_DNODE_OFFLINE;
-    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
+    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, tstrerror(code),
            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
@@ -1294,7 +1299,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
+    mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, tstrerror(code));
   }
 
   mndReleaseDnode(pMnode, pDnode);

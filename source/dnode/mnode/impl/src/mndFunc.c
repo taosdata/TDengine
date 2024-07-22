@@ -457,7 +457,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("func:%s, failed to create since %s", createReq.name, terrstr());
+    mError("func:%s, failed to create since %s", createReq.name, tstrerror(code));
   }
 
   mndReleaseFunc(pMnode, pFunc);
@@ -498,7 +498,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("func:%s, failed to drop since %s", dropReq.name, terrstr());
+    mError("func:%s, failed to drop since %s", dropReq.name, tstrerror(code));
   }
 
   mndReleaseFunc(pMnode, pFunc);
