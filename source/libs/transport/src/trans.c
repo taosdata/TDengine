@@ -186,7 +186,7 @@ int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
 // server only
-void rpcSetIpWhite(void* thandle, void* arg) { transSetIpWhiteList(thandle, arg, NULL); }
+int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
 
 void* rpcAllocHandle() { return (void*)transAllocHandle(); }
 

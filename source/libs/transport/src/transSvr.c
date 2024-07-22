@@ -122,7 +122,7 @@ typedef struct SServerObj {
 
 SIpWhiteListTab* uvWhiteListCreate();
 void             uvWhiteListDestroy(SIpWhiteListTab* pWhite);
-void             uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* pList, int64_t ver);
+int32_t          uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* pList, int64_t ver);
 void             uvWhiteListUpdate(SIpWhiteListTab* pWhite, SHashObj* pTable);
 bool             uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn);
 bool             uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t ver);
@@ -248,17 +248,26 @@ void uvWhiteListDestroy(SIpWhiteListTab* pWhite) {
   taosMemoryFree(pWhite);
 }
 
-void uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
+int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
   char*   tmp = NULL;
   int32_t tlen = transUtilSWhiteListToStr(plist->pList, &tmp);
+  if (tlen < 0) {
+    return tlen;
+  }
 
-  char*   pBuf = taosMemoryCalloc(1, tlen + 64);
+  char* pBuf = taosMemoryCalloc(1, tlen + 64);
+  if (pBuf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   int32_t len = sprintf(pBuf, "user: %s, ver: %" PRId64 ", ip: {%s}", user, plist->ver, tmp);
   taosMemoryFree(tmp);
 
   *ppBuf = pBuf;
+  return len;
 }
 void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
+  int32_t   code = 0;
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
@@ -270,23 +279,35 @@ void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
     SWhiteUserList* pUserList = *(SWhiteUserList**)pIter;
 
     char* buf = NULL;
-    uvWhiteListToStr(pUserList, user, &buf);
-    tDebug("ip-white-list  %s", buf);
+
+    code = uvWhiteListToStr(pUserList, user, &buf);
+    if (code != 0) {
+      tDebug("ip-white-list failed to debug to str since %s", buf);
+    }
     taosMemoryFree(buf);
     pIter = taosHashIterate(pWhiteList, pIter);
   }
 }
-void uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist, int64_t ver) {
+int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist, int64_t ver) {
+  int32_t   code = 0;
   SHashObj* pWhiteList = pWhite->pList;
 
   SWhiteUserList** ppUserList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppUserList == NULL || *ppUserList == NULL) {
     SWhiteUserList* pUserList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
+    if (pUserList == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
     pUserList->ver = ver;
 
     pUserList->pList = plist;
 
-    taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));
+    code = taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));
+    if (code != 0) {
+      taosMemoryFree(pUserList);
+      return code;
+    }
   } else {
     SWhiteUserList* pUserList = *ppUserList;
 
@@ -295,6 +316,7 @@ void uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist, in
     pUserList->pList = plist;
   }
   uvWhiteListDebug(pWhite);
+  return 0;
 }
 
 void uvWhiteListUpdate(SIpWhiteListTab* pWhite, SHashObj* pTable) {
@@ -1502,30 +1524,41 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
 }
 void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
   SUpdateIpWhite* req = msg->arg;
-  if (req != NULL) {
-    for (int i = 0; i < req->numOfUser; i++) {
-      SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
-
-      int32_t       sz = pUser->numOfRange * sizeof(SIpV4Range);
-      SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
-      pList->num = pUser->numOfRange;
-
-      memcpy(pList->pIpRange, pUser->pIpRanges, sz);
-      uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
-    }
-
-    thrd->pWhiteList->ver = req->ver;
-    thrd->enableIpWhiteList = 1;
-
-    tFreeSUpdateIpWhiteReq(req);
-    taosMemoryFree(req);
-  } else {
+  if (req == NULL) {
     tDebug("ip-white-list disable on trans");
     thrd->enableIpWhiteList = 0;
+    taosMemoryFree(msg);
   }
-  taosMemoryFree(msg);
-  return;
+  int32_t code = 0;
+  for (int i = 0; i < req->numOfUser; i++) {
+    SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
+
+    int32_t sz = pUser->numOfRange * sizeof(SIpV4Range);
+
+    SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
+    if (pList == NULL) {
+      tError("failed to create ip-white-list since %s", tstrerror(code));
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
+    pList->num = pUser->numOfRange;
+    memcpy(pList->pIpRange, pUser->pIpRanges, sz);
+    code = uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
+    if (code != 0) {
+      break;
+    }
+  }
+
+  if (code == 0) {
+    thrd->pWhiteList->ver = req->ver;
+    thrd->enableIpWhiteList = 1;
+  } else {
+    tError("failed to update ip-white-list since %s", tstrerror(code));
+  }
+  tFreeSUpdateIpWhiteReq(req);
+  taosMemoryFree(req);
 }
+
 void destroyWorkThrd(SWorkThrd* pThrd) {
   if (pThrd == NULL) {
     return;
@@ -1598,6 +1631,7 @@ void transUnrefSrvHandle(void* handle) {
 }
 
 int transReleaseSrvHandle(void* handle) {
+  int32_t         code = 0;
   SRpcHandleInfo* info = handle;
   SExHandle*      exh = info->handle;
   int64_t         refId = info->refId;
@@ -1610,12 +1644,19 @@ int transReleaseSrvHandle(void* handle) {
   STransMsg tmsg = {.code = 0, .info.handle = exh, .info.ahandle = NULL, .info.refId = refId};
 
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
+  if (m == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _return1;
+  }
+
   m->msg = tmsg;
   m->type = Release;
 
   tDebug("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
-  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+  if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
+    transReleaseExHandle(transGetRefMgt(), refId);
+    return code;
   }
 
   transReleaseExHandle(transGetRefMgt(), refId);
@@ -1623,13 +1664,15 @@ int transReleaseSrvHandle(void* handle) {
 _return1:
   tDebug("handle %p failed to send to release handle", exh);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return -1;
+  return code;
 _return2:
   tDebug("handle %p failed to send to release handle", exh);
-  return -1;
+  return code;
 }
 
 int transSendResponse(const STransMsg* msg) {
+  int32_t code = 0;
+
   if (msg->info.noResp) {
     rpcFreeCont(msg->pCont);
     tTrace("no need send resp");
@@ -1651,13 +1694,20 @@ int transSendResponse(const STransMsg* msg) {
   ASYNC_ERR_JRET(pThrd);
 
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
+  if (m == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _return1;
+  }
+
   m->msg = tmsg;
   m->type = Normal;
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
   tGDebug("conn %p start to send resp (1/2)", exh->handle);
-  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+  if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
+    transReleaseExHandle(transGetRefMgt(), refId);
+    return code;
   }
 
   transReleaseExHandle(transGetRefMgt(), refId);
@@ -1667,13 +1717,15 @@ _return1:
   tDebug("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return -1;
+  return code;
 _return2:
   tDebug("handle %p failed to send resp", exh);
   rpcFreeCont(msg->pCont);
-  return -1;
+  return code;
 }
 int transRegisterMsg(const STransMsg* msg) {
+  int32_t code = 0;
+
   SExHandle* exh = msg->info.handle;
   int64_t    refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
@@ -1687,13 +1739,20 @@ int transRegisterMsg(const STransMsg* msg) {
   ASYNC_ERR_JRET(pThrd);
 
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
+  if (m == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _return1;
+  }
+
   m->msg = tmsg;
   m->type = Register;
 
   STrans* pTransInst = pThrd->pTransInst;
   tDebug("%s conn %p start to register brokenlink callback", transLabel(pTransInst), exh->handle);
-  if (0 != transAsyncSend(pThrd->asyncPool, &m->q)) {
+  if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
+    transReleaseExHandle(transGetRefMgt(), refId);
+    return code;
   }
 
   transReleaseExHandle(transGetRefMgt(), refId);
@@ -1703,29 +1762,54 @@ _return1:
   tDebug("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   transReleaseExHandle(transGetRefMgt(), refId);
-  return -1;
+  return code;
 _return2:
   tDebug("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
-  return -1;
+  return code;
 }
-void transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
+
+int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
+  if (pTransInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  int32_t code = 0;
 
   tDebug("ip-white-list update on rpc");
   SServerObj* svrObj = pTransInst->tcphandle;
   for (int i = 0; i < svrObj->numOfThreads; i++) {
     SWorkThrd* pThrd = svrObj->pThreadObj[i];
 
-    SSvrMsg*        msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
-    SUpdateIpWhite* pReq = (arg != NULL ? cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg) : NULL);
+    SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    if (msg == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
+
+    SUpdateIpWhite* pReq = NULL;
+    if (arg != NULL) {
+      if ((pReq = cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg)) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+    }
 
     msg->type = Update;
     msg->arg = pReq;
 
-    transAsyncSend(pThrd->asyncPool, &msg->q);
+    if ((code = transAsyncSend(pThrd->asyncPool, &msg->q)) != 0) {
+      code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+      break;
+    }
   }
   transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);
+
+  if (code != 0) {
+    tError("ip-white-list update failed since %s", tstrerror(code));
+  }
+  return code;
 }
 
 int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }

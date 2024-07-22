@@ -103,8 +103,12 @@ int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   return r;
 }
 int transInitBuffer(SConnBuffer* buf) {
-  buf->cap = BUFFER_CAP;
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
+  if (buf->buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  buf->cap = BUFFER_CAP;
   buf->left = -1;
   buf->len = 0;
   buf->total = 0;
@@ -419,9 +423,14 @@ void transReqQueueClear(queue* q) {
   }
 }
 
-void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
+int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
   queue->freeFunc = (void (*)(const void*))freeFunc;
+
+  if (queue->q == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return 0;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
   if (queue->q == NULL) {
@@ -524,20 +533,44 @@ static void transDQTimeout(uv_timer_t* timer) {
     uv_timer_start(queue->timer, transDQTimeout, timeout, 0);
   }
 }
-int transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
-  uv_timer_t* timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
-  uv_timer_init(loop, timer);
+int32_t transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
+  int32_t      code = 0;
+  Heap*        heap = NULL;
+  uv_timer_t*  timer = NULL;
+  SDelayQueue* q = NULL;
 
-  Heap* heap = heapCreate(timeCompare);
+  timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+  if (timer == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  SDelayQueue* q = taosMemoryCalloc(1, sizeof(SDelayQueue));
+  heap = heapCreate(timeCompare);
+  if (heap == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _return1);
+  }
+
+  q = taosMemoryCalloc(1, sizeof(SDelayQueue));
+  if (q == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _return1);
+  }
   q->heap = heap;
   q->timer = timer;
   q->loop = loop;
   q->timer->data = q;
 
+  int err = uv_timer_init(loop, timer);
+  if (err != 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _return1);
+  }
+
   *queue = q;
   return 0;
+
+_return1:
+  taosMemoryFree(timer);
+  heapDestroy(heap);
+  taosMemoryFree(q);
+  return TSDB_CODE_OUT_OF_MEMORY;
 }
 
 void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
@@ -720,29 +753,6 @@ void transDestroySyncMsg(void* msg) {
   taosMemoryFree(pSyncMsg);
 }
 
-// void subnetIp2int(const char* const ip_addr, uint8_t* dst) {
-//   char ip_addr_cpy[20];
-//   char ip[5];
-
-//   tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
-
-//   char *s_start, *s_end;
-//   s_start = ip_addr_cpy;
-//   s_end = ip_addr_cpy;
-
-//   int32_t k = 0;
-
-//   for (k = 0; *s_start != '\0'; s_start = s_end) {
-//     for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
-//     }
-//     if (*s_end == '.') {
-//       *s_end = '\0';
-//       s_end++;
-//     }
-//     dst[k++] = (char)atoi(s_start);
-//   }
-// }
-
 uint32_t subnetIpRang2Int(SIpV4Range* pRange) {
   uint32_t ip = pRange->ip;
   return ((ip & 0xFF) << 24) | ((ip & 0xFF00) << 8) | ((ip & 0xFF0000) >> 8) | ((ip >> 24) & 0xFF);
@@ -789,7 +799,11 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   struct in_addr addr;
   addr.s_addr = pRange->ip;
 
-  uv_inet_ntop(AF_INET, &addr, buf, 32);
+  int32_t err = uv_inet_ntop(AF_INET, &addr, buf, 32);
+  if (err != 0) {
+    tError("failed to convert ip to string, reason:%s", uv_strerror(err));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
 
   len = strlen(buf);
 
@@ -805,14 +819,23 @@ int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) {
     *ppBuf = NULL;
     return 0;
   }
+
   int32_t len = 0;
   char*   pBuf = taosMemoryCalloc(1, pList->num * 36);
+  if (pBuf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   for (int i = 0; i < pList->num; i++) {
     SIpV4Range* pRange = &pList->pIpRange[i];
 
     char tbuf[32] = {0};
     int  tlen = transUtilSIpRangeToStr(pRange, tbuf);
+    if (tlen < 0) {
+      taosMemoryFree(pBuf);
+      return tlen;
+    }
+
     len += sprintf(pBuf + len, "%s,", tbuf);
   }
   if (len > 0) {
