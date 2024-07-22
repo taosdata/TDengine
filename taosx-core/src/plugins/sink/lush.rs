@@ -317,7 +317,6 @@ pub fn create_tags_record(
     columns.push(Arc::new(StringArray::from_iter_values(
         stables.iter().map(|fs| fs.as_str()),
     )) as ArrayRef);
-
     let schema = Schema::new(fields);
     RecordBatch::try_new(Arc::new(schema), columns).map_err(|err| err.into())
 }
@@ -1029,5 +1028,111 @@ fn truncate_sql_in_log_message(sql: &str) -> &str {
         &sql[0..500]
     } else {
         sql
+    }
+}
+
+#[instrument(skip_all)]
+pub fn get_table_name_from_table_id(
+    table_id: &str,
+    table_cache: Arc<TableTagCache>,
+    lush_model_config: Arc<LushModelConfig>,
+) -> Option<String> {
+    let table_id_column = StringArray::from(vec![table_id]);
+    let tags_records: Result<RecordBatch, anyhow::Error> =
+        create_tags_record(&table_id_column, table_cache.clone());
+    if let Err(err) = tags_records {
+        tracing::error!("{err:#}");
+        return None;
+    }
+    let records: RecordBatch = tags_records.unwrap();
+    let default_super_table = records
+        .column_by_name("_using")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap()
+        .value(0);
+    let super_table = lush_model_config
+        .super_table_name_mapping
+        .get(default_super_table);
+    if super_table.is_none() {
+        tracing::error!(
+            "default_super_table {} not found in super_table_name_mapping",
+            default_super_table
+        );
+        return None;
+    }
+    let super_table = super_table.unwrap();
+    let parser = lush_model_config.super_table_parsers.get(super_table);
+    if parser.is_none() {
+        tracing::error!("super_table {super_table} not found in super_table_parsers");
+        return None;
+    }
+    let parser = parser.unwrap();
+    let modeler = parser.modeler();
+    let table = modeler.table0();
+    if table.is_none() {
+        tracing::error!("no table in modeler");
+        return None;
+    }
+    let table = table.unwrap();
+    let table_name = table.eval_table_name(&records);
+    if let Err(err) = table_name {
+        tracing::error!("{err:#}");
+        return None;
+    }
+    let table_name = table_name.unwrap();
+    let table_name = table_name.value(0);
+    Some(table_name.to_string())
+}
+
+pub(crate) async fn drop_table(
+    pool: &TaosPool,
+    table_name: &str,
+    req_id: &RequestID,
+) -> anyhow::Result<()> {
+    let sql = format!("drop table if exists `{}`", table_name);
+    exec_sql(pool, &sql, req_id).await
+}
+
+pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str, req_id: &RequestID) -> anyhow::Result<()> {
+    tracing::debug!("sql={}, req_id={}", sql, req_id);
+    let mut taos = Some(pool.get().await.context("get connection error")?);
+    let mut write_retries = 0;
+    loop {
+        let req_id = req_id.next();
+        match taos.as_ref().unwrap().exec_with_req_id(sql, req_id).await {
+            Ok(_) => {
+                break Ok(());
+            }
+            Err(err) => {
+                let code = err.code();
+                let errno: i32 = code.into();
+                write_retries += 1;
+                if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                    break Err(err)
+                        .context("Exec SQL error: Retries exceeded")
+                        .map_err(Into::into);
+                }
+                match errno {
+                    0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                        taos.replace(pool.get().await?);
+                    }
+                    0x2603 | 0x0618 => {
+                        // stable/table not exists
+                        return Ok(());
+                    }
+                    _ => {
+                        tracing::error!(
+                            "Exec SQL error: {:#}, sql={}, req_id={}",
+                            err,
+                            sql,
+                            req_id,
+                        );
+                        break Err(err).context("Exec sql error").map_err(Into::into);
+                    }
+                }
+            }
+        }
     }
 }

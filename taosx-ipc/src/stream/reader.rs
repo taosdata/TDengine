@@ -9,10 +9,11 @@ use std::{
 
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
-        Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
-        ListArray, StringArray, StructArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-        TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Array, ArrayRef, BinaryArray, BooleanArray, Datum, Float16Array, Float32Array,
+        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
+        LargeStringArray, ListArray, StringArray, StructArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
+        UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -26,7 +27,7 @@ use tracing::{error, instrument, Span};
 
 use crate::{
     ack::{AckType, AckWriter},
-    constants::{__ATTRS__, __RECORDS__, __TABLES_INDEX__, __TABLE_NAME__, __TYPE__},
+    constants::{__ATTRS__, __CONTROL__, __RECORDS__, __TABLES_INDEX__, __TABLE_NAME__, __TYPE__},
     prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
     stream::{
         flat::FlatMessage,
@@ -35,6 +36,8 @@ use crate::{
 };
 
 use arrow_compute_ext::RecordBatchExt;
+
+use super::lush::LushMessageControl;
 
 #[derive(Debug, Clone)]
 pub struct IpcParser {
@@ -63,6 +66,31 @@ impl IpcParser {
                     LushMessageType::Children => {
                         let (tables, full_records) = self.parse_children(record);
                         return Ok(Box::new(LushMessage::Tables(tables, full_records)));
+                    }
+                    LushMessageType::Control => {
+                        let values = record.column_by_name(__CONTROL__).ok_or_else(|| {
+                            ArrowError::InvalidArgumentError(
+                                "Control message should contains __control__ field".to_string(),
+                            )
+                        })?;
+                        let values = values
+                            .as_any()
+                            .downcast_ref::<ListArray>()
+                            .unwrap()
+                            .value(0);
+                        let s = values
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .ok_or_else(|| {
+                                ArrowError::InvalidArgumentError(format!(
+                                    "__control__ should be StringArray"
+                                ))
+                            })?;
+                        let control = s.value(0);
+                        tracing::info!("Receive control message: {}", control);
+                        let control: LushMessageControl =
+                            serde_json::from_str(control).expect("Parse LushMessageControl error");
+                        return Ok(Box::new(LushMessage::Control(control)));
                     }
                     LushMessageType::Insert => {
                         if let Some(attrs) = record.column_by_name(__ATTRS__) {
@@ -1666,6 +1694,7 @@ pub struct LushMessageTable {}
 pub enum LushMessage {
     Tables(Vec<LushInsertAttrs>, Option<RecordBatch>),
     Insert(Vec<LushMessageInsert>),
+    Control(LushMessageControl),
 }
 
 impl LushMessage {
@@ -1751,6 +1780,7 @@ fn file_reader() -> anyhow::Result<()> {
                     dbg!(&map_data);
                 }
             }
+            _ => (),
         }
     }
 

@@ -294,6 +294,7 @@ pub enum LushMessageType {
     Table = 1,
     Children,
     Insert,
+    Control,
 }
 
 #[derive(Debug, Clone, Copy)]
