@@ -655,6 +655,9 @@ int32_t appendSelectivityCols(SqlFunctionCtx* pCtx, SSDataBlock* pSrcBlock, int3
     int32_t      srcSlotId = pFuncParam->pCol->slotId;
 
     SColumnInfoData* pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
+    if (NULL == pSrcCol) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
 
     char* pData = colDataGetData(pSrcCol, rowIndex);
 
@@ -662,7 +665,9 @@ int32_t appendSelectivityCols(SqlFunctionCtx* pCtx, SSDataBlock* pSrcBlock, int3
     int32_t dstSlotId = pc->pExpr->base.resSchema.slotId;
 
     SColumnInfoData* pDstCol = taosArrayGet(pCtx->pDstBlock->pDataBlock, dstSlotId);
-
+    if (NULL == pDstCol) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
     if (colDataIsNull_s(pSrcCol, rowIndex) == true) {
       colDataSetNULL(pDstCol, pos);
     } else {
@@ -696,7 +701,9 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
 
@@ -724,7 +731,9 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
 
@@ -1056,6 +1065,9 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
 
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
   pEntryInfo->isNullRes = (pEntryInfo->numOfRes == 0) ? 1 : 0;
 
   // NOTE: do nothing change it, for performance issue
@@ -1151,6 +1163,9 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
       }
 
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+      if (NULL == pDstCol) {
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
       if (nullList[j]) {
         colDataSetNULL(pDstCol, rowIndex);
       } else {
@@ -1182,6 +1197,9 @@ int32_t appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t p
     int32_t      srcSlotId = pFuncParam->pCol->slotId;
 
     SColumnInfoData* pSrcCol = taosArrayGet(pCtx->pSrcBlock->pDataBlock, srcSlotId);
+    if (NULL == pSrcCol) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
 
     char* pData = colDataGetData(pSrcCol, rowIndex);
 
@@ -1189,6 +1207,9 @@ int32_t appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t p
     int32_t dstSlotId = pc->pExpr->base.resSchema.slotId;
 
     SColumnInfoData* pDstCol = taosArrayGet(pCtx->pDstBlock->pDataBlock, dstSlotId);
+    if (NULL == pDstCol) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
 
     if (colDataIsNull_s(pSrcCol, rowIndex) == true) {
       colDataSetNULL(pDstCol, pos);
@@ -1638,6 +1659,10 @@ int32_t stddevPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    taosMemoryFree(res);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
 
@@ -1846,6 +1871,9 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t              slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData*     pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
   int32_t currentRow = pBlock->info.rows;
 
   if (0 == pInfo->num) {
@@ -2067,6 +2095,10 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
       int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+      if (NULL == pCol) {
+        code = TSDB_CODE_OUT_OF_RANGE;
+        goto _fin_error;
+      }
 
       varDataSetLen(buf, len);
       code = colDataSetVal(pCol, pBlock->info.rows, buf, false);
@@ -2389,6 +2421,10 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    taosMemoryFree(res);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
 
@@ -3002,6 +3038,9 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
@@ -3037,6 +3076,10 @@ int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    taosMemoryFree(res);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   code = colDataSetVal(pCol, pBlock->info.rows, res, false);
   if (TSDB_CODE_SUCCESS != code) {
@@ -3529,6 +3572,10 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
   bool keepNull = false;
   for (int i = 0; i < diffColNum; ++i) {
     SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    if (NULL == pCtx) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      goto _exit;
+    }
     funcInputUpdate(pCtx);
     SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
     SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
@@ -3539,6 +3586,10 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
 
   SqlFunctionCtx* pCtx0 = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, 0);
   SFuncInputRow* pRow0 = (SFuncInputRow*)taosArrayGet(pRows, 0);
+  if (NULL == pCtx0 || NULL == pRow0) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
   int32_t startOffset = pCtx0->offset;
   bool    result = false;
   while (1) {
@@ -3553,6 +3604,10 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
     for (int i = 1; i < diffColNum; ++i) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
       SFuncInputRow* pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if (NULL == pCtx || NULL == pRow) {
+        code = TSDB_CODE_OUT_OF_RANGE;
+        goto _exit;
+      }
       code = funcInputGetNextRow(pCtx, pRow, &result);
       if (TSDB_CODE_SUCCESS != code) {
         goto _exit;
@@ -3572,6 +3627,10 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
     for (int i = 0; i < diffColNum; ++i) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
       SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if (NULL == pCtx || NULL == pRow) {
+        code = TSDB_CODE_OUT_OF_RANGE;
+        goto _exit;
+      }
       if ((keepNull || hasNotNullValue) && !isFirstRow(pCtx, pRow)){
         code = setDoDiffResult(pCtx, pRow, pos);
         if (code != TSDB_CODE_SUCCESS) {
@@ -3590,6 +3649,10 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
 
   for (int i = 0; i < diffColNum; ++i) {
     SqlFunctionCtx*      pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    if (NULL == pCtx) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      goto _exit;
+    }
     SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
     pResInfo->numOfRes = numOfElems;
   }
@@ -3819,8 +3882,8 @@ int32_t doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSD
  * |(n columns, one bit for each column)| src column #1| src column #2|
  * +------------------------------------+--------------+--------------+
  */
-void* serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsidiaryResInfo* pSubsidiaryies,
-                         char* buf) {
+int32_t serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsidiaryResInfo* pSubsidiaryies,
+                         char* buf, char** res) {
   char* nullList = buf;
   char* pStart = (char*)(nullList + sizeof(bool) * pSubsidiaryies->num);
 
@@ -3838,6 +3901,9 @@ void* serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsid
     int32_t      srcSlotId = pFuncParam->pCol->slotId;
 
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
+    if (NULL == pCol) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
     if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
       offset += pCol->info.bytes;
       continue;
@@ -3853,7 +3919,8 @@ void* serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsid
     offset += pCol->info.bytes;
   }
 
-  return buf;
+  *res = buf;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length, SWinKey* key,
@@ -3909,12 +3976,19 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
   SWinKey key = {0};
   if (pCtx->saveHandle.pBuf == NULL) {
     SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, pCtx->saveHandle.pState->tsIndex);
+    if (NULL == pColInfo) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
     ASSERT(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     key.groupId = pSrcBlock->info.id.groupId;
     key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);
   }
 
-  char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
+  char* buf = NULL;
+  code = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   return doSaveTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, &key, pPos, pCtx->pStore);
 }
 
@@ -3943,7 +4017,11 @@ int32_t updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBloc
     return code;
   }
 
-  char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
+  char* buf = NULL;
+  code = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   return doUpdateTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, pPos, pCtx->pStore);
 }
 
@@ -3982,6 +4060,9 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
 
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   // todo assign the tag value and the corresponding row data
   int32_t currentRow = pBlock->info.rows;
@@ -4242,13 +4323,19 @@ int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   varDataSetLen(res, resultBytes);
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
-  int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  if (NULL == pCol) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
   }
 
+  code = colDataSetVal(pCol, pBlock->info.rows, res, false);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+
+_exit:
   taosMemoryFree(res);
   return TSDB_CODE_SUCCESS;
 }
@@ -4426,12 +4513,18 @@ int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   varDataSetLen(res, resultBytes);
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
-  int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  if (NULL == pCol) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
   }
+
+  code = colDataSetVal(pCol, pBlock->info.rows, res, false);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+_exit:
   taosMemoryFree(res);
   return code;
 }
@@ -4749,6 +4842,9 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t              code = TSDB_CODE_SUCCESS;
 
   int32_t currentRow = pBlock->info.rows;
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   if (pInfo->normalized) {
     for (int32_t k = 0; k < pResInfo->numOfRes; ++k) {
@@ -4794,10 +4890,15 @@ int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   varDataSetLen(res, resultBytes);
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
+  code = colDataSetVal(pCol, pBlock->info.rows, res, false);
 
-  int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
-
+_exit:
   taosMemoryFree(res);
   return code;
 }
@@ -5022,10 +5123,16 @@ int32_t hllPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   varDataSetLen(res, resultBytes);
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
 
-  int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
+  code = colDataSetVal(pCol, pBlock->info.rows, res, false);
 
+_exit:
   taosMemoryFree(res);
   return code;
 }
@@ -5568,6 +5675,9 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   int32_t currentRow = pBlock->info.rows;
   if (pInfo->numSampled == 0) {
@@ -5962,6 +6072,9 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t              slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData*     pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   int32_t              currentRow = pBlock->info.rows;
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   STuplePos resDataPos, resTuplePos;
   int32_t maxCount = 0;
@@ -6332,6 +6445,9 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   STableBlockDistInfo* pData = GET_ROWCELL_INTERBUF(pResInfo);
 
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+  if (NULL == pColInfo) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   if (pData->totalRows == 0) {
     pData->minRows = 0;
@@ -6837,6 +6953,10 @@ int32_t iratePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+      taosMemoryFree(res);
+      return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
 
@@ -6847,6 +6967,9 @@ int32_t iratePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
@@ -6901,6 +7024,9 @@ int32_t groupConstValueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 

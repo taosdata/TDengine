@@ -852,7 +852,7 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SAvgRes*             pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   int32_t              resultBytes = getAvgInfoSize();
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
-
+  int32_t              code = TSDB_CODE_SUCCESS;
   if (NULL == res) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -861,9 +861,14 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if(NULL == pCol) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
 
-  int32_t code = colDataSetVal(pCol, pBlock->info.rows, res, false);
+  code = colDataSetVal(pCol, pBlock->info.rows, res, false);
 
+_exit:
   taosMemoryFree(res);
   return code;
 }
