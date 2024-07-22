@@ -90,6 +90,9 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
 
 int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockList) {
   SSDataBlock  *pb = taosArrayGetP(pBlockList, 0);
+  if (NULL == pb) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+  }
   SScalarParam *pLeft = taosMemoryCalloc(1, sizeof(SScalarParam));
   int32_t       code = TSDB_CODE_SUCCESS;
   if (NULL == pLeft) {
@@ -336,6 +339,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
   switch (nodeType(node)) {
     case QUERY_NODE_LEFT_VALUE: {
       SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, 0);
+      if (NULL == pb) {
+        SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      }
       param->numOfRows = pb->info.rows;
       break;
     }
@@ -393,6 +399,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       int32_t index = -1;
       for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
         SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
+        if (NULL == pb) {
+          SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+        }
         if (pb->info.id.blockId == ref->dataBlockId) {
           index = i;
           break;
@@ -461,6 +470,9 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
       SSDataBlock *pBlock = taosArrayGetP(ctx->pBlockList, 0);
+      if (NULL == pBlock) {
+        SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      }
       *rowNum = pBlock->info.rows;
     } else {
       *rowNum = 1;
@@ -919,6 +931,9 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   if (ctx->pBlockList) {
     SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, 0);
+    if (NULL == pb) {
+      SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+    }
     rowNum = pb->info.rows;
     output->numOfRows = pb->info.rows;
   }
@@ -1532,6 +1547,10 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   int32_t index = -1;
   for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
     SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
+    if (NULL == pb) {
+      ctx->code = TSDB_CODE_OUT_OF_RANGE;
+      return DEAL_RES_ERROR;
+    }
     if (pb->info.id.blockId == target->dataBlockId) {
       index = i;
       break;
@@ -1784,6 +1803,9 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     }
 
     SSDataBlock *pb = taosArrayGetP(pBlockList, 0);
+    if (NULL == pb) {
+      SCL_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
+    }
     if (1 == res->numOfRows && pb->info.rows > 0) {
       SCL_ERR_JRET(sclExtendResRows(pDst, res, pBlockList));
     } else {
