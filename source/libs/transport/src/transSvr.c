@@ -181,8 +181,8 @@ static void* transWorkerThread(void* arg);
 static void* transAcceptThread(void* arg);
 
 // add handle loop
-static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName);
-static bool addHandleToAcceptloop(void* arg);
+static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName);
+static int32_t addHandleToAcceptloop(void* arg);
 
 #define SRV_RELEASE_UV(loop)       \
   do {                             \
@@ -221,8 +221,16 @@ static bool uvCheckIp(SIpV4Range* pRange, int32_t ip) {
 }
 SIpWhiteListTab* uvWhiteListCreate() {
   SIpWhiteListTab* pWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteListTab));
+  if (pWhiteList == NULL) {
+    return NULL;
+  }
 
   pWhiteList->pList = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 0, HASH_NO_LOCK);
+  if (pWhiteList->pList == NULL) {
+    taosMemoryFree(pWhiteList);
+    return NULL;
+  }
+
   pWhiteList->ver = -1;
   return pWhiteList;
 }
@@ -1005,17 +1013,36 @@ void uvOnPipeConnectionCb(uv_connect_t* connect, int status) {
   SWorkThrd* pThrd = container_of(connect, SWorkThrd, connect_req);
   uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
 }
-static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
+static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
+  int32_t code = 0;
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
-  if (0 != uv_loop_init(pThrd->loop)) {
-    return false;
+  if (pThrd->loop == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if ((code = uv_loop_init(pThrd->loop)) != 0) {
+    tError("failed to init loop since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
 #if defined(WINDOWS) || defined(DARWIN)
-  uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
+  code = uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
+  if (code != 0) {
+    tError("failed to init pip since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
 #else
-  uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
-  uv_pipe_open(pThrd->pipe, pThrd->fd);
+  code = uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
+  if (code != 0) {
+    tError("failed to init pip since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
+  code = uv_pipe_open(pThrd->pipe, pThrd->fd);
+  if (code != 0) {
+    tError("failed to open pip since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
 #endif
 
   pThrd->pipe->data = pThrd;
@@ -1023,50 +1050,90 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   QUEUE_INIT(&pThrd->msg);
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
-  uv_prepare_init(pThrd->loop, pThrd->prepare);
-  uv_prepare_start(pThrd->prepare, uvPrepareCb);
+  if (pThrd->prepare == NULL) {
+    tError("failed to init prepare");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  code = uv_prepare_init(pThrd->loop, pThrd->prepare);
+  if (code != 0) {
+    tError("failed to init prepare since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
+  code = uv_prepare_start(pThrd->prepare, uvPrepareCb);
+  if (code != 0) {
+    tError("failed to start prepare since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
   pThrd->prepare->data = pThrd;
 
   // conn set
   QUEUE_INIT(&pThrd->conn);
 
-  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, uvWorkerAsyncCb);
+  code = transAsyncPoolCreate(pThrd->loop, 8, pThrd, uvWorkerAsyncCb, &pThrd->asyncPool);
+  if (code != 0) {
+    tError("failed to init async pool since:%s", tstrerror(code));
+    return code;
+  }
 #if defined(WINDOWS) || defined(DARWIN)
-  uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
+  code = uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
+  if (code != 0) {
+    tError("failed to start connect pipe:%s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
 #else
-  uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+  code = uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+  if (code != 0) {
+    tError("failed to start read pipe:%s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
 #endif
-  return true;
+  return 0;
 }
 
-static bool addHandleToAcceptloop(void* arg) {
+static int32_t addHandleToAcceptloop(void* arg) {
   // impl later
   SServerObj* srv = arg;
 
-  int err = 0;
-  if ((err = uv_tcp_init(srv->loop, &srv->server)) != 0) {
-    tError("failed to init accept server:%s", uv_err_name(err));
-    return false;
+  int code = 0;
+  if ((code = uv_tcp_init(srv->loop, &srv->server)) != 0) {
+    tError("failed to init accept server since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
   // register an async here to quit server gracefully
   srv->pAcceptAsync = taosMemoryCalloc(1, sizeof(uv_async_t));
-  uv_async_init(srv->loop, srv->pAcceptAsync, uvAcceptAsyncCb);
+  if (srv->pAcceptAsync == NULL) {
+    tError("failed to create async since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  code = uv_async_init(srv->loop, srv->pAcceptAsync, uvAcceptAsyncCb);
+  if (code != 0) {
+    tError("failed to init async since:%s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
   srv->pAcceptAsync->data = srv;
 
   struct sockaddr_in bind_addr;
-  uv_ip4_addr("0.0.0.0", srv->port, &bind_addr);
-  if ((err = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
-    tError("failed to bind:%s", uv_err_name(err));
-    return false;
+  if ((code = uv_ip4_addr("0.0.0.0", srv->port, &bind_addr)) != 0) {
+    tError("failed to bind addr since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
-  if ((err = uv_listen((uv_stream_t*)&srv->server, 4096 * 2, uvOnAcceptCb)) != 0) {
-    tError("failed to listen:%s", uv_err_name(err));
-    terrno = TSDB_CODE_RPC_PORT_EADDRINUSE;
-    return false;
+
+  if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
+    tError("failed to bind since %s", uv_err_name(code));
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
-  return true;
+  if ((code = uv_listen((uv_stream_t*)&srv->server, 4096 * 2, uvOnAcceptCb)) != 0) {
+    tError("failed to listen since %s", uv_err_name(code));
+    return TSDB_CODE_RPC_PORT_EADDRINUSE;
+  }
+  return 0;
 }
+
 void* transWorkerThread(void* arg) {
   setThreadName("trans-svr-work");
   SWorkThrd* pThrd = (SWorkThrd*)arg;
@@ -1079,6 +1146,9 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
 
   SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
+  if (pConn == NULL) {
+    return NULL;
+  }
 
   transReqQueueInit(&pConn->wreqQueue);
   QUEUE_INIT(&pConn->queue);
@@ -1204,24 +1274,41 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
 }
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
+  int32_t code = 0;
+
   SServerObj* srv = taosMemoryCalloc(1, sizeof(SServerObj));
-  srv->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
+  if (srv == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    tError("failed to init server since: %s", tstrerror(code));
+    return NULL;
+  }
+
+  srv->ip = ip;
+  srv->port = port;
   srv->numOfThreads = numOfThreads;
   srv->workerIdx = 0;
   srv->numOfWorkerReady = 0;
+  srv->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   srv->pThreadObj = (SWorkThrd**)taosMemoryCalloc(srv->numOfThreads, sizeof(SWorkThrd*));
   srv->pipe = (uv_pipe_t**)taosMemoryCalloc(srv->numOfThreads, sizeof(uv_pipe_t*));
-  srv->ip = ip;
-  srv->port = port;
-  uv_loop_init(srv->loop);
+  if (srv->loop == NULL || srv->pThreadObj == NULL || srv->pipe == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto End;
+  }
 
-  char pipeName[PATH_MAX];
+  code = uv_loop_init(srv->loop);
+  if (code != 0) {
+    tError("failed to init server since: %s", uv_err_name(code));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    goto End;
+  }
 
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
     goto End;
   }
+  char pipeName[PATH_MAX];
 
 #if defined(WINDOWS) || defined(DARWIN)
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
@@ -1259,7 +1346,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     thrd->pipe = &(srv->pipe[i][1]);  // init read
 
-    if (false == addHandleToWorkloop(thrd, pipeName)) {
+    if ((code = addHandleToWorkloop(thrd, pipeName)) != 0) {
       goto End;
     }
 
@@ -1276,27 +1363,53 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
+    if (thrd == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
+    }
 
     thrd->pTransInst = shandle;
     thrd->quit = false;
     thrd->pTransInst = shandle;
     thrd->pWhiteList = uvWhiteListCreate();
-
-    srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
-    srv->pThreadObj[i] = thrd;
-
-    uv_os_sock_t fds[2];
-    if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
+    if (thrd->pWhiteList == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto End;
     }
 
-    uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
-    uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
+    srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
+    if (srv->pipe[i] == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
+    }
+
+    srv->pThreadObj[i] = thrd;
+
+    uv_os_sock_t fds[2];
+    if ((code = uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE)) != 0) {
+      tError("failed to create pipe, errmsg: %s", uv_err_name(code));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+      goto End;
+    }
+
+    code = uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
+    if (code != 0) {
+      tError("failed to init pipe, errmsg: %s", uv_err_name(code));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+      goto End;
+    }
+
+    code = uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
+    if (code != 0) {
+      tError("failed to init pipe, errmsg: %s", uv_err_name(code));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+      goto End;
+    }
 
     thrd->pipe = &(srv->pipe[i][1]);  // init read
     thrd->fd = fds[0];
 
-    if (false == addHandleToWorkloop(thrd, pipeName)) {
+    if ((code = addHandleToWorkloop(thrd, pipeName)) != 0) {
       goto End;
     }
 
@@ -1311,15 +1424,17 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
 #endif
 
-  if (false == addHandleToAcceptloop(srv)) {
+  if ((code = addHandleToAcceptloop(srv)) != 0) {
     goto End;
   }
 
-  int err = taosThreadCreate(&srv->thread, NULL, transAcceptThread, (void*)srv);
-  if (err == 0) {
+  code = taosThreadCreate(&srv->thread, NULL, transAcceptThread, (void*)srv);
+  if (code == 0) {
     tDebug("success to create accept-thread");
   } else {
-    tError("failed  to create accept-thread");
+    code = TAOS_SYSTEM_ERROR(errno);
+    tError("failed  to create accept-thread since %s", tstrerror(code));
+
     goto End;
     // clear all resource later
   }

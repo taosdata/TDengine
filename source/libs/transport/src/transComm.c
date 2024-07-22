@@ -67,7 +67,11 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = htonl(pComp->contLen);
 
-  char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
+  char* buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
+  if (buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
                                                  len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
@@ -78,7 +82,7 @@ int32_t transDecompressMsg(char** msg, int32_t len) {
   taosMemoryFree(pHead);
   *msg = buf;
   if (decompLen != oriLen) {
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
   return 0;
 }
@@ -222,19 +226,19 @@ int transSetConnOption(uv_tcp_t* stream, int keepalive) {
   // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
-SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
+int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
   if (pool == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
+    // return NULL;
   }
+  int32_t code = 0;
 
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
   if (pool->asyncs == NULL) {
     taosMemoryFree(pool);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int i = 0, err = 0;
@@ -243,7 +247,7 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 
     SAsyncItem* item = taosMemoryCalloc(1, sizeof(SAsyncItem));
     if (item == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
     item->pThrd = arg;
@@ -254,7 +258,7 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
     err = uv_async_init(loop, async, cb);
     if (err != 0) {
       tError("failed to init async, reason:%s", uv_err_name(err));
-      terrno = TSDB_CODE_THIRDPARTY_ERROR;
+      code = TSDB_CODE_THIRDPARTY_ERROR;
       break;
     }
   }
@@ -264,7 +268,9 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
     pool = NULL;
   }
 
-  return pool;
+  *pPool = pool;
+  return 0;
+  // return pool;
 }
 
 void transAsyncPoolDestroy(SAsyncPool* pool) {
@@ -289,7 +295,7 @@ bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
 }
 int transAsyncSend(SAsyncPool* pool, queue* q) {
   if (atomic_load_8(&pool->stop) == 1) {
-    return -1;
+    return TSDB_CODE_RPC_ASYNC_MODULE_QUIT;
   }
   int idx = pool->index % pool->nAsync;
 
@@ -303,7 +309,12 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   taosThreadMutexLock(&item->mtx);
   QUEUE_PUSH(&item->qmsg, q);
   taosThreadMutexUnlock(&item->mtx);
-  return uv_async_send(async);
+  int ret = uv_async_send(async);
+  if (ret != 0) {
+    tError("failed to send async,reason:%s", uv_err_name(ret));
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  return 0;
 }
 
 void transCtxInit(STransCtx* ctx) {

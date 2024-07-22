@@ -103,11 +103,11 @@ typedef void* queue[2];
 #define TRANS_MAGIC_NUM           0x5f375a86
 #define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
 
-typedef struct SRpcMsg      STransMsg;
-typedef SRpcCtx      STransCtx;
-typedef SRpcCtxVal   STransCtxVal;
-typedef SRpcInfo     STrans;
-typedef SRpcConnInfo STransHandleInfo;
+typedef struct SRpcMsg STransMsg;
+typedef SRpcCtx        STransCtx;
+typedef SRpcCtxVal     STransCtxVal;
+typedef SRpcInfo       STrans;
+typedef SRpcConnInfo   STransHandleInfo;
 
 // ref mgt handle
 typedef struct SExHandle {
@@ -250,10 +250,10 @@ typedef struct {
   int8_t      stop;
 } SAsyncPool;
 
-SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
-void        transAsyncPoolDestroy(SAsyncPool* pool);
-int         transAsyncSend(SAsyncPool* pool, queue* mq);
-bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
+int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool);
+void    transAsyncPoolDestroy(SAsyncPool* pool);
+int     transAsyncSend(SAsyncPool* pool, queue* mq);
+bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc, param) \
   do {                                                               \
