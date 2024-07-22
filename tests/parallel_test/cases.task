@@ -160,12 +160,13 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_stb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stt_blocks_check.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 3
+,,y,system-test,./pytest.sh python3 ./ttest.py est.py -f 2-query/insert_null_none.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/database_pre_suf.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 3
