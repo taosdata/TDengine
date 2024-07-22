@@ -95,18 +95,18 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
 }
 
 int dmOccurrences(char *str, char *toSearch) {
-    int count = 0;
-    char *ptr = str;
-    while ((ptr = strstr(ptr, toSearch)) != NULL) {
-        count++;
-        ptr++;
-    }
-    return count;
+  int   count = 0;
+  char *ptr = str;
+  while ((ptr = strstr(ptr, toSearch)) != NULL) {
+    count++;
+    ptr++;
+  }
+  return count;
 }
 
-void dmSplitStr(char** arr, char* str, const char* del) {
+void dmSplitStr(char **arr, char *str, const char *del) {
   char *lasts;
-  char* s = strsep(&str, del);
+  char *s = strsep(&str, del);
   while (s != NULL) {
     *arr++ = s;
     s = strsep(&str, del);
@@ -132,11 +132,10 @@ int32_t dmReadEps(SDnodeData *pData) {
     dInfo("dnode file:%s not exist", file);
 
 #ifdef TD_ENTERPRISE
-    if(strlen(tsEncryptAlgorithm) > 0){
-      if(strcmp(tsEncryptAlgorithm, "sm4") == 0) {
+    if (strlen(tsEncryptAlgorithm) > 0) {
+      if (strcmp(tsEncryptAlgorithm, "sm4") == 0) {
         pData->encryptAlgorigthm = DND_CA_SM4;
-      }
-      else{
+      } else {
         terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
         dError("invalid tsEncryptAlgorithm:%s", tsEncryptAlgorithm);
         goto _OVER;
@@ -144,45 +143,45 @@ int32_t dmReadEps(SDnodeData *pData) {
 
       dInfo("start to parse encryptScope:%s", tsEncryptScope);
       int32_t scopeLen = strlen(tsEncryptScope);
-      if(scopeLen == 0){
+      if (scopeLen == 0) {
         terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
         dError("invalid tsEncryptScope:%s", tsEncryptScope);
         goto _OVER;
       }
 
-      char* tmp = taosMemoryMalloc(scopeLen + 1);
+      char *tmp = taosMemoryMalloc(scopeLen + 1);
       memset(tmp, 0, scopeLen + 1);
       memcpy(tmp, tsEncryptScope, scopeLen);
 
       int32_t count = dmOccurrences(tmp, ",");
 
-      char** array = taosMemoryMalloc(sizeof(char*) * (count + 1));
-      memset(array, 0, sizeof(char*) * (count + 1));
+      char **array = taosMemoryMalloc(sizeof(char *) * (count + 1));
+      memset(array, 0, sizeof(char *) * (count + 1));
       dmSplitStr(array, tmp, ",");
 
-      for(int32_t i = 0; i < count + 1; i++){
-        char* str = *(array + i);
+      for (int32_t i = 0; i < count + 1; i++) {
+        char *str = *(array + i);
 
         bool success = false;
 
-        if(strcasecmp(str, "tsdb") == 0 || strcasecmp(str, "all") == 0){
+        if (strcasecmp(str, "tsdb") == 0 || strcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_TSDB;
           success = true;
         }
-        if(strcasecmp(str, "vnode_wal") == 0 || strcasecmp(str, "all") == 0){
+        if (strcasecmp(str, "vnode_wal") == 0 || strcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_VNODE_WAL;
           success = true;
         }
-        if(strcasecmp(str, "sdb") == 0 || strcasecmp(str, "all") == 0){
+        if (strcasecmp(str, "sdb") == 0 || strcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_SDB;
           success = true;
         }
-        if(strcasecmp(str, "mnode_wal") == 0 || strcasecmp(str, "all") == 0){
+        if (strcasecmp(str, "mnode_wal") == 0 || strcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_MNODE_WAL;
           success = true;
         }
 
-        if(!success){
+        if (!success) {
           terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
           taosMemoryFree(tmp);
           taosMemoryFree(array);
@@ -196,7 +195,7 @@ int32_t dmReadEps(SDnodeData *pData) {
 
       dInfo("set tsCryptAlgorithm:%s, tsCryptScope:%s from cfg", tsEncryptAlgorithm, tsEncryptScope);
     }
-    
+
 #endif
     code = 0;
     goto _OVER;
@@ -204,26 +203,26 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to open dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
   int64_t size = 0;
   if (taosFStatFile(pFile, &size, NULL) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to fstat dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
   content = taosMemoryMalloc(size + 1);
   if (content == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
   if (taosReadFile(pFile, content, size) != size) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to read dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
@@ -232,12 +231,11 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   pJson = tjsonParse(content);
   if (pJson == NULL) {
-    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
 
-  if (dmDecodeEps(pJson, pData) < 0) {
-    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+  if ((code = dmDecodeEps(pJson, pData)) < 0) {
     goto _OVER;
   }
 
@@ -251,7 +249,7 @@ _OVER:
 
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, terrstr());
-    return code;
+    return terrno = code;
   }
 
   if (taosArrayGetSize(pData->dnodeEps) == 0) {
@@ -261,8 +259,8 @@ _OVER:
     taosArrayPush(pData->dnodeEps, &dnodeEp);
   }
 
-  if (dmReadDnodePairs(pData) != 0) {
-    return -1;
+  if ((code = dmReadDnodePairs(pData)) != 0) {
+    return terrno = code;
   }
 
   dDebug("reset dnode list on startup");
@@ -270,8 +268,8 @@ _OVER:
 
   if (pData->oldDnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
     dError("localEp %s different with %s and need to be reconfigured", tsLocalEp, file);
-    terrno = TSDB_CODE_INVALID_CFG;
-    return -1;
+    code = TSDB_CODE_INVALID_CFG;
+    return terrno = code;
   }
 
   return code;
@@ -308,7 +306,7 @@ static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
 }
 
 int32_t dmWriteEps(SDnodeData *pData) {
-  int32_t   code = -1;
+  int32_t   code = 0;
   char     *buffer = NULL;
   SJson    *pJson = NULL;
   TdFilePtr pFile = NULL;
@@ -317,26 +315,30 @@ int32_t dmWriteEps(SDnodeData *pData) {
   snprintf(file, sizeof(file), "%s%sdnode%sdnode.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  // if ((code == dmInitDndInfo(pData)) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(dmInitDndInfo(pData), NULL, _OVER);
 
-  if ((code == dmInitDndInfo(pData)) != 0) goto _OVER;
   pJson = tjsonCreateObject();
-  if (pJson == NULL) goto _OVER;
+  if (pJson == NULL) TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+
   pData->engineVer = tsVersion;
-  if (dmEncodeEps(pJson, pData) != 0) goto _OVER;
+
+  TAOS_CHECK_GOTO(dmEncodeEps(pJson, pData), NULL, _OVER);  // dmEncodeEps(pJson, pData) != 0) goto _OVER;
+
   buffer = tjsonToString(pJson);
-  if (buffer == NULL) goto _OVER;
-  terrno = 0;
+  if (buffer == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+  }
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) goto _OVER;
+  if (pFile == NULL) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
 
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) goto _OVER;
-  if (taosFsyncFile(pFile) < 0) goto _OVER;
+  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
+  if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
 
   taosCloseFile(&pFile);
-  if (taosRenameFile(file, realfile) != 0) goto _OVER;
+  if (taosRenameFile(file, realfile) != 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _OVER);
 
   code = 0;
   pData->updateTime = taosGetTimestampMs();
@@ -349,8 +351,7 @@ _OVER:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    if (terrno == 0) terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, terrstr(), pData->dnodeVer);
+    dError("failed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, tstrerror(code), pData->dnodeVer);
   }
   return code;
 }
@@ -592,28 +593,29 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dDebug("dnode file:%s not exist", file);
+    code = TAOS_SYSTEM_ERROR(errno);
+    dDebug("dnode file:%s not exist, reason:%s", file, tstrerror(code));
     code = 0;
     goto _OVER;
   }
 
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to open dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
   int64_t size = 0;
   if (taosFStatFile(pFile, &size, NULL) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     dError("failed to fstat dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
 
   content = taosMemoryMalloc(size + 1);
   if (content == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
@@ -627,12 +629,13 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
 
   pJson = tjsonParse(content);
   if (pJson == NULL) {
-    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
 
   pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEpPair));
   if (pData->oldDnodeEps == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     dError("failed to calloc dnodeEp array since %s", strerror(errno));
     goto _OVER;
   }
@@ -640,7 +643,8 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   if (dmDecodeEpPairs(pJson, pData) < 0) {
     taosArrayDestroy(pData->oldDnodeEps);
     pData->oldDnodeEps = NULL;
-    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
 
@@ -653,7 +657,7 @@ _OVER:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    dError("failed to read dnode file:%s since %s", file, terrstr());
+    dError("failed to read dnode file:%s since %s", file, tstrerror(code));
     return code;
   }
 
@@ -680,8 +684,8 @@ _OVER:
                pair->oldPort, pair->newFqdn, pair->newPort, pDnodeEp->id);
         taosArrayDestroy(pData->oldDnodeEps);
         pData->oldDnodeEps = NULL;
-        terrno = TSDB_CODE_INVALID_CFG;
-        return -1;
+        code = TSDB_CODE_INVALID_CFG;
+        return code;
       }
     }
   }

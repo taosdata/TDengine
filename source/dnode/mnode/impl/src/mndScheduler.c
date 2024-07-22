@@ -50,17 +50,17 @@ static bool isCountWindowStreamTask(SSubplan* pPlan) {
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, int64_t deleteMark) {
+  int32_t     code = 0;
   SNode*      pAst = NULL;
   SQueryPlan* pPlan = NULL;
-  terrno = TSDB_CODE_SUCCESS;
 
   if (nodesStringToNode(ast, &pAst) < 0) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    code = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
   }
 
   if (qSetSTableIdForRsma(pAst, uid) < 0) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    code = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
   }
 
@@ -75,33 +75,33 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    code = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
   }
 
   int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
   if (levelNum != 1) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    code = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
   }
   SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
 
   int32_t opNum = LIST_LENGTH(inner->pNodeList);
   if (opNum != 1) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    code = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
   }
 
   SSubplan* plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
   if (qSubPlanToString(plan, pDst, pDstLen) < 0) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    code = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
   }
 
 END:
   if (pAst) nodesDestroyNode(pAst);
   if (pPlan) nodesDestroyNode((SNode*)pPlan);
-  return terrno;
+  TAOS_RETURN(code);
 }
 
 int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
@@ -127,6 +127,7 @@ int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
 
 int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SArray* pSinkNodeList,
                                         SStreamTask* pTask) {
+  int32_t code = 0;
   bool isShuffle = false;
 
   if (pStream->fixedSinkVgId == 0) {
@@ -135,9 +136,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
       isShuffle = true;
       pTask->outputInfo.type = TASK_OUTPUT__SHUFFLE_DISPATCH;
       pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
-      if (mndExtractDbInfo(pMnode, pDb, &pTask->outputInfo.shuffleDispatcher.dbInfo, NULL) < 0) {
-        return -1;
-      }
+      TAOS_CHECK_RETURN(mndExtractDbInfo(pMnode, pDb, &pTask->outputInfo.shuffleDispatcher.dbInfo, NULL));
     }
 
     sdbRelease(pMnode->pSdb, pDb);
@@ -166,7 +165,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
     streamTaskSetFixedDownstreamInfo(pTask, pOneSinkTask);
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 int32_t mndAssignStreamTaskToVgroup(SMnode* pMnode, SStreamTask* pTask, SSubplan* plan, const SVgObj* pVgroup) {
@@ -639,14 +638,15 @@ static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
 
 static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan* pPlan, SEpSet* pEpset, int64_t skey,
                                 SArray* pVerList) {
+  int32_t code = 0;
   SSdb*   pSdb = pMnode->pSdb;
   int32_t numOfPlanLevel = LIST_LENGTH(pPlan->pSubplans);
   bool    hasExtraSink = false;
   bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
   SDbObj* pDbObj = mndAcquireDb(pMnode, pStream->targetDb);
   if (pDbObj == NULL) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
-    return -1;
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+    TAOS_RETURN(code);
   }
 
   bool multiTarget = (pDbObj->cfg.numOfVgroups > 1);
@@ -670,9 +670,11 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
 
   SSubplan* plan = getScanSubPlan(pPlan);  // source plan
   if (plan == NULL) {
-    return terrno;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
   }
-  int32_t code = addSourceTask(pMnode, plan, pStream, pEpset, skey, pVerList, numOfPlanLevel == 1);
+  code = addSourceTask(pMnode, plan, pStream, pEpset, skey, pVerList, numOfPlanLevel == 1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -688,7 +690,9 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   if (numOfPlanLevel == 3) {
     plan = getAggSubPlan(pPlan, 1);  // middle agg plan
     if (plan == NULL) {
-      return terrno;
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
     }
     do {
       SArray** list = taosArrayGetLast(pStream->tasks);
@@ -715,7 +719,9 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
 
   plan = getAggSubPlan(pPlan, 0);
   if (plan == NULL) {
-    return terrno;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
   }
 
   mDebug("doScheduleStream add final agg");
@@ -724,7 +730,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   addNewTaskList(pStream);
   code = addAggTask(pStream, pMnode, plan, pEpset, true);
   if (code != TSDB_CODE_SUCCESS) {
-    return code;
+    TAOS_RETURN(code);
   }
   bindTwoLevel(pStream->tasks, 0, size);
   if (pStream->conf.fillHistory) {
@@ -735,31 +741,32 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   if (pStream->conf.fillHistory) {
     bindAggSink(pStream, pMnode, pStream->pHTasksList);
   }
-  return TDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
 }
 
 int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream, int64_t skey, SArray* pVgVerList) {
+  int32_t     code = 0;
   SQueryPlan* pPlan = qStringToQueryPlan(pStream->physicalPlan);
   if (pPlan == NULL) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
-    return -1;
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+    TAOS_RETURN(code);
   }
 
   SEpSet mnodeEpset = {0};
   mndGetMnodeEpSet(pMnode, &mnodeEpset);
 
-  int32_t code = doScheduleStream(pStream, pMnode, pPlan, &mnodeEpset, skey, pVgVerList);
+  code = doScheduleStream(pStream, pMnode, pPlan, &mnodeEpset, skey, pVgVerList);
   qDestroyQueryPlan(pPlan);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub) {
+  int32_t     code = 0;
   SSdb*       pSdb = pMnode->pSdb;
   SVgObj*     pVgroup = NULL;
   SQueryPlan* pPlan = NULL;
   SSubplan*   pSubplan = NULL;
-  int32_t     code = 0;
 
   if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
     pPlan = qStringToQueryPlan(pTopic->physicalPlan);

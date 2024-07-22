@@ -179,7 +179,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset, SFunctionStateStore* pStore);
 void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
-void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
+int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
 
 SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);

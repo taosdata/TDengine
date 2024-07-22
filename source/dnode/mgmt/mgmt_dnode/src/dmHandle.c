@@ -45,7 +45,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
   int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
-  void *              pHead = rpcMallocCont(contLen);
+  void               *pHead = rpcMallocCont(contLen);
   tSerializeRetrieveIpWhite(pHead, contLen, &req);
 
   SRpcMsg rpcMsg = {.pCont = pHead,
@@ -116,7 +116,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
-  req.clusterCfg.encryptionKeyChksum =  tsEncryptionKeyChksum;
+  req.clusterCfg.encryptionKeyChksum = tsEncryptionKeyChksum;
   req.clusterCfg.monitorParas.tsEnableMonitor = tsEnableMonitor;
   req.clusterCfg.monitorParas.tsMonitorInterval = tsMonitorInterval;
   req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
@@ -146,7 +146,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
-  void *  pHead = rpcMallocCont(contLen);
+  void   *pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
@@ -207,18 +207,26 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t       code = 0;
   SDCfgDnodeReq cfgReq = {0};
   if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
 
   SConfig *pCfg = taosGetCfg();
-  cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
-  taosCfgDynamicOptions(pCfg, cfgReq.config, true);
-  return 0;
+
+  code = cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
+  if (code != 0) {
+    if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
+      code = 0;
+    } else {
+      return code;
+    }
+  }
+
+  return taosCfgDynamicOptions(pCfg, cfgReq.config, true);
 }
 
 int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -251,7 +259,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
   pStatus->details[0] = 0;
 
-  SMonMloadInfo    minfo = {0};
+  SMonMloadInfo minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
   if (minfo.isMnode &&
       (minfo.load.syncState == TAOS_SYNC_STATE_ERROR || minfo.load.syncState == TAOS_SYNC_STATE_OFFLINE)) {
@@ -276,32 +284,49 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
 }
 
 int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t code = 0;
   dDebug("server run status req is received");
   SServerStatusRsp statusRsp = {0};
   dmGetServerRunStatus(pMgmt, &statusRsp);
 
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+
   SRpcMsg rspMsg = {.info = pMsg->info};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
+    // rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    // return rspMsg.code;
   }
 
   void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
+    // rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    // return rspMsg.code;
   }
 
-  tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
+  rspLen = tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
+  if (rspLen < 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   pMsg->info.rsp = pRsp;
   pMsg->info.rspLen = rspLen;
   return 0;
 }
 
-SSDataBlock *dmBuildVariablesBlock(void) {
-  SSDataBlock *        pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  size_t               size = 0;
+int32_t dmBuildVariablesBlock(SSDataBlock **ppBlock) {
+  int32_t code = 0;
+
+  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  size_t size = 0;
+
   const SSysTableMeta *pMeta = NULL;
   getInfosDbMeta(&pMeta, &size);
 
@@ -314,52 +339,74 @@ SSDataBlock *dmBuildVariablesBlock(void) {
   }
 
   pBlock->pDataBlock = taosArrayInit(pMeta[index].colNum, sizeof(SColumnInfoData));
+  if (pBlock->pDataBlock == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
   for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
     SColumnInfoData colInfoData = {0};
     colInfoData.info.colId = i + 1;
     colInfoData.info.type = pMeta[index].schema[i].type;
     colInfoData.info.bytes = pMeta[index].schema[i].bytes;
-    taosArrayPush(pBlock->pDataBlock, &colInfoData);
+    if (taosArrayPush(pBlock->pDataBlock, &colInfoData) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
   }
 
   pBlock->info.hasVarCol = true;
-
-  return pBlock;
+_exit:
+  if (code != 0) {
+    blockDataDestroy(pBlock);
+  } else {
+    *ppBlock = pBlock;
+  }
+  return code;
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  /*int32_t code = */dumpConfToDataBlock(pBlock, 1);
+  int32_t code = dumpConfToDataBlock(pBlock, 1);
+  if (code != 0) {
+    return code;
+  }
 
   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
-  colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, false);
+  if (pColInfo == NULL) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
-  return TSDB_CODE_SUCCESS;
+  return colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, false);
 }
 
 int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t size = 0;
-  int32_t rowsRead = 0;
-
+  int32_t           size = 0;
+  int32_t           rowsRead = 0;
+  int32_t           code = 0;
   SRetrieveTableReq retrieveReq = {0};
   if (tDeserializeSRetrieveTableReq(pMsg->pCont, pMsg->contLen, &retrieveReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 #if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
-    terrno = TSDB_CODE_MND_NO_RIGHTS;
-    return -1;
+    code = TSDB_CODE_MND_NO_RIGHTS;
+    return code;
   }
 #endif
   if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
-  SSDataBlock *pBlock = dmBuildVariablesBlock();
+  SSDataBlock *pBlock = NULL;
+  if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
+    return code;
+  }
 
-  dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
+  code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
+  if (code != 0) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * numOfCols +
@@ -367,10 +414,10 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    dError("failed to retrieve data since %s", terrstr());
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to retrieve data since %s", tstrerror(code));
     blockDataDestroy(pBlock);
-    return -1;
+    return code;
   }
 
   char *pStart = pRsp->data;
@@ -404,7 +451,9 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 SArray *dmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(16, sizeof(SMgmtHandle));
-  if (pArray == NULL) goto _OVER;
+  if (pArray == NULL) {
+    return NULL;
+  }
 
   // Requests handled by DNODE
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_MNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
@@ -416,7 +465,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;  
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE

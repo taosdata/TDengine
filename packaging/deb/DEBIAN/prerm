@@ -20,6 +20,7 @@ if [ -f ${insmetaPath}/preun.sh ]; then
 else
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
+    lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
 
     data_link_dir="/usr/local/taos/data"
@@ -40,9 +41,11 @@ else
     ${csudo}rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo}rm -f ${inc_link_dir}/tdef.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :
-    [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h     || :
+    ${csudo}rm -f ${inc_link_dir}/taosws.h     || :    
     ${csudo}rm -f ${lib_link_dir}/libtaos.*  || :
-    [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so  || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaos.*  || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosws.so  || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosws.so  || : 
 
     ${csudo}rm -f ${log_link_dir}            || :
     ${csudo}rm -f ${data_link_dir}           || :
