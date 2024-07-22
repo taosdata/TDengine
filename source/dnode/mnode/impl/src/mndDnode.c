@@ -572,7 +572,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SStatisReq statisReq = {0};
   int32_t    code = -1;
 
-  TAOS_RETURN(tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq));
+  TAOS_CHECK_RETURN(tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq));
 
   if (tsMonitorLogProtocol) {
     mInfo("process statis req,\n %s", statisReq.pCont);
@@ -1378,7 +1378,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   int32_t       code = 0;
   SMnode       *pMnode = pReq->info.node;
   SMCfgDnodeReq cfgReq = {0};
-  TAOS_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
+  TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
   int8_t updateIpWhiteList = 0;
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
@@ -1526,7 +1526,7 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
   SMnode       *pMnode = pReq->info.node;
   SMCfgDnodeReq cfgReq = {0};
-  TAOS_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
+  TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
 
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
     tFreeSMCfgDnodeReq(&cfgReq);
