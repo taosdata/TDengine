@@ -13,13 +13,13 @@
             v-model="sqlDescFuzzy"
             clearable
             :placeholder="'SQL' + '/' + $t('console.desc')"
-            @keyup.enter.native="getFavoritesData()"
-            @clear="getFavoritesData()"
+            @keyup.enter.native="getFavoritesData('search')"
+            @clear="getFavoritesData('search')"
             style="width: 200px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button icon="el-icon-search" @click="getFavoritesData()">{{
+          <el-button icon="el-icon-search" @click="getFavoritesData('search')">{{
             $t("search")
           }}</el-button>
         </el-form-item>
@@ -193,7 +193,7 @@
         <el-pagination
           class="pagination"
           layout="sizes, total, prev, pager, next"
-          :current-page.sync="currentPage"
+          :current-page.sync="currentPageTwo"
           :page-sizes="[10, 20, 50, 100, 200]"
           :page-size="pageSizeTwo"
           :hide-on-single-page="false"
@@ -251,10 +251,10 @@ export default {
     pasteSQL(sql) {
       copy(sql);
     },
-    async getFavoritesData() {
+    async getFavoritesData(isSearch) {
       if (this.activeTab == "shared") {
         const params = {
-          page: this.currentPageTwo,
+          page: isSearch ? '1' : this.currentPageTwo,
           page_size: this.pageSizeTwo,
           sql_desc_fuzzy: this.sqlDescFuzzy,
           is_public: true,
@@ -263,7 +263,7 @@ export default {
         this.$store.dispatch("console/getSharedFavorites", params);
       } else {
         const params = {
-          page: this.currentPage,
+          page: isSearch ? '1' : this.currentPage,
           page_size: this.pageSize,
           sql_desc_fuzzy: this.sqlDescFuzzy,
         };
@@ -314,7 +314,7 @@ export default {
         .then(async ({ value }) => {
           this.favorited = true;
           let params = {
-            description: value,
+            description: value || "",
           };
           const res = await manageFavorite(row.id, params);
           if (res && res.code == 0) {

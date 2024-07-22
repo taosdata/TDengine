@@ -823,7 +823,7 @@ export default {
     unshare: "Unshare",
     addDesc: "Add description",
     editDesc: "Edit description",
-    descPlaceholder: "Description of the SQL favorite. The character length is {0}",
+    descPlaceholder: "Description of the SQL,no more than {0} characters.",
     characterLen: "Only {0} characters are allowed",
     addToPersonal: "Add to personal favorite"
   },
