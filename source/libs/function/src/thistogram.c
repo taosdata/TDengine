@@ -49,7 +49,7 @@ int32_t tHistogramCreate(int32_t numOfEntries, SHistogramInfo** pHisto) {
   pss->pTree = pHisto->pLoserTree;
 #endif
 
-  *pHisto = tHistogramCreateFrom(pHisto, numOfEntries);
+  *pHisto = tHistogramCreateFrom(*pHisto, numOfEntries);
   return TSDB_CODE_SUCCESS;
 }
 
