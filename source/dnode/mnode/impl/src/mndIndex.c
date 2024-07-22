@@ -506,7 +506,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stb:%s, failed to create since %s", createReq.idxName, terrstr());
+    mError("stb:%s, failed to create since %s", createReq.idxName, tstrerror(code));
   }
 
   mndReleaseStb(pMnode, pStb);
@@ -882,7 +882,7 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("idx:%s, failed to drop since %s", req.name, terrstr());
+    mError("idx:%s, failed to drop since %s", req.name, tstrerror(code));
   }
   mndReleaseIdx(pMnode, pIdx);
   mndReleaseDb(pMnode, pDb);

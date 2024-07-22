@@ -329,6 +329,7 @@ static int32_t minCronTime() {
   return min <= 1 ? 2 : min;
 }
 void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
+  int32_t code = 0;
   if (sec % tsTtlPushIntervalSec == 0) {
     mndPullupTtl(pMnode);
   }
@@ -378,14 +379,14 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   }
 
   if (sec % (tsArbHeartBeatIntervalSec) == 0) {
-    if (mndPullupArbHeartbeat(pMnode) != 0) {
-      mError("failed to pullup arb heartbeat, since:%s", terrstr());
+    if ((code = mndPullupArbHeartbeat(pMnode)) != 0) {
+      mError("failed to pullup arb heartbeat, since:%s", tstrerror(code));
     }
   }
 
   if (sec % (tsArbCheckSyncIntervalSec) == 0) {
-    if (mndPullupArbCheckSync(pMnode) != 0) {
-      mError("failed to pullup arb check sync, since:%s", terrstr());
+    if ((code = mndPullupArbCheckSync(pMnode)) != 0) {
+      mError("failed to pullup arb check sync, since:%s", tstrerror(code));
     }
   }
 }
@@ -494,9 +495,9 @@ static int32_t mndInitWal(SMnode *pMnode) {
 
   pMnode->pWal = walOpen(path, &cfg);
   if (pMnode->pWal == NULL) {
-    mError("failed to open wal since %s. wal:%s", terrstr(), path);
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
+    mError("failed to open wal since %s. wal:%s", tstrerror(code), path);
     TAOS_RETURN(code);
   }
 
@@ -616,14 +617,14 @@ static void mndCleanupSteps(SMnode *pMnode, int32_t pos) {
 }
 
 static int32_t mndExecSteps(SMnode *pMnode) {
+  int32_t code = 0;
   int32_t size = taosArrayGetSize(pMnode->pSteps);
   for (int32_t pos = 0; pos < size; pos++) {
     SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, pos);
     if (pStep->initFp == NULL) continue;
 
-    if ((*pStep->initFp)(pMnode) != 0) {
-      int32_t code = terrno;
-      mError("%s exec failed since %s, start to cleanup", pStep->name, terrstr());
+    if ((code = (*pStep->initFp)(pMnode)) != 0) {
+      mError("%s exec failed since %s, start to cleanup", pStep->name, tstrerror(code));
       mndCleanupSteps(pMnode, pos);
       TAOS_RETURN(code);
     } else {
@@ -675,7 +676,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   int32_t code = mndCreateDir(pMnode, path);
   if (code != 0) {
     code = terrno;
-    mError("failed to open mnode since %s", terrstr());
+    mError("failed to open mnode since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -684,7 +685,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   code = mndInitSteps(pMnode);
   if (code != 0) {
     code = terrno;
-    mError("failed to open mnode since %s", terrstr());
+    mError("failed to open mnode since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -693,7 +694,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   code = mndExecSteps(pMnode);
   if (code != 0) {
     code = terrno;
-    mError("failed to open mnode since %s", terrstr());
+    mError("failed to open mnode since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -769,7 +770,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   int32_t code = syncProcessMsg(pMgmt->sync, pMsg);
   if (code != 0) {
     mGError("vgId:1, failed to process sync msg:%p type:%s, errno: %s, code:0x%x", pMsg, TMSG_INFO(pMsg->msgType),
-            terrstr(), code);
+            tstrerror(code), code);
   }
 
   return code;
