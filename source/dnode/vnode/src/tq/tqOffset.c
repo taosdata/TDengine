@@ -73,6 +73,7 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
     }
     TQ_ERR_GO_TO_END(tqMetaSaveInfo(pTq, pTq->pOffsetStore, offset.subKey, strlen(offset.subKey), pMemBuf, size));
 
+    tqInfo("tq: offset restore from file to tdb, subkey:%s", offset.subKey);
     taosMemoryFree(pMemBuf);
     pMemBuf = NULL;
   }
