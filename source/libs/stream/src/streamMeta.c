@@ -720,20 +720,22 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   stDebug("s-task:0x%x vgId:%d set task status:dropping and start to unregister it", taskId, pMeta->vgId);
 
   while (1) {
-    streamMetaRLock(pMeta);
+    int32_t timerActive = 0;
 
+    streamMetaRLock(pMeta);
     ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask) {
-      if ((*ppTask)->status.timerActive == 0) {
-        streamMetaRUnLock(pMeta);
-        break;
-      }
+      // to make sure check status will not start the check downstream status when we start to check timerActive count.
+      taosThreadMutexLock(&pTask->taskCheckInfo.checkInfoLock);
+      timerActive = (*ppTask)->status.timerActive;
+      taosThreadMutexUnlock(&pTask->taskCheckInfo.checkInfoLock);
+    }
+    streamMetaRUnLock(pMeta);
 
-      taosMsleep(10);
-      stDebug("s-task:%s wait for quit from timer", (*ppTask)->id.idStr);
-      streamMetaRUnLock(pMeta);
+    if (timerActive > 0) {
+      taosMsleep(100);
+      stDebug("s-task:0x%" PRIx64 " wait for quit from timer, timerRef:%d", id.taskId, timerActive);
     } else {
-      streamMetaRUnLock(pMeta);
       break;
     }
   }
