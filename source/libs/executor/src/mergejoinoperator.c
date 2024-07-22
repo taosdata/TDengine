@@ -1717,7 +1717,6 @@ SSDataBlock* mJoinMainProcess(struct SOperatorInfo* pOperator) {
     pBlock = (*pJoin->joinFp)(pOperator);
     if (NULL == pBlock) {
       if (pJoin->errCode) {
-        ASSERT(0);
         T_LONG_JMP(pOperator->pTaskInfo->env, pJoin->errCode);
       }
       break;
