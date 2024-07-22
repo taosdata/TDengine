@@ -199,7 +199,7 @@ int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExecInfo, S
       return TSDB_CODE_APP_ERROR;
     }
     
-    taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
+    if(taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx) == NULL) return terrno;
   } else {
     for (int32_t i = 0; i < group->nodeNum; ++i) {
       rsp = taosArrayGet(group->nodeExecInfo, i);
@@ -208,7 +208,7 @@ int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExecInfo, S
         return TSDB_CODE_APP_ERROR;
       }
 
-      taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
+      if(taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx) == NULL) return terrno;
     }
   }
 
@@ -1920,6 +1920,7 @@ _return:
 }
 
 int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
+  int32_t          code = 0;
   SExplainCtx *pCtx = (SExplainCtx *)ctx;
   int32_t      rowNum = taosArrayGetSize(pCtx->rows);
   if (rowNum <= 0) {
@@ -1929,14 +1930,14 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   SSDataBlock    *pBlock = createDataBlock();
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_EXPLAIN_RESULT_ROW_SIZE, 1);
-  blockDataAppendColInfo(pBlock, &infoData);
-  blockDataEnsureCapacity(pBlock, rowNum);
+  QRY_ERR_JRET(blockDataAppendColInfo(pBlock, &infoData));
+  QRY_ERR_JRET(blockDataEnsureCapacity(pBlock, rowNum));
 
   SColumnInfoData *pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
   for (int32_t i = 0; i < rowNum; ++i) {
     SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
-    colDataSetVal(pInfoData, i, row->buf, false);
+    QRY_ERR_JRET(colDataSetVal(pInfoData, i, row->buf, false));
   }
 
   pBlock->info.rows = rowNum;
@@ -1946,8 +1947,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
     qError("malloc SRetrieveTableRsp failed, size:%d", rspSize);
-    blockDataDestroy(pBlock);
-    QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   rsp->completed = 1;
@@ -1961,10 +1961,11 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   SET_PAYLOAD_LEN(rsp->data, len, len);
 
+_return:
   blockDataDestroy(pBlock);
 
   *pRsp = rsp;
-  return TSDB_CODE_SUCCESS;
+  QRY_RET(code);
 }
 
 int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
@@ -2099,32 +2100,30 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
     group->nodeExecInfo = taosArrayInit(group->nodeNum, sizeof(SExplainRsp));
     if (NULL == group->nodeExecInfo) {
       qError("taosArrayInit %d explainExecInfo failed", group->nodeNum);
-      tFreeSExplainRsp(pRspMsg);
-      taosWUnLockLatch(&group->lock);
-
-      QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TAOS_CHECK_ERRNO(code);
     }
 
     group->physiPlanExecNum = pRspMsg->numOfPlans;
   } else if (taosArrayGetSize(group->nodeExecInfo) >= group->nodeNum) {
     qError("group execInfo already full, size:%d, nodeNum:%d", (int32_t)taosArrayGetSize(group->nodeExecInfo),
            group->nodeNum);
-    tFreeSExplainRsp(pRspMsg);
-    taosWUnLockLatch(&group->lock);
-
-    QRY_ERR_RET(TSDB_CODE_APP_ERROR);
+    code = TSDB_CODE_APP_ERROR;
+    TAOS_CHECK_ERRNO(code);
   }
 
   if (group->physiPlanExecNum != pRspMsg->numOfPlans) {
     qError("physiPlanExecNum %d mismatch with others %d in group %d", pRspMsg->numOfPlans, group->physiPlanExecNum,
            groupId);
-    tFreeSExplainRsp(pRspMsg);
-    taosWUnLockLatch(&group->lock);
-
-    QRY_ERR_RET(TSDB_CODE_APP_ERROR);
+    code = TSDB_CODE_APP_ERROR;
+    TAOS_CHECK_ERRNO(code);
   }
 
-  taosArrayPush(group->nodeExecInfo, pRspMsg);
+  if(taosArrayPush(group->nodeExecInfo, pRspMsg) == NULL)
+  {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_ERRNO(code);
+  }
  
   groupDone = (taosArrayGetSize(group->nodeExecInfo) >= group->nodeNum);
 
@@ -2140,6 +2139,11 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   }
 
   return TSDB_CODE_SUCCESS;
+
+_exit:
+  tFreeSExplainRsp(pRspMsg);
+  taosWUnLockLatch(&group->lock);
+  return code;
 }
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp) {
