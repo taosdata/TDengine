@@ -165,7 +165,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
   if (pShow == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%" PRIx64 ", failed to put into cache since %s", showId, tstrerror(code));
+    mError("show:0x%" PRIx64 ", failed to put into cache since %s", showId, terrstr());
     return NULL;
   }
 
