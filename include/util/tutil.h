@@ -135,12 +135,16 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                                      \
   } while (0)
 
+#define QUERY_CHECK_CODE TSDB_CHECK_CODE
+
 #define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
   if ((ptr) == NULL) {                                 \
     (CODE) = (ERRNO);                                  \
     (LINO) = __LINE__;                                 \
     goto LABEL;                                        \
   }
+
+#define QUERY_CHECK_NULL TSDB_CHECK_NULL
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
