@@ -826,7 +826,7 @@ int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo
   void* tmp = taosArrayPush(pTaskInfo->stopInfo.pStopInfo, pInfo);
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
 
-  if (tmp != TSDB_CODE_SUCCESS) {
+  if (!tmp) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return TSDB_CODE_OUT_OF_MEMORY;
   }
