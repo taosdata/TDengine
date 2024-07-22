@@ -336,7 +336,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
       if (num > 0) {
         pReq->query->queryDesc = taosArrayInit(num, sizeof(SQueryDesc));
         if (NULL == pReq->query->queryDesc) {
-          TMSG_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY);
+          TAOS_CHECK_RETURN(TSDB_CODE_OUT_OF_MEMORY);
         }
 
         for (int32_t i = 0; i < num; ++i) {
@@ -11140,7 +11140,7 @@ int32_t tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   *pLeft = *pRight;
   if (IS_VAR_DATA_TYPE(pRight->primaryKey.type)) {
     if ((pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData)) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
   }
