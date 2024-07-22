@@ -171,7 +171,9 @@ TEST_F(WalCleanEnv, serialize) {
   ASSERT(code == 0);
   code = walRollFileInfo(pWal);
   ASSERT(code == 0);
-  char* ss = walMetaSerialize(pWal);
+  char* ss = NULL;
+  code = walMetaSerialize(pWal, &ss);
+  ASSERT(code == 0);
   printf("%s\n", ss);
   taosMemoryFree(ss);
   code = walSaveMeta(pWal);
@@ -206,7 +208,9 @@ TEST_F(WalKeepEnv, readOldMeta) {
     ASSERT_EQ(code, TSDB_CODE_WAL_INVALID_VER);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
-  char* oldss = walMetaSerialize(pWal);
+  char* oldss = NULL;
+  code = walMetaSerialize(pWal, &oldss);
+  ASSERT(code == 0);
 
   TearDown();
   SetUp();
@@ -214,7 +218,9 @@ TEST_F(WalKeepEnv, readOldMeta) {
   ASSERT_EQ(pWal->vers.firstVer, 0);
   ASSERT_EQ(pWal->vers.lastVer, 9);
 
-  char* newss = walMetaSerialize(pWal);
+  char* newss = NULL;
+  code = walMetaSerialize(pWal, &newss);
+  ASSERT(code == 0);
 
   int len = strlen(oldss);
   ASSERT_EQ(len, strlen(newss));

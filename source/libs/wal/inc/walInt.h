@@ -153,17 +153,17 @@ static inline void walResetVer(SWalVer* pVer) {
   pVer->lastVer = -1;
 }
 
-int walLoadMeta(SWal* pWal);
-int walSaveMeta(SWal* pWal);
-int walRemoveMeta(SWal* pWal);
-int walRollFileInfo(SWal* pWal);
+int32_t walLoadMeta(SWal* pWal);
+int32_t walSaveMeta(SWal* pWal);
+int32_t walRemoveMeta(SWal* pWal);
+int32_t walRollFileInfo(SWal* pWal);
 
-int walCheckAndRepairMeta(SWal* pWal);
+int32_t walCheckAndRepairMeta(SWal* pWal);
 
-int walCheckAndRepairIdx(SWal* pWal);
+int32_t walCheckAndRepairIdx(SWal* pWal);
 
-char* walMetaSerialize(SWal* pWal);
-int   walMetaDeserialize(SWal* pWal, const char* bytes);
+int32_t walMetaSerialize(SWal* pWal, char** serialized);
+int32_t walMetaDeserialize(SWal* pWal, const char* bytes);
 // meta section end
 
 int64_t walGetSeq();
