@@ -2655,7 +2655,7 @@ static int32_t mAsofForwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo
         mJoinSetDone(pOperator);
       }
 
-      return false;
+      return TSDB_CODE_SUCCESS;
     }
 
     if (buildGot) {
@@ -2690,8 +2690,9 @@ static int32_t mAsofForwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo
   }
 
   pCtx->probeGrp.blk = pJoin->probe->blk;
+  *newBlock = true;
 
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
 
