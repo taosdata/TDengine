@@ -142,7 +142,6 @@ static void buildCountResult(SExprSupp* pExprSup, SCountWindowSupp* pCountSup, S
     SCountWindowResult* pBuff = setCountWindowOutputBuff(pExprSup, pCountSup, &pResultRow);
     if (pBuff->winRows == 0) {
       continue;
-      ;
     }
     doUpdateNumOfRows(pExprSup->pCtx, pResultRow, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
     copyResultrowToDataBlock(pExprSup->pExprInfo, pExprSup->numOfExprs, pResultRow, pExprSup->pCtx, pBlock,
