@@ -1344,7 +1344,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stb:%s, failed to create since %s", createReq.name, terrstr());
+    mError("stb:%s, failed to create since %s", createReq.name, tstrerror(code));
   }
 
   mndReleaseStb(pMnode, pStb);
@@ -2607,7 +2607,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stb:%s, failed to alter since %s", alterReq.name, terrstr());
+    mError("stb:%s, failed to alter since %s", alterReq.name, tstrerror(code));
   }
 
   mndReleaseStb(pMnode, pStb);
@@ -2884,7 +2884,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
+    mError("stb:%s, failed to drop since %s", dropReq.name, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -2941,7 +2941,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0) {
-    mError("stb:%s.%s, failed to retrieve meta since %s", infoReq.dbFName, infoReq.tbName, terrstr());
+    mError("stb:%s.%s, failed to retrieve meta since %s", infoReq.dbFName, infoReq.tbName, tstrerror(code));
   }
 
   mndReleaseUser(pMnode, pUser);
@@ -2991,7 +2991,7 @@ static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0) {
-    mError("stb:%s.%s, failed to retrieve cfg since %s", cfgReq.dbFName, cfgReq.tbName, terrstr());
+    mError("stb:%s.%s, failed to retrieve cfg since %s", cfgReq.dbFName, cfgReq.tbName, tstrerror(code));
   }
 
   tFreeSTableCfgRsp(&cfgRsp);
