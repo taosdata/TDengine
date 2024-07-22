@@ -1718,10 +1718,11 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
 }
 
 int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser) {
-  int32_t   code = 0;
-  SSdb     *pSdb = pMnode->pSdb;
-  SUserObj *pUser = sdbAcquire(pSdb, SDB_USER, userName);
-  if (pUser == NULL) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  *ppUser = sdbAcquire(pSdb, SDB_USER, userName);
+  if (*ppUser == NULL) {
     if (code == TSDB_CODE_SDB_OBJ_NOT_THERE) {
       code = TSDB_CODE_MND_USER_NOT_EXIST;
     } else {

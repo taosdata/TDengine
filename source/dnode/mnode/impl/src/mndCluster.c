@@ -302,31 +302,31 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->id, false, pCluster, &lino);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->id, false, pCluster, _OVER);
 
     char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, &lino);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, _OVER);
 
     int32_t upTime = mndGetClusterUpTimeImp(pCluster);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)&upTime, false, pCluster, &lino);
+    COL_DATA_SET_VAL_GOTO((const char *)&upTime, false, pCluster, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->createdTime, false, pCluster, &lino);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->createdTime, false, pCluster, _OVER);
 
     char ver[12] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)ver, false, pCluster, &lino);
+    COL_DATA_SET_VAL_GOTO((const char *)ver, false, pCluster, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (tsExpireTime <= 0) {
       colDataSetNULL(pColInfo, numOfRows);
     } else {
-      COL_DATA_SET_VAL_GOTO((const char *)&tsExpireTime, false, pCluster, &lino);
+      COL_DATA_SET_VAL_GOTO((const char *)&tsExpireTime, false, pCluster, _OVER);
     }
 
     sdbRelease(pSdb, pCluster);
