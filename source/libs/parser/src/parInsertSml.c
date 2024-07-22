@@ -296,13 +296,13 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
   int ret = insInitBoundColsInfo(getNumOfTags(pTableMeta), &bindTags);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "init bound cols error");
+    ret = buildInvalidOperationMsg(&pBuf, "init bound cols error");
     goto end;
   }
 
   ret = smlBoundColumnData(tags, &bindTags, pTagsSchema, true);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "bound tags error");
+    ret = buildInvalidOperationMsg(&pBuf, "bound tags error");
     goto end;
   }
 
@@ -347,20 +347,20 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
   ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
                            sizeof(pTableMeta->uid), pTableMeta, &pCreateTblReq, &pTableCxt, false, false);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "insGetTableDataCxt error");
+    ret = buildInvalidOperationMsg(&pBuf, "insGetTableDataCxt error");
     goto end;
   }
 
   SSchema* pSchema = getTableColumnSchema(pTableMeta);
   ret = smlBoundColumnData(colsSchema, &pTableCxt->boundColsInfo, pSchema, false);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "bound cols error");
+    ret = buildInvalidOperationMsg(&pBuf, "bound cols error");
     goto end;
   }
 
   ret = initTableColSubmitData(pTableCxt);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "initTableColSubmitData error");
+    ret = buildInvalidOperationMsg(&pBuf, "initTableColSubmitData error");
     goto end;
   }
 
@@ -407,7 +407,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
           if (errno == E2BIG) {
             uError("sml bind taosMbsToUcs4 error, kv length:%d, bytes:%d, kv->value:%s", (int)kv->length,
                    pColSchema->bytes, kv->value);
-            buildInvalidOperationMsg(&pBuf, "value too long");
+            (void)buildInvalidOperationMsg(&pBuf, "value too long");
             ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
             goto end;
           }
@@ -440,7 +440,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
     }
     ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
     if (TSDB_CODE_SUCCESS != ret) {
-      buildInvalidOperationMsg(&pBuf, "tRowBuild error");
+      ret = buildInvalidOperationMsg(&pBuf, "tRowBuild error");
       goto end;
     }
     SRowKey key;
