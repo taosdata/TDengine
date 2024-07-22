@@ -129,7 +129,6 @@ class TDTestCase:
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-        os.system("pkill taosBenchmark")
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())

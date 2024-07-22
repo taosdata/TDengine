@@ -26,9 +26,9 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         print("========init========")
 
-        #self.replicaVar = int(replicaVar)
-        #tdLog.debug("start to execute %s" % __file__)
-        #tdSql.init(conn.cursor(), logSql)
+        self.replicaVar = int(replicaVar)
+        tdLog.debug("start to execute %s" % __file__)
+        tdSql.init(conn.cursor(), logSql)
     def find_checkpoint_info_file(self, dirpath, checkpointid, task_id):
         for root, dirs, files in os.walk(dirpath):
             if f'checkpoint{checkpointid}' in dirs:
@@ -122,7 +122,6 @@ class TDTestCase:
             return True
     def run(self):
         print("========run========")
-        '''
         self.initstream()
         self.restart_stream()
         time.sleep(60)
@@ -131,14 +130,10 @@ class TDTestCase:
         self.restart_stream()
         time.sleep(60)
         self.print_time_info()
-        '''
 
     def stop(self):
         print("========stop========")
-        '''
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-        os.system("pkill taosBenchmark")
-        '''
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
