@@ -39,7 +39,7 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## 窗口切分查询
 
-TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）、事件窗口（event window）四种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
+TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）、事件窗口（event window）、计数窗口（count window）五种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
 
 窗口子句语法如下：
 
@@ -76,7 +76,7 @@ window_clause: {
 FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
 
 1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1。
+2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。这里需要注意，最终填充的值受由相应列的类型决定，如 FILL(VALUE, 1.23)，相应列为 INT 类型，则填充值为 1, 若查询列表中有多列需要FILL, 则需要给每一个FILL列指定VALUE, 如`SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。
 3. PREV 填充：使用前一个非 NULL 值填充数据。例如：FILL(PREV)。
 4. NULL 填充：使用 NULL 填充数据。例如：FILL(NULL)。
 5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。

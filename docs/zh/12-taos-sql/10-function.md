@@ -448,7 +448,7 @@ TO_JSON(str_literal)
 
 **返回结果数据类型**: JSON。
 
-**适用数据类型**: JSON 字符串，形如 '{ "literal" : literal }'。'{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal中不支持转义符。
+**适用数据类型**: JSON 字符串，形如 '\{ "literal" : literal }'。'\{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal中不支持转义符。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -883,11 +883,11 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
     - "user_input": "[1, 3, 5, 7]"
        用户指定 bin 的具体数值。
 
-    - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+    - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
 
-    - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+    - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
 - normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
@@ -983,7 +983,7 @@ ignore_null_values: {
 - INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
 - INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
 - INTERP 需要同时与 RANGE，EVERY 和 FILL 关键字一起使用。
-- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2)字段来指定，需满足 timestamp1 <= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2)字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值.
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
 - INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如：SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
@@ -1158,7 +1158,7 @@ UNIQUE(expr)
 CSUM(expr)
 ```
 
-**功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
+**功能说明**：累加和（Cumulative sum），忽略 NULL 值。
 
 **返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。
 
@@ -1200,27 +1200,40 @@ ignore_negative: {
 ### DIFF
 
 ```sql
-DIFF(expr [, ignore_negative])
+DIFF(expr [, ignore_option])
 
-ignore_negative: {
+ignore_option: {
     0
   | 1
+  | 2
+  | 3
 }
 ```
 
-**功能说明**：统计表中某列的值与前一行对应值的差。 ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative 为 1 时表示忽略负数。对于你存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算。
+**功能说明**：统计表中特定列与之前行的当前列有效值之差。 ignore_option 取值为 0|1|2|3 , 可以不填，默认值为 0. 
+- `0` 表示不忽略(diff结果)负值不忽略 null 值
+- `1` 表示(diff结果)负值作为 null 值
+- `2` 表示不忽略(diff结果)负值但忽略 null 值
+- `3` 表示忽略(diff结果)负值且忽略 null 值
+- 对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算。
 
-**返回数据类型**：同应用字段。
+**返回数据类型**：bool、时间戳及整型数值类型均返回 int_64，浮点类型返回 double, 若 diff 结果溢出则返回溢出后的值。
 
-**适用数据类型**：数值类型。
+**适用数据类型**：数值类型、时间戳和 bool 类型。
 
 **适用于**：表和超级表。
 
 **使用说明**:
 
-- 输出结果行数是范围内总行数减一，第一行没有结果输出。
-- 可以与选择相关联的列一起使用。 例如: select \_rowts, DIFF() from。
-
+- diff 是计算本行特定列与同列的前一个有效数据的差值，同列的前一个有效数据：指的是同一列中时间戳较小的最临近的非空值。
+- 数值类型 diff 结果为对应的算术差值；时间戳类型根据数据库的时间戳精度进行差值计算；bool 类型计算差值时 true 视为 1， false 视为 0
+- 如当前行数据为 null 或者没有找到同列前一个有效数据时，diff 结果为 null
+- 忽略负值时（ ignore_option 设置为 1 或 3 ），如果 diff 结果为负值，则结果设置为 null，然后根据 null 值过滤规则进行过滤
+- 当 diff 结果发生溢出时，结果是否是`应该忽略的负值`取决于逻辑运算结果是正数还是负数，例如 9223372036854775800  - (-9223372036854775806) 的值超出 BIGINT 的范围 ，diff 结果会显示溢出值 -10，但并不会被作为负值忽略
+- 单个语句中可以使用单个或者多个 diff，并且每个 diff 可以指定相同或不同的 ignore_option ，当单个语句中存在多个 diff 时当且仅当某行所有 diff 的结果都为 null ，并且 ignore_option 都设置为忽略 null 值，该行才从结果集中剔除
+- 可以选择与相关联的列一起使用。 例如: select _rowts, DIFF() from。
+- 当没有复合主键时，如果不同的子表有相同时间戳的数据，会提示 "Duplicate timestamps not allowed"
+- 当使用复合主键时，不同子表的时间戳和主键组合可能相同，使用哪一行取决于先找到哪一行，这意味着在这种情况下多次运行 diff() 的结果可能会不同。
 
 ### IRATE
 

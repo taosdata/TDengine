@@ -110,10 +110,9 @@ typedef enum {
 } EAPerctAlgoType;
 
 typedef struct SDiffInfo {
-  bool hasPrev;
-  bool includeNull;
-  bool ignoreNegative;  // replace the ignore with case when
-  bool firstOutput;
+  bool   hasPrev;
+  bool   isFirstRow;
+  int8_t ignoreOption;  // replace the ignore with case when
   union {
     int64_t i64;
     double  d64;
@@ -122,6 +121,12 @@ typedef struct SDiffInfo {
   int64_t prevTs;
 } SDiffInfo;
 
+bool ignoreNegative(int8_t ignoreOption){
+  return (ignoreOption & 0x1) == 0x1;
+}
+bool ignoreNull(int8_t ignoreOption){
+  return (ignoreOption & 0x2) == 0x2;
+}
 typedef struct SSpreadInfo {
   double result;
   bool   hasResult;
@@ -1436,6 +1441,9 @@ _stddev_over:
 }
 
 static void stddevTransferInfo(SStddevRes* pInput, SStddevRes* pOutput) {
+  if (IS_NULL_TYPE(pInput->type)) {
+    return;
+  }
   pOutput->type = pInput->type;
   if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
     pOutput->quadraticISum += pInput->quadraticISum;
@@ -1897,7 +1905,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       pResInfo->complete = true;
       return TSDB_CODE_SUCCESS;
     } else {
-      pInfo->pMemBucket = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval);
+      pInfo->pMemBucket = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval, pCtx->hasWindowOrGroup);
     }
   }
 
@@ -3100,15 +3108,14 @@ bool diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 
   SDiffInfo* pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
   pDiffInfo->hasPrev = false;
+  pDiffInfo->isFirstRow = true;
   pDiffInfo->prev.i64 = 0;
   pDiffInfo->prevTs = -1;
   if (pCtx->numOfParams > 1) {
-    pDiffInfo->ignoreNegative = pCtx->param[1].param.i;  // TODO set correct param
+    pDiffInfo->ignoreOption = pCtx->param[1].param.i;  // TODO set correct param
   } else {
-    pDiffInfo->ignoreNegative = false;
+    pDiffInfo->ignoreOption = 0;
   }
-  pDiffInfo->includeNull = true;
-  pDiffInfo->firstOutput = false;
   return true;
 }
 
@@ -3144,91 +3151,153 @@ static int32_t doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
   pDiffInfo->prevTs = ts;
-
+  pDiffInfo->hasPrev = true;
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t diffIsNegtive(SDiffInfo* pDiffInfo, int32_t type, const char* pv) {
+  switch (type) {
+    case TSDB_DATA_TYPE_UINT: {
+      int64_t v = *(uint32_t*)pv;
+      return v < pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int64_t v = *(int32_t*)pv;
+      return v < pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_BOOL: {
+      int64_t v = *(bool*)pv;
+      return v < pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      int64_t v = *(uint8_t*)pv;
+      return v < pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      int64_t v = *(int8_t*)pv;
+      return v < pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      int64_t v = *(uint16_t*)pv;
+      return v < pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int64_t v = *(int16_t*)pv;
+      return v < pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_UBIGINT:{
+      uint64_t v = *(uint64_t*)pv;
+      return v < (uint64_t)pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t v = *(int64_t*)pv;
+      return v < pDiffInfo->prev.i64;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float v = *(float*)pv;
+      return v < pDiffInfo->prev.d64;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double v = *(double*)pv;
+      return v < pDiffInfo->prev.d64;
+    }
+    default:
+      return false;
+  }
+
+  return false;
+}
+
+static void tryToSetInt64(SDiffInfo* pDiffInfo, int32_t type, SColumnInfoData* pOutput, int64_t v, int32_t pos) {
+  bool isNegative = v < pDiffInfo->prev.i64;
+  if(type == TSDB_DATA_TYPE_UBIGINT){
+    isNegative = (uint64_t)v < (uint64_t)pDiffInfo->prev.i64;
+  }
+  int64_t delta = v - pDiffInfo->prev.i64;
+  if (isNegative && ignoreNegative(pDiffInfo->ignoreOption)) {
+    colDataSetNull_f_s(pOutput, pos);
+    pOutput->hasNull = true;
+  } else {
+    colDataSetInt64(pOutput, pos, &delta);
+  }
+  pDiffInfo->prev.i64 = v;
+}
+
+static void tryToSetDouble(SDiffInfo* pDiffInfo, SColumnInfoData* pOutput, double v, int32_t pos) {
+  double delta = v - pDiffInfo->prev.d64;
+  if (delta < 0 && ignoreNegative(pDiffInfo->ignoreOption)) {
+    colDataSetNull_f_s(pOutput, pos);
+  } else {
+    colDataSetDouble(pOutput, pos, &delta);
+  }
+  pDiffInfo->prev.d64 = v;
 }
 
 static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SColumnInfoData* pOutput, int32_t pos,
                             int64_t ts) {
+  if (!pDiffInfo->hasPrev) {
+    colDataSetNull_f_s(pOutput, pos);
+    return doSetPrevVal(pDiffInfo, type, pv, ts);
+  }
   pDiffInfo->prevTs = ts;
   switch (type) {
-    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UINT: {
+      int64_t v = *(uint32_t*)pv;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
+      break;
+    }
     case TSDB_DATA_TYPE_INT: {
-      int32_t v = *(int32_t*)pv;
-      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.i64 = v;
-
+      int64_t v = *(int32_t*)pv;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
-    case TSDB_DATA_TYPE_BOOL:
-    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_BOOL: {
+      int64_t v = *(bool*)pv;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      int64_t v = *(uint8_t*)pv;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
+      break;
+    }
     case TSDB_DATA_TYPE_TINYINT: {
-      int8_t  v = *(int8_t*)pv;
-      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.i64 = v;
+      int64_t v = *(int8_t*)pv;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
-    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:{
+      int64_t v = *(uint16_t*)pv;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
+      break;
+    }
     case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t v = *(int16_t*)pv;
-      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.i64 = v;
+      int64_t v = *(int16_t*)pv;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t v = *(int64_t*)pv;
-      int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.i64 = v;
+      tryToSetInt64(pDiffInfo, type, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      float  v = *(float*)pv;
-      double delta = v - pDiffInfo->prev.d64;  // direct previous may be null
-      if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) {  // check for overflow
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetDouble(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.d64 = v;
+      double v = *(float*)pv;
+      tryToSetDouble(pDiffInfo, pOutput, v, pos);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double v = *(double*)pv;
-      double delta = v - pDiffInfo->prev.d64;  // direct previous may be null
-      if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) {  // check for overflow
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetDouble(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.d64 = v;
+      tryToSetDouble(pDiffInfo, pOutput, v, pos);
       break;
     }
     default:
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
-
+  pDiffInfo->hasPrev = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3271,69 +3340,153 @@ bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool f
   }
 }
 
-int32_t diffFunction(SqlFunctionCtx* pCtx) {
+int32_t diffResultIsNull(SqlFunctionCtx* pCtx, SFuncInputRow* pRow){
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  if (pRow->isDataNull || !pDiffInfo->hasPrev ) {
+    return true;
+  }  else if (ignoreNegative(pDiffInfo->ignoreOption)){
+    return diffIsNegtive(pDiffInfo, pCtx->input.pData[0]->info.type, pRow->pData);
+  }
+  return false;
+}
+
+bool isFirstRow(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  return pDiffInfo->isFirstRow;
+}
+
+int32_t trySetPreVal(SqlFunctionCtx* pCtx, SFuncInputRow* pRow) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pDiffInfo->isFirstRow = false;
+  if (pRow->isDataNull) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  int8_t                inputType = pInputCol->info.type;
+
+  char*   pv = pRow->pData;
+  return doSetPrevVal(pDiffInfo, inputType, pv, pRow->ts);
+}
+
+int32_t setDoDiffResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData* pInputCol = pInput->pData[0];
-  int8_t inputType = pInputCol->info.type;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  int8_t                inputType = pInputCol->info.type;
+  SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
 
-  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+  if (pRow->isDataNull) {
+    colDataSetNull_f_s(pOutput, pos);
+    pOutput->hasNull = true;
 
-  int32_t numOfElems = 0;
-  int32_t startOffset = pCtx->offset;
-
-  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-
-  funcInputUpdate(pCtx);
-
-  SFuncInputRow row = {0};
-  while (funcInputGetNextRow(pCtx, &row)) {
-    int32_t pos = startOffset + numOfElems;
-
-    if (row.isDataNull) {
-      if (pDiffInfo->includeNull) {
-        colDataSetNull_f_s(pOutput, pos);
-
-        // handle selectivity
-        if (pCtx->subsidiaries.num > 0) {
-          appendSelectivityCols(pCtx, row.block, row.rowIndex, pos);
-        }
-
-        numOfElems += 1;
-      }
-      continue;
+    // handle selectivity
+    if (pCtx->subsidiaries.num > 0) {
+      appendSelectivityCols(pCtx, pRow->block, pRow->rowIndex, pos);
     }
-
-    char* pv = row.pData;
-
-    if (pDiffInfo->hasPrev) {
-      if (row.ts == pDiffInfo->prevTs) {
-          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
-      }
-      int32_t code = doHandleDiff(pDiffInfo, inputType, pv, pOutput, pos, row.ts);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-      // handle selectivity
-      if (pCtx->subsidiaries.num > 0) {
-        appendSelectivityCols(pCtx, row.block, row.rowIndex, pos);
-      }
-      
-      numOfElems++;
-    } else {
-      int32_t code = doSetPrevVal(pDiffInfo, inputType, pv, row.ts);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-    }
-
-    pDiffInfo->hasPrev = true;
+    return TSDB_CODE_SUCCESS;
   }
 
-  pResInfo->numOfRes = numOfElems;
+  char* pv = pRow->pData;
+
+  if (pRow->ts == pDiffInfo->prevTs) {
+    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+  }
+  int32_t code = doHandleDiff(pDiffInfo, inputType, pv, pOutput, pos, pRow->ts);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  // handle selectivity
+  if (pCtx->subsidiaries.num > 0) {
+    appendSelectivityCols(pCtx, pRow->block, pRow->rowIndex, pos);
+  }
+
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t diffFunction(SqlFunctionCtx* pCtx) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t diffFunctionByRow(SArray* pCtxArray) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int diffColNum = pCtxArray->size;
+  if(diffColNum == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t numOfElems = 0;
+
+  SArray*  pRows = taosArrayInit_s(sizeof(SFuncInputRow), diffColNum);
+
+  bool keepNull = false;
+  for (int i = 0; i < diffColNum; ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    funcInputUpdate(pCtx);
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    SDiffInfo*           pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
+    if (!ignoreNull(pDiffInfo->ignoreOption)) {
+      keepNull = true;
+    }
+  }
+
+  SqlFunctionCtx* pCtx0 = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, 0);
+  SFuncInputRow* pRow0 = (SFuncInputRow*)taosArrayGet(pRows, 0);
+  int32_t startOffset = pCtx0->offset;
+  while (funcInputGetNextRow(pCtx0, pRow0)) {
+    bool hasNotNullValue = !diffResultIsNull(pCtx0, pRow0);
+    for (int i = 1; i < diffColNum; ++i) {
+      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+      SFuncInputRow* pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if(!funcInputGetNextRow(pCtx, pRow)) {
+        // rows are not equal
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _exit;
+      }
+      if (!diffResultIsNull(pCtx, pRow)) {
+        hasNotNullValue = true;
+      }
+    }
+    int32_t pos = startOffset + numOfElems;
+
+    bool newRow = false;
+    for (int i = 0; i < diffColNum; ++i) {
+      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+      SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if ((keepNull || hasNotNullValue) && !isFirstRow(pCtx, pRow)){
+        code = setDoDiffResult(pCtx, pRow, pos);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
+        newRow = true;
+      } else {
+        code = trySetPreVal(pCtx, pRow);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        } 
+      }
+    }
+    if (newRow) ++numOfElems;
+  }
+
+  for (int i = 0; i < diffColNum; ++i) {
+    SqlFunctionCtx*      pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    pResInfo->numOfRes = numOfElems;
+  }
+
+_exit:
+  if (pRows) {
+    taosArrayDestroy(pRows);
+    pRows = NULL;
+  }
+  return code;
 }
 
 int32_t getTopBotInfoSize(int64_t numOfItems) { return sizeof(STopBotRes) + numOfItems * sizeof(STopBotResItem); }

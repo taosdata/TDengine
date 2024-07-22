@@ -94,67 +94,67 @@ taosBenchmark -f <json file>
 
 ## 命令行参数详解
 
-- **-f/--file <json file\>** :
+- **-f/--file \<json file>** :
   要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值。
 
-- **-c/--config-dir <dir\>** :
+- **-c/--config-dir \<dir>** :
   TDengine 集群配置文件所在的目录，默认路径是 /etc/taos 。
 
-- **-h/--host <host\>** :
+- **-h/--host \<host>** :
   指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost 。
 
-- **-P/--port <port\>** :
+- **-P/--port \<port>** :
   要连接的 TDengine 服务器的端口号，默认值为 6030 。
 
-- **-I/--interface <insertMode\>** :
+- **-I/--interface \<insertMode>** :
   插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
 
-- **-u/--user <user\>** :
+- **-u/--user \<user>** :
   用于连接 TDengine 服务端的用户名，默认为 root 。
 
 - **-U/--supplement-insert ** :
   写入数据而不提前建数据库和表，默认关闭。
 
-- **-p/--password <passwd\>** :
+- **-p/--password \<passwd>** :
   用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
-- **-o/--output <file\>** :
+- **-o/--output \<file>** :
   结果输出文件的路径，默认值为 ./output.txt。
 
-- **-T/--thread <threadNum\>** :
+- **-T/--thread \<threadNum>** :
   插入数据的线程数量，默认为 8 。
 
-- **-B/--interlace-rows <rowNum\>** :
+- **-B/--interlace-rows \<rowNum>** :
   启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
 
-- **-i/--insert-interval <timeInterval\>** :
+- **-i/--insert-interval \<timeInterval>** :
   指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
 
-- **-r/--rec-per-req <rowNum\>** :
+- **-r/--rec-per-req \<rowNum>** :
   每次向 TDengine 请求写入的数据行数，默认值为 30000 。
 
-- **-t/--tables <tableNum\>** :
+- **-t/--tables \<tableNum>** :
   指定子表的数量，默认为 10000 。
 
-- **-S/--timestampstep <stepLength\>** :
+- **-S/--timestampstep \<stepLength>** :
   每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1。
 
-- **-n/--records <recordNum\>** :
+- **-n/--records \<recordNum>** :
   每个子表插入的记录数，默认值为 10000 。
 
-- **-d/--database <dbName\>** :
+- **-d/--database \<dbName>** :
   所使用的数据库的名称，默认值为 test 。
 
-- **-b/--data-type <colType\>** :
+- **-b/--data-type \<colType>** :
   超级表的数据列的类型。如果不使用则默认为有三个数据列，其类型分别为 FLOAT, INT, FLOAT 。
 
-- **-l/--columns <colNum\>** :
+- **-l/--columns \<colNum>** :
   超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT` 。
 
-- **-L/--partial-col-num <colNum\> **：
+- **-L/--partial-col-num \<colNum> **：
   指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据。
 
-- **-A/--tag-type <tagType\>** :
+- **-A/--tag-type \<tagType>** :
   超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
 
 ```
@@ -168,10 +168,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ```
 
-- **-w/--binwidth <length\>**:
+- **-w/--binwidth \<length>**:
   nchar 和 binary 类型的默认长度，默认值为 64。
 
-- **-m/--table-prefix <tablePrefix\>** :
+- **-m/--table-prefix \<tablePrefix>** :
   子表名称的前缀，默认值为 "d"。
 
 - **-E/--escape-character** :
@@ -192,23 +192,23 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-y/--answer-yes** :
   开关参数，要求用户在提示后确认才能继续。默认值为 false 。
 
-- **-O/--disorder <Percentage\>** :
+- **-O/--disorder \<Percentage>** :
   指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
-- **-R/--disorder-range <timeRange\>** :
+- **-R/--disorder-range \<timeRange>** :
   指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效。
 
-- **-F/--prepare_rand <Num\>** :
+- **-F/--prepare_rand \<Num>** :
   生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
 
-- **-a/--replica <replicaNum\>** :
+- **-a/--replica \<replicaNum>** :
   创建数据库时指定其副本数，默认值为 1 。
 
-- ** -k/--keep-trying <NUMBER\>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+- ** -k/--keep-trying \<NUMBER>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
 
-- ** -z/--trying-interval <NUMBER\>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
+- ** -z/--trying-interval \<NUMBER>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
 
-- **-v/--vgroups <NUMBER\>** :
+- **-v/--vgroups \<NUMBER>** :
   创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效。
 
 - **-V/--version** :
@@ -287,7 +287,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"。
 
-- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 childtable_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
+- **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num** : 创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
@@ -303,9 +303,9 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **insert_rows** : 每个子表插入的记录数，默认为 0 。
 
-- **childtable_offset** : 仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表时的偏移量，即从第几个子表开始。
+- **childtable_offset** : 仅当 child_table_exists 为 yes 时生效，指定从超级表获取子表列表时的偏移量，即从第几个子表开始。
 
-- **childtable_limit** : 仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
+- **childtable_limit** : 仅当 child_table_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
 
 - **interlace_rows** : 启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
 
@@ -328,6 +328,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **use_sample_ts** : 仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。 若设置为 yes， 则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
 
 - **tags_file** : 仅当 insert_mode 为 taosc, rest 的模式下生效。 最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
+
+- **primary_key** : 指定超级表是否有复合主键，取值 1 和 0， 复合主键列只能是超级表的第二列，指定生成复合主键后要确保第二列符合复合主键的数据类型，否则会报错
+- **repeat_ts_min** : 数值类型，复合主键开启情况下指定生成相同时间戳记录的最小个数，生成相同时间戳记录的个数是在范围[repeat_ts_min, repeat_ts_max] 内的随机值, 最小值等于最大值时为固定个数
+- **repeat_ts_max** : 数值类型，复合主键开启情况下指定生成相同时间戳记录的最大个数
+- **sqls** : 字符串数组类型，指定超级表创建成功后要执行的 sql 数组，sql 中指定表名前面要带数据库名，否则会报未指定数据库错误
 
 #### tsma配置参数
 
@@ -368,9 +373,21 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **sma**: 将该列加入 SMA 中，值为 "yes" 或者 "no"，默认为 "no"。
 
+- **encode**: 字符串类型，指定此列两级压缩中的第一级编码算法，详细参见创建超级表
+  
+- **compress**: 字符串类型，指定此列两级压缩中的第二级加密算法，详细参见创建超级表
+
+- **level**: 字符串类型，指定此列两级压缩中的第二级加密算法的压缩率高低，详细参见创建超级表
+
+- **gen**: 字符串类型，指定此列生成数据的方式，不指定为随机，若指定为 “order”, 会按自然数顺序增长
+
+- **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false", 只有当 generate_row_rule 为 2 时有效
+
 #### 插入行为配置参数
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
+
+- **thread_bind_vgroup** : 写入时 vgroup 是否和写入线程绑定，绑定后可提升写入速度, 取值为 "yes" 或 "no"，默认值为 “no”, 设置为 “no” 后与原来行为一致。 当设为 “yes” 时，如果 thread_count 数量大小写入数据库的 vgroups 数量， thread_count 自动调整为 vgroups 数量；如果 thread_count 数量小于 vgroups 数量，写入线程数量不做调整，一个线程写完一个 vgroup 数据后再写下一个，同时保持一个 vgroup 同时只能由一个线程写入的规则。
 
 - **create_table_thread_count** : 建表的线程数量，默认为 8。
 
@@ -392,6 +409,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **prepare_rand** : 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
 
+- **pre_load_tb_meta** ：是否提前加载子表的 meta 数据，取值为 “yes” or "no"。当子表数量非常多时，打开此选项可提高写入速度。
+
 ### 查询场景配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
@@ -407,7 +426,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
-- **threads/concurrent** : 执行查询 SQL 的线程数，默认值为 1。
+- **threads** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls**：
   - **sql**: 执行的 SQL 命令，必填。
@@ -440,6 +459,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **sqls** ：
   - **sql** : 执行的 SQL 命令，必填。
+    
  
 #### 配置文件中数据类型书写对照表
 

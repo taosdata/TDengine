@@ -96,7 +96,8 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
     pGroupResInfo->freeItem = false;
     pGroupResInfo->pRows = NULL;
   } else {
-    pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
+    taosArrayDestroy(pGroupResInfo->pRows);
+    pGroupResInfo->pRows = NULL;
   }
   pGroupResInfo->index = 0;
 }
@@ -1716,6 +1717,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->param = pFunct->pParam;
     pCtx->saveHandle.currentPage = -1;
     pCtx->pStore = pStore;
+    pCtx->hasWindowOrGroup = false;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -2019,18 +2021,27 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
 
 // TODO handle the group offset info, fix it, the rule of group output will be broken by this function
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
   if (pTableList->map == NULL) {
     pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    QUERY_CHECK_NULL(pTableList->map, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   }
 
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
-  taosArrayPush(pTableList->pTableList, &keyInfo);
+  void* tmp = taosArrayPush(pTableList->pTableList, &keyInfo);
+  QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
-  taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
+  code = taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
+  QUERY_CHECK_CODE(code, lino, _end);
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   qDebug("uid:%" PRIu64 ", groupId:%" PRIu64 " added into table list, slot:%d, total:%d", uid, gid, slot, slot + 1);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo,
@@ -2101,7 +2112,8 @@ void* tableListDestroy(STableListInfo* pTableListInfo) {
     return NULL;
   }
 
-  pTableListInfo->pTableList = taosArrayDestroy(pTableListInfo->pTableList);
+  taosArrayDestroy(pTableListInfo->pTableList);
+  pTableListInfo->pTableList = NULL;
   taosMemoryFreeClear(pTableListInfo->groupOffset);
 
   taosHashCleanup(pTableListInfo->map);
@@ -2187,7 +2199,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       
       for (int i = 0; i < numOfTables; i++) {
         STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-        info->groupId = info->uid;
+        info->groupId = groupByTbname ? info->uid : 0;
         
         taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
                     sizeof(info->uid));

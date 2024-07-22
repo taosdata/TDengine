@@ -38,9 +38,10 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-  if [ -n "$(ps aux | grep -v grep | grep ${clientName})" ]; then
-    ${csudo}kill -9 $pid   || :
-  fi
+    pid=$(ps -ef | grep ${clientName2} | grep -v grep | grep -v $uninstallScript2 | awk '{print $2}')
+    if [ -n "$pid" ]; then
+        ${csudo}kill -9 $pid || :
+    fi
 }
 
 function clean_bin() {
@@ -62,10 +63,13 @@ function clean_bin() {
 }
 
 function clean_lib() {
-    # Remove link
-    ${csudo}rm -f ${lib_link_dir}/libtaos.*      || :
-    ${csudo}rm -f ${lib64_link_dir}/libtaos.*    || :
-    #${csudo}rm -rf ${v15_java_app_dir}           || :
+  # Remove link
+  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
+  [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+
+  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
+  #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
 
 function clean_header() {
@@ -75,6 +79,7 @@ function clean_header() {
     ${csudo}rm -f ${inc_link_dir}/taoserror.h      || :
     ${csudo}rm -f ${inc_link_dir}/tdef.h      || :
     ${csudo}rm -f ${inc_link_dir}/taosudf.h      || :    
+    ${csudo}rm -f ${inc_link_dir}/taosws.h      || :
 }
 
 function clean_config() {

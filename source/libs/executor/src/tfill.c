@@ -84,7 +84,9 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
     GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u);
     colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    colDataSetVal(pDst, rowIndex, (const char*)&currentKey, isNull);
+    int64_t v = 0;
+    GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->u);
+    colDataSetVal(pDst, rowIndex, (const char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_NCHAR || pDst->info.type == TSDB_DATA_TYPE_VARCHAR ||
              pDst->info.type == TSDB_DATA_TYPE_VARBINARY) {
     colDataSetVal(pDst, rowIndex, pVar->pz, isNull);
@@ -600,7 +602,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
   return (numOfRes > maxNumOfRows) ? maxNumOfRows : numOfRes;
 }
 
-int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2,
+void taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2,
                                       int32_t inputType) {
   double v1 = -1, v2 = -1;
   GET_TYPED_DATA(v1, double, inputType, point1->val);
@@ -613,11 +615,9 @@ int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint*
     r = (v1 < 1 || v2 < 1) ? 0 : 1;
   }
   SET_TYPED_DATA(point->val, outputType, r);
-
-  return TSDB_CODE_SUCCESS;
 }
 
-int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity) {
+void taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity) {
   int32_t remain = taosNumOfRemainRows(pFillInfo);
 
   int64_t numOfRes = getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, capacity);
@@ -635,8 +635,6 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t ca
          ", current : % d, total : % d, %s",
          pFillInfo, pFillInfo->numOfRows, pFillInfo->index, pFillInfo->start, pFillInfo->end, pFillInfo->currentKey,
          pFillInfo->numOfCurrent, pFillInfo->numOfTotal, pFillInfo->id);
-
-  return numOfRes;
 }
 
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo) { return pFillInfo->start; }

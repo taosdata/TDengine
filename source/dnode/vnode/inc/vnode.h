@@ -106,7 +106,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
-int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo* pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
@@ -167,7 +167,7 @@ void         tsdbReaderClose2(STsdbReader *pReader);
 int32_t      tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
 void         tsdbReleaseDataBlock2(STsdbReader *pReader);
-SSDataBlock *tsdbRetrieveDataBlock2(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t      tsdbRetrieveDataBlock2(STsdbReader *pReader, SSDataBlock **pBlock, SArray *pIdList);
 int32_t      tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t      tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t      tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle);

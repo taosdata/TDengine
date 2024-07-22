@@ -90,7 +90,7 @@ Through TAOSC caching mechanism, mnode needs to be accessed only when a table is
 
 ### Storage Model
 
-The data stored by TDengine includes collected time-series data, metadata and tag data related to database and tablesetc. All of the data is specifically divided into three parts:
+The data stored by TDengine includes collected time-series data, metadata and tag data related to database and tables, etc. All of the data is specifically divided into three parts:
 
 - Time-series data: stored in vnode and composed of data, head and last files. Normally the amount of time series data is very huge and query amount depends on the application scenario. Out-of-order writing is allowed. By adopting the model with **one table for each data collection point**, the data of a given time period is continuously stored, and the writing against one single table is a simple appending operation. Multiple records can be read at one time, thus ensuring the best performance for both insert and query operations of a single data collection point.
 - Table Metadata: table meta data includes tags and table schema and is stored in meta file in each vnode. CRUD can be operated on table metadata. There is a specific record for each table, so the amount of table meta data depends on the number of tables. Table meta data is stored in LRU model and supports index for tag data. TDengine can support multiple queries in parallel. As long as the memory resource is enough, meta data is all stored in memory for quick access. The filtering on tens of millions of tags can be finished in a few milliseconds. Even though when the memory resource is not sufficient, TDengine can still perform high speed query on tens of millions of tables.
@@ -197,20 +197,20 @@ By default, TDengine saves all data in /var/lib/taos directory, and the data fil
 dataDir format is as follows:
 
 ```
-dataDir data_path [tier_level]
+dataDir data_path [tier_level] [primary] [disable_create_new_file]
 ```
 
-Where data_path is the folder path of mount point and tier_level is the media storage-tier. The higher the media storage-tier, means the older the data file. Multiple hard disks can be mounted at the same storage-tier, and data files on the same storage-tier are distributed on all hard disks within the tier. TDengine supports up to 3 tiers of storage, so tier_level values are 0, 1, and 2. When configuring dataDir, there must be only one mount path without specifying tier_level, which is called special mount disk (path). The mount path defaults to level 0 storage media and contains special file links, which cannot be removed, otherwise it will have a devastating impact on the written data.
+Where `data_path` is the folder path of mount point, and `tier_level` is the media storage-tier. The higher the media storage-tier, means the older the data file. Multiple hard disks can be mounted at the same storage-tier, and data files on the same storage-tier are distributed on all hard disks within the tier. TDengine supports up to 3 tiers of storage, so tier_level values are 0, 1, and 2. When configuring dataDir, there must be only one mount path without specifying tier_level, which is called special mount disk (path). The mount path defaults to level 0 storage media and contains special file links, which cannot be removed, otherwise it will have a devastating impact on the written data. And `primary` means whether the data dir is the primary mount point. Enter 0 for false or 1 for true. The default value is 1. A TDengine cluster can have only one `primary` mount point, which must be on tier 0. And `disable_create_new_file` means whether to prohibit the creation of new file sets on the specified mount point. Enter 0 for false and 1 for true. The default value is 0. Tier 0 storage must have at least one mount point with disable_create_new_file set to 0. Tier 1 and tier 2 storage do not have this restriction.
 
 Suppose there is a physical node with six mountable hard disks/mnt/disk1,/mnt/disk2, ..., /mnt/disk6, where disk1 and disk2 need to be designated as level 0 storage media, disk3 and disk4 are level 1 storage media, and disk5 and disk6 are level 2 storage media. Disk1 is a special mount disk, you can configure it in/etc/taos/taos.cfg as follows:
 
 ```
-dataDir /mnt/disk1/taos
-dataDir /mnt/disk2/taos 0
-dataDir /mnt/disk3/taos 1
-dataDir /mnt/disk4/taos 1
-dataDir /mnt/disk5/taos 2
-dataDir /mnt/disk6/taos 2
+dataDir /mnt/disk1/taos 0 1 0
+dataDir /mnt/disk2/taos 0 0 0
+dataDir /mnt/disk3/taos 1 0 0
+dataDir /mnt/disk4/taos 1 0 1
+dataDir /mnt/disk5/taos 2 0 0
+dataDir /mnt/disk6/taos 2 0 0
 ```
 
 Mounted disks can also be a non-local network disk, as long as the system can access it.

@@ -34,6 +34,7 @@ extern "C" {
 #define MND_STREAM_TASK_RESET_NAME   "stream-task-reset"
 #define MND_STREAM_TASK_UPDATE_NAME  "stream-task-update"
 #define MND_STREAM_CHKPT_UPDATE_NAME "stream-chkpt-update"
+#define MND_STREAM_CHKPT_CONSEN_NAME "stream-chkpt-consen"
 
 typedef struct SStreamTransInfo {
   int64_t     startTime;
@@ -61,6 +62,7 @@ typedef struct SStreamExecInfo {
   TdThreadMutex    lock;
   SHashObj        *pTransferStateStreams;
   SHashObj        *pChkptStreams;
+  SHashObj        *pStreamConsensus;
 } SStreamExecInfo;
 
 extern SStreamExecInfo         execInfo;
@@ -81,7 +83,7 @@ typedef struct SOrphanTask {
 
 typedef struct {
   SMsgHead head;
-} SMStreamHbRspMsg, SMStreamReqCheckpointRsp, SMStreamUpdateChkptRsp;
+} SMStreamReqCheckpointRsp, SMStreamUpdateChkptRsp, SMStreamReqConsensChkptRsp;
 
 typedef struct STaskChkptInfo {
   int32_t nodeId;
@@ -131,6 +133,8 @@ int32_t     mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream)
 int32_t     mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t     mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SArray *pChkptInfoList);
 int32_t     mndScanCheckpointReportInfo(SRpcMsg *pReq);
+int32_t     mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int32_t taskId, int64_t checkpointId,
+                                              int64_t ts);
 void        removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo);
 
 SStreamTaskIter *createStreamTaskIter(SStreamObj *pStream);
@@ -141,6 +145,11 @@ void             mndInitExecInfo();
 void             mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo);
 int32_t          removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot);
 void             removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
+
+SCheckpointConsensusInfo *mndGetConsensusInfo(SHashObj *pHash, int64_t streamId, int32_t numOfTasks);
+void    mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo);
+void    mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo);
+int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId);
 
 #ifdef __cplusplus
 }

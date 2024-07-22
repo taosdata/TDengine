@@ -84,9 +84,10 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   SVgObj *pVgroup = NULL;
+  int32_t replica = -1;   // do the replica check
 
   *allReady = true;
-  SArray *pVgroupListSnapshot = taosArrayInit(4, sizeof(SNodeEntry));
+  SArray *pVgroupList = taosArrayInit(4, sizeof(SNodeEntry));
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -96,6 +97,18 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
 
     SNodeEntry entry = {.nodeId = pVgroup->vgId, .hbTimestamp = pVgroup->updateTime};
     entry.epset = mndGetVgroupEpset(pMnode, pVgroup);
+
+    if (replica == -1) {
+      replica = pVgroup->replica;
+    } else {
+      if (replica != pVgroup->replica) {
+        mInfo("vgId:%d replica:%d inconsistent with other vgroups replica:%d, not ready for stream operations",
+              pVgroup->vgId, pVgroup->replica, replica);
+        *allReady = false;
+        sdbRelease(pSdb, pVgroup);
+        break;
+      }
+    }
 
     // if not all ready till now, no need to check the remaining vgroups.
     if (*allReady) {
@@ -107,8 +120,10 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
         }
 
         ESyncState state = pVgroup->vnodeGid[i].syncState;
-        if (state == TAOS_SYNC_STATE_OFFLINE || state == TAOS_SYNC_STATE_ERROR) {
-          mInfo("vgId:%d offline/err, not ready for checkpoint or other operations", pVgroup->vgId);
+        if (state == TAOS_SYNC_STATE_OFFLINE || state == TAOS_SYNC_STATE_ERROR || state == TAOS_SYNC_STATE_LEARNER ||
+            state == TAOS_SYNC_STATE_CANDIDATE) {
+          mInfo("vgId:%d state:%d , not ready for checkpoint or other operations, not check other vgroups",
+                pVgroup->vgId, state);
           *allReady = false;
           break;
         }
@@ -119,7 +134,7 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     epsetToStr(&entry.epset, buf, tListLen(buf));
 
     mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
-    taosArrayPush(pVgroupListSnapshot, &entry);
+    taosArrayPush(pVgroupList, &entry);
     sdbRelease(pSdb, pVgroup);
   }
 
@@ -138,11 +153,11 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     epsetToStr(&entry.epset, buf, tListLen(buf));
     mDebug("take snode snapshot, nodeId:%d %s", entry.nodeId, buf);
 
-    taosArrayPush(pVgroupListSnapshot, &entry);
+    taosArrayPush(pVgroupList, &entry);
     sdbRelease(pSdb, pObj);
   }
 
-  return pVgroupListSnapshot;
+  return pVgroupList;
 }
 
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {
@@ -575,10 +590,12 @@ void mndInitExecInfo() {
   execInfo.transMgmt.pDBTrans = taosHashInit(32, fn, true, HASH_NO_LOCK);
   execInfo.pTransferStateStreams = taosHashInit(32, fn, true, HASH_NO_LOCK);
   execInfo.pChkptStreams = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  execInfo.pStreamConsensus = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   execInfo.pNodeList = taosArrayInit(4, sizeof(SNodeEntry));
 
   taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
   taosHashSetFreeFp(execInfo.pChkptStreams, freeTaskList);
+  taosHashSetFreeFp(execInfo.pStreamConsensus, freeTaskList);
 }
 
 void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
@@ -635,6 +652,7 @@ void removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo* pExecInfo) {
 void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
   taosThreadMutexLock(&pExecNode->lock);
 
+  // 1. remove task entries
   SStreamTaskIter *pIter = createStreamTaskIter(pStream);
   while (streamTaskIterNextTask(pIter)) {
     SStreamTask *pTask = streamTaskIterGetCurrent(pIter);
@@ -644,8 +662,11 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
   }
 
   ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
-  taosThreadMutexUnlock(&pExecNode->lock);
 
+  // 2. remove stream entry in consensus hash table
+  mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);
+
+  taosThreadMutexUnlock(&pExecNode->lock);
   destroyStreamTaskIter(pIter);
 }
 
@@ -818,3 +839,167 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
   taosArrayDestroy(pDropped);
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamTask* pTask, int64_t checkpointId, int64_t ts) {
+  SRestoreCheckpointInfo req = {
+      .taskId = pTask->id.taskId,
+      .streamId = pTask->id.streamId,
+      .checkpointId = checkpointId,
+      .startTs = ts,
+      .nodeId = pTask->info.nodeId,
+      .transId = pTrans->id,
+  };
+
+  int32_t code = 0;
+  int32_t blen;
+  tEncodeSize(tEncodeRestoreCheckpointInfo, &req, blen, code);
+  if (code < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t tlen = sizeof(SMsgHead) + blen;
+
+  void *pBuf = taosMemoryMalloc(tlen);
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  void    *abuf = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  tEncodeRestoreCheckpointInfo(&encoder, &req);
+
+  SMsgHead *pMsgHead = (SMsgHead *)pBuf;
+  pMsgHead->contLen = htonl(tlen);
+  pMsgHead->vgId = htonl(pTask->info.nodeId);
+
+  tEncoderClear(&encoder);
+
+  SEpSet  epset = {0};
+  bool    hasEpset = false;
+  code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
+  if (code != TSDB_CODE_SUCCESS || !hasEpset) {
+    taosMemoryFree(pBuf);
+    return code;
+  }
+
+  code = setTransAction(pTrans, pBuf, tlen, TDMT_STREAM_CONSEN_CHKPT, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pBuf);
+  }
+
+  return code;
+}
+
+int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int32_t taskId, int64_t checkpointId,
+                                          int64_t ts) {
+  char msg[128] = {0};
+  snprintf(msg, tListLen(msg), "set consen-chkpt-id for task:0x%x", taskId);
+
+  STrans *pTrans = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_CHKPT_CONSEN_NAME, msg);
+  if (pTrans == NULL) {
+    return terrno;
+  }
+
+  STaskId      id = {.streamId = pStream->uid, .taskId = taskId};
+  SStreamTask *pTask = mndGetStreamTask(&id, pStream);
+  ASSERT(pTask);
+
+  /*int32_t code = */ mndStreamRegisterTrans(pTrans, MND_STREAM_CHKPT_CONSEN_NAME, pStream->uid);
+  int32_t code = mndStreamSetChkptIdAction(pMnode, pTrans, pTask, checkpointId, ts);
+  if (code != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
+  if (code != TSDB_CODE_SUCCESS) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare set consensus-chkptId trans since %s", pTrans->id, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+  mndTransDrop(pTrans);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+SCheckpointConsensusInfo* mndGetConsensusInfo(SHashObj* pHash, int64_t streamId, int32_t numOfTasks) {
+  void* pInfo = taosHashGet(pHash, &streamId, sizeof(streamId));
+  if (pInfo != NULL) {
+    return (SCheckpointConsensusInfo*)pInfo;
+  }
+
+  SCheckpointConsensusInfo p = {
+      .pTaskList = taosArrayInit(4, sizeof(SCheckpointConsensusEntry)),
+      .numOfTasks = numOfTasks,
+      .streamId = streamId,
+  };
+
+  taosHashPut(pHash, &streamId, sizeof(streamId), &p, sizeof(p));
+
+  void* pChkptInfo = (SCheckpointConsensusInfo*)taosHashGet(pHash, &streamId, sizeof(streamId));
+  return pChkptInfo;
+}
+
+// no matter existed or not, add the request into info list anyway, since we need to send rsp mannually
+// discard the msg may lead to the lost of connections.
+void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo) {
+  SCheckpointConsensusEntry info = {.ts = taosGetTimestampMs()};
+  memcpy(&info.req, pRestoreInfo, sizeof(info.req));
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pTaskList); ++i) {
+    SCheckpointConsensusEntry *p = taosArrayGet(pInfo->pTaskList, i);
+    if (p->req.taskId == info.req.taskId) {
+      mDebug("s-task:0x%x already in consensus-checkpointId list for stream:0x%" PRIx64 ", update ts %" PRId64
+             "->%" PRId64 " total existed:%d",
+             pRestoreInfo->taskId, pRestoreInfo->streamId, p->req.startTs, info.req.startTs,
+             (int32_t)taosArrayGetSize(pInfo->pTaskList));
+      p->req.startTs = info.req.startTs;
+      return;
+    }
+  }
+
+  taosArrayPush(pInfo->pTaskList, &info);
+  int32_t num = taosArrayGetSize(pInfo->pTaskList);
+  mDebug("s-task:0x%x checkpointId:%" PRId64 " added into consensus-checkpointId list, stream:0x%" PRIx64
+         " waiting tasks:%d",
+         pRestoreInfo->taskId, pRestoreInfo->checkpointId, pRestoreInfo->streamId, num);
+}
+
+void mndClearConsensusRspEntry(SCheckpointConsensusInfo* pInfo) {
+  taosArrayDestroy(pInfo->pTaskList);
+  pInfo->pTaskList = NULL;
+}
+
+int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId) {
+  taosHashRemove(pHash, &streamId, sizeof(streamId));
+  int32_t numOfStreams = taosHashGetSize(pHash);
+  mDebug("drop stream:0x%" PRIx64 " in consensus-checkpointId list after new checkpoint generated, remain:%d", streamId,
+         numOfStreams);
+  return TSDB_CODE_SUCCESS;
+}
+
+//int32_t mndRegisterConsensusChkptId(SHashObj* pHash, int64_t streamId) {
+//  void* pInfo = taosHashGet(pHash, &streamId, sizeof(streamId));
+//  ASSERT(pInfo == NULL);
+//
+//  SCheckpointConsensusInfo p = {.genTs = taosGetTimestampMs(), .checkpointId = 0, .pTaskList = NULL};
+//  taosHashPut(pHash, &streamId, sizeof(streamId), &p, sizeof(p));
+//
+//  SCheckpointConsensusInfo* pChkptInfo = (SCheckpointConsensusInfo*)taosHashGet(pHash, &streamId, sizeof(streamId));
+//  ASSERT(pChkptInfo->genTs > 0 && pChkptInfo->checkpointId == 0);
+//  mDebug("s-task:0x%" PRIx64 " set the initial consensus-checkpointId:0", streamId);
+//  return TSDB_CODE_SUCCESS;
+//}

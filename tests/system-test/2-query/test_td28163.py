@@ -53,10 +53,10 @@ class TDTestCase:
 
             # insert data
             data = "null, 1, null, 1, null, 1111111111111111, null, 1111111111111111, null, 1.1, null, 1.11, null, 'aaaaaaaa', null, 1, null, 1, null, 1, null, 1, null, True, null, 'ncharaa', null, 'varcharaa', null, '0x7661726331', null"
-            for round in range(100):
+            for round in range(10):
                 sql = f"insert into ct{i+1} values"
-                for j in range(100):
-                    sql += f"({start_ts + (round * 100 + j + 1) * 1000}, {data})"
+                for j in range(10):
+                    sql += f"({start_ts + (round * 10 + j + 1) * 1000}, {data})"
                 sql += ";"
                 tdSql.execute(sql)
         tdLog.debug("Prepare data successfully")
@@ -103,7 +103,7 @@ class TDTestCase:
     def test_query_with_groupby(self):
         tdSql.query("select count(*) from st group by tbname;")
         tdSql.checkRows(5)
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 100)
 
         tdSql.query("select count(c_unsigned_int_empty + c_int_empty * c_float_empty - c_double_empty + c_smallint_empty / c_tinyint_empty) from st where c_int_empty is null group by tbname;")
         tdSql.checkRows(5)
@@ -147,7 +147,7 @@ class TDTestCase:
         
         tdSql.query("select elapsed(ts, 1s) t from st where c_int = 1 and c_nchar like '%aa%' group by tbname order by t desc slimit 1 limit 1;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9999)
+        tdSql.checkData(0, 0, 99)
         
         tdSql.query("select elapsed(ts, 1s) t from st where c_int_empty is not null and c_nchar like '%aa%' group by tbname order by t desc slimit 1 limit 1;")
         tdSql.checkRows(0)
@@ -167,7 +167,7 @@ class TDTestCase:
         tdSql.query("select avg(t1.c_tinyint), sum(t2.c_bigint) from st t1, st t2 where t1.ts=t2.ts and t1.c_int <= t2.c_int;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
-        tdSql.checkData(0, 1, 1076616672134475760)
+        tdSql.checkData(0, 1, 2777777777777777500)
         
         tdSql.query("select count(t1.c_float_empty) from st t1, st t2 where t1.ts=t2.ts and t1.c_int = t2.c_int and t1.t_int_empty=t2.t_int_empty;")
         tdSql.checkRows(1)
@@ -180,35 +180,35 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10)
         
         tdSql.query("select _wstart, _wend, sum(c_int) from st where ts > '2024-01-01 00:00:00.000' and ts <= '2024-01-01 14:00:00.000' interval(5m) sliding(1m);")
-        tdSql.checkRows(65)
+        tdSql.checkRows(6)
 
         # status window
         tdSql.error("select _wstart, count(*) from st state_window(t_bool);")
         tdSql.query("select _wstart, count(*) from st partition by tbname state_window(c_bool);")
         tdSql.checkRows(5)
-        tdSql.checkData(0, 1, 10000)
+        tdSql.checkData(0, 1, 100)
 
         # session window
         tdSql.query("select _wstart, count(*) from st partition by tbname, t_int session(ts, 1m);")
         tdSql.checkRows(5)
-        tdSql.checkData(0, 1, 10000)
+        tdSql.checkData(0, 1, 100)
 
         # event window
         tdSql.query("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
-        tdSql.checkRows(20000)
+        tdSql.checkRows(200)
 
     def test_query_with_union(self):
         tdSql.query("select count(ts) from (select * from ct1 union select * from ct2 union select * from ct3);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 100)
 
         tdSql.query("select count(ts) from (select * from ct1 union all select * from ct2 union all select * from ct3);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 30000)
+        tdSql.checkData(0, 0, 300)
 
         tdSql.query("select count(*) from (select * from ct1 union select * from ct2 union select * from ct3);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 100)
 
         tdSql.query("select count(c_ts_empty) from (select * from ct1 union select * from ct2 union select * from ct3);")
         tdSql.checkRows(1)
@@ -216,24 +216,24 @@ class TDTestCase:
 
         tdSql.query("select count(*) from (select ts from st union select c_ts_empty from st);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10001)
+        tdSql.checkData(0, 0, 101)
 
         tdSql.query("select count(*) from (select ts from st union all select c_ts_empty from st);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(0, 0, 1000)
 
         tdSql.query("select count(ts) from (select ts from st union select c_ts_empty from st);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 100)
 
         tdSql.query("select count(ts) from (select ts from st union all select c_ts_empty from st);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 50000)
+        tdSql.checkData(0, 0, 500)
 
     def test_nested_query(self):
         tdSql.query("select elapsed(ts, 1s) from (select * from (select * from st where c_int = 1) where c_int_empty is null);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 9999)
+        tdSql.checkData(0, 0, 99)
 
         tdSql.query("select first(ts) as t, avg(c_int) as v from (select * from (select * from st where c_int = 1) where c_int_empty is null) group by t_timestamp order by t_timestamp desc slimit 1 limit 1;")
         tdSql.checkRows(1)

@@ -21,6 +21,7 @@
 #include "tname.h"
 
 #include "executorInt.h"
+#include "index.h"
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
@@ -29,7 +30,6 @@
 #include "tglobal.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "index.h"
 
 typedef struct {
   bool    hasAgg;
@@ -54,13 +54,13 @@ static void destroyAggOperatorInfo(void* param);
 static void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
 
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
-static void destroyDataBlockForEmptyInput(bool blockAllocated, SSDataBlock** ppBlock);
+static void    destroyDataBlockForEmptyInput(bool blockAllocated, SSDataBlock** ppBlock);
 
-static int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx);
+static int32_t      doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx);
 static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator);
 
 static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
-                         const char* pKey);
+                                const char* pKey);
 
 static int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
@@ -76,6 +76,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
+
+  pOperator->exprSupp.hasWindowOrGroup = false;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
   initBasicInfo(&pInfo->binfo, pResBlock);
@@ -132,7 +134,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
@@ -164,6 +166,8 @@ void destroyAggOperatorInfo(void* param) {
  *       if false, fill results of ONE GROUP
  * */
 static bool nextGroupedResult(SOperatorInfo* pOperator) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
@@ -173,7 +177,6 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   int64_t      st = taosGetTimestampUs();
-  int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      order = pAggInfo->binfo.inputTsOrder;
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
 
@@ -181,11 +184,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     pAggInfo->pNewGroupBlock = NULL;
     tSimpleHashClear(pAggInfo->aggSup.pResultRowHashTable);
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
-    setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     code = doAggregateImpl(pOperator, pSup->pCtx);
-    if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
   while (1) {
     bool blockAllocated = false;
@@ -220,7 +222,9 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     }
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
-    setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     code = doAggregateImpl(pOperator, pSup->pCtx);
     if (code != 0) {
       destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
@@ -236,6 +240,13 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
 
   initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
+  
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return pBlock != NULL;
 }
 
@@ -248,7 +259,7 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   }
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  bool hasNewGroups = false;
+  bool           hasNewGroups = false;
   do {
     hasNewGroups = nextGroupedResult(pOperator);
     blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
@@ -334,7 +345,6 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     colInfo.info.type = TSDB_DATA_TYPE_NULL;
     colInfo.info.bytes = 1;
 
-
     SExprInfo* pOneExpr = &pOperator->exprSupp.pExprInfo[i];
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
@@ -393,8 +403,9 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
   int32_t*        rowEntryInfoOffset = pOperator->exprSupp.rowEntryInfoOffset;
 
-  SResultRow* pResultRow = doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId,
-                                                  sizeof(groupId), true, groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
+  SResultRow* pResultRow =
+      doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId, sizeof(groupId), true,
+                             groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
   /*
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
@@ -484,7 +495,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
     qError("failed to get buff page size, rowSize:%d", pAggSup->resultRowSize);
     return code;
   }
-  
+
   if (!osTempSpaceAvailable()) {
     code = TSDB_CODE_NO_DISKSPACE;
     qError("Init stream agg supporter failed since %s, key:%s, tempDir:%s", tstrerror(code), pKey, tsTempDir);
@@ -519,6 +530,7 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
+    pSup->pCtx[i].hasWindowOrGroup = pSup->hasWindowOrGroup;
     if (pState) {
       pSup->pCtx[i].saveHandle.pBuf = NULL;
       pSup->pCtx[i].saveHandle.pState = pState;

@@ -95,26 +95,21 @@ static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const ch
                               bool enableReplay) {
   SMqTopicObj *pTopic = NULL;
   int32_t      code = 0;
+  int32_t      lino = 0;
 
   int32_t numOfTopics = taosArrayGetSize(pTopicList);
   for (int32_t i = 0; i < numOfTopics; i++) {
     char *pOneTopic = taosArrayGetP(pTopicList, i);
     pTopic = mndAcquireTopic(pMnode, pOneTopic);
     if (pTopic == NULL) {  // terrno has been set by callee function
-      code = -1;
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
       goto FAILED;
     }
 
-    if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
-      code = TSDB_CODE_MND_NO_RIGHTS;
-      terrno = TSDB_CODE_MND_NO_RIGHTS;
-      goto FAILED;
-    }
+    TAOS_CHECK_GOTO(mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic), &lino, FAILED);
 
-    if ((terrno = grantCheckExpire(TSDB_GRANT_SUBSCRIPTION)) < 0) {
-      code = terrno;
-      goto FAILED;
-    }
+    TAOS_CHECK_GOTO(grantCheckExpire(TSDB_GRANT_SUBSCRIPTION), &lino, FAILED);
 
     if (enableReplay) {
       if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
@@ -123,7 +118,8 @@ static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const ch
       } else if (pTopic->ntbUid == 0 && pTopic->ctbStbUid == 0) {
         SDbObj *pDb = mndAcquireDb(pMnode, pTopic->db);
         if (pDb == NULL) {
-          code = -1;
+          code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+          if (terrno != 0) code = terrno;
           goto FAILED;
         }
         if (pDb->cfg.numOfVgroups != 1) {
@@ -141,11 +137,12 @@ static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const ch
   return 0;
 FAILED:
   mndReleaseTopic(pMnode, pTopic);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   int32_t                code = 0;
+  int32_t                lino = 0;
   SMnode                *pMnode = pMsg->info.node;
   SMqConsumerRecoverMsg *pRecoverMsg = pMsg->pCont;
   SMqConsumerObj        *pConsumerNew = NULL;
@@ -153,7 +150,8 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   SMqConsumerObj        *pConsumer = mndAcquireConsumer(pMnode, pRecoverMsg->consumerId);
   if (pConsumer == NULL) {
     mError("cannot find consumer %" PRId64 " when processing consumer recover msg", pRecoverMsg->consumerId);
-    code = -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto END;
   }
 
@@ -161,42 +159,39 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
         pConsumer->status, mndConsumerStatusName(pConsumer->status));
 
   if (pConsumer->status != MQ_CONSUMER_STATUS_LOST) {
-    terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
-    code = -1;
+    code = TSDB_CODE_MND_CONSUMER_NOT_READY;
     goto END;
   }
 
   pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, CONSUMER_UPDATE_REC, NULL, NULL);
   if (pConsumerNew == NULL){
-    code = -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto END;
   }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "recover-csm");
   if (pTrans == NULL) {
-    code = -1;
-    goto END;
-  }
-  code = validateTopics(pConsumer->assignedTopics, pMnode, pMsg->info.conn.user, false);
-  if (code != 0) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto END;
   }
 
-  code = mndSetConsumerCommitLogs(pTrans, pConsumerNew);
-  if (code != 0) {
-    goto END;
-  }
+  TAOS_CHECK_GOTO(validateTopics(pConsumer->assignedTopics, pMnode, pMsg->info.conn.user, false), &lino, END);
+
+  TAOS_CHECK_GOTO(mndSetConsumerCommitLogs(pTrans, pConsumerNew), &lino, END);
 
   code = mndTransPrepare(pMnode, pTrans);
 END:
   mndReleaseConsumer(pMnode, pConsumer);
   tDeleteSMqConsumerObj(pConsumerNew);
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   int32_t              code = 0;
+  int32_t              lino = 0;
   SMnode              *pMnode = pMsg->info.node;
   SMqConsumerClearMsg *pClearMsg = pMsg->pCont;
   SMqConsumerObj      *pConsumerNew = NULL;
@@ -205,7 +200,7 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pClearMsg->consumerId);
   if (pConsumer == NULL) {
     mError("consumer:0x%" PRIx64 " failed to be found to clear it", pClearMsg->consumerId);
-    return 0;
+    TAOS_RETURN(code);
   }
 
   mInfo("consumer:0x%" PRIx64 " needs to be cleared, status %s", pClearMsg->consumerId,
@@ -213,21 +208,20 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
 
   pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL);
   if (pConsumerNew == NULL){
-    code = -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto END;
   }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "clear-csm");
   if (pTrans == NULL) {
-    code = -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto END;
   }
 
   // this is the drop action, not the update action
-  code = mndSetConsumerDropLogs(pTrans, pConsumerNew);
-  if (code != 0) {
-    goto END;
-  }
+  TAOS_CHECK_GOTO(mndSetConsumerDropLogs(pTrans, pConsumerNew), &lino, END);
 
   code = mndTransPrepare(pMnode, pTrans);
 
@@ -235,7 +229,7 @@ END:
   mndReleaseConsumer(pMnode, pConsumer);
   tDeleteSMqConsumerObj(pConsumerNew);
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRsp *rsp, char *user) {
@@ -310,10 +304,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   SMqHbRsp        rsp = {0};
   SMqConsumerObj *pConsumer = NULL;
 
-  if (tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
-    code = TSDB_CODE_TMQ_INVALID_MSG;
-    goto end;
-  }
+  TAOS_CHECK_GOTO(tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req), NULL, end);
 
   int64_t consumerId = req.consumerId;
   pConsumer = mndAcquireConsumer(pMnode, consumerId);
@@ -322,10 +313,8 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     goto end;
   }
-  code = checkPrivilege(pMnode, pConsumer, &rsp, pMsg->info.conn.user);
-  if (code != 0) {
-    goto end;
-  }
+
+  TAOS_CHECK_GOTO(checkPrivilege(pMnode, pConsumer, &rsp, pMsg->info.conn.user), NULL, end);
 
   atomic_store_32(&pConsumer->hbStatus, 0);
 
@@ -343,7 +332,7 @@ end:
   tDestroySMqHbRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
   tDestroySMqHbReq(&req);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t epoch, SMqAskEpRsp *rsp){
@@ -431,6 +420,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
 }
 
 static int32_t buildAskEpRsp(SRpcMsg *pMsg, SMqAskEpRsp *rsp, int32_t serverEpoch, int64_t consumerId){
+  int32_t code = 0;
   // encode rsp
   int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqAskEpRsp(NULL, rsp);
   void   *buf = rpcMallocCont(tlen);
@@ -452,7 +442,7 @@ static int32_t buildAskEpRsp(SRpcMsg *pMsg, SMqAskEpRsp *rsp, int32_t serverEpoc
   // send rsp
   pMsg->info.rsp = buf;
   pMsg->info.rspLen = tlen;
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
@@ -461,9 +451,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   SMqAskEpRsp rsp = {0};
   int32_t     code = 0;
 
-  if (tDeserializeSMqAskEpReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
+  TAOS_CHECK_RETURN(tDeserializeSMqAskEpReq(pMsg->pCont, pMsg->contLen, &req));
 
   int64_t consumerId = req.consumerId;
 
@@ -517,19 +505,29 @@ END:
 }
 
 int32_t mndSetConsumerDropLogs(STrans *pTrans, SMqConsumerObj *pConsumer) {
+  int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndConsumerActionEncode(pConsumer);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
-  return 0;
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
+  TAOS_RETURN(code);
 }
 
 int32_t mndSetConsumerCommitLogs(STrans *pTrans, SMqConsumerObj *pConsumer) {
+  int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndConsumerActionEncode(pConsumer);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
-  return 0;
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+  TAOS_RETURN(code);
 }
 
 static void freeItem(void *param) {
@@ -585,6 +583,7 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
 }
 
 static int32_t checkAndSortTopic(SMnode *pMnode, SArray *pTopicList){
+  int32_t code = 0;
   taosArraySort(pTopicList, taosArrayCompareString);
   taosArrayRemoveDuplicate(pTopicList, taosArrayCompareString, freeItem);
 
@@ -592,11 +591,10 @@ static int32_t checkAndSortTopic(SMnode *pMnode, SArray *pTopicList){
   for (int i = 0; i < newTopicNum; i++) {
     int32_t gNum = mndGetGroupNumByTopic(pMnode, (const char *)taosArrayGetP(pTopicList, i));
     if (gNum >= MND_MAX_GROUP_PER_TOPIC) {
-      terrno = TSDB_CODE_TMQ_GROUP_OUT_OF_RANGE;
-      return -1;
+      return TSDB_CODE_TMQ_GROUP_OUT_OF_RANGE;
     }
   }
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
 }
 
 static SMqConsumerObj* buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe){
@@ -672,7 +670,8 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
   if (pTrans == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _over;
   }
 
@@ -683,21 +682,21 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   pConsumerNew = buildSubConsumer(pMnode, &subscribe);
   if(pConsumerNew == NULL){
-    code = -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _over;
   }
-  code = mndSetConsumerCommitLogs(pTrans, pConsumerNew);
-  if (code != 0) goto _over;
 
-  code = mndTransPrepare(pMnode, pTrans);
-  if (code != 0) goto _over;
+  TAOS_CHECK_GOTO(mndSetConsumerCommitLogs(pTrans, pConsumerNew), NULL, _over);
+
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _over);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _over:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, NULL);
-  return code;
+  TAOS_RETURN(code);
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {

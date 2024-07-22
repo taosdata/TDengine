@@ -19,6 +19,7 @@
 #include "scheduler.h"
 #include "trpc.h"
 #include "tglobal.h"
+#include "clientMonitor.h"
 
 typedef struct {
   union {
@@ -744,7 +745,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
   }
 
-  if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) < 0) {
+  if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) != 0) {
     taosMemoryFree(user);
     code = terrno ? terrno : TSDB_CODE_APP_ERROR;
     goto _return;
@@ -1030,7 +1031,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 #endif
     code = hbGetExpiredTSMAInfo(connKey, pCatalog, req);
   } else {
-    req->app.appId = 0;
+    hbGetAppInfo(hbParam->clusterId, req);
   }
 
   ++hbParam->reqCnt;  // success to get catalog info
@@ -1398,7 +1399,8 @@ void hbMgrCleanUp() {
 
   taosThreadMutexLock(&clientHbMgr.lock);
   appHbMgrCleanup();
-  clientHbMgr.appHbMgrs = taosArrayDestroy(clientHbMgr.appHbMgrs);
+  taosArrayDestroy(clientHbMgr.appHbMgrs);
+  clientHbMgr.appHbMgrs = NULL;
   taosThreadMutexUnlock(&clientHbMgr.lock);
 }
 

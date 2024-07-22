@@ -206,6 +206,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->sqlstr[sqlLen] = 0;
   (*pRequest)->sqlLen = sqlLen;
   (*pRequest)->validateOnly = validateSql;
+  (*pRequest)->isStmtBind = false;
 
   ((SSyncQueryParam*)(*pRequest)->body.interParam)->userParam = param;
 
@@ -266,7 +267,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                        .enableSysInfo = pTscObj->sysInfo,
                        .svrVer = pTscObj->sVer,
-                       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)};
+                       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
+                       .isStmtBind = pRequest->isStmtBind};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -299,7 +301,7 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
 
   return code;
@@ -338,7 +340,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode));
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1540,6 +1542,9 @@ int32_t doProcessMsgFromServer(void* param) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
     tscError("doProcessMsgFromServer pMsg->info.ahandle == NULL");
+    taosMemoryFree(arg->pEpset);
+    rpcFreeCont(pMsg->pCont);
+    taosMemoryFree(arg);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   STscObj* pTscObj = NULL;
@@ -1557,6 +1562,12 @@ int32_t doProcessMsgFromServer(void* param) {
       if (pRequest->self != pSendInfo->requestObjRefId) {
         tscError("doProcessMsgFromServer pRequest->self:%" PRId64 " != pSendInfo->requestObjRefId:%" PRId64,
                  pRequest->self, pSendInfo->requestObjRefId);
+
+        taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+        taosMemoryFree(arg->pEpset);
+        rpcFreeCont(pMsg->pCont);
+        destroySendMsgInfo(pSendInfo);
+        taosMemoryFree(arg);
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
       pTscObj = pRequest->pTscObj;
@@ -1996,7 +2007,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
           sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (tTagIsJson(data)) {
-          char* jsonString = parseTagDatatoJson(data);
+          char* jsonString = NULL;
+          parseTagDatatoJson(data, &jsonString);
           STR_TO_VARSTR(dst, jsonString);
           taosMemoryFree(jsonString);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"

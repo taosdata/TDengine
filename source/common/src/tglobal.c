@@ -121,7 +121,6 @@ uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 bool     tsMonitorLogProtocol = false;
-int32_t  tsMonitorIntervalForBasic = 30;
 bool     tsMonitorForceV2 = true;
 
 // audit
@@ -515,7 +514,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "secondEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0) return -1;
   if (cfgAddString(pCfg, "fqdn", defaultFqdn, CFG_SCOPE_SERVER, CFG_DYN_CLIENT) != 0) return -1;
   if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT) != 0) return -1;
-  if (cfgAddDir(pCfg, "tempDir", tsTempDir, CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0) return -1;
+  if (cfgAddDir(pCfg, "tempDir", tsTempDir, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalTmpDirGB", 1.0f, 0.001f, 10000000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0) return -1;
   if (cfgAddInt32(pCfg, "shellActivityTimer", tsShellActivityTimer, 1, 120, CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0)
     return -1;
@@ -683,12 +682,12 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "queryBufferPoolSize", tsQueryBufferPoolSize, 0, 1000000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "numOfMnodeReadThreads", tsNumOfMnodeReadThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 4, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "numOfVnodeRsmaThreads", tsNumOfVnodeRsmaThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 4, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   //  tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
   //  tsNumOfQnodeFetchThreads = TMAX(tsNumOfQnodeFetchThreads, 4);
@@ -726,7 +725,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorComp", tsMonitorComp, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorLogProtocol", tsMonitorLogProtocol, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "monitorIntervalForBasic", tsMonitorIntervalForBasic, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorForceV2", tsMonitorForceV2, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
@@ -1183,7 +1181,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMonitorComp = cfgGetItem(pCfg, "monitorComp")->bval;
   tsQueryRspPolicy = cfgGetItem(pCfg, "queryRspPolicy")->i32;
   tsMonitorLogProtocol = cfgGetItem(pCfg, "monitorLogProtocol")->bval;
-  tsMonitorIntervalForBasic = cfgGetItem(pCfg, "monitorIntervalForBasic")->i32;
   tsMonitorForceV2 = cfgGetItem(pCfg, "monitorForceV2")->i32;
 
   tsEnableAudit = cfgGetItem(pCfg, "audit")->bval;
@@ -1365,7 +1362,10 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
     return -1;
   }
 
-  tstrncpy(tsDataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
+  if (taosSetTfsCfg(pCfg) != 0) {
+    cfgCleanup(pCfg);
+    return -1;
+  }
   dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
 
   cfgCleanup(pCfg);
@@ -1388,58 +1388,68 @@ static int32_t taosCheckGlobalCfg() {
   return 0;
 }
 
+static int32_t cfgInitWrapper(SConfig **pCfg) {
+  if (*pCfg == NULL) {
+    *pCfg = cfgInit();
+    if (*pCfg == NULL) {
+      return terrno;
+    }
+  }
+  return 0;
+}
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc) {
   if (tsCfg != NULL) return 0;
-  tsCfg = cfgInit();
+
+  int32_t code = cfgInitWrapper(&tsCfg);
 
   if (tsc) {
-    if (taosAddClientCfg(tsCfg) != 0) return -1;
-    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
+    if ((code = taosAddClientCfg(tsCfg)) != 0) return code;
+    if ((code = taosAddClientLogCfg(tsCfg)) != 0) return code;
   } else {
-    if (taosAddClientCfg(tsCfg) != 0) return -1;
-    if (taosAddServerCfg(tsCfg) != 0) return -1;
-    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
-    if (taosAddServerLogCfg(tsCfg) != 0) return -1;
+    if ((code = taosAddClientCfg(tsCfg)) != 0) return code;
+    if ((code = taosAddServerCfg(tsCfg)) != 0) return code;
+    if ((code = taosAddClientLogCfg(tsCfg)) != 0) return code;
+    if ((code = taosAddServerLogCfg(tsCfg)) != 0) return code;
   }
 
-  taosAddSystemCfg(tsCfg);
+  code = taosAddSystemCfg(tsCfg);
 
-  if (taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
-    uError("failed to load cfg since %s", terrstr());
+  if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
+    uError("failed to load cfg since %s", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
-    return -1;
+    return code;
   }
 
-  if (cfgLoadFromArray(tsCfg, pArgs) != 0) {
-    uError("failed to load cfg from array since %s", terrstr());
+  if ((code = cfgLoadFromArray(tsCfg, pArgs)) != 0) {
+    uError("failed to load cfg from array since %s", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
-    return -1;
+    return code;
   }
 
   if (tsc) {
-    if (taosSetClientCfg(tsCfg)) return -1;
+    if ((code = taosSetClientCfg(tsCfg)) != 0) return code;
   } else {
-    if (taosSetClientCfg(tsCfg)) return -1;
-    if (taosUpdateServerCfg(tsCfg)) return -1;
-    if (taosSetServerCfg(tsCfg)) return -1;
-    if (taosSetReleaseCfg(tsCfg)) return -1;
-    if (taosSetTfsCfg(tsCfg) != 0) return -1;
-    if (taosSetS3Cfg(tsCfg) != 0) return -1;
+    if ((code = taosSetClientCfg(tsCfg)) != 0) return code;
+    if ((code = taosUpdateServerCfg(tsCfg)) != 0) return code;
+    if ((code = taosSetServerCfg(tsCfg)) != 0) return code;
+    if ((code = taosSetReleaseCfg(tsCfg)) != 0) return code;
+    if ((code = taosSetTfsCfg(tsCfg)) != 0) return code;
+    if ((code = taosSetS3Cfg(tsCfg)) != 0) return code;
   }
 
   taosSetSystemCfg(tsCfg);
 
-  if (taosSetFileHandlesLimit() != 0) return -1;
+  if ((code = taosSetFileHandlesLimit()) != 0) return code;
 
   taosSetAllDebugFlag(tsCfg, cfgGetItem(tsCfg, "debugFlag")->i32);
 
   cfgDumpCfg(tsCfg, tsc, false);
 
-  if (taosCheckGlobalCfg() != 0) {
-    return -1;
+  if ((code = taosCheckGlobalCfg()) != 0) {
+    return code;
   }
 
   return 0;

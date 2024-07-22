@@ -35,6 +35,10 @@ gcc version - 9.3.1 or above;
 
 ## Installation
 
+**Note**
+
+Since TDengine 3.0.6.0, we don't provide standalone taosTools pacakge for downloading. However, all the tools included in the taosTools pacakge can be found in TDengine-server pacakge.
+
 <Tabs>
 <TabItem label=".deb" value="debinst">
 
@@ -119,11 +123,18 @@ This installation method is supported only for Debian and Ubuntu.
 </TabItem>
 <TabItem label="Windows" value="windows">
 
-Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the Windows platform.
+**Note**
+- TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the Windows platform.
+- Since TDengine 3.1.0.0, we wonly provide client package for Windows. If you need to run TDenginer server on Windows, please contact TDengine sales team to upgrade to TDengine Enterprise. 
+- To run on Windows, the Microsoft Visual C++ Runtime library is required. If the Microsoft Visual C++ Runtime Library is missing on your platform, you can download and install it from [VC Runtime Library](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170). 
+
+Follow the steps below:
 
 1. Download the Windows installation package.
    <PkgListV3 type={3}/>
 2. Run the downloaded package to install TDengine.
+Note: From version 3.0.1.7, only TDengine client pacakge can be downloaded for Windows platform. If you want to run TDengine servers on Windows, please contact our sales team to upgrade to TDengine Enterprise. 
+
 
 </TabItem>
 <TabItem label="macOS" value="macos">
@@ -153,37 +164,25 @@ After the installation is complete, run the following command to start the TDeng
 
 ```bash
 systemctl start taosd
+systemctl start taosadapter
+systemctl start taoskeeper
+systemctl start taos-explorer
 ```
 
-Run the following command to confirm that TDengine is running normally:
+Or you can run a scrip to start all the above services together
 
 ```bash
+start-all.sh 
+```
+
+systemctl can also be used to stop, restart a specific service or check its status, like below using `taosd` as example:
+
+```bash
+systemctl start taosd
+systemctl stop taosd
+systemctl restart taosd
 systemctl status taosd
 ```
-
-Output similar to the following indicates that TDengine is running normally:
-
-```
-Active: active (running)
-```
-
-Output similar to the following indicates that TDengine has not started successfully:
-
-```
-Active: inactive (dead)
-```
-
-After confirming that TDengine is running, run the `taos` command to access the TDengine CLI.
-
-The following `systemctl` commands can help you manage TDengine service:
-
-- Start TDengine Server: `systemctl start taosd`
-
-- Stop TDengine Server: `systemctl stop taosd`
-
-- Restart TDengine Server: `systemctl restart taosd`
-
-- Check TDengine Server status: `systemctl status taosd`
 
 :::info
 
@@ -193,35 +192,38 @@ The following `systemctl` commands can help you manage TDengine service:
 
 :::
 
-## Command Line Interface (CLI)
-
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
-
 </TabItem>
 
 <TabItem label="Windows" value="windows">
 
 After the installation is complete, please run `sc start taosd` or run `C:\TDengine\taosd.exe` with administrator privilege to start TDengine Server. Please run `sc start taosadapter` or run `C:\TDengine\taosadapter.exe` with administrator privilege to start taosAdapter to provide http/REST service.
 
-## Command Line Interface (CLI)
-
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal to start the TDengine command line.
-
 </TabItem>
 
 <TabItem label="macOS" value="macos">
 
-After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start com.tdengine.taosd` to start TDengine Server.
+After the installation is complete, double-click the /applications/TDengine to start the program, or run `sudo launchctl start ` to start TDengine services.
 
-The following `launchctl` commands can help you manage TDengine service:
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosadapter
+sudo launchctl start com.tdengine.taoskeeper
+sudo launchctl start com.tdengine.taos-explorer
+```
 
-- Start TDengine Server: `sudo launchctl start com.tdengine.taosd`
+Or you can run a scrip to start all the above services together
+```bash
+start-all.sh 
+```
 
-- Stop TDengine Server: `sudo launchctl stop com.tdengine.taosd`
+The following `launchctl` commands can help you manage TDengine service, using `taosd` service as an example below:
 
-- Check TDengine Server status: `sudo launchctl list | grep taosd`
-
-- Check TDengine Server status details: `launchctl print system/com.tdengine.taosd`
+```bash
+sudo launchctl start com.tdengine.taosd
+sudo launchctl stop com.tdengine.taosd
+sudo launchctl list | grep taosd
+sudo launchctl print system/com.tdengine.taosd
+```
 
 :::info
 - Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.
@@ -232,24 +234,20 @@ The following `launchctl` commands can help you manage TDengine service:
 
 :::
 
-## Command Line Interface (CLI)
-
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
 
 </TabItem>
 </Tabs>
 
-```bash
-taos
-```
 
-The TDengine CLI displays a welcome message and version information to indicate that its connection to the TDengine service was successful. If an error message is displayed, see the [FAQ](../../train-faq/faq) for troubleshooting information. At the following prompt, you can execute SQL commands.
+## TDengine Command Line Interface
+
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` (Linux/Mac) or `taos.exe` (Windows) in terminal. The prompt of TDengine CLI is like below:
 
 ```cmd
 taos>
 ```
 
-For example, you can create and delete databases and tables and run all types of queries. Each SQL command must be end with a semicolon (;). For example:
+Using TDengine CLI, you can create and delete databases and tables and run all types of queries. Each SQL command must be end with a semicolon (;). For example:
 
 ```sql
 CREATE DATABASE demo;
@@ -268,6 +266,12 @@ Query OK, 2 row(s) in set (0.003128s)
 ```
 
 You can also can monitor the deployment status, add and remove user accounts, and manage running instances. You can run the TDengine CLI on either machines. For more information, see [TDengine CLI](../../reference/taos-shell/).
+
+## TDengine Graphic User Interface
+
+From TDengine 3.3.0.0, there is a new componenet called `taos-explorer` added in the TDengine docker image. You can use it to manage the databases, super tables, child tables, and data in your TDengine system. There are also some features only available in TDengine Enterprise Edition, please contact TDengine sales team in case you need these features.
+
+To use taos-explorer in the container, you need to access the host port mapped from container port 6060. Assuming the host name is abc.com, and the port used on host is 6060, you need to access `http://abc.com:6060`. taos-explorer uses port 6060 by default in the container. When you use it the first time, you need to register with your enterprise email, then can logon using your user name and password in the TDengine 
 
 ## Test data insert performance
 

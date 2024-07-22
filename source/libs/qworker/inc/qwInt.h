@@ -278,8 +278,8 @@ extern SQueryMgmt gQueryMgmt;
 
 #define QW_SINK_DISABLE_MEMPOOL() taosDisableMemoryPoolUsage()
 
-#define QW_STAT_INC(_item, _n) atomic_add_fetch_64(&(_item), _n)
-#define QW_STAT_DEC(_item, _n) atomic_sub_fetch_64(&(_item), _n)
+#define QW_STAT_INC(_item, _n) (void)atomic_add_fetch_64(&(_item), _n)
+#define QW_STAT_DEC(_item, _n) (void)atomic_sub_fetch_64(&(_item), _n)
 #define QW_STAT_GET(_item)     atomic_load_64(&(_item))
 
 #define QW_GET_EVENT(ctx, event)           atomic_load_8(&(ctx)->events[event])
@@ -310,7 +310,7 @@ extern SQueryMgmt gQueryMgmt;
   } while (0)
 
 #define QW_SET_RSP_CODE(ctx, code)    atomic_store_32(&(ctx)->rspCode, code)
-#define QW_UPDATE_RSP_CODE(ctx, code) atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
+#define QW_UPDATE_RSP_CODE(ctx, code) (void)atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
 
 #define QW_QUERY_RUNNING(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx) ((ctx)->inFetch)
@@ -463,7 +463,7 @@ void    qwReleaseTaskCtx(SQWorker *mgmt, void *ctx);
 int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode);
 int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask);
 int32_t qwDropTask(QW_FPARAMS_DEF);
-void    qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx);
+int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx);
 int32_t qwOpenRef(void);
 void    qwSetHbParam(int64_t refId, SQWHbParam **pParam);
 int32_t qwUpdateTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type);

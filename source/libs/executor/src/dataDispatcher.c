@@ -105,7 +105,8 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
       }
 
       int32_t dataLen = blockEncode(pInput->pData, pHandle->pCompressBuf, numOfCols);
-      int32_t len = tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
+      int32_t len =
+          tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
       if (len < dataLen) {
         pEntry->compressed = 1;
         pEntry->dataLen = len;
@@ -169,9 +170,11 @@ static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   int32_t              code = 0;
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM, 0);
-  if (NULL == pBuf) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  SDataDispatchBuf*    pBuf;
+
+  code = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM, 0, (void**)&pBuf);
+  if (code) {
+    return code;
   }
 
   if (!allocBuf(pDispatcher, pInput, pBuf)) {
@@ -228,7 +231,6 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRow
   qDebug("got data len %" PRId64 ", row num %d in sink", *pLen,
          ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->numOfRows);
 }
-
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
@@ -301,6 +303,8 @@ static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
 
 
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
+  int32_t code;
+
   SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -319,7 +323,11 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
-  dispatcher->pDataBlocks = taosOpenQueue();
+  code = taosOpenQueue(&dispatcher->pDataBlocks);
+  if (code) {
+    terrno = code;
+    goto _return;
+  }
   taosThreadMutexInit(&dispatcher->mutex, NULL);
 
   if (NULL == dispatcher->pDataBlocks) {

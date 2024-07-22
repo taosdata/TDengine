@@ -55,13 +55,11 @@ void tdListEmptyP(SList *list, FDelete fp) {
   }
 }
 
-void *tdListFreeP(SList *list, FDelete fp) {
+void tdListFreeP(SList *list, FDelete fp) {
   if (list) {
     tdListEmptyP(list, fp);
     taosMemoryFree(list);
   }
-
-  return NULL;
 }
 
 void tdListPrependNode(SList *list, SListNode *node) { TD_DLIST_PREPEND(list, node); }

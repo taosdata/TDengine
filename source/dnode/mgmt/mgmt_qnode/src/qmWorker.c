@@ -30,7 +30,7 @@ static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SQnodeMgmt *pMgmt = pInfo->ahandle;
   dTrace("msg:%p, get from qnode queue", pMsg);
 
-  int32_t code = qndProcessQueryMsg(pMgmt->pQnode, pInfo->timestamp, pMsg);
+  int32_t code = qndProcessQueryMsg(pMgmt->pQnode, pInfo, pMsg);
   if (IsReq(pMsg) && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
     qmSendRsp(pMsg, code);
@@ -58,8 +58,11 @@ int32_t qmPutNodeMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen);
-  if (pMsg == NULL) return -1;
+  int32_t  code;
+  SRpcMsg *pMsg;
+
+  code = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM, pRpc->contLen, (void **)&pMsg);
+  if (code) return code;
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   pRpc->pCont = NULL;
 
@@ -99,17 +102,20 @@ int32_t qmGetQueueSize(SQnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
 }
 
 int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
+  int32_t code = 0;
+
   SSingleWorkerCfg queryCfg = {
       .min = tsNumOfQnodeQueryThreads,
       .max = tsNumOfQnodeQueryThreads,
       .name = "qnode-query",
       .fp = (FItem)qmProcessQueue,
       .param = pMgmt,
+      .poolType = QUERY_AUTO_QWORKER_POOL,
   };
 
-  if (tSingleWorkerInit(&pMgmt->queryWorker, &queryCfg) != 0) {
-    dError("failed to start qnode-query worker since %s", terrstr());
-    return -1;
+  if ((code = tSingleWorkerInit(&pMgmt->queryWorker, &queryCfg)) != 0) {
+    dError("failed to start qnode-query worker since %s", tstrerror(code));
+    return code;
   }
 
   tsNumOfQueryThreads += tsNumOfQnodeQueryThreads;
@@ -122,13 +128,13 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
 
-  if (tSingleWorkerInit(&pMgmt->fetchWorker, &fetchCfg) != 0) {
-    dError("failed to start qnode-fetch worker since %s", terrstr());
-    return -1;
+  if ((code = tSingleWorkerInit(&pMgmt->fetchWorker, &fetchCfg)) != 0) {
+    dError("failed to start qnode-fetch worker since %s", tstrerror(code));
+    return code;
   }
 
   dDebug("qnode workers are initialized");
-  return 0;
+  return code;
 }
 
 void qmStopWorker(SQnodeMgmt *pMgmt) {

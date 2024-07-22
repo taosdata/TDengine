@@ -60,6 +60,8 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInf
                                  bool holdDataInBuf);
 static int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo);
 
+static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo);
+
 static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo,
                                            SExecTaskInfo* pTaskInfo) {
   int32_t code = 0;
@@ -74,9 +76,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
   while (1) {
     qDebug("prepare wait for ready, %p, %s", pExchangeInfo, GET_TASKID(pTaskInfo));
-    tsem_wait(&pExchangeInfo->ready);
+    code = exchangeWait(pOperator, pExchangeInfo);
 
-    if (isTaskKilled(pTaskInfo)) {
+    if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
@@ -608,7 +610,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       blockDataAppendColInfo(pBlock, &idata);
     }
 
-    blockDecode(pBlock, pStart);
+    (void) blockDecode(pBlock, pStart);
     blockDataEnsureCapacity(pRes, pBlock->info.rows);
 
     // data from mnode
@@ -759,8 +761,8 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
 
     doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
-    tsem_wait(&pExchangeInfo->ready);
-    if (isTaskKilled(pTaskInfo)) {
+    code = exchangeWait(pOperator, pExchangeInfo);
+    if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
@@ -973,4 +975,25 @@ int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDa
   } else {  // not full enough, continue to accumulate the output data in the buffer.
     return PROJECT_RETRIEVE_CONTINUE;
   }
+}
+
+static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo) {
+  SExecTaskInfo* pTask = pOperator->pTaskInfo;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  if (pTask->pWorkerCb) {
+    code = pTask->pWorkerCb->beforeBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      return pTask->code;
+    }
+  }
+  tsem_wait(&pExchangeInfo->ready);
+  if (pTask->pWorkerCb) {
+    code = pTask->pWorkerCb->afterRecoverFromBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      return pTask->code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }

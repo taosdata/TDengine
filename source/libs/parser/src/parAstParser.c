@@ -310,6 +310,24 @@ static int32_t collectMetaKeyFromCreateMultiTable(SCollectMetaKeyCxt* pCxt, SCre
   return code;
 }
 
+static int32_t collectMetaKeyFromCreateSubTableFromFile(SCollectMetaKeyCxt*            pCxt,
+                                                        SCreateSubTableFromFileClause* pClause) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+
+  code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pClause->useTableName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->useDbName, NULL,
+                                  AUTH_TYPE_WRITE, pCxt->pMetaCache);
+  }
+
+  return code;
+}
+
 static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
@@ -866,6 +884,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCreateTable(pCxt, (SCreateTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return collectMetaKeyFromCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
+    case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
+      return collectMetaKeyFromCreateSubTableFromFile(pCxt, (SCreateSubTableFromFileClause*)pStmt);
     case QUERY_NODE_DROP_TABLE_STMT:
       return collectMetaKeyFromDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:

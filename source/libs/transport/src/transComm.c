@@ -224,14 +224,28 @@ int transSetConnOption(uv_tcp_t* stream, int keepalive) {
 
 SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
+  if (pool == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
+  if (pool->asyncs == NULL) {
+    taosMemoryFree(pool);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   int i = 0, err = 0;
   for (i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
 
     SAsyncItem* item = taosMemoryCalloc(1, sizeof(SAsyncItem));
+    if (item == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
     taosThreadMutexInit(&item->mtx, NULL);
@@ -240,6 +254,7 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
     err = uv_async_init(loop, async, cb);
     if (err != 0) {
       tError("failed to init async, reason:%s", uv_err_name(err));
+      terrno = TSDB_CODE_THIRDPARTY_ERROR;
       break;
     }
   }
