@@ -144,6 +144,8 @@ int64_t mndGetClusterUpTime(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, CLUSTER_VER_NUMBE, sizeof(SClusterObj) + CLUSTER_RESERVE_SIZE);
@@ -172,6 +174,8 @@ _OVER:
 }
 
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SClusterObj *pCluster = NULL;
   SSdbRow     *pRow = NULL;

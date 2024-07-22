@@ -160,6 +160,8 @@ void mndCleanupStream(SMnode *pMnode) {
 }
 
 SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRow    *pRow = NULL;

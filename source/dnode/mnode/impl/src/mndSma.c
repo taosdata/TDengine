@@ -112,6 +112,8 @@ int32_t mndInitSma(SMnode *pMnode) {
 void mndCleanupSma(SMnode *pMnode) {}
 
 static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size =
@@ -173,6 +175,8 @@ _OVER:
 }
 
 static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SSmaObj *pSma = NULL;

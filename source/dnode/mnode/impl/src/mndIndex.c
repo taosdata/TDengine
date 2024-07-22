@@ -207,6 +207,8 @@ void mndCleanupIdx(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndIdxActionEncode(SIdxObj *pIdx) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   // int32_t size =
@@ -244,6 +246,8 @@ _OVER:
 }
 
 static SSdbRow *mndIdxActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SIdxObj *pIdx = NULL;

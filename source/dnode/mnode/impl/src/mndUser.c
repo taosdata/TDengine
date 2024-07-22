@@ -784,11 +784,11 @@ static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteList **ppList) 
   SDecoder      decoder = {0};
   tDecoderInit(&decoder, buf, len);
 
-  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER), &lino, _OVER);
-  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &num), &lino, _OVER), &lino, _OVER);
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER);
+  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &num), &lino, _OVER);
 
   p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + num * sizeof(SIpV4Range));
-  if(p == NULL) {
+  if (p == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
   TAOS_CHECK_GOTO(tDerializeIpWhileList(buf, len, p), &lino, _OVER);
@@ -796,7 +796,12 @@ static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteList **ppList) 
 _OVER:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
-  return p;
+  if (code != 0) {
+    taosMemoryFreeClear(p);
+    mError("failed to create ip white list at line %d since %s", lino, tstrerror(code));
+  }
+  *ppList = p;
+  TAOS_RETURN(code);
 }
 
 static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList) {
@@ -876,7 +881,8 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
 }
 
 SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
-  int32_t code = TSDB_CODE_OUT_OF_MEMORY;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   int32_t ipWhiteReserve =
       pUser->pIpWhiteList ? (sizeof(SIpV4Range) * pUser->pIpWhiteList->num + sizeof(SIpWhiteList) + 4) : 16;
@@ -989,7 +995,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
   if (pRaw == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
 
   int32_t dataPos = 0;
@@ -1744,21 +1750,30 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     if(pUniqueTab == NULL){
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    int32_t   dummpy = 0;
+    int32_t dummpy = 0;
     for (int i = 0; i < pCreate->numIpRanges; i++) {
       SIpV4Range range = {.ip = pCreate->pIpRanges[i].ip, .mask = pCreate->pIpRanges[i].mask};
-      if(code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy));
+      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy))) != 0) {
+        taosHashCleanup(pUniqueTab);
+        TAOS_RETURN(code);
+      }
     }
-    taosHashPut(pUniqueTab, &defaultIpRange, sizeof(defaultIpRange), &dummpy, sizeof(dummpy));
+    if ((code = taosHashPut(pUniqueTab, &defaultIpRange, sizeof(defaultIpRange), &dummpy, sizeof(dummpy))) != 0) {
+      taosHashCleanup(pUniqueTab);
+      TAOS_RETURN(code);
+    }
 
     if (taosHashGetSize(pUniqueTab) > MND_MAX_USE_HOST) {
-      terrno = TSDB_CODE_MND_TOO_MANY_USER_HOST;
       taosHashCleanup(pUniqueTab);
-      return terrno;
+      TAOS_RETURN(TSDB_CODE_MND_TOO_MANY_USER_HOST);
     }
 
     int32_t       numOfRanges = taosHashGetSize(pUniqueTab);
     SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + numOfRanges * sizeof(SIpV4Range));
+    if (p == NULL) {
+      taosHashCleanup(pUniqueTab);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
     void         *pIter = taosHashIterate(pUniqueTab, NULL);
     int32_t       i = 0;
     while (pIter) {
@@ -1781,9 +1796,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
-
     taosMemoryFree(userObj.pIpWhiteList);
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
   mInfo("trans:%d, used to create user:%s", pTrans->id, pCreate->user);
 

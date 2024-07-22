@@ -79,6 +79,8 @@ void mndReleaseSnode(SMnode *pMnode, SSnodeObj *pObj) {
 }
 
 static SSdbRaw *mndSnodeActionEncode(SSnodeObj *pObj) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_SNODE, SNODE_VER_NUMBER, sizeof(SSnodeObj) + SNODE_RESERVE_SIZE);
@@ -104,6 +106,8 @@ _OVER:
 }
 
 static SSdbRow *mndSnodeActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow   *pRow = NULL;
   SSnodeObj *pObj = NULL;
