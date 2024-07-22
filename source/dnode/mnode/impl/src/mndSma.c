@@ -769,7 +769,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   mndGetStreamNameFromSmaName(streamName, createReq.name);
 
   code = mndAcquireStream(pMnode, streamName, &pStream);
-  if (pStream != NULL || code != 0) {
+  if (pStream != NULL || code == 0) {
     mError("sma:%s, failed to create since stream:%s already exist", createReq.name, streamName);
     terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
     goto _OVER;
