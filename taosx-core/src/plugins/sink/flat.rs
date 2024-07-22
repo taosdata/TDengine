@@ -248,6 +248,7 @@ async fn write_stable_with_sql(
 ) -> Result<usize, FlatWriteError> {
     let mut write_retries = 0;
     let sql = records.sql();
+    let mut backoff = 1;
 
     loop {
         match taos
@@ -286,7 +287,9 @@ async fn write_stable_with_sql(
                         }
                         break Err(err).map_err(Into::into);
                     }
-                    0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                    0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                        tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
+                        backoff *= 2;
                         taos.replace(pool.get().await?);
                     }
                     _ => {
