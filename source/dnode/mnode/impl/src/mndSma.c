@@ -769,6 +769,7 @@ static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   if (tNameFromString(&smaName, pCreate->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) < 0) return -1;
   if (*(char *)tNameGetTableName(&smaName) == 0) return -1;
 
+  code = 0;
   TAOS_RETURN(code);
 }
 
