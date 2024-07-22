@@ -19,31 +19,19 @@
 static volatile int32_t VINIT = 0;
 
 int vnodeInit(int nthreads) {
-  int32_t init;
-
-  init = atomic_val_compare_exchange_32(&VINIT, 0, 1);
-  if (init) {
+  if (atomic_val_compare_exchange_32(&VINIT, 0, 1)) {
     return 0;
   }
 
-  if (vnodeAsyncOpen(nthreads) != 0) {
-    return -1;
-  }
-
-  if (walInit() < 0) {
-    return -1;
-  }
+  TAOS_CHECK_RETURN(vnodeAsyncOpen(nthreads));
+  TAOS_CHECK_RETURN(walInit());
 
   return 0;
 }
 
 void vnodeCleanup() {
-  int32_t init = atomic_val_compare_exchange_32(&VINIT, 1, 0);
-  if (init == 0) return;
-
-  // set stop
+  if (atomic_val_compare_exchange_32(&VINIT, 1, 0) == 0) return;
   vnodeAsyncClose();
-
   walCleanUp();
   smaCleanUp();
 }

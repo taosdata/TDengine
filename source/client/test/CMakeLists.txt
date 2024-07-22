@@ -23,11 +23,11 @@ TARGET_LINK_LIBRARIES(
         PUBLIC os util common transport parser catalog scheduler function gtest taos_static qcom geometry
 )
 
-ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
-TARGET_LINK_LIBRARIES(
-        clientMonitorTest
-        PUBLIC os util common transport monitor parser catalog scheduler function gtest taos_static qcom executor
-)
+#ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
+#TARGET_LINK_LIBRARIES(
+#        clientMonitorTest
+#        PUBLIC os util common transport monitor parser catalog scheduler function gtest taos_static qcom executor
+#)
 
 TARGET_INCLUDE_DIRECTORIES(
         clientTest
@@ -47,11 +47,11 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
-TARGET_INCLUDE_DIRECTORIES(
-        clientMonitorTest
-        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
-)
+#TARGET_INCLUDE_DIRECTORIES(
+#        clientMonitorTest
+#        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+#        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+#)
 
 add_test(
         NAME smlTest

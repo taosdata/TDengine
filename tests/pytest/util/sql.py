@@ -307,8 +307,8 @@ class TDSql:
             return col_name_list, col_type_list
         return col_name_list
 
-    def waitedQuery(self, sql, expectRows, timeout):
-        tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectRows, timeout))
+    def waitedQuery(self, sql, expectedRows, timeout):
+        tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectedRows, timeout))
         self.sql = sql
         try:
             for i in range(timeout):
@@ -316,8 +316,8 @@ class TDSql:
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
-                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectRows, self.queryRows))
-                if self.queryRows >= expectRows:
+                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectedRows, self.queryRows))
+                if self.queryRows >= expectedRows:
                     return (self.queryRows, i)
                 time.sleep(1)
         except Exception as e:
@@ -330,14 +330,25 @@ class TDSql:
     def getRows(self):
         return self.queryRows
 
-    def checkRows(self, expectRows):
-        if self.queryRows == expectRows:
-            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+    def checkRows(self, expectedRows):
+        if self.queryRows == expectedRows:
+            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectedRows))
             return True
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
+            args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectedRows)
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
+
+    def checkRows_not_exited(self, expectedRows):
+        """
+            Check if the query rows is equal to the expected rows
+            :param expectedRows: The expected number of rows.
+            :return: Returns True if the actual number of rows matches the expected number, otherwise returns False.
+            """
+        if self.queryRows == expectedRows:
+            return True
+        else:
+            return False
 
     def checkRows_range(self, excepte_row_list):
         if self.queryRows in excepte_row_list:
@@ -508,7 +519,7 @@ class TDSql:
 
 
     # return true or false replace exit, no print out
-    def checkDataNoExit(self, row, col, data):
+    def checkDataNotExit(self, row, col, data):
         if self.checkRowColNoExit(row, col) == False:
             return False
         if self.queryResult[row][col] != data:
@@ -542,7 +553,7 @@ class TDSql:
         # loop check util checkData return true
         for i in range(loopCount):
             self.query(sql)
-            if self.checkDataNoExit(row, col, data) :
+            if self.checkDataNotExit(row, col, data) :
                 self.checkData(row, col, data)
                 return
             time.sleep(waitTime)
@@ -550,6 +561,19 @@ class TDSql:
         # last check
         self.query(sql)
         self.checkData(row, col, data)
+
+    def check_rows_loop(self, expectedRows, sql, loopCount, waitTime):
+        # loop check util checkData return true
+        for i in range(loopCount):
+            self.query(sql)
+            if self.checkRows_not_exited(expectedRows):
+                return
+            else:
+                time.sleep(waitTime)
+                continue
+        # last check
+        self.query(sql)
+        self.checkRows(expectedRows)
 
 
     def getData(self, row, col):

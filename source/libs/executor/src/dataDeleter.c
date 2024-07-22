@@ -130,9 +130,11 @@ static int32_t getStatus(SDataDeleterHandle* pDeleter) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
-  SDataDeleterBuf*    pBuf = taosAllocateQitem(sizeof(SDataDeleterBuf), DEF_QITEM, 0);
-  if (NULL == pBuf) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  SDataDeleterBuf*    pBuf;
+
+  int32_t code = taosAllocateQitem(sizeof(SDataDeleterBuf), DEF_QITEM, 0, (void**)&pBuf);
+  if (code) {
+    return code;
   }
 
   if (!allocBuf(pDeleter, pInput, pBuf)) {
@@ -227,7 +229,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDeleter->pDataBlocks);
   taosThreadMutexDestroy(&pDeleter->mutex);
-  
+
   taosMemoryFree(pDeleter->pManager);
   return TSDB_CODE_SUCCESS;
 }
@@ -270,12 +272,11 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   deleter->pParam = pParam;
   deleter->status = DS_BUF_EMPTY;
   deleter->queryEnd = false;
-  deleter->pDataBlocks = taosOpenQueue();
-  taosThreadMutexInit(&deleter->mutex, NULL);
-  if (NULL == deleter->pDataBlocks) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  code = taosOpenQueue(&deleter->pDataBlocks);
+  if (code) {
     goto _end;
   }
+  taosThreadMutexInit(&deleter->mutex, NULL);
 
   *pHandle = deleter;
   return code;

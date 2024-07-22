@@ -509,7 +509,7 @@ cmd ::= SHOW USERS FULL.                                                        
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
 cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
                                                                                     pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);
-                                                                                    setShowKind(pCxt, pCxt->pRootNode, A);
+                                                                                    (void)setShowKind(pCxt, pCxt->pRootNode, A);
                                                                                   }
 cmd ::= SHOW table_kind_db_name_cond_opt(A) TABLES like_pattern_opt(B).           {
                                                                                     pCxt->pRootNode = createShowTablesStmt(pCxt, A, B, OP_TYPE_LIKE);

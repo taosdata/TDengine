@@ -744,7 +744,7 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
   }
 
-  if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) < 0) {
+  if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) != 0) {
     taosMemoryFree(user);
     code = terrno ? terrno : TSDB_CODE_APP_ERROR;
     goto _return;
