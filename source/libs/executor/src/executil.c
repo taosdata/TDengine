@@ -96,7 +96,8 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
     pGroupResInfo->freeItem = false;
     pGroupResInfo->pRows = NULL;
   } else {
-    pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
+    taosArrayDestroy(pGroupResInfo->pRows);
+    pGroupResInfo->pRows = NULL;
   }
   pGroupResInfo->index = 0;
 }
@@ -1716,6 +1717,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->param = pFunct->pParam;
     pCtx->saveHandle.currentPage = -1;
     pCtx->pStore = pStore;
+    pCtx->hasWindowOrGroup = false;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -2101,7 +2103,8 @@ void* tableListDestroy(STableListInfo* pTableListInfo) {
     return NULL;
   }
 
-  pTableListInfo->pTableList = taosArrayDestroy(pTableListInfo->pTableList);
+  taosArrayDestroy(pTableListInfo->pTableList);
+  pTableListInfo->pTableList = NULL;
   taosMemoryFreeClear(pTableListInfo->groupOffset);
 
   taosHashCleanup(pTableListInfo->map);
@@ -2187,7 +2190,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       
       for (int i = 0; i < numOfTables; i++) {
         STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-        info->groupId = info->uid;
+        info->groupId = groupByTbname ? info->uid : 0;
         
         taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
                     sizeof(info->uid));

@@ -19,6 +19,8 @@
 #include "os.h"
 #include "tencode.h"
 #include "thash.h"
+#include "tlog.h"
+#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,19 +37,19 @@ typedef struct SBloomFilter {
   uint64_t   size;
   _hash_fn_t hashFn1;
   _hash_fn_t hashFn2;
-  void      *buffer;
+  void*      buffer;
   double     errorRate;
 } SBloomFilter;
 
-SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate);
-int32_t       tBloomFilterPutHash(SBloomFilter *pBF, uint64_t hash1, uint64_t hash2);
-int32_t       tBloomFilterPut(SBloomFilter *pBF, const void *keyBuf, uint32_t len);
-int32_t       tBloomFilterNoContain(const SBloomFilter *pBF, uint64_t h1, uint64_t h2);
-void          tBloomFilterDestroy(SBloomFilter *pBF);
-void          tBloomFilterDump(const SBloomFilter *pBF);
-bool          tBloomFilterIsFull(const SBloomFilter *pBF);
-int32_t       tBloomFilterEncode(const SBloomFilter *pBF, SEncoder *pEncoder);
-SBloomFilter *tBloomFilterDecode(SDecoder *pDecoder);
+int32_t tBloomFilterInit(uint64_t expectedEntries, double errorRate, SBloomFilter** ppBF);
+int32_t tBloomFilterPutHash(SBloomFilter* pBF, uint64_t hash1, uint64_t hash2);
+int32_t tBloomFilterPut(SBloomFilter* pBF, const void* keyBuf, uint32_t len);
+int32_t tBloomFilterNoContain(const SBloomFilter* pBF, uint64_t h1, uint64_t h2);
+void    tBloomFilterDestroy(SBloomFilter* pBF);
+void    tBloomFilterDump(const SBloomFilter* pBF);
+bool    tBloomFilterIsFull(const SBloomFilter* pBF);
+int32_t tBloomFilterEncode(const SBloomFilter* pBF, SEncoder* pEncoder);
+int32_t tBloomFilterDecode(SDecoder* pDecoder, SBloomFilter** ppBF);
 
 #ifdef __cplusplus
 }

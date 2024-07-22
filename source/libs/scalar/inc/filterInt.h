@@ -98,7 +98,7 @@ typedef struct SFilterRange {
 
 typedef bool (*rangeCompFunc)(const void *, const void *, const void *, const void *, __compar_fn_t);
 typedef int32_t (*filter_desc_compare_func)(const void *, const void *);
-typedef bool (*filter_exec_func)(void *, int32_t, SColumnInfoData *, SColumnDataAgg *, int16_t, int32_t *);
+typedef int32_t (*filter_exec_func)(void *, int32_t, SColumnInfoData *, SColumnDataAgg *, int16_t, int32_t *, bool *);
 typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char *, void **);
 
 typedef struct SFilterDataInfo {
@@ -363,7 +363,8 @@ struct SFilterInfo {
   } while (0)
 #define INSERT_RANGE(ctx, r, ra)                   \
   do {                                             \
-    SFilterRangeNode *n = filterNewRange(ctx, ra); \
+    SFilterRangeNode *n = NULL;                    \
+    FLT_ERR_RET(filterNewRange(ctx, ra, &n));      \
     n->prev = (r)->prev;                           \
     if ((r)->prev) {                               \
       (r)->prev->next = n;                         \
@@ -375,7 +376,8 @@ struct SFilterInfo {
   } while (0)
 #define APPEND_RANGE(ctx, r, ra)                   \
   do {                                             \
-    SFilterRangeNode *n = filterNewRange(ctx, ra); \
+    SFilterRangeNode *n = NULL;                    \
+    FLT_ERR_RET(filterNewRange(ctx, ra, &n));      \
     n->prev = (r);                                 \
     if (r) {                                       \
       (r)->next = n;                               \
@@ -458,11 +460,13 @@ struct SFilterInfo {
 #define FILTER_UNIT_GET_R(i, idx)    ((i)->unitRes[idx])
 #define FILTER_UNIT_SET_R(i, idx, v) (i)->unitRes[idx] = (v)
 
-#define FILTER_PUSH_UNIT(colInfo, u)               \
-  do {                                             \
-    (colInfo).type = RANGE_TYPE_UNIT;              \
-    (colInfo).dataType = FILTER_UNIT_DATA_TYPE(u); \
-    taosArrayPush((SArray *)((colInfo).info), &u); \
+#define FILTER_PUSH_UNIT(colInfo, u)                             \
+  do {                                                           \
+    (colInfo).type = RANGE_TYPE_UNIT;                            \
+    (colInfo).dataType = FILTER_UNIT_DATA_TYPE(u);               \
+    if (taosArrayPush((SArray *)((colInfo).info), &u) == NULL) { \
+      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);                      \
+    }                                                            \
   } while (0)
 #define FILTER_PUSH_VAR_HASH(colInfo, ha) \
   do {                                    \
@@ -494,7 +498,7 @@ struct SFilterInfo {
 #define FILTER_EMPTY_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_EMPTY)
 
 extern bool          filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
-extern __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr);
+extern int32_t       filterGetCompFunc(__compar_fn_t *func, int32_t type, int32_t optr);
 extern __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr);
 
 #ifdef __cplusplus

@@ -104,6 +104,10 @@ python3 ./test.py -f 2-query/like.py
 python3 ./test.py -f 2-query/like.py -Q 2
 python3 ./test.py -f 2-query/like.py -Q 3
 python3 ./test.py -f 2-query/like.py -Q 4
+python3 ./test.py -f 2-query/match.py
+python3 ./test.py -f 2-query/match.py -Q 2
+python3 ./test.py -f 2-query/match.py -Q 3
+python3 ./test.py -f 2-query/match.py -Q 4
 python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
 python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3 -i False

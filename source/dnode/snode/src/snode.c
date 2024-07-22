@@ -41,16 +41,16 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
 
-  char *p = streamTaskGetStatus(pTask)->name;
+  char *p = streamTaskGetStatus(pTask).name;
   if (pTask->info.fillHistory) {
-    sndInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+    sndInfo("vgId:%d build stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
             " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
             (int32_t)pTask->streamTaskId.taskId, pTask->info.delaySchedParam);
   } else {
-    sndInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+    sndInfo("vgId:%d build stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
             " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
@@ -71,9 +71,9 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   startRsync();
 
   pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskBuild *)sndBuildStreamTask, tqExpandStreamTask, SNODE_HANDLE, taosGetTimestampMs(), tqStartTaskCompleteCallback);
-  if (pSnode->pMeta == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  int32_t code = streamMetaOpen(path, pSnode, (FTaskBuild *)sndBuildStreamTask, tqExpandStreamTask, SNODE_HANDLE,
+                                taosGetTimestampMs(), tqStartTaskCompleteCallback, &pSnode->pMeta);
+  if (code != TSDB_CODE_SUCCESS) {
     goto FAIL;
   }
 
@@ -149,15 +149,15 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
     case TDMT_VND_STREAM_TASK_UPDATE:
       return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true);
     case TDMT_VND_STREAM_TASK_RESET:
-      return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg->pCont);
     case TDMT_STREAM_TASK_PAUSE:
       return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
     case TDMT_STREAM_TASK_RESUME:
       return tqStreamTaskProcessTaskResumeReq(pSnode->pMeta, pMsg->info.conn.applyIndex, pMsg->pCont, false);
     case TDMT_STREAM_TASK_UPDATE_CHKPT:
-      return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, true, pMsg->pCont, pMsg->contLen);
-    case TDMT_MND_STREAM_CHKPT_CONSEN_RSP:
-      return tqStreamProcessConsensusChkptRsp(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessUpdateCheckpointReq(pSnode->pMeta, true, pMsg->pCont);
+    case TDMT_STREAM_CONSEN_CHKPT:
+      return tqStreamTaskProcessConsenChkptIdReq(pSnode->pMeta, pMsg);
     default:
       ASSERT(0);
   }
