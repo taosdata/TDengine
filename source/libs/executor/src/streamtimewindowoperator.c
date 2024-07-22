@@ -4884,7 +4884,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     // The timewindow that overlaps the timestamps of the input pBlock need to be recalculated and return to the
     // caller. Note that all the time window are not close till now.
     // the pDataBlock are always the same one, no need to call this again
-    code = (pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
     QUERY_CHECK_CODE(code, lino, _end);
 #ifdef BUILD_NO_CALL
     if (pInfo->invertible) {
