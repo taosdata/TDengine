@@ -480,7 +480,8 @@ void doStreamCountSaveCheckpoint(SOperatorInfo* pOperator) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _end);
     }
-    len = doStreamCountEncodeOpState(&pBuf, len, pOperator, true);
+    void* pTmpBuf = pBuf;
+    len = doStreamCountEncodeOpState(&pTmpBuf, len, pOperator, true);
     pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_COUNT_OP_CHECKPOINT_NAME,
                                                        strlen(STREAM_COUNT_OP_CHECKPOINT_NAME), pBuf, len);
     saveStreamOperatorStateComplete(&pInfo->basic);

@@ -1408,7 +1408,11 @@ void doStreamIntervalSaveCheckpoint(SOperatorInfo* pOperator) {
   if (needSaveStreamOperatorInfo(&pInfo->basic)) {
     int32_t len = doStreamIntervalEncodeOpState(NULL, 0, pOperator);
     void*   buf = taosMemoryCalloc(1, len);
-    void*   pBuf = buf;
+    if (!buf) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      return;
+    }
+    void* pBuf = buf;
     len = doStreamIntervalEncodeOpState(&pBuf, len, pOperator);
     pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_INTERVAL_OP_CHECKPOINT_NAME,
                                           strlen(STREAM_INTERVAL_OP_CHECKPOINT_NAME), buf, len);
@@ -3188,7 +3192,11 @@ void doStreamSessionSaveCheckpoint(SOperatorInfo* pOperator) {
   if (needSaveStreamOperatorInfo(&pInfo->basic)) {
     int32_t len = doStreamSessionEncodeOpState(NULL, 0, pOperator, true);
     void*   buf = taosMemoryCalloc(1, len);
-    void*   pBuf = buf;
+    if (!buf) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      return;
+    }
+    void* pBuf = buf;
     len = doStreamSessionEncodeOpState(&pBuf, len, pOperator, true);
     pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_CHECKPOINT_NAME,
                                                        strlen(STREAM_SESSION_OP_CHECKPOINT_NAME), buf, len);
@@ -4390,7 +4398,11 @@ void doStreamStateSaveCheckpoint(SOperatorInfo* pOperator) {
   if (needSaveStreamOperatorInfo(&pInfo->basic)) {
     int32_t len = doStreamStateEncodeOpState(NULL, 0, pOperator, true);
     void*   buf = taosMemoryCalloc(1, len);
-    void*   pBuf = buf;
+    if (!buf) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      return;
+    }
+    void* pBuf = buf;
     len = doStreamStateEncodeOpState(&pBuf, len, pOperator, true);
     pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_STATE_OP_CHECKPOINT_NAME,
                                                        strlen(STREAM_STATE_OP_CHECKPOINT_NAME), buf, len);
