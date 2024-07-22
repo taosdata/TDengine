@@ -2677,7 +2677,7 @@ class TaskAddData(StateTransitionTask):
 
         fullTableName = db.getName() + '.' + regTableName
         self._lockTableIfNeeded(fullTableName, 'batch')
-        colStrs = self._getTagColStrForSql(db, dbc)
+        colStrs = self._getTagColStrForSql(db, dbc)[0]
         sql = "INSERT INTO {} VALUES ".format(fullTableName)
         for j in range(numRecords):  # number of records per table
             # nextInt = db.getNextInt()
@@ -2730,9 +2730,9 @@ class TaskAddData(StateTransitionTask):
         random_keys = random.sample(list(tags.keys()), n)
         return ",".join(random_keys), {key: tags[key] for key in random_keys}
 
-    def _getTagColStrForSql(self, db: Database, dbc, customTagCols=None):
-        tagCols = self.getMeta(db, dbc)[0] if not customTagCols else customTagCols
-        print("-----tagCols:",tagCols)
+    def _getTagColStrForSql(self, db: Database, dbc, customTagCols=None, default="cols"):
+        meta_idx = 0 if default == "cols" else 1
+        tagCols = self.getMeta(db, dbc)[meta_idx] if not customTagCols else customTagCols
         # self.cols = self._getCols(db, dbc, regTableName)
         # print("-----tagCols:",tagCols)
         tagColStrs = []
@@ -2784,7 +2784,7 @@ class TaskAddData(StateTransitionTask):
             start_idx += 1
         tagColStrs_to_string_list = list(map(lambda x:str(x), tagColStrs))
         trans_tagColStrs_to_string_list = list(map(lambda x: f'"{x[1]}"' if x[0] in record_str_idx_lst else x[1], enumerate(tagColStrs_to_string_list)))
-        return ", ".join(trans_tagColStrs_to_string_list)
+        return ", ".join(trans_tagColStrs_to_string_list), tagColStrs
 
     def _addData(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
@@ -2879,7 +2879,7 @@ class TaskAddData(StateTransitionTask):
 
     def _addData_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
-        colStrs = self._getTagColStrForSql(db, dbc)
+        colStrs = self._getTagColStrForSql(db, dbc)[0]
         for j in range(numRecords):  # number of records per table
             intToWrite = db.getNextInt()
             nextTick = db.getNextTick()
@@ -2978,8 +2978,8 @@ class TaskAddData(StateTransitionTask):
         for j in range(numRecords):  # number of records per table
             colNames, colValues = self._getRandomCols(db, dbc)
             tagNames, tagValues = self._getRandomTags(db, dbc)
-            colStrs = self._getTagColStrForSql(db, dbc, colValues)
-            tagStrs = self._getTagColStrForSql(db, dbc, tagValues)
+            colStrs = self._getTagColStrForSql(db, dbc, colValues)[0]
+            tagStrs = self._getTagColStrForSql(db, dbc, tagValues)[0]
             regTableName = self.getRegTableName(j)  # "db.reg_table_{}".format(i
             fullStableName = db.getName() + '.' + self._getStableName(db)
             fullRegTableName = db.getName() + '.' + regTableName
@@ -2992,44 +2992,107 @@ class TaskAddData(StateTransitionTask):
                     tagStrs,
                     colNames,
                     colStrs)
-                Logging.info("Adding data: {}".format(sql))
+                # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
-                Logging.info("Data added: {}".format(sql))
+                # Logging.info("Data added: {}".format(sql))
             except:  # Any exception at all
                 raise
 
     def _addDataByMultiTable_n(self, db: Database, dbc):  # implied: NOT in batches
-        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
-        # if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
-        if dbc.query("show db_402.tables") == 0:  # no tables
+        if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
             return
         #self.tdSql.execute(f'insert into {dbname}.tb3 using {dbname}.stb3 tags (31, 32) values (now, 31, 32) {dbname}.tb4 using {dbname}.stb4 tags (41, 42) values (now, 41, 42)')
-
+        # insert into tb1 values (now, 11, 12) tb2 values (now, 21, 22);
         res = dbc.getQueryResult()
         regTables = list(map(lambda x:x[0], res[0:self.SMALL_NUMBER_OF_RECORDS]))
-
-        for regTableName in regTables:  # number of records per table
-            colNames, colValues = self._getRandomCols(db, dbc)
-            tagNames, tagValues = self._getRandomTags(db, dbc)
-            colStrs = self._getTagColStrForSql(db, dbc, colValues)
-            tagStrs = self._getTagColStrForSql(db, dbc, tagValues)
-            regTableName = self.getRegTableName(j)  # "db.reg_table_{}".format(i
-            fullStableName = db.getName() + '.' + self._getStableName(db)
+        sql = "INSERT INTO"
+        for i in range(len(regTables)):
+            colStrs = self._getTagColStrForSql(db, dbc)[0]
+            regTableName = regTables[i]  # "db.reg_table_{}".format(i
             fullRegTableName = db.getName() + '.' + regTableName
+            # TODO multi stb insert
+            sql += " {} VALUES ({})".format(
+                fullRegTableName,
+                colStrs)
+        try:
+            # Logging.info("Adding data: {}".format(sql))
+            dbc.execute(sql)
+            Logging.info("Data added: {}".format(sql))
+        except:  # Any exception at all
+            raise
 
-            try:
-                sql = "INSERT INTO {} using {}({}) TAGS({}) ({}) VALUES ({});".format(  # removed: tags ('{}', {})
-                    fullRegTableName,
-                    fullStableName,
-                    tagNames,
-                    tagStrs,
-                    colNames,
-                    colStrs)
-                Logging.info("Adding data: {}".format(sql))
-                dbc.execute(sql)
-                Logging.info("Data added: {}".format(sql))
-            except:  # Any exception at all
-                raise
+    def _getStmtBindLines(self, db: Database, dbc):
+        if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
+            return
+        res = dbc.getQueryResult()
+        lines = list()
+        regTables = list(map(lambda x:x[0], res[0:self.SMALL_NUMBER_OF_RECORDS]))
+        for regTable in regTables:
+            cols = self.getMeta(db, dbc)[0]
+            tags = self.getMeta(db, dbc)[1]
+            colStrs = self._getTagColStrForSql(db, dbc, cols)[1]
+            tagStrs = self._getTagColStrForSql(db, dbc, tags)[1]
+            print("-----colStrs:", colStrs)
+            combine_list = [regTable] + colStrs + tagStrs
+            print("-----combine_list:", combine_list)
+            lines.append(tuple(combine_list))
+        return lines, cols, tags
+
+    def _transTs(self, ts):
+        dt = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S.%f')
+        return int(dt.timestamp() * 1000)
+
+    def bind_row_by_row(self, stmt: taos.TaosStmt, lines, tag_dict, col_dict):
+        print("====lines:", lines)
+        tb_name = None
+        for row in lines:
+            print("====row:", row)
+            if tb_name != row[0]:
+                tb_name = row[0]
+                # Dynamic tag binding based on tag_types list
+                tags = taos.new_bind_params(len(tag_dict))  # Dynamically set the count of tags
+                print(tag_dict)
+                for i, tag_name in enumerate(tag_dict):
+                    print("====tags[i]:", tags[i])
+                    print("====tag_type:", tag_dict[tag_name])
+                    print("getattr====", getattr(tags[i], tag_dict[tag_name].lower()))
+                    print("======row[len(col_dict) + i]", f'row{[len(col_dict) + i]}')
+                    # getattr(tags[i], tag_dict[tag_name].lower())("row"[len(col_dict) + i])  # Dynamically call the appropriate binding method
+                    getattr(tags[i], tag_dict[tag_name].lower())(f'row{[len(col_dict) + i]}')  # Dynamically call the appropriate binding method
+                stmt.set_tbname_tags(tb_name, tags)
+
+            # Dynamic value binding based on value_types list
+            values = taos.new_bind_params(len(col_dict))  # Dynamically set the count of columns
+            for j, col_name in enumerate(col_dict):
+                print("====col_name:", col_name)
+                print("getattr====", getattr(values[j], col_dict[col_name].lower()))
+                if j == 0:
+                    getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j]))  # Dynamically call the appropriate binding method
+                else:
+                    getattr(values[j], col_dict[col_name].lower())(row[1 + j])  # Dynamically call the appropriate binding method
+            stmt.bind_param(values)
+        return stmt
+
+    def _addDataBySTMT(self, db: Database, dbc):
+        print("====db.getName():", db.getName())
+        lines, col_dict, tag_dict = self._getStmtBindLines(db, dbc)
+        print("lines, col_dict, tag_dict----", [lines, col_dict, tag_dict])
+        conn = taos.connect(database=db.getName())
+        try:
+            # Dynamically create the SQL statement based on the number of tags and values
+            tag_placeholders = ', '.join(['?' for _ in tag_dict])
+            value_placeholders = ', '.join(['?' for _ in col_dict])
+            sql = f"INSERT INTO ? USING meters TAGS({tag_placeholders}) VALUES({value_placeholders})"
+
+            stmt = conn.statement(sql)
+            self.bind_row_by_row(stmt, lines, tag_dict, col_dict)
+            # for row in lines:
+            #     tb_name, tags, values = row[0], row[1:len(tag_dict)+1], row[len(tag_dict)+1:]
+            #     self.bind_row_by_row(stmt, tb_name, tags, tag_dict, values, col_dict)
+            stmt.execute()
+            stmt.close()
+        finally:
+            conn.close()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
@@ -3040,8 +3103,6 @@ class TaskAddData(StateTransitionTask):
         tblSeq = list(range(numTables))
         random.shuffle(tblSeq)  # now we have random sequence
         for i in tblSeq:
-            self._addDataByMultiTable_n(db, dbc)
-            time.sleep(10)
             if (i in self.activeTable):  # wow already active
                 # print("x", end="", flush=True) # concurrent insertion
                 Progress.emit(Progress.CONCURRENT_INSERTION)
@@ -3056,12 +3117,16 @@ class TaskAddData(StateTransitionTask):
             sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists
             # self._unlockTable(fullTableName)
 
-            if Dice.throw(3) == 0:  # 1 in 2 chance
+            if Dice.throw(5) == 0:  # 1 in 2 chance
                 self._addData_n(db, dbc, regTableName, te)
-            elif Dice.throw(3) == 1:
+            elif Dice.throw(5) == 1:
                 self._addDataInBatch_n(db, dbc, regTableName, te)
-            elif Dice.throw(3) == 2:
+            elif Dice.throw(5) == 2:
                 self._addDataByAutoCreateTable_n(db, dbc)
+            elif Dice.throw(5) == 3:
+                self._addDataByMultiTable_n(db, dbc)
+            elif Dice.throw(5) == 4:
+                self._addDataBySTMT(db, dbc)
             else:
                 self.activeTable.discard(i)  # not raising an error, unlike remove
 
