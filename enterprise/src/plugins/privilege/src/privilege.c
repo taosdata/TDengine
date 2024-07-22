@@ -320,7 +320,7 @@ int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteLis
     }
     memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
   }
-  return 0;
+  TAOS_RETURN(0);
 }
 
 int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 1; }
