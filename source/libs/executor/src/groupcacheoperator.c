@@ -149,7 +149,7 @@ void blockDataDeepCleanup(SSDataBlock* pDataBlock) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
     if (NULL == p) {
-      qError("fail to get %dth col in dataBlock, numOfCols:%d", i, numOfCols);
+      qError("fail to get %dth col in dataBlock, numOfCols:%d", i, (int32_t)numOfCols);
       continue;
     }
     taosMemoryFreeClear(p->pData);
@@ -352,7 +352,7 @@ static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstr
   }
   pBufInfo = taosHashGet(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId));
   if (NULL == pBufInfo) {
-    qError("fail to get blk %d from pCache->pDirtyBlk", pBufInfo->basic.blkId);
+    qError("fail to get blk %" PRId64 " from pCache->pDirtyBlk", pBufInfo->basic.blkId);
     QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
   int32_t code = TSDB_CODE_SUCCESS;
@@ -462,7 +462,7 @@ void blockDataDeepClear(SSDataBlock* pDataBlock) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
     if (NULL == p) {
-      qError("fail to get %d col from pDataBlock, numOfCols:%d", i, numOfCols);
+      qError("fail to get %d col from pDataBlock, numOfCols:%d", i, (int32_t)numOfCols);
       continue;
     }
     p->pData = NULL;
@@ -1239,7 +1239,7 @@ static int32_t initGroupCacheSession(struct SOperatorInfo* pOperator, SOperatorP
 
   *ppSession = taosHashGet(pCtx->pSessions, &pGcParam->sessionId, sizeof(pGcParam->sessionId));
   if (NULL == *ppSession) {
-    qError("fail to get session %d from pSessions", pGcParam->sessionId);
+    qError("fail to get session %" PRId64 " from pSessions", pGcParam->sessionId);
     QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
   
