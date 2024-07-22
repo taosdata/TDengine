@@ -175,7 +175,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1); // TODO: check the return value
 
 _OVER:
   mndTransDrop(pTrans);
@@ -417,8 +417,9 @@ static void mndGetDnodeEps(SMnode *pMnode, SArray *pDnodeEps) {
   }
 }
 
-void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
-  SSdb *pSdb = pMnode->pSdb;
+int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t code = 0;
 
   int32_t numOfEps = 0;
   void   *pIter = NULL;
@@ -440,8 +441,13 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
       dInfo.isMnode = 0;
     }
 
-    taosArrayPush(pDnodeInfo, &dInfo);
+    if(taosArrayPush(pDnodeInfo, &dInfo) == NULL){
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
   }
+  TAOS_RETURN(code);
 }
 
 #define CHECK_MONITOR_PARA(para,err) \
@@ -883,7 +889,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1); // TODO: check the return value
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
@@ -1165,7 +1171,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1); // TODO: check the return value
   code = 0;
 
 _OVER:

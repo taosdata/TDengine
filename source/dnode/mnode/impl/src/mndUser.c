@@ -96,7 +96,7 @@
   (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
 
 static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList);
-SIpWhiteList  *createIpWhiteList(void *buf, int32_t len);
+static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteList  **ppWhiteList);
 static bool    updateIpWhiteList(SIpWhiteList *pOld, SIpWhiteList *pNew);
 static bool    isIpWhiteListEqual(SIpWhiteList *a, SIpWhiteList *b);
 static bool    isIpRangeEqual(SIpV4Range *a, SIpV4Range *b);
@@ -121,11 +121,11 @@ static int32_t  mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
-SHashObj       *mndFetchAllIpWhite(SMnode *pMnode);
+static int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab);
 static int32_t  mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq);
-static int32_t  mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, int8_t *pUpdate);
+static int32_t  mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, bool *pUpdate);
 
-void ipWhiteMgtUpdateAll(SMnode *pMnode);
+static int32_t ipWhiteMgtUpdateAll(SMnode *pMnode);
 typedef struct {
   SHashObj      *pIpWhiteTab;
   int64_t        ver;
@@ -159,9 +159,11 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
   if (ppList == NULL || *ppList == NULL) {
     SIpWhiteList *p = cloneIpWhiteList(pNew);
     if (p == NULL) {
+      update = false;
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
     }
     if ((code = taosHashPut(ipWhiteMgt.pIpWhiteTab, user, strlen(user), &p, sizeof(void *))) != 0) {
+      update = false;
       taosMemoryFree(p);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
@@ -173,20 +175,26 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
       taosMemoryFree(pOld);
       SIpWhiteList *p = cloneIpWhiteList(pNew);
       if (p == NULL) {
+        update = false;
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
       }
       if ((code = taosHashPut(ipWhiteMgt.pIpWhiteTab, user, strlen(user), &p, sizeof(void *))) != 0) {
+        update = false;
         taosMemoryFree(p);
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
     }
   }
-  SArray *fqdns = mndGetAllDnodeFqdns(pMnode);
+  SArray *fqdns = mndGetAllDnodeFqdns(pMnode);  // TODO: update this line after refactor api
 
   for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
     char *fqdn = taosArrayGetP(fqdns, i);
-    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, TSDB_DEFAULT_USER, fqdn, IP_WHITE_ADD);
-    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, IP_WHITE_ADD);
+    bool  upd = false;
+    TAOS_CHECK_GOTO(mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, TSDB_DEFAULT_USER, fqdn, IP_WHITE_ADD, &upd), &lino,
+                    _OVER);
+    update |= upd;
+    TAOS_CHECK_GOTO(mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, IP_WHITE_ADD, &upd), &lino, _OVER);
+    update |= upd;
   }
 
   for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
@@ -204,7 +212,10 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
 
 _OVER:
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  return 0;
+  if (code != 0) {
+    mError("failed to update ip white list for user: %s at line %d since %s", user, lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
 }
 int32_t ipWhiteMgtRemove(char *user) {
   bool update = true;
@@ -277,14 +288,17 @@ int32_t ipWhiteUpdateForAllUser(SIpWhiteList *pList) {
 }
 #endif
 
-void ipWhiteMgtUpdateAll(SMnode *pMnode) {
-  ipWhiteMgt.ver++;
-  SHashObj *pNew = mndFetchAllIpWhite(pMnode);
+static int32_t ipWhiteMgtUpdateAll(SMnode *pMnode) {
+  SHashObj *pNew = NULL;
+  TAOS_CHECK_RETURN(mndFetchAllIpWhite(pMnode, &pNew));
+
   SHashObj *pOld = ipWhiteMgt.pIpWhiteTab;
 
   ipWhiteMgt.pIpWhiteTab = pNew;
+  ipWhiteMgt.ver++;
 
   destroyIpWhiteTab(pOld);
+  TAOS_RETURN(0);
 }
 void ipWhiteMgtUpdate2(SMnode *pMnode) {
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
@@ -313,6 +327,8 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 }
 
 int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, bool *pUpdate) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
   bool       update = false;
   SIpV4Range range = {.ip = taosGetIpv4FromFqdn(fqdn), .mask = 32};
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
@@ -325,22 +341,34 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
   if (type == IP_WHITE_ADD) {
     if (pList == NULL) {
       SIpWhiteList *pNewList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range));
+      if(pNewList == NULL) {
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
       memcpy(pNewList->pIpRange, &range, sizeof(SIpV4Range));
       pNewList->num = 1;
 
-      taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *));
+      if (taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *)) != 0) {
+        taosMemoryFree(pNewList);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
       update = true;
     } else {
       if (!isRangeInWhiteList(pList, &range)) {
         int32_t       sz = sizeof(SIpWhiteList) + sizeof(SIpV4Range) * (pList->num + 1);
         SIpWhiteList *pNewList = taosMemoryCalloc(1, sz);
+        if (pNewList == NULL) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memcpy(pNewList->pIpRange, pList->pIpRange, sizeof(SIpV4Range) * (pList->num));
         pNewList->pIpRange[pList->num].ip = range.ip;
         pNewList->pIpRange[pList->num].mask = range.mask;
 
         pNewList->num = pList->num + 1;
 
-        taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *));
+        if (taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *)) != 0) {
+          taosMemoryFree(pNewList);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         taosMemoryFree(pList);
         update = true;
       }
@@ -355,6 +383,9 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
           int32_t       idx = 0;
           int32_t       sz = sizeof(SIpWhiteList) + sizeof(SIpV4Range) * (pList->num - 1);
           SIpWhiteList *pNewList = taosMemoryCalloc(1, sz);
+          if(pNewList == NULL) {
+            TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          }
           for (int i = 0; i < pList->num; i++) {
             SIpV4Range *e = &pList->pIpRange[i];
             if (!isIpRangeEqual(e, &range)) {
@@ -364,7 +395,10 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
             }
           }
           pNewList->num = idx;
-          taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *));
+          if (taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *) != 0)) {
+            taosMemoryFree(pNewList);
+            TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          }
           taosMemoryFree(pList);
         }
         update = true;
@@ -375,29 +409,44 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
     mDebug("ip-white-list update for user: %s, fqdn: %s", user, fqdn);
   }
 
-  return update;
+_OVER:
+  if (pUpdate) *pUpdate = update;
+  if (code != 0) {
+    mError("failed to update ip-white-list for user: %s, fqdn: %s at line %d since %s", user, fqdn, lino,
+           tstrerror(code));
+  }
+  TAOS_RETURN(code);
 }
 
 int32_t mndRefreshUserIpWhiteList(SMnode *pMnode) {
+  int32_t code = 0;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
 
-  ipWhiteMgtUpdateAll(pMnode);
+  if ((code = ipWhiteMgtUpdateAll(pMnode)) != 0) {
+    taosThreadRwlockUnlock(&ipWhiteMgt.rw);
+    TAOS_RETURN(code);
+  }
   ipWhiteMgt.ver = taosGetTimestampMs();
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
 
-  return 0;
+  TAOS_RETURN(code);
 }
-void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock) {
+
+int32_t mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  bool    update = false;
+
   if (lock) {
     taosThreadRwlockWrlock(&ipWhiteMgt.rw);
     if (ipWhiteMgt.ver == 0) {
-      ipWhiteMgtUpdateAll(pMnode);
+      TAOS_CHECK_GOTO(ipWhiteMgtUpdateAll(pMnode), &lino, _OVER);
       ipWhiteMgt.ver = taosGetTimestampMs();
-      mInfo("ip-white-list, user: %" PRId64 "", ipWhiteMgt.ver);
+      mInfo("update ip-white-list, user: %s, ver: %" PRId64, user, ipWhiteMgt.ver);
     }
   }
 
-  bool update = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, type);
+  TAOS_CHECK_GOTO(mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, type, &update), &lino, _OVER);
 
   void *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
   while (pIter) {
@@ -405,24 +454,43 @@ void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t t
     char  *key = taosHashGetKey(pIter, &klen);
 
     char *keyDup = taosMemoryCalloc(1, klen + 1);
+    if (keyDup == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
     memcpy(keyDup, key, klen);
-    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, keyDup, fqdn, type);
+    code = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, keyDup, fqdn, type, &update);
+    if (code != 0) {
+      update = false;
+      taosMemoryFree(keyDup);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
+    }
     taosMemoryFree(keyDup);
 
     pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, pIter);
   }
 
+_OVER:
   if (update) ipWhiteMgt.ver++;
-
   if (lock) taosThreadRwlockUnlock(&ipWhiteMgt.rw);
+  if (code != 0) {
+    mError("failed to update ip-white-list for user: %s, fqdn: %s at line %d since %s", user, fqdn, lino,
+           tstrerror(code));
+  }
+
+  TAOS_RETURN(code);
 }
-int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
+
+static int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
   int64_t ver = 0;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   ver = ipWhiteMgt.ver;
   int32_t num = taosHashGetSize(ipWhiteMgt.pIpWhiteTab);
 
   pUpdate->pUserIpWhite = taosMemoryCalloc(1, num * sizeof(SUpdateUserIpWhite));
+  if (pUpdate->pUserIpWhite == NULL) {
+    taosThreadRwlockUnlock(&ipWhiteMgt.rw);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   void   *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
   int32_t i = 0;
@@ -437,6 +505,11 @@ int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
       memcpy(pUser->user, key, klen);
       pUser->numOfRange = list->num;
       pUser->pIpRanges = taosMemoryCalloc(1, list->num * sizeof(SIpV4Range));
+      if (pUser->pIpRanges == NULL) {
+        taosThreadRwlockUnlock(&ipWhiteMgt.rw);
+        tFreeSUpdateIpWhiteReq(pUpdate);
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
       memcpy(pUser->pIpRanges, list->pIpRange, list->num * sizeof(SIpV4Range));
       i++;
     }
@@ -446,7 +519,7 @@ int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
   pUpdate->ver = ver;
 
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  return 0;
+  TAOS_RETURN(0);
 }
 
 void destroyIpWhiteTab(SHashObj *pIpWhiteTab) {
@@ -461,22 +534,54 @@ void destroyIpWhiteTab(SHashObj *pIpWhiteTab) {
 
   taosHashCleanup(pIpWhiteTab);
 }
-SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
+int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
-  SHashObj *pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
+  SHashObj *pIpWhiteTab = NULL;
+  SArray   *pUserNames = NULL;
+  SArray   *fqdns = NULL;
 
-  SArray *pUserNames = taosArrayInit(8, sizeof(void *));
+  pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
+  if (pIpWhiteTab == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
+  pUserNames = taosArrayInit(8, sizeof(void *));
+  if(pUserNames == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
+
   while (1) {
     SUserObj *pUser = NULL;
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
     if (pIter == NULL) break;
 
     SIpWhiteList *pWhiteList = cloneIpWhiteList(pUser->pIpWhiteList);
-    taosHashPut(pIpWhiteTab, pUser->user, strlen(pUser->user), &pWhiteList, sizeof(void *));
+    if (pWhiteList == NULL) {
+      sdbRelease(pSdb, pUser);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+    if(taosHashPut(pIpWhiteTab, pUser->user, strlen(pUser->user), &pWhiteList, sizeof(void *)) != 0) {
+      taosMemoryFree(pWhiteList);
+      sdbRelease(pSdb, pUser);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
 
     char *name = taosStrdup(pUser->user);
-    taosArrayPush(pUserNames, &name);
+    if(name == NULL) {
+      sdbRelease(pSdb, pUser);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+    if(taosArrayPush(pUserNames, &name) == NULL){
+      taosMemoryFree(name);
+      sdbRelease(pSdb, pUser);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
 
     sdbRelease(pSdb, pUser);
   }
@@ -491,20 +596,27 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
   }
   if (found == false) {
     char *name = taosStrdup(TSDB_DEFAULT_USER);
-    taosArrayPush(pUserNames, &name);
+    if (name == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+    if (taosArrayPush(pUserNames, &name) == NULL) {
+      taosMemoryFree(name);
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
   }
 
-  SArray *fqdns = mndGetAllDnodeFqdns(pMnode);
+  fqdns = mndGetAllDnodeFqdns(pMnode); // TODO: refactor this line after refactor api
 
   for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
     char *fqdn = taosArrayGetP(fqdns, i);
 
     for (int j = 0; j < taosArrayGetSize(pUserNames); j++) {
       char *name = taosArrayGetP(pUserNames, j);
-      mndUpdateIpWhiteImpl(pIpWhiteTab, name, fqdn, IP_WHITE_ADD);
+      TAOS_CHECK_GOTO(mndUpdateIpWhiteImpl(pIpWhiteTab, name, fqdn, IP_WHITE_ADD, NULL), &lino, _OVER);
     }
   }
 
+_OVER:
   for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
     char *fqdn = taosArrayGetP(fqdns, i);
     taosMemoryFree(fqdn);
@@ -516,11 +628,17 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
   }
   taosArrayDestroy(pUserNames);
 
-  return pIpWhiteTab;
+  if (code != 0) {
+    mError("failed to fetch all ip white list at line %d since %s", lino, tstrerror(code));
+    destroyIpWhiteTab(pIpWhiteTab);
+    pIpWhiteTab = NULL;
+  }
+  *ppIpWhiteTab = pIpWhiteTab;
+  TAOS_RETURN(code);
 }
 
 int32_t mndInitUser(SMnode *pMnode) {
-  TAOS_CHECK_REUTNR(ipWhiteMgtInit());
+  TAOS_CHECK_RETURN(ipWhiteMgtInit());
 
   SSdbTable table = {
       .sdbType = SDB_USER,
@@ -634,34 +752,50 @@ int32_t tSerializeIpWhiteList(void *buf, int32_t len, SIpWhiteList *pList) {
 }
 
 int32_t tDerializeIpWhileList(void *buf, int32_t len, SIpWhiteList *pList) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, len);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pList->num) < 0) return -1;
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER);
+  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &pList->num), &lino, _OVER);
 
   for (int i = 0; i < pList->num; i++) {
     SIpV4Range *pRange = &(pList->pIpRange[i]);
-    if (tDecodeU32(&decoder, &pRange->ip) < 0) return -1;
-    if (tDecodeU32(&decoder, &pRange->mask) < 0) return -1;
+    TAOS_CHECK_GOTO(tDecodeU32(&decoder, &pRange->ip), &lino, _OVER);
+    TAOS_CHECK_GOTO(tDecodeU32(&decoder, &pRange->mask), &lino, _OVER);
   }
+
+_OVER:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
+  if(code != 0) {
+    mError("failed to deserialize ip white list at line %d since %s", lino, tstrerror(code));
+  }
 
-  return 0;
+  TAOS_RETURN(code);
 }
-SIpWhiteList *createIpWhiteList(void *buf, int32_t len) {
-  int32_t  num = 0;
-  SDecoder decoder = {0};
+
+static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteList **ppList) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  int32_t       num = 0;
+  SIpWhiteList *p = NULL;
+  SDecoder      decoder = {0};
   tDecoderInit(&decoder, buf, len);
 
-  if (tStartDecode(&decoder) < 0) return NULL;
-  if (tDecodeI32(&decoder, &num) < 0) return NULL;
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _OVER), &lino, _OVER);
+  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &num), &lino, _OVER), &lino, _OVER);
+
+  p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + num * sizeof(SIpV4Range));
+  if(p == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
+  TAOS_CHECK_GOTO(tDerializeIpWhileList(buf, len, p), &lino, _OVER);
+
+_OVER:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
-
-  SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + num * sizeof(SIpV4Range));
-  tDerializeIpWhileList(buf, len, p);
   return p;
 }
 
@@ -1027,23 +1161,29 @@ _OVER:
 }
 
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  int32_t   code = 0;
+  int32_t   lino = 0;
   SSdbRow  *pRow = NULL;
   SUserObj *pUser = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PTR, &lino, _OVER);
+  }
 
   if (sver < 1 || sver > USER_VER_NUMBER) {
-    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_SDB_INVALID_DATA_VER, &lino, _OVER);
   }
 
   pRow = sdbAllocRow(sizeof(SUserObj));
-  if (pRow == NULL) goto _OVER;
+  if (pRow == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
 
   pUser = sdbGetRowObj(pRow);
-  if (pUser == NULL) goto _OVER;
+  if (pUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
 
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, _OVER)
@@ -1074,20 +1214,23 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   pUser->writeDbs =
       taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pUser->topics = taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (pUser->readDbs == NULL || pUser->writeDbs == NULL || pUser->topics == NULL) goto _OVER;
+  if (pUser->readDbs == NULL || pUser->writeDbs == NULL || pUser->topics == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    goto _OVER;
+  }
 
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    taosHashPut(pUser->readDbs, db, len, db, TSDB_DB_FNAME_LEN);
+    TAOS_CHECK_GOTO(taosHashPut(pUser->readDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    taosHashPut(pUser->writeDbs, db, len, db, TSDB_DB_FNAME_LEN);
+    TAOS_CHECK_GOTO(taosHashPut(pUser->writeDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   if (sver >= 2) {
@@ -1095,7 +1238,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       char topic[TSDB_TOPIC_FNAME_LEN] = {0};
       SDB_GET_BINARY(pRaw, dataPos, topic, TSDB_TOPIC_FNAME_LEN, _OVER)
       int32_t len = strlen(topic) + 1;
-      taosHashPut(pUser->topics, topic, len, topic, TSDB_TOPIC_FNAME_LEN);
+      TAOS_CHECK_GOTO(taosHashPut(pUser->topics, topic, len, topic, TSDB_TOPIC_FNAME_LEN), &lino, _OVER);
     }
   }
 
@@ -1133,21 +1276,38 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
     pUser->useDbs = taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
+    if (pUser->readTbs == NULL || pUser->writeTbs == NULL || pUser->alterTbs == NULL || pUser->readViews == NULL ||
+        pUser->writeViews == NULL || pUser->alterViews == NULL || pUser->useDbs == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      goto _OVER;
+    }
+
     for (int32_t i = 0; i < numOfReadTbs; ++i) {
       int32_t keyLen = 0;
       SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
 
       char *key = taosMemoryCalloc(keyLen, sizeof(char));
+      if (key == NULL) {
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
       memset(key, 0, keyLen);
       SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
       int32_t valuelen = 0;
       SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
       char *value = taosMemoryCalloc(valuelen, sizeof(char));
+      if (value == NULL) {
+        taosMemoryFree(key);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
       memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      taosHashPut(pUser->readTbs, key, keyLen, value, valuelen);
+      if (taosHashPut(pUser->readTbs, key, keyLen, value, valuelen) != 0) {
+        taosMemoryFree(key);
+        taosMemoryFree(value);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
 
       taosMemoryFree(key);
       taosMemoryFree(value);
@@ -1158,16 +1318,27 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
 
       char *key = taosMemoryCalloc(keyLen, sizeof(char));
+      if (key == NULL) {
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
       memset(key, 0, keyLen);
       SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
       int32_t valuelen = 0;
       SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
       char *value = taosMemoryCalloc(valuelen, sizeof(char));
+      if (value == NULL) {
+        taosMemoryFree(key);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
       memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      taosHashPut(pUser->writeTbs, key, keyLen, value, valuelen);
+      if (taosHashPut(pUser->writeTbs, key, keyLen, value, valuelen) != 0) {
+        taosMemoryFree(key);
+        taosMemoryFree(value);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
 
       taosMemoryFree(key);
       taosMemoryFree(value);
@@ -1179,16 +1350,27 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
 
         char *key = taosMemoryCalloc(keyLen, sizeof(char));
+        if (key == NULL) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memset(key, 0, keyLen);
         SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
         int32_t valuelen = 0;
         SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
         char *value = taosMemoryCalloc(valuelen, sizeof(char));
+        if (value == NULL) {
+          taosMemoryFree(key);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        taosHashPut(pUser->alterTbs, key, keyLen, value, valuelen);
+        if (taosHashPut(pUser->alterTbs, key, keyLen, value, valuelen) != 0) {
+          taosMemoryFree(key);
+          taosMemoryFree(value);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
 
         taosMemoryFree(key);
         taosMemoryFree(value);
@@ -1199,16 +1381,27 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
 
         char *key = taosMemoryCalloc(keyLen, sizeof(char));
+        if (key == NULL) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memset(key, 0, keyLen);
         SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
         int32_t valuelen = 0;
         SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
         char *value = taosMemoryCalloc(valuelen, sizeof(char));
+        if (value == NULL) {
+          taosMemoryFree(key);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        taosHashPut(pUser->readViews, key, keyLen, value, valuelen);
+        if (taosHashPut(pUser->readViews, key, keyLen, value, valuelen) != 0) {
+          taosMemoryFree(key);
+          taosMemoryFree(value);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
 
         taosMemoryFree(key);
         taosMemoryFree(value);
@@ -1219,16 +1412,27 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
 
         char *key = taosMemoryCalloc(keyLen, sizeof(char));
+        if (key == NULL) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memset(key, 0, keyLen);
         SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
         int32_t valuelen = 0;
         SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
         char *value = taosMemoryCalloc(valuelen, sizeof(char));
+        if (value == NULL) {
+          taosMemoryFree(key);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        taosHashPut(pUser->writeViews, key, keyLen, value, valuelen);
+        if (taosHashPut(pUser->writeViews, key, keyLen, value, valuelen) != 0) {
+          taosMemoryFree(key);
+          taosMemoryFree(value);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
 
         taosMemoryFree(key);
         taosMemoryFree(value);
@@ -1239,16 +1443,27 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
 
         char *key = taosMemoryCalloc(keyLen, sizeof(char));
+        if (key == NULL) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memset(key, 0, keyLen);
         SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
         int32_t valuelen = 0;
         SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
         char *value = taosMemoryCalloc(valuelen, sizeof(char));
+        if (value == NULL) {
+          taosMemoryFree(key);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
         memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        taosHashPut(pUser->alterViews, key, keyLen, value, valuelen);
+        if (taosHashPut(pUser->alterViews, key, keyLen, value, valuelen) != 0) {
+          taosMemoryFree(key);
+          taosMemoryFree(value);
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        }
 
         taosMemoryFree(key);
         taosMemoryFree(value);
@@ -1260,13 +1475,19 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
 
       char *key = taosMemoryCalloc(keyLen, sizeof(char));
+      if (key == NULL) {
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
       memset(key, 0, keyLen);
       SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
       int32_t ref = 0;
       SDB_GET_INT32(pRaw, dataPos, &ref, _OVER);
 
-      taosHashPut(pUser->useDbs, key, keyLen, &ref, sizeof(ref));
+      if (taosHashPut(pUser->useDbs, key, keyLen, &ref, sizeof(ref)) != 0) {
+        taosMemoryFree(key);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
       taosMemoryFree(key);
     }
   }
@@ -1276,17 +1497,19 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &len, _OVER);
 
     char *buf = taosMemoryMalloc(len);
-    if (buf == NULL) goto _OVER;
+    if(buf == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
     SDB_GET_BINARY(pRaw, dataPos, buf, len, _OVER);
 
-    pUser->pIpWhiteList = createIpWhiteList(buf, len);
+    code =  createIpWhiteList(buf, len, &pUser->pIpWhiteList);
     taosMemoryFree(buf);
 
     SDB_GET_INT64(pRaw, dataPos, &pUser->ipWhiteListVer, _OVER);
   }
 
   if (pUser->pIpWhiteList == NULL) {
-    pUser->pIpWhiteList = createDefaultIpWhiteList();
+    createDefaultIpWhiteList(&pUser->pIpWhiteList);
     pUser->ipWhiteListVer = taosGetTimestampMs();
   }
 
@@ -1724,29 +1947,50 @@ _OVER:
 }
 
 int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  int32_t        len = 0;
+  void          *pRsp = NULL;
+  SUpdateIpWhite ipWhite = {0};
+
   // impl later
   SRetrieveIpWhiteReq req = {0};
   if (tDeserializeRetrieveIpWhite(pReq->pCont, pReq->contLen, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
-  SUpdateIpWhite ipWhite = {0};
-  ipWhiteMgtFillMsg(&ipWhite);
+  TAOS_CHECK_GOTO(ipWhiteMgtFillMsg(&ipWhite), &lino, _OVER);
 
-  int32_t len = tSerializeSUpdateIpWhite(NULL, 0, &ipWhite);
+  len = tSerializeSUpdateIpWhite(NULL, 0, &ipWhite);
+  if (len < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
 
-  void *pRsp = rpcMallocCont(len);
-  tSerializeSUpdateIpWhite(pRsp, len, &ipWhite);
+  pRsp = rpcMallocCont(len);
+  if (!pRsp) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
+  len = tSerializeSUpdateIpWhite(pRsp, len, &ipWhite);
+  if (len < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
 
+_OVER:
+  if (code != 0) {
+    mError("failed to process retrieve ip white request at line %d since %s", lino, tstrerror(code));
+    rpcFreeCont(pRsp);
+    pRsp = NULL;
+    len = 0;
+  }
+  pReq->code = code;
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = len;
-  //}
-  tFreeSUpdateIpWhiteReq(&ipWhite);
 
-  return 0;
-_OVER:
-  return -1;
+  tFreeSUpdateIpWhiteReq(&ipWhite);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {

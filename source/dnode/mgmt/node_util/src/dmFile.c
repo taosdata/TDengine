@@ -308,6 +308,7 @@ _OVER:
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
 #ifdef TD_ENTERPRISE
   int32_t code = -1;
+  int32_t lino = 0;
   char   *machineId = NULL;
   char   *encryptCode = NULL;
 
@@ -344,9 +345,7 @@ int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
     goto _OVER;
   }
 
-  if (generateEncryptCode(key, machineId, &encryptCode) != 0) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(generateEncryptCode(key, machineId, &encryptCode), &lino, _OVER);
 
   if(dmWriteEncryptCodeFile(encryptFile, realEncryptFile, encryptCode, toLogFile) != 0){
     goto _OVER;
