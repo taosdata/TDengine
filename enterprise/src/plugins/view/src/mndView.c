@@ -140,6 +140,8 @@ int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
 
 
 SSdbRaw *mndViewActionEncode(SViewObj *pView) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_SUCCESS;
   void *buf = NULL;
   SSdbRaw *pRaw = NULL;
@@ -187,9 +189,11 @@ VIEW_ENCODE_OVER:
 }
 
 SSdbRow *mndViewActionDecode(SSdbRaw *pRaw) {
-  SSdbRow    *pRow = NULL;
-  SViewObj   *pView = NULL;
-  void       *buf = NULL;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SSdbRow  *pRow = NULL;
+  SViewObj *pView = NULL;
+  void     *buf = NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   int8_t sver = 0;

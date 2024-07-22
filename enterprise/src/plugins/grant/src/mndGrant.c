@@ -405,6 +405,8 @@ _exit:
 }
 
 SSdbRaw *mndGrantActionEncode(SGrantLogObj *pGrant) {
+  int32_t code = 0;
+  int32_t lino = 0;
   void    *buf = NULL;
   SSdbRaw *pRaw = NULL;
   int32_t  tlen = tSerializeSGrantObj(NULL, 0, pGrant);
@@ -450,6 +452,8 @@ _exit:
 }
 
 SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
   SSdbRow      *pRow = NULL;
   SGrantLogObj *pGrant = NULL;
   void         *buf = NULL;
