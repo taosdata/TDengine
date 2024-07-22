@@ -2900,11 +2900,8 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   STableMetaRsp metaRsp = {0};
 
   SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    TAOS_RETURN(code);
-  }
+  //TODO why return 0 here
+  if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
 
   TAOS_CHECK_GOTO(tDeserializeSTableInfoReq(pReq->pCont, pReq->contLen, &infoReq), NULL, _OVER);
@@ -2946,7 +2943,8 @@ _OVER:
 
   mndReleaseUser(pMnode, pUser);
   tFreeSTableMetaRsp(&metaRsp);
-  TAOS_RETURN(code);
+  //TODO change to TAOS_RETURN
+  return code;
 }
 
 static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
