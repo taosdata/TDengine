@@ -284,8 +284,10 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
           memcpy(&tagVal.i64, pData, pTagData->info.bytes);
         }
         void* p = taosArrayPush(tagArray, &tagVal);
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _end;
+        if (p == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _end;
+        }
       }
     }
 
