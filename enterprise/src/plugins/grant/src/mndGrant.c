@@ -105,14 +105,14 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     if (strncasecmp(pCfg->value, "revoked", 8) == 0) {
       revoked = true;
     } else {
-      TAOS_CHECK_GOTO(TSDB_CODE_INVALID_CFG_VALUE, &lino, _exit);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_CFG_VALUE);
     }
   }
 
   void         *pIter = NULL;
   SGrantLogObj *pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant) {
-    TAOS_CHECK_GOTO(TSDB_CODE_APP_IS_STARTING, &lino, _exit);
+    TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
   }
 
   if (revoked) {
@@ -127,7 +127,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     int32_t activeLen = strlen(pGrant->active);
     if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
       mndReleaseGrant(pMnode, pGrant, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
   }
@@ -136,7 +136,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
   if (nMachines > 0) {
     if (!(grantObj.pMachines = taosArrayInit(nMachines, sizeof(SGrantMachine)))) {
       mndReleaseGrant(pMnode, pGrant, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     (void)taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
   }
@@ -146,7 +146,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     mndGrantObjAppendState(&grantObj, &(SGrantState){.state = GRANT_STATE_REVOKED, .reason = GRANT_STATE_REASON_ALTER});
   } else {
     char *mergeActive = NULL;
-    TAOS_CHECK_GOTO(grantAlterActiveCode(pMnode, &grantObj, grantObj.active, pCfg->value, &mergeActive), &lino, _exit);
+    TAOS_CHECK_EXIT(grantAlterActiveCode(pMnode, &grantObj, grantObj.active, pCfg->value, &mergeActive));
 
     mndGrantObjAppendState(&grantObj, &(SGrantState){.state = GRANT_STATE_GRANTED, .reason = GRANT_STATE_REASON_ALTER});
 
@@ -165,7 +165,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
       char *tmpBuf = taosMemoryRealloc(grantObj.active, finalActiveLen + 1);
       if (!tmpBuf) {
         taosMemoryFreeClear(mergeActive);
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
       grantObj.active = tmpBuf;
     }
@@ -178,7 +178,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-cluster-active");
   if (pTrans == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    TAOS_CHECK_EXIT(terrno);
   }
 
   SSdbRaw *pCommitRaw = mndGrantActionEncode(&grantObj);
@@ -186,7 +186,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     code = terrno;
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
     mndTransDrop(pTrans);
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    TAOS_CHECK_EXIT(code);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
@@ -194,7 +194,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     code = terrno;
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     mndTransDrop(pTrans);
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    TAOS_CHECK_EXIT(code);
   }
 
   mndTransDrop(pTrans);
@@ -218,7 +218,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
   SGrantLogObj *pGrant = mndAcquireGrant(pMnode, &pIter);
   if (!pGrant && (!pState || pState->reason != GRANT_STATE_REASON_INIT)) {
     if (pGrant) mndReleaseGrant(pMnode, pGrant, pIter);
-    TAOS_CHECK_GOTO(TSDB_CODE_APP_IS_STARTING, &lino, _exit);
+    TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
   }
 
   if (pGrant) {
@@ -228,14 +228,14 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
     if (pGrant->active) {
       int32_t activeLen = strlen(pGrant->active);
       if (!(grantObj.active = taosMemoryMalloc(activeLen + 1))) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
       tstrncpy(grantObj.active, pGrant->active, activeLen + 1);
     }
     int32_t totalMachines = taosArrayGetSize(pGrant->pMachines) + nMachines;
     if (totalMachines > 0) {
       if (!(grantObj.pMachines = taosArrayInit(totalMachines, sizeof(SGrantMachine)))) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
       taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
       taosArrayAddAll(grantObj.pMachines, pMachines);
@@ -249,7 +249,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-grant-log");
   if (pTrans == NULL) {
     code = terrno;
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    TAOS_CHECK_EXIT(code);
   }
 
   SSdbRaw *pCommitRaw = mndGrantActionEncode(&grantObj);
@@ -257,7 +257,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
     code = terrno;
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
     mndTransDrop(pTrans);
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    TAOS_CHECK_EXIT(code);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
@@ -265,7 +265,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
     code = terrno;
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     mndTransDrop(pTrans);
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    TAOS_CHECK_EXIT(code);
   }
 
   mndTransDrop(pTrans);
@@ -304,37 +304,37 @@ int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantLogObj *pObj)
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
-  TAOS_CHECK_GOTO(tStartEncode(&encoder), &lino, _exit);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, pObj->id), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI8(&encoder, pObj->nStates), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI8(&encoder, pObj->nActives), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pObj->createTime), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pObj->updateTime), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pObj->upgradeTime), &lino, _exit);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->id));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->nStates));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->nActives));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->updateTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->upgradeTime));
   for (int8_t i = 0; i < pObj->nStates; ++i) {
-    TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pObj->states[i].u0), &lino, _exit);
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->states[i].u0));
   }
   for (int8_t i = 0; i < pObj->nActives; ++i) {
-    TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pObj->actives[i].u0), &lino, _exit);
-    TAOS_CHECK_GOTO(tEncodeCStr(&encoder, pObj->actives[i].active), &lino, _exit);
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->actives[i].u0));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->actives[i].active));
   }
 
   int32_t activeLen = 0;
   if (pObj->active) {
     activeLen = strlen(pObj->active);
   }
-  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, activeLen), &lino, _exit);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, activeLen));
   if (activeLen > 0) {
-    TAOS_CHECK_GOTO(tEncodeBinary(&encoder, pObj->active, activeLen + 1), &lino, _exit);
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pObj->active, activeLen + 1));
   }
 
   int32_t nMachines = taosArrayGetSize(pObj->pMachines);
-  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, nMachines), &lino, _exit);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nMachines));
   for (int32_t i = 0; i < nMachines; ++i) {
     SGrantMachine *pMachine = TARRAY_GET_ELEM(pObj->pMachines, i);
-    TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pMachine->u0), &lino, _exit);
-    TAOS_CHECK_GOTO(tEncodeBinary(&encoder, pMachine->machine, TSDB_MACHINE_ID_LEN), &lino, _exit);
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pMachine->u0));
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pMachine->machine, TSDB_MACHINE_ID_LEN));
   }
 
   tEndEncode(&encoder);
@@ -342,7 +342,7 @@ int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantLogObj *pObj)
   tlen = encoder.pos;
 _exit:
   tEncoderClear(&encoder);
-  if(code != 0) {
+  if (code != 0) {
     mError("grant, %s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -356,42 +356,42 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _exit);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
-  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &pObj->id), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI8(&decoder, &pObj->nStates), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI8(&decoder, &pObj->nActives), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pObj->createTime), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pObj->updateTime), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pObj->upgradeTime), &lino, _exit);
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->id));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->nStates));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->nActives));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->createTime));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->updateTime));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->upgradeTime));
 
   for (int8_t i = 0; i < pObj->nStates; ++i) {
     SGrantState *state = &pObj->states[i];
-    TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &state->u0), &lino, _exit);
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &state->u0));
   }
   for (int8_t i = 0; i < pObj->nActives; ++i) {
     SGrantActive *active = &pObj->actives[i];
-    TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &active->u0), &lino, _exit);
-    TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, &active->active[0]), &lino, _exit);
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &active->u0));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, &active->active[0]));
   }
   int32_t activeLen = 0;
-  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &activeLen), &lino, _exit);
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &activeLen));
   if (activeLen > 0) {
     if (!(pObj->active = taosMemoryMalloc(activeLen + 1))) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
-    TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, pObj->active), &lino, _exit);
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->active));
   }
   int32_t nMachines = 0;
-  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &nMachines), &lino, _exit);
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nMachines));
   if (nMachines > 0) {
     if (!pObj->pMachines && !(pObj->pMachines = taosArrayInit_s(sizeof(SGrantMachine), nMachines))) {
-      TAOS_CHECK_GOTO( TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     for (int32_t i = 0; i < nMachines; ++i) {
       SGrantMachine *pMachine = TARRAY_GET_ELEM(pObj->pMachines, i);
-      TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pMachine->u0), &lino, _exit);
-      TAOS_CHECK_GOTO(tDecodeCStrTo(&decoder, &pMachine->machine[0]), &lino, _exit);
+      TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pMachine->u0));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, &pMachine->machine[0]));
     }
   }
 _exit:
@@ -405,8 +405,8 @@ _exit:
 }
 
 SSdbRaw *mndGrantActionEncode(SGrantLogObj *pGrant) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t  code = 0;
+  int32_t  lino = 0;
   void    *buf = NULL;
   SSdbRaw *pRaw = NULL;
   int32_t  tlen = tSerializeSGrantObj(NULL, 0, pGrant);

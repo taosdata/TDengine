@@ -474,16 +474,16 @@ typedef struct {
   char   *key;
 } SActiveCodeInfo;
 
-char *grantGetMachineSerials();
-bool  grantGenActiveCode(SGrantObj *grant);
-bool  grantParseActiveCode(SGrantObj *grant, char **ppKey);
-bool  grantConnGenActiveCode(SGrantConnObj *grant);
-bool  grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
-bool  grantCheckMachineCode(SGrantObj *grant);
-bool  grantCheckClusterId(SGrantObj *grant);
-void  grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pConnObj);
-bool  grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
-bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
+char   *grantGetMachineSerials();
+int32_t grantGenActiveCode(SGrantObj *grant);
+bool    grantParseActiveCode(SGrantObj *grant, char **ppKey);
+int32_t grantConnGenActiveCode(SGrantConnObj *grant);
+bool    grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
+bool    grantCheckMachineCode(SGrantObj *grant);
+bool    grantCheckClusterId(SGrantObj *grant);
+void    grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pConnObj);
+bool    grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
+bool    grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 
 int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
 int32_t grantUniqGenMachinesChksum(SArray *pMachines, uint32_t *pChecksum);

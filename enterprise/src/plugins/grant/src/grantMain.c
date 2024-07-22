@@ -97,7 +97,7 @@
       src = GRANT_UNIQ_UNLIMITED_S;                    \
     }                                                  \
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));    \
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, &lino);    \
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);    \
   } while (0)
 
 #define GRANT_ITEM_SHOW(cur, limit, unit)                                      \
@@ -111,7 +111,7 @@
     }                                                                          \
     src = tmp1;                                                                \
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                            \
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, &lino);                            \
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                            \
   } while (0)
 
 #define GRANT_VALUE_CONVERT(from, to, factor, dft) \
@@ -354,15 +354,15 @@ int32_t mndInitGrant(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndGrantActionDelete,
   };
 
-  TAOS_CHECK_GOTO(sdbSetTable(pMnode->pSdb, table), &lino, _exit);
+  TAOS_CHECK_EXIT(sdbSetTable(pMnode->pSdb, table));
 
   grantSetClusterInfo(pMnode);
 
   if (!(grantHandle.pMachineHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)))) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
   if (!(grantHandle.pDnodeInfo = taosArrayInit(0, sizeof(SDnodeInfo)))) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
 _exit:
@@ -604,11 +604,11 @@ int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) {
   int32_t lino = 0;
   if (!pMsg->pCont || (pMsg->contLen <= 0)) {
     uWarn("failed to process grant notify in dnode since msg is empty");
-    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _exit);
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
   // step 1: process grant status from mnode
   SGrantNotify grantNotify = {0};
-  TAOS_CHECK_GOTO(tDeserializeGrantNotify(pMsg->pCont, pMsg->contLen, &grantNotify), &lino, _exit);
+  TAOS_CHECK_EXIT(tDeserializeGrantNotify(pMsg->pCont, pMsg->contLen, &grantNotify));
 
   gStatus.curTimeSeries = grantNotify.curTimeSeries;
 
@@ -639,12 +639,12 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   if (!pMsg->pCont || (pMsg->contLen <= 0)) {
     code = TSDB_CODE_INVALID_MSG;
     uWarn("failed to process grant req in dnode since msg is empty, gtid:%s", tbuf);
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    TAOS_CHECK_EXIT(code);
   }
   // step 1: process grant status from mnode
   GrantStatus grantStatusReq = {0};
   int64_t     clusterTime = 0;
-  TAOS_CHECK_GOTO(tDeserializeGrantStatus(pMsg->pCont, pMsg->contLen, &grantStatusReq, &clusterTime), &lino, _exit);
+  TAOS_CHECK_EXIT(tDeserializeGrantStatus(pMsg->pCont, pMsg->contLen, &grantStatusReq, &clusterTime));
 
   // step 2: set local dnode grant status
   taosWLockLatch(&grantHandle.rwLock);
@@ -1040,7 +1040,8 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     code = mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines,
                                  &(SGrantState){.state = GRANT_STATE_UNGRANTED, .reason = GRANT_STATE_REASON_INIT});
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+    TAOS_CHECK_EXIT(code);
+    TAOS_RETURN(code);
   }
 
   SGrantState *pLastState = pGrant->nStates > 0 ? &pGrant->states[pGrant->nStates - 1] : NULL;
@@ -1065,7 +1066,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     char *tmp = taosMemoryRealloc(grantObj.active, activeLen + 1);
     if (!tmp) {
       mndReleaseGrant(pMnode, pGrant, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     grantObj.active = tmp;
     grantObj.activeBufLen = activeLen + 1;
@@ -1073,7 +1074,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     char *tmp = taosMemoryRealloc(grantObj.active, activeLen + 1);
     if (!tmp) {
       mndReleaseGrant(pMnode, pGrant, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     grantObj.active = tmp;
     grantObj.activeBufLen = activeLen + 1;
@@ -1087,13 +1088,13 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     grantObj.active[0] = 0;
   }
 
-  TAOS_CHECK_GOTO(grantGetDnodesMiscInfo(pMnode, grantHandle.pMachineHash), &lino, _exit);
+  TAOS_CHECK_EXIT(grantGetDnodesMiscInfo(pMnode, grantHandle.pMachineHash));
 
   if (grantObj.active && grantObj.active[0] != 0) {
     if (0 != (code = grantUniqParseActiveCode(&grantObj, NULL))) {
       grantResetMaster(pMnode, 0);
     } else {
-      TAOS_CHECK_GOTO(fillGrantStatusFromObj(&gStatus, &grantObj, gStatus.grantState), &lino, _exit);
+      TAOS_CHECK_EXIT(fillGrantStatusFromObj(&gStatus, &grantObj, gStatus.grantState));
     }
   } else {
     if (pGrant->upgradeTime == 0) {
@@ -1110,7 +1111,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
     if (!grantObj.granted || (grantObj.flags & GRANT_ACTIVE_FLG_CHECK_MACHINE)) {
       if ((code = grantCheckMachines(pGrant, &pGrantMachines, &toRevoked)) != 0) {
         mndReleaseGrant(pMnode, pGrant, pIter);
-        TAOS_CHECK_GOTO(code, &lino, _exit);
+        TAOS_CHECK_EXIT(code);
       }
     }
 #endif
@@ -1122,7 +1123,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
       state.state = GRANT_STATE_REVOKED;
       state.reason = GRANT_STATE_REASON_MISMATCH;
       // The revoked state is only set in grantLog, gStatus.grantState is not updated in current HB loop.
-      TAOS_CHECK_GOTO(mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state), &lino, _exit);
+      TAOS_CHECK_EXIT(mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, &state));
       // Since gStatus.grantState is only set according to grantLog.lastState(to ensure the state is persisted in
       // grantLog), the next HB is triggered immediately to update the expired state according to
       // gStatus.revokedExpireSec.
@@ -1159,7 +1160,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
           appendState = true;
         }
       }
-      TAOS_CHECK_GOTO(mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, appendState ? &state : NULL), &lino, _exit);
+      TAOS_CHECK_EXIT(mndProcessUpdGrantLog(pMnode, NULL, pGrantMachines, appendState ? &state : NULL));
     }
   }
   // set cluster info after parse uniq active
@@ -1178,10 +1179,10 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   int32_t lino = 0;
 
   if (!pMnode) {
-    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PTR, &lino, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PTR);
   }
 
-  TAOS_CHECK_GOTO(grantCheckClusterInfo(pMnode), &lino, _OVER);
+  TAOS_CHECK_EXIT(grantCheckClusterInfo(pMnode));
 
   grantClusterTime = grantClusterEpoch + mndGetClusterUpTime(pMnode);
   (void)mndProcessGrantHBSyncInfo(pMnode, type);
@@ -1192,22 +1193,22 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   tSimpleHashClear(grantHandle.pMachineHash);
   grantHandle.nDiskCfg = 0;
 
-  TAOS_CHECK_GOTO(mndGetDnodeData(pMnode, grantHandle.pDnodeInfo), &lino, _OVER);
+  TAOS_CHECK_EXIT(mndGetDnodeData(pMnode, grantHandle.pDnodeInfo));
 
   int32_t dnodeSize = taosArrayGetSize(grantHandle.pDnodeInfo);
   int32_t contLen = 0;
   if (dnodeSize > 1) {
     void *pCont = NULL;
     void *qCont = NULL;
-    TAOS_CHECK_GOTO(tSerializeGrantStatus(NULL, 0, &gStatus, grantClusterTime, &contLen), &lino, _OVER);
+    TAOS_CHECK_EXIT(tSerializeGrantStatus(NULL, 0, &gStatus, grantClusterTime, &contLen));
     pCont = rpcMallocCont(contLen);
     if (!pCont) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     if ((code = tSerializeGrantStatus(pCont, contLen, &gStatus, grantClusterTime, NULL)) < 0) {
       rpcFreeCont(pCont);
-      TAOS_CHECK_GOTO(code, &lino, _OVER);
+      TAOS_CHECK_EXIT(code);
     }
 
     for (int32_t i = 0; i < dnodeSize; ++i) {
@@ -1226,7 +1227,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
         qCont = rpcMallocCont(contLen);
         if (!qCont) {
           rpcFreeCont(pCont);
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
         }
         memcpy(qCont, pCont, contLen);
         (void)mndSendGrantStatusToDnode(pMnode, info, contLen, qCont);
@@ -1239,7 +1240,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
     rpcFreeCont(pCont);
   }
 
-_OVER:
+_exit:
   if(code != 0) {
     uError("failed to process grant hb at line %d since %s", lino, tstrerror(code));
   }
@@ -1494,9 +1495,9 @@ static int32_t tSerializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNo
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
-  TAOS_CHECK_GOTO(tStartEncode(&encoder), &lino, _exit);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  TAOS_CHECK_GOTO(tEncodeU64(&encoder, pNotify->curTimeSeries), &lino, _exit);
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pNotify->curTimeSeries));
 
   tEndEncode(&encoder);
 
@@ -1516,13 +1517,13 @@ static int32_t mndSendGrantNotifyToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   int32_t lino = 0;
   int32_t contLen = 0;
 
-  TAOS_CHECK_GOTO(tSerializeGrantNotify(NULL, 0, pNotify, &contLen), &lino, _OVER);
+  TAOS_CHECK_EXIT(tSerializeGrantNotify(NULL, 0, pNotify, &contLen));
   void *pCont = rpcMallocCont(contLen);
   if (!pCont) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  TAOS_CHECK_GOTO(tSerializeGrantNotify(pCont, contLen, pNotify, NULL), &lino, _OVER);
+  TAOS_CHECK_EXIT(tSerializeGrantNotify(pCont, contLen, pNotify, NULL));
 
   SRpcMsg rpcMsg = {.pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_GRANT_NOTIFY, .info.noResp = 1};
 
@@ -1531,9 +1532,9 @@ static int32_t mndSendGrantNotifyToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   SEpSet epSet = {.numOfEps = 1};
   tstrncpy(epSet.eps[0].fqdn, pDnodeInfo->ep.fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = pDnodeInfo->ep.port;
-  TAOS_CHECK_GOTO(tmsgSendReq(&epSet, &rpcMsg), &lino, _OVER);
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 
-_OVER:
+_exit:
   if (code != 0) {
     uError("failed to send grant notify to dnode %d at line %d since %s", pDnodeInfo->id, lino, tstrerror(code));
   }
@@ -1555,10 +1556,10 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
 
   pDnodeInfo = taosArrayInit(dnodeSize, sizeof(SDnodeInfo));
   if (!pDnodeInfo) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  TAOS_CHECK_GOTO(mndGetDnodeData(pMnode, pDnodeInfo), &lino, _OVER);
+  TAOS_CHECK_EXIT(mndGetDnodeData(pMnode, pDnodeInfo));
 
   int32_t dInfoSize = taosArrayGetSize(pDnodeInfo);
   atomic_store_64(&grantNotifyTimeSeries, notifyTimeSeries);
@@ -1579,7 +1580,7 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
 
   grantNotifyTimestamp = taosGetTimestampMs();
 
-_OVER:
+_exit:
   taosArrayDestroy(pDnodeInfo);
   if(code != 0) {
     uError("failed to process grant notify at line %d since %s", lino, tstrerror(code));
@@ -2063,20 +2064,20 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
 
   // step 1: basic judgement and init
   if (!newActive || newActive[0] == 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PTR, &lino, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PTR);
   }
 
   if (grantObj.clusterId[0] == 0) {
     grantSetClusterId(pMnode, grantObj.clusterId);
     if (grantObj.clusterId[0] == 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_APP_IS_STARTING, &lino, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
     }
   }
 
   SGrantState lastState = {0};
   if (0 != (code = mndGrantGetLastState(pMnode, &lastState))) {
     if (code != TSDB_CODE_GRANT_OBJ_NOT_EXIST) {
-      TAOS_CHECK_GOTO(code, &lino, _OVER);
+      TAOS_CHECK_EXIT(code);
     }
   } else if (lastState.state == GRANT_STATE_REVOKED) {
     revoked = true;
@@ -2085,21 +2086,21 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   // check duplicated active
   for (int32_t i = 0; i < pObj->nActives; ++i) {
     if (0 == memcmp(&pObj->actives[i].active[0], newActive, GRANT_ACTIVE_HEAD_LEN)) {
-      TAOS_CHECK_GOTO(TSDB_CODE_GRANT_DUPLICATED_ACTIVE, &lino, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_GRANT_DUPLICATED_ACTIVE);
     }
   }
 
   if (!(pMachineHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)))) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
-  TAOS_CHECK_GOTO(grantGetDnodesMiscInfo(pMnode, pMachineHash), &lino, _OVER);
+  TAOS_CHECK_EXIT(grantGetDnodesMiscInfo(pMnode, pMachineHash));
 
   // step 2: parse new
   memcpy(newObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
   grantObjInit(&newObj, 0);
   int32_t newActiveLen = strlen(newActive);
   if (!(newObj.active = taosMemoryMalloc(newActiveLen + 1))) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
   newObj.activeBufLen = newActiveLen + 1;
   tstrncpy(newObj.active, newActive, newActiveLen + 1);
@@ -2107,14 +2108,14 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   code = grantUniqParseActiveCode(&newObj, NULL);
   if (code != 0 || !newObj.granted) {
     code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
-    TAOS_CHECK_GOTO(code, &lino, _OVER);
+    TAOS_CHECK_EXIT(code);
   } else {
     int64_t curTime = taosGetTimestampMs() / 1000;
     if (newObj.validDays > 0) {  // check valid days
       if (curTime - (int64_t)newObj.distribute > (int64_t)newObj.validDays * 86400) {
         uWarn("now:%" PRIi64 " minus distribute time:%" PRIi64 " larger than valid time:%" PRIi64, curTime,
               (int64_t)newObj.distribute, (int64_t)newObj.validDays * 86400);
-        TAOS_CHECK_GOTO(TSDB_CODE_GRANT_PAR_IVLD_DIST, &lino, _OVER);
+        TAOS_CHECK_EXIT(TSDB_CODE_GRANT_PAR_IVLD_DIST);
       }
     }
 
@@ -2123,7 +2124,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     if (basicExpire != GRANT_UNIQ_UNDEFINED && basicExpire != GRANT_UNIQ_UNLIMITED) {
       int64_t grantCurTime = grantGetCurTime(curTime, newObj.flags & GRANT_ACTIVE_FLG_CHECK_UPTIME);
       if (basicExpire * 86400 <= grantCurTime) {
-        TAOS_CHECK_GOTO(TSDB_CODE_GRANT_BASIC_EXPIRED, &lino, _OVER);
+        TAOS_CHECK_EXIT(TSDB_CODE_GRANT_BASIC_EXPIRED);
       }
     }
   }
@@ -2139,21 +2140,21 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
       }
     }
     if (!found) {
-      TAOS_CHECK_GOTO(TSDB_CODE_GRANT_LAST_ACTIVE_NOT_FOUND, &lino, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_GRANT_LAST_ACTIVE_NOT_FOUND);
     }
   }
 
 #ifndef GRANTS_CFG
   if (newObj.token[1] > 0) {  // check machines
     if (!(pMachines = taosArrayInit(tSimpleHashGetSize(pMachineHash), TSDB_MACHINE_ID_LEN))) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     void   *pe = NULL;
     int32_t iter = 0;
     while ((pe = tSimpleHashIterate(pMachineHash, pe, &iter)) != NULL) {
       void *key = tSimpleHashGetKey(pe, NULL);
       if (taosArrayPush(pMachines, key) == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
     int32_t nFinalMachine = taosArrayGetSize(pMachines);
@@ -2164,16 +2165,16 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
       machineChksum = taosCalcChecksum(0, TARRAY_GET_ELEM(pMachines, 0), nFinalMachine * TSDB_MACHINE_ID_LEN);
     }
     if (machineChksum != newObj.token[1]) {
-      TAOS_CHECK_GOTO(TSDB_CODE_GRANT_MACHINES_MISMATCH, &lino, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_GRANT_MACHINES_MISMATCH);
     }
     // cleanup pGrant->pMachines in revoked state
     if (revoked) taosArrayClear(pObj->pMachines);
   } else if (revoked) {
-    TAOS_CHECK_GOTO(TSDB_CODE_GRANT_UNLICENSED_CLUSTER, &lino, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_GRANT_UNLICENSED_CLUSTER);
   }
 #endif
 
-  TAOS_CHECK_GOTO(grantCheckGrantItems(pMnode, &newObj), &lino, _OVER);
+  TAOS_CHECK_EXIT(grantCheckGrantItems(pMnode, &newObj));
 
   // step 3: parse old
   memcpy(oldObj.clusterId, grantObj.clusterId, GRANT_CLUSTER_ID_LEN);
@@ -2181,7 +2182,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   if (oldActive) {
     int32_t oldActiveLen = strlen(oldActive);
     if (!(oldObj.active = taosMemoryMalloc(oldActiveLen + 1))) {
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     oldObj.activeBufLen = oldActiveLen + 1;
     tstrncpy(oldObj.active, oldActive, oldActiveLen + 1);
@@ -2195,7 +2196,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
       } else {
         code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
         uError("old active parse failed since %s, active:%s", tstrerror(code), oldActive);
-        TAOS_CHECK_GOTO(code, &lino, _OVER);
+        TAOS_CHECK_EXIT(code);
       }
     }
   }
@@ -2204,15 +2205,14 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   if (oldObj.granted == 0 || lastState.state == GRANT_STATE_REVOKED || lastState.state == GRANT_STATE_EXPIRED) {
     if (newObj.expireDays[GRANT_OPT_BASIC] == GRANT_UNIQ_UNDEFINED || newObj.limitTimeSeries == GRANT_UNIQ_UNDEFINED ||
         newObj.limitDnodes == GRANT_UNIQ_UNDEFINED || newObj.limitCpuCores == GRANT_UNIQ_UNDEFINED) {
-      TAOS_CHECK_GOTO(TSDB_CODE_GRANT_LACK_OF_BASIC, &lino, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_GRANT_LACK_OF_BASIC);
     }
   }
 
   // step 4: merge active code
-  TAOS_CHECK_GOTO(grantUniqMergeActiveCode(&oldObj, &newObj, &mergeObj), &lino, _OVER);
+  TAOS_CHECK_EXIT(grantUniqMergeActiveCode(&oldObj, &newObj, &mergeObj));
 
-  TAOS_CHECK_GOTO(grantOptExpireDaysCheck(pMnode, mergeObj.granted ? &mergeObj : &newObj, pObj->upgradeTime), &lino,
-                  _OVER);
+  TAOS_CHECK_EXIT(grantOptExpireDaysCheck(pMnode, mergeObj.granted ? &mergeObj : &newObj, pObj->upgradeTime));
 
   if (mergeObj.granted) {
     *mergeActive = mergeObj.active;
@@ -2221,7 +2221,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
 
   uInfo("succeed to alter grant active");
 
-_OVER:
+_exit:
   taosArrayDestroy(pMachines);
   tSimpleHashCleanup(pMachineHash);
   tDestroyGrantUniqObj(&mergeObj);
@@ -2251,7 +2251,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     const char      *src = GRANT_VERSION;
     snprintf(tmp1, GRANTS_COL_MAX_LEN, "%s %s", TD_PRODUCT_NAME, src);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
 
     if (gStatus.grantState == GRANT_STATE_REVOKED) {
       GRANT_EXPIRE_SHOW(gStatus.revokedExpireSec);
@@ -2265,7 +2265,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = (gStatus.expired || (gStatus.multiTierExpired && gStatus.nDiskCfg > 1)) ? "true" : "false";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -2275,7 +2275,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = gGrantState[gStatus.grantState];
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
 
     GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, 64);
     GRANT_ITEM_SHOW(gStatus.curDnodes, gStatus.limitDnodes, 16);
@@ -2285,7 +2285,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   }
 
   pShow->numOfRows += numOfRows;
-_OVER:
+_exit:
   if (code != 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
@@ -2369,68 +2369,53 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
   if (pShow->numOfRows < 1) {
     // sevice
-    TAOS_CHECK_GOTO(
-        mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SERVICE], gGrantDisplay[GRANT_OPT_SERVICE],
-                                 pStatus->serviceExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false, false),
-        &lino, _OVER);
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SERVICE],
+                                             gGrantDisplay[GRANT_OPT_SERVICE], pStatus->serviceExpireSec, 0,
+                                             GRANT_UNIQ_UNUTILIZED, false, false));
     // with expire and limits
     int64_t basicExpireSec =
         pStatus->grantState == GRANT_STATE_REVOKED ? pStatus->revokedExpireSec : pStatus->basicExpireSec;
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, "timeseries", "Timeseries", basicExpireSec,
-                                             pStatus->curTimeSeries, pStatus->limitTimeSeries, false, false),
-                    &lino, _OVER);
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, "dnodes", "Dnodes", basicExpireSec, pStatus->curDnodes,
-                                             pStatus->limitDnodes, false, false),
-                    &lino, _OVER);
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, "cpu_cores", "CPU Cores", basicExpireSec,
-                                             pStatus->curCpuCores, pStatus->limitCpuCores, false, false),
-                    &lino, _OVER);
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "timeseries", "Timeseries", basicExpireSec,
+                                             pStatus->curTimeSeries, pStatus->limitTimeSeries, false, false));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "dnodes", "Dnodes", basicExpireSec, pStatus->curDnodes,
+                                             pStatus->limitDnodes, false, false));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "cpu_cores", "CPU Cores", basicExpireSec,
+                                             pStatus->curCpuCores, pStatus->limitCpuCores, false, false));
 
-    TAOS_CHECK_GOTO(
-        mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM], gGrantDisplay[GRANT_OPT_STREAM],
-                                 pStatus->streamExpireSec, pStatus->curStreams, pStatus->limitStreams, false, true),
-        &lino, _OVER);
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SUBSCRIPTION],
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM],
+                                             gGrantDisplay[GRANT_OPT_STREAM], pStatus->streamExpireSec,
+                                             pStatus->curStreams, pStatus->limitStreams, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SUBSCRIPTION],
                                              gGrantDisplay[GRANT_OPT_SUBSCRIPTION], pStatus->subscriptionExpireSec,
-                                             pStatus->curSubscriptions, pStatus->limitSubscriptions, false, true),
-                    &lino, _OVER);
-    TAOS_CHECK_GOTO(
-        mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_VIEW], gGrantDisplay[GRANT_OPT_VIEW],
-                                 pStatus->viewExpireSec, pStatus->curViews, pStatus->limitViews, false, true),
-        &lino, _OVER);
+                                             pStatus->curSubscriptions, pStatus->limitSubscriptions, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_VIEW],
+                                             gGrantDisplay[GRANT_OPT_VIEW], pStatus->viewExpireSec, pStatus->curViews,
+                                             pStatus->limitViews, false, true));
     // with expire and no limits
-    TAOS_CHECK_GOTO(
-        mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_AUDIT], gGrantDisplay[GRANT_OPT_AUDIT],
-                                 pStatus->auditExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false, true),
-        &lino, _OVER);
-    TAOS_CHECK_GOTO(
-        mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_CSV], gGrantDisplay[GRANT_OPT_CSV],
-                                 pStatus->csvExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false, true),
-        &lino, _OVER);
-    TAOS_CHECK_GOTO(
-        mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STORAGE], gGrantDisplay[GRANT_OPT_STORAGE],
-                                 pStatus->multiTierExpireSec, 0, GRANT_UNIQ_UNUTILIZED, false, true),
-        &lino, _OVER);
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DATA_BAK_RST],
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_AUDIT],
+                                             gGrantDisplay[GRANT_OPT_AUDIT], pStatus->auditExpireSec, 0,
+                                             GRANT_UNIQ_UNUTILIZED, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_CSV],
+                                             gGrantDisplay[GRANT_OPT_CSV], pStatus->csvExpireSec, 0,
+                                             GRANT_UNIQ_UNUTILIZED, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STORAGE],
+                                             gGrantDisplay[GRANT_OPT_STORAGE], pStatus->multiTierExpireSec, 0,
+                                             GRANT_UNIQ_UNUTILIZED, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DATA_BAK_RST],
                                              gGrantDisplay[GRANT_OPT_DATA_BAK_RST], pStatus->bakRstExpireSec, 0,
-                                             GRANT_UNIQ_UNUTILIZED, false, true),
-                    &lino, _OVER);
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_OBJECT_STORAGE],
+                                             GRANT_UNIQ_UNUTILIZED, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_OBJECT_STORAGE],
                                              gGrantDisplay[GRANT_OPT_OBJECT_STORAGE], pStatus->objectStorageExpireSec,
-                                             0, GRANT_UNIQ_UNUTILIZED, false, true),
-                    &lino, _OVER);
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_ACTIVE_ACTIVE],
+                                             0, GRANT_UNIQ_UNUTILIZED, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_ACTIVE_ACTIVE],
                                              gGrantDisplay[GRANT_OPT_ACTIVE_ACTIVE], pStatus->activeActiveExpireSec, 0,
-                                             GRANT_UNIQ_UNUTILIZED, false, true),
-                    &lino, _OVER);
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DUAL_REPLICA_HA],
+                                             GRANT_UNIQ_UNUTILIZED, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DUAL_REPLICA_HA],
                                              gGrantDisplay[GRANT_OPT_DUAL_REPLICA_HA], pStatus->dualReplicaHAExpireSec,
-                                             0, GRANT_UNIQ_UNUTILIZED, false, true),
-                    &lino, _OVER);
-    TAOS_CHECK_GOTO(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DB_ENCRYPTION],
+                                             0, GRANT_UNIQ_UNUTILIZED, false, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DB_ENCRYPTION],
                                              gGrantDisplay[GRANT_OPT_DB_ENCRYPTION], pStatus->dbEncryptionExpireSec, 0,
-                                             GRANT_UNIQ_UNUTILIZED, false, true),
-                    &lino, _OVER);
+                                             GRANT_UNIQ_UNUTILIZED, false, true));
 
     taosRLockLatch(&grantHandle.rwLock);
 
@@ -2450,7 +2435,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
                                       pStatus->dataIns[i].number, pStatus->dataIns[i].speed, true, true);
       if (code != 0) {
         taosRUnLockLatch(&grantHandle.rwLock);
-        TAOS_CHECK_GOTO(code, &lino, _OVER);
+        TAOS_CHECK_EXIT(code);
       }
     }
     // dynamic dataIns
@@ -2463,7 +2448,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
           pDataIn->speed, true, true);
       if (code != 0) {
         taosRUnLockLatch(&grantHandle.rwLock);
-        TAOS_CHECK_GOTO(code, &lino, _OVER);
+        TAOS_CHECK_EXIT(code);
       }
     }
 
@@ -2472,7 +2457,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
   pShow->numOfRows += numOfRows;
 
-_OVER:
+_exit:
   if (code != 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
@@ -2513,13 +2498,13 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   } else if (bufLen > TSDB_GRANT_LOG_COL_LEN) {
     code = TSDB_CODE_APP_ERROR;
     uError("machine col len of grant logs overflow(%d > %d) since %s", bufLen, TSDB_GRANT_LOG_COL_LEN, tstrerror(code));
-    TAOS_CHECK_GOTO(code, &lino, _OVER);
+    TAOS_CHECK_EXIT(code);
   }
 
   bufLen += VARSTR_HEADER_SIZE;
 
   if (!(pBuf = taosMemoryCalloc(1, bufLen))) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if (pShow->numOfRows < 1) {
@@ -2541,7 +2526,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -2560,7 +2545,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -2581,14 +2566,14 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
 
     ++numOfRows;
   }
 
   pShow->numOfRows += numOfRows;
 
-_OVER:
+_exit:
   mndReleaseGrant(pMnode, pGrant, pIter);
   taosMemoryFree(pBuf);
   if (code != 0) {
@@ -2619,13 +2604,13 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
   bufLen = VARSTR_HEADER_SIZE + TSDB_CLUSTER_ID_LEN + 1 + nMachines * (TSDB_MACHINE_ID_LEN + 1);
   if (!(pBuf = taosMemoryCalloc(1, bufLen))) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if (grantObj.clusterId[0] == 0) {
     grantSetClusterId(pMnode, grantObj.clusterId);
     if (grantObj.clusterId[0] == 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_APP_IS_STARTING, NULL, _OVER);
+      TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
     }
   }
 
@@ -2635,7 +2620,7 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     snprintf(qBuf, TSDB_CLUSTER_ID_LEN + 1, "%s", grantObj.clusterId);
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -2655,19 +2640,19 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       ++index;
       sdbRelease(pSdb, pDnode);
     }
-    COL_DATA_SET_VAL_GOTO((const char *)&index, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO((const char *)&index, false, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, &lino);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
 
     ++numOfRows;
   }
 
   pShow->numOfRows += numOfRows;
 
-_OVER:
+_exit:
   taosMemoryFree(pBuf);
   if (code != 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2687,9 +2672,9 @@ static int32_t tDeserializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *p
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _exit);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
-  TAOS_CHECK_GOTO(tDecodeU64(&decoder, &pNotify->curTimeSeries), &lino, _exit);
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pNotify->curTimeSeries));
 _exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -2708,38 +2693,38 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
-  TAOS_CHECK_GOTO(tStartEncode(&encoder), &lino, _exit);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
   // grant status
   // since 3.2.3.0
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p1), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p2), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p3), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p4), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p5), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p6), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p7), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p8), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p9), &lino, _exit);
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p1));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p2));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p3));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p4));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p5));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p6));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p7));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p8));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p9));
 
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->limitTimeSeries), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->curTimeSeries), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, pStatus->limitCpuCores), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, pStatus->curCpuCores), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, pStatus->limitViews), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI32v(&encoder, pStatus->curViews), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->revokedExpireSec), &lino, _exit);
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->limitTimeSeries));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->curTimeSeries));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->limitCpuCores));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->curCpuCores));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->limitViews));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->curViews));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->revokedExpireSec));
 
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, clusterTime), &lino, _exit);
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, clusterTime));
 
-  TAOS_CHECK_GOTO(tSerializeGrantDataIns(&encoder, pStatus->dataIns), &lino, _exit);
-  TAOS_CHECK_GOTO(tSerializeGrantDynDataIns(&encoder, pStatus->pDataIns), &lino, _exit);
+  TAOS_CHECK_EXIT(tSerializeGrantDataIns(&encoder, pStatus->dataIns));
+  TAOS_CHECK_EXIT(tSerializeGrantDynDataIns(&encoder, pStatus->pDataIns));
 
   // since 3.3.0.0
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p10), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p11), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p12), &lino, _exit);
-  TAOS_CHECK_GOTO(tEncodeI64v(&encoder, pStatus->p13), &lino, _exit);
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p10));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p11));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p12));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p13));
 
   // for future grantItems
 
@@ -2762,38 +2747,38 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _exit);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
   // grant status
   // since 3.2.3.0
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p1), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p2), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p3), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p4), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p5), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p6), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p7), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p8), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p9), &lino, _exit);
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p1));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p2));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p3));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p4));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p5));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p6));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p7));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p8));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p9));
 
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->limitTimeSeries), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->curTimeSeries), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &pStatus->limitCpuCores), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &pStatus->curCpuCores), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &pStatus->limitViews), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI32v(&decoder, &pStatus->curViews), &lino, _exit);
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->revokedExpireSec), &lino, _exit);
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->limitTimeSeries));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->curTimeSeries));
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->limitCpuCores));
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->curCpuCores));
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->limitViews));
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->curViews));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->revokedExpireSec));
 
-  TAOS_CHECK_GOTO(tDecodeI64v(&decoder, clusterTime), &lino, _exit);
-  TAOS_CHECK_GOTO(tDeserializeGrantDataIns(&decoder, pStatus->dataIns), &lino, _exit);
-  TAOS_CHECK_GOTO(tDeserializeGrantDynDataIns(&decoder, pStatus->pDataIns), &lino, _exit);
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, clusterTime));
+  TAOS_CHECK_EXIT(tDeserializeGrantDataIns(&decoder, pStatus->dataIns));
+  TAOS_CHECK_EXIT(tDeserializeGrantDynDataIns(&decoder, pStatus->pDataIns));
 
   // since 3.3.0.0
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p10), &lino, _exit);
-    TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p11), &lino, _exit);
-    TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p12), &lino, _exit);
-    TAOS_CHECK_GOTO(tDecodeI64v(&decoder, &pStatus->p13), &lino, _exit);
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p10));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p11));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p12));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p13));
   }
 
   // for future grantItems
@@ -2904,20 +2889,20 @@ static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pDnode->id, false, pDnode, &lino);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDnode->id, false, pDnode, _exit);
     ++cols;
 
     const char *keyStr = getEncryptKeyStatStr(online ? pDnode->encryptionKeyStat : ENCRYPT_KEY_STAT_UNKNOWN);
     STR_TO_VARSTR(buf, keyStr)
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO(buf, false, pDnode, &lino);
+    COL_DATA_SET_VAL_GOTO(buf, false, pDnode, _exit);
 
     ++numOfRows;
     sdbRelease(pSdb, pDnode);
   }
 
   pShow->numOfRows += numOfRows;
-_OVER:
+_exit:
   if (code != 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
