@@ -7,6 +7,7 @@ use anyhow::{bail, Context};
 use chrono::Utc;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
+use ringbuf::Rb;
 use rumqttc::tokio_rustls::rustls;
 use rumqttc::{
     tokio_rustls, AsyncClient, Event, Incoming, MqttOptions, QoS, SubscribeFilter,
@@ -204,7 +205,6 @@ pub async fn mqtt_to_taos(
             let status = status?;
             tracing::info!("mqtt exit with {status}");
             if !status.success() {
-                use ringbuf::Rb;
                 safe_exit!();
                 let error = error_buf.lock().await.iter().join("");
                 anyhow::bail!("MQTT exit with {}\n{error}", status);
@@ -215,9 +215,36 @@ pub async fn mqtt_to_taos(
         },
         err = ipc_handler.recv_error() => {
             tracing::info!("have received worker thread panicked message, terminate child process");
-            if let Some(err) = err {
+            // Check if the child process is still running.
+            if let Ok(Some(status)) = child.try_wait() {
+                tracing::warn!(err, "IPC handler error, mqtt already exit with {status}");
+                if status.success() {
+                    safe_exit!();
+                    if let Some(err) = err {
+                        anyhow::bail!("MQTT writer error: {err}");
+                    } else {
+                        anyhow::bail!("IPC panicked and mqtt exit with 0");
+                    }
+                } else {
+                    let error = error_buf.lock().await.iter().join("");
+                    let error = if let Some(err) = err {
+                        format!("MQTT writer fails, details:\n  1. MQTT IPC error: {err}.\n  2. mqtt exit with {status}: {error}")
+                    } else {
+                        format!("MQTT connector exit with {status}: {error}")
+                    };
+                    safe_exit!();
+                    anyhow::bail!("{error}");
+                }
+            } else {
+                tracing::warn!(err, "IPC handler error, mqtt connector is still running, terminate it");
+                // The child process is still running, terminate it.
+                let _ = child.terminate_timeout(Duration::from_secs(2)).await;
                 safe_exit!();
-                anyhow::bail!("mqtt writer error: {err}");
+                if let Some(err) = err {
+                    anyhow::bail!("mqtt writer error: {err}");
+                } else {
+                    anyhow::bail!("IPC handler closed and mqtt connector exit");
+                }
             }
         },
         _ = cancel.cancelled() => {
