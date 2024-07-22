@@ -1537,8 +1537,8 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
   SQuery*     pQuery = NULL;
   SHashObj*   pVgHash = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
-  RAW_NULL_CHECK(pRequest);
+  SRequestObj* pRequest = NULL;
+  RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw block with field, rows:%d, pData:%p, tbname:%s, fields:%p, numFields:%d", LOG_ID_VALUE,
          rows, pData, tbname, fields, numFields);
@@ -1597,8 +1597,8 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   SQuery*     pQuery = NULL;
   SHashObj*   pVgHash = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
-  RAW_NULL_CHECK(pRequest);
+  SRequestObj* pRequest = NULL;
+  RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw block, rows:%d, pData:%p, tbname:%s", LOG_ID_VALUE, rows, pData, tbname);
 
@@ -1667,8 +1667,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   SDecoder    decoder = {0};
   STableMeta* pTableMeta = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
-  RAW_NULL_CHECK(pRequest);
+  SRequestObj* pRequest = NULL;
+  RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw data, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   pRequest->syncQuery = true;
@@ -1778,8 +1778,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   STableMeta*    pTableMeta = NULL;
   SVCreateTbReq* pCreateReqDst = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
-  RAW_NULL_CHECK(pRequest);
+  SRequestObj* pRequest = NULL;
+  RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw metadata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   pRequest->syncQuery = true;

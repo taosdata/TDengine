@@ -2137,8 +2137,8 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
   SSmlHandle  *info = NULL;
   int          cnt = 0;
   while (1) {
-    request = (SRequestObj *)createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, reqid);
-    if (request == NULL) {
+    code = createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, reqid, &request);
+    if (TSDB_CODE_SUCCESS != code) {
       uError("SML:taos_schemaless_insert error request is null");
       return NULL;
     }

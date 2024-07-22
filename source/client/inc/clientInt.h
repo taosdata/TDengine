@@ -348,7 +348,8 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 
-void*    createTscObj(const char* user, const char* auth, const char* db, int32_t connType, SAppInstInfo* pAppInfo);
+int32_t   createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo,
+                      void **p);
 void     destroyTscObj(void* pObj);
 STscObj* acquireTscObj(int64_t rid);
 int32_t  releaseTscObj(int64_t rid);
@@ -356,7 +357,7 @@ void     destroyAppInst(void* pAppInfo);
 
 uint64_t generateRequestId();
 
-void*        createRequest(uint64_t connId, int32_t type, int64_t reqid);
+int32_t      createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj **pRequest);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
@@ -370,7 +371,7 @@ void  resetConnectDB(STscObj* pTscObj);
 
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
-void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
+int32_t openTransporter(const char* user, const char* auth, int32_t numOfThreads, void **pDnodeConn);
 void tscStopCrashReport();
 
 typedef struct AsyncArg {
@@ -381,8 +382,8 @@ typedef struct AsyncArg {
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
-STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
-                               uint16_t port, int connType);
+int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
+                              uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 
@@ -443,6 +444,30 @@ void    freeQueryParam(SSyncQueryParam* param);
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes);
 #endif
 
+#define TSC_ERR_RET(c)                \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
+#define TSC_RET(c)                    \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+#define TSC_ERR_JRET(c)              \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
 
 void slowQueryLog(int64_t rid, bool killed, int32_t code, int32_t cost);
 

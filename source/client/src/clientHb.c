@@ -44,28 +44,34 @@ static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { retur
 
 static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog,
                                         SAppHbMgr *pAppHbMgr) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   SUserAuthBatchRsp batchRsp = {0};
   if (tDeserializeSUserAuthBatchRsp(value, valueLen, &batchRsp) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);
   for (int32_t i = 0; i < numOfBatchs; ++i) {
     SGetUserAuthRsp *rsp = taosArrayGet(batchRsp.pArray, i);
+    if (NULL == rsp) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      goto _return;
+    }
     tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
 
-    catalogUpdateUserAuthInfo(pCatalog, rsp);
+    TSC_ERR_JRET(catalogUpdateUserAuthInfo(pCatalog, rsp));
   }
 
-  if (numOfBatchs > 0) hbUpdateUserAuthInfo(pAppHbMgr, &batchRsp);
+  if (numOfBatchs > 0) {
+    TSC_ERR_JRET(hbUpdateUserAuthInfo(pAppHbMgr, &batchRsp));
+  }
 
-  atomic_val_compare_exchange_8(&pAppHbMgr->connHbFlag, 1, 2);
+  (void)atomic_val_compare_exchange_8(&pAppHbMgr->connHbFlag, 1, 2);
 
+_return:
   taosArrayDestroy(batchRsp.pArray);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp) {
@@ -93,7 +99,9 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           }
         }
         if (!pRsp) {
-          releaseTscObj(pReq->connKey.tscRid);
+          if (TSDB_CODE_SUCCESS != releaseTscObj(pReq->connKey.tscRid)) {
+            tscError("failed to release tscObj");
+          }
           taosHashCancelIterate(hbMgr->activeInfo, pReq);
           break;
         }
@@ -108,7 +116,9 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
             }
           }
         }
-        releaseTscObj(pReq->connKey.tscRid);
+        if (TSDB_CODE_SUCCESS != releaseTscObj(pReq->connKey.tscRid)) {
+          tscError("failed to release tscObj");
+        }
         continue;
       }
 
@@ -153,7 +163,9 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", tscRid:%" PRIi64, pRsp->user,
                  oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
-      releaseTscObj(pReq->connKey.tscRid);
+      if (TSDB_CODE_SUCCESS != releaseTscObj(pReq->connKey.tscRid)) {
+        tscError("failed to release tscObj");
+      }
     }
   }
   return 0;
@@ -211,6 +223,10 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
   int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);
   for (int32_t i = 0; i < numOfBatchs; ++i) {
     SDbHbRsp *rsp = taosArrayGet(batchRsp.pArray, i);
+    if (NULL == rsp) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      goto _return;
+    }
     if (rsp->useDbRsp) {
       tscDebug("hb use db rsp, db:%s, vgVersion:%d, stateTs:%" PRId64 ", uid:%" PRIx64, rsp->useDbRsp->db,
                rsp->useDbRsp->vgVersion, rsp->useDbRsp->stateTs, rsp->useDbRsp->uid);
@@ -227,7 +243,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
 
         tscDebug("hb to update db vgInfo, db:%s", rsp->useDbRsp->db);
 
-        catalogUpdateDBVgInfo(pCatalog, rsp->useDbRsp->db, rsp->useDbRsp->uid, vgInfo);
+        TSC_ERR_JRET(catalogUpdateDBVgInfo(pCatalog, rsp->useDbRsp->db, rsp->useDbRsp->uid, vgInfo));
 
         if (IS_SYS_DBNAME(rsp->useDbRsp->db)) {
           code = hbGenerateVgInfoFromRsp(&vgInfo, rsp->useDbRsp);
@@ -235,23 +251,28 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
             goto _return;
           }
 
-          catalogUpdateDBVgInfo(pCatalog,
-                                (rsp->useDbRsp->db[0] == 'i') ? TSDB_PERFORMANCE_SCHEMA_DB : TSDB_INFORMATION_SCHEMA_DB,
-                                rsp->useDbRsp->uid, vgInfo);
+          TSC_ERR_JRET(catalogUpdateDBVgInfo(pCatalog,
+                                             (rsp->useDbRsp->db[0] == 'i') ?
+                                                                           TSDB_PERFORMANCE_SCHEMA_DB :
+                                                                           TSDB_INFORMATION_SCHEMA_DB,
+                                             rsp->useDbRsp->uid, vgInfo));
         }
       }
     }
 
     if (rsp->cfgRsp) {
       tscDebug("hb db cfg rsp, db:%s, cfgVersion:%d", rsp->cfgRsp->db, rsp->cfgRsp->cfgVersion);
-      catalogUpdateDbCfg(pCatalog, rsp->cfgRsp->db, rsp->cfgRsp->dbId, rsp->cfgRsp);
+      code = catalogUpdateDbCfg(pCatalog, rsp->cfgRsp->db, rsp->cfgRsp->dbId, rsp->cfgRsp);
       rsp->cfgRsp = NULL;
     }
     if (rsp->pTsmaRsp) {
       if (rsp->pTsmaRsp->pTsmas) {
         for (int32_t i = 0; i < rsp->pTsmaRsp->pTsmas->size; ++i) {
           STableTSMAInfo *pTsma = taosArrayGetP(rsp->pTsmaRsp->pTsmas, i);
-          catalogAsyncUpdateTSMA(pCatalog, &pTsma, rsp->dbTsmaVersion);
+          if (NULL == pTsma) {
+            TSC_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
+          }
+          TSC_ERR_JRET(catalogAsyncUpdateTSMA(pCatalog, &pTsma, rsp->dbTsmaVersion));
         }
         taosArrayClear(rsp->pTsmaRsp->pTsmas);
       }
@@ -265,7 +286,7 @@ _return:
 }
 
 static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   SSTbHbRsp hbRsp = {0};
   if (tDeserializeSSTbHbRsp(value, valueLen, &hbRsp) != 0) {
@@ -276,10 +297,13 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
   int32_t numOfMeta = taosArrayGetSize(hbRsp.pMetaRsp);
   for (int32_t i = 0; i < numOfMeta; ++i) {
     STableMetaRsp *rsp = taosArrayGet(hbRsp.pMetaRsp, i);
-
+    if (NULL == rsp) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      goto _return;
+    }
     if (rsp->numOfColumns < 0) {
       tscDebug("hb to remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
-      catalogRemoveStbMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->stbName, rsp->suid);
+      TSC_ERR_JRET(catalogRemoveStbMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->stbName, rsp->suid));
     } else {
       tscDebug("hb to update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
       if (rsp->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -288,22 +312,26 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      catalogAsyncUpdateTableMeta(pCatalog, rsp);
+      TSC_ERR_JRET(catalogAsyncUpdateTableMeta(pCatalog, rsp));
     }
   }
 
   int32_t numOfIndex = taosArrayGetSize(hbRsp.pIndexRsp);
   for (int32_t i = 0; i < numOfIndex; ++i) {
     STableIndexRsp *rsp = taosArrayGet(hbRsp.pIndexRsp, i);
-
-    catalogUpdateTableIndex(pCatalog, rsp);
+    if (NULL == rsp) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      goto _return;
+    }
+    TSC_ERR_JRET(catalogUpdateTableIndex(pCatalog, rsp));
   }
 
+_return:
   taosArrayDestroy(hbRsp.pIndexRsp);
   hbRsp.pIndexRsp = NULL;
 
   tFreeSSTbHbRsp(&hbRsp);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t hbProcessDynViewRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
@@ -320,7 +348,7 @@ static void hbFreeSViewMetaInRsp(void *p) {
 }
 
 static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   SViewHbRsp hbRsp = {0};
   if (tDeserializeSViewHbRsp(value, valueLen, &hbRsp) != 0) {
@@ -332,20 +360,25 @@ static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatal
   int32_t numOfMeta = taosArrayGetSize(hbRsp.pViewRsp);
   for (int32_t i = 0; i < numOfMeta; ++i) {
     SViewMetaRsp *rsp = taosArrayGetP(hbRsp.pViewRsp, i);
-
+    if (NULL == rsp) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      goto _return;
+    }
     if (rsp->numOfCols < 0) {
       tscDebug("hb to remove view, db:%s, view:%s", rsp->dbFName, rsp->name);
-      catalogRemoveViewMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->name, rsp->viewId);
+      code = catalogRemoveViewMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->name, rsp->viewId);
       tFreeSViewMetaRsp(rsp);
       taosMemoryFreeClear(rsp);
     } else {
       tscDebug("hb to update view, db:%s, view:%s", rsp->dbFName, rsp->name);
-      catalogUpdateViewMeta(pCatalog, rsp);
+      code = catalogUpdateViewMeta(pCatalog, rsp);
     }
+    TSC_ERR_JRET(code);
   }
 
+_return:
   taosArrayDestroy(hbRsp.pViewRsp);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t hbprocessTSMARsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
@@ -363,30 +396,38 @@ static int32_t hbprocessTSMARsp(void *value, int32_t valueLen, struct SCatalog *
 
     if (!pTsmaInfo->pFuncs) {
       tscDebug("hb to remove tsma: %s.%s", pTsmaInfo->dbFName, pTsmaInfo->name);
-      catalogRemoveTSMA(pCatalog, pTsmaInfo);
+      code = catalogRemoveTSMA(pCatalog, pTsmaInfo);
       tFreeAndClearTableTSMAInfo(pTsmaInfo);
     } else {
       tscDebug("hb to update tsma: %s.%s", pTsmaInfo->dbFName, pTsmaInfo->name);
-      catalogUpdateTSMA(pCatalog, &pTsmaInfo);
+      code = catalogUpdateTSMA(pCatalog, &pTsmaInfo);
       tFreeAndClearTableTSMAInfo(pTsmaInfo);
     }
+    TSC_ERR_JRET(code);
   }
 
+_return:
   taosArrayDestroy(hbRsp.pTsmas);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pKvs, i);
+    if (NULL == kv) {
+      tscError("invalid hb kv, idx:%d", i);
+      continue;
+    }
     switch (kv->key) {
       case HEARTBEAT_KEY_USER_AUTHINFO: {
         if (kv->valueLen <= 0 || NULL == kv->value) {
           tscError("invalid hb user auth info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-
-        hbProcessUserAuthInfoRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr);
+        if (TSDB_CODE_SUCCESS != hbProcessUserAuthInfoRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr)) {
+          tscError("process user auth info response faild, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
         break;
       }
       case HEARTBEAT_KEY_DBINFO: {
@@ -394,8 +435,10 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           tscError("invalid hb db info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-
-        hbProcessDBInfoRsp(kv->value, kv->valueLen, pCatalog);
+        if (TSDB_CODE_SUCCESS != hbProcessDBInfoRsp(kv->value, kv->valueLen, pCatalog)) {
+          tscError("process db info response faild, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
         break;
       }
       case HEARTBEAT_KEY_STBINFO: {
@@ -403,8 +446,10 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           tscError("invalid hb stb info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-
-        hbProcessStbInfoRsp(kv->value, kv->valueLen, pCatalog);
+        if (TSDB_CODE_SUCCESS != hbProcessStbInfoRsp(kv->value, kv->valueLen, pCatalog)) {
+          tscError("process stb info response faild, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
         break;
       }
 #ifdef TD_ENTERPRISE
@@ -413,8 +458,10 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           tscError("invalid dyn view info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-
-        hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog);
+        if (TSDB_CODE_SUCCESS != hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog)) {
+          tscError("Process dyn view response failed, len: %d, value: %p", kv->valueLen, kv->value);
+          break;
+        }
         break;
       }
       case HEARTBEAT_KEY_VIEWINFO: {
@@ -422,8 +469,10 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           tscError("invalid view info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-
-        hbProcessViewInfoRsp(kv->value, kv->valueLen, pCatalog);
+        if (TSDB_CODE_SUCCESS != hbProcessViewInfoRsp(kv->value, kv->valueLen, pCatalog)) {
+          tscError("Process view info response failed, len: %d, value: %p", kv->valueLen, kv->value);
+          break;
+        }
         break;
       }
 #endif
@@ -431,7 +480,9 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
         if (kv->valueLen <= 0 || !kv->value) {
           tscError("Invalid tsma info, len: %d, value: %p", kv->valueLen, kv->value);
         }
-        hbprocessTSMARsp(kv->value, kv->valueLen, pCatalog);
+        if (TSDB_CODE_SUCCESS != hbprocessTSMARsp(kv->value, kv->valueLen, pCatalog)) {
+          tscError("Process tsma info response failed, len: %d, value: %p", kv->valueLen, kv->value);
+        }
         break;
       }
       default:
@@ -478,7 +529,9 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
           tscDebug("request 0x%" PRIx64 " not exist to kill", pRsp->query->killRid);
         } else {
           taos_stop_query((TAOS_RES *)pRequest);
-          releaseRequest(pRsp->query->killRid);
+          if (TSDB_CODE_SUCCESS != releaseRequest(pRsp->query->killRid)) {
+            tscWarn("release request failed");
+          }
         }
       }
 
@@ -487,10 +540,14 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       }
 
       if (pRsp->query->pQnodeList) {
-        updateQnodeList(pTscObj->pAppInfo, pRsp->query->pQnodeList);
+        if (TSDB_CODE_SUCCESS != updateQnodeList(pTscObj->pAppInfo, pRsp->query->pQnodeList)) {
+          tscWarn("update qnode list failed");
+        }
       }
 
-      releaseTscObj(pRsp->connKey.tscRid);
+      if (TSDB_CODE_SUCCESS != releaseTscObj(pRsp->connKey.tscRid)) {
+        tscWarn("release tscobj failed");
+      }
     }
   }
 
@@ -508,11 +565,13 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     }
   }
 
+
   taosHashRelease(pAppHbMgr->activeInfo, pReq);
 
   return TSDB_CODE_SUCCESS;
 }
 
+//TODO(smj)
 static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (0 == atomic_load_8(&clientHbMgr.inited)) {
     goto _return;

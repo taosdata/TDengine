@@ -52,7 +52,7 @@ static bool validateDbName(const char* db) { return stringLengthCheck(db, TSDB_D
 
 static char* getClusterKey(const char* user, const char* auth, const char* ip, int32_t port) {
   char key[512] = {0};
-  snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
+  (void)snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
   return taosStrdup(key);
 }
 
@@ -68,36 +68,30 @@ bool chkRequestKilled(void* param) {
   return killed;
 }
 
-static STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
-                                SAppInstInfo* pAppInfo, int connType);
+static int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
+                               SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj);
 
-STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
-                               uint16_t port, int connType) {
-  if (taos_init() != TSDB_CODE_SUCCESS) {
-    return NULL;
-  }
-
+int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
+                               uint16_t port, int connType, STscObj** pObj) {
+  TSC_ERR_RET(taos_init());
   if (!validateUserName(user)) {
-    terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
-    return NULL;
+    TSC_ERR_RET(TSDB_CODE_TSC_INVALID_USER_LENGTH);
   }
 
   char localDb[TSDB_DB_NAME_LEN] = {0};
   if (db != NULL && strlen(db) > 0) {
     if (!validateDbName(db)) {
-      terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
-      return NULL;
+      TSC_ERR_RET(TSDB_CODE_TSC_INVALID_DB_LENGTH);
     }
 
     tstrncpy(localDb, db, sizeof(localDb));
-    strdequote(localDb);
+    (void)strdequote(localDb);
   }
 
   char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
   if (auth == NULL) {
     if (!validatePassword(pass)) {
-      terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
-      return NULL;
+      TSC_ERR_RET(TSDB_CODE_TSC_INVALID_PASS_LENGTH);
     }
 
     taosEncryptPass_c((uint8_t*)pass, strlen(pass), secretEncrypt);
@@ -107,13 +101,9 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
 
   SCorEpSet epSet = {0};
   if (ip) {
-    if (initEpSetFromCfg(ip, NULL, &epSet) < 0) {
-      return NULL;
-    }
+    TSC_ERR_RET(initEpSetFromCfg(ip, NULL, &epSet));
   } else {
-    if (initEpSetFromCfg(tsFirst, tsSecond, &epSet) < 0) {
-      return NULL;
-    }
+    TSC_ERR_RET(initEpSetFromCfg(tsFirst, tsSecond, &epSet));
   }
 
   if (port) {
@@ -122,7 +112,9 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
   }
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
-
+  if (NULL == key) {
+    TSC_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
   tscInfo("connecting to server, numOfEps:%d inUse:%d user:%s db:%s key:%s", epSet.epSet.numOfEps, epSet.epSet.inUse,
           user, db, key);
   for (int32_t i = 0; i < epSet.epSet.numOfEps; ++i) {
@@ -130,29 +122,44 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
   }
 
   SAppInstInfo** pInst = NULL;
-  taosThreadMutexLock(&appInfo.mutex);
+  int32_t code = taosThreadMutexLock(&appInfo.mutex);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to lock app info, code:%s", tstrerror(code));
+  }
 
   pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   SAppInstInfo* p = NULL;
   if (pInst == NULL) {
     p = taosMemoryCalloc(1, sizeof(struct SAppInstInfo));
+    if (NULL == p) {
+      taosThreadMutexUnlock(&appInfo.mutex);
+      taosMemoryFreeClear(key);
+      TSC_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
     p->mgmtEp = epSet;
     taosThreadMutexInit(&p->qnodeMutex, NULL);
-    p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores / 2);
-    if (p->pTransporter == NULL) {
+    code = openTransporter(user, secretEncrypt, tsNumOfCores / 2, &p->pTransporter);
+    if (TSDB_CODE_SUCCESS != code) {
       taosThreadMutexUnlock(&appInfo.mutex);
       taosMemoryFreeClear(key);
       taosMemoryFree(p);
-      return NULL;
+      TSC_ERR_RET(code);
     }
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
       destroyAppInst(&p);
       taosThreadMutexUnlock(&appInfo.mutex);
       taosMemoryFreeClear(key);
-      return NULL;
+      // TODO(smj) : change this to right code.
+      TSC_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
-    taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
+    code = taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
+    if (TSDB_CODE_SUCCESS != code) {
+      destroyAppInst(&p);
+      taosThreadMutexUnlock(&appInfo.mutex);
+      taosMemoryFreeClear(key);
+      TSC_ERR_RET(code);
+    }
     p->instKey = key;
     key = NULL;
     tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
@@ -164,11 +171,14 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     atomic_store_8(&(*pInst)->pAppHbMgr->connHbFlag, 0);
   }
 
-  taosThreadMutexUnlock(&appInfo.mutex);
+  code = taosThreadMutexUnlock(&appInfo.mutex);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to unlock app info, code:%s", tstrerror(code));
+  }
 
   taosMemoryFreeClear(key);
 
-  return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType);
+  return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType, pObj);
 }
 
 //SAppInstInfo* getAppInstInfo(const char* clusterKey) {
@@ -188,10 +198,10 @@ void freeQueryParam(SSyncQueryParam* param) {
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
                      SRequestObj** pRequest, int64_t reqid) {
-  *pRequest = createRequest(connId, TSDB_SQL_SELECT, reqid);
-  if (*pRequest == NULL) {
+  int32_t code = createRequest(connId, TSDB_SQL_SELECT, reqid, pRequest);
+  if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to malloc sqlObj, %s", sql);
-    return terrno;
+    return code;
   }
 
   (*pRequest)->sqlstr = taosMemoryMalloc(sqlLen + 1);
@@ -1405,18 +1415,19 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
   return 0;
 }
 
-STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
-                         SAppInstInfo* pAppInfo, int connType) {
-  STscObj* pTscObj = createTscObj(user, auth, db, connType, pAppInfo);
-  if (NULL == pTscObj) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return pTscObj;
+int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
+                         SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj) {
+  *pTscObj = NULL;
+  int32_t code = createTscObj(user, auth, db, connType, pAppInfo, (void**)&pTscObj);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
 
-  SRequestObj* pRequest = createRequest(pTscObj->id, TDMT_MND_CONNECT, 0);
-  if (pRequest == NULL) {
-    destroyTscObj(pTscObj);
-    return NULL;
+  SRequestObj* pRequest = NULL;
+  code = createRequest((*pTscObj)->id, TDMT_MND_CONNECT, 0, &pRequest);
+  if (TSDB_CODE_SUCCESS != code) {
+    destroyTscObj(*pTscObj);
+    return code;
   }
 
   pRequest->sqlstr = taosStrdup("taos_connect");
@@ -1427,25 +1438,23 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+  asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &(*pTscObj)->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
-  tsem_wait(&pRequest->body.rspSem);
-  if (pRequest->code != TSDB_CODE_SUCCESS) {
-    const char* errorMsg =
-        (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
+  code = tsem_wait(&pRequest->body.rspSem);
+  if (code != TSDB_CODE_SUCCESS) {
+    const char* errorMsg = (code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
     tscError("failed to connect to server, reason: %s", errorMsg);
 
-    terrno = pRequest->code;
     destroyRequest(pRequest);
-    taos_close_internal(pTscObj);
-    pTscObj = NULL;
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
   } else {
-    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, pTscObj->id,
-             pTscObj->connId, pTscObj->pAppInfo->pTransporter, pRequest->requestId);
+    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, (*pTscObj)->id,
+             (*pTscObj)->connId, (*pTscObj)->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
 
-  return pTscObj;
+  return code;
 }
 
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
@@ -1654,8 +1663,9 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
     return NULL;
   }
 
-  STscObj* pObj = taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY);
-  if (pObj) {
+  STscObj* pObj = NULL;
+  int32_t code = taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY, &pObj);
+  if (TSDB_CODE_SUCCESS == code) {
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     *rid = pObj->id;
     return (TAOS*)rid;
