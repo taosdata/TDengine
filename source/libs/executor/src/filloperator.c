@@ -85,12 +85,7 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   }
 
   int32_t numOfResultRows = pResultInfo->capacity - pResBlock->info.rows;
-  int32_t code = taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
+  taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
 
   pInfo->curGroupId = pInfo->existNewGroupBlock->info.id.groupId;
   pInfo->existNewGroupBlock = NULL;
@@ -101,11 +96,7 @@ static void doHandleRemainBlockFromNewGroup(SOperatorInfo* pOperator, SFillOpera
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
     int32_t numOfResultRows = pResultInfo->capacity - pInfo->pFinalRes->info.rows;
-    int32_t code = taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pFinalRes, numOfResultRows);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pFinalRes, numOfResultRows);
     pInfo->pRes->info.id.groupId = pInfo->curGroupId;
     return;
   }
@@ -278,8 +269,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
     }
 
     int32_t numOfResultRows = pOperator->resultInfo.capacity - pResBlock->info.rows;
-    code = taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
-    QUERY_CHECK_CODE(code, lino, _end);
+    taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
 
     // current group has no more result to return
     if (pResBlock->info.rows > 0) {
