@@ -77,6 +77,10 @@ if [ -f "${install_main_dir}/taoskeeper.toml" ]; then
     ${csudo}rm -f ${install_main_dir}/cfg/taoskeeper.toml     || :
 fi
 
+if [ -f "${install_main_dir}/explorer.toml" ]; then
+    ${csudo}rm -f ${install_main_dir}/cfg/explorer.toml     || :
+fi
+
 
 # there can not libtaos.so*, otherwise ln -s  error
 ${csudo}rm -f ${install_main_dir}/driver/libtaos.*   || :
