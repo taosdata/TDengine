@@ -664,7 +664,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   }
 
   if ((code = mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg)) != 0) {
-    mError("sma:%s, failed to create since %s", smaObj.name, terrstr());
+    mError("sma:%s, failed to create since %s", smaObj.name, tstrerror(code));
     TAOS_RETURN(code);
   }
   smaObj.dstVgId = streamObj.fixedSinkVg.vgId;
@@ -846,7 +846,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("sma:%s, failed to create since %s", createReq.name, terrstr());
+    mError("sma:%s, failed to create since %s", createReq.name, tstrerror(code));
   }
 
   mndReleaseStb(pMnode, pStb);
@@ -991,14 +991,14 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
     goto _OVER;
   } else {
     if ((code = mndStreamSetDropAction(pMnode, pTrans, pStream)) < 0) {
-      mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
+      mError("stream:%s, failed to drop task since %s", pStream->name, tstrerror(code));
       sdbRelease(pMnode->pSdb, pStream);
       goto _OVER;
     }
 
     // drop stream
     if ((code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_DROPPED)) < 0) {
-      mError("stream:%s, failed to drop log since %s", pStream->name, terrstr());
+      mError("stream:%s, failed to drop log since %s", pStream->name, tstrerror(code));
       sdbRelease(pMnode->pSdb, pStream);
       goto _OVER;
     }
@@ -1047,7 +1047,7 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
       SStreamObj *pStream = mndAcquireStream(pMnode, streamName);
       if (pStream != NULL && pStream->smaId == pSma->uid) {
         if ((code = mndStreamSetDropAction(pMnode, pTrans, pStream)) < 0) {
-          mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
+          mError("stream:%s, failed to drop task since %s", pStream->name, tstrerror(code));
           mndReleaseStream(pMnode, pStream);
           goto _OVER;
         }
@@ -1144,7 +1144,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("sma:%s, failed to drop since %s", dropReq.name, terrstr());
+    mError("sma:%s, failed to drop since %s", dropReq.name, tstrerror(code));
   }
 
   mndReleaseSma(pMnode, pSma);
@@ -1300,7 +1300,7 @@ static int32_t mndProcessGetSmaReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0) {
-    mError("failed to get index %s since %s", indexReq.indexFName, terrstr());
+    mError("failed to get index %s since %s", indexReq.indexFName, tstrerror(code));
   }
 
   TAOS_RETURN(code);
@@ -1346,7 +1346,7 @@ static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0) {
-    mError("failed to get table index %s since %s", indexReq.tbFName, terrstr());
+    mError("failed to get table index %s since %s", indexReq.tbFName, tstrerror(code));
   }
 
   tFreeSerializeSTableIndexRsp(&rsp);
@@ -1852,7 +1852,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("tsma:%s, failed to create since %s", createReq.name, terrstr());
+    mError("tsma:%s, failed to create since %s", createReq.name, tstrerror(code));
   }
 
   if (pStb) mndReleaseStb(pMnode, pStb);

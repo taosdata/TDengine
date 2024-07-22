@@ -37,7 +37,7 @@ int32_t mndInitShow(SMnode *pMnode) {
   pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5000, true, (__cache_free_fn_t)mndFreeShowObj, "show");
   if (pMgmt->cache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to alloc show cache since %s", terrstr());
+    mError("failed to alloc show cache since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -165,7 +165,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
   if (pShow == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%" PRIx64 ", failed to put into cache since %s", showId, terrstr());
+    mError("show:0x%" PRIx64 ", failed to put into cache since %s", showId, tstrerror(code));
     return NULL;
   }
 
@@ -232,7 +232,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       pMeta = taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
       if (pMeta == NULL) {
         code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-        mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
+        mError("failed to process show-retrieve req:%p since %s", pShow, tstrerror(code));
         TAOS_RETURN(code);
       }
     }
@@ -240,7 +240,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     pShow = mndCreateShowObj(pMnode, &retrieveReq);
     if (pShow == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      mError("failed to process show-meta req since %s", terrstr());
+      mError("failed to process show-meta req since %s", tstrerror(code));
       TAOS_RETURN(code);
     }
 
@@ -250,7 +250,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     pShow = mndAcquireShowObj(pMnode, retrieveReq.showId);
     if (pShow == NULL) {
       code = TSDB_CODE_MND_INVALID_SHOWOBJ;
-      mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
+      mError("failed to process show-retrieve req:%p since %s", pShow, tstrerror(code));
       TAOS_RETURN(code);
     }
   }
@@ -264,7 +264,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -327,7 +327,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, false);
     code = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
     blockDataDestroy(pBlock);
     TAOS_RETURN(code);
   }

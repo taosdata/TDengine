@@ -332,7 +332,7 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("snode:%d, failed to create since %s", createReq.dnodeId, terrstr());
+    mError("snode:%d, failed to create since %s", createReq.dnodeId, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -457,7 +457,7 @@ static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("snode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
+    mError("snode:%d, failed to drop since %s", dropReq.dnodeId, tstrerror(code));
   }
 
   mndReleaseSnode(pMnode, pObj);
