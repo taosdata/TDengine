@@ -153,27 +153,30 @@ int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamId) {
   return 0;
 }
 
-STrans *doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name,
-                      const char *pMsg) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, conflict, pReq, name);
-  if (pTrans == NULL) {
+int32_t doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name,
+                      const char *pMsg, STrans ** pTrans1) {
+  *pTrans1 = NULL;
+  terrno = 0;
+
+  STrans *p = mndTransCreate(pMnode, TRN_POLICY_RETRY, conflict, pReq, name);
+  if (p == NULL) {
     mError("failed to build trans:%s, reason: %s", name, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return terrno;
   }
 
-  mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, pTrans->id);
+  mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, p->id);
 
-  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetSTbName);
-  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
+  mndTransSetDbName(p, pStream->sourceDb, pStream->targetSTbName);
+  if (mndTransCheckConflict(pMnode, p) != 0) {
     terrno = TSDB_CODE_MND_TRANS_CONFLICT;
     mError("failed to build trans:%s for stream:0x%" PRIx64 " code:%s", name, pStream->uid, tstrerror(terrno));
-    mndTransDrop(pTrans);
-    return NULL;
+    mndTransDrop(p);
+    return terrno;
   }
 
-  terrno = 0;
-  return pTrans;
+  *pTrans1 = p;
+  return 0;
 }
 
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
@@ -272,8 +275,9 @@ int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
       continue;
     }
 
-    SStreamObj *pStream = mndGetStreamObj(pMnode, pTransInfo->streamId);
-    if (pStream != NULL) {
+    SStreamObj *pStream = NULL;
+    int32_t code = mndGetStreamObj(pMnode, pTransInfo->streamId, &pStream);
+    if (pStream != NULL || code != 0) {
       if (identicalName(pStream->sourceDb, pDBName, len)) {
         mndKillTransImpl(pMnode, pTransInfo->transId, pStream->sourceDb);
       } else if (identicalName(pStream->targetDb, pDBName, len)) {

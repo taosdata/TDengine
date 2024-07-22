@@ -639,7 +639,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   code = tEncodeStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
-  if (code) {
+  if (code == -1) {
     stError("s-task:%s vgId:%d task meta encode failed, code:%s", pTask->id.idStr, vgId, tstrerror(code));
     return TSDB_CODE_INVALID_MSG;
   }
