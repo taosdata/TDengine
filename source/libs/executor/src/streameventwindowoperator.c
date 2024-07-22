@@ -650,7 +650,8 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
+    QUERY_CHECK_CODE(code, lino, _end);
     doStreamEventAggImpl(pOperator, pBlock, pInfo->pSeUpdated, pInfo->pSeDeleted);
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
   }
@@ -846,24 +847,21 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
       .deleteMark = getDeleteMark(&pEventNode->window, 0),
   };
 
-  initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
+  code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   SExprSupp*   pExpSup = &pOperator->exprSupp;
   int32_t      numOfCols = 0;
   SExprInfo*   pExprInfo = createExprInfo(pEventNode->window.pFuncs, NULL, &numOfCols);
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   code = initBasicInfoEx(&pInfo->binfo, pExpSup, pExprInfo, numOfCols, pResBlock, &pTaskInfo->storageAPI.functionStore);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->primaryTsIndex = tsSlotId;
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0, pTaskInfo->streamInfo.pState,
                                 sizeof(bool) + sizeof(bool), 0, &pTaskInfo->storageAPI.stateStore, pHandle,
                                 &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pSeDeleted = tSimpleHashInit(64, hashFn);
@@ -885,14 +883,18 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
   if (pInfo->isHistoryOp) {
     pInfo->pAllUpdated = tSimpleHashInit(64, hashFn);
+    QUERY_CHECK_NULL(pInfo->pAllUpdated, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
   } else {
     pInfo->pAllUpdated = NULL;
   }
 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
+  QUERY_CHECK_NULL(pInfo->pCheckpointRes, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+
   pInfo->reCkBlock = false;
   pInfo->recvGetAll = false;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
+  QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
   pInfo->destHasPrimaryKey = pEventNode->window.destHasPrimayKey;
 
   setOperatorInfo(pOperator, "StreamEventAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, true, OP_NOT_OPENED,

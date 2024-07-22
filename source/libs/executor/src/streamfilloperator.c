@@ -990,13 +990,15 @@ static int32_t doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBl
   code = blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
+  code = setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
+  QUERY_CHECK_CODE(code, lino, _end);
   code = projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   pDstBlock->info.rows = 0;
   pSup = &pInfo->pFillSup->notFillExprSup;
-  setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
+  code = setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
+  QUERY_CHECK_CODE(code, lino, _end);
   code = projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 

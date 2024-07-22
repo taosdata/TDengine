@@ -1131,9 +1131,8 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
 
     ASSERT(pInfo->base.dataReader == NULL);
 
-    code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
+    pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
                                          (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
-    QUERY_CHECK_CODE(code, lino, _end);
     if (pInfo->filesetDelimited) {
       pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
     }
@@ -3782,6 +3781,8 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     pInfo->readHandle = *pHandle;
     pTaskInfo->streamInfo.snapshotVer = pHandle->version;
     pInfo->pCreateTbRes = buildCreateTableBlock(&pInfo->tbnameCalSup, &pInfo->tagCalSup);
+    QUERY_CHECK_NULL(pInfo->pCreateTbRes, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+
     code = blockDataEnsureCapacity(pInfo->pCreateTbRes, 8);
     QUERY_CHECK_CODE(code, lino, _error);
 
