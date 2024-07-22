@@ -88,14 +88,14 @@ static int32_t addNewSessionWindow(SStreamFileState* pFileState, SArray* pWinInf
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   if (!pNewPos || !pNewPos->pRowBuff) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   void* tmp = taosArrayPush(pWinInfos, &pNewPos);
   if (!tmp) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
   (*ppPos) = pNewPos;
 
@@ -113,14 +113,14 @@ static int32_t insertNewSessionWindow(SStreamFileState* pFileState, SArray* pWin
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   if (!pNewPos || !pNewPos->pRowBuff) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
   void* tmp = taosArrayInsert(pWinInfos, index, &pNewPos);
   if (!tmp) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   *ppPos = pNewPos;
@@ -138,7 +138,7 @@ SRowBuffPos* createSessionWinBuff(SStreamFileState* pFileState, SSessionKey* pKe
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   if (!pNewPos || !pNewPos->pRowBuff) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
@@ -174,10 +174,10 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     code = tSimpleHashPut(pSessionBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   TSKEY startTs = pKey->win.skey;
@@ -192,7 +192,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
       (*pVal) = createSessionWinBuff(pFileState, pKey, p, pVLen);
       if (!(*pVal)) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        TSDB_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
 
       (*pWinCode) = code_file;
@@ -201,7 +201,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
       code = addNewSessionWindow(pFileState, pWinStates, pKey, (SRowBuffPos**)pVal);
       (*pWinCode) = TSDB_CODE_FAILED;
       taosMemoryFree(p);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
   }
@@ -243,7 +243,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
         (*pVal) = createSessionWinBuff(pFileState, pKey, p, pVLen);
         if (!(*pVal)) {
           code = TSDB_CODE_OUT_OF_MEMORY;
-          TSDB_CHECK_CODE(code, lino, _end);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
 
         (*pWinCode) = code_file;
@@ -257,14 +257,14 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
 
   if (index == size - 1) {
     code = addNewSessionWindow(pFileState, pWinStates, pKey, (SRowBuffPos**)pVal);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     (*pWinCode) = TSDB_CODE_FAILED;
     goto _end;
   }
 
   code = insertNewSessionWindow(pFileState, pWinStates, pKey, index + 1, (SRowBuffPos**)pVal);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   (*pWinCode) = TSDB_CODE_FAILED;
 
@@ -296,11 +296,11 @@ int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos)
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     code = tSimpleHashPut(pSessionBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int32_t size = taosArrayGetSize(pWinStates);
@@ -308,7 +308,7 @@ int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos)
     void* tmp = taosArrayPush(pWinStates, &pPos);
     if (!tmp) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
   }
@@ -319,13 +319,13 @@ int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos)
     void* tmp = taosArrayInsert(pWinStates, index, &pPos);
     if (!tmp) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {
     void* tmp = taosArrayInsert(pWinStates, 0, &pPos);
     if (!tmp) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
@@ -343,7 +343,7 @@ int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, v
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   if (!pNewPos || !pNewPos->pRowBuff) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
   pNewPos->needFree = true;
   pNewPos->beFlushed = true;
@@ -416,17 +416,17 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     code = tSimpleHashPut(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     pWinStates = (SArray*)(*ppBuff);
   }
   if (!pCur) {
     code = addNewSessionWindow(pFileState, pWinStates, pWinKey, &pNewPos);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     goto _end;
   }
@@ -435,12 +435,12 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
   if (pCur->buffIndex >= 0) {
     if (pCur->buffIndex >= size) {
       code = addNewSessionWindow(pFileState, pWinStates, pWinKey, &pNewPos);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       goto _end;
     }
     code = insertNewSessionWindow(pFileState, pWinStates, pWinKey, pCur->buffIndex, &pNewPos);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     goto _end;
   } else {
@@ -452,14 +452,14 @@ int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStream
         int32_t     winCode = TSDB_CODE_SUCCESS;
         code = getSessionWinResultBuff(pFileState, &pTmpKey, 0, (void**)&pNewPos, pVLen, &winCode);
         ASSERT(winCode == TSDB_CODE_FAILED);
-        TSDB_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
     }
     pNewPos = getNewRowPosForWrite(pFileState);
     if (!pNewPos || !pNewPos->pRowBuff) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     memcpy(pNewPos->pKey, pWinKey, sizeof(SSessionKey));
@@ -793,11 +793,11 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     code = tSimpleHashPut(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   TSKEY startTs = pWinKey->win.skey;
@@ -812,7 +812,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
       (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
       if (!(*pVal)) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        TSDB_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
 
       (*pWinCode) = code_file;
@@ -822,7 +822,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
       code = addNewSessionWindow(pFileState, pWinStates, key, (SRowBuffPos**)pVal);
       (*pWinCode) = TSDB_CODE_FAILED;
       taosMemoryFree(p);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
   }
@@ -869,7 +869,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
         (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
         if (!(*pVal)) {
           code = TSDB_CODE_OUT_OF_MEMORY;
-          TSDB_CHECK_CODE(code, lino, _end);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
 
         (*pWinCode) = code_file;
@@ -884,13 +884,13 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
 
   if (index == size - 1) {
     code = addNewSessionWindow(pFileState, pWinStates, key, (SRowBuffPos**)pVal);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     (*pWinCode) = TSDB_CODE_FAILED;
     goto _end;
   }
   code = insertNewSessionWindow(pFileState, pWinStates, key, index + 1, (SRowBuffPos**)pVal);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   (*pWinCode) = TSDB_CODE_FAILED;
 
@@ -933,11 +933,11 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     if (!pWinStates) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     code = tSimpleHashPut(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   TSKEY startTs = pWinKey->win.skey;
@@ -958,7 +958,7 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
           (*pVal) = createSessionWinBuff(pFileState, pWinKey, pRockVal, pVLen);
           if (!(*pVal)) {
             code = TSDB_CODE_OUT_OF_MEMORY;
-            TSDB_CHECK_CODE(code, lino, _end);
+            QUERY_CHECK_CODE(code, lino, _end);
           }
 
           goto _end;
@@ -970,11 +970,11 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
       taosMemoryFree(pRockVal);
       if (!(*pVal)) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        TSDB_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     } else {
       code = addNewSessionWindow(pFileState, pWinStates, pWinKey, (SRowBuffPos**)pVal);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       (*pWinCount) = TSDB_CODE_FAILED;
     }
@@ -1013,7 +1013,7 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
           (*pVal) = createSessionWinBuff(pFileState, pWinKey, pRockVal, pVLen);
           if (!(*pVal)) {
             code = TSDB_CODE_OUT_OF_MEMORY;
-            TSDB_CHECK_CODE(code, lino, _end);
+            QUERY_CHECK_CODE(code, lino, _end);
           }
 
           (*pWinCount) = code_file;
@@ -1037,7 +1037,7 @@ int32_t getCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, C
   }
 
   code = addNewSessionWindow(pFileState, pWinStates, pWinKey, (SRowBuffPos**)pVal);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   (*pWinCount) = TSDB_CODE_FAILED;
 
@@ -1061,7 +1061,7 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
   } else {
     pWinStates = taosArrayInit(16, POINTER_BYTES);
     code = tSimpleHashPut(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   TSKEY startTs = pWinKey->win.skey;
@@ -1077,7 +1077,7 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
       (*pVal) = createSessionWinBuff(pFileState, pWinKey, p, pVLen);
       if (!(*pVal)) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        TSDB_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
 
       qDebug("===stream===0 get state win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey,
@@ -1085,11 +1085,11 @@ int32_t createCountWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey
     } else {
       code = addNewSessionWindow(pFileState, pWinStates, pWinKey, (SRowBuffPos**)pVal);
       taosMemoryFree(p);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {
     code = addNewSessionWindow(pFileState, pWinStates, pWinKey, (SRowBuffPos**)pVal);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
