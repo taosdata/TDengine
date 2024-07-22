@@ -22,6 +22,7 @@
 SWalRef *walOpenRef(SWal *pWal) {
   SWalRef *pRef = taosMemoryCalloc(1, sizeof(SWalRef));
   if (pRef == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -29,6 +30,7 @@ SWalRef *walOpenRef(SWal *pWal) {
 
   if (taosHashPut(pWal->pRefHash, &pRef->refId, sizeof(int64_t), &pRef, sizeof(void *))) {
     taosMemoryFree(pRef);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
