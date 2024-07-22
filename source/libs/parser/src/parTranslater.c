@@ -3407,12 +3407,12 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     if (nodesEqualNode(pActualNode, *pNode)) {
       return DEAL_RES_IGNORE_CHILD;
     }
-    if (isTbnameFuction(pActualNode) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
-        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
-      return rewriteExprToGroupKeyFunc(pCxt, pNode);
-    }
     if (IsEqualTbNameFuncNode(pSelect, pActualNode, *pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+    if (isTbnameFuction(pActualNode) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
+        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
+      return rewriteExprToSelectTagFunc(pCxt, pNode);
     }
   }
   SNode* pPartKey = NULL;
