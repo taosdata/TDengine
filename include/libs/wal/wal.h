@@ -180,7 +180,6 @@ SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);
 void        walCloseReader(SWalReader *pRead);
 void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
-void        decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const char *func);
 int32_t     walReaderSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
 int64_t     walReaderGetCurrentVer(const SWalReader *pReader);

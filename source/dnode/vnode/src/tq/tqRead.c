@@ -309,10 +309,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
   int32_t code = 0;
 
   while (1) {
-    code = walNextValidMsg(pReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+    TAOS_CHECK_RETURN(walNextValidMsg(pReader));
 
     SWalCont* pCont = &pReader->pHead->head;
     int64_t   ver = pCont->version;
