@@ -228,6 +228,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SStreamHbMsg req = {0};
   SArray      *pFailedChkpt = NULL;
   SArray      *pOrphanTasks = NULL;
+  int32_t code = 0;
 
   if ((terrno = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     if (suspendAllStreams(pMnode, &pReq->info) < 0) {
@@ -296,8 +297,15 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       SStreamObj *pStream = mndGetStreamObj(pMnode, p->id.streamId);
       int32_t     numOfTasks = mndGetNumOfStreamTasks(pStream);
 
-      SCheckpointConsensusInfo *pInfo = mndGetConsensusInfo(execInfo.pStreamConsensus, p->id.streamId, numOfTasks);
-      mndAddConsensusTasks(pInfo, &cp);
+      SCheckpointConsensusInfo *pInfo = NULL;
+
+      code = mndGetConsensusInfo(execInfo.pStreamConsensus, p->id.streamId, numOfTasks, &pInfo);
+      if (code == 0) {
+        mndAddConsensusTasks(pInfo, &cp);
+      } else {
+        mError("failed to get consensus checkpoint-info");
+      }
+
       mndReleaseStream(pMnode, pStream);
     }
 
@@ -338,9 +346,15 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   // kill the checkpoint trans and then set all tasks status to be normal
   if (taosArrayGetSize(pFailedChkpt) > 0) {
     bool allReady = true;
+
     if (pMnode != NULL) {
-      SArray *p = mndTakeVgroupSnapshot(pMnode, &allReady);
+      SArray *p = NULL;
+
+      int32_t code = mndTakeVgroupSnapshot(pMnode, &allReady, &p);
       taosArrayDestroy(p);
+      if (code) {
+        mError("failed to get the vgroup snapshot, ignore it and continue");
+      }
     } else {
       allReady = false;
     }

@@ -251,13 +251,13 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
   return 0;
 }
 
-SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName) {
-  SSdb       *pSdb = pMnode->pSdb;
-  SStreamObj *pStream = sdbAcquire(pSdb, SDB_STREAM, streamName);
-  if (pStream == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+int32_t mndAcquireStream(SMnode *pMnode, char *streamName, SStreamObj **pStream) {
+  SSdb *pSdb = pMnode->pSdb;
+  (*pStream) = sdbAcquire(pSdb, SDB_STREAM, streamName);
+  if ((*pStream) == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
   }
-  return pStream;
+  return terrno;
 }
 
 void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
@@ -706,7 +706,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   char       *sql = NULL;
   int32_t     sqlLen = 0;
   const char *pMsg = "create stream tasks on dnodes";
-
+  int32_t code = 0;
   terrno = TSDB_CODE_SUCCESS;
 
   SCMCreateStreamReq createReq = {0};
@@ -726,8 +726,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pStream = mndAcquireStream(pMnode, createReq.name);
-  if (pStream != NULL) {
+  code = mndAcquireStream(pMnode, createReq.name, &pStream);
+  if (pStream != NULL || code != 0) {
     if (createReq.igExists) {
       mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
       goto _OVER;
@@ -1077,7 +1077,12 @@ static bool taskNodeIsUpdated(SMnode *pMnode) {
   }
 
   bool    allReady = true;
-  SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode, &allReady);
+  SArray *pNodeSnapshot = NULL;
+
+  int32_t code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot);
+  if (code) {
+    mError("failed to get the vgroup snapshot, ignore it and continue");
+  }
   if (!allReady) {
     mWarn("not all vnodes ready, quit from vnodes status check");
     taosArrayDestroy(pNodeSnapshot);
@@ -1289,6 +1294,7 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
+  int32_t code = 0;
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
@@ -1299,8 +1305,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   mDebug("recv drop stream:%s msg", dropReq.name);
 
-  pStream = mndAcquireStream(pMnode, dropReq.name);
-  if (pStream == NULL) {
+  code = mndAcquireStream(pMnode, dropReq.name, &pStream);
+  if (pStream == NULL || code != 0) {
     if (dropReq.igNotExists) {
       mInfo("stream:%s not exist, ignore not exist is set, drop stream exec done with success", dropReq.name);
       sdbRelease(pMnode->pSdb, pStream);
@@ -1364,7 +1370,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pStream->uid);
+  code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pStream->uid);
 
   // drop all tasks
   if (mndStreamSetDropAction(pMnode, pTrans, pStream) < 0) {
@@ -1906,6 +1912,7 @@ static void mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter) {
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
+  int32_t     code = 0;
 
   SMPauseStreamReq pauseReq = {0};
   if (tDeserializeSMPauseStreamReq(pReq->pCont, pReq->contLen, &pauseReq) < 0) {
@@ -1913,9 +1920,8 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  pStream = mndAcquireStream(pMnode, pauseReq.name);
-
-  if (pStream == NULL) {
+  code = mndAcquireStream(pMnode, pauseReq.name, &pStream);
+  if (pStream == NULL || code != 0) {
     if (pauseReq.igNotExists) {
       mInfo("stream:%s, not exist, not pause stream", pauseReq.name);
       return 0;
@@ -2000,7 +2006,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_PAUSE_NAME, pStream->uid);
+  code = mndStreamRegisterTrans(pTrans, MND_STREAM_PAUSE_NAME, pStream->uid);
 
   // if nodeUpdate happened, not send pause trans
   if (mndStreamSetPauseAction(pMnode, pTrans, pStream) < 0) {
@@ -2039,6 +2045,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
+  int32_t code = 0;
 
   if ((terrno = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     return -1;
@@ -2050,9 +2057,8 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  pStream = mndAcquireStream(pMnode, resumeReq.name);
-
-  if (pStream == NULL) {
+  code = mndAcquireStream(pMnode, resumeReq.name, &pStream);
+  if (pStream == NULL || code != 0) {
     if (resumeReq.igNotExists) {
       mInfo("stream:%s not exist, not resume stream", resumeReq.name);
       sdbRelease(pMnode->pSdb, pStream);
@@ -2089,7 +2095,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  int32_t code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESUME_NAME, pStream->uid);
+  code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESUME_NAME, pStream->uid);
 
   // set the resume action
   if (mndStreamSetResumeAction(pTrans, pMnode, pStream, resumeReq.igUntreated) < 0) {
@@ -2348,7 +2354,13 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   }
 
   bool    allReady = true;
-  SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode, &allReady);
+  SArray *pNodeSnapshot = NULL;
+
+  code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot);
+  if (code) {
+    mError("failed to take the vgroup snapshot, ignore it and continue");
+  }
+
   if (!allReady) {
     taosArrayDestroy(pNodeSnapshot);
     atomic_store_32(&mndNodeCheckSentinel, 0);
@@ -2790,8 +2802,14 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   mDebug("start to process consensus-checkpointId in tmr");
 
   bool    allReady = true;
-  SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode, &allReady);
+  SArray *pNodeSnapshot = NULL;
+
+  int32_t code = mndTakeVgroupSnapshot(pMnode, &allReady, &pNodeSnapshot);
   taosArrayDestroy(pNodeSnapshot);
+  if (code) {
+    mError("failed to get the vgroup snapshot, ignore it and continue");
+  }
+
   if (!allReady) {
     mWarn("not all vnodes are ready, end to process the consensus-checkpointId in tmr process");
     taosArrayDestroy(pStreamList);

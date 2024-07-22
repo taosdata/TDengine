@@ -80,11 +80,12 @@ void destroyStreamTaskIter(SStreamTaskIter* pIter) {
   taosMemoryFree(pIter);
 }
 
-SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
+int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray** pList) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   SVgObj *pVgroup = NULL;
   int32_t replica = -1;   // do the replica check
+  int32_t code = 0;
 
   *allReady = true;
   SArray *pVgroupList = taosArrayInit(4, sizeof(SNodeEntry));
@@ -157,7 +158,8 @@ SArray *mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     sdbRelease(pSdb, pObj);
   }
 
-  return pVgroupList;
+  *pList = pVgroupList;
+  return code;
 }
 
 SStreamObj *mndGetStreamObj(SMnode *pMnode, int64_t streamId) {
@@ -935,10 +937,10 @@ int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, i
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-SCheckpointConsensusInfo* mndGetConsensusInfo(SHashObj* pHash, int64_t streamId, int32_t numOfTasks) {
-  void* pInfo = taosHashGet(pHash, &streamId, sizeof(streamId));
+int32_t mndGetConsensusInfo(SHashObj* pHash, int64_t streamId, int32_t numOfTasks, SCheckpointConsensusInfo **pInfo) {
+  *pInfo = taosHashGet(pHash, &streamId, sizeof(streamId));
   if (pInfo != NULL) {
-    return (SCheckpointConsensusInfo*)pInfo;
+    return 0;
   }
 
   SCheckpointConsensusInfo p = {
@@ -947,10 +949,14 @@ SCheckpointConsensusInfo* mndGetConsensusInfo(SHashObj* pHash, int64_t streamId,
       .streamId = streamId,
   };
 
-  taosHashPut(pHash, &streamId, sizeof(streamId), &p, sizeof(p));
-
-  void* pChkptInfo = (SCheckpointConsensusInfo*)taosHashGet(pHash, &streamId, sizeof(streamId));
-  return pChkptInfo;
+  int32_t code = taosHashPut(pHash, &streamId, sizeof(streamId), &p, sizeof(p));
+  if (code == 0) {
+    void *pChkptInfo = (SCheckpointConsensusInfo *)taosHashGet(pHash, &streamId, sizeof(streamId));
+    *pInfo = pChkptInfo;
+  } else {
+    *pInfo = NULL;
+  }
+  return code;
 }
 
 // no matter existed or not, add the request into info list anyway, since we need to send rsp mannually
