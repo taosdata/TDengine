@@ -708,7 +708,7 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   // drop the stream task now
   code = streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
   if (code) {
-    tqDebug("s-task:0x%x vgId:%d drop failed", pReq->taskId, vgId, (int32_t)hTaskId.taskId);
+    tqDebug("s-task:0x%x vgId:%d drop task failed", pReq->taskId, vgId);
   }
 
   // commit the update
