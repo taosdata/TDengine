@@ -44,7 +44,7 @@ int wordexp(char *words, wordexp_t *pwordexp, int flags) {
   pwordexp->we_wordc = 1;
   pwordexp->we_wordv[0] = pwordexp->wordPos;
 
-  memset(pwordexp->wordPos, 0, 1025);
+  (void)memset(pwordexp->wordPos, 0, 1025);
   if (_fullpath(pwordexp->wordPos, words, 1024) == NULL) {
     pwordexp->we_wordv[0] = words;
     printf("failed to parse relative path:%s to abs path\n", words);
@@ -100,7 +100,7 @@ void taosRemoveDir(const char *dirname) {
     if (strcmp(taosGetDirEntryName(de), ".") == 0 || strcmp(taosGetDirEntryName(de), "..") == 0) continue;
 
     char filename[1024] = {0};
-    snprintf(filename, sizeof(filename), "%s%s%s", dirname, TD_DIRSEP, taosGetDirEntryName(de));
+    (void)snprintf(filename, sizeof(filename), "%s%s%s", dirname, TD_DIRSEP, taosGetDirEntryName(de));
     if (taosDirEntryIsDir(de)) {
       taosRemoveDir(filename);
     } else {
@@ -110,7 +110,7 @@ void taosRemoveDir(const char *dirname) {
   }
 
   taosCloseDir(&pDir);
-  rmdir(dirname);
+  (void)rmdir(dirname);
 
   // printf("dir:%s is removed\n", dirname);
   return;
