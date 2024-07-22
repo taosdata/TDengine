@@ -1249,8 +1249,7 @@ static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
 
   rsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
   if (NULL == rsp.pIndex) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    code = -1;
+    code = terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
@@ -1260,14 +1259,12 @@ static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
   }
 
   if (!exist) {
-    code = -1;
-    terrno = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
+    code = terrno = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
   } else {
     int32_t contLen = tSerializeSTableIndexRsp(NULL, 0, &rsp);
     void   *pRsp = rpcMallocCont(contLen);
     if (pRsp == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = -1;
+      code = terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
 
@@ -1724,14 +1721,15 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
     code = 0;
     goto _OVER;
   }
+
   if (pSma) {
-    terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
+    code = terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
     goto _OVER;
   }
 
   SStbObj *pTargetStb = mndAcquireStb(pMnode, streamTargetStbFullName);
   if (pTargetStb) {
-    terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
+    code = terrno = TSDB_CODE_TDB_STB_ALREADY_EXIST;
     mError("tsma: %s, failed to create since output stable already exists: %s", createReq.name,
            streamTargetStbFullName);
     goto _OVER;
@@ -1740,13 +1738,13 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
   code = mndAcquireStream(pMnode, streamName, &pStream);
   if (pStream != NULL || code != TSDB_CODE_MND_STREAM_NOT_EXIST) {
     mError("tsma:%s, failed to create since stream:%s already exist", createReq.name, streamName);
-    terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
+    code = terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
     goto _OVER;
   }
 
   pDb = mndAcquireDbBySma(pMnode, createReq.name);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    code = terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto _OVER;
   }
 
@@ -1758,7 +1756,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
     pBaseTsma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.baseTsmaName);
     if (!pBaseTsma) {
       mError("base tsma: %s not found when creating recursive tsma", createReq.baseTsmaName);
-      terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
+      code = terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
       goto _OVER;
     }
     if (!pStb) {
