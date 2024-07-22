@@ -1051,10 +1051,10 @@ typedef struct {
   SUpdateUserIpWhite* pUserIpWhite;
 } SUpdateIpWhite;
 
-int32_t         tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
-int32_t         tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
-void            tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
-SUpdateIpWhite* cloneSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
+int32_t tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+int32_t tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+void    tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
+int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite* pReq, SUpdateIpWhite** pUpdate);
 
 typedef struct {
   int64_t ipWhiteVer;

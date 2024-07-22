@@ -614,6 +614,10 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   STransMsg* pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
+    if (pMsg->pCont == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
     pMsg->contLen = 0;
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
@@ -628,7 +632,7 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
     transQueuePop(&pConn->srvMsgs);
     destroySmsg(smsg);
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   if (pConn->status == ConnNormal) {
@@ -1528,6 +1532,7 @@ void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
     tDebug("ip-white-list disable on trans");
     thrd->enableIpWhiteList = 0;
     taosMemoryFree(msg);
+    return;
   }
   int32_t code = 0;
   for (int i = 0; i < req->numOfUser; i++) {
@@ -1557,6 +1562,7 @@ void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
   }
   tFreeSUpdateIpWhiteReq(req);
   taosMemoryFree(req);
+  taosMemoryFree(msg);
 }
 
 void destroyWorkThrd(SWorkThrd* pThrd) {
@@ -1787,13 +1793,11 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
-
     SUpdateIpWhite* pReq = NULL;
-    if (arg != NULL) {
-      if ((pReq = cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg)) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
-      }
+    code = cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg, &pReq);
+    if (code != 0) {
+      taosMemoryFree(msg);
+      break;
     }
 
     msg->type = Update;
