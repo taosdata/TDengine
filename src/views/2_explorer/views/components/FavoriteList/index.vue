@@ -13,13 +13,13 @@
             v-model="sqlDescFuzzy"
             clearable
             :placeholder="'SQL' + '/' + $t('console.desc')"
-            @keyup.enter.native="getFavoritesData()"
-            @clear="getFavoritesData()"
+            @keyup.enter.native="getFavoritesData('search')"
+            @clear="getFavoritesData('search')"
             style="width: 200px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button icon="el-icon-search" @click="getFavoritesData()">{{
+          <el-button icon="el-icon-search" @click="getFavoritesData('search')">{{
             $t("search")
           }}</el-button>
         </el-form-item>
@@ -251,10 +251,10 @@ export default {
     pasteSQL(sql) {
       copy(sql);
     },
-    async getFavoritesData() {
+    async getFavoritesData(isSearch) {
       if (this.activeTab == "shared") {
         const params = {
-          page: this.currentPageTwo,
+          page: isSearch ? '1' : this.currentPageTwo,
           page_size: this.pageSizeTwo,
           sql_desc_fuzzy: this.sqlDescFuzzy,
           is_public: true,
@@ -263,7 +263,7 @@ export default {
         this.$store.dispatch("console/getSharedFavorites", params);
       } else {
         const params = {
-          page: this.currentPage,
+          page: isSearch ? '1' : this.currentPage,
           page_size: this.pageSize,
           sql_desc_fuzzy: this.sqlDescFuzzy,
         };

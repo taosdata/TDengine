@@ -172,7 +172,8 @@
           }
           this.favorited = false;
         }).catch((err) => {
-           console.log('error', err);     
+          console.log('error', err); 
+          this.favorited = false;  
         });
       },
       tabClick({ name }) {

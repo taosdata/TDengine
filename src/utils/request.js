@@ -119,8 +119,8 @@ request.interceptors.response.use(
         return Promise.resolve(error.response.data);
       }
       let msg =
-        error.response.data.message ||
-        error.response.data.desc ||
+        error.response?.data?.message ||
+        error.response?.data?.desc ||
         error.message ||
         "Unexpected error";
       Message.error({
