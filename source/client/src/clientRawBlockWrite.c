@@ -460,8 +460,14 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       } else {
         buf = taosMemoryCalloc(pTagVal->nData + 3, 1);
       }
+
       RAW_NULL_CHECK(buf);
-      RAW_RETURN_CHECK(dataConverToStr(buf, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL));
+      if (!buf) goto end;
+      if(dataConverToStr(buf, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL) != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        goto end;
+      }
+
       tvalue = cJSON_CreateString(buf);
       RAW_NULL_CHECK(tvalue);
       taosMemoryFree(buf);
@@ -729,7 +735,10 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 3, 1);
           }
           RAW_NULL_CHECK(buf);
-          RAW_RETURN_CHECK(dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL));
+          if(dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL) != TSDB_CODE_SUCCESS) {
+            taosMemoryFree(buf);
+            goto end;
+          }
         }
 
         cJSON* colValue = cJSON_CreateString(buf);

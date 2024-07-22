@@ -885,7 +885,11 @@ void taos_init_imp(void) {
   taosSetCoreDump(true);
 #endif
 
-  initTaskQueue();
+  if (initTaskQueue() != 0){
+    tscInitRes = -1;
+    tscError("failed to init task queue");
+    return;
+  }
   fmFuncMgtInit();
   nodesInitAllocatorSet();
 
