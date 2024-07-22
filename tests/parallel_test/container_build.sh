@@ -65,7 +65,6 @@ docker run \
     -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
     -v ${REP_REAL_PATH}/community/tools/taos-tools:${REP_DIR}/community/tools/taos-tools \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
-    -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
     -v ${REP_REAL_PATH}/community/contrib/apr/:${REP_DIR}/community/contrib/apr \
     -v ${REP_REAL_PATH}/community/contrib/apr-util/:${REP_DIR}/community/contrib/apr-util \
     -v ${REP_REAL_PATH}/community/contrib/cJson/:${REP_DIR}/community/contrib/cJson \
