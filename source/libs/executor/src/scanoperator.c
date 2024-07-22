@@ -3556,7 +3556,7 @@ static int32_t tagScanCreateResultData(SDataType* pType, int32_t numOfRows, SSca
 }
 
 static EDealRes tagScanRewriteTagColumn(SNode** pNode, void* pContext) {
-  SColumnNode* pSColumnNode = NULL;
+  SColumnNode* pSColumnNode = NULL;;
   if (QUERY_NODE_COLUMN == nodeType((*pNode))) {
     pSColumnNode = *(SColumnNode**)pNode;
   } else if (QUERY_NODE_FUNCTION == nodeType((*pNode))) {
