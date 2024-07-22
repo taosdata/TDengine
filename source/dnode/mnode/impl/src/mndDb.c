@@ -910,9 +910,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   }
 
-  mInfo("mndCheckDbPrivilege1, %d", code);
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
-    mInfo("mndCheckDbPrivilege2, %d", code);
     goto _OVER;
   }
 
