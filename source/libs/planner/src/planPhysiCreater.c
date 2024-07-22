@@ -2404,10 +2404,7 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pFillNode->pValues) {
-    code = nodesCloneNode(pFillNode->pValues, &pFillNode->pValues);
-    if (NULL == pFill->pValues) {
-      code = code;
-    }
+    code = nodesCloneNode(pFillNode->pValues, &pFill->pValues);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
