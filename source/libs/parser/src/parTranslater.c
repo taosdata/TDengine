@@ -3041,7 +3041,7 @@ static EDealRes rewriteExprToSelectTagFunc(STranslateContext* pCxt, SNode** pNod
     return DEAL_RES_ERROR;
   }
 
-  strcpy(pFunc->functionName, "_select_tag");
+  strcpy(pFunc->functionName, "_group_const_value");
   strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
   strcpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias);
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
@@ -4834,7 +4834,7 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
 static EDealRes needFillImpl(SNode* pNode, void* pContext) {
   if ((isAggFunc(pNode) || isInterpFunc(pNode)) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType
-  && FUNCTION_TYPE_SELECT_TAG != ((SFunctionNode*)pNode)->funcType) {
+  && FUNCTION_TYPE_GROUP_CONST_VALUE != ((SFunctionNode*)pNode)->funcType) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
   }

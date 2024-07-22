@@ -267,11 +267,11 @@ bool fmIsGroupKeyFunc(int32_t funcId) {
   return FUNCTION_TYPE_GROUP_KEY == funcMgtBuiltins[funcId].type;
 }
 
-bool fmIsSelectTagFunc(int32_t funcId) {
+bool fmisSelectGroupConstValueFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
-  return FUNCTION_TYPE_SELECT_TAG == funcMgtBuiltins[funcId].type;
+  return FUNCTION_TYPE_GROUP_CONST_VALUE == funcMgtBuiltins[funcId].type;
 }
 
 bool fmIsBlockDistFunc(int32_t funcId) {
