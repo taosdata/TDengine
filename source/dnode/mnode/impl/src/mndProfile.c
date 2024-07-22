@@ -85,22 +85,23 @@ static void      mndCancelGetNextApp(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessSvrVerReq(SRpcMsg *pReq);
 
 int32_t mndInitProfile(SMnode *pMnode) {
+  int32_t       code = 0;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   // in ms
   int32_t checkTime = tsShellActivityTimer * 2 * 1000;
   pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_UINT, checkTime, false, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->connCache == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc profile cache since %s", terrstr());
-    return -1;
+    TAOS_RETURN(code);
   }
 
   pMgmt->appCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, checkTime, true, (__cache_free_fn_t)mndFreeApp, "app");
   if (pMgmt->appCache == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc profile cache since %s", terrstr());
-    return -1;
+    TAOS_RETURN(code);
   }
 
   mndSetMsgHandle(pMnode, TDMT_MND_HEARTBEAT, mndProcessHeartBeatReq);
@@ -116,7 +117,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_APPS, mndRetrieveApps);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_APPS, mndCancelGetNextApp);
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 void mndCleanupProfile(SMnode *pMnode) {
@@ -384,6 +385,7 @@ static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq)
 static void mndFreeApp(SAppObj *pApp) { mTrace("app %" PRIx64 " is destroyed", pApp->appId); }
 
 static SAppObj *mndAcquireApp(SMnode *pMnode, int64_t appId) {
+  terrno = 0;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SAppObj *pApp = taosCacheAcquireByKey(pMgmt->appCache, &appId, sizeof(appId));
@@ -431,13 +433,16 @@ static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
 }
 
 static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnInfo *connInfo) {
+  int32_t    code = 0;
   SAppHbReq *pReq = &pHbReq->app;
   SAppObj   *pApp = mndAcquireApp(pMnode, pReq->appId);
   if (pApp == NULL) {
     pApp = mndCreateApp(pMnode, connInfo->clientIp, pReq);
     if (pApp == NULL) {
       mError("failed to create new app %" PRIx64 " since %s", pReq->appId, terrstr());
-      return -1;
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
     } else {
       mDebug("a new app %" PRIx64 " is created", pReq->appId);
       mndReleaseApp(pMnode, pApp);
@@ -475,6 +480,7 @@ static int32_t mndGetOnlineDnodeNum(SMnode *pMnode, int32_t *num) {
 
 static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHbReq *pHbReq,
                                         SClientHbBatchRsp *pBatchRsp, SConnPreparedObj *pObj) {
+  int32_t       code = 0;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   SClientHbRsp  hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = NULL, .query = NULL};
   SRpcConnInfo  connInfo = pMsg->info.conn;
@@ -492,7 +498,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
                             pHbReq->app.pid, pHbReq->app.name, 0);
       if (pConn == NULL) {
         mError("user:%s, conn:%u is freed and failed to create new since %s", connInfo.user, pBasic->connId, terrstr());
-        return -1;
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        TAOS_RETURN(code);
       } else {
         mDebug("user:%s, conn:%u is freed, will create a new conn:%u", connInfo.user, pBasic->connId, pConn->id);
       }
@@ -501,9 +509,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn, true);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       mError("user:%s, conn:%u failed to process hb while since %s", pConn->user, pBasic->connId, terrstr());
-      return -1;
+      TAOS_RETURN(code);
     }
 
     mndSaveQueryList(pConn, pBasic);
@@ -539,9 +547,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   hbRsp.info = taosArrayInit(kvNum, sizeof(SKv));
   if (NULL == hbRsp.info) {
     mError("taosArrayInit %d rsp kv failed", kvNum);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     tFreeClientHbRsp(&hbRsp);
-    return -1;
+    TAOS_RETURN(code);
   }
 
 #ifdef TD_ENTERPRISE
@@ -554,8 +562,8 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     mTrace("recv view dyn ver, bootTs:%" PRId64 ", ver:%" PRIu64, pDynViewVer->svrBootTs, pDynViewVer->dynViewVer);
 
     SDynViewVersion *pRspVer = NULL;
-    if (0 != mndValidateDynViewVersion(pMnode, pDynViewVer, &needCheck, &pRspVer)) {
-      return -1;
+    if (0 != (code = mndValidateDynViewVersion(pMnode, pDynViewVer, &needCheck, &pRspVer))) {
+      TAOS_RETURN(code);
     }
 
     if (needCheck) {
@@ -647,13 +655,14 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 }
 
 static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
+  int32_t code = 0;
   SMnode *pMnode = pReq->info.node;
 
   SClientHbBatchReq batchReq = {0};
   if (tDeserializeSClientHbBatchReq(pReq->pCont, pReq->contLen, &batchReq) != 0) {
     taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_RETURN(code);
   }
 
   SConnPreparedObj obj = {0};
@@ -699,31 +708,27 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
 
   taosArrayDestroy(obj.pQnodeList);
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
+  int32_t       code = 0;
   SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SKillQueryReq killReq = {0};
-  if (tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
+  TAOS_CHECK_RETURN(tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq));
 
   mInfo("kill query msg is received, queryId:%s", killReq.queryStrId);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_QUERY) != 0) {
-    return -1;
-  }
+  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_QUERY));
 
   int32_t  connId = 0;
   uint64_t queryId = 0;
   char    *p = strchr(killReq.queryStrId, ':');
   if (NULL == p) {
     mError("invalid query id %s", killReq.queryStrId);
-    terrno = TSDB_CODE_MND_INVALID_QUERY_ID;
-    return -1;
+    code = TSDB_CODE_MND_INVALID_QUERY_ID;
+    TAOS_RETURN(code);
   }
   *p = 0;
   connId = taosStr2Int32(killReq.queryStrId, NULL, 16);
@@ -732,40 +737,36 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
     mError("connId:%x, failed to kill queryId:%" PRIx64 ", conn not exist", connId, queryId);
-    terrno = TSDB_CODE_MND_INVALID_CONN_ID;
-    return -1;
+    code = TSDB_CODE_MND_INVALID_CONN_ID;
+    TAOS_RETURN(code);
   } else {
     mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, pReq->info.conn.user);
     pConn->killId = queryId;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
-    return 0;
+    TAOS_RETURN(code);
   }
 }
 
 static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
+  int32_t       code = 0;
   SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SKillConnReq killReq = {0};
-  if (tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
+  TAOS_CHECK_RETURN(tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq));
 
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_CONN) != 0) {
-    return -1;
-  }
+  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_CONN));
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(uint32_t));
   if (pConn == NULL) {
     mError("connId:%u, failed to kill connection, conn not exist", killReq.connId);
-    terrno = TSDB_CODE_MND_INVALID_CONN_ID;
-    return -1;
+    code = TSDB_CODE_MND_INVALID_CONN_ID;
+    TAOS_RETURN(code);
   } else {
     mInfo("connId:%u, is killed by user:%s", killReq.connId, pReq->info.conn.user);
     pConn->killed = 1;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
-    return TSDB_CODE_SUCCESS;
+    TAOS_RETURN(code);
   }
 }
 

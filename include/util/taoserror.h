@@ -53,7 +53,7 @@ int32_t  taosGetErrSize();
 #define terrln                              (*taosGetErrln())
 
 #define SET_ERROR_MSG(MSG, ...) \
-  snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
+  (void)snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
@@ -224,6 +224,7 @@ int32_t  taosGetErrSize();
 // #define TSDB_CODE_MND_FAILED_TO_INIT_STEP    TAOS_DEF_ERROR_CODE(0, 0x0314) // 2.x
 #define TSDB_CODE_MND_USER_DISABLED             TAOS_DEF_ERROR_CODE(0, 0x0315)
 #define TSDB_CODE_MND_INVALID_PLATFORM          TAOS_DEF_ERROR_CODE(0, 0x0316)
+#define TSDB_CODE_MND_RETURN_VALUE_NULL         TAOS_DEF_ERROR_CODE(0, 0x0317)
 
 // mnode-sdb
 #define TSDB_CODE_SDB_OBJ_ALREADY_THERE         TAOS_DEF_ERROR_CODE(0, 0x0320) // internal
@@ -555,6 +556,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER  TAOS_DEF_ERROR_CODE(0, 0x061B)
 #define TSDB_CODE_TDB_TDB_ENV_OPEN_ERROR        TAOS_DEF_ERROR_CODE(0, 0x061C)
 #define TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE     TAOS_DEF_ERROR_CODE(0, 0x061D)
+#define TSDB_CODE_TDB_INCONSISTENT_DB_ID        TAOS_DEF_ERROR_CODE(0, 0x061E)
 
 // query
 #define TSDB_CODE_QRY_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0700)
@@ -596,6 +598,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR     TAOS_DEF_ERROR_CODE(0, 0x0731)
 #define TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR   TAOS_DEF_ERROR_CODE(0, 0x0732)
 #define TSDB_CODE_QRY_INVALID_JOIN_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x0733)
+#define TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE   TAOS_DEF_ERROR_CODE(0, 0x0734)
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)

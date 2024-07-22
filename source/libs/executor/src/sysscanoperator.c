@@ -966,7 +966,8 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     char* tagVarChar = NULL;
     if (tagData != NULL) {
       if (tagType == TSDB_DATA_TYPE_JSON) {
-        char* tagJson = parseTagDatatoJson(tagData);
+        char* tagJson = NULL;
+        parseTagDatatoJson(tagData, &tagJson);
         tagVarChar = taosMemoryMalloc(strlen(tagJson) + VARSTR_HEADER_SIZE);
         memcpy(varDataVal(tagVarChar), tagJson, strlen(tagJson));
         varDataSetLen(tagVarChar, strlen(tagJson));

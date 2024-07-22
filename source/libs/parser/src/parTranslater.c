@@ -13179,7 +13179,7 @@ static int32_t buildTagIndexForBindTags(SMsgBuf* pMsgBuf, SCreateSubTableFromFil
 
     if (code) break;
 
-    if (taosHashPut(pIdxHash, &idx, sizeof(idx), NULL, 0) < 0) {
+    if (taosHashPut(pIdxHash, &idx, sizeof(idx), NULL, 0) != 0) {
       code = terrno;
       goto _OUT;
     }

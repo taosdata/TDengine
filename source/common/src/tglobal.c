@@ -1370,58 +1370,68 @@ static int32_t taosCheckGlobalCfg() {
   return 0;
 }
 
+static int32_t cfgInitWrapper(SConfig **pCfg) {
+  if (*pCfg == NULL) {
+    *pCfg = cfgInit();
+    if (*pCfg == NULL) {
+      return terrno;
+    }
+  }
+  return 0;
+}
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc) {
   if (tsCfg != NULL) return 0;
-  tsCfg = cfgInit();
+
+  int32_t code = cfgInitWrapper(&tsCfg);
 
   if (tsc) {
-    if (taosAddClientCfg(tsCfg) != 0) return -1;
-    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
+    if ((code = taosAddClientCfg(tsCfg)) != 0) return code;
+    if ((code = taosAddClientLogCfg(tsCfg)) != 0) return code;
   } else {
-    if (taosAddClientCfg(tsCfg) != 0) return -1;
-    if (taosAddServerCfg(tsCfg) != 0) return -1;
-    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
-    if (taosAddServerLogCfg(tsCfg) != 0) return -1;
+    if ((code = taosAddClientCfg(tsCfg)) != 0) return code;
+    if ((code = taosAddServerCfg(tsCfg)) != 0) return code;
+    if ((code = taosAddClientLogCfg(tsCfg)) != 0) return code;
+    if ((code = taosAddServerLogCfg(tsCfg)) != 0) return code;
   }
 
-  taosAddSystemCfg(tsCfg);
+  code = taosAddSystemCfg(tsCfg);
 
-  if (taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
-    uError("failed to load cfg since %s", terrstr());
+  if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
+    uError("failed to load cfg since %s", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
-    return -1;
+    return code;
   }
 
-  if (cfgLoadFromArray(tsCfg, pArgs) != 0) {
-    uError("failed to load cfg from array since %s", terrstr());
+  if ((code = cfgLoadFromArray(tsCfg, pArgs)) != 0) {
+    uError("failed to load cfg from array since %s", tstrerror(code));
     cfgCleanup(tsCfg);
     tsCfg = NULL;
-    return -1;
+    return code;
   }
 
   if (tsc) {
-    if (taosSetClientCfg(tsCfg)) return -1;
+    if ((code = taosSetClientCfg(tsCfg)) != 0) return code;
   } else {
-    if (taosSetClientCfg(tsCfg)) return -1;
-    if (taosUpdateServerCfg(tsCfg)) return -1;
-    if (taosSetServerCfg(tsCfg)) return -1;
-    if (taosSetReleaseCfg(tsCfg)) return -1;
-    if (taosSetTfsCfg(tsCfg) != 0) return -1;
-    if (taosSetS3Cfg(tsCfg) != 0) return -1;
+    if ((code = taosSetClientCfg(tsCfg)) != 0) return code;
+    if ((code = taosUpdateServerCfg(tsCfg)) != 0) return code;
+    if ((code = taosSetServerCfg(tsCfg)) != 0) return code;
+    if ((code = taosSetReleaseCfg(tsCfg)) != 0) return code;
+    if ((code = taosSetTfsCfg(tsCfg)) != 0) return code;
+    if ((code = taosSetS3Cfg(tsCfg)) != 0) return code;
   }
 
   taosSetSystemCfg(tsCfg);
 
-  if (taosSetFileHandlesLimit() != 0) return -1;
+  if ((code = taosSetFileHandlesLimit()) != 0) return code;
 
   taosSetAllDebugFlag(tsCfg, cfgGetItem(tsCfg, "debugFlag")->i32);
 
   cfgDumpCfg(tsCfg, tsc, false);
 
-  if (taosCheckGlobalCfg() != 0) {
-    return -1;
+  if ((code = taosCheckGlobalCfg()) != 0) {
+    return code;
   }
 
   return 0;

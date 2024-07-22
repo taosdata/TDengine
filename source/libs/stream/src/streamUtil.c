@@ -13,16 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tq.h"
+#include "streamInt.h"
 
-int tqCommit(STQ* pTq) {
-#if 0
-  // stream meta commit does not be aligned to the vnode commit
-  if (streamMetaCommit(pTq->pStreamMeta) < 0) {
-    tqError("vgId:%d, failed to commit stream meta since %s", TD_VID(pTq->pVnode), terrstr());
-    return -1;
-  }
-#endif
-
-  return tqOffsetCommitFile(pTq->pOffsetStore);
+void streamMutexLock(TdThreadMutex *pMutex) {
+  (void) taosThreadMutexLock(pMutex);
 }
+
+void streamMutexUnlock(TdThreadMutex *pMutex) {
+  (void) taosThreadMutexUnlock(pMutex);
+}
+
+void streamMutexDestroy(TdThreadMutex *pMutex) { (void) taosThreadMutexDestroy(pMutex); }

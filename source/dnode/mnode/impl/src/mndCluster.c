@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "audit.h"
 #include "mndCluster.h"
+#include "audit.h"
 #include "mndGrant.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
@@ -61,11 +61,13 @@ int32_t mndInitCluster(SMnode *pMnode) {
 void mndCleanupCluster(SMnode *pMnode) {}
 
 int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
-  SSdb *pSdb = pMnode->pSdb;
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
 
   SClusterObj *pCluster = sdbAcquire(pSdb, SDB_CLUSTER, &pMnode->clusterId);
   if (pCluster == NULL) {
-    return -1;
+    code = terrno;
+    TAOS_RETURN(code);
   }
 
   tstrncpy(clusterName, pCluster->name, len);
@@ -247,7 +249,10 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   mInfo("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
-  if (pRaw == NULL) return -1;
+  if (pRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
@@ -256,21 +261,22 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   if (pTrans == NULL) {
     sdbFreeRaw(pRaw);
     mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
-    return -1;
+    code = terrno;
+    TAOS_RETURN(code);
   }
   mInfo("trans:%d, used to create cluster:%" PRId64, pTrans->id, clusterObj.id);
 
-  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+  if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   mndTransDrop(pTrans);
@@ -354,22 +360,33 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     return 0;
   }
 
+  int32_t code = 0;
   mInfo("update cluster uptime to %d", clusterObj.upTime);
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
-  if (pTrans == NULL) return -1;
+  if (pTrans == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
 
   SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+  if (pCommitRaw == NULL) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   mndTransDrop(pTrans);
@@ -381,13 +398,12 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SMCfgClusterReq cfgReq = {0};
   if (tDeserializeSMCfgClusterReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_RETURN(code);
   }
 
   mInfo("cluster: start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER) != 0) {
-    code = terrno != 0 ? terrno : TSDB_CODE_MND_NO_RIGHTS;
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER)) != 0) {
     goto _exit;
   }
 
@@ -417,17 +433,17 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   }
 
   {  // audit
-    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql, TMIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1));
+    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql,
+                TMIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1));
   }
 _exit:
   tFreeSMCfgClusterReq(&cfgReq);
   if (code != 0) {
-    terrno = code;
     mError("cluster: failed to config:%s %s since %s", cfgReq.config, cfgReq.value, terrstr());
   } else {
     mInfo("cluster: success to config:%s %s", cfgReq.config, cfgReq.value);
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndProcessConfigClusterRsp(SRpcMsg *pRsp) {

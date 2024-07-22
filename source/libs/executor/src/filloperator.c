@@ -310,8 +310,10 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
 void destroyFillOperatorInfo(void* param) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*)param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
-  pInfo->pRes = blockDataDestroy(pInfo->pRes);
-  pInfo->pFinalRes = blockDataDestroy(pInfo->pFinalRes);
+  blockDataDestroy(pInfo->pRes);
+  pInfo->pRes = NULL;
+  blockDataDestroy(pInfo->pFinalRes);
+  pInfo->pFinalRes = NULL;
 
   cleanupExprSupp(&pInfo->noFillExprSupp);
 
