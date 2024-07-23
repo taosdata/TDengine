@@ -2579,25 +2579,25 @@ static int32_t mndProcessGetUserAuthReq(SRpcMsg *pReq) {
   SGetUserAuthReq authReq = {0};
   SGetUserAuthRsp authRsp = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeSGetUserAuthReq(pReq->pCont, pReq->contLen, &authReq), &lino, _OVER);
+  TAOS_CHECK_EXIT(tDeserializeSGetUserAuthReq(pReq->pCont, pReq->contLen, &authReq));
   mTrace("user:%s, start to get auth", authReq.user);
 
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, authReq.user, &pUser), &lino, _OVER);
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, authReq.user, &pUser));
 
-  TAOS_CHECK_GOTO(mndSetUserAuthRsp(pMnode, pUser, &authRsp), &lino, _OVER);
+  TAOS_CHECK_EXIT(mndSetUserAuthRsp(pMnode, pUser, &authRsp));
 
   contLen = tSerializeSGetUserAuthRsp(NULL, 0, &authRsp);
   if (contLen < 0) {
-    TAOS_CHECK_GOTO(contLen, &lino, _OVER);
+    TAOS_CHECK_EXIT(contLen);
   }
   pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _OVER);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  TAOS_CHECK_GOTO(tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp), &lino, _OVER);
+  TAOS_CHECK_EXIT(tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp));
 
-_OVER:
+_exit:
   mndReleaseUser(pMnode, pUser);
   tFreeSGetUserAuthRsp(&authRsp);
   if (code < 0) {
@@ -2939,22 +2939,22 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)userName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, _exit);
 
       char privilege[20] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "all", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)privilege, false);
+      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, _exit);
 
       char objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(objName, "all", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)objName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, _exit);
 
       char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(tableName, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, _exit);
 
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
@@ -2963,12 +2963,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
+      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)notes, false);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, _exit);
 
       numOfRows++;
     }
@@ -2979,12 +2979,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)userName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, _exit);
 
       char privilege[20] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "read", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)privilege, false);
+      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, _exit);
 
       SName name = {0};
       char  objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2992,12 +2992,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       tNameGetDbName(&name, varDataVal(objName));
       varDataSetLen(objName, strlen(varDataVal(objName)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)objName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, _exit);
 
       char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(tableName, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, _exit);
 
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
@@ -3006,13 +3006,13 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
-      taosMemoryFree(condition);
+      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
+
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)notes, false);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, _exit);
 
       numOfRows++;
       db = taosHashIterate(pUser->readDbs, db);
@@ -3024,12 +3024,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)userName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, _exit);
 
       char privilege[20] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "write", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)privilege, false);
+      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, _exit);
 
       SName name = {0};
       char  objName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -3037,12 +3037,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       tNameGetDbName(&name, varDataVal(objName));
       varDataSetLen(objName, strlen(varDataVal(objName)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)objName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)objName, false, pUser, _exit);
 
       char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(tableName, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, _exit);
 
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
@@ -3051,13 +3051,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
-      taosMemoryFree(condition);
+      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)notes, false);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, _exit);
 
       numOfRows++;
       db = taosHashIterate(pUser->writeDbs, db);
@@ -3081,23 +3080,23 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char userName[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(userName, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)userName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)userName, false, pUser, _exit);
 
       char privilege[20] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "subscribe", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)privilege, false);
+      COL_DATA_SET_VAL_GOTO((const char *)privilege, false, pUser, _exit);
 
       char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
       tstrncpy(varDataVal(topicName), mndGetDbStr(topic), TSDB_TOPIC_NAME_LEN - 2);
       varDataSetLen(topicName, strlen(varDataVal(topicName)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)topicName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)topicName, false, pUser, _exit);
 
       char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(tableName, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)tableName, false);
+      COL_DATA_SET_VAL_GOTO((const char *)tableName, false, pUser, _exit);
 
       TAOS_MEMORY_REALLOC(condition, TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE);
       if (condition == NULL) {
@@ -3106,13 +3105,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)condition, false);
-      taosMemoryFree(condition);
+      COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)notes, false);
+      COL_DATA_SET_VAL_GOTO((const char *)notes, false, pUser, _exit);
 
       numOfRows++;
       topic = taosHashIterate(pUser->topics, topic);

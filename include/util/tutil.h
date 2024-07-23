@@ -160,7 +160,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 #define TAOS_CHECK_RETURN(CMD)      \
   do {                              \
     int32_t code = (CMD);           \
-    if (code < TSDB_CODE_SUCCESS) { \
+    if (code != TSDB_CODE_SUCCESS) { \
       TAOS_RETURN(code);            \
     }                               \
   } while (0)
@@ -168,7 +168,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 #define TAOS_CHECK_GOTO(CMD, LINO, LABEL) \
   do {                                    \
     code = (CMD);                         \
-    if (code < TSDB_CODE_SUCCESS) {       \
+    if (code != TSDB_CODE_SUCCESS) {       \
       if (LINO) {                         \
         *((int32_t *)(LINO)) = __LINE__;  \
       }                                   \
