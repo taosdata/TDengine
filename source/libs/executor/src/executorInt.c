@@ -638,7 +638,8 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
 
     pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (pCtx[j].fpSet.finalize) {
-      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
+      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0 ||
+      strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_const_value") == 0) {
         // for groupkey along with functions that output multiple lines(e.g. Histogram)
         // need to match groupkey result for each output row of that function.
         if (pCtx[j].resultInfo->numOfRes != 0) {

@@ -176,7 +176,14 @@ typedef struct SExplainCtx {
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 #define EXPLAIN_MERGE_MODE_STRING(_mode) ((_mode) == MERGE_TYPE_SORT ? "sort" : ((_mode) == MERGE_TYPE_NON_SORT ? "merge" : "column"))
 
-#define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p) (((_u) == 'n' || (_u) == 'y') ? (_t) : (convertTimeFromPrecisionToUnit(_t, _p, _u)))
+#define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p, _r)         \
+do {                                                                \
+  if ((_u) == 'n' || (_u) == 'y') {                                 \
+    _r = (_t);                                                      \
+  } else {                                                          \
+    code = convertTimeFromPrecisionToUnit(_t, _p, _u, &_r);         \
+  }                                                                 \
+} while(0)
 
 #define EXPLAIN_ROW_NEW(level, ...)                                                                               \
   do {                                                                                                            \
