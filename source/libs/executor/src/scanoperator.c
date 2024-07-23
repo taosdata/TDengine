@@ -5113,8 +5113,13 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
 
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
-                                             pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0);
+  pInfo->pSortHandle = NULL;
+  code = tsortCreateSortHandle(pInfo->pSortInfo, SORT_BLOCK_TS_MERGE, pInfo->bufPageSize, numOfBufPage,
+                                               pInfo->pSortInputBlock, pTaskInfo->id.str, 0, 0, 0, &pInfo->pSortHandle);
+  if (code) {
+    return code;
+  }
+
   if (pInfo->bSortRowId && numOfTable != 1) {
     int32_t memSize = 512 * 1024 * 1024;
     code = tsortSetSortByRowId(pInfo->pSortHandle, memSize);
@@ -5247,10 +5252,12 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
   STupleHandle* pTupleHandle = NULL;
   while (1) {
     while (1) {
-      pTupleHandle = tsortNextTuple(pHandle);
-      if (pTupleHandle == NULL) {
+      pTupleHandle = NULL;
+      int32_t code = tsortNextTuple(pHandle, &pTupleHandle);
+      if (pTupleHandle == NULL || code != 0) {
         break;
       }
+
       tsortAppendTupleToBlock(pInfo->pSortHandle, pResBlock, pTupleHandle);
       if (pResBlock->info.rows >= capacity) {
         break;

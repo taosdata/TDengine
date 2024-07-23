@@ -726,7 +726,7 @@ int32_t streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask == NULL || streamTaskShouldStop(*ppTask)) {
     *pTask = NULL;
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
   int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);

@@ -359,7 +359,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       }
     }
 
-    pInfo->pLastrowReader = pReaderFn->closeReader(pInfo->pLastrowReader);
+    pReaderFn->closeReader(pInfo->pLastrowReader);
+    pInfo->pLastrowReader = NULL;
     setOperatorCompleted(pOperator);
     return NULL;
   }
@@ -378,7 +379,8 @@ void destroyCacheScanOperator(void* param) {
   tableListDestroy(pInfo->pTableList);
 
   if (pInfo->pLastrowReader != NULL) {
-    pInfo->pLastrowReader = pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);
+    pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);
+    pInfo->pLastrowReader = NULL;
   }
 
   cleanupExprSupp(&pInfo->pseudoExprSup);

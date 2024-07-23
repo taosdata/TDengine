@@ -36,7 +36,7 @@ static void setCheckDownstreamReqInfo(SStreamTaskCheckReq* pReq, int64_t reqId, 
 static void getCheckRspStatus(STaskCheckInfo* pInfo, int64_t el, int32_t* numOfReady, int32_t* numOfFault,
                               int32_t* numOfNotRsp, SArray* pTimeoutList, SArray* pNotReadyList, const char* id);
 static int32_t addDownstreamFailedStatusResultAsync(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId);
-static SDownstreamStatusInfo* findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId);
+static void findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId, SDownstreamStatusInfo** pStatusInfo);
 
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage,
                               int64_t* oldStage) {
@@ -402,26 +402,29 @@ void streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutput
   pInfo->stopCheckProcess = 0;
 }
 
-SDownstreamStatusInfo* findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId) {
+void findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId, SDownstreamStatusInfo** pStatusInfo) {
+  if (pStatusInfo == NULL) {
+    return;
+  }
+
+  *pStatusInfo = NULL;
   for (int32_t j = 0; j < taosArrayGetSize(pInfo->pList); ++j) {
     SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, j);
     if (p->taskId == taskId) {
-      return p;
+      *pStatusInfo = p;
     }
   }
-
-  return NULL;
 }
 
 int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t status, int64_t rspTs, int64_t reqId,
                                   int32_t* pNotReady, const char* id) {
   streamMutexLock(&pInfo->checkInfoLock);
 
-  SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+  SDownstreamStatusInfo* p = NULL;
+  findCheckRspStatus(pInfo, taskId, &p);
   if (p != NULL) {
     if (reqId != p->reqId) {
-      stError("s-task:%s reqId:0x%" PRIx64 " expected:0x%" PRIx64
-              " expired check-rsp recv from downstream task:0x%x, discarded",
+      stError("s-task:%s reqId:0x%" PRIx64 " expected:0x%" PRIx64 " expired check-rsp recv from downstream task:0x%x, discarded",
               id, reqId, p->reqId, taskId);
       streamMutexUnlock(&pInfo->checkInfoLock);
       return TSDB_CODE_FAILED;
@@ -495,7 +498,8 @@ void streamTaskAddReqInfo(STaskCheckInfo* pInfo, int64_t reqId, int32_t taskId, 
   SDownstreamStatusInfo info = {.taskId = taskId, .status = -1, .vgId = vgId, .reqId = reqId, .rspTs = 0};
   streamMutexLock(&pInfo->checkInfoLock);
 
-  SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+  SDownstreamStatusInfo* p = NULL;
+  findCheckRspStatus(pInfo, taskId, &p);
   if (p != NULL) {
     stDebug("s-task:%s check info to task:0x%x already sent", id, taskId);
     streamMutexUnlock(&pInfo->checkInfoLock);
@@ -598,7 +602,8 @@ void handleTimeoutDownstreamTasks(SStreamTask* pTask, SArray* pTimeoutList) {
   for (int32_t i = 0; i < numOfTimeout; ++i) {
     int32_t taskId = *(int32_t*)taosArrayGet(pTimeoutList, i);
 
-    SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+    SDownstreamStatusInfo* p = NULL;
+    findCheckRspStatus(pInfo, taskId, &p);
     if (p != NULL) {
       ASSERT(p->status == -1 && p->rspTs == 0);
       doSendCheckMsg(pTask, p);
@@ -613,7 +618,8 @@ void handleTimeoutDownstreamTasks(SStreamTask* pTask, SArray* pTimeoutList) {
 
     for (int32_t i = 0; i < numOfTimeout; ++i) {
       int32_t                taskId = *(int32_t*)taosArrayGet(pTimeoutList, i);
-      SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+      SDownstreamStatusInfo* p = NULL;
+      findCheckRspStatus(pInfo, taskId, &p);
       if (p != NULL) {
         addIntoNodeUpdateList(pTask, p->vgId);
         stDebug("s-task:%s vgId:%d downstream task:0x%x (vgId:%d) timeout more than 100sec, add into nodeUpate list",
@@ -640,7 +646,8 @@ void handleNotReadyDownstreamTask(SStreamTask* pTask, SArray* pNotReadyList) {
   for (int32_t i = 0; i < numOfNotReady; ++i) {
     int32_t taskId = *(int32_t*)taosArrayGet(pNotReadyList, i);
 
-    SDownstreamStatusInfo* p = findCheckRspStatus(pInfo, taskId);
+    SDownstreamStatusInfo* p = NULL;
+    findCheckRspStatus(pInfo, taskId, &p);
     if (p != NULL) {
       p->rspTs = 0;
       p->status = -1;

@@ -1203,13 +1203,17 @@ void mndClearConsensusRspEntry(SCheckpointConsensusInfo* pInfo) {
 }
 
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId) {
-  int32_t code = taosHashRemove(pHash, &streamId, sizeof(streamId));
+  int32_t code = 0;
+  int32_t numOfStreams = taosHashGetSize(pHash);
+  if (numOfStreams == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = taosHashRemove(pHash, &streamId, sizeof(streamId));
   if (code == 0) {
-    int32_t numOfStreams = taosHashGetSize(pHash);
-    mDebug("drop stream:0x%" PRIx64 " in consensus-checkpointId list after new checkpoint generated, remain:%d",
-           streamId, numOfStreams);
+    mDebug("drop stream:0x%" PRIx64 " in consensus-checkpointId list, remain:%d", streamId, numOfStreams);
   } else {
-    mError("failed to remove stream:0x%"PRIx64" in consensus-checkpointId list", streamId);
+    mError("failed to remove stream:0x%"PRIx64" in consensus-checkpointId list, remain:%d", streamId, numOfStreams);
   }
 
   return code;
