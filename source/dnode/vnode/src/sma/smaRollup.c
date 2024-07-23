@@ -123,8 +123,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
 static FORCE_INLINE int32_t tdUidStoreInit(STbUidStore **pStore) {
   *pStore = taosMemoryCalloc(1, sizeof(STbUidStore));
   if (*pStore == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -132,12 +131,13 @@ static FORCE_INLINE int32_t tdUidStoreInit(STbUidStore **pStore) {
 
 static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids, bool isAdd) {
   SRSmaInfo *pRSmaInfo = NULL;
+  int32_t    code = 0;
 
   if (!suid || !tbUids) {
-    terrno = TSDB_CODE_INVALID_PTR;
+    code = TSDB_CODE_INVALID_PTR;
     smaError("vgId:%d, failed to get rsma info for uid:%" PRIi64 " since %s", SMA_VID(pSma), suid ? *suid : -1,
-             terrstr());
-    return TSDB_CODE_FAILED;
+             tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   int32_t nTables = taosArrayGetSize(tbUids);
@@ -151,17 +151,17 @@ static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids,
 
   if (!pRSmaInfo) {
     smaError("vgId:%d, failed to get rsma info for uid:%" PRIi64, SMA_VID(pSma), *suid);
-    terrno = TSDB_CODE_RSMA_INVALID_STAT;
-    return TSDB_CODE_FAILED;
+    code = TSDB_CODE_RSMA_INVALID_STAT;
+    TAOS_RETURN(code);
   }
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pRSmaInfo->taskInfo[i]) {
-      if ((terrno = qUpdateTableListForStreamScanner(pRSmaInfo->taskInfo[i], tbUids, isAdd)) < 0) {
+      if ((code = qUpdateTableListForStreamScanner(pRSmaInfo->taskInfo[i], tbUids, isAdd)) < 0) {
         tdReleaseRSmaInfo(pSma, pRSmaInfo);
         smaError("vgId:%d, update tbUidList failed for uid:%" PRIi64 " level %d since %s", SMA_VID(pSma), *suid, i,
-                 terrstr());
-        return TSDB_CODE_FAILED;
+                 tstrerror(code));
+        TAOS_RETURN(code);
       }
       smaDebug("vgId:%d, update tbUidList succeed for qTaskInfo:%p. suid:%" PRIi64 " uid:%" PRIi64
                "nTables:%d level %d",
@@ -170,26 +170,25 @@ static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids,
   }
 
   tdReleaseRSmaInfo(pSma, pRSmaInfo);
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
 }
 
 int32_t tdUpdateTbUidList(SSma *pSma, STbUidStore *pStore, bool isAdd) {
+  int32_t code = 0;
   if (!pStore || (taosArrayGetSize(pStore->tbUids) == 0)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (tdUpdateTbUidListImpl(pSma, &pStore->suid, pStore->tbUids, isAdd) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_FAILED;
-  }
+  TAOS_CHECK_RETURN(tdUpdateTbUidListImpl(pSma, &pStore->suid, pStore->tbUids, isAdd));
 
   void *pIter = NULL;
   while ((pIter = taosHashIterate(pStore->uidHash, pIter))) {
     tb_uid_t *pTbSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
     SArray   *pTbUids = *(SArray **)pIter;
 
-    if (tdUpdateTbUidListImpl(pSma, pTbSuid, pTbUids, isAdd) != TSDB_CODE_SUCCESS) {
+    if ((code = tdUpdateTbUidListImpl(pSma, pTbSuid, pTbUids, isAdd)) != TSDB_CODE_SUCCESS) {
       taosHashCancelIterate(pStore->uidHash, pIter);
-      return TSDB_CODE_FAILED;
+      TAOS_RETURN(code);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -206,6 +205,7 @@ int32_t tdUpdateTbUidList(SSma *pSma, STbUidStore *pStore, bool isAdd) {
  */
 int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_uid_t uid) {
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
+  int32_t  code = 0;
 
   // only applicable to rollup SMA ctables
   if (!pEnv) {
