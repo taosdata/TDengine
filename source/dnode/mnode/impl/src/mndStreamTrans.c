@@ -277,7 +277,7 @@ int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
 
     SStreamObj *pStream = NULL;
     int32_t code = mndGetStreamObj(pMnode, pTransInfo->streamId, &pStream);
-    if (pStream != NULL || code != 0) {
+    if (pStream != NULL && code == 0) {
       if (identicalName(pStream->sourceDb, pDBName, len)) {
         mndKillTransImpl(pMnode, pTransInfo->transId, pStream->sourceDb);
       } else if (identicalName(pStream->targetDb, pDBName, len)) {
