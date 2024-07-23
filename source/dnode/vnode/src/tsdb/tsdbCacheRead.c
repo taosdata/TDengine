@@ -89,8 +89,8 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         if (pVal == NULL) {
           return TSDB_CODE_INVALID_PARA;
         }
-        funcType = *(int32_t*) pVal;
 
+        funcType = *(int32_t*) pVal;
         pVal = taosArrayGet(pReader->pFuncTypeList, i);
         if (pVal == NULL) {
           return TSDB_CODE_INVALID_PARA;
@@ -471,6 +471,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     int32_t bytes = (slotIds[j] == -1) ? 1 : pr->pSchema->columns[slotIds[j]].bytes;
 
     pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + bytes + pkBufLen + VARSTR_HEADER_SIZE);
+    if (pRes[j] == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _end;
+    }
+
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);
     p->ts = INT64_MIN;
   }
@@ -512,7 +517,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         for (int32_t j = 0; j < pr->rowKey.numOfPKs; j++) {
           p.rowKey.pks[j].type = pr->pkColumn.type;
           if (IS_VAR_DATA_TYPE(pr->pkColumn.type)) {
+
             p.rowKey.pks[j].pData = taosMemoryCalloc(1, pr->pkColumn.bytes);
+            if (p.rowKey.pks[j].pData == NULL) {
+              code = TSDB_CODE_OUT_OF_MEMORY;
+              goto _end;
+            }
           }
         }
       }
@@ -538,7 +548,9 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       tb_uid_t uid = pTableList[i].uid;
 
       code = tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
-      if (code) {
+      if (code == -1) {// fix the invalid return code
+        code = 0;
+      } else if (code != 0) {
         goto _end;
       }
 
@@ -642,7 +654,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       tb_uid_t uid = pTableList[i].uid;
 
       if ((code = tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype)) != 0) {
-        goto _end;
+        if (code == -1) {// fix the invalid return code
+          code = 0;
+        } else if (code != 0) {
+          goto _end;
+        }
       }
 
       if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {

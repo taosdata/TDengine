@@ -255,14 +255,13 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
 }
 
 int32_t mndAcquireStream(SMnode *pMnode, char *streamName, SStreamObj **pStream) {
-  terrno = 0;
-
+  int32_t code = 0;
   SSdb *pSdb = pMnode->pSdb;
   (*pStream) = sdbAcquire(pSdb, SDB_STREAM, streamName);
   if ((*pStream) == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
-    terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+    code = TSDB_CODE_MND_STREAM_NOT_EXIST;
   }
-  return terrno;
+  return code;
 }
 
 void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
@@ -754,19 +753,19 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   code = mndAcquireStream(pMnode, createReq.name, &pStream);
-  if (pStream != NULL || code == 0) {
+  if (pStream != NULL && code == 0) {
     if (createReq.igExists) {
       mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
       goto _OVER;
     } else {
-      terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
+      code = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
       goto _OVER;
     }
-  } else if (terrno != TSDB_CODE_MND_STREAM_NOT_EXIST) {
+  } else if (code != TSDB_CODE_MND_STREAM_NOT_EXIST) {
     goto _OVER;
   }
 
-  if ((terrno = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
+  if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
     goto _OVER;
   }
 
