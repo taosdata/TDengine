@@ -67,7 +67,7 @@ typedef struct TdFile {
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
 
-  char        tmpPath[PATH_MAX];
+  char tmpPath[PATH_MAX];
 
   int32_t len = (int32_t)strlen(inputTmpDir);
   memcpy(tmpPath, inputTmpDir, len);
@@ -269,13 +269,13 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 
 #else
   if (pFile == NULL || pFile->fd < 0) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   struct stat fileStat;
   int32_t     code = fstat(pFile->fd, &fileStat);
   if (code < 0) {
     printf("taosFStatFile run fstat fail.");
-    return code;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   if (stDev != NULL) {
@@ -1239,7 +1239,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
 #ifdef WINDOWS
   size_t bufferSize = 512;
   *ptrBuf = taosMemoryMalloc(bufferSize);
-  if (*ptrBuf == NULL)     goto END;
+  if (*ptrBuf == NULL) goto END;
 
   size_t bytesRead = 0;
   size_t totalBytesRead = 0;
@@ -1274,7 +1274,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   ret = getline(ptrBuf, &len, pFile->fp);
 #endif
 
-  END:
+END:
 #if FILE_WITH_LOCK
   taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
@@ -1413,34 +1413,30 @@ int32_t taosLinkFile(char *src, char *dst) {
   return 0;
 }
 
-FILE*  taosOpenCFile(const char* filename, const char* mode) {
-  return fopen(filename, mode);
-}
+FILE *taosOpenCFile(const char *filename, const char *mode) { return fopen(filename, mode); }
 
-int taosSeekCFile(FILE* file, int64_t offset, int whence) {
+int taosSeekCFile(FILE *file, int64_t offset, int whence) {
 #ifdef WINDOWS
   return _fseeki64(file, offset, whence);
 #else
   return fseeko(file, offset, whence);
-#endif  
+#endif
 }
 
-size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream ) {
+size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream) {
   return fread(buffer, size, count, stream);
 }
 
-size_t taosWriteToCFile(const void* ptr, size_t size, size_t nitems, FILE* stream) {
+size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *stream) {
   return fwrite(ptr, size, nitems, stream);
 }
 
-int	 taosCloseCFile(FILE *f) {
-  return fclose(f);
-}
+int taosCloseCFile(FILE *f) { return fclose(f); }
 
-int taosSetAutoDelFile(char* path) {
+int taosSetAutoDelFile(char *path) {
 #ifdef WINDOWS
   return SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
 #else
   return unlink(path);
-#endif  
+#endif
 }

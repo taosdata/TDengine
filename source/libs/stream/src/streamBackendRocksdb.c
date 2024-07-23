@@ -1540,7 +1540,7 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
     // compatible with previous version
     *processId = -1;
     code = 0;
-    stError("failed to open file to load extra info, file:%s, reason:%s", pDst, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+    stWarn("failed to open file to load extra info, file:%s, reason:%s", pDst, tstrerror(TAOS_SYSTEM_ERROR(errno)));
     goto _EXIT;
   }
 
@@ -2308,6 +2308,7 @@ _EXIT:
   taosMemoryFree(cfHandle);
   return code;
 }
+
 void* taskDbAddRef(void* pTaskDb) {
   STaskDbWrapper* pBackend = pTaskDb;
   return taosAcquireRef(taskDbWrapperId, pBackend->refId);
