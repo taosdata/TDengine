@@ -539,9 +539,11 @@ void streamMetaClear(SStreamMeta* pMeta) {
     streamMetaReleaseTask(pMeta, p);
   }
 
-  int32_t code = taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
-  if (code) {
-    stError("vgId:%d remove stream backend Ref failed, rid:%"PRId64, pMeta->vgId, pMeta->streamBackendRid);
+  if (pMeta->streamBackendRid != 0) {
+    int32_t code = taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
+    if (code) {
+      stError("vgId:%d remove stream backend Ref failed, rid:%" PRId64, pMeta->vgId, pMeta->streamBackendRid);
+    }
   }
 
   taosHashClear(pMeta->pTasksMap);
