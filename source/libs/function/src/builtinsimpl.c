@@ -6350,7 +6350,10 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   STableBlockDistInfo*  pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   STableBlockDistInfo p1 = {0};
-  (void)tDeserializeBlockDistInfo(varDataVal(pInputCol->pData), varDataLen(pInputCol->pData), &p1);
+  if (tDeserializeBlockDistInfo(varDataVal(pInputCol->pData), varDataLen(pInputCol->pData), &p1) < 0) {
+    qError("failed to deserialize block dist info");
+    return TSDB_CODE_FAILED;
+  }
 
   pDistInfo->numOfBlocks += p1.numOfBlocks;
   pDistInfo->numOfTables += p1.numOfTables;
