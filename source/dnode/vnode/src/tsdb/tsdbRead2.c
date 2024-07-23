@@ -3669,14 +3669,17 @@ static void getTsdbByRetentions(SVnode* pVnode, SQueryTableDataCond* pCond, SRet
       *pLevel = TSDB_RETENTION_L0;
       tsdbDebug("vgId:%d, rsma level %d is selected to query %s", TD_VID(pVnode), TSDB_RETENTION_L0, str);
       *pTsdb = VND_RSMA0(pVnode);
+      return;
     } else if (level == TSDB_RETENTION_L1) {
       *pLevel = TSDB_RETENTION_L1;
       tsdbDebug("vgId:%d, rsma level %d is selected to query %s", TD_VID(pVnode), TSDB_RETENTION_L1, str);
       *pTsdb =  VND_RSMA1(pVnode);
+      return;
     } else {
       *pLevel = TSDB_RETENTION_L2;
       tsdbDebug("vgId:%d, rsma level %d is selected to query %s", TD_VID(pVnode), TSDB_RETENTION_L2, str);
       *pTsdb = VND_RSMA2(pVnode);
+      return;
     }
   }
 
