@@ -93,7 +93,7 @@ int32_t getLogLevel() { return g_logLevel; }
 
 class PlannerTestBaseImpl {
  public:
-  PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) {}
+  PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) { assert(qInitKeywordsTable() == 0); }
 
   void useDb(const string& user, const string& db) {
     caseEnv_.acctId_ = 0;
@@ -448,7 +448,7 @@ class PlannerTestBaseImpl {
       pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
       pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
       if (!pCmdMsg->pMsg) FAIL();
-      ASSERT_EQ(TSDB_CODE_SUCCESS, tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
+      ASSERT_TRUE(0 < tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
       ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
 
       ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));

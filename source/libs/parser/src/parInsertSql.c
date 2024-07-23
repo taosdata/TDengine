@@ -1243,10 +1243,7 @@ static int32_t collectUseTable(const SName* pName, SHashObj* pTable) {
 
 static int32_t collectUseDatabase(const SName* pName, SHashObj* pDbs) {
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  int32_t code = tNameGetFullDbName(pName, dbFName);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
+  (void)tNameGetFullDbName(pName, dbFName);
   return taosHashPut(pDbs, dbFName, strlen(dbFName), dbFName, sizeof(dbFName));
 }
 
@@ -2217,6 +2214,9 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
   // init only for file
   if (NULL == pStmt->pTableCxtHashObj) {
     pStmt->pTableCxtHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (!pStmt->pTableCxtHashObj) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
   int32_t numOfRows = 0;
   int32_t code = parseCsvFile(pCxt, pStmt, rowsDataCxt, &numOfRows);

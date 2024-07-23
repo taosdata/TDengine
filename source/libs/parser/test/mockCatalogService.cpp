@@ -48,7 +48,7 @@ class TableBuilder : public ITableBuilder {
     SVgroupInfo vgroup = {vgid, 0, 0, {0}, 0};
     assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030));
     assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030));
-    assert(TSDB_CODE_FAILED == addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030));
+    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030));
     vgroup.epSet.inUse = 0;
 
     (void)meta_->vgs.emplace_back(vgroup);

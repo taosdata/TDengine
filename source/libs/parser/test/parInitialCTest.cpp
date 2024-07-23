@@ -685,7 +685,7 @@ TEST_F(ParserInitialCTest, createSmaIndex) {
     pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
     pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
     if (!pCmdMsg->pMsg) FAIL();
-    ASSERT_EQ(TSDB_CODE_SUCCESS, tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
+    ASSERT_TRUE(0 < tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
     ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
