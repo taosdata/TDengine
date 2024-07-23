@@ -1601,7 +1601,9 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* pResp) {
 
   memset(pResp, 0, sizeof(STransMsg));
 
-  pResp->code = TSDB_CODE_RPC_BROKEN_LINK;
+  if (pResp->code == 0) {
+    pResp->code = TSDB_CODE_RPC_BROKEN_LINK;
+  }
   pResp->msgType = pMsg->msg.msgType + 1;
   pResp->info.ahandle = pMsg->ctx ? pMsg->ctx->ahandle : NULL;
   pResp->info.traceId = pMsg->msg.info.traceId;
@@ -1697,7 +1699,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   SCliConn* conn = cliGetConn(&pMsg, pThrd, &ignore, addr);
   if (ignore == true) {
     // persist conn already release by server
-    STransMsg resp;
+    STransMsg resp = {0};
     cliBuildExceptResp(pMsg, &resp);
     // refactorr later
     resp.info.cliVer = pTransInst->compatibilityVer;
@@ -1719,6 +1721,18 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     cliSend(conn);
   } else {
     code = cliCreateConn(pThrd, &conn);
+    if (code != 0) {
+      tError("%s failed to create conn, reason:%s", pTransInst->label, tstrerror(code));
+      STransMsg resp = {.code = code};
+      cliBuildExceptResp(pMsg, &resp);
+
+      resp.info.cliVer = pTransInst->compatibilityVer;
+      if (pMsg->type != Release) {
+        pTransInst->cfp(pTransInst->parent, &resp, NULL);
+      }
+      destroyCmsg(pMsg);
+      return;
+    }
 
     int64_t refId = (int64_t)pMsg->msg.info.handle;
     if (refId != 0) specifyConnRef(conn, true, refId);
