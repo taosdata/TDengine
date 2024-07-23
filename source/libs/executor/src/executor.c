@@ -1306,9 +1306,9 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanInfo->scanTimes = 0;
 
       if (pScanBaseInfo->dataReader == NULL) {
-        int32_t code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(
-            pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1, pScanInfo->pResBlock,
-            (void**)&pScanBaseInfo->dataReader, id, NULL);
+        code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond,
+                                                             &keyInfo, 1, pScanInfo->pResBlock,
+                                                             (void**)&pScanBaseInfo->dataReader, id, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
           terrno = code;

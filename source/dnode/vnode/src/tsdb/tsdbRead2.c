@@ -547,7 +547,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   pReader->info.window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows);
 
   pReader->idStr = (idstr != NULL) ? taosStrdup(idstr) : NULL;
-  if (pReader->idStr == NULL) {
+  if (idstr != NULL && pReader->idStr == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
@@ -4618,19 +4618,16 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   STimeWindow window = pCond->twindows;
   SVnodeCfg*  pConf = &(((SVnode*)pVnode)->config);
   int32_t     code = 0;
+  int32_t     lino = 0;
 
   int32_t capacity = pConf->tsdbCfg.maxRows;
   if (pResBlock != NULL) {
     code = blockDataEnsureCapacity(pResBlock, capacity);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
-    }
+    TSDB_CHECK_CODE(code, lino, _err);
   }
 
   code = tsdbReaderCreate(pVnode, pCond, ppReader, capacity, pResBlock, idstr);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   // check for query time window
   STsdbReader* pReader = *ppReader;
@@ -4654,9 +4651,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
 
     // here we only need one more row, so the capacity is set to be ONE.
     code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[0], 1, pResBlock, idstr);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
-    }
+    TSDB_CHECK_CODE(code, lino, _err);
 
     if (order == TSDB_ORDER_ASC) {
       pCond->twindows.skey = window.ekey + 1;
@@ -4668,9 +4663,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     pCond->order = order;
 
     code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[1], 1, pResBlock, idstr);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
-    }
+    TSDB_CHECK_CODE(code, lino, _err);
   }
 
   // NOTE: the endVersion in pCond is the data version not schema version, so pCond->endVersion is not correct here.
@@ -4691,9 +4684,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
 
   if (pReader->info.pSchema != NULL) {
     code = tsdbRowMergerInit(&pReader->status.merger, pReader->info.pSchema);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+    TSDB_CHECK_CODE(code, lino, _err);
   }
 
   pReader->pSchemaMap = tSimpleHashInit(8, taosFastHash);
@@ -4706,18 +4697,13 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   tSimpleHashSetFreeFp(pReader->pSchemaMap, freeSchemaFunc);
   if (pReader->info.pSchema != NULL) {
     code = updateBlockSMAInfo(pReader->info.pSchema, &pReader->suppInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
-    }
+    TSDB_CHECK_CODE(code, lino, _err);
   }
 
   STsdbReader* p = (pReader->innerReader[0] != NULL) ? pReader->innerReader[0] : pReader;
 
   code = createDataBlockScanInfo(p, &pReader->blockInfoBuf, pTableList, &pReader->status.uidList, numOfTables, &pReader->status.pTableMap);
-  if (code != TSDB_CODE_SUCCESS) {
-    *ppReader = NULL;
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _err);
 
   pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
   if (pReader->status.pLDataIterArray == NULL) {
