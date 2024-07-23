@@ -10,7 +10,6 @@ target_sources(tdb
     "src/db/tdbTable.c"
     "src/db/tdbTxn.c"
     "src/db/tdbPage.c"
-    "src/db/tdbOs.c"
 )
 
 target_include_directories(
