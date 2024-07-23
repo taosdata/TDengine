@@ -1640,6 +1640,8 @@ export default {
     select: "Select",
     add: "Add",
     regexPlaceholder: "Regex Pattern Input",
+    delBroker :"Remove Borker",
+    addBroker :"Add Borker"
   },
   explorer: {
     databases: "Databases",

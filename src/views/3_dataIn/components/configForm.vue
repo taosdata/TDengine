@@ -95,6 +95,13 @@
               </el-collapse-item>
             </el-collapse>
           </template>
+          <template v-else-if="item.type == 'grouping'">
+            <HostPort 
+              :config="item.children"
+              :data="data[item.field]"
+              :parent="parent + item.field + '.'"
+            />
+          </template>
           <template v-else>
             <FormItem
               v-for="(child, index) in item.children"
@@ -140,6 +147,7 @@ import { getBrowserLang } from '@/utils';
 import { hasOwn } from '@/utils/util';
 import CommonTransformer from './commonTransformer.vue'
 import CsvData from "./csvData.vue";
+import HostPort from "./hostPort.vue";
 
 export default {
   props: {
@@ -169,7 +177,7 @@ export default {
   },
   name: 'ConfigForm',
   inject: ['sourceParent'],
-  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp, CommonTransformer, CsvData },
+  components: { FormItem, DocsContent, BlockHeader, ConnectivityCheck, ParserComp, CommonTransformer, CsvData, HostPort },
   data() {
     this.mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse', 'csvData'];
     return {

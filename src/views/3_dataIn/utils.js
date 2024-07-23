@@ -356,62 +356,77 @@ function handleAuthentication(authentication, paramsConfig) {
  */
 function handleOptions(options, paramsConfig, id) {
   if (!options) return;
-  const children = paramsConfig[0]?.children ?? [];
-  const keys = Object.keys(options);
-  keys.forEach(key => {
-    const { display, description, placeholder, required, value, pattern, patternMsg, type_value } = options[key];
-    if (!display) return;
-    const config = {
-      label: display,
-      description,
-      field: key,
-      placeholder,
-      // required,
-      pattern: pattern || null,
-      patternMsg,
-      defaultValue: value ?? '',
-      type_value,
-      if: currentData => {
-        if (id?.startsWith('pi')) {
+  if (id === 'kafka') {
+    paramsConfig[0].type = 'grouping'
+    paramsConfig[0].children = options.params.map((param, index) => {
+      const keys = Object.keys(param);
+      keys.forEach(key => {
+        const { display, description, placeholder, required, value, pattern, patternMsg } = param[key]
+        param[key] = {
+          label: display,
+          description,
+          field: key + '_' + index,
+          placeholder,
+          required: !index ? required: false,
+          pattern: pattern || null,
+          patternMsg,
+          defaultValue: value ?? '',
+          value,
+        }
+        handleHintType(param[key], param[key]?.hint);
+      })
+      return param
+    })
+  } else {
+    const children = paramsConfig[0]?.children ?? [];
+    const keys = Object.keys(options);
+    keys.forEach(key => {
+      const { display, description, placeholder, required, value, pattern, patternMsg } = options[key];
+      if (!display) return;
+      const config = {
+        label: display,
+        description,
+        field: key,
+        placeholder,
+        // required,
+        pattern: pattern || null,
+        patternMsg,
+        defaultValue: value ?? '',
+        if: currentData => {
           if (!currentData.system_configuration || key == 'host') return true;
           return currentData.system_configuration == piOptionShowValue;
-        }
-        if (id == 'mongodb') {
-          if (key == 'load_balanced' || key == 'direct_connection' || key == 'host' || key == 'port') return true
-          return !currentData.direct_connection
-        }
-        return true
-      },
-      required: (currentData) => {
-        if (id?.startsWith('opcua')) {
-          return ['private_key','security_policy','certificate'].includes(key)
-            ? checkValue(currentData.security_mode) && 
-              currentData.security_mode !== opcuaSecuritymodeValue 
-            : required
-        } else {
-          return required
-        }
-      },
-       disabled: (currentData) => {
-        if (id?.startsWith('opcua')) {
-          // 特殊处理 opcua 安全策略
-          if ( currentData.security_mode == opcuaSecuritymodeValue) {
-            currentData.security_policy = '';
+        },
+        required: (currentData) => {
+          if (id?.startsWith('opcua')) {
+            return ['private_key','security_policy','certificate'].includes(key)
+              ? checkValue(currentData.security_mode) && 
+                currentData.security_mode !== opcuaSecuritymodeValue 
+              : required
+          } else {
+            return required
           }
-          return currentData.security_mode == opcuaSecuritymodeValue &&
-            ['security_policy'].includes(key)
-        } else {
-          return false
-        }
-      },
-    };
-    if (key == 'host') {
-      config.display_order = 1;
-    }
-    handleHintType(config, options[key]?.hint);
-    children.push(config);
-  });
-  formSort(children);
+        },
+         disabled: (currentData) => {
+          if (id?.startsWith('opcua')) {
+            // 特殊处理 opcua 安全策略
+            if ( currentData.security_mode == opcuaSecuritymodeValue) {
+              currentData.security_policy = '';
+            }
+            return currentData.security_mode == opcuaSecuritymodeValue &&
+              ['security_policy'].includes(key)
+          } else {
+            return false
+          }
+        },
+      };
+      if (key == 'host') {
+        config.display_order = 1;
+      }
+      handleHintType(config, options[key]?.hint);
+      children.push(config);
+    });
+    formSort(children);
+  }
 }
 // 处理 csv parser
 function handleCsvData(id, paramsConfig) {
@@ -1017,6 +1032,9 @@ export function handleHintType(config, hint) {
     case 'password':
       config.type = 'password';
       break;
+    case 'host':
+      config.type = 'grouping';
+      break;
     case 'pibackfillTime':
       config.type = 'pibackfillTime';
       config.options = hint;
@@ -1087,6 +1105,13 @@ export function generateFormInitData(paramsConfig) {
       if (item.valueField) {
         data[item.field][item.valueField] = value;
       }
+      if (item.type === 'grouping') {
+        item.children.forEach(child => {
+          data[item.field][child.host.field]= child.host.value ?? ''
+          data[item.field][child.port.field]= child.port.value ?? ''
+        }) 
+      }
+
     } else {
       data[item.field] = value;
       if (item.type === 'compose' && item.hint?.choices) {
@@ -1313,7 +1338,7 @@ function getOptionData(data, queryArr, definition) {
   //     queryArr.push('local_threshold=' + local_threshold + local_threshold_type)
   //   }
   // }
-  if (endpoint === undefined&&definition.id!=='csv') {
+  if (endpoint === undefined&&definition.id!=='csv'&&definition.id!=='kafka') {
     result += host.replace(/\w*:\/\//, '');
     if (system_configuration && system_configuration != piOptionShowValue) return result;
     if (port) {
