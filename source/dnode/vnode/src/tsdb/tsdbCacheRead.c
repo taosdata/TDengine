@@ -332,7 +332,14 @@ void* tsdbCacherowsReaderClose(void* pReader) {
   return NULL;
 }
 
-static void freeItem(void* pItem) {
+static void freeItemOfRow(void* pItem) {
+  SLastCol* pCol = (SLastCol*)pItem;
+  if (IS_VAR_DATA_TYPE(pCol->colVal.value.type) && pCol->colVal.value.pData) {
+    taosMemoryFree(pCol->colVal.value.pData);
+  }
+}
+
+static void freeItemWithPk(void* pItem) {
   SLastCol* pCol = (SLastCol*)pItem;
   for (int i = 0; i < pCol->rowKey.numOfPKs; i++) {
     if (IS_VAR_DATA_TYPE(pCol->rowKey.pks[i].type)) {
@@ -443,7 +450,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
-        taosArrayClearEx(pRow, freeItem);
+        taosArrayClearEx(pRow, freeItemOfRow);
         continue;
       }
 
@@ -515,26 +522,26 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
       }
 
-      taosArrayClearEx(pRow, freeItem);
+      taosArrayClearEx(pRow, freeItemOfRow);
     }
 
     if (hasRes) {
       saveOneRow(pLastCols, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
     }
 
-    taosArrayDestroyEx(pLastCols, freeItem);
+    taosArrayDestroyEx(pLastCols, freeItemWithPk);
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
 
       tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
-        taosArrayClearEx(pRow, freeItem);
+        taosArrayClearEx(pRow, freeItemOfRow);
         continue;
       }
 
       saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
-      taosArrayClearEx(pRow, freeItem);
+      taosArrayClearEx(pRow, freeItemOfRow);
 
       taosArrayPush(pTableUidList, &uid);
 
