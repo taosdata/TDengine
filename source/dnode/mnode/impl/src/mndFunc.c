@@ -539,6 +539,7 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
 
     SFuncObj *pFunc = mndAcquireFunc(pMnode, funcName);
     if (pFunc == NULL) {
+      if (terrno != 0) code = terrno;
       goto RETRIEVE_FUNC_OVER;
     }
 
