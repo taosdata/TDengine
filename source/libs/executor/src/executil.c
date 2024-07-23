@@ -1080,6 +1080,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pResBlock);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    terrno = code;
     return NULL;
   }
   return pResBlock;
@@ -1857,8 +1858,8 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
       pCtx->isPseudoFunc = fmIsWindowPseudoColumnFunc(pCtx->functionId);
       pCtx->isNotNullFunc = fmIsNotNullOutputFunc(pCtx->functionId);
 
+      bool isUdaf = fmIsUserDefinedFunc(pCtx->functionId);
       if (fmIsAggFunc(pCtx->functionId) || fmIsIndefiniteRowsFunc(pCtx->functionId)) {
-        bool isUdaf = fmIsUserDefinedFunc(pCtx->functionId);
         if (!isUdaf) {
           code = fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -1875,6 +1876,9 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
         }
       } else {
         code = fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);
+        if (code != TSDB_CODE_SUCCESS && isUdaf) {
+          code = TSDB_CODE_SUCCESS;
+        }
         QUERY_CHECK_CODE(code, lino, _end);
 
         if (pCtx->sfp.getEnv != NULL) {
