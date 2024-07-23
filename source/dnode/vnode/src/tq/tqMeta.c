@@ -459,6 +459,7 @@ int32_t tqMetaTransform(STQ* pTq) {
   TQ_ERR_GO_TO_END(tqMetaTransformInfo(pTq->pMetaDB, pCheckStore, pTq->pCheckStore));
 
   TQ_ERR_GO_TO_END(tqBuildFName(&offsetNew, pTq->path, TQ_OFFSET_NAME));
+
   if(taosCheckExistFile(offset)) {
     if (taosCopyFile(offset, offsetNew) < 0) {
       tqError("copy offset file error");
