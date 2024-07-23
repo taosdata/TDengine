@@ -34,7 +34,11 @@
     <h3 id="configuration-and-running-methods">
       {{ $t("docs.tool.benchmark.step31") }}
     </h3>
-    <p>{{ $t("docs.tool.benchmark.step31desc") }} <span class="docker-tip">{{ $t("dockerTip")}}</span></p>
+    <p>{{ $t("docs.tool.benchmark.step31desc") }}</p>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <pre
       v-highlight="
         `export TDENGINE_DSN=&quot;${DSN}&quot;

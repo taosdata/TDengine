@@ -30,7 +30,11 @@
     </p>
     <h2 id="connector-configuration">{{ $t("docs.virtual.gds.step2") }}</h2>
     <h3 id="mandatory-config">{{ $t("docs.virtual.gds.step21") }}</h3>
-    <h4 id="url">{{ $t("docs.virtual.gds.step21desc") }} <span class="docker-tip">{{ $t("dockerTip")}}</span></h4>
+    <h4 id="url">{{ $t("docs.virtual.gds.step21desc") }}</h4>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <pre v-highlight="`${cloud_url}`"><code class="language-bash"></code></pre>
     <h4 id="tdengine-cloud-token">{{ $t("docs.virtual.gds.step211") }}</h4>
     <pre

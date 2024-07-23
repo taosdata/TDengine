@@ -54,8 +54,10 @@
     </el-tabs>
 
     <h2 id="config">{{ $t("docs.connector.java.step2") }}</h2>
-    <p>{{ $t("component.docConfig.content", [" JDBC URL "]) }} 
-      <span class="docker-tip">{{ $t("dockerTip")}}</span>
+    <p>{{ $t("component.docConfig.content", [" JDBC URL "]) }}</p>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
     </p>
     <el-tabs value="bash">
       <el-tab-pane name="bash" label="Bash">

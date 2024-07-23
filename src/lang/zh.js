@@ -201,7 +201,7 @@ export default {
   communityDemoDataTip: '当前列表仅为示例数据',
   fullszhcreen: "全屏显示",
   import: "导入",
-  dockerTip: "(如果 docker 安装，请使用映射后的 ip:port)",
+  dockerTip: "如果以 docker 方式启动，请使用映射后的 ip:port 替换 {0}。",
   statuses: {
     created: "已创建",
     queued: "排队中",

@@ -10,6 +10,10 @@
       }}
       <span class="docker-tip">{{ $t("dockerTip")}}</span>
     </p>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <el-tabs value="bash">
       <el-tab-pane name="bash" label="Bash">
         <pre

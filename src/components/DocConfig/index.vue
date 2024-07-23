@@ -1,8 +1,10 @@
 <template>
   <div>
     <h2 :id="'{{config}}'">{{ $t("component.docConfig.title") }}</h2>
-    <p>{{ $t("component.docConfig.content", [urlDes]) }} 
-      <span class="docker-tip">{{ $t("dockerTip")}}</span>
+    <p>{{ $t("component.docConfig.content", [urlDes]) }}</p>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${baseurl.split('//')[1]}`] )}}</span>
     </p>
     <el-tabs class="doc-config-tab" value="bash">
       <el-tab-pane name="bash" label="Bash">
@@ -58,6 +60,9 @@ export default {
     },
     contentPower() {
       return this.getContent("psh");
+    },
+    baseurl() {
+      return localStorage.getItem("base_url");
     },
   },
   methods: {
