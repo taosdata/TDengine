@@ -596,10 +596,10 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       if (schema == NULL) {
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&pInfo->pCur->mr.me.stbEntry.schemaRow);
         code = taosHashPut(pInfo->pSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
-        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
-          lino = __LINE__;
-          goto _end;
+        if (code == TSDB_CODE_DUP_KEY) {
+          code = TSDB_CODE_SUCCESS;
         }
+        QUERY_CHECK_CODE(code, lino, _end);
       }
       continue;
     } else if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
@@ -627,10 +627,10 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         }
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
         code = taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
-        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
-          lino = __LINE__;
-          goto _end;
+        if (code == TSDB_CODE_DUP_KEY) {
+          code = TSDB_CODE_SUCCESS;
         }
+        QUERY_CHECK_CODE(code, lino, _end);
 
         schemaRow = schemaWrapper;
         pAPI->metaReaderFn.clearReader(&smrSuperTable);

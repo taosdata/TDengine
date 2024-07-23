@@ -175,11 +175,11 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
     }
   }
 
-  int32_t code = taosHashPut(pTableScanInfo->pIgnoreTables, &uid, sizeof(uid), &pTableScanInfo->scanTimes,
-                             sizeof(pTableScanInfo->scanTimes));
-  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    return code;
+  int32_t tempRes = taosHashPut(pTableScanInfo->pIgnoreTables, &uid, sizeof(uid), &pTableScanInfo->scanTimes,
+                                sizeof(pTableScanInfo->scanTimes));
+  if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
+    return tempRes;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1137,9 +1137,8 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
 
     ASSERT(pInfo->base.dataReader == NULL);
 
-    code =
-        pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
-                                      (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
+    code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
+                                         (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       T_LONG_JMP(pTaskInfo->env, code);
@@ -3632,10 +3631,10 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
         size_t   keySize = 0;
         int64_t* pUid = taosHashGetKey(pIte, &keySize);
         code = taosHashPut(pUpInfo->pMap, pUid, sizeof(int64_t), pIte, sizeof(TSKEY));
-        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
-          lino = __LINE__;
-          goto _end;
+        if (code == TSDB_CODE_DUP_KEY) {
+          code = TSDB_CODE_SUCCESS;
         }
+        QUERY_CHECK_CODE(code, lino, _end);
 
         pIte = taosHashIterate(curMap, pIte);
       }
@@ -4023,10 +4022,10 @@ static EDealRes tagScanRewriteTagColumn(SNode** pNode, void* pContext) {
   void*                  data = taosHashGet(pCtx->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId));
   if (!data) {
     code = taosHashPut(pCtx->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), pNode, sizeof((*pNode)));
-    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
-      lino = __LINE__;
-      goto _end;
+    if (code == TSDB_CODE_DUP_KEY) {
+      code = TSDB_CODE_SUCCESS;
     }
+    QUERY_CHECK_CODE(code, lino, _end);
     pSColumnNode->slotId = pCtx->index++;
     SColumnInfo cInfo = {.colId = pSColumnNode->colId,
                          .type = pSColumnNode->node.resType.type,
@@ -4937,10 +4936,10 @@ static void tableMergeScanDoSkipTable(uint64_t uid, void* pTableMergeOpInfo) {
   int bSkip = 1;
   if (pInfo->mSkipTables != NULL) {
     code = taosHashPut(pInfo->mSkipTables, &uid, sizeof(uid), &bSkip, sizeof(bSkip));
-    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
-      lino = __LINE__;
-      goto _end;
+    if (code == TSDB_CODE_DUP_KEY) {
+      code = TSDB_CODE_SUCCESS;
     }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
