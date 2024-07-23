@@ -206,20 +206,20 @@ int tdbPagerRestoreJournals(SPager *pPager);
 int tdbPagerRollback(SPager *pPager);
 
 // tdbPCache.c ====================================
-#define TDB_PCACHE_PAGE        \
-  u8               isAnchor;   \
-  u8               isLocal;    \
-  u8               isDirty;    \
-  u8               isFree;     \
-  volatile i32     nRef;       \
-  i32              id;         \
-  SPage           *pFreeNext;  \
-  SPage           *pHashNext;  \
-  SPage           *pLruNext;   \
-  SPage           *pLruPrev;   \
-  SPage           *pDirtyNext; \
-  volatile SPager *pPager;     \
-  SPgid            pgid;
+#define TDB_PCACHE_PAGE    \
+  u8           isAnchor;   \
+  u8           isLocal;    \
+  u8           isDirty;    \
+  u8           isFree;     \
+  volatile i32 nRef;       \
+  i32          id;         \
+  SPage       *pFreeNext;  \
+  SPage       *pHashNext;  \
+  SPage       *pLruNext;   \
+  SPage       *pLruPrev;   \
+  SPage       *pDirtyNext; \
+  SPager *volatile pPager; \
+  SPgid pgid;
 
 // For page ref
 
