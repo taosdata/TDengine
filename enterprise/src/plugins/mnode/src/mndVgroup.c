@@ -14,21 +14,22 @@
  */
 
 #include "mndVgroup.h"
-#include "mndDb.h"
-#include "mndPrivilege.h"
-#include "mndTrans.h"
-#include "mndDnode.h"
-#include "mndStream.h"
 #include "audit.h"
+#include "mndDb.h"
+#include "mndDnode.h"
+#include "mndPrivilege.h"
+#include "mndStream.h"
+#include "mndTrans.h"
 
 extern int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans);
 extern int32_t mndAddAlterVnodeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup);
 extern int32_t mndCheckDnodeMemory(SMnode *pMnode, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pOldVgroup,
                                    SVgObj *pNewVgroup, SArray *pArray);
 extern int32_t mndAddVnodeToVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SArray *pArray);
-extern int32_t mndAddAlterVnodeReplicaAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId);
-extern void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId,
-                                          int32_t *pContLen);
+extern int32_t mndAddAlterVnodeReplicaAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,
+                                             int32_t dnodeId);
+extern void   *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId,
+                                            int32_t *pContLen);
 extern int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SArray *pArray,
                                         SVnodeGid *pDelVgid);
 
@@ -38,7 +39,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
 
   SBalanceVgroupLeaderReq req = {0};
   if (tDeserializeSBalanceVgroupLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     return code;
   }
 
@@ -47,22 +48,26 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
 
   int32_t total = sdbGetSize(pSdb, SDB_VGROUP);
   if (total <= 0) {
-    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+    code = TSDB_CODE_TSC_INVALID_OPERATION;
     goto _OVER;
   }
 
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP_LEADER) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP_LEADER)) != 0) {
     goto _OVER;
   }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "balance-vg-leader");
-  if (pTrans == NULL) goto _OVER;
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
   mndTransSetSerial(pTrans);
   mndTransSetChangeless(pTrans);
   mInfo("trans:%d, used to balance vgroup leader", pTrans->id);
   mInfo("trans:%d, the transaction will balance vgroups for vgId:%d, db:%s", pTrans->id, req.vgId, req.db);
 
-  void *pIter = NULL;
+  void   *pIter = NULL;
   int32_t count = 0;
   while (1) {
     SVgObj *pVgroup = NULL;
@@ -76,20 +81,20 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
     tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
     if (req.db != NULL && strlen(req.db) > 0 && strcmp(req.db, name.dbname) != 0) continue;
 
-    if(mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0){
+    if (mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0) {
       count++;
     }
 
     sdbRelease(pSdb, pVgroup);
   }
-  
-  if(count == 0) {
+
+  if (count == 0) {
     mError("trans:%d, no match found, vgId:%d, db:%s", pTrans->id, req.vgId, req.db);
-    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+    code = TSDB_CODE_TSC_INVALID_OPERATION;
     goto _OVER;
   }
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
   code = 0;
 
   auditRecord(pReq, pMnode->clusterId, "balanceVgroupLead", "", "", req.sql, req.sqlLen);
@@ -97,7 +102,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
 _OVER:
   mndTransDrop(pTrans);
   tFreeSBalanceVgroupLeaderReq(&req);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
@@ -108,12 +113,12 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
 
   SSplitVgroupReq req = {0};
   if (tDeserializeSSplitVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
   mInfo("vgId:%d, start to split", req.vgId);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP)) != 0) {
     goto _OVER;
   }
 
@@ -121,7 +126,11 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
   if (pVgroup == NULL) goto _OVER;
 
   pDb = mndAcquireDb(pMnode, pVgroup->dbName);
-  if (pDb == NULL) goto _OVER;
+  if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
 
   int32_t numOfStreams = 0;
   code = mndGetNumOfStreams(pMnode, pVgroup->dbName, &numOfStreams);
@@ -130,10 +139,10 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
     mError("vgId:%d, db:%s, stream exists, split vgroup not allowed", req.vgId, pVgroup->dbName);
     goto _OVER;
   }
-  
+
   code = mndSplitVgroup(pMnode, pReq, pDb, pVgroup);
   if (code != 0) {
-    mError("vgId:%d, failed to start to split vgroup since %s, db:%s", pVgroup->vgId, terrstr(), pDb->name);
+    mError("vgId:%d, failed to start to split vgroup since %s, db:%s", pVgroup->vgId, tstrerror(code), pDb->name);
     goto _OVER;
   }
 
@@ -142,7 +151,7 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
 _OVER:
   mndReleaseVgroup(pMnode, pVgroup);
   mndReleaseDb(pMnode, pDb);
-  return code;
+  TAOS_RETURN(code);
 }
 
 /*
@@ -174,7 +183,7 @@ int32_t mndAddAlterVnodeTypeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, 
 */
 
 int32_t mndBuildAlterVgroupActionImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pVgroup,
-                                  SArray *pArray) {
+                                      SArray *pArray) {
   /*
   SVgObj newVgroup = {0};
   memcpy(&newVgroup, pVgroup, sizeof(SVgObj));
