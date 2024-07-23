@@ -29,22 +29,6 @@
 #define DEFAULT_HEARTBEAT_INTERVAL     3000
 #define DEFAULT_ASKEP_INTERVAL         1000
 
-#define CLIENT_TMQ_NULL_CHECK(c)                \
-  do {                                   \
-    if (c == NULL) {                     \
-      code = TSDB_CODE_OUT_OF_MEMORY;     \
-      goto END;                          \
-    }                                    \
-  } while (0)
-
-#define CLIENT_TMQ_RETURN_CHECK(c)                \
-  do {                                     \
-    code = c;                            \
-    if (code != 0) {                     \
-      goto END;                          \
-    }                                    \
-  } while (0)
-
 struct SMqMgmt {
   tmr_h   timer;
   int32_t rsetId;
