@@ -283,7 +283,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
       code = parseQuerySyntax(pCxt, pQuery, pCatalogReq);
     }
   }
-  nodesReleaseAllocator(pCxt->allocatorId);
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
   terrno = code;
   return code;
 }
@@ -298,7 +298,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
   if (TSDB_CODE_SUCCESS == code) {
     code = analyseSemantic(pCxt, pQuery, &metaCache);
   }
-  nodesReleaseAllocator(pCxt->allocatorId);
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
   destoryParseMetaCache(&metaCache, false);
   terrno = code;
   return code;
@@ -408,6 +408,10 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
     }
   }
   return TSDB_CODE_FAILED;
+}
+
+int32_t qInitKeywordsTable() {
+  return taosInitKeywordsTable();
 }
 
 void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }

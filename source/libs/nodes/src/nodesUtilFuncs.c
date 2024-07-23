@@ -77,25 +77,26 @@ int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)(*ppSrc))->condType == LOGIC_COND_TYPE_AND) {
     TSWAP(*ppDst, *ppSrc);
   }
+  int32_t code = 0;
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppDst)) {
     SLogicConditionNode* pDst = (SLogicConditionNode*)*ppDst;
     if (pDst->condType == LOGIC_COND_TYPE_AND) {
       if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)(*ppSrc))->condType == LOGIC_COND_TYPE_AND) {
-        nodesListStrictAppendList(pDst->pParameterList, ((SLogicConditionNode*)(*ppSrc))->pParameterList);
+        code = nodesListStrictAppendList(pDst->pParameterList, ((SLogicConditionNode*)(*ppSrc))->pParameterList);
         ((SLogicConditionNode*)(*ppSrc))->pParameterList = NULL;
       } else {
-        nodesListStrictAppend(pDst->pParameterList, *ppSrc);
+        code = nodesListStrictAppend(pDst->pParameterList, *ppSrc);
         *ppSrc = NULL;
       }
       nodesDestroyNode(*ppSrc);
       *ppSrc = NULL;
 
-      return TSDB_CODE_SUCCESS;
+      return code;
     }
   }
 
   SLogicConditionNode* pLogicCond = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCond);
+  code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCond);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -187,7 +188,9 @@ static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocato
     taosMemoryFreeClear(*pAllocator);
     return code;
   }
-  taosThreadMutexInit(&(*pAllocator)->mutex, NULL);
+  if (0 != taosThreadMutexInit(&(*pAllocator)->mutex, NULL)) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -207,7 +210,7 @@ static void destroyNodeAllocator(void* p) {
     taosMemoryFree(pChunk);
     pChunk = pTemp;
   }
-  taosThreadMutexDestroy(&pAllocator->mutex);
+  (void)taosThreadMutexDestroy(&pAllocator->mutex);
   taosMemoryFree(pAllocator);
 }
 
@@ -232,10 +235,10 @@ void nodesDestroyAllocatorSet() {
     int64_t         refId = 0;
     while (NULL != pAllocator) {
       refId = pAllocator->self;
-      taosRemoveRef(g_allocatorReqRefPool, refId);
+      (void)taosRemoveRef(g_allocatorReqRefPool, refId);
       pAllocator = taosIterateRef(g_allocatorReqRefPool, refId);
     }
-    taosCloseRef(g_allocatorReqRefPool);
+    (void)taosCloseRef(g_allocatorReqRefPool);
   }
 }
 
@@ -282,7 +285,7 @@ int32_t nodesAcquireAllocator(int64_t allocatorId) {
   if (NULL == pAllocator) {
     return terrno;
   }
-  taosThreadMutexLock(&pAllocator->mutex);
+  (void)taosThreadMutexLock(&pAllocator->mutex);
   g_pNodeAllocator = pAllocator;
   return TSDB_CODE_SUCCESS;
 }
@@ -301,7 +304,7 @@ int32_t nodesReleaseAllocator(int64_t allocatorId) {
   }
   SNodeAllocator* pAllocator = g_pNodeAllocator;
   g_pNodeAllocator = NULL;
-  taosThreadMutexUnlock(&pAllocator->mutex);
+  (void)taosThreadMutexUnlock(&pAllocator->mutex);
   return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
 }
 
@@ -325,7 +328,7 @@ void nodesDestroyAllocator(int64_t allocatorId) {
     return;
   }
 
-  taosRemoveRef(g_allocatorReqRefPool, allocatorId);
+  (void)taosRemoveRef(g_allocatorReqRefPool, allocatorId);
 }
 
 static int32_t makeNode(ENodeType type, int32_t size, SNode** ppNode) {
@@ -1087,7 +1090,7 @@ void nodesDestroyNode(SNode* pNode) {
         pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
       }
 
-      taosCloseFile(&pStmt->fp);
+      assert(TSDB_CODE_SUCCESS == taosCloseFile(&pStmt->fp));
       break;
     }
     case QUERY_NODE_CREATE_DATABASE_STMT:

@@ -506,10 +506,17 @@ static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
 int32_t collectJoinResColumns(SSelectStmt* pSelect, SJoinLogicNode* pJoin, SNodeList** pCols) {
   SSHashObj* pTables = NULL;
-  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pTables);
-  collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pTables);
-
-  int32_t code = nodesCollectColumnsExt(pSelect, SQL_CLAUSE_WHERE, pTables, COLLECT_COL_TYPE_ALL, pCols);
+  int32_t code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(pTables);
+    return code;
+  } else {
+    code = nodesCollectColumnsExt(pSelect, SQL_CLAUSE_WHERE, pTables, COLLECT_COL_TYPE_ALL, pCols);
+  }
 
   tSimpleHashCleanup(pTables);
 
