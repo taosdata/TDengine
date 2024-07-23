@@ -1408,7 +1408,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #endif
   } else {
-    if (mndMCfg2DCfg(&cfgReq, &dcfgReq)) goto _err_out;
+    TAOS_CHECK_GOTO (mndMCfg2DCfg(&cfgReq, &dcfgReq), NULL, _err_out);
     if (strlen(dcfgReq.config) > TSDB_DNODE_CONFIG_LEN) {
       mError("dnode:%d, failed to config since config is too long", cfgReq.dnodeId);
       code = TSDB_CODE_INVALID_CFG;
