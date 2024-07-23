@@ -5336,9 +5336,13 @@ static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode) {
 }
 
 int32_t stbJoinOptAddFuncToScanNode(char* funcName, SScanLogicNode* pScan) {
-  SFunctionNode* pUidFunc = createFunction(funcName, NULL);
+  SFunctionNode* pUidFunc = NULL;
+  int32_t code = createFunction(funcName, NULL, &pUidFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   snprintf(pUidFunc->node.aliasName, sizeof(pUidFunc->node.aliasName), "%s.%p", pUidFunc->functionName, pUidFunc);
-  int32_t code = nodesListStrictAppend(pScan->pScanPseudoCols, (SNode*)pUidFunc);
+  code = nodesListStrictAppend(pScan->pScanPseudoCols, (SNode*)pUidFunc);
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExpr((SNode*)pUidFunc, &pScan->node.pTargets);
   }

@@ -34,11 +34,8 @@ static void qmClose(SQnodeMgmt *pMgmt) {
 }
 
 static int32_t qndOpenWrapper(SQnodeOpt *pOption, SQnode **pQnode) {
-  *pQnode = qndOpen(pOption);
-  if (*pQnode == NULL) {
-    return terrno;
-  }
-  return 0;
+  int32_t code = qndOpen(pOption, pQnode);
+  return code;
 }
 static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t     code = 0;
@@ -62,7 +59,7 @@ static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   if (code != 0) {
     dError("failed to open qnode since %s", tstrerror(code));
     qmClose(pMgmt);
-    return -1;
+    return code;
   }
   tmsgReportStartup("qnode-impl", "initialized");
 
