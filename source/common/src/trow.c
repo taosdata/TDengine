@@ -535,7 +535,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
 
 _exit:
   taosMemoryFreeClear(varBuf);
-  if (code != 0) {
+  if (code < 0) {
     if (isAlloc) {
       taosMemoryFreeClear(*ppRow);
     }

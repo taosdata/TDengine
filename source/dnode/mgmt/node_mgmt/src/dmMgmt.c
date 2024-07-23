@@ -182,7 +182,7 @@ int32_t dmInitVars(SDnode *pDnode) {
       code = 0;
       strncpy(tsEncryptKey, tsAuthCode, 16);
 
-      if(code != 0) {
+      if (code != 0) {
         if(code == -1){
           terrno = TSDB_CODE_DNODE_NO_ENCRYPT_KEY;
           dError("machine code changed, can't get crypt key");
