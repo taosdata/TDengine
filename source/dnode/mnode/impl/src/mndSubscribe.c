@@ -100,6 +100,7 @@ END:
 
 static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj *pSub, const SMqRebOutputVg *pRebVg,
                                     SSubplan *pPlan) {
+  int32_t     code = 0;
   SMqRebVgReq req = {0};
   int32_t     code = 0;
   SEncoder encoder = {0};
@@ -640,7 +641,8 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "tmq-reb");
   if (pTrans == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto END;
   }
 
@@ -671,7 +673,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
 END:
   nodesDestroyNode((SNode *)pPlan);
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static void freeRebalanceItem(void *param) {
@@ -860,6 +862,7 @@ END:
 }
 
 static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOutputObj *rebOutput) {
+  int32_t          code = 0;
   const char      *key = rebInput->pRebInfo->key;
   SMqSubscribeObj *pSub = NULL;
   int32_t          code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
@@ -922,6 +925,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
 
   SHashObj *rebSubHash = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
   MND_TMQ_NULL_CHECK(rebSubHash);
+
   taosHashSetFreeFp(rebSubHash, freeRebalanceItem);
 
   MND_TMQ_RETURN_CHECK(mndCheckConsumer(pMsg, rebSubHash));
@@ -970,7 +974,7 @@ END:
   taosHashCleanup(rebSubHash);
   mndRebCntDec();
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STrans *pTrans) {
@@ -1089,9 +1093,9 @@ END:
 
   if (code != 0) {
     mError("cgroup %s on topic:%s, failed to drop", dropReq.cgroup, dropReq.topic);
-    return code;
+    TAOS_RETURN(code);
   }
-  return TSDB_CODE_ACTION_IN_PROGRESS;
+  TAOS_RETURN(TSDB_CODE_ACTION_IN_PROGRESS);
 }
 
 void mndCleanupSubscribe(SMnode *pMnode) {}
@@ -1316,7 +1320,7 @@ END:
   sdbRelease(pSdb, pSub);
   sdbCancelFetch(pSdb, pIter);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t consumerId, const char *topic,

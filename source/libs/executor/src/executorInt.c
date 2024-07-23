@@ -521,8 +521,8 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
 
     if (!pResInfo->initialized) {
       if (pCtx[i].functionId != -1) {
-        bool ini = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
-        if (!ini && fmIsUserDefinedFunc(pCtx[i].functionId)) {
+        int32_t code = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+        if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)){
           pResInfo->initialized = false;
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
         }
@@ -638,7 +638,8 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
 
     pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (pCtx[j].fpSet.finalize) {
-      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
+      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0 ||
+      strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_const_value") == 0) {
         // for groupkey along with functions that output multiple lines(e.g. Histogram)
         // need to match groupkey result for each output row of that function.
         if (pCtx[j].resultInfo->numOfRes != 0) {

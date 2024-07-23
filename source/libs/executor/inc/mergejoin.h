@@ -432,6 +432,15 @@ typedef struct SMJoinOperatorInfo {
     }                                \
   } while (0)
 
+#define MJ_RET(c)                     \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+
 
 
 void mJoinDestroyMergeCtx(SMJoinOperatorInfo* pJoin);
@@ -459,7 +468,7 @@ int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pT
 int32_t mJoinCreateBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
 int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable);
 int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastBuildGrp);
-bool    mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, SMJoinTableCtx* probe, SMJoinTableCtx* build);
+int32_t mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, SMJoinTableCtx* probe, SMJoinTableCtx* build, bool* cont);
 int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pFirst, SMJoinGrpRows* pSecond);
 int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx);
 int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pGrp, bool probeGrp);

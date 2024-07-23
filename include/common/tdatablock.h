@@ -49,7 +49,7 @@ typedef struct SBlockOrderInfo {
 #define colDataSetNull_f_s(c_, r_)                                        \
   do {                                                                    \
     colDataSetNull_f((c_)->nullbitmap, r_);                               \
-    memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
+    (void)memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
   } while (0)
 
 #define colDataClearNull_f(bm_, r_)                             \

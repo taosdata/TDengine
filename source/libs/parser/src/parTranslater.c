@@ -1523,7 +1523,7 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
       if (!multiResFunc) {
         code = TSDB_CODE_OUT_OF_MEMORY;
       }
-      
+
       if (TSDB_CODE_SUCCESS == code) {
         tstrncpy(multiResFunc->functionName, funcName, TSDB_FUNC_NAME_LEN);
         code = nodesListMakeStrictAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
@@ -3162,6 +3162,25 @@ static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode
   return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
 }
 
+static EDealRes rewriteExprToSelectTagFunc(STranslateContext* pCxt, SNode** pNode) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
+
+  strcpy(pFunc->functionName, "_group_const_value");
+  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
+  strcpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias);
+  pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    *pNode = (SNode*)pFunc;
+    pCxt->errCode = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  }
+
+  return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+}
+
 static bool isWindowJoinProbeTablePrimCol(SSelectStmt* pSelect, SNode* pNode) {
   if (QUERY_NODE_COLUMN != nodeType(pNode)) {
     return false;
@@ -3388,12 +3407,12 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     if (nodesEqualNode(pActualNode, *pNode)) {
       return DEAL_RES_IGNORE_CHILD;
     }
-    if (isTbnameFuction(pActualNode) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
-        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
-      return rewriteExprToGroupKeyFunc(pCxt, pNode);
-    }
     if (IsEqualTbNameFuncNode(pSelect, pActualNode, *pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+    if (isTbnameFuction(pActualNode) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
+        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
+      return rewriteExprToSelectTagFunc(pCxt, pNode);
     }
   }
   SNode* pPartKey = NULL;
@@ -3494,9 +3513,12 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
     }
   }
   if (partionByTbname &&
-      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) ||
-       (QUERY_NODE_FUNCTION == nodeType(*pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)*pNode)->funcType))) {
+      (QUERY_NODE_FUNCTION == nodeType(*pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)*pNode)->funcType)) {
     return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
+  }
+  if (partionByTbname &&
+      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
+    return rewriteExprToSelectTagFunc(pCxt->pTranslateCxt, pNode);
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     pCxt->existCol = true;
@@ -4951,7 +4973,8 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static EDealRes needFillImpl(SNode* pNode, void* pContext) {
-  if ((isAggFunc(pNode) || isInterpFunc(pNode)) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType) {
+  if ((isAggFunc(pNode) || isInterpFunc(pNode)) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType
+  && FUNCTION_TYPE_GROUP_CONST_VALUE != ((SFunctionNode*)pNode)->funcType) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
   }
@@ -5210,7 +5233,8 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
 }
 
 static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit) {
-  int64_t days = convertTimeFromPrecisionToUnit(val, fromPrecision, 'd');
+  int64_t days = -1;
+  convertTimeFromPrecisionToUnit(val, fromPrecision, 'd', &days);
   switch (unit) {
     case 'b':
     case 'u':
@@ -8209,7 +8233,8 @@ static SNode* makeIntervalVal(SRetention* pRetension, int8_t precision) {
   if (NULL == pVal) {
     return NULL;
   }
-  int64_t timeVal = convertTimeFromPrecisionToUnit(pRetension->freq, precision, pRetension->freqUnit);
+  int64_t timeVal = -1;
+  convertTimeFromPrecisionToUnit(pRetension->freq, precision, pRetension->freqUnit, &timeVal);
   char    buf[20] = {0};
   int32_t len = snprintf(buf, sizeof(buf), "%" PRId64 "%c", timeVal, pRetension->freqUnit);
   pVal->literal = strndup(buf, len);
@@ -8758,7 +8783,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   if (TSDB_CODE_SUCCESS == code) {
     code = tNameExtractFullName(&name, usedbReq.db);
   }
-  if (TSDB_CODE_SUCCESS == code) 
+  if (TSDB_CODE_SUCCESS == code)
     code = getDBVgVersion(pCxt, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId, &usedbReq.numOfTable, &usedbReq.stateTs);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_USE_DB, (FSerializeFunc)tSerializeSUseDbReq, &usedbReq);
@@ -10395,8 +10420,9 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
-  SNode* pFunc = (SNode*)createFunction("last", pParameterList);
-  if (NULL == pFunc) {
+  SNode* pFunc = NULL;
+  code = createFunction("last", pParameterList, (SFunctionNode**)&pFunc);
+  if (code) {
     nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -10413,8 +10439,9 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
-  SFunctionNode* pFunc1 = createFunction("_vgid", NULL);
-  if (NULL == pFunc1) {
+  SFunctionNode* pFunc1 = NULL;
+  code = createFunction("_vgid", NULL, &pFunc1);
+  if (code) {
     nodesDestroyList(pProjectionList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -10426,8 +10453,9 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
-  SFunctionNode* pFunc2 = createFunction("_vgver", NULL);
-  if (NULL == pFunc2) {
+  SFunctionNode* pFunc2 = NULL;
+  code = createFunction("_vgver", NULL, &pFunc2);
+  if (code) {
     nodesDestroyList(pProjectionList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }

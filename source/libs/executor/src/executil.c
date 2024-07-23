@@ -1627,7 +1627,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
+    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)
+      || (strcmp(pName, "_group_const_value") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       void* data = taosHashGet(pSelectFuncs, pName, strlen(pName));
@@ -1683,14 +1684,17 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
       if (fmIsAggFunc(pCtx->functionId) || fmIsIndefiniteRowsFunc(pCtx->functionId)) {
         bool isUdaf = fmIsUserDefinedFunc(pCtx->functionId);
         if (!isUdaf) {
+          // TODO(xxx) : need handle return value of fmGetFuncExecFuncs.
           fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
         } else {
           char* udfName = pExpr->pExpr->_function.pFunctNode->functionName;
           pCtx->udfName = taosStrdup(udfName);
+          // TODO(xxx) : need handle return value of fmGetUdafExecFuncs.
           fmGetUdafExecFuncs(pCtx->functionId, &pCtx->fpSet);
         }
         pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
       } else {
+        // TODO(xxx) : need handle return value of fmGetScalarFuncExecFuncs.
         fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);
         if (pCtx->sfp.getEnv != NULL) {
           pCtx->sfp.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
