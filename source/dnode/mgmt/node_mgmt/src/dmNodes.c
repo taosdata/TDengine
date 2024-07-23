@@ -20,7 +20,6 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   SDnode *pDnode = pWrapper->pDnode;
 
   if (taosMkDir(pWrapper->path) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     dError("node:%s, failed to create dir:%s since %s", pWrapper->name, pWrapper->path, terrstr());
     return -1;
   }

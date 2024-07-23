@@ -70,7 +70,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
 
   ret = taosMulModeMkDir(dbname, 0755, false);
   if (ret < 0) {
-    return -1;
+    return terrno;
   }
 
 #ifdef USE_MAINDB

@@ -244,7 +244,6 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
     dmReleaseWrapper(pWrapper);
-    terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
     return -1;
   }
@@ -314,7 +313,6 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
     taosThreadMutexUnlock(&pDnode->mutex);
-    terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
     return -1;
   }

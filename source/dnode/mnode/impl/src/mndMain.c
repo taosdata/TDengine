@@ -454,7 +454,6 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   }
 
   if (taosMkDir(pMnode->path) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 

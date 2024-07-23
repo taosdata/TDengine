@@ -328,7 +328,6 @@ int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
   terrno = 0;
 
   if (taosMkDir(folder) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     encryptError("failed to create dir:%s since %s", folder, terrstr());
     goto _OVER;
   }
