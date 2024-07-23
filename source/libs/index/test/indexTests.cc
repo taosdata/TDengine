@@ -392,7 +392,7 @@ class TFileObj {
     IFileCtx* ctx = idxFileCtxCreate(TFILE, path.c_str(), false, 64 * 1024 * 1024);
     ctx->lru = taosLRUCacheInit(1024 * 1024 * 4, -1, .5);
 
-    writer_ = tfileWriterCreate(ctx, &header);
+    int32_t code = tfileWriterCreate(ctx, &header, &writer_);
     return writer_ != NULL ? true : false;
   }
   bool InitReader() {
