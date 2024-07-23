@@ -1469,6 +1469,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   return srv;
 End:
   transCloseServer(srv);
+  terrno = code;
   return NULL;
 }
 

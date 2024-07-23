@@ -278,6 +278,8 @@ int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAs
 }
 
 void transAsyncPoolDestroy(SAsyncPool* pool) {
+  if (pool == NULL) return;
+
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
     SAsyncItem* item = async->data;
