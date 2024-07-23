@@ -485,7 +485,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN
   SBtreeInitPageArg zArg;
   u8                leaf;
 
-  pPager = pRoot->pPager;
+  pPager = (SPager *)pRoot->pPager;
   flags = TDB_BTREE_PAGE_GET_FLAGS(pRoot);
   leaf = TDB_BTREE_PAGE_IS_LEAF(pRoot);
 
@@ -630,7 +630,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           if (ofps) {
             for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
               SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
-              tdbPagerInsertFreePage(pParent->pPager, ofp, pTxn);
+              tdbPagerInsertFreePage((SPager *)pParent->pPager, ofp, pTxn);
             }
 
             if (destroyOfps) {
@@ -1642,7 +1642,7 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
           taosArrayPush(ofps, &ofp);
         }
 
-        tdbPagerReturnPage(pPage->pPager, ofp, pTxn);
+        tdbPagerReturnPage((SPager *)pPage->pPager, ofp, pTxn);
 
         nLeft -= bytes;
       }
@@ -2174,7 +2174,7 @@ int tdbBtcDelete(SBTC *pBtc) {
   if (ofps) {
     for (int i = 0; i < TARRAY_SIZE(ofps); ++i) {
       SPage *ofp = *(SPage **)taosArrayGet(ofps, i);
-      tdbPagerInsertFreePage(pBtc->pPage->pPager, ofp, pBtc->pTxn);
+      tdbPagerInsertFreePage((SPager *)pBtc->pPage->pPager, ofp, pBtc->pTxn);
     }
 
     if (destroyOfps) {
