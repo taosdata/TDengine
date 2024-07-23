@@ -408,8 +408,10 @@ TEST_F(BackendEnv, checkOpen) {
   const char *dump = "/tmp/backend/stream/dump";
   // taosMkDir(dump);
   taosMulMkDir(dump);
-  SBkdMgt *mgt = bkdMgtCreate((char *)path);
-  SArray  *result = taosArrayInit(4, sizeof(void *));
+  SBkdMgt *mgt = NULL;
+
+  int32_t code = bkdMgtCreate((char *)path, &mgt);
+  SArray *result = taosArrayInit(4, sizeof(void *));
   bkdMgtGetDelta(mgt, p->pTdbState->idstr, 3, result, (char *)dump);
 
   taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 4, 0);

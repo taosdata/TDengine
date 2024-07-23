@@ -2525,16 +2525,14 @@ _EXIT:
   return NULL;
 }
 
-STaskDbWrapper* taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* processVer) {
+int32_t taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* processVer, STaskDbWrapper** ppTaskDb) {
   char* statePath = NULL;
   char* dbPath = NULL;
   int   code = 0;
-  terrno = 0;
   if ((code = restoreCheckpointData(path, key, chkptId, &statePath, &dbPath, processVer)) < 0) {
-    terrno = code;
     stError("failed to restore checkpoint data, path:%s, key:%s, checkpointId: %" PRId64 "reason:%s", path, key,
-            chkptId, tstrerror(terrno));
-    return NULL;
+            chkptId, tstrerror(code));
+    return code;
   }
 
   STaskDbWrapper* pTaskDb = taskDbOpenImpl(key, statePath, dbPath);
@@ -2543,17 +2541,17 @@ STaskDbWrapper* taskDbOpen(const char* path, const char* key, int64_t chkptId, i
     if ((code = chkpLoadExtraInfo(dbPath, &chkpId, &ver) == 0)) {
       *processVer = ver;
     } else {
-      terrno = code;
       stError("failed to load extra info, path:%s, key:%s, checkpointId: %" PRId64 "reason:%s", path, key, chkptId,
-              tstrerror(terrno));
+              tstrerror(code));
       taskDbDestroy(pTaskDb, false);
-      return NULL;
+      return code;
     }
   }
 
   taosMemoryFree(dbPath);
   taosMemoryFree(statePath);
-  return pTaskDb;
+  *ppTaskDb = pTaskDb;
+  return code;
 }
 
 void taskDbDestroy(void* pDb, bool flush) {
@@ -2794,8 +2792,10 @@ int32_t streamStateCvtDataFormat(char* path, char* key, void* pCfInst) {
   int32_t code = 0;
 
   int64_t         processVer = -1;
-  STaskDbWrapper* pTaskDb = taskDbOpen(path, key, 0, &processVer);
-  RocksdbCfInst*  pSrcBackend = pCfInst;
+  STaskDbWrapper* pTaskDb = NULL;
+
+  code = taskDbOpen(path, key, 0, &processVer, &pTaskDb);
+  RocksdbCfInst* pSrcBackend = pCfInst;
 
   for (int i = 0; i < nCf; i++) {
     rocksdb_column_family_handle_t* pSrcCf = pSrcBackend->pHandle[i];
@@ -4626,10 +4626,11 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
 
 void dbChkpDestroy(SDbChkp* pChkp);
 
-SDbChkp* dbChkpCreate(char* path, int64_t initChkpId) {
+int32_t dbChkpCreate(char* path, int64_t initChkpId, SDbChkp** ppChkp) {
+  int32_t  code = 0;
   SDbChkp* p = taosMemoryCalloc(1, sizeof(SDbChkp));
   if (p == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _EXIT;
   }
 
@@ -4637,41 +4638,41 @@ SDbChkp* dbChkpCreate(char* path, int64_t initChkpId) {
   p->preCkptId = -1;
   p->pSST = taosArrayInit(64, sizeof(void*));
   if (p->pSST == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     dbChkpDestroy(p);
-    return NULL;
+    return code;
   }
 
   p->path = path;
   p->len = strlen(path) + 128;
   p->buf = taosMemoryCalloc(1, p->len);
   if (p->buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _EXIT;
   }
 
   p->idx = 0;
   p->pSstTbl[0] = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (p->pSstTbl[0] == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _EXIT;
   }
 
   p->pSstTbl[1] = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (p->pSstTbl[1] == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _EXIT;
   }
 
   p->pAdd = taosArrayInit(64, sizeof(void*));
   if (p->pAdd == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _EXIT;
   }
 
   p->pDel = taosArrayInit(64, sizeof(void*));
   if (p->pDel == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _EXIT;
   }
 
@@ -4679,15 +4680,15 @@ SDbChkp* dbChkpCreate(char* path, int64_t initChkpId) {
   taosThreadRwlockInit(&p->rwLock, NULL);
 
   SArray* list = NULL;
-  int32_t code = dbChkpGetDelta(p, initChkpId, list);
+  code = dbChkpGetDelta(p, initChkpId, list);
   if (code != 0) {
     goto _EXIT;
   }
-
-  return p;
+  *ppChkp = p;
+  return code;
 _EXIT:
   dbChkpDestroy(p);
-  return NULL;
+  return code;
 }
 
 void dbChkpDestroy(SDbChkp* pChkp) {
@@ -4880,35 +4881,36 @@ _ERROR:
   return code;
 }
 
-SBkdMgt* bkdMgtCreate(char* path) {
-  terrno = 0;
+int32_t bkdMgtCreate(char* path, SBkdMgt** mgt) {
+  int32_t  code = 0;
   SBkdMgt* p = taosMemoryCalloc(1, sizeof(SBkdMgt));
   if (p == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   p->pDbChkpTbl = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (p->pDbChkpTbl == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     bkdMgtDestroy(p);
-    return NULL;
+    return code;
   }
 
   p->path = taosStrdup(path);
   if (p->path == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     bkdMgtDestroy(p);
-    return NULL;
+    return code;
   }
 
   if (taosThreadRwlockInit(&p->rwLock, NULL) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(errno);
     bkdMgtDestroy(p);
-    return NULL;
+    return code; 
   }
+  *mgt = p;
 
-  return p;
+  return code;
 }
 
 void bkdMgtDestroy(SBkdMgt* bm) {
@@ -4949,11 +4951,11 @@ int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, 
       return code;
     }
 
-    SDbChkp* p = dbChkpCreate(path, chkpId);
-    if (p == NULL) {
+    SDbChkp* p = NULL;
+    code = dbChkpCreate(path, chkpId, &p);
+    if (code != 0) {
       taosMemoryFree(path);
       taosThreadRwlockUnlock(&bm->rwLock);
-      code = terrno;
       return code;
     }
 
@@ -4986,8 +4988,9 @@ int32_t bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path) {
   taosThreadRwlockWrlock(&bm->rwLock);
   SDbChkp** pp = taosHashGet(bm->pDbChkpTbl, task, strlen(task));
   if (pp == NULL) {
-    SDbChkp* p = dbChkpCreate(path, 0);
-    if (p != NULL) {
+    SDbChkp* p = NULL;
+    code = dbChkpCreate(path, 0, &p);
+    if (code != 0) {
       taosHashPut(bm->pDbChkpTbl, task, strlen(task), &p, sizeof(void*));
       code = 0;
     }
