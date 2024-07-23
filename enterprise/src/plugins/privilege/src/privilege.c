@@ -184,7 +184,7 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
   }
 
   terrno = TSDB_CODE_MND_NO_RIGHTS;
-  code = -1;
+  code = terrno;
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
