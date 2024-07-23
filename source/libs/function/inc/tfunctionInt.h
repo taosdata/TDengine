@@ -37,7 +37,7 @@ static FORCE_INLINE void initResultRowEntry(SResultRowEntryInfo *pResInfo, int32
 
   pResInfo->complete = false;
   pResInfo->numOfRes = 0;
-  memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
+  (void)memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
 
 #ifdef __cplusplus

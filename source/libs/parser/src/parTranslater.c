@@ -10420,8 +10420,9 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
-  SNode* pFunc = (SNode*)createFunction("last", pParameterList);
-  if (NULL == pFunc) {
+  SNode* pFunc = NULL;
+  code = createFunction("last", pParameterList, (SFunctionNode**)&pFunc);
+  if (code) {
     nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -10438,8 +10439,9 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
-  SFunctionNode* pFunc1 = createFunction("_vgid", NULL);
-  if (NULL == pFunc1) {
+  SFunctionNode* pFunc1 = NULL;
+  code = createFunction("_vgid", NULL, &pFunc1);
+  if (code) {
     nodesDestroyList(pProjectionList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -10451,8 +10453,9 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
-  SFunctionNode* pFunc2 = createFunction("_vgver", NULL);
-  if (NULL == pFunc2) {
+  SFunctionNode* pFunc2 = NULL;
+  code = createFunction("_vgver", NULL, &pFunc2);
+  if (code) {
     nodesDestroyList(pProjectionList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
