@@ -224,28 +224,31 @@ STREAM_ENCODE_OVER:
 }
 
 int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status) {
+  int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL) {
-    mError("failed to encode stream since %s", terrstr());
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    mError("failed to encode stream since %s", tstrerror(code));
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
-  if (sdbSetRawStatus(pCommitRaw, status) != 0) {
+  if ((code = sdbSetRawStatus(pCommitRaw, status)) != 0) {
     mError("stream trans:%d failed to set raw status:%d since %s", pTrans->id, status, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset,
