@@ -556,7 +556,7 @@ impl TaskOperator {
         Self(Arc::new(AtomicU8::new(0)))
     }
     pub fn as_str(&self) -> &'static str {
-        match self.0.load(Ordering::Relaxed) {
+        match self.0.load(Ordering::SeqCst) {
             0 => "run",
             1 => "stop",
             2 => "suspend",
@@ -564,24 +564,34 @@ impl TaskOperator {
         }
     }
     pub fn stop(&self) {
-        self.0.store(1, Ordering::Relaxed);
+        self.0.store(1, Ordering::SeqCst);
     }
 
     pub fn suspend(&self) {
-        self.0.store(2, Ordering::Relaxed);
+        self.0.store(2, Ordering::SeqCst);
     }
 
     pub fn start(&self) {
-        self.0.store(0, Ordering::Relaxed);
+        self.0.store(0, Ordering::SeqCst);
     }
 
     pub fn operator(&self) -> Operator {
-        match self.0.load(Ordering::Relaxed) {
+        match self.0.load(Ordering::SeqCst) {
             0 => Operator::Run,
             1 => Operator::Stop,
             2 => Operator::Suspend,
             _ => unreachable!(),
         }
+    }
+
+    pub fn is_suspended(&self) -> bool {
+        self.0.load(Ordering::SeqCst) == 2
+    }
+    pub fn is_stopped(&self) -> bool {
+        self.0.load(Ordering::SeqCst) == 1
+    }
+    pub fn is_running(&self) -> bool {
+        self.0.load(Ordering::SeqCst) == 0
     }
 }
 
@@ -895,12 +905,13 @@ impl TaskJob {
 
         let (tx, rx) = tokio::sync::oneshot::channel();
 
+        /// Returns false for tracker cancelled, true for license suspending.
         pub async fn license_tracker(
             license_tracker_cancellation_token: CancellationToken,
             license_tracker_state: TaskState,
             license_tracker_global: GlobalState,
             task_id: TaskId,
-        ) {
+        ) -> bool {
             // Check license for each 8 hours.
             let license_tracker_interval_seconds =
                 std::env::var("LICENSE_TRACKER_INTERVAL_SECONDS")
@@ -919,7 +930,7 @@ impl TaskJob {
                 tokio::select! {
                     _ = license_tracker_cancellation_token.cancelled() => {
                         tracing::info!("License tracker cancelled");
-                        break;
+                        break false;
                     }
                     _ = interval.tick() => {
                         match validator.validate_connector().in_current_span().await {
@@ -930,6 +941,7 @@ impl TaskJob {
                                     license_tracker_global.send_task_activity(TaskActivity::suspending_with(task_id, format!("License error: {:#}", err)));
                                     license_tracker_state.operator.suspend();
                                     license_tracker_cancellation_token.cancel();
+                                    break true;
                                 } else {
                                     tracing::info!("License validation tracking ok");
                                 }
@@ -1429,7 +1441,7 @@ impl TaskJob {
                     let stop_condition = opts.stop_condition.clone();
                     let last_state = opts.last_state.clone();
                     let span_handler = span.clone();
-                    let handler = move |result| async move {
+                    let handler = |result| async {
                         let _ = span_handler.enter();
 
                         if let Err(err) = &result {
@@ -1449,10 +1461,31 @@ impl TaskJob {
                         should_stop
                     };
 
+                    let stop_or_suspend_handler = async {
+                        let _ = span.enter();
+                        let operator = opts.operator.operator();
+                        opts.last_state.write().await.replace(LastState::Stopped);
+                        if opts.cancellation.is_cancelled() {
+                            // Caused by upstream, suspend or stop.
+                            tracing::info!("task cancelled");
+                            opts.last_state.write().await.replace(LastState::Stopped);
+                            true
+                        } else {
+                            // Caused by current task.
+                            false
+                        }
+                    };
+
                     let _ = span.enter();
                     let mut should_stop = tokio::select! {
                         result = &mut future => {
-                            handler(result).await
+                            if opts.cancellation.is_cancelled() {
+                                tracing::info!("task cancelled");
+                                opts.last_state.write().await.replace(LastState::Stopped);
+                                true
+                            } else {
+                                handler(result).await
+                            }
                         }
                         _ = opts.cancellation.cancelled() => {
                             tracing::info!("task cancelled");
@@ -1461,11 +1494,21 @@ impl TaskJob {
                             (&mut future).await;
                             true
                         }
-                        _ = license_tracker_task => {
-                            opts.last_state.write().await.replace(LastState::Stopped);
-                            // only triggered when license error
-                            true
-                        }
+                        // track = license_tracker_task => {
+                        //     if let Ok(license_suspend) = track {
+                        //         if license_suspend {
+                        //             opts.last_state.write().await.replace(LastState::Stopped);
+                        //             global.send_task_activity(TaskActivity::stop(opts.task.id));
+                        //             (&mut future).await;
+                        //         } else {
+                        //             opts.last_state.write().await.replace(LastState::Stopped);
+                        //         }
+                        //         true
+                        //     } else {
+                        //         opts.last_state.write().await.replace(LastState::Stopped);
+                        //         false
+                        //     }
+                        // }
                     };
 
                     if !should_stop {
@@ -1560,6 +1603,10 @@ impl TaskJob {
 
 #[instrument(skip_all, fields(task.id = task.task.id, job.id = %jid))]
 pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalState>) {
+    if task.operator.is_suspended() || task.operator.is_stopped() {
+        tracing::info!("task suspended");
+        return;
+    }
     if task.stop_condition.should_stop() {
         tracing::error!("stop condition reached");
         if let Err(err) = global_state.scheduler.remove(&jid).await {

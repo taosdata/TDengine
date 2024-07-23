@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use std::net::SocketAddr;
 use std::{sync::Arc, time::Duration};
-use tracing::info;
+use tracing::{info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
@@ -219,6 +219,7 @@ impl Cli {
         }
     }
 
+    #[instrument(skip_all)]
     pub(super) async fn controller(
         &self,
         scheduler: TaskScheduler,
@@ -231,16 +232,20 @@ impl Cli {
         let database_url = self.get_database_url();
         let controller =
             TaskControllerRef::from_sqlite(&database_url, scheduler, max_activities_per_entity)
+                .in_current_span()
                 .await?;
 
         if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");
             let controller = controller.clone();
-            tokio::spawn(async move {
-                if let Err(err) = controller.start_all_with_schedule().await {
-                    tracing::error!("resume all tasks error: {}", err);
+            tokio::spawn(
+                async move {
+                    if let Err(err) = controller.start_all_with_schedule().await {
+                        tracing::error!("resume all tasks error: {}", err);
+                    }
                 }
-            });
+                .in_current_span(),
+            );
         }
         Ok(controller)
     }

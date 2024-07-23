@@ -290,6 +290,7 @@ impl TaskControllerRef {
         max_activities_per_entity: usize,
     ) -> anyhow::Result<Self> {
         TaskController::from_sqlite(sqlite, scheduler, max_activities_per_entity)
+            .in_current_span()
             .await
             .map(|v| Self(Arc::new(v)))
     }
@@ -299,7 +300,7 @@ impl TaskControllerRef {
     /// Better to call this function in a new spawned task.
     pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
-            "select * from task_with_labels where status not in (?, ?, ?, ?) and `deleted` != TRUE order by created_at desc")
+            "select * from task_with_labels where status not in (?, ?, ?, ?, ?) and `deleted` != TRUE order by created_at desc")
             .bind(Status::Completed)
             .bind(Status::Failed)
             .bind(Status::Stopped)
@@ -308,6 +309,12 @@ impl TaskControllerRef {
             .fetch_all(&self.pool)
             .await?;
         for mut task in tasks {
+            tracing::info!(
+                task.id,
+                task.name,
+                task.status = task.status.as_str(),
+                "wake up task"
+            );
             let id = task.id;
             task.load_breakpoints().await?;
             push_task_activity(
@@ -368,6 +375,10 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         tracing::warn!("task {id} not found", id = activity.id);
         return Ok(());
     }
+    let mut txn = pool
+        .begin()
+        .await
+        .context("Begin transaction on push task activity")?;
     let record = exists.unwrap();
     if activity.status == "completed" {
         let _ = sqlx::query!(
@@ -377,7 +388,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
             activity.id,
             activity.status,
         )
-        .execute(pool)
+        .execute(txn.as_mut())
         .await?;
     }
     match activity.status.as_str() {
@@ -388,8 +399,9 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .bind(activity.activity.as_str())
                 .bind(&activity.at)
                 .bind(activity.id)
-                .execute(pool)
-                .await?;
+                .execute(txn.as_mut())
+                .await
+                .context("Update task properties error")?;
         }
         // with reason
         "interrupted" | "suspending" | "waiting" | "waken" => {
@@ -397,8 +409,9 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
                 .bind(activity.id)
-                .execute(pool)
-                .await?;
+                .execute(txn.as_mut())
+                .await
+                .context("Update task properties error")?;
         }
         "running" => {
             if matches!(record.status.as_str(), "stopped" | "stopping") {
@@ -413,35 +426,41 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
                 .bind(activity.id)
-                .execute(pool)
-                .await?;
+                .execute(txn.as_mut())
+                .await
+                .context("Update task properties error")?;
         }
         "suspended" => {
             sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.id)
-                .execute(pool)
-                .await?;
+                .execute(txn.as_mut())
+                .await
+                .context("Update task properties error")?;
         }
         _ => {
             sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.id)
-                .execute(pool)
-                .await?;
+                .execute(txn.as_mut())
+                .await
+                .context("Update task properties error")?;
         }
     }
     sqlx::query(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
-            .bind(
-            activity.id).bind(&
-            activity.at).bind(&
-            activity.level).bind(&
-            activity.activity).bind(&
-            activity.status).bind(&
-            activity.context)
-        .execute(pool)
-        .await?;
+            .bind(activity.id)
+            .bind(&activity.at)
+            .bind(&activity.level)
+            .bind(&activity.activity)
+            .bind(&activity.status)
+            .bind(&activity.context)
+        .execute(txn.as_mut())
+        .await
+        .context("Update task activities error")?;
+    txn.commit()
+        .await
+        .context("Commit transaction on push task activity")?;
     Ok(())
 }
 
@@ -466,14 +485,14 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
         activity.activity
     );
     sqlx::query(
-            "INSERT INTO agent_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
-            .bind(
-            activity.id).bind(&
-            activity.at).bind(&
-            activity.level).bind(&
-            activity.activity).bind(&
-            status).bind(&
-            activity.context)
+            "INSERT INTO agent_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)"
+        )
+        .bind(activity.id)
+        .bind(&activity.at)
+        .bind(&activity.level)
+        .bind(&activity.activity)
+        .bind(&status)
+        .bind(&activity.context)
         .execute(pool)
         .await?;
     Ok(())
@@ -646,63 +665,71 @@ impl TaskController {
         let ctl_alive_cloned = ctl_alive.clone();
         let shutdown_notify = Arc::new(tokio::sync::Notify::new());
         let shutdown_notify_cloned = shutdown_notify.clone();
-        tokio::spawn(async move {
-            let mut rx = notify_channel;
-            let pool = pool_cloned;
-            loop {
-                match rx.recv().await {
-                    Ok(notify) => match notify {
-                        crate::serve::scheduler::SchedulerNotify::TaskActivity(task) => {
-                            tracing::debug!(
-                                "task: {} {:?} {:?}",
-                                task.id,
-                                task.activity,
-                                task.status
-                            );
-                            if let Err(err) = push_task_activity(&pool, &task).await {
-                                tracing::error!("push task activity error: {err:?}");
+        tokio::spawn(
+            async move {
+                let mut rx = notify_channel;
+                let pool = pool_cloned;
+                loop {
+                    match rx.recv().await {
+                        Ok(notify) => match notify {
+                            crate::serve::scheduler::SchedulerNotify::TaskActivity(task) => {
+                                tracing::debug!(
+                                    "task: {} {:?} {:?}",
+                                    task.id,
+                                    task.activity,
+                                    task.status
+                                );
+                                if let Err(err) = push_task_activity(&pool, &task).await {
+                                    tracing::error!("push task activity error: {err:?}");
+                                }
                             }
-                        }
-                        crate::serve::scheduler::SchedulerNotify::AgentActivity(agent) => {
-                            tracing::debug!(
-                                "agent: {} {:?} {:?}",
-                                agent.id,
-                                agent.activity,
-                                agent.status
-                            );
-                            if let Err(err) = push_agent_activity(&pool, &agent).await {
-                                tracing::error!("push task activity error: {err:?}");
+                            crate::serve::scheduler::SchedulerNotify::AgentActivity(agent) => {
+                                tracing::debug!(
+                                    "agent: {} {:?} {:?}",
+                                    agent.id,
+                                    agent.activity,
+                                    agent.status
+                                );
+                                if let Err(err) = push_agent_activity(&pool, &agent).await {
+                                    tracing::error!("push task activity error: {err:?}");
+                                }
                             }
-                        }
-                    },
-                    Err(err) => match err {
-                        tokio::sync::broadcast::error::RecvError::Closed => break,
-                        tokio::sync::broadcast::error::RecvError::Lagged(n) => {
-                            tracing::error!("scheduler notify channel lagged {n} items");
-                            continue;
-                        }
-                    },
+                        },
+                        Err(err) => match err {
+                            tokio::sync::broadcast::error::RecvError::Closed => break,
+                            tokio::sync::broadcast::error::RecvError::Lagged(n) => {
+                                tracing::error!("scheduler notify channel lagged {n} items");
+                                continue;
+                            }
+                        },
+                    }
                 }
+                shutdown_notify_cloned.notify_waiters();
+                ctl_alive_cloned.store(false, std::sync::atomic::Ordering::SeqCst);
             }
-            shutdown_notify_cloned.notify_waiters();
-            ctl_alive_cloned.store(false, std::sync::atomic::Ordering::SeqCst);
-        });
+            .instrument(tracing::info_span!(
+                "scheduler_notify_listener_in_controller"
+            )),
+        );
         let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
 
-        database_initiate(&pool).await?;
+        database_initiate(&pool).in_current_span().await?;
 
         let max_activities_pool = pool.clone();
         let max_activities_keep_interval = Duration::from_secs(60 * 60);
-        tokio::task::spawn(async move {
-            loop {
-                tokio::time::sleep(max_activities_keep_interval).await;
-                if let Err(err) =
-                    keep_max_activities(&max_activities_pool, max_activities_per_entity).await
-                {
-                    tracing::error!("keep max activities error: {err:?}");
+        tokio::task::spawn(
+            async move {
+                loop {
+                    tokio::time::sleep(max_activities_keep_interval).await;
+                    if let Err(err) =
+                        keep_max_activities(&max_activities_pool, max_activities_per_entity).await
+                    {
+                        tracing::error!("keep max activities error: {err:?}");
+                    }
                 }
             }
-        });
+            .instrument(tracing::info_span!("keep_max_activities")),
+        );
         Ok(Self {
             pool,
             tasks: Default::default(),
