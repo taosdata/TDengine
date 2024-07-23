@@ -34,6 +34,10 @@
       </li>
     </ol>
     <h2 id="powerbi-config">{{ $t('docs.tools.powerbi.step3full') }}</h2>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <ol class="odbc-ol">
       <li>
         <span class="odbc-span">{{ $t('docs.connector.odbc.step21desc') }}</span>
@@ -43,7 +47,6 @@
       </li>
       <li>
         <span class="odbc-span">{{ $t('docs.connector.odbc.step23desc') }} 
-          <span class="docker-tip">{{ $t("dockerTip")}}</span>
         </span>
         <div class="gf-input">
           <div class="gf-input-label">{{ $t('docs.connector.odbc.step23desc1') }}</div>

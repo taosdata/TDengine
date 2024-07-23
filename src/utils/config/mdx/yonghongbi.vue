@@ -22,6 +22,10 @@
         }}<a href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar">3.2.7</a>{{ $t('docs.tools.yonghongbi.step2desc2') }}
       </span>
     <h2 id="yonghongbi-config">{{ $t('docs.tools.yonghongbi.step3full') }}</h2>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <ol class="seeq-ol">
       <li>
         <span class="seeq-span">{{ $t('docs.tools.yonghongbi.step31desc') }}</span>
@@ -31,7 +35,6 @@
       </li>
       <li>
         <span class="seeq-span">{{ $t('docs.tools.yonghongbi.step33desc') }}
-          <span class="docker-tip">{{ $t("dockerTip")}}</span>
         </span>
         <pre v-highlight="`${jdbcURL}`"><code class="language-json"></code></pre>
       </li>
