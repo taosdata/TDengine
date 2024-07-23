@@ -1263,8 +1263,8 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   if (tsCfg == NULL) osDefaultInit();
 
-  SConfig *pCfg = cfgInit();
-  if (pCfg == NULL) return -1;
+  SConfig *pCfg = NULL;
+  TAOS_CHECK_RETURN(cfgInit(&pCfg));
 
   if (tsc) {
     tsLogEmbedded = 0;
@@ -1325,8 +1325,8 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
                            SArray *pArgs) {
   if (tsCfg == NULL) osDefaultInit();
 
-  SConfig *pCfg = cfgInit();
-  if (pCfg == NULL) return -1;
+  SConfig *pCfg = NULL;
+  TAOS_CHECK_RETURN(cfgInit(&pCfg));
 
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
@@ -1371,10 +1371,7 @@ static int32_t taosCheckGlobalCfg() {
 
 static int32_t cfgInitWrapper(SConfig **pCfg) {
   if (*pCfg == NULL) {
-    *pCfg = cfgInit();
-    if (*pCfg == NULL) {
-      return terrno;
-    }
+    TAOS_CHECK_RETURN(cfgInit(pCfg));
   }
   return 0;
 }
