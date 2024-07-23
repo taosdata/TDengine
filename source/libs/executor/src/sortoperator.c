@@ -166,7 +166,11 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   }
 
   pBlock->info.dataLoad = 1;
-  pBlock->info.scanFlag = ((SDataBlockInfo*)tsortGetBlockInfo(pTupleHandle))->scanFlag;
+
+  SDataBlockInfo info = {0};
+  tsortGetBlockInfo(pTupleHandle, &info);
+
+  pBlock->info.scanFlag = info.scanFlag;
   pBlock->info.rows += 1;
 }
 
@@ -224,9 +228,9 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
                                 SSortOperatorInfo* pInfo) {
   blockDataCleanup(pDataBlock);
 
-  int32_t code = 0;
-  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
-  if (p == NULL) {
+  SSDataBlock* p = NULL;
+  int32_t code = tsortGetSortedDataBlock(pHandle, &p);
+  if (p == NULL || (code != 0)) {
     return NULL;
   }
 
@@ -443,8 +447,9 @@ SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlo
   blockDataCleanup(pDataBlock);
   blockDataEnsureCapacity(pDataBlock, capacity);
 
-  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
-  if (p == NULL) {
+  SSDataBlock* p = NULL;
+  int32_t code = tsortGetSortedDataBlock(pHandle, &p);
+  if (p == NULL || (code != 0)) {
     return NULL;
   }
 
@@ -452,7 +457,7 @@ SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlo
 
   while (1) {
     STupleHandle* pTupleHandle = NULL;
-    int32_t code = tsortNextTuple(pHandle, &pTupleHandle);
+    code = tsortNextTuple(pHandle, &pTupleHandle);
     if (pTupleHandle == NULL || code != 0) {
       break;
     }

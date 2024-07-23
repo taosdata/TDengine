@@ -168,8 +168,10 @@ SSDataBlock* doSortMerge(SOperatorInfo* pOperator) {
   blockDataCleanup(pDataBlock);
 
   if (pSortMergeInfo->pIntermediateBlock == NULL) {
-    pSortMergeInfo->pIntermediateBlock = tsortGetSortedDataBlock(pHandle);
-    if (pSortMergeInfo->pIntermediateBlock == NULL) {
+    pSortMergeInfo->pIntermediateBlock = NULL;
+
+    int32_t code = tsortGetSortedDataBlock(pHandle, &pSortMergeInfo->pIntermediateBlock);
+    if (pSortMergeInfo->pIntermediateBlock == NULL || code != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }

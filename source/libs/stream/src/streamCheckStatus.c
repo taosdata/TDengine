@@ -418,13 +418,14 @@ void findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId, SDownstreamStatus
 
 int32_t streamTaskUpdateCheckInfo(STaskCheckInfo* pInfo, int32_t taskId, int32_t status, int64_t rspTs, int64_t reqId,
                                   int32_t* pNotReady, const char* id) {
-  streamMutexLock(&pInfo->checkInfoLock);
-
   SDownstreamStatusInfo* p = NULL;
+
+  streamMutexLock(&pInfo->checkInfoLock);
   findCheckRspStatus(pInfo, taskId, &p);
   if (p != NULL) {
     if (reqId != p->reqId) {
-      stError("s-task:%s reqId:0x%" PRIx64 " expected:0x%" PRIx64 " expired check-rsp recv from downstream task:0x%x, discarded",
+      stError("s-task:%s reqId:0x%" PRIx64 " expected:0x%" PRIx64
+              " expired check-rsp recv from downstream task:0x%x, discarded",
               id, reqId, p->reqId, taskId);
       streamMutexUnlock(&pInfo->checkInfoLock);
       return TSDB_CODE_FAILED;

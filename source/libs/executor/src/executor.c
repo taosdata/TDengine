@@ -288,8 +288,10 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id) {
   if (msg == NULL) {  // create raw scan
-    SExecTaskInfo* pTaskInfo = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE, &pReaderHandle->api);
-    if (NULL == pTaskInfo) {
+    SExecTaskInfo* pTaskInfo = NULL;
+
+    int32_t code = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE, &pReaderHandle->api, &pTaskInfo);
+    if (NULL == pTaskInfo || code != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
@@ -1450,7 +1452,13 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = tinfo;
-  SArray*        plist = getTableListInfo(pTaskInfo);
+  SArray*        plist = NULL;
+
+  code = getTableListInfo(pTaskInfo, &plist);
+  if (code || plist == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   // only extract table in the first elements
   STableListInfo* pTableListInfo = taosArrayGetP(plist, 0);
@@ -1502,11 +1510,21 @@ _end:
   }
 }
 
-SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo) {
-  SArray*        pArray = taosArrayInit(0, POINTER_BYTES);
+int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList) {
+  if (pList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SArray* pArray = taosArrayInit(0, POINTER_BYTES);
+  if (pArray == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   extractTableList(pArray, pOperator);
-  return pArray;
+
+  *pList = pArray;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo) {
