@@ -18,7 +18,7 @@
 
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta) {
   char fullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(pName, fullName);
+  (void)tNameExtractFullName(pName, fullName);
   return getMetaDataFromHash(fullName, strlen(fullName), pCxt->pMetaCache->pViews, (void**)ppViewMeta);
 }
 
@@ -64,7 +64,10 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
        goto _exit;
      }
    }
-   taosArrayPush(pParseCxt->pSubMetaList, &res.queryRes);
+   if (NULL == taosArrayPush(pParseCxt->pSubMetaList, &res.queryRes)) {
+     tfreeSParseQueryRes(&res.queryRes);
+     goto _exit;
+   }
 
    if (TSDB_CODE_SUCCESS != code) {
      goto _exit;
@@ -81,10 +84,10 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    }
    tstrncpy(tempTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(tempTable->table.tableAlias));
    if (QUERY_NODE_SELECT_STMT == nodeType(pQuery)) {
-     strcpy(((SSelectStmt*)pQuery)->stmtName, tempTable->table.tableAlias);
+     TAOS_STRCPY(((SSelectStmt*)pQuery)->stmtName, tempTable->table.tableAlias);
      ((SSelectStmt*)pQuery)->isSubquery = true;
    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
-     strcpy(((SSetOperator*)pQuery)->stmtName, tempTable->table.tableAlias);
+     TAOS_STRCPY(((SSetOperator*)pQuery)->stmtName, tempTable->table.tableAlias);
    }
    TSWAP(tempTable->pSubquery, pQuery);
    nodesDestroyNode(*pTable);
