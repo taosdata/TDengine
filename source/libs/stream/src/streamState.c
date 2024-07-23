@@ -105,14 +105,14 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   stDebug("open stream state %p, %s", pState, path);
   if (pState == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   pState->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
   if (pState->pTdbState == NULL) {
     streamStateDestroy(pState, true);
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   SStreamTask* pStreamTask = pTask;
@@ -121,7 +121,7 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-0x%x", pState->streamId, pState->taskId);
 
   code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   SStreamMeta* pMeta = pStreamTask->pMeta;
   pState->pTdbState->pOwner = pTask;
@@ -130,7 +130,7 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   pState->parNameMap = tSimpleHashInit(1024, hashFn);
   if (!pState->parNameMap) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
   stInfo("open state %p on backend %p 0x%" PRIx64 "-%d succ", pState, pMeta->streamBackend, pState->streamId,
          pState->taskId);
@@ -169,7 +169,7 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
   void*   pVal = NULL;
   int32_t len = getRowStateRowSize(pState->pFileState);
   code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
@@ -187,7 +187,7 @@ int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVa
   void*   pVal = NULL;
   int32_t len = getRowStateRowSize(pState->pFileState);
   code = getFunctionRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGetSelectRowSize(pState->pFileState);
@@ -256,10 +256,10 @@ void streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void*
   char* cfName = "default";
   void* batch = streamStateCreateBatch();
   code = streamStatePutBatch(pState, cfName, batch, pKey, pVal, vLen, 0);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   code = streamStatePutBatch_rocksdb(pState, batch);
-  TSDB_CHECK_CODE(code, lino, _end);
+  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -361,18 +361,18 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
         goto _end;
       }
       code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       streamStateReleaseBuf(pState, pos, true);
       code = putFreeBuff(pState->pFileState, pos);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       stDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
               key->win.ekey, key->groupId, code);
     } else {
       pos->beFlushed = false;
       code = putSessionWinResultBuff(pState->pFileState, value);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
@@ -453,10 +453,10 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char 
   if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {
     if (tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       code = tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     code = streamStatePutParName_rocksdb(pState, groupId, tbname);
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
@@ -477,14 +477,14 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
     (*pWinCode) = streamStateGetParName_rocksdb(pState, groupId, pVal);
     if ((*pWinCode) == TSDB_CODE_SUCCESS && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       code = tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), *pVal, TSDB_TABLE_NAME_LEN);
-      TSDB_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
   }
   *pVal = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
   if (!(*pVal)) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   memcpy(*pVal, pStr, TSDB_TABLE_NAME_LEN);

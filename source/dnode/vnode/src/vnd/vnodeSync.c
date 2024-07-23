@@ -387,7 +387,7 @@ static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   int32_t code = tmsgPutToQueue(msgcb, SYNC_RD_QUEUE, pMsg);
@@ -400,13 +400,13 @@ static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 
 static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
@@ -485,8 +485,7 @@ static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta
 
 static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapReaderOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapReader **)ppReader);
-  return code;
+  return vnodeSnapReaderOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapReader **)ppReader);
 }
 
 static void vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
@@ -496,8 +495,7 @@ static void vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
 
 static int32_t vnodeSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
   SVnode *pVnode = pFsm->data;
-  int32_t code = vnodeSnapRead(pReader, (uint8_t **)ppBuf, len);
-  return code;
+  return vnodeSnapRead(pReader, (uint8_t **)ppBuf, len);
 }
 
 static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void **ppWriter) {
@@ -514,8 +512,7 @@ static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void 
     }
   } while (true);
 
-  int32_t code = vnodeSnapWriterOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapWriter **)ppWriter);
-  return code;
+  return vnodeSnapWriterOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapWriter **)ppWriter);
 }
 
 static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
@@ -580,7 +577,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       if (pMeta->startInfo.startAllTasks == 1) {
         pMeta->startInfo.restartCount += 1;
         vDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
-                pMeta->startInfo.restartCount);
+               pMeta->startInfo.restartCount);
       } else {
         pMeta->startInfo.startAllTasks = 1;
         streamMetaWUnLock(pMeta);
@@ -636,7 +633,7 @@ static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   }
 }
 
-static void vnodeBecomeAssignedLeader(const SSyncFSM* pFsm) {
+static void vnodeBecomeAssignedLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become assigned leader", pVnode->config.vgId);
   if (pVnode->pTq) {
@@ -662,12 +659,16 @@ static int32_t vnodeApplyQueueItems(const SSyncFSM *pFsm) {
     int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
     return itemSize;
   } else {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 }
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
+  if (pFsm == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   pFsm->data = pVnode;
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
   pFsm->FpAppliedIndexCb = vnodeSyncAppliedIndex;
@@ -724,7 +725,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion) {
   pVnode->sync = syncOpen(&syncInfo, vnodeVersion);
   if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync since %s", pVnode->config.vgId, terrstr());
-    return -1;
+    return terrno;
   }
 
   return 0;
@@ -732,9 +733,10 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion) {
 
 int32_t vnodeSyncStart(SVnode *pVnode) {
   vInfo("vgId:%d, start sync", pVnode->config.vgId);
-  if (syncStart(pVnode->sync) < 0) {
-    vError("vgId:%d, failed to start sync subsystem since %s", pVnode->config.vgId, terrstr());
-    return -1;
+  int32_t code = syncStart(pVnode->sync);
+  if (code) {
+    vError("vgId:%d, failed to start sync subsystem since %s", pVnode->config.vgId, tstrerror(code));
+    return code;
   }
   return 0;
 }
