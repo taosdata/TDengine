@@ -335,8 +335,9 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     }
 
     if (param->maxdelay[idx] < TSDB_MIN_ROLLUP_MAX_DELAY) {
-      int64_t msInterval =
-          convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
+      int64_t msInterval = -1;
+      TAOS_CHECK_RETURN(convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision,
+                                                       TIME_UNIT_MILLISECOND, &msInterval));
       pItem->maxDelay = (int32_t)msInterval;
     } else {
       pItem->maxDelay = (int32_t)param->maxdelay[idx];
