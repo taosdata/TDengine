@@ -123,15 +123,16 @@ _OUT:
 }
 
 static int32_t mndTransValidateImp(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
   if (pTrans->stage == TRN_STAGE_PREPARE) {
-    if (mndTransCheckConflict(pMnode, pTrans) < 0) {
+    if ((code = mndTransCheckConflict(pMnode, pTrans)) < 0) {
       mError("trans:%d, failed to validate trans conflicts.", pTrans->id);
-      return -1;
+      TAOS_RETURN(code);
     }
 
     return mndTransValidatePrepareStage(pMnode, pTrans);
   }
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndTransValidate(SMnode *pMnode, SSdbRaw *pRaw) {
@@ -139,10 +140,18 @@ static int32_t mndTransValidate(SMnode *pMnode, SSdbRaw *pRaw) {
   int32_t code = -1;
 
   SSdbRow *pRow = mndTransDecode(pRaw);
-  if (pRow == NULL) goto _OUT;
+  if (pRow == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OUT;
+  }
 
   pTrans = sdbGetRowObj(pRow);
-  if (pTrans == NULL) goto _OUT;
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OUT;
+  }
 
   code = mndTransValidateImp(pMnode, pTrans);
 
@@ -150,11 +159,10 @@ _OUT:
   if (pTrans) mndTransDropData(pTrans);
   if (pRow) taosMemoryFreeClear(pRow);
   if (code) terrno = (terrno ? terrno : TSDB_CODE_MND_TRANS_CONFLICT);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
-  terrno = TSDB_CODE_SUCCESS;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
   STrans    *pTrans = NULL;
@@ -163,7 +171,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
 
   if (transId <= 0) {
     mError("trans:%d, invalid commit msg, cache transId:%d seq:%" PRId64, transId, pMgmt->transId, pMgmt->transSeq);
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto _OUT;
   }
 
@@ -176,7 +184,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   if (code != 0) {
     mError("trans:%d, failed to validate requested trans since %s", transId, terrstr());
     code = 0;
-    pMeta->code = terrno;
+    pMeta->code = code;
     goto _OUT;
   }
 
@@ -184,13 +192,15 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   if (code != 0) {
     mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
     code = 0;
-    pMeta->code = terrno;
+    pMeta->code = code;
     goto _OUT;
   }
 
   pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans == NULL) {
-    mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    mError("trans:%d, not found while execute in mnode since %s", transId, tstrerror(code));
     goto _OUT;
   }
 
@@ -207,7 +217,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
 
 _OUT:
   if (pTrans) mndReleaseTrans(pMnode, pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndPostMgmtCode(SMnode *pMnode, int32_t code) {
@@ -258,7 +268,7 @@ _OUT:
   mndPostMgmtCode(pMnode, code ? code : pMeta->code);
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
-  return code;
+  TAOS_RETURN(code);
 }
 
 SyncIndex mndSyncAppliedIndex(const SSyncFSM *pFSM) {
@@ -466,16 +476,18 @@ int32_t mndInitSync(SMnode *pMnode) {
           pNode->clusterId);
   }
 
+  int32_t code = 0;
   tsem_init(&pMgmt->syncSem, 0, 0);
   pMgmt->sync = syncOpen(&syncInfo, true);
   if (pMgmt->sync <= 0) {
-    mError("failed to open sync since %s", terrstr());
-    return -1;
+    if (terrno != 0) code = terrno;
+    mError("failed to open sync since %s", tstrerror(code));
+    TAOS_RETURN(code);
   }
   pMnode->pSdb->sync = pMgmt->sync;
 
   mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 void mndCleanupSync(SMnode *pMnode) {
@@ -518,10 +530,10 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   SRpcMsg req = {.msgType = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
-  if (req.contLen <= 0) return -1;
+  if (req.contLen <= 0) return TSDB_CODE_OUT_OF_MEMORY;
 
   req.pCont = rpcMallocCont(req.contLen);
-  if (req.pCont == NULL) return -1;
+  if (req.pCont == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   memcpy(req.pCont, pRaw, req.contLen);
 
   taosThreadMutexLock(&pMgmt->lock);
@@ -531,8 +543,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
     mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     taosThreadMutexUnlock(&pMgmt->lock);
     rpcFreeCont(req.pCont);
-    terrno = TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED;
-    return terrno;
+    TAOS_RETURN(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED);
   }
 
   mInfo("trans:%d, will be proposed", transId);

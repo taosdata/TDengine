@@ -76,14 +76,14 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
 
   if (keyLen == 0) {
     tdbError("tdb/btree-open: key len cannot be zero.");
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   *ppBt = NULL;
 
   pBt = (SBTree *)tdbOsCalloc(1, sizeof(*pBt));
   if (pBt == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   // pBt->keyLen
