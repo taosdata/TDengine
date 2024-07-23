@@ -237,18 +237,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckTopicPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *topicName) {
-  SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topicName);
-
-  if (pTopic == NULL) {
-    TAOS_RETURN(terrno ? terrno : TSDB_CODE_MND_TOPIC_NOT_EXIST);  // TODO: remove this terrno if possible
-  }
-
-  int32_t code = mndCheckTopicPrivilege(pMnode, user, operType, pTopic);
-  mndReleaseTopic(pMnode, pTopic);
-  TAOS_RETURN(code);
-}
-
 int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
   int32_t code = 0;
 
