@@ -35,6 +35,7 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
+#include "tcompare.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -875,6 +876,12 @@ void taos_init_imp(void) {
   }
   rpcInit();
 
+  if (InitRegexCache() != 0) {
+    tscInitRes = -1;
+    tscError("failed to init regex cache");
+    return;
+  }
+
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
@@ -885,7 +892,11 @@ void taos_init_imp(void) {
   taosSetCoreDump(true);
 #endif
 
-  initTaskQueue();
+  if (initTaskQueue() != 0){
+    tscInitRes = -1;
+    tscError("failed to init task queue");
+    return;
+  }
   fmFuncMgtInit();
   nodesInitAllocatorSet();
 

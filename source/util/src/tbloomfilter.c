@@ -40,12 +40,12 @@ int32_t tBloomFilterInit(uint64_t expectedEntries, double errorRate, SBloomFilte
   int32_t lino = 0;
   if (expectedEntries < 1 || errorRate <= 0 || errorRate >= 1.0) {
     code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   SBloomFilter* pBF = taosMemoryCalloc(1, sizeof(SBloomFilter));
   if (pBF == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   pBF->expectedEntries = expectedEntries;
   pBF->errorRate = errorRate;
@@ -66,7 +66,7 @@ int32_t tBloomFilterInit(uint64_t expectedEntries, double errorRate, SBloomFilte
   if (pBF->buffer == NULL) {
     tBloomFilterDestroy(pBF);
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   (*ppBF) = pBF;
 
@@ -150,40 +150,40 @@ int32_t tBloomFilterDecode(SDecoder* pDecoder, SBloomFilter** ppBF) {
   SBloomFilter* pBF = taosMemoryCalloc(1, sizeof(SBloomFilter));
   if (!pBF) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   pBF->buffer = NULL;
   if (tDecodeU32(pDecoder, &pBF->hashFunctions) < 0) {
     code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   if (tDecodeU64(pDecoder, &pBF->expectedEntries) < 0) {
     code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   if (tDecodeU64(pDecoder, &pBF->numUnits) < 0) {
     code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   if (tDecodeU64(pDecoder, &pBF->numBits) < 0) {
     code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   if (tDecodeU64(pDecoder, &pBF->size) < 0) {
     code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
   for (int32_t i = 0; i < pBF->numUnits; i++) {
     uint64_t* pUnits = (uint64_t*)pBF->buffer;
     if (tDecodeU64(pDecoder, pUnits + i) < 0) {
       code = TSDB_CODE_FAILED;
-      TSDB_CHECK_CODE(code, lino, _error);
+      QUERY_CHECK_CODE(code, lino, _error);
     }
   }
   if (tDecodeDouble(pDecoder, &pBF->errorRate) < 0) {
     code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _error);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   pBF->hashFn1 = HASH_FUNCTION_1;
   pBF->hashFn2 = HASH_FUNCTION_2;

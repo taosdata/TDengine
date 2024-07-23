@@ -446,7 +446,8 @@ int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    char* pJson = parseTagDatatoJson(pTag);
+    char* pJson = NULL;
+    parseTagDatatoJson(pTag, &pJson);
     STagVal tagVal;
     tagVal.cid = 0;
     tagVal.type = TSDB_DATA_TYPE_JSON;
