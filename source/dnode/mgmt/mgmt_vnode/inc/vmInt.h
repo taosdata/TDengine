@@ -54,24 +54,24 @@ typedef struct {
 } SWrapperCfg;
 
 typedef struct {
-  int32_t       vgId;
-  int32_t       vgVersion;
-  int32_t       refCount;
-  int8_t        dropped;
-  int8_t        failed;
-  int8_t        disable;
-  int32_t       diskPrimary;
-  int32_t       toVgId;
-  char         *path;
-  SVnode       *pImpl;
-  SMultiWorker  pWriteW;
-  SMultiWorker  pSyncW;
-  SMultiWorker  pSyncRdW;
-  SMultiWorker  pApplyW;
-  STaosQueue   *pQueryQ;
-  STaosQueue   *pStreamQ;
-  STaosQueue   *pFetchQ;
-  STaosQueue   *pMultiMgmQ;
+  int32_t      vgId;
+  int32_t      vgVersion;
+  int32_t      refCount;
+  int8_t       dropped;
+  int8_t       failed;
+  int8_t       disable;
+  int32_t      diskPrimary;
+  int32_t      toVgId;
+  char        *path;
+  SVnode      *pImpl;
+  SMultiWorker pWriteW;
+  SMultiWorker pSyncW;
+  SMultiWorker pSyncRdW;
+  SMultiWorker pApplyW;
+  STaosQueue  *pQueryQ;
+  STaosQueue  *pStreamQ;
+  STaosQueue  *pFetchQ;
+  STaosQueue  *pMultiMgmQ;
 } SVnodeObj;
 
 typedef struct {
@@ -107,9 +107,9 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // vmFile.c
-int32_t     vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
-int32_t     vmWriteVnodeListToFile(SVnodeMgmt *pMgmt);
-SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes);
+int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
+int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt);
+int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
 
 // vmWorker.c
 int32_t vmStartWorker(SVnodeMgmt *pMgmt);

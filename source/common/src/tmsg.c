@@ -10828,7 +10828,9 @@ int32_t tDecodeMqBatchMetaRsp(SDecoder *pDecoder, SMqBatchMetaRsp *pRsp) {
   if (tDecodeI32(pDecoder, &size) < 0) return -1;
   if (size > 0) {
     pRsp->batchMetaReq = taosArrayInit(size, POINTER_BYTES);
+    if (!pRsp->batchMetaReq) return -1;
     pRsp->batchMetaLen = taosArrayInit(size, sizeof(int32_t));
+    if (!pRsp->batchMetaLen) return -1;
     for (int32_t i = 0; i < size; i++) {
       void    *pCreate = NULL;
       uint64_t len = 0;

@@ -1627,7 +1627,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
+    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)
+      || (strcmp(pName, "_group_const_value") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       void* data = taosHashGet(pSelectFuncs, pName, strlen(pName));
@@ -2021,18 +2022,27 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
 
 // TODO handle the group offset info, fix it, the rule of group output will be broken by this function
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
   if (pTableList->map == NULL) {
     pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    QUERY_CHECK_NULL(pTableList->map, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   }
 
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
-  taosArrayPush(pTableList->pTableList, &keyInfo);
+  void* tmp = taosArrayPush(pTableList->pTableList, &keyInfo);
+  QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
-  taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
+  code = taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
+  QUERY_CHECK_CODE(code, lino, _end);
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   qDebug("uid:%" PRIu64 ", groupId:%" PRIu64 " added into table list, slot:%d, total:%d", uid, gid, slot, slot + 1);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo,

@@ -88,7 +88,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
   void     *pRsp = NULL;
   SMnode   *pMnode = pMsg->info.node;
 
-  if (tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq)) {
+  if ((code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq)) != 0) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     mError("tDeserializeSBatchReq failed");
     goto _exit;
@@ -119,7 +119,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(req->msgType)];
     if (fp == NULL) {
       mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      code = TSDB_CODE_MSG_NOT_PROCESSED;
       taosArrayDestroy(batchRsp.pRsps);
       return -1;
     }
@@ -164,7 +164,7 @@ _exit:
   taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
   taosArrayDestroyEx(batchRsp.pRsps, mnodeFreeSBatchRspMsg);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndInitQuery(SMnode *pMnode) {
