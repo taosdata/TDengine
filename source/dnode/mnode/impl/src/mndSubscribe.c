@@ -100,7 +100,6 @@ END:
 
 static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj *pSub, const SMqRebOutputVg *pRebVg,
                                     SSubplan *pPlan) {
-  int32_t     code = 0;
   SMqRebVgReq req = {0};
   int32_t     code = 0;
   SEncoder encoder = {0};
@@ -862,7 +861,6 @@ END:
 }
 
 static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOutputObj *rebOutput) {
-  int32_t          code = 0;
   const char      *key = rebInput->pRebInfo->key;
   SMqSubscribeObj *pSub = NULL;
   int32_t          code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
