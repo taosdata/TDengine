@@ -3554,9 +3554,11 @@ void mJoinDestroyWindowCtx(SMJoinOperatorInfo* pJoin) {
   SMJoinWindowCtx* pCtx = &pJoin->ctx.windowCtx;
 
   mWinJoinResetWindowCache(pCtx, &pCtx->cache);
-  
-  pCtx->finBlk = blockDataDestroy(pCtx->finBlk);
-  pCtx->cache.outBlk = blockDataDestroy(pCtx->cache.outBlk);
+
+  blockDataDestroy(pCtx->finBlk);
+  pCtx->finBlk = NULL;
+  blockDataDestroy(pCtx->cache.outBlk);
+  pCtx->cache.outBlk = NULL;
 
   taosArrayDestroy(pCtx->cache.grps);
 }
@@ -3632,9 +3634,11 @@ int32_t mJoinInitWindowCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* p
 
 void mJoinDestroyMergeCtx(SMJoinOperatorInfo* pJoin) {
   SMJoinMergeCtx* pCtx = &pJoin->ctx.mergeCtx;
+  blockDataDestroy(pCtx->finBlk);
+  blockDataDestroy(pCtx->midBlk);
 
-  pCtx->finBlk = blockDataDestroy(pCtx->finBlk);
-  pCtx->midBlk = blockDataDestroy(pCtx->midBlk);
+  pCtx->finBlk = NULL;
+  pCtx->midBlk = NULL;
 }
 
 

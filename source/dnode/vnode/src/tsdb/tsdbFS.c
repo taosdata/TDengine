@@ -90,12 +90,14 @@ _exit:
 }
 
 static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  TdFilePtr pFD = NULL;
+  uint8_t  *pData = NULL;
 
   // encode to binary
-  int32_t  size = tsdbFSToBinary(NULL, pFS) + sizeof(TSCKSUM);
-  uint8_t *pData = taosMemoryMalloc(size);
+  int32_t size = tsdbFSToBinary(NULL, pFS) + sizeof(TSCKSUM);
+  pData = taosMemoryMalloc(size);
   if (pData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -104,32 +106,26 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
   taosCalcChecksumAppend(0, pData, size);
 
   // save to file
-  TdFilePtr pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
   int64_t n = taosWriteFile(pFD, pData, size);
   if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
   if (taosFsyncFile(pFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
-  taosCloseFile(&pFD);
-
 _exit:
-  if (pData) taosMemoryFree(pData);
   if (code) {
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
+  taosMemoryFree(pData);
+  taosCloseFile(&pFD);
   return code;
 }
 
@@ -180,11 +176,6 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-
-    // if (size != tsdbLogicToFileSize(pTsdb->fs.pDelFile->size, pTsdb->pVnode->config.tsdbPageSize)) {
-    //   code = TSDB_CODE_FILE_CORRUPTED;
-    //   TSDB_CHECK_CODE(code, lino, _exit);
-    // }
   }
 
   // SArray<SDFileSet>
@@ -327,17 +318,15 @@ static int32_t load_fs(const char *fname, STsdbFS *pFS) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  taosCloseFile(&pFD);
-
-  // decode binary
   code = tsdbBinaryToFS(pData, size, pFS);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
-  if (pData) taosMemoryFree(pData);
   if (code) {
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
+  taosMemoryFree(pData);
+  taosCloseFile(&pFD);
   return code;
 }
 
@@ -383,7 +372,11 @@ static int32_t tsdbNewFileSet(STsdb *pTsdb, SDFileSet *pSetTo, SDFileSet *pSetFr
   int32_t code = 0;
   int32_t lino = 0;
 
-  *pSetTo = (SDFileSet){.diskId = pSetFrom->diskId, .fid = pSetFrom->fid, .nSttF = 0};
+  *pSetTo = (SDFileSet){
+      .diskId = pSetFrom->diskId,
+      .fid = pSetFrom->fid,
+      .nSttF = 0,
+  };
 
   // head
   pSetTo->pHeadF = (SHeadFile *)taosMemoryMalloc(sizeof(SHeadFile));
