@@ -1873,8 +1873,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
           QUERY_CHECK_CODE(code, lino, _end);
         }
       } else {
-        code = fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);
-        QUERY_CHECK_CODE(code, lino, _end);
+        (void)fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);
 
         if (pCtx->sfp.getEnv != NULL) {
           bool tmp = pCtx->sfp.getEnv(pExpr->pExpr->_function.pFunctNode, &env);

@@ -283,7 +283,8 @@ bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
       int32_t code = blockDataTrimFirstRows(pBlock, pLimitInfo->remainOffset);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+        pTaskInfo->code = code;
+        T_LONG_JMP(pTaskInfo->env, code);
       }
       pLimitInfo->remainOffset = 0;
     }
@@ -1004,7 +1005,8 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return NULL;
 }
@@ -1105,7 +1107,8 @@ static SSDataBlock* startNextGroupScan(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return NULL;
 }
@@ -1134,9 +1137,13 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
 
     ASSERT(pInfo->base.dataReader == NULL);
 
-    code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
-                                         (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
-    QUERY_CHECK_CODE(code, lino, _end);
+    code =
+        pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
+                                      (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
 
     if (pInfo->filesetDelimited) {
       pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
@@ -1164,7 +1171,8 @@ static SSDataBlock* groupSeqTableScan(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return result;
 }
@@ -1241,7 +1249,8 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return NULL;
 }
@@ -3468,7 +3477,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return NULL;
 }
@@ -3947,7 +3957,8 @@ static void doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes,
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 }
 
@@ -4253,7 +4264,8 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   pOperator->resultInfo.totalRows += pRes->info.rows;
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
@@ -4684,7 +4696,8 @@ static void adjustSubTableFromMemBlock(SOperatorInfo* pOperatorInfo, STmsSubTabl
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 }
 
@@ -4784,7 +4797,8 @@ static SSDataBlock* getSubTablesSortedBlock(SOperatorInfo* pOperator, SSDataBloc
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
 }
@@ -4902,7 +4916,8 @@ SSDataBlock* doTableMergeScanParaSubTables(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return pBlock;
 }
@@ -4931,7 +4946,8 @@ static void tableMergeScanDoSkipTable(uint64_t uid, void* pTableMergeOpInfo) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 }
 
@@ -5223,7 +5239,8 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 }
 
@@ -5770,7 +5787,8 @@ static void buildSysDbFilterTableCount(SOperatorInfo* pOperator, STableCountScan
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   setOperatorCompleted(pOperator);
 }
@@ -5811,7 +5829,8 @@ static void buildSysDbGroupedTableCount(SOperatorInfo* pOperator, STableCountSca
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 }
 
@@ -5859,7 +5878,8 @@ static SSDataBlock* buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCount
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return pRes->info.rows > 0 ? pRes : NULL;
 }
@@ -5906,7 +5926,8 @@ static void buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountSca
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 }
 
@@ -5944,7 +5965,8 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   setOperatorCompleted(pOperator);
