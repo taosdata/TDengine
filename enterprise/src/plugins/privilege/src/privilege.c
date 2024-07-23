@@ -267,15 +267,6 @@ _OVER:
   return code;
 }
 
-int32_t mndCheckTopicPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *topicName) {
-  SMqTopicObj *pTopic = mndAcquireTopic(pMnode, (char *)topicName);
-  if (pTopic == NULL) return -1;
-
-  int32_t code = mndCheckTopicPrivilege(pMnode, user, operType, pTopic);
-  mndReleaseTopic(pMnode, pTopic);
-  return code;
-}
-
 int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
   memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
   pRsp->superAuth = pUser->superUser;
