@@ -1116,7 +1116,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
   mInfo("sma:%s, start to drop", dropReq.name);
 
   SSIdx idx = {0};
-  if (mndAcquireGlobalIdx(pMnode, dropReq.name, SDB_SMA, &idx) == 0) {
+  if ((code = mndAcquireGlobalIdx(pMnode, dropReq.name, SDB_SMA, &idx)) == 0) {
     pSma = idx.pIdx;
   } else {
     goto _OVER;
