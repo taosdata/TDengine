@@ -145,20 +145,20 @@ typedef struct {
 } SDnodeData;
 
 typedef struct {
-  const char         *path;
-  const char         *name;
-  STfs               *pTfs;
-  SDnodeData         *pData;
-  SMsgCb              msgCb;
-  ProcessCreateNodeFp processCreateNodeFp;
+  const char            *path;
+  const char            *name;
+  STfs                  *pTfs;
+  SDnodeData            *pData;
+  SMsgCb                 msgCb;
+  ProcessCreateNodeFp    processCreateNodeFp;
   ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp   processDropNodeFp;
-  SendMonitorReportFp sendMonitorReportFp;
-  SendAuditRecordsFp  sendAuditRecordFp;
-  GetVnodeLoadsFp     getVnodeLoadsFp;
-  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
-  GetMnodeLoadsFp     getMnodeLoadsFp;
-  GetQnodeLoadsFp     getQnodeLoadsFp;
+  ProcessDropNodeFp      processDropNodeFp;
+  SendMonitorReportFp    sendMonitorReportFp;
+  SendAuditRecordsFp     sendAuditRecordFp;
+  GetVnodeLoadsFp        getVnodeLoadsFp;
+  GetVnodeLoadsFp        getVnodeLoadsLiteFp;
+  GetMnodeLoadsFp        getMnodeLoadsFp;
+  GetQnodeLoadsFp        getQnodeLoadsFp;
 } SMgmtInputOpt;
 
 typedef struct {
@@ -203,9 +203,10 @@ void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, boo
 void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
 // dmFile.c
-int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
-int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
-TdFilePtr dmCheckRunning(const char *dataDir);
+int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
+int32_t dmWriteFile(const char *path, const char *name, bool deployed);
+int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);
+//int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 
 // dmodule.c
 int32_t dmInitDndInfo(SDnodeData *pData);

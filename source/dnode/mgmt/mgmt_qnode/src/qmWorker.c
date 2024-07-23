@@ -102,6 +102,8 @@ int32_t qmGetQueueSize(SQnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
 }
 
 int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
+  int32_t code = 0;
+
   SSingleWorkerCfg queryCfg = {
       .min = tsNumOfVnodeQueryThreads,
       .max = tsNumOfVnodeQueryThreads,
@@ -111,9 +113,9 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
       .poolType = QUERY_AUTO_QWORKER_POOL,
   };
 
-  if (tSingleWorkerInit(&pMgmt->queryWorker, &queryCfg) != 0) {
-    dError("failed to start qnode-query worker since %s", terrstr());
-    return -1;
+  if ((code = tSingleWorkerInit(&pMgmt->queryWorker, &queryCfg)) != 0) {
+    dError("failed to start qnode-query worker since %s", tstrerror(code));
+    return code;
   }
 
   SSingleWorkerCfg fetchCfg = {
@@ -124,13 +126,13 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
 
-  if (tSingleWorkerInit(&pMgmt->fetchWorker, &fetchCfg) != 0) {
-    dError("failed to start qnode-fetch worker since %s", terrstr());
-    return -1;
+  if ((code = tSingleWorkerInit(&pMgmt->fetchWorker, &fetchCfg)) != 0) {
+    dError("failed to start qnode-fetch worker since %s", tstrerror(code));
+    return code;
   }
 
   dDebug("qnode workers are initialized");
-  return 0;
+  return code;
 }
 
 void qmStopWorker(SQnodeMgmt *pMgmt) {

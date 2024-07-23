@@ -23,7 +23,9 @@ static int32_t rsmaRestore(SSma *pSma);
 #define SMA_SET_KEEP_CFG(v, l)                                                                    \
   do {                                                                                            \
     SRetention *r = &pCfg->retentions[l];                                                         \
-    pKeepCfg->keep2 = convertTimeFromPrecisionToUnit(r->keep, pCfg->precision, TIME_UNIT_MINUTE); \
+    int64_t keep = -1;                                                                            \
+    convertTimeFromPrecisionToUnit(r->keep, pCfg->precision, TIME_UNIT_MINUTE, &keep);            \
+    pKeepCfg->keep2 = (int32_t)keep;                                                              \
     pKeepCfg->keep0 = pKeepCfg->keep2;                                                            \
     pKeepCfg->keep1 = pKeepCfg->keep2;                                                            \
     pKeepCfg->days = smaEvalDays(v, pCfg->retentions, l, pCfg->precision, pCfg->days);            \
@@ -60,8 +62,12 @@ static int32_t rsmaRestore(SSma *pSma);
  * @return int32_t
  */
 static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t precision, int32_t duration) {
-  int32_t freqDuration = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->freq, precision, TIME_UNIT_MINUTE);
-  int32_t keepDuration = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->keep, precision, TIME_UNIT_MINUTE);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  int64_t freqDuration = -1;
+  int64_t keepDuration = -1;
+  code = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->freq, precision, TIME_UNIT_MINUTE, &freqDuration);
+  code = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->keep, precision, TIME_UNIT_MINUTE, &keepDuration);
   int32_t days = duration;  // min
 
   if (days < freqDuration) {
@@ -76,8 +82,8 @@ static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t p
     goto _exit;
   }
 
-  freqDuration = convertTimeFromPrecisionToUnit((r + level)->freq, precision, TIME_UNIT_MINUTE);
-  keepDuration = convertTimeFromPrecisionToUnit((r + level)->keep, precision, TIME_UNIT_MINUTE);
+  code = convertTimeFromPrecisionToUnit((r + level)->freq, precision, TIME_UNIT_MINUTE, &freqDuration);
+  code = convertTimeFromPrecisionToUnit((r + level)->keep, precision, TIME_UNIT_MINUTE, &keepDuration);
 
   int32_t nFreqTimes = (r + level)->freq / (60 * 1000);  // use 60s for freq of 1st level
   days *= (nFreqTimes > 1 ? nFreqTimes : 1);

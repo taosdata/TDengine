@@ -83,15 +83,13 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
       serverVer /= 1000000;
       break;
     default:
-      terrno = TSDB_CODE_INVALID_VERSION_NUMBER;
-      return -1;
+      return TSDB_CODE_INVALID_VERSION_NUMBER;
   }
 
   if (clientVer == serverVer) {
     return 0;
   } else {
-    terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-    return -1;
+    return TSDB_CODE_VERSION_NOT_COMPATIBLE;
   }
 }
 
