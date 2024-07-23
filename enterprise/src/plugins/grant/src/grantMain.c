@@ -1271,7 +1271,8 @@ static uint8_t grantGetMachineFlag(const char *machineCode) {
 }
 
 void grantParseParameter() {
-  char *key = tGetMachineId();  //  grantGetMachineSerials();
+  char   *key = NULL;
+  int32_t code = tGetMachineId(&key);  //  grantGetMachineSerials();
   if (key != NULL) {
     uint8_t flag = grantGetMachineFlag(key);
     if (flag >= 1 && flag <= 5) {
@@ -1283,7 +1284,8 @@ void grantParseParameter() {
     }
     taosMemoryFree(key);
   } else {
-    fprintf(stderr, "failed to generate machine code, please contact TAOS Data for support\n");
+    fprintf(stderr, "failed to generate machine code since %s, please contact TAOS Data for support\n",
+            tstrerror(code));
   }
   exit(EXIT_SUCCESS);
 }
