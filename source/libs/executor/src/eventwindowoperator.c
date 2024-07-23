@@ -350,7 +350,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
 _return:
 
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   colDataDestroy(ps);
   taosMemoryFree(ps);

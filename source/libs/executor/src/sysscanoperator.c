@@ -160,8 +160,8 @@ int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   const char* db = NULL;
   pArg->pAPI->metaFn.getBasicInfo(pVnode, &db, NULL, NULL, NULL);
 
-  SName sn = {0};
-  char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  SName   sn = {0};
+  char    dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t code = tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -596,7 +596,10 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       if (schema == NULL) {
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&pInfo->pCur->mr.me.stbEntry.schemaRow);
         code = taosHashPut(pInfo->pSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+          lino = __LINE__;
+          goto _end;
+        }
       }
       continue;
     } else if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
@@ -624,7 +627,10 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         }
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
         code = taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+          lino = __LINE__;
+          goto _end;
+        }
 
         schemaRow = schemaWrapper;
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
@@ -745,7 +751,8 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       return NULL;
     }
 
-    code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
+    code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows,
+                                            dataBlock);
     QUERY_CHECK_CODE(code, lino, _end);
 
     pAPI->metaReaderFn.clearReader(&smrSuperTable);
@@ -2571,8 +2578,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   char*   p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
   QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  code = tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
-  QUERY_CHECK_CODE(code, lino, _end);
+  (void)tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
   varDataSetLen(p, len);
 
   code = colDataSetVal(pColInfo, 0, p, false);

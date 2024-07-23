@@ -132,9 +132,15 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   }
 
   SArray* pCidList = taosArrayInit(numOfCols, sizeof(int16_t));
+  QUERY_CHECK_NULL(pCidList, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+
   pInfo->pFuncTypeList = taosArrayInit(taosArrayGetSize(pScanNode->pFuncTypes), sizeof(int32_t));
+  QUERY_CHECK_NULL(pInfo->pFuncTypeList, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+
   void* tmp = taosArrayAddAll(pInfo->pFuncTypeList, pScanNode->pFuncTypes);
-  QUERY_CHECK_NULL(tmp, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  if (!tmp && taosArrayGetSize(pScanNode->pFuncTypes) > 0) {
+    QUERY_CHECK_NULL(tmp, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   for (int i = 0; i < TARRAY_SIZE(pInfo->matchInfo.pList); ++i) {
     SColMatchItem* pColInfo = taosArrayGet(pInfo->matchInfo.pList, i);
@@ -206,7 +212,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
 _error:
   pTaskInfo->code = code;
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   destroyCacheScanOperator(pInfo);
   taosMemoryFree(pOperator);

@@ -428,7 +428,7 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
   if (!data) {
     int32_t code =
         taosHashPut(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), pNode, sizeof((*pNode)));
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
       return DEAL_RES_ERROR;
     }
     pSColumnNode->slotId = pData->index++;
@@ -440,7 +440,7 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     qDebug("tagfilter build column info, slotId:%d, colId:%d, type:%d", pSColumnNode->slotId, cInfo.colId, cInfo.type);
 #endif
     void* tmp = taosArrayPush(pData->cInfoList, &cInfo);
-    if(!tmp) {
+    if (!tmp) {
       return DEAL_RES_ERROR;
     }
   } else {
@@ -741,7 +741,10 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
       // groupId ~ table uid
       code = taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
                          sizeof(info->uid));
-      QUERY_CHECK_CODE(code, lino, end);
+      if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+        lino = __LINE__;
+        goto end;
+      }
     }
   }
 
@@ -942,7 +945,7 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
       for (int i = 0; i < numOfExisted; i++) {
         STUidTagInfo* pTInfo = taosArrayGet(pExistedUidList, i);
         int32_t       code = taosHashPut(uHash, &pTInfo->uid, sizeof(uint64_t), &i, sizeof(i));
-        if (code != TSDB_CODE_SUCCESS) {
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
           qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
           return code;
         }
@@ -1793,8 +1796,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)
-      || (strcmp(pName, "_group_const_value") == 0)) {
+    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0) ||
+        (strcmp(pName, "_group_const_value") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       void* data = taosHashGet(pSelectFuncs, pName, strlen(pName));
@@ -1803,7 +1806,7 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
         break;
       } else {
         int32_t code = taosHashPut(pSelectFuncs, pName, strlen(pName), &num, sizeof(num));
-        if (code != TSDB_CODE_SUCCESS) {
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
           qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
           return code;
         }
@@ -2239,7 +2242,10 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
 
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
   code = taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+    lino = __LINE__;
+    goto _end;
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2416,7 +2422,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
 
         code = taosHashPut(pTableListInfo->remainGroups, &(info->groupId), sizeof(info->groupId), &(info->uid),
                            sizeof(info->uid));
-        if (code != TSDB_CODE_SUCCESS) {
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
           qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
           return code;
         }
@@ -2468,7 +2474,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
   for (int32_t i = 0; i < size; ++i) {
     STableKeyInfo* p = taosArrayGet(pTableListInfo->pTableList, i);
     code = taosHashPut(pTableListInfo->map, &p->uid, sizeof(uint64_t), &i, sizeof(int32_t));
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       return code;
     }

@@ -175,8 +175,13 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
     }
   }
 
-  return taosHashPut(pTableScanInfo->pIgnoreTables, &uid, sizeof(uid), &pTableScanInfo->scanTimes,
-                     sizeof(pTableScanInfo->scanTimes));
+  int32_t code = taosHashPut(pTableScanInfo->pIgnoreTables, &uid, sizeof(uid), &pTableScanInfo->scanTimes,
+                             sizeof(pTableScanInfo->scanTimes));
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo* pBlockInfo, uint32_t* status) {
@@ -357,10 +362,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   if (pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
     bool success = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo);
     if (success) {
-      size_t  size = taosArrayGetSize(pBlock->pDataBlock);
-      bool    keep = false;
-      code =
-          doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, pBlockInfo->rows, &keep);
+      size_t size = taosArrayGetSize(pBlock->pDataBlock);
+      bool   keep = false;
+      code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, pBlockInfo->rows, &keep);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (!keep) {
@@ -3618,7 +3622,10 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
         size_t   keySize = 0;
         int64_t* pUid = taosHashGetKey(pIte, &keySize);
         code = taosHashPut(pUpInfo->pMap, pUid, sizeof(int64_t), pIte, sizeof(TSKEY));
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+          lino = __LINE__;
+          goto _end;
+        }
 
         pIte = taosHashIterate(curMap, pIte);
       }
@@ -4005,7 +4012,10 @@ static EDealRes tagScanRewriteTagColumn(SNode** pNode, void* pContext) {
   void*                  data = taosHashGet(pCtx->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId));
   if (!data) {
     code = taosHashPut(pCtx->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), pNode, sizeof((*pNode)));
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+      lino = __LINE__;
+      goto _end;
+    }
     pSColumnNode->slotId = pCtx->index++;
     SColumnInfo cInfo = {.colId = pSColumnNode->colId,
                          .type = pSColumnNode->node.resType.type,
@@ -4912,7 +4922,10 @@ static void tableMergeScanDoSkipTable(uint64_t uid, void* pTableMergeOpInfo) {
   int bSkip = 1;
   if (pInfo->mSkipTables != NULL) {
     code = taosHashPut(pInfo->mSkipTables, &uid, sizeof(uid), &bSkip, sizeof(bSkip));
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+      lino = __LINE__;
+      goto _end;
+    }
   }
 
 _end:
