@@ -316,20 +316,20 @@ void mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic) {
 }
 
 static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
-  terrno = TSDB_CODE_MND_INVALID_TOPIC;
+  int32_t code = TSDB_CODE_MND_INVALID_TOPIC;
 
-  if (pCreate->sql == NULL) return -1;
+  if (pCreate->sql == NULL) TAOS_RETURN(code);
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
-    if (pCreate->ast == NULL || pCreate->ast[0] == 0) return -1;
+    if (pCreate->ast == NULL || pCreate->ast[0] == 0) TAOS_RETURN(code);
   } else if (pCreate->subType == TOPIC_SUB_TYPE__TABLE) {
-    if (pCreate->subStbName[0] == 0) return -1;
+    if (pCreate->subStbName[0] == 0) TAOS_RETURN(code);
   } else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {
-    if (pCreate->subDbName[0] == 0) return -1;
+    if (pCreate->subDbName[0] == 0) TAOS_RETURN(code);
   }
 
-  terrno = TSDB_CODE_SUCCESS;
-  return 0;
+  code = TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
 }
 
 static int32_t extractTopicTbInfo(SNode *pAst, SMqTopicObj *pTopic) {
@@ -378,7 +378,6 @@ static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj 
     int32_t len;
     tEncodeSize(tEncodeSTqCheckInfo, &info, len, code);
     if (code != 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
     buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
@@ -387,7 +386,6 @@ static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj 
     tEncoderInit(&encoder, abuf, len);
     code = tEncodeSTqCheckInfo(&encoder, &info);
     if (code < 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto END;
     }
     tEncoderClear(&encoder);
@@ -410,7 +408,7 @@ END:
   taosMemoryFree(buf);
   sdbRelease(pSdb, pVgroup);
   sdbCancelFetch(pSdb, pIter);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb,
@@ -424,8 +422,9 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "create-topic");
   if (pTrans == NULL) {
-    mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
-    code = -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    mError("topic:%s, failed to create since %s", pCreate->name, tstrerror(code));
     goto _OUT;
   }
 
@@ -463,21 +462,20 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
     code = nodesStringToNode(pCreate->ast, &pAst);
     if (code != 0) {
-      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      mError("topic:%s, failed to create since %s", pCreate->name, tstrerror(code));
       goto _OUT;
     }
 
     SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
     code = qCreateQueryPlan(&cxt, &pPlan, NULL);
     if (code != 0) {
-      mError("failed to create topic:%s since %s", pCreate->name, terrstr());
+      mError("failed to create topic:%s since %s", pCreate->name, tstrerror(code));
       goto _OUT;
     }
 
     topicObj.ntbColIds = taosArrayInit(0, sizeof(int16_t));
     if (topicObj.ntbColIds == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = terrno;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto _OUT;
     }
 
@@ -490,20 +488,19 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
     code = qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema);
     if (code != 0) {
-      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      mError("topic:%s, failed to create since %s", pCreate->name, tstrerror(code));
       goto _OUT;
     }
 
     code = nodesNodeToString((SNode *)pPlan, false, &topicObj.physicalPlan, NULL);
     if (code != 0) {
-      mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      mError("topic:%s, failed to create since %s", pCreate->name, tstrerror(code));
       goto _OUT;
     }
   } else if (pCreate->subType == TOPIC_SUB_TYPE__TABLE) {
     SStbObj *pStb = mndAcquireStb(pMnode, pCreate->subStbName);
     if (pStb == NULL) {
-      terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-      code = terrno;
+      code = TSDB_CODE_MND_STB_NOT_EXIST;
       goto _OUT;
     }
 
@@ -518,9 +515,12 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   }
 
   SSdbRaw *pCommitRaw = mndTopicActionEncode(&topicObj);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    code = -1;
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OUT;
+  }
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
     goto _OUT;
   }
 
@@ -533,9 +533,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     }
   }
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    code = -1;
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     goto _OUT;
   }
 
@@ -552,7 +551,7 @@ _OUT:
   nodesDestroyNode(pAst);
   nodesDestroyNode((SNode *)pPlan);
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
@@ -563,14 +562,14 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   SCMCreateTopicReq createTopicReq = {0};
 
   if (tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
   mInfo("topic:%s start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
 
-  if (mndCheckCreateTopicReq(&createTopicReq) != 0) {
-    mError("topic:%s failed to create since %s", createTopicReq.name, terrstr());
+  if ((code = mndCheckCreateTopicReq(&createTopicReq)) != 0) {
+    mError("topic:%s failed to create since %s", createTopicReq.name, tstrerror(code));
     goto _OVER;
   }
 
@@ -581,32 +580,33 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
       code = 0;
       goto _OVER;
     } else {
-      terrno = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
+      code = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
       goto _OVER;
     }
   } else if (terrno != TSDB_CODE_MND_TOPIC_NOT_EXIST) {
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
 
   pDb = mndAcquireDb(pMnode, createTopicReq.subDbName);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    code = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto _OVER;
   }
 
   if (pDb->cfg.walRetentionPeriod == 0) {
-    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
+    code = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
     mError("db:%s, not allowed to create topic when WAL_RETENTION_PERIOD is zero", pDb->name);
     goto _OVER;
   }
 
   if (sdbGetSize(pMnode->pSdb, SDB_TOPIC) >= tmqMaxTopicNum){
-    terrno = TSDB_CODE_TMQ_TOPIC_OUT_OF_RANGE;
+    code = TSDB_CODE_TMQ_TOPIC_OUT_OF_RANGE;
     mError("topic num out of range");
     goto _OVER;
   }
 
-  if ((terrno = grantCheck(TSDB_GRANT_SUBSCRIPTION)) < 0) {
+  if ((code = grantCheck(TSDB_GRANT_SUBSCRIPTION)) < 0) {
     goto _OVER;
   }
 
@@ -634,27 +634,30 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateTopicReq(&createTopicReq);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTopicObj *pTopic) {
   int32_t code = -1;
-  if (mndUserRemoveTopic(pMnode, pTrans, pTopic->name) != 0) {
+  if ((code = mndUserRemoveTopic(pMnode, pTrans, pTopic->name)) != 0) {
     goto _OVER;
   }
 
   SSdbRaw *pCommitRaw = mndTopicActionEncode(pTopic);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
+  TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), NULL, _OVER);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
   code = 0;
 
 _OVER:
-  return code;
+  TAOS_RETURN(code);
 }
 
 static bool checkTopic(SArray *topics, char *topicName){
@@ -707,7 +710,7 @@ static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topi
 end:
   sdbRelease(pSdb, pConsumer);
   sdbCancelFetch(pSdb, pIter);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic){
@@ -750,7 +753,7 @@ static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicO
 end:
   sdbRelease(pSdb, pVgroup);
   sdbCancelFetch(pSdb, pIter);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
@@ -761,8 +764,8 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   STrans      *pTrans = NULL;
 
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_RETURN(code);
   }
 
   pTopic = mndAcquireTopic(pMnode, dropReq.name);
@@ -770,19 +773,20 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     if (dropReq.igNotExists) {
       mInfo("topic:%s, not exist, ignore not exist is set", dropReq.name);
       tFreeSMDropTopicReq(&dropReq);
-      return 0;
+      TAOS_RETURN(code);
     } else {
-      terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
-      mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+      code = TSDB_CODE_MND_TOPIC_NOT_EXIST;
+      mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(code));
       tFreeSMDropTopicReq(&dropReq);
-      return -1;
+      TAOS_RETURN(code);
     }
   }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-topic");
   if (pTrans == NULL) {
-    mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
-    code = -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    mError("topic:%s, failed to drop since %s", pTopic->name, tstrerror(code));
     goto end;
   }
 
@@ -830,7 +834,7 @@ end:
   if (code != 0) {
     mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
     tFreeSMDropTopicReq(&dropReq);
-    return code;
+    TAOS_RETURN(code);
   }
 
   SName name = {0};
@@ -840,7 +844,7 @@ end:
 
   tFreeSMDropTopicReq(&dropReq);
 
-  return TSDB_CODE_ACTION_IN_PROGRESS;
+  TAOS_RETURN(TSDB_CODE_ACTION_IN_PROGRESS);
 }
 
 int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
@@ -1003,21 +1007,31 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 }
 
 int32_t mndSetTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic) {
+  int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndTopicActionEncode(pTopic);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetDropTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic) {
+  int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndTopicActionEncode(pTopic);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
 
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static void mndCancelGetNextTopic(SMnode *pMnode, void *pIter) {
