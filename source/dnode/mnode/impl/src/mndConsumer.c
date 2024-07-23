@@ -362,10 +362,9 @@ static int32_t buildAskEpRsp(SRpcMsg *pMsg, SMqAskEpRsp *rsp, int32_t serverEpoc
   pHead->walever = 0;
 
   void *abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-  code = tEncodeSMqAskEpRsp(&abuf, rsp);
-  if (code != 0) {
+  if (tEncodeSMqAskEpRsp(&abuf, rsp) < 0) {
     rpcFreeCont(buf);
-    return code;
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
   // send rsp

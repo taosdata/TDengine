@@ -397,9 +397,11 @@ END:
 }
 
 static int32_t processSubOffsetRows(SMnode *pMnode, const SMqRebInputObj *pInput, SMqRebOutputObj *pOutput) {
-  int32_t          code = 0;
   SMqSubscribeObj *pSub = NULL;
-  MND_TMQ_RETURN_CHECK(mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key, &pSub));  // put all offset rows
+  int32_t          code = mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key, &pSub);  // put all offset rows
+  if( code != 0){
+    return 0;
+  }
   taosRLockLatch(&pSub->lock);
   if (pOutput->pSub->offsetRows == NULL) {
     pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
@@ -858,12 +860,11 @@ END:
 }
 
 static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOutputObj *rebOutput) {
-  int32_t          code = 0;
   const char      *key = rebInput->pRebInfo->key;
   SMqSubscribeObj *pSub = NULL;
-  MND_TMQ_RETURN_CHECK(mndAcquireSubscribeByKey(pMnode, key, &pSub));
+  int32_t          code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
 
-  if (pSub == NULL) {
+  if (code != 0) {
     // split sub key and extract topic
     char topic[TSDB_TOPIC_FNAME_LEN] = {0};
     char cgroup[TSDB_CGROUP_LEN] = {0};
@@ -893,7 +894,7 @@ static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOu
       taosRUnLockLatch(&pSub->lock);
       goto END;
     }
-    code =checkConsumer(pMnode, rebOutput->pSub);
+    code = checkConsumer(pMnode, rebOutput->pSub);
     if(code != 0){
       taosRUnLockLatch(&pSub->lock);
       goto END;

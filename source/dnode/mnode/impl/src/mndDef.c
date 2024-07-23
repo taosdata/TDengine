@@ -594,7 +594,9 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
   (void)memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   pSubNew->qmsg = taosStrdup(pSub->qmsg);
-
+  if (ppSub) {
+    *ppSub = pSubNew;
+  }
 END:
   return code;
 }
