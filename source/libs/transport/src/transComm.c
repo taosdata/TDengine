@@ -692,9 +692,13 @@ static void transDestroyEnv() {
   transCloseRefMgt(transSyncMsgMgt);
 }
 
-void transInit() {
+int32_t transInit() {
   // init env
-  taosThreadOnce(&transModuleInit, transInitEnv);
+  int32_t code = taosThreadOnce(&transModuleInit, transInitEnv);
+  if (code != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
+  return code;
 }
 
 int32_t transGetRefMgt() { return refMgt; }

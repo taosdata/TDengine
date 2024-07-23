@@ -34,10 +34,14 @@ static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   return 0;
 }
 void* rpcOpen(const SRpcInit* pInit) {
-  rpcInit();
+  int32_t code = rpcInit();
+  if (code != 0) {
+    return NULL;
+  }
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
+    // return TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   if (pInit->label) {
@@ -202,10 +206,8 @@ int32_t rpcCvtErrCode(int32_t code) {
   return code;
 }
 
-int32_t rpcInit() {
-  transInit();
-  return 0;
-}
+int32_t rpcInit() { return transInit(); }
+
 void rpcCleanup(void) {
   transCleanup();
   transHttpEnvDestroy();

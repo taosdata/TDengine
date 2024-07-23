@@ -435,9 +435,9 @@ bool transEpSetIsEqual2(SEpSet* a, SEpSet* b);
  */
 void transThreadOnce();
 
-void transInit();
-void transCleanup();
-void transPrintEpSet(SEpSet* pEpSet);
+int32_t transInit();
+void    transCleanup();
+void    transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
