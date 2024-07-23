@@ -39,6 +39,7 @@ use taosx_core::{
     get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
 };
 
+use crate::build;
 use crate::serve::controller::agent::Activity;
 
 use super::data_sources::DataSourceDefinition;
@@ -940,14 +941,10 @@ impl TaskController {
                     .get(CLIENT_ID)
                     .filter(|s| !s.trim().is_empty())
                     .context("mqtt client id not found")?;
-                if task
-                    .prepend_task_id_to
-                    .as_ref()
-                    .is_some_and(|s| s == CLIENT_ID)
-                {
-                    from.set(CLIENT_ID, format!("taosx{id}{client_id}"));
+                if task.prepend_builtin_task_id.is_some_and(|s| s) {
+                    from.set(CLIENT_ID, format!("{}{id}{client_id}", build::CUS_CLI_NAME));
                 } else {
-                    from.set(CLIENT_ID, format!("taosx{client_id}"));
+                    from.set(CLIENT_ID, format!("{}{client_id}", build::CUS_CLI_NAME));
                 }
             }
             KAFKA_ID => {
@@ -956,14 +953,13 @@ impl TaskController {
                     .get(KAFKA_GROUP_ID)
                     .filter(|s| !s.trim().is_empty())
                     .context("kafka group id not found")?;
-                if task
-                    .prepend_task_id_to
-                    .as_ref()
-                    .is_some_and(|s| s == KAFKA_GROUP_ID)
-                {
-                    from.set(KAFKA_GROUP_ID, format!("taosx{id}{group_id}"));
+                if task.prepend_builtin_task_id.is_some_and(|s| s) {
+                    from.set(
+                        KAFKA_GROUP_ID,
+                        format!("{}{id}{group_id}", build::CUS_CLI_NAME),
+                    );
                 } else {
-                    from.set(KAFKA_GROUP_ID, format!("taosx{group_id}"));
+                    from.set(KAFKA_GROUP_ID, format!("{}{group_id}", build::CUS_CLI_NAME));
                 }
             }
             _ => {}
@@ -2983,7 +2979,7 @@ pub(crate) struct NewTask {
     not_start: bool,
 
     #[sqlx(skip)]
-    prepend_task_id_to: Option<String>,
+    prepend_builtin_task_id: Option<bool>,
 }
 
 impl NewTask {
