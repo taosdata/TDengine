@@ -2,6 +2,7 @@ import { request } from "@/utils/request";
 import store from "@/store";
 import JSONbig from "json-bigint";
 import { compHeadAndData, getLocalTimezone } from "@/utils";
+import { stringify } from 'qs';
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
     baseURL: process.env.VUE_APP_BASE_URL,
@@ -99,68 +100,44 @@ export function executeSQLByToken(sql, token) {
 }
 
 
-// 获取个人收藏列表
-export function getFavorites(sql) {
+// 获取个人/共享收藏列表
+export function getFavorites(data) {
   return request({
-    baseURL: process.env.VUE_APP_BASE_URL,
-    url: '/rest/sql',
-    method: 'post',
+    baseURL: process.env.VUE_APP_EXPLORER_API,
+    url: `/favorites/sql?${stringify(data)}`,
+    method: 'get',
     headers: {
       "Content-Type": "text/plain"
     },
-    data: sql
   });
 }
 
-// 添加个人收藏
-export function addFavorite(sql) {
+// 添加个人/共享收藏
+export function addFavorite(data) {
   return request({
-    url: "/data/favorite",
+    baseURL: process.env.VUE_APP_EXPLORER_API,
+    url: "/favorites/sql",
     method: "post",
-    data: {
-      app_id: store.getters.appId,
-      sql,
-    },
+    data,
   });
 }
 
-// 删除个人收藏
+// 删除个人/共享收藏
 export function delFavorite(id) {
   return request({
-    url: "/data/favorite/" + id,
+    baseURL: process.env.VUE_APP_EXPLORER_API,
+    url: "/favorites/sql/" + id,
     method: "delete",
   });
 }
 
-// 获取共享收藏列表
-export function getSharedFavorites(sql) {
+// 添加/取消/共享收藏 修改描述
+export function manageFavorite(id, data) {
   return request({
-    baseURL: process.env.VUE_APP_BASE_URL,
-    url: '/rest/sql',
-    headers: {
-      "Content-Type": "text/plain"
-    },
-    method: 'post',
-    data: sql
+    baseURL: process.env.VUE_APP_EXPLORER_API,
+    url: "/favorites/sql/" + id,
+    method: "patch",
+    data
   });
 }
 
-// 添加共享收藏
-export function addSharedFavorite(sql) {
-  return request({
-    url: "/data/shared_favorite",
-    method: "post",
-    data: {
-      app_id: store.getters.appId,
-      sql,
-    },
-  });
-}
-
-// 删除共享收藏
-export function delSharedFavorite(id) {
-  return request({
-    url: "/data/shared_favorite/" + id,
-    method: "delete",
-  });
-}

@@ -21,6 +21,9 @@
         <el-tab-pane name="audit" :label="$t('topic.audit')" lazy v-if="getMetaShow('audit')">
           <Audit :activeName="activeName"></Audit>
         </el-tab-pane>
+        <el-tab-pane name="slowSql" :label="$t('topic.slowSql')" lazy v-if="version_gt_equ_3330">
+          <SlowSql :activeName="activeName"></SlowSql>
+        </el-tab-pane>
       </el-tabs>
       <el-alert
         v-if="$COMMUNITY && (activeName == 'backup' || activeName == 'replication' || activeName == 'audit')"
@@ -42,19 +45,28 @@ import License from './views/license.vue'
 import Activities from './views/activities.vue'
 import Cluster from '@/views/14_cluster/index.vue'
 import Audit from './views/audit.vue'
+import SlowSql from './views/slowSql.vue'
 import LicenseMixin from "@/mixins/license"
 export default {
   name: "Admin",
   components:{
-    MgUser,AdBackup,AdReplication,License,Activities,Cluster,Audit
+    MgUser,AdBackup,AdReplication,License,Activities,Cluster,Audit,SlowSql
   },
   mixins: [LicenseMixin],
   data() {
     return {
       message: "这是Admin页面",
       taosxDisabled:false,
-      activeName: 'user'
+      activeName: 'user',
+      version_gt_equ_3330: false
     };
+  },
+  created() {
+    let version = localStorage.getItem("agent_version");
+    let [a, b, c, d] = version.split(".");
+    if (a > 3 || (a == 3 && b >= 1 && c >= 2)) {
+      this.version_gt_equ_3330 = true;
+    }
   }
 };
 </script>

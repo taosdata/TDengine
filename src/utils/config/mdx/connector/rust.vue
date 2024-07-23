@@ -17,6 +17,10 @@ anyhow = &quot;1.0.0&quot;
 </code></pre>
     <h2 id="config">{{ $t("docs.connector.rust.step3") }}</h2>
     <p>{{ $t("component.docConfig.content", [" DSN "]) }}</p>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <el-tabs value="bash">
       <el-tab-pane name="bash" label="Bash">
         <pre

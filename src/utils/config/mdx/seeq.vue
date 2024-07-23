@@ -40,6 +40,10 @@
       </li>
       <li>
         <span class="seeq-span">{{ $t('docs.tools.seeq.step3desc2') }}</span>
+        <p>
+          <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+          <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+        </p>
         <pre
           v-highlight="
             `{

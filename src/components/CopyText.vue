@@ -2,7 +2,7 @@
   <div class="copy-wrapper">
     {{ text }}
     <button circle class="copy-btn" :title="$t('copy')" @click="copy">
-      <el-icon class="el-icon-document-copy"></el-icon>
+      <el-icon class="el-icon-copy-document"></el-icon>
       {{ btnText }}
     </button>
   </div>

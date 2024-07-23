@@ -116,7 +116,7 @@ function mergeTaskDetailOptions(cfgOptions, data, from) {
     } else {
         for (let key in cfgOptions) {
             if (data[key]) {
-                cfgOptions[key].value = data[key];
+                cfgOptions[key].value = data[key].toString();;
             } else if (data.params[key]) {
                 cfgOptions[key].value = data.params[key];
             }
@@ -193,6 +193,9 @@ function mergeAuthentication(cfgAuth, data) {
                         let param = authentication[key][j];
                         if (data.params[param.name]) {
                             param.value = data.params[param.name];
+                        } else if (data[param.name]) {
+                            // username&password
+                            param.value = data[param.name];
                         }
                     }
                 } else if (authentication[key].display && data[key]) {

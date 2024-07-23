@@ -22,7 +22,7 @@ const InfoParams = ['security_policy', 'security_mode'];
 const Info2Params = ['point_file','template_for_pi_point_file', 'template_for_af_element_file','csv_config_file'];
 export const TimeFormats = ['beginDateTime', 'endDateTime', 'start', 'end', 'beginTime', 'endTime', 'BackfillStartTime', 'BackfillEndTime'];
 export const PayConnectorList = ['pi', 'opcua', 'opcda', 'pibackfill'];
-export const ComposeParams = ['timeout','schema-polling-interval','unit','retro','excursion','interval','MaxBackfillRangeDays','timeWindow','retrieveInterval','tolerance','','delay'];
+export const ComposeParams = ['timeout','schema-polling-interval','unit','retro','excursion','interval','MaxBackfillRangeDays','timeWindow','retrieveInterval','tolerance', 'delay', 'local_threshold'];
 const SelectAllPoints = 'child_table_expression'
 // // 无法使用symbol作为key，因为会被for in 和 object.keys过滤掉
 const valueField = uuid();
@@ -470,7 +470,7 @@ function handleParser(parser, paramsConfig, value = cloneDeep(DefaultParserValue
   const { display, description, fields } = parser;
   paramsConfig.push({
     label: display,
-    description:['mqtt','kafka'].includes(id)?'':description,
+    description:['mqtt','kafka','mongodb'].includes(id)?'':description,
     field: 'parser',
     type: 'parser',
     fields: fields,//fields.filter(item => item.name != 'payload'),
@@ -835,7 +835,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
       // }
 
       // postgres/mysql/sql server 的 sql 在编辑状态下不能修改
-      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle' || currentType == 'mssql') && paramConfig.field == 'sql') {
+      if ((currentType == 'postgres' || currentType == 'mysql' || currentType == 'oracle' || currentType == 'mssql' || currentType == 'mongodb') && paramConfig.field == 'sql') {
         paramConfig.disabled = (a,b,c,isEdit) => {
           return isEdit;
         };
@@ -1145,10 +1145,10 @@ export function getOptionsValue(data) {
 export function getDsnData(data, definition) {
   let dsn = handleProtocolData(data[optionsField]?.protocol, definition);
   let queryArr = [];
-  dsn += getAuthentications(data[authenticationField], queryArr);
+  dsn += getAuthentications(data[authenticationField], queryArr, definition);
   dsn += getOptionData(data[optionsField], queryArr, definition);
-  getGroupsQuery(data[groupsFieldBeforeConnection], queryArr);
-  getGroupsQuery(data[groupsFieldAfterConnection], queryArr);
+  getGroupsQuery(data[groupsFieldBeforeConnection], queryArr, definition);
+  getGroupsQuery(data[groupsFieldAfterConnection], queryArr, definition);
   getDatasetsQuery(data[datasetsField], data, queryArr);
   getAdvancedQuery(data[advancedField],queryArr)
   if (queryArr.length) {
@@ -1195,7 +1195,7 @@ function handleProtocolData(protocol, definition) {
 //   return dsn;
 // }
 
-function getGroupsQuery(groups, query) {
+function getGroupsQuery(groups, query, definition) {
   groups = cloneDeep(groups)
   if (!groups) return query;
   for (let key in groups) {
@@ -1219,6 +1219,10 @@ function getGroupsQuery(groups, query) {
           } else if (/_type$/.test(k)) {
             delete groups[key][k+'_type'];
           } else {
+            // todo 临时解决 mongoDB 增加 tls 参数
+            if (definition.id == 'mongodb') {
+              query.push('tls' + '=' + checkValue(getQueryParamValue(groups[key]['cert_key_file_path'])));
+            }
             query.push(field + '=' + getQueryParamValue(groups[key][k]));
           }
         }
@@ -1267,12 +1271,21 @@ function getDatasetsQuery(datasets, allData, query) {
 }
 
 // 获取authentications
-export function getAuthentications(authentication, params) {
+export function getAuthentications(authentication, params, definition) {
   if (!authentication) return '';
   const currentData = authentication[handleField(authentication[valueField])];
   const dataFields = Object.keys(currentData);
+  const { id } = definition;
   switch (authentication[valueField]) {
     case 'plain':
+      if (id === 'mongodb') {
+        if (currentData.mechanism) {
+          params.push('mechanism=' + currentData.mechanism)
+        }
+        if (currentData.source) {
+          params.push('source=' + currentData.source)
+        }
+      }
       if (!currentData.username) {
         return '';
       }
@@ -1290,7 +1303,7 @@ export function getAuthentications(authentication, params) {
 function getOptionData(data, queryArr, definition) {
   if (!data || !definition) return '';
   let result = '';
-  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout } = data;
+  let { subject, host, port, endpoint, system_configuration, PISystemName, security_mode, security_policy, certificate, private_key, connect_timeout, direct_connection, repl_set_name, local_threshold, local_threshold_type, load_balanced } = data;
   let { id } = definition;
   if (PISystemName) {
     queryArr.push('PISystemName=' + PISystemName);
@@ -1313,6 +1326,18 @@ function getOptionData(data, queryArr, definition) {
   if (connect_timeout) {
     queryArr.push('connect_timeout=' + connect_timeout)
   }
+  // if (load_balanced) {
+  //   queryArr.push('load_balanced=' + load_balanced)
+  // }
+  // if (!direct_connection) {
+  //   queryArr.push('direct_connection=' + direct_connection)
+  //   if (repl_set_name) {
+  //     queryArr.push('repl_set_name=' + repl_set_name)
+  //   }
+  //   if (local_threshold) {
+  //     queryArr.push('local_threshold=' + local_threshold + local_threshold_type)
+  //   }
+  // }
   if (endpoint === undefined&&definition.id!=='csv'&&definition.id!=='kafka') {
     result += host.replace(/\w*:\/\//, '');
     if (system_configuration && system_configuration != piOptionShowValue) return result;

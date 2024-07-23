@@ -469,33 +469,6 @@ function removeQuotedStrings(str) {
   return str.replace(/:\s*"([^"]*)"/g, ':""').replace(/:\s*'([^']*)'/g, ":''");
 }
 
-function extractFirstJsonObject(str) {
-  let count = 0;
-  let startIndex = -1;
-  let endIndex = -1;
-
-  for (let i = 0; i < str.length; i++) {
-      if (str[i] === '{') {
-          if (count === 0) {
-              startIndex = i;
-          }
-          count++;
-      } else if (str[i] === '}') {
-          count--;
-          if (count === 0) {
-              endIndex = i;
-              break;
-          }
-      }
-  }
-
-  if (startIndex !== -1 && endIndex !== -1) {
-      return str.substring(startIndex, endIndex + 1);
-  } else {
-      return null;
-  }
-}
-
 function getAllProperties(obj) {
   const properties = [];
 
@@ -519,7 +492,66 @@ function getAllProperties(obj) {
 
 export function extractAllProperties(sampleData) {
   // 1. Remove all quoted strings，避免字符串中包含{}导致提取出错
-  const jsonStringSingleObject = extractFirstJsonObject(removeQuotedStrings(sampleData).trim());
-  const jsonObject = JSON.parse(jsonStringSingleObject);
+  const json_list = getExampleList(sampleData, true);
+  const jsonObject = {}
+  for (let i = 0; i < json_list.length; i++) {
+    let json = json_list[i];
+    if (Array.isArray(json)) {
+      for (let j = 0; j < json.length; j++) {
+        Object.assign(jsonObject, json[j]) 
+      }
+    } else {
+      Object.assign(jsonObject, json);
+    }
+  }
   return getAllProperties(jsonObject);
+}
+
+// 获取示例数据字符串列表[]
+// 返回字符串，则为错误信息
+export function getExampleList(demo_data, parsed) {
+  let demo_string = (demo_data || "").trim();
+  let demo_string_arr = [];
+  if (demo_string.startsWith("[") && demo_string.endsWith("]")) {
+    let arr_list = demo_string.replace(/\]\s*\[/g, "]&$[").split("&$");
+    let total = 0;
+    for (let i = 0; i < arr_list.length; i++) {
+      try {
+        let item_parsed = JSON.parse(arr_list[i]);
+        total += item_parsed.length;
+        if (parsed) {
+          demo_string_arr.push(item_parsed);
+        } else {
+          demo_string_arr.push(arr_list[i]);
+        }
+      } catch (err) {
+        err.lineNumber  = i + 1;
+        throw err;
+      }
+      if (total >= 100) {
+        return demo_string_arr;
+      }
+    }
+  } else if (demo_string.startsWith("{") && demo_string.endsWith("}")) {
+      let obj_list = demo_string.replace(/\}\s*\{/g, "}&${").split("&$");
+      for (let i = 0; i < obj_list.length; i++) {
+        if (i >= 100) {
+          return demo_string_arr;
+        }
+        try {
+          let item_parsed = JSON.parse(obj_list[i]);
+          if (parsed) {
+            demo_string_arr.push(item_parsed);
+          } else {
+            demo_string_arr.push(obj_list[i]);
+          }
+        } catch (err) {
+          err.lineNumber  = i + 1;
+          throw err;
+        }
+      }
+  } else {
+    throw "datasource.transformer.jsontip"
+  }
+  return demo_string_arr;
 }

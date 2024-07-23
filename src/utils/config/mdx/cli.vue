@@ -15,7 +15,11 @@
     <h2 id="config">{{ $t("docs.tool.cli.step2") }}</h2>
     <el-tabs v-model="sysActivateTab" groupId="sys">
       <el-tab-pane name="linux" label="Linux">
-        <p>{{ $t("docs.tool.cli.step2desc") }}</p>
+        <p>{{ $t("docs.tool.cli.step2desc") }} <span class="docker-tip"></span></p>
+        <p>
+          <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+          <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+        </p>
         <pre
           v-highlight="
             `export TDENGINE_DSN=&quot;${DSN}&quot;
@@ -25,13 +29,17 @@
       </el-tab-pane>
       <el-tab-pane name="windows" label="Windows">
         <p>{{ $t("docs.tool.cli.step2desc1") }}</p>
+        <p>
+          <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+          <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+        </p>
         <pre
           v-highlight="
             `set TDENGINE_DSN=${DSN}
 `
           "
         ><code class="language-bash"></code></pre>
-        <p>{{ $t("docs.tool.cli.step2desc2") }}</p>
+        <p>{{ $t("docs.tool.cli.step2desc2") }} <span class="docker-tip">{{ $t("dockerTip")}}</span></p>
         <pre
           v-highlight="
             `$env:TDENGINE_DSN='${DSN}'
@@ -41,6 +49,10 @@
       </el-tab-pane>
       <el-tab-pane name="mac" label="Mac" groupId="sys">
         <p>{{ $t("docs.tool.cli.step2desc3") }}</p>
+        <p>
+          <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+          <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+        </p>
         <pre
           v-highlight="
             `export TDENGINE_DSN=&quot;${DSN}&quot;

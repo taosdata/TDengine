@@ -31,6 +31,10 @@ vim example.csproj
     ><code class="language-xml"></code></pre>
     <h2 id="config">{{ $t("docs.connector.csharp.step2") }}</h2>
     <p>{{ $t("component.docConfig.content", [" DSN "]) }}</p>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <el-tabs value="bash">
       <el-tab-pane name="bash" label="Bash">
         <pre

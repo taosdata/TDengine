@@ -2,6 +2,7 @@ use actix_cors::Cors;
 use actix_files::NamedFile;
 use anyhow::Context;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use favorites::FavoritesSql;
 use geos::{Geom, Geometry};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
@@ -22,6 +23,7 @@ use tracing_actix_web::TracingLogger;
 
 use actix_embed::Embed;
 use actix_web::{
+    body::BoxBody,
     dev::{fn_service, ServiceRequest, ServiceResponse},
     error::{self, JsonPayloadError, PayloadError},
     http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
@@ -33,6 +35,7 @@ use clap::Parser;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 
+mod favorites;
 pub mod verification;
 
 fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
@@ -111,6 +114,19 @@ async fn main() -> anyhow::Result<()> {
     let app_args = web::Data::new(args.clone());
     let cors = app_args.cors.unwrap_or_default();
 
+    let data_dir = match args.data_dir {
+        Some(path) => path,
+        None => {
+            if cfg!(windows) {
+                format!("C:\\{}\\data\\explorer", env!("CUS_NAME"))
+            } else {
+                format!("/var/lib/{}/explorer", env!("CUS_PROMPT"))
+            }
+        }
+    };
+
+    let favorites = FavoritesSql::new(&data_dir).await?;
+
     let server = HttpServer::new(move || {
         let cors = if cors {
             Cors::default()
@@ -137,6 +153,7 @@ async fn main() -> anyhow::Result<()> {
             .wrap(Compress::default())
             .app_data(web::Data::new(reqwest::Client::new()))
             .app_data(app_args.clone())
+            .app_data(web::Data::new(favorites.clone()))
             // .route("/", web::get().to(index))
             .route("/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
@@ -155,6 +172,22 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/-/taosd-info", web::post().to(report_taosd_info))
             .route("/api/-/isbinding", web::to(check_binding))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
+            .route(
+                "/api/-/favorites/sql",
+                web::post().to(favorites::add_favorites_sql),
+            )
+            .route(
+                "/api/-/favorites/sql",
+                web::get().to(favorites::get_favorites_sql_page),
+            )
+            .route(
+                "/api/-/favorites/sql/{id}",
+                web::delete().to(favorites::delete_favorites_sql),
+            )
+            .route(
+                "/api/-/favorites/sql/{id}",
+                web::patch().to(favorites::update_favorites_sql),
+            )
             .service(web::redirect("/docs", "/docs/"))
             .service(
                 Embed::new("/docs/", &StaticAssets)
@@ -274,26 +307,74 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct R<T> {
-    pub code: u32,
-    pub data: Option<T>,
-    pub msg: Option<String>,
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub(crate) struct R<T> {
+    code: u32,
+    data: Option<T>,
+    msg: Option<String>,
 }
 
 impl<T> R<T> {
-    fn success(data: T) -> Self {
+    pub(crate) fn success(data: T) -> Self {
         Self {
             code: 0,
             data: Some(data),
             msg: None,
         }
     }
-    fn fail(code: u32, msg: String) -> Self {
+
+    pub(crate) fn fail(code: u32, msg: impl Display) -> Self {
         Self {
             code,
             data: None,
-            msg: Some(msg),
+            msg: Some(format!("{msg}")),
+        }
+    }
+
+    pub(crate) fn internal(err: impl Display) -> Self {
+        Self {
+            code: 1,
+            data: None,
+            msg: Some(format!("{err:#}")),
+        }
+    }
+}
+
+impl<T> Display for R<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.msg.as_ref() {
+            Some(msg) => write!(f, "[{}] {}", self.code, msg),
+            None => write!(f, "[{}]", self.code),
+        }
+    }
+}
+
+impl<T> Responder for R<T>
+where
+    T: serde::Serialize,
+{
+    type Body = actix_web::body::BoxBody;
+
+    fn respond_to(self, _req: &HttpRequest) -> HttpResponse<Self::Body> {
+        HttpResponse::Ok().json(self)
+    }
+}
+
+impl<T> ResponseError for R<T>
+where
+    T: std::fmt::Debug + serde::Serialize,
+{
+    fn status_code(&self) -> reqwest::StatusCode {
+        match self.code {
+            1 => reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            _ => reqwest::StatusCode::OK,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        match self.code {
+            1 => HttpResponse::InternalServerError().json(self.msg.clone().unwrap_or_default()),
+            _ => HttpResponse::Ok().json(self),
         }
     }
 }
@@ -982,6 +1063,10 @@ struct Args {
 
     #[clap(flatten)]
     ssl: Option<Ssl>,
+
+    #[clap(long, env = "EXPLORER_DATA_DIR")]
+    #[serde(default)]
+    data_dir: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]

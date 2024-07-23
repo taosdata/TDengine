@@ -32,6 +32,10 @@
     <pre v-highlight><code>{{ linuxcode }}
 </code></pre>
     <p>{{ $t("docs.dataout.dump.step2desc3") }}</p>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <pre
       v-highlight="
         `export TDENGINE_DSN=&quot;${DSN}&quot;

@@ -75,6 +75,10 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
     ><code class="language-bash"></code></pre> -->
     <h2 id="verify-plugin">{{ $t("docs.virtual.grafana.step3") }}</h2>
     <p>{{ $t('docs.virtual.grafana.step3desc') }}</p>
+    <p>
+      <i class="el-icon-s-opportunity" style="color: gold;font-size: 20px"></i>
+      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+    </p>
     <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
         <span style="width:100px;">{{ $t('docs.virtual.grafana.step3desc1') }}</span>
       <pre
