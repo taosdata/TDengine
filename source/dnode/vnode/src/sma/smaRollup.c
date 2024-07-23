@@ -1442,7 +1442,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
                SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
     } break;
     case TASK_TRIGGER_STAT_INIT: {
-      smaDebug("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid::%" PRIi64 " since stat is init",
+      smaDebug("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid:%" PRIi64 " since stat is init",
                SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
     } break;
     default: {
