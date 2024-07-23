@@ -139,7 +139,6 @@ static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWin
     return -1;
   }
 
-  int32_t code = -1;
   int64_t compactTs = taosGetTimestampMs();
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "compact-db");
   if (pTrans == NULL) goto _OVER;
