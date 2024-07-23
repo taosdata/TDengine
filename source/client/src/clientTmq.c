@@ -780,7 +780,7 @@ static void generateTimedTask(int64_t refId, int32_t type) {
     }
   }
 
-  taosReleaseRef(tmqMgmt.rsetId, refId);
+  (void)taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
 void tmqAssignAskEpTask(void* param, void* tmrId) {
@@ -2466,7 +2466,7 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
     code = innerClose(tmq);
     if(code == 0){
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__CLOSED);
-      taosRemoveRef(tmqMgmt.rsetId, tmq->refId);
+      (void)taosRemoveRef(tmqMgmt.rsetId, tmq->refId);
     }
   }
 
