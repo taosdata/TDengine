@@ -145,7 +145,8 @@ int32_t dmInitVars(SDnode *pDnode) {
   pData->rebootTime = taosGetTimestampMs();
   pData->dropped = 0;
   pData->stopped = 0;
-  char *machineId = tGetMachineId();
+  char *machineId = NULL;
+  code = tGetMachineId(&machineId);
   if (machineId) {
     tstrncpy(pData->machineId, machineId, TSDB_MACHINE_ID_LEN + 1);
     taosMemoryFreeClear(machineId);

@@ -153,7 +153,8 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   tstrncpy(dnodeObj.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   dnodeObj.fqdn[TSDB_FQDN_LEN - 1] = 0;
   snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", tsLocalFqdn, tsServerPort);
-  char *machineId = tGetMachineId();
+  char *machineId = NULL;
+  code = tGetMachineId(&machineId);
   if (machineId) {
     memcpy(dnodeObj.machineId, machineId, TSDB_MACHINE_ID_LEN);
     taosMemoryFreeClear(machineId);
@@ -175,7 +176,8 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1); // TODO: check the return value
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
+                             1);  // TODO: check the return value
 
 _OVER:
   mndTransDrop(pTrans);

@@ -878,15 +878,11 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   return 0;
 _ERROR:
   taosMemoryFree(userObj.pIpWhiteList);
-  TAOS_RETURN(terrno ? terrno : -1);
+  TAOS_RETURN(terrno ? terrno : TSDB_CODE_APP_ERROR);
 }
 
 static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
-  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
-    return -1;
-  }
-
-  return 0;
+  return mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS);
 }
 
 SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
@@ -1566,7 +1562,7 @@ static int32_t mndUserActionInsert(SSdb *pSdb, SUserObj *pUser) {
   if (pAcct == NULL) {
     terrno = TSDB_CODE_MND_ACCT_NOT_EXIST;
     mError("user:%s, failed to perform insert action since %s", pUser->user, terrstr());
-    return -1;
+    TAOS_RETURN(terrno);
   }
   pUser->acctId = pAcct->acctId;
   sdbRelease(pSdb, pAcct);
@@ -1739,6 +1735,7 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
 
 static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate, SRpcMsg *pReq) {
   int32_t  code = 0;
+  int32_t  lino = 0;
   SUserObj userObj = {0};
   if (pCreate->isImport != 1) {
     taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
@@ -1809,7 +1806,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
     taosMemoryFree(userObj.pIpWhiteList);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
   mInfo("trans:%d, used to create user:%s", pTrans->id, pCreate->user);
 
@@ -1817,24 +1814,27 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    goto _OVER;
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-  ipWhiteMgtUpdate(pMnode, userObj.user, userObj.pIpWhiteList);
-  taosMemoryFree(userObj.pIpWhiteList);
+  if ((code = ipWhiteMgtUpdate(pMnode, userObj.user, userObj.pIpWhiteList)) != 0) {
+    mndTransDrop(pTrans);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
 
+  taosMemoryFree(userObj.pIpWhiteList);
   mndTransDrop(pTrans);
   return 0;
 _OVER:
   taosMemoryFree(userObj.pIpWhiteList);
 
-  return -1;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
@@ -2031,10 +2031,11 @@ _OVER:
 }
 
 static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {
+  int32_t code = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "alter-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to alter since %s", pOld->user, terrstr());
-    return -1;
+    TAOS_RETURN(terrno);
   }
   mInfo("trans:%d, used to alter user:%s", pTrans->id, pOld->user);
 
@@ -2042,16 +2043,19 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(terrno);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(terrno);
   }
-  ipWhiteMgtUpdate(pMnode, pNew->user, pNew->pIpWhiteList);
+  if ((code = ipWhiteMgtUpdate(pMnode, pNew->user, pNew->pIpWhiteList)) != 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(code);
+  }
   mndTransDrop(pTrans);
   return 0;
 }
@@ -2656,6 +2660,8 @@ _OVER:
 static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
+  int32_t   code = 0;
+  int32_t   lino = 0;
   int32_t   numOfRows = 0;
   SUserObj *pUser = NULL;
   int32_t   cols = 0;
@@ -2718,6 +2724,11 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   }
 
   pShow->numOfRows += numOfRows;
+_exit:
+  if (code != 0) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   return numOfRows;
 }
 

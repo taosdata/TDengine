@@ -429,8 +429,7 @@ int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
     }
   }
 
-  if (!(machineId = tGetMachineId())) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  if ((code = tGetMachineId(&machineId)) != 0) {
     goto _OVER;
   }
 
@@ -538,8 +537,7 @@ int32_t dmGetEncryptKey() {
     goto _OVER;
   }
 
-  if (!(machineId = tGetMachineId())) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  if ((code = tGetMachineId(&machineId)) != 0) {
     goto _OVER;
   }
 
@@ -573,7 +571,7 @@ _OVER:
   if (code != 0) {
     dError("failed to get encrypt key since %s", tstrerror(code));
   }
-  return code;
+  TAOS_RETURN(code);
 #else
   return 0;
 #endif

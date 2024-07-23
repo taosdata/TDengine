@@ -78,7 +78,10 @@ void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
 int64_t grantRemain(EGrantType grant) { return 0; }
-char   *tGetMachineId() { return NULL; };
+int32_t tGetMachineId(char **result) {
+  *result = NULL;
+  return TSDB_CODE_APP_ERROR;
+}
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) { return 0; }
