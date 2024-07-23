@@ -131,11 +131,11 @@ SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNo
                               int32_t order, const char* id);
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
-int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
+void    taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
 bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
-                                     int32_t rowIndex);
+                              int32_t rowIndex);
 #ifdef __cplusplus
 }
 #endif

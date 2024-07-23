@@ -4108,6 +4108,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = md5Function,
     .finalizeFunc = NULL
   },
+  {
+    .name = "_group_const_value",
+    .type = FUNCTION_TYPE_GROUP_CONST_VALUE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateSelectValue,
+    .getEnvFunc   = getSelectivityFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = groupConstValueFunction,
+    .finalizeFunc = groupConstValueFinalize,
+  },
 };
 // clang-format on
 
