@@ -32,7 +32,7 @@ mkdir -p /var/lib/jenkins/workspace/log
 # Assuming you have a file called 'file_list.txt' with one filename per line
 file_list="ci_deploy_dependcy_file_list.txt"
 moniterip="192.168.1.59"
-passwd_all="12345678"
+passwd_all="abcdefg"
 
 # Read the file list and call scp_file_from_host for each file
 while IFS= read -r source_filename; do
