@@ -1,6 +1,6 @@
 import { request } from "@/utils/request";
 import JSONbig from "json-bigint";
-import { getLocalTimezone } from "@/utils";
+import { getLocalTimezone, deepClone } from "@/utils";
 import i18n from '@/lang/index'
 import { getDataSource } from "./community";
 
@@ -98,12 +98,28 @@ function loadTaskDetail(id) {
     })
 }
 
-function mergeTaskDetailOptions(cfgOptions, data) {
-    for (let key in cfgOptions) {
-        if (data[key]) {
-            cfgOptions[key].value = data[key];
-        } else if (data.params[key]) {
-            cfgOptions[key].value = data.params[key];
+function mergeTaskDetailOptions(cfgOptions, data, from) {
+    if (data.id === 'kafka') {
+        const startIndex = from.indexOf('kafka://') + 'kafka://'.length;
+        const endIndex = from.indexOf('?');
+        const hostsAndPorts = from.substring(startIndex, endIndex);
+        const endpoints = hostsAndPorts.split(',')
+        let item = deepClone(cfgOptions.params[0])
+     
+        while (cfgOptions.params.length < endpoints.length) {
+            cfgOptions.params.push(item); 
+        }
+        for (let i = 0; i < endpoints.length; i++) {
+            cfgOptions.params[i].host.value = endpoints[i].split(':')[0]
+            cfgOptions.params[i].port.value = endpoints[i].split(':')[1]
+        }
+    } else {
+        for (let key in cfgOptions) {
+            if (data[key]) {
+                cfgOptions[key].value = data[key];
+            } else if (data.params[key]) {
+                cfgOptions[key].value = data.params[key];
+            }
         }
     }
 
@@ -194,8 +210,9 @@ export async function refreshTask(id) {
 
     let dsConfig = getDataSource(i18n.locale, dsType);
     const data = taskDetail.from_expand;
+    const from = taskDetail.from
     
-    mergeTaskDetailOptions(dsConfig.options, data);
+    mergeTaskDetailOptions(dsConfig.options, data, from);
     if (dsConfig.advanced && dsConfig.advanced.params) {
         mergeTaskDetailParams(dsConfig.advanced.params, data.params);
     }

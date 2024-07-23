@@ -121,6 +121,12 @@ export default {
         if (val.children) {
           this.getValidFieldList(val.children, result, parent + '.' + val.field);
         } else {
+          if (val.host && val.host.required) {
+            result.push(parent + '.' + val.host.field);
+          }
+          if (val.port && val.port.required) {
+            result.push(parent + '.' + val.port.field);
+          }
           if (val.required) {
             result.push(parent + '.' + val.field);
           }

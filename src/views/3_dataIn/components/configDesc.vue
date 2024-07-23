@@ -60,6 +60,14 @@
               </div>
             </template>
           </template>
+          <template v-else-if="item.type == 'grouping'">
+            <HostPort 
+              :config="item.children"
+              :data="data[item.field]"
+              :isEditable="isEditable"
+              :isViewable="isViewable"
+            />
+          </template>
           <template v-else>
             <div class="descriptions">
               <DescItem
@@ -102,6 +110,8 @@ import { getBrowserLang } from "@/utils";
 import { hasOwn } from "@/utils/util";
 import CommonTransformer from "./transformerInfo.vue";
 import CsvData from "./csvDataInfo.vue";
+import HostPort from "./hostPort.vue";
+
 
 export default {
   props: {
@@ -141,6 +151,7 @@ export default {
     ConnectivityCheck,
     CommonTransformer,
     CsvData,
+    HostPort
   },
   data() {
     this.mb10Type = [

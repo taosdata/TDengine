@@ -1416,6 +1416,8 @@ export default {
     select: "选择",
     add: "添加",
     regexPlaceholder: "输入正则表达式",
+    delBroker :"删除 Broker",
+    addBroker :"新增 Broker"
   },
   explorer: {
     databases: "数据库",
