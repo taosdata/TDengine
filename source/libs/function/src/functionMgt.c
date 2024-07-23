@@ -400,7 +400,7 @@ int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNo
 }
 
 static int32_t createColumnByFunc(const SFunctionNode* pFunc, SColumnNode** ppCol) {
-  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&ppCol);
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)ppCol);
   if (NULL == *ppCol) {
     return code;
   }

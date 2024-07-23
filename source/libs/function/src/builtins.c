@@ -239,7 +239,7 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   varDataSetLen(pVal->datum.p, len);
   (void)strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
 
-  int32_t code = nodesListAppend(pList, (SNode*)pVal);
+  code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pVal);
     return code;
@@ -263,7 +263,7 @@ static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   pVal->datum.i = (int64_t)precision;
   pVal->typeData = (int64_t)precision;
 
-  int32_t code = nodesListMakeAppend(pList, (SNode*)pVal);
+  code = nodesListMakeAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pVal);
     return code;
