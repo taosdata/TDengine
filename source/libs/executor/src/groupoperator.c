@@ -1614,7 +1614,9 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
     QUERY_CHECK_NULL(pSubTableExpr, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
 
     pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
-    createExprFromOneNode(pSubTableExpr, pPartNode->pSubtable, 0);
+    code = createExprFromOneNode(pSubTableExpr, pPartNode->pSubtable, 0);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     code = initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }

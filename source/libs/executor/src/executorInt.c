@@ -677,7 +677,7 @@ _end:
 }
 
 // todo refactor. SResultRow has direct pointer in miainfo
-int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
+void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   SFilePage* page = getBufPage(pBuf, resultRowPosition->pageId);
   if (page == NULL) {
@@ -694,7 +694,7 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
   doUpdateNumOfRows(pCtx, pRow, pSup->numOfExprs, rowEntryOffset);
   if (pRow->numOfRows == 0) {
     releaseBufPage(pBuf, page);
-    return 0;
+    return ;
   }
 
   int32_t size = pBlock->info.capacity;
@@ -713,7 +713,6 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
 
   releaseBufPage(pBuf, page);
   pBlock->info.rows += pRow->numOfRows;
-  return 0;
 }
 
 void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
