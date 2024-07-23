@@ -424,9 +424,11 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return doAsyncFetchRows(pRequest, true, true);
   } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SMqRspObj      *msg = ((SMqRspObj *)res);
-    SReqResultInfo *pResultInfo;
+    SReqResultInfo *pResultInfo = NULL;
     if (msg->common.resIter == -1) {
-      pResultInfo = tmqGetNextResInfo(res, true);
+      if(tmqGetNextResInfo(res, true, &pResultInfo) != 0){
+        return NULL;
+      }
     } else {
       pResultInfo = tmqGetCurResInfo(res);
     }
@@ -436,8 +438,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       pResultInfo->current += 1;
       return pResultInfo->row;
     } else {
-      pResultInfo = tmqGetNextResInfo(res, true);
-      if (pResultInfo == NULL) {
+      if (tmqGetNextResInfo(res, true, &pResultInfo) != 0){
         return NULL;
       }
 
@@ -752,8 +753,9 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     (*numOfRows) = pResultInfo->numOfRows;
     return pRequest->code;
   } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
-    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, true);
-    if (pResultInfo == NULL) return -1;
+    SReqResultInfo *pResultInfo = NULL;
+    int32_t code = tmqGetNextResInfo(res, true, &pResultInfo);
+    if (code != 0) return code;
 
     pResultInfo->current = pResultInfo->numOfRows;
     (*rows) = pResultInfo->row;
@@ -774,8 +776,9 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   }
 
   if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
-    SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, false);
-    if (pResultInfo == NULL) {
+    SReqResultInfo *pResultInfo = NULL;
+    int32_t code = tmqGetNextResInfo(res, false, &pResultInfo);
+    if (code != 0) {
       (*numOfRows) = 0;
       return 0;
     }
