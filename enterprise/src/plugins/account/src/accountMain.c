@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#if 0
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
@@ -779,3 +779,4 @@ int32_t acctCheck(void *param, EAcctGrantType type) {
 
   return TSDB_CODE_SUCCESS;
 }
+#endif

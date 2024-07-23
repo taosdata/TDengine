@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#if 0
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tmsg.h"
@@ -907,3 +907,4 @@ bool opProcessRequest(struct HttpContext *pContext) {
   httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVALID_URL);
   return false;
 }
+#endif
