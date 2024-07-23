@@ -294,7 +294,7 @@ class IndexEnv : public ::testing::Test {
     taosRemoveDir(path);
     SIndexOpts opts;
     opts.cacheSize = 1024 * 1024 * 4;
-    int ret = indexOpen(&opts, path, &index);
+    int32_t ret = indexOpen(&opts, path, &index);
     assert(ret == 0);
   }
   virtual void TearDown() { indexClose(index); }
@@ -398,7 +398,7 @@ class TFileObj {
   bool InitReader() {
     IFileCtx* ctx = idxFileCtxCreate(TFILE, fileName_.c_str(), true, 64 * 1024 * 1024);
     ctx->lru = taosLRUCacheInit(1024 * 1024 * 4, -1, .5);
-    reader_ = tfileReaderCreate(ctx);
+    int32_t code = tfileReaderCreate(ctx, &reader_);
     return reader_ != NULL ? true : false;
   }
   int Get(SIndexTermQuery* query, SArray* result) {
@@ -701,7 +701,7 @@ class IndexObj {
     SIndexOpts opts;
     opts.cacheSize = 1024 * 1024 * 4;
 
-    int ret = indexOpen(&opts, dir.c_str(), &idx);
+    int32_t ret = indexOpen(&opts, dir.c_str(), &idx);
     if (ret != 0) {
       // opt
       std::cout << "failed to open index: %s" << dir << std::endl;
