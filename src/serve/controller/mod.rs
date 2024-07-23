@@ -21,6 +21,8 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::runners::kafka::KAFKA_ID;
+use taosx_core::runners::mqtt::MQTT_ID;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -905,6 +907,11 @@ impl TaskController {
                 anyhow::bail!("Task name {:?} already exists", name);
             }
         }
+        let mut txn = self
+            .pool
+            .begin()
+            .await
+            .context("begin tnx error on new task")?;
         let res = sqlx::query(
             "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
                  `created_at`, `status`, `after_delete`, `trigger`, `via`, `parser`) \
@@ -922,9 +929,54 @@ impl TaskController {
         .bind(&task.trigger)
         .bind(&task.via)
         .bind(&task.parser)
-        .execute(&self.pool)
+        .execute(txn.as_mut())
         .await?;
-        let id = res.last_insert_rowid();
+        let id: i64 = res.last_insert_rowid();
+
+        match from.driver.as_str() {
+            MQTT_ID => {
+                const CLIENT_ID: &str = "client_id";
+                let client_id = from
+                    .get(CLIENT_ID)
+                    .filter(|s| !s.trim().is_empty())
+                    .context("mqtt client id not found")?;
+                if task
+                    .prepend_task_id_to
+                    .as_ref()
+                    .is_some_and(|s| s == CLIENT_ID)
+                {
+                    from.set(CLIENT_ID, format!("taosx{id}{client_id}"));
+                } else {
+                    from.set(CLIENT_ID, format!("taosx{client_id}"));
+                }
+            }
+            KAFKA_ID => {
+                const KAFKA_GROUP_ID: &str = "group";
+                let group_id = from
+                    .get(KAFKA_GROUP_ID)
+                    .filter(|s| !s.trim().is_empty())
+                    .context("kafka group id not found")?;
+                if task
+                    .prepend_task_id_to
+                    .as_ref()
+                    .is_some_and(|s| s == KAFKA_GROUP_ID)
+                {
+                    from.set(KAFKA_GROUP_ID, format!("taosx{id}{group_id}"));
+                } else {
+                    from.set(KAFKA_GROUP_ID, format!("taosx{group_id}"));
+                }
+            }
+            _ => {}
+        }
+        sqlx::query("update tasks set `from` = ? where id = ?")
+            .bind(from.to_string())
+            .bind(id)
+            .execute(txn.as_mut())
+            .await
+            .context("update task error")?;
+
+        txn.commit().await.context("commit update task txn error")?;
+
         tracing::info!(task.name, task.via, "release creation lock");
         drop(lock_flag);
 
@@ -2929,6 +2981,9 @@ pub(crate) struct NewTask {
     ///
     #[serde(default)]
     not_start: bool,
+
+    #[sqlx(skip)]
+    prepend_task_id_to: Option<String>,
 }
 
 impl NewTask {
