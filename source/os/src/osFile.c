@@ -695,18 +695,21 @@ int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 #if FILE_WITH_LOCK
-  taosThreadRwlockRdlock(&(pFile->rwlock));
+  (void)taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+
   if (pFile->fd < 0) {
 #if FILE_WITH_LOCK
-    taosThreadRwlockUnlock(&(pFile->rwlock));
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
+  
   int64_t leftbytes = count;
   int64_t readbytes;
   char   *tbuf = (char *)buf;
+  int32_t code = 0;
 
   while (leftbytes > 0) {
 #ifdef WINDOWS
@@ -718,14 +721,16 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
       if (errno == EINTR) {
         continue;
       } else {
+        code = TAOS_SYSTEM_ERROR(errno);
 #if FILE_WITH_LOCK
-        taosThreadRwlockUnlock(&(pFile->rwlock));
+        (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
-        return -1;
+        terrno = code;
+        return terrno;
       }
     } else if (readbytes == 0) {
 #if FILE_WITH_LOCK
-      taosThreadRwlockUnlock(&(pFile->rwlock));
+      (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
       return (int64_t)(count - leftbytes);
     }
@@ -735,28 +740,32 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   }
 
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
+
   return count;
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   if (pFile == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockWrlock(&(pFile->rwlock));
+  (void)taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
   if (pFile->fd < 0) {
 #if FILE_WITH_LOCK
-    taosThreadRwlockUnlock(&(pFile->rwlock));
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
+    terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
 
   int64_t nleft = count;
   int64_t nwritten = 0;
   char   *tbuf = (char *)buf;
+  int32_t code = 0;
 
   while (nleft > 0) {
     nwritten = write(pFile->fd, (void *)tbuf, (uint32_t)nleft);
@@ -764,9 +773,11 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
       if (errno == EINTR) {
         continue;
       }
+      code = TAOS_SYSTEM_ERROR(errno);
 #if FILE_WITH_LOCK
-      taosThreadRwlockUnlock(&(pFile->rwlock));
+      (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
+      terrno = code;
       return -1;
     }
     nleft -= nwritten;
@@ -774,25 +785,30 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   }
 
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
+
   return count;
 }
 
 int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t offset) {
   if (pFile == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
+
+  int32_t code = 0;
 #if FILE_WITH_LOCK
-  taosThreadRwlockWrlock(&(pFile->rwlock));
+  (void)taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
-  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+
+#if FILE_WITH_LOCK
   if (pFile->fd < 0) {
-#if FILE_WITH_LOCK
-    taosThreadRwlockUnlock(&(pFile->rwlock));
-#endif
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
     return 0;
   }
+#endif
+
 #ifdef WINDOWS
   DWORD      ret = 0;
   OVERLAPPED ol = {0};
@@ -808,39 +824,62 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
   }
 #else
   int64_t ret = pwrite(pFile->fd, buf, count, offset);
+  if (-1 == ret) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
 #endif
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
+
+  if (code) {
+    terrno = code;
+  }
+
   return ret;
 }
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   if (pFile == NULL || pFile->fd < 0) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockRdlock(&(pFile->rwlock));
+  (void)taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
+
+  int32_t code = 0;
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  
 #ifdef WINDOWS
   int64_t ret = _lseeki64(pFile->fd, offset, whence);
 #else
   int64_t ret = lseek(pFile->fd, offset, whence);
+  if (-1 == ret) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
 #endif
+
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
-  return ret;
+
+  if (code) {
+    terrno = code;
+  }
+
+  return code;
 }
 
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (pFile == NULL) {
-    return 0;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
-  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+
   if (pFile->fd < 0) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
 #ifdef WINDOWS
@@ -850,7 +889,8 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   struct stat fileStat;
   int32_t code = fstat(pFile->fd, &fileStat);
 #endif
-  if (code < 0) {
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return code;
   }
 
@@ -866,10 +906,11 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 }
 
 int32_t taosLockFile(TdFilePtr pFile) {
-  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
-  if (pFile->fd < 0) {
-    return -1;
+  if (NULL == pFile || pFile->fd < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
+
 #ifdef WINDOWS
   BOOL          fSuccess = FALSE;
   LARGE_INTEGER fileSize;
@@ -888,15 +929,21 @@ int32_t taosLockFile(TdFilePtr pFile) {
   }
   return 0;
 #else
-  return (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
+  int32_t code = (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+  return code;
 #endif
 }
 
 int32_t taosUnLockFile(TdFilePtr pFile) {
-  ASSERT(pFile->fd >= 0);
-  if (pFile->fd < 0) {
-    return 0;
+  if (NULL == pFile || pFile->fd < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
+  
 #ifdef WINDOWS
   BOOL       fSuccess = FALSE;
   OVERLAPPED overlapped = {0};
@@ -908,18 +955,21 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
   }
   return 0;
 #else
-  return (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
+  int32_t code = (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+  return code;
 #endif
 }
 
 int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
-  if (pFile == NULL) {
-    return 0;
+  if (NULL == pFile || pFile->fd < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
-  if (pFile->fd < 0) {
-    printf("Ftruncate file error, fd arg was negative\n");
-    return -1;
-  }
+  
 #ifdef WINDOWS
 
   HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
@@ -965,7 +1015,12 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
 
   return 0;
 #else
-  return ftruncate(pFile->fd, l_size);
+  int32_t code = ftruncate(pFile->fd, l_size);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+  return code;
 #endif
 }
 
