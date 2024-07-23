@@ -115,11 +115,11 @@ TEST(NodesTest, sort) {
   vn5->datum.i = 0;
 
   SNodeList* l = NULL;
-  nodesListMakeAppend(&l, (SNode*)vn1);
-  nodesListMakeAppend(&l, (SNode*)vn2);
-  nodesListMakeAppend(&l, (SNode*)vn3);
-  nodesListMakeAppend(&l, (SNode*)vn4);
-  nodesListMakeAppend(&l, (SNode*)vn5);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn1));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn2));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn3));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn4));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn5));
 
   nodesSortList(&l, compareValueNode);
 

@@ -911,6 +911,11 @@ void taos_init_imp(void) {
   taosThreadMutexInit(&appInfo.mutex, NULL);
 
   tscCrashReportInit();
+  if (0 != qInitKeywordsTable()) {
+    tscInitRes = -1;
+    tscError("failed to init parser keywords table");
+    return;
+  }
 
   tscDebug("client is initialized successfully");
 }

@@ -131,8 +131,8 @@ class PlannerTestBaseImpl {
   void runImpl(const string& sql, int32_t queryPolicy) {
     int64_t allocatorId = 0;
     if (g_useNodeAllocator) {
-      nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId);
-      nodesAcquireAllocator(allocatorId);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesAcquireAllocator(allocatorId));
     }
 
     reset();
@@ -166,12 +166,12 @@ class PlannerTestBaseImpl {
       dump(g_dumpModule);
     } catch (...) {
       dump(DUMP_MODULE_ALL);
-      nodesReleaseAllocator(allocatorId);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesReleaseAllocator(allocatorId));
       nodesDestroyAllocator(allocatorId);
       throw;
     }
 
-    nodesReleaseAllocator(allocatorId);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesReleaseAllocator(allocatorId));
     nodesDestroyAllocator(allocatorId);
   }
 
@@ -448,12 +448,12 @@ class PlannerTestBaseImpl {
       pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
       pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
       if (!pCmdMsg->pMsg) FAIL();
-      tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
       ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
 
-      tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
       g_mockCatalogService->createSmaIndex(&req);
-      nodesStringToNode(req.ast, &pCxt->pAstRoot);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(req.ast, &pCxt->pAstRoot));
       pCxt->deleteMark = req.deleteMark;
       tFreeSMCreateSmaReq(&req);
       nodesDestroyNode(pQuery->pRoot);

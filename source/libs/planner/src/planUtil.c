@@ -35,7 +35,7 @@ static char* getUsageErrFormat(int32_t errCode) {
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...) {
   va_list vArgList;
   va_start(vArgList, errCode);
-  vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
+  (void)vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
   va_end(vArgList);
   return errCode;
 }
@@ -525,17 +525,26 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       }
     }
 
-    tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
-  }
-  
-  FOREACH(pNode, pCurr->pChildren) {
-    code = collectTableAliasFromNodes(pNode, ppRes);
+    code = tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
-      return code;
+      break;
     }
   }
   
-  return TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    FOREACH(pNode, pCurr->pChildren) {
+      code = collectTableAliasFromNodes(pNode, ppRes);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(*ppRes);
+    *ppRes = NULL;
+  }
+
+  return code;
 }
 
 bool isPartTagAgg(SAggLogicNode* pAgg) {
@@ -622,7 +631,7 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     if (TSDB_CODE_SUCCESS == code) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
       int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
-      taosCreateMD5Hash(name, len);
+      (void)taosCreateMD5Hash(name, len);
       strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
     }
   }

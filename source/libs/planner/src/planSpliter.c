@@ -432,7 +432,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t pr
   int64_t pointer = (int64_t)pWStart;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
-  taosCreateMD5Hash(name, len);
+  (void)taosCreateMD5Hash(name, len);
   strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   pWStart->node.resType.precision = precision;
 
@@ -464,7 +464,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   int64_t pointer = (int64_t)pWEnd;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWEnd->functionName, pointer);
-  taosCreateMD5Hash(name, len);
+  (void)taosCreateMD5Hash(name, len);
   strncpy(pWEnd->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
 
   code = fmGetFuncInfo(pWEnd, NULL, 0);
@@ -1108,7 +1108,7 @@ static int32_t stbSplAggNodeCreateMerge(SSplitContext* pCtx, SStableSplitInfo* p
         code = createColumnByRewriteExprs(extraAggFuncs, &pChildAgg->pTargets);
       }
       if (code == TSDB_CODE_SUCCESS) {
-        nodesListAppendList(((SAggLogicNode*)pChildAgg)->pAggFuncs, extraAggFuncs);
+        code = nodesListAppendList(((SAggLogicNode*)pChildAgg)->pAggFuncs, extraAggFuncs);
         extraAggFuncs = NULL;
       }
 
@@ -1781,7 +1781,7 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pSubplanChildren) {
       if (pSubplanChildren->length > 0) {
-        nodesListMakeStrictAppendList(&pUnionSubplan->pChildren, pSubplanChildren);
+        code = nodesListMakeStrictAppendList(&pUnionSubplan->pChildren, pSubplanChildren);
       } else {
         nodesDestroyList(pSubplanChildren);
       }
@@ -2053,25 +2053,32 @@ static const SSplitRule splitRuleSet[] = {
 
 static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 
-static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
+static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
+  int32_t code = 0;
   if (!tsQueryPlannerTrace) {
-    return;
+    return code;
   }
   char* pStr = NULL;
-  nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
-  if (NULL == pRuleName) {
-    qDebugL("before split, JsonPlan: %s", pStr);
-  } else {
-    qDebugL("apply split %s rule, JsonPlan: %s", pRuleName, pStr);
+  code = nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL == pRuleName) {
+      qDebugL("before split, JsonPlan: %s", pStr);
+    } else {
+      qDebugL("apply split %s rule, JsonPlan: %s", pRuleName, pStr);
+    }
+    taosMemoryFree(pStr);
   }
-  taosMemoryFree(pStr);
+  return code;
 }
 
 static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
   SSplitContext cxt = {
       .pPlanCxt = pCxt, .queryId = pSubplan->id.queryId, .groupId = pSubplan->id.groupId + 1, .split = false};
   bool split = false;
-  dumpLogicSubplan(NULL, pSubplan);
+  int32_t code = dumpLogicSubplan(NULL, pSubplan);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   do {
     split = false;
     for (int32_t i = 0; i < splitRuleNum; ++i) {
@@ -2082,7 +2089,10 @@ static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
       }
       if (cxt.split) {
         split = true;
-        dumpLogicSubplan(splitRuleSet[i].pName, pSubplan);
+        code = dumpLogicSubplan(splitRuleSet[i].pName, pSubplan);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
       }
     }
   } while (split);

@@ -19,22 +19,28 @@
 #include "scalar.h"
 #include "tglobal.h"
 
-static void debugPrintNode(SNode* pNode) {
+static int32_t debugPrintNode(SNode* pNode) {
   char* pStr = NULL;
-  nodesNodeToString(pNode, false, &pStr, NULL);
-  printf("%s\n", pStr);
-  taosMemoryFree(pStr);
-  return;
+  int32_t code = nodesNodeToString(pNode, false, &pStr, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)printf("%s\n", pStr);
+    taosMemoryFree(pStr);
+  }
+  return code;
 }
 
-static void dumpQueryPlan(SQueryPlan* pPlan) {
+static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
+  int32_t code = 0;
   if (!tsQueryPlannerTrace) {
-    return;
+    return code;
   }
   char* pStr = NULL;
-  nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
-  planDebugL("QID:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
-  taosMemoryFree(pStr);
+  code = nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    planDebugL("QID:0x%" PRIx64 " Query Plan, JsonPlan: %s", pPlan->queryId, pStr);
+    taosMemoryFree(pStr);
+  }
+  return code;
 }
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
@@ -61,9 +67,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
     code = validateQueryPlan(pCxt, *pPlan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    dumpQueryPlan(*pPlan);
+    code = dumpQueryPlan(*pPlan);
   }
-  nodesReleaseAllocator(pCxt->allocatorId);
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
 
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
