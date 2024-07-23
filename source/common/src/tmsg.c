@@ -1783,7 +1783,6 @@ void tFreeSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
     }
   }
   taosMemoryFree(pReq->pUserIpWhite);
-  // impl later
   return;
 }
 int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg) {

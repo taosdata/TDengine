@@ -299,13 +299,13 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     }                                                                                                        \
   } while (0)
 
-int  transInitBuffer(SConnBuffer* buf);
-int  transClearBuffer(SConnBuffer* buf);
-int  transDestroyBuffer(SConnBuffer* buf);
-int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
-bool transReadComplete(SConnBuffer* connBuf);
-int  transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
-int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
+int32_t transInitBuffer(SConnBuffer* buf);
+int32_t transClearBuffer(SConnBuffer* buf);
+int32_t transDestroyBuffer(SConnBuffer* buf);
+int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
+bool    transReadComplete(SConnBuffer* connBuf);
+int     transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+int     transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
 int transSetConnOption(uv_tcp_t* stream, int keepalive);
 

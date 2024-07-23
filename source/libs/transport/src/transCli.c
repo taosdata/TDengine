@@ -197,7 +197,7 @@ static FORCE_INLINE void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr);
 static FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* resp);
 
 static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, uint32_t* ipaddr);
-static FORCE_INLINE void    cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
+static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
 
 static FORCE_INLINE void cliMayUpdateFqdnCache(SHashObj* cache, char* dst);
 // process data read from server, add decompress etc later
@@ -1628,8 +1628,9 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, u
   }
   return 0;
 }
-static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
+static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   // impl later
+  int32_t  code = 0;
   uint32_t addr = taosGetIpv4FromFqdn(fqdn);
   if (addr != 0xffffffff) {
     size_t    len = strlen(fqdn);
@@ -1639,10 +1640,12 @@ static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
       tinet_ntoa(old, *v);
       tinet_ntoa(new, addr);
       tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
-      taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
+      code = taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
     }
+  } else {
+    code = TSDB_CODE_RPC_FQDN_ERROR;  // TSDB_CODE_RPC_INVALID_FQDN;
   }
-  return;
+  return code;
 }
 
 static void cliMayUpdateFqdnCache(SHashObj* cache, char* dst) {

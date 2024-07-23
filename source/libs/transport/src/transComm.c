@@ -102,7 +102,7 @@ int transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   sprintf(dst, "%s:%d", buf, ntohs(addr.sin_port));
   return r;
 }
-int transInitBuffer(SConnBuffer* buf) {
+int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
   if (buf->buf == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
