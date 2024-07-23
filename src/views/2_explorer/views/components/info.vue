@@ -23,7 +23,7 @@
                 effect="light"
               >
                 <el-button class="copy-btn" type="text" size="mini" @click="copyDsn">
-                  <el-icon class="el-icon-document-copy"></el-icon>
+                  <el-icon class="el-icon-copy-document"></el-icon>
                   {{ $t("copy") }}
                 </el-button>
               </el-tooltip>

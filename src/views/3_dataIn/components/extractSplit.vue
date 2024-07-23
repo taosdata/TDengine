@@ -51,7 +51,7 @@
             <el-input
               size="small"
               slot="reference"
-              :placeholder="$t('datasource.transformer.expre_input')"
+              :placeholder="$t('datasource.transformer.expre_' + ruleForm.filter_name)"
               v-model="ruleForm.filter_expres"
               @input="changeExtractExpr"
               :disabled="isViewable"
@@ -75,16 +75,6 @@
     </div>
     <ul class="col-list" v-if="tableColumns.length > 0 && !isViewable">
       <li v-for="(item, index) in tableColumns.slice(0, 9)" :key="index">
-        <!-- <template v-if="item.value">
-          <el-tooltip
-            class="item"
-            effect="light"
-            :content="$t('datasource.transformer.sampleval') + ':' + item.value"
-            placement="top-start"
-          >
-            <span>{{ item.name }}</span>
-          </el-tooltip>
-        </template> -->
         <span>{{ item.name }}</span>
       </li>
       <li v-if="tableColumns.length > 9" >
@@ -139,15 +129,19 @@ export default {
         n: "",
         names: "",
       },
+      joinParams: {
+        join_with: "",
+      },
       isJson: true,
       mqttDefaultCols: ["topic", "qos", "payload"],
       kafkaDefaultCols: ["topic", "partition", "offset", "key", "value"],
+      mongodbDefaultCols: ["value"],
       disabled: false,
       splitExpre: {},
       extractParseData: {},
       maptypes: ["value", "generator", "join", "format", "sum", "expr"],
       tableColumns: [],
-      extractTypes: ["split", "regex"],
+      extractTypes: ["split", "regex", "join"],
       ruleForm: {
         col_name: "",
         filter_name: "",
@@ -313,6 +307,14 @@ export default {
                   } else if(this.$store.state.app.supportSQL){
                     return val
                   }
+                  if (
+                    this.$store.state.app.currentDBType == "mongodb" &&
+                    !this.mongodbDefaultCols.includes(val.name)
+                  ) {
+                    return val;
+                  } else if(this.$store.state.app.supportSQL){
+                    return val
+                  }
                 })
         ).map((item) => {
           return {
@@ -447,6 +449,9 @@ export default {
         if (this.$store.state.app.currentDBType == "kafka") {
           hiddenCols = ["ts", "topic", "partition", "offset", "key"];
         }
+        if (this.$store.state.app.currentDBType == "mongodb") {
+          hiddenCols = ["ts"];
+        }
       } else {
         hiddenCols = [];
       }
@@ -488,6 +493,22 @@ export default {
                     ? parsinginZone(new Date())
                     : item.name;
               }
+            } else if (this.$store.state.app.currentDBType == "mongodb") {
+              if (item.name == "value") {
+                inputobj["value"] = isall
+                  ? msg
+                  : this.isJson
+                  ? JSON.stringify({
+                      [`${this.itemData.columnname}`]:
+                        JSON.parse(msg)[this.itemData.columnname],
+                    })
+                  : msg;
+              } else {
+                inputobj[item.name] =
+                  item.type == "timestamp"
+                    ? parsinginZone(new Date())
+                    : item.name;
+              }
             }
           });
         return inputobj;
@@ -503,19 +524,22 @@ export default {
       }
       deepClone(this.$parent.extractArr)
         .map((item) => {
-          let splitobj = Object.fromEntries(
-            Object.entries(item.splitParams).filter(([key, value]) => {
-              return value !== null && value != undefined && value != "";
-            })
-          );
-          splitobj["n"] = Number(splitobj["n"]);
-          Object.hasOwnProperty.call(splitobj, "names")
-            ? (splitobj["names"] = splitobj["names"].split(","))
-            : splitobj;
+          let splitobj = null;
+          if (item.type == "split") {
+            splitobj = Object.fromEntries(
+              Object.entries(item?.splitParams).filter(([key, value]) => {
+                return value !== null && value != undefined && value != "";
+              })
+            );
+            splitobj["n"] = Number(splitobj["n"]);
+            Object.hasOwnProperty.call(splitobj, "names")
+              ? (splitobj["names"] = splitobj["names"].split(","))
+              : splitobj;
+          }
           return {
             [`${item.columnname}`]: {
               [`${item.type}`]:
-                item.type == "regex"
+                item.type == "regex" || item.type == "join"
                   ? item.expression
                   : item.type == "split"
                   ? splitobj
@@ -579,6 +603,11 @@ export default {
             }
             break
           case 'kafka':
+          if(Object.hasOwnProperty.call(parser.parser.parse.value,'json')){
+              parser.parser.parse.value.json=''
+            }
+            break
+          case 'mongodb':
           if(Object.hasOwnProperty.call(parser.parser.parse.value,'json')){
               parser.parser.parse.value.json=''
             }

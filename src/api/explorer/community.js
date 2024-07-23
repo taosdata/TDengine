@@ -4048,7 +4048,353 @@ export function getDataSources(lang) {
             }
           ]
         }
-      }
+      },
+      {
+        "id": "mongodb",
+        "type": "uri",
+        "name": "MongoDB",
+        "license_id": "mongodb",
+        "description": "MongoDB is a product between relational and non-relational databases, which is widely used in many fields such as content management systems, mobile applications, and the Internet of Things. \n\nTDengine efficiently reads data from MongoDB and writes it to TDengine for historical data migration or real-time data synchronization. \n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "Host",
+            "description": "The access address of MongoDB. If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "Port",
+            "description": "The port of MongoDB",
+            "placeholder": "27017",
+            "pattern": "^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+            "patternMsg": "The port number ranges from 0 to 65535",
+          },
+          // "load_balanced": {
+          //   "required": false,
+          //   "display": "Load Balanced",
+          //   "description": "Whether to use load balancing to connect.\n- *true*:The host address is used as the load balancing address \n- *false*:The host address is used as the database address\n",
+          //   "hint": {
+          //     "type": "bool",
+          //   }
+          // },
+          // "direct_connection": {
+          //   "required": false,
+          //   "display": "Direct Connection",
+          //   "description": "Whether to connect directly to a single host or automatically discover all servers in the cluster.\n- *true*:host connects directly to host:port \n- *false*:host Discovers other servers in the cluster\n",
+          //   "hint": {
+          //     "type": "bool",
+          //   },
+          //   "value": "true"
+          // },
+          // "repl_set_name": {
+          //   "required": false,
+          //   "display": "Replica Name",
+          //   "description": "The client connects to the cluster replica with the specified name. If a replica name is specified, only this replica server is connected.",
+          //   "placeholder": "",
+          // },
+          // "local_threshold": {
+          //   "required": false,
+          //   "display": "Local Threshold",
+          //   "description": "Used to determine how much the average round trip time between the client and the server is allowed to increase compared to the shortest round trip time among all servers. If the value is 0, it indicates that there is no delay window, so only the server with the lowest average round-trip time will be connected. The default is 15 ms.",
+          //   "hint": {
+          //     "type": "duration",
+          //     "choices": [
+          //       {
+          //         "value": "m",
+          //         "label": "Minute"
+          //       },
+          //       {
+          //         "value": "s",
+          //         "label": "Second"
+          //       },
+          //     ]
+          //   },
+          //   "placeholder": "15",
+          //   "value": "15",
+          //   "type_value": "s",
+          //   "pattern": "^[0-9]+$",
+          //   "patternMsg": "The value can only be a positive integer or 0",
+          // }
+        },
+        "authentication": {
+          "display": "Authentication",
+          "description": "Authentication is the process of verifying the identity before granting access to MongoDB.",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "Username and Password",
+              "params": [
+                {
+                  "name": "username",
+                  "required": true,
+                  "display": "Username",
+                  "placeholder": "Username"
+                },
+                {
+                  "name": "password",
+                  "required": true,
+                  "display": "Password",
+                  "placeholder": "Password"
+                },
+                // {
+                //   "name": "mechanism",
+                //   "required": false,
+                //   "display": "Authenticate Mechanism",
+                //   "placeholder": "Select an authentication mechanism",
+                //   "short_description": "The authentication mechanism to be used, if not provided, will be negotiated with the server.\n",
+                //   "description": "The authentication mechanism to be used, if not provided, will be negotiated with the server.\n",
+                //   "hint": {
+                //     "type": "str",
+                //     "choices": [
+                //       "MongoDbCr",
+                //       "ScramSha1",
+                //       "ScramSha256",
+                //       "MongoDbX509",
+                //       "Gssapi",
+                //       "Plain",
+                //       "MongoDbAws",
+                //       "MongoDbOidc",
+                //     ]
+                //   },
+                // },
+                {
+                  "name": "source",
+                  "required": false,
+                  "display": "Authenticate DB",
+                  "placeholder": "Authenticate DB",
+                  "short_description": "The database for authentication.\n",
+                  "description": "The database for authentication.The default is admin in the SCRAM authentication mechanism, $external in GSSAPI and MONGODB-X509, and the default is the database name or $external in PLAIN.\n",
+                },
+              ],
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "Connection options",
+            "display_order": 1,
+            "short_description": "Other connection options.",
+            "description": "Other connection options.",
+            "collapsible": false,
+            "connection_option": true,
+            "params": [
+              {
+                "name": "app_name",
+                "display": "Application Name",
+                "hint": {
+                  "type": "str",
+                },
+                "short_description": "Identifies a client.",
+                "description": "Identifies a client.",
+                "placeholder": "For example: TDengine",
+              },
+              {
+                "name": "compressors",
+                "display": "Compressor",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "snappy",
+                    "zlib",
+                    "zstd"
+                  ]
+                },
+                "short_description": "Used to compress messages sent to the server and decompress messages received from the server.",
+                "description": "Used to compress messages sent to the server and decompress messages received from the server.",
+                "placeholder": "Please select a compressor",
+              }
+            ]
+          },
+          {
+            "name": "Enable SSL",
+            "short_description": "Use self-signed certificate file and private key.",
+            "description": "Use self-signed certificate file and private key.",
+            "collapsible": true,
+            "connection_option": true,
+            "collapsed": false,
+            "params": [
+              {
+                "name": "ca_file_path",
+                "display": "CA File",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": "CA certificate file",
+                "description": "CA certificate file",
+                "required": true
+              },
+              {
+                "name": "cert_key_file_path",
+                "display": "Cert File",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": ".cert file",
+                "description": ".cert file",
+                "required": true
+              },
+            ]
+          },
+          {
+            "name": "Data Collection",
+            "display_order": 2,
+            "short_description": "Data collection related configuration items.",
+            "description": "Data collection related configuration items.",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "database",
+                "display": "Database",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The source database.",
+                "description": "The source database.\n",
+                "required": true,
+                "placeholder": "database_${Y}",
+              },
+              {
+                "name": "collection",
+                "display": "Collection",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "The source collection.",
+                "description": "The source collection.\n",
+                "required": true,
+                "placeholder": "collection_${md}",
+              },
+              {
+                "name": "sql",
+                "display": "Query Template",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs.",
+                "description": "A query statement used to query data, in JSON format, must contain a time range condition, and the start time and end time must appear in pairs.\nUse different placeholders to indicate different time format requirements, specifically the following placeholder formats:\n1. `${start_datetime}`、`${end_datetime}`:Filters corresponding to back-end datetime fields, for example:{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}} will be converted to {\"ddate\":{\"$gte\":{\"$date\":\"2024-06-01T00:00:00+00:00\"},\"$lt\":{\"$date\":\"2024-07-01T00:00:00+00:00\"}}}\n2. `${start_timestamp}`、`${end_timestamp}`: indicates the filtering of back-end timestamp fields, for example:{\"ttime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}} will be converted to {\"ttime\":{\"$gte\":{\"$timestamp\":{\"t\":123,\"i\":456}},\"$lt\":{\"$timestamp\":{\"t\":123,\"i\":456}}}}\n",
+                "required": true,
+                "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}",
+                "grid_two": true,
+              },
+              {
+                "name": "start",
+                "display": "Start Time",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "Start time of data migration.",
+                "description": "Start time of data migration.\n",
+                "required": true,
+                "placeholder": "如：2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "End Time",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "The end time of data migration can be left blank. If this parameter is set, the migration task is automatically stopped when the end time expires. If left blank, real-time data is continuously synchronized and the task does not automatically stop.",
+                "description": "The end time of data migration can be left blank. If this parameter is set, the migration task is automatically stopped when the end time expires. If left blank, real-time data is continuously synchronized and the task does not automatically stop.\n",
+                "required": false,
+                "placeholder": "如：2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "Interval",
+                "hint": {
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "Days"
+                    },
+                    {
+                      "value": "h",
+                      "label": "Hours"
+                    },
+                  ]
+                },
+                "short_description": "Interval for querying data in segments. The default value is 1 day. To avoid a large amount of query data, a data synchronization task queries data in time intervals.",
+                "description": "Interval for querying data in segments. The default value is 1 day. To avoid a large amount of query data, a data synchronization task queries data in time intervals.\n",
+                "required": false,
+                "placeholder": "1",
+                "type_value": "d",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
+              },
+              {
+                "name": "delay",
+                "display": "Delay",
+                "hint": {
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "Minute"
+                    },
+                    {
+                      "value": "s",
+                      "label": "Second"
+                    },
+                  ]
+                },
+                "short_description": "In the real-time data synchronization scenario, each synchronization task reads data before the delay to prevent data loss.",
+                "description": "In the real-time data synchronization scenario, each synchronization task reads data before the delay to prevent data loss.\n",
+                "required": false,
+                "placeholder": "10",
+                "type_value": "s",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "The value can only be a positive integer or 0",
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "Advanced Options",
+          "description": "Advanced options including read/write concurrency, collection options, performance tuning, etc. Users can leave these options as default to use the recommended settings.\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "Read Concurrency",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "The number of concurrent read requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "Batch Size",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "The number of data points to be written in a single request. The default value is 10000. If the data source is slow to respond, you can reduce this value appropriately.\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "Payload Transformation",
+          "required": true,
+          "description": "taosX could let users to specify the data model in the database, for example, the table name pattern and stable name pattern, field names as tags or field names as columns.\n",
+          "fields": [
+            {
+              "name": "value",
+              "description": "Sample Message Body",
+              "type": "varchar"
+            }
+          ]
+        }
+      },
     ]
   } else {
     return [
@@ -8078,7 +8424,353 @@ export function getDataSources(lang) {
             }
           ]
         }
-      }
+      },
+      {
+        "id": "mongodb",
+        "type": "uri",
+        "name": "MongoDB",
+        "license_id": "mongodb",
+        "description": "MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品，被广泛应用于内容管理系统、移动应用与物联网等众多领域。\n\nTDengine 可以高效地从 MongoDB 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。\n",
+        "options": {
+          "host": {
+            "required": true,
+            "display": "服务地址",
+            "description": "MongoDB 的服务器地址",
+            "placeholder": "127.0.0.1"
+          },
+          "port": {
+            "required": true,
+            "display": "服务端口",
+            "description": "MongoDB 的端口",
+            "placeholder": "27017",
+            "pattern": "^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+            "patternMsg": "端口号的范围是 0-65535",
+          },
+          // "load_balanced": {
+          //   "required": false,
+          //   "display": "是否负载均衡",
+          //   "description": "是否通过负载均衡进行连接。\n- *true*:host 地址被当作负载均衡地址 \n- *false*:host 地址被当作数据库地址\n",
+          //   "hint": {
+          //     "type": "bool",
+          //   }
+          // },
+          // "direct_connection": {
+          //   "required": false,
+          //   "display": "是否直连",
+          //   "description": "是否直接连接到单个主机或者自动发现集群中所有服务器。\n- *true*:host 直接连接到 host:port \n- *false*:host 发现集群中其他服务器\n",
+          //   "hint": {
+          //     "type": "bool",
+          //   },
+          //   "value": "true"
+          // },
+          // "repl_set_name": {
+          //   "required": false,
+          //   "display": "副本名称",
+          //   "description": "客户端连接到指定名称的集群副本。如果指定了副本名称，则只连接到此副本服务器。",
+          //   "placeholder": "",
+          // },
+          // "local_threshold": {
+          //   "required": false,
+          //   "display": "超时阈值",
+          //   "description": "用于确定与所有服务器中最短往返时间相比，客户端与服务器之间的平均往返时间被允许增加多少。当值为 0 时，表示没有延迟窗口，因此只会连接平均往返时间最低的服务器。默认 15 ms。",
+          //   "hint": {
+          //     "type": "duration",
+          //     "choices": [
+          //       {
+          //         "value": "m",
+          //         "label": "分钟"
+          //       },
+          //       {
+          //         "value": "s",
+          //         "label": "秒"
+          //       },
+          //     ]
+          //   },
+          //   "placeholder": "15",
+          //   "value": "15",
+          //   "type_value": "s",
+          //   "pattern": "^[0-9]+$",
+          //   "patternMsg": "只能输入正整数或者0",
+          // }
+        },
+        "authentication": {
+          "display": "认证",
+          "description": "使用用户名和密码访问 MongoDB 数据库",
+          "value": "plain",
+          "alternatives": [
+            {
+              "name": "plain",
+              "display": "用户名密码访问",
+              "params": [
+                {
+                  "name": "username",
+                  "required": true,
+                  "display": "用户",
+                  "placeholder": "请输入用户名"
+                },
+                {
+                  "name": "password",
+                  "required": true,
+                  "display": "密码",
+                  "placeholder": "请输入密码"
+                },
+                // {
+                //   "name": "mechanism",
+                //   "required": false,
+                //   "display": "认证机制",
+                //   "placeholder": "请选择认证机制",
+                //   "short_description": "要使用的身份验证机制，如果没有提供，将与服务器协商一个。\n",
+                //   "description": "要使用的身份验证机制，如果没有提供，将与服务器协商一个。\n",
+                //   "hint": {
+                //     "type": "str",
+                //     "choices": [
+                //       "MongoDbCr",
+                //       "ScramSha1",
+                //       "ScramSha256",
+                //       "MongoDbX509",
+                //       "Gssapi",
+                //       "Plain",
+                //       "MongoDbAws",
+                //       "MongoDbOidc",
+                //     ]
+                //   },
+                // },
+                {
+                  "name": "source",
+                  "required": false,
+                  "display": "认证数据库",
+                  "placeholder": "认证数据库",
+                  "short_description": "进行身份验证的数据库。\n",
+                  "description": "进行身份验证的数据库，在 SCRAM 身份验证机制中默认为 “admin”，GSSAPI 和 MONGODB-X509 默认为 “$external”，PLAIN 默认为数据库名称或 “$external”。\n",
+                },
+              ],
+            }
+          ]
+        },
+        "groups": [
+          {
+            "name": "连接选项",
+            "display_order": 1,
+            "short_description": "其他数据库连接选项。",
+            "description": "其他数据库连接选项。",
+            "collapsible": false,
+            "connection_option": true,
+            "params": [
+              {
+                "name": "app_name",
+                "display": "应用名称",
+                "hint": {
+                  "type": "str",
+                },
+                "short_description": "用于标识客户端。",
+                "description": "用于标识客户端。",
+                "placeholder": "示例: TDengine",
+              },
+              {
+                "name": "compressors",
+                "display": "压缩器",
+                "hint": {
+                  "type": "str",
+                  "choices": [
+                    "snappy",
+                    "zlib",
+                    "zstd"
+                  ]
+                },
+                "short_description": "用于压缩发送到服务器的消息和解压缩从服务器接收的消息。",
+                "description": "用于压缩发送到服务器的消息和解压缩从服务器接收的消息。",
+                "placeholder": "请选择压缩器",
+              }
+            ]
+          },
+          {
+            "name": "SSL 证书",
+            "short_description": "使用证书和私钥建立连接以启用 SSL。",
+            "description": "使用证书和私钥建立连接以启用 SSL。",
+            "collapsible": true,
+            "connection_option": true,
+            "collapsed": false,
+            "params": [
+              {
+                "name": "ca_file_path",
+                "display": "CA 文件",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": "CA 证书文件",
+                "description": "CA 证书文件",
+                "required": true
+              },
+              {
+                "name": "cert_key_file_path",
+                "display": "证书文件",
+                "hint": {
+                  "type": "file"
+                },
+                "short_description": ".cert 文件",
+                "description": ".cert 文件",
+                "required": true
+              },
+            ]
+          },
+          {
+            "name": "数据查询",
+            "display_order": 2,
+            "short_description": "数据采集相关配置项。",
+            "description": "数据采集相关配置项。",
+            "collapsible": false,
+            "connection_option": false,
+            "params": [
+              {
+                "name": "database",
+                "display": "数据库",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "源数据库。",
+                "description": "源数据库。\n",
+                "required": true,
+                "placeholder": "database_${Y}",
+              },
+              {
+                "name": "collection",
+                "display": "集合",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "源集合。",
+                "description": "源集合。\n",
+                "required": true,
+                "placeholder": "collection_${md}",
+              },
+              {
+                "name": "sql",
+                "display": "查询模板",
+                "hint": {
+                  "type": "str"
+                },
+                "short_description": "用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。",
+                "description": "用于查询数据的查询语句，JSON格式，语句中必须包含时间范围条件，且开始时间和结束时间必须成对出现。\n使用不同的占位符表示不同的时间格式要求，具体有以下占位符格式：\n1. `${start_datetime}`、`${end_datetime}`：对应后端 datetime 类型字段的筛选，如：{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}} 将被转换为 {\"ddate\":{\"$gte\":{\"$date\":\"2024-06-01T00:00:00+00:00\"},\"$lt\":{\"$date\":\"2024-07-01T00:00:00+00:00\"}}}\n2. `${start_timestamp}`、`${end_timestamp}`：对应后端 timestamp 类型字段的筛选，如：{\"ttime\":{\"$gte\":${start_timestamp},\"$lt\":${end_timestamp}}} 将被转换为 {\"ttime\":{\"$gte\":{\"$timestamp\":{\"t\":123,\"i\":456}},\"$lt\":{\"$timestamp\":{\"t\":123,\"i\":456}}}}\n",
+                "required": true,
+                "placeholder": "{\"ddate\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}",
+                "grid_two": true,
+              },
+              {
+                "name": "start",
+                "display": "起始时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的起始时间。",
+                "description": "迁移数据的起始时间。\n",
+                "required": true,
+                "placeholder": "如：2023-01-01 00:00:00"
+              },
+              {
+                "name": "end",
+                "display": "结束时间",
+                "hint": {
+                  "type": "time"
+                },
+                "short_description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。",
+                "description": "迁移数据的结束时间，可留空。如果设置，则迁移任务执行到结束时间后，任务完成自动停止；如果留空，则持续同步实时数据，任务不会自动停止。\n",
+                "required": false,
+                "placeholder": "如：2024-01-01 00:00:00"
+              },
+              {
+                "name": "interval",
+                "display": "查询间隔",
+                "hint": {
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "d",
+                      "label": "天"
+                    },
+                    {
+                      "value": "h",
+                      "label": "小时"
+                    },
+                  ]
+                },
+                "short_description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。",
+                "description": "分段查询数据的时间间隔，默认1天。为了避免查询数据量过大，一次数据同步子任务会使用查询间隔分时间段查询数据。\n",
+                "required": false,
+                "placeholder": "1",
+                "type_value": "d",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
+              },
+              {
+                "name": "delay",
+                "display": "延迟时长",
+                "hint": {
+                  "type": "duration",
+                  "choices": [
+                    {
+                      "value": "m",
+                      "label": "分钟"
+                    },
+                    {
+                      "value": "s",
+                      "label": "秒"
+                    },
+                  ]
+                },
+                "short_description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。",
+                "description": "实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会读取延迟时长之前的数据。\n",
+                "required": false,
+                "placeholder": "10",
+                "type_value": "s",
+                "pattern": "^[0-9]+$",
+                "patternMsg": "只能输入正整数或者0",
+              }
+            ]
+          }
+        ],
+        "advanced": {
+          "name": "高级选项",
+          "description": "对数据源性能、日志等其他参数进行调整，可修改以下选项。\n",
+          "collapsible": true,
+          "connection_option": false,
+          "params": [
+            {
+              "name": "read_concurrency",
+              "display": "最大读取并发数",
+              "hint": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000
+              },
+              "description": "数据源连接数或读取线程数限制，当默认参数不满足需要或需要调整资源使用量时修改此参数。\n",
+              "value": "0"
+            },
+            {
+              "name": "batch_size",
+              "display": "批次大小",
+              "hint": {
+                "type": "integer",
+                "min": 1,
+                "max": 100000
+              },
+              "description": "单次发送的最大消息数或行数。\n",
+              "value": "10000"
+            }
+          ]
+        },
+        "parser": {
+          "display": "Payload 转换",
+          "required": true,
+          "description": "Kafka 连接器会上传以下六列到服务端：<br>\n\n- **ts**: 采集时间戳。<br>\n- **topic**: 订阅主题名。<br>\n- **partition**: 当前消息所在的分区 ID。<br>\n- **offset**: 当前消息的偏移量。<br>\n- **key**: 当前消息的 Key。<br>\n- **value**: 当前消息的数据内容。<br>\n\ntaosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>\n包括，指定表名称和超级表名，设置普通列和标签列等。\n",
+          "fields": [
+            {
+              "name": "value",
+              "description": "消息体。",
+              "type": "varchar"
+            }
+          ]
+        }
+      },
     ]
   }
 

@@ -39,7 +39,7 @@
 `
           "
         ><code class="language-bash"></code></pre>
-        <p>{{ $t("docs.tool.cli.step2desc2") }}</p>
+        <p>{{ $t("docs.tool.cli.step2desc2") }} <span class="docker-tip">{{ $t("dockerTip")}}</span></p>
         <pre
           v-highlight="
             `$env:TDENGINE_DSN='${DSN}'

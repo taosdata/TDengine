@@ -817,7 +817,15 @@ export default {
     tags: "Tags",
     encode: "Encoding",
     compress: "Compression Algorithm",
-    level: "Compression Level"
+    level: "Compression Level",
+    desc: "Description",
+    share: "Add to shared favorites",
+    unshare: "Unshare",
+    addDesc: "Add description",
+    editDesc: "Edit description",
+    descPlaceholder: "Description of the SQL,no more than {0} characters.",
+    characterLen: "Only {0} characters are allowed",
+    addToPersonal: "Add to personal favorite"
   },
   sql: {
     analysis: "Analysis",
@@ -1417,10 +1425,12 @@ export default {
         "The filtering condition has not been triggered yet, press the enter key to trigger it",
       parsefirst: "Please excute the parse,extract or split first",
       parse: "1. Parse",
-      jsonPlaceholder: "Please select the JSON key which is extracted from the first demo data",
+      jsonPlaceholder: "Please select the JSON key needed. if left blank, all keys will be parsed.",
       jsontip: "Please enter the correct JSON format",
+      jsonDemoError: "The json string at pos {0} is not a valid json string: {1}",
       texttip:"Please enter correct text format",
       mappingvaildtip: "Please fill in the correct primary key column",
+      nonsupportTypetip: "The {0} data type is not supported for the time being",
       mappingvaildColtip: "Enter at least one mapping rule for the common column and the tag column",
         // 2. <strong>Split</strong>: User could use a sep separator to split specific columns out of the field, set the column size with n and use names by a ,-separated name list. For example, use sep = -, n = 3, names = a,b,c, it will split  1-2-3 text string into three columns with values: a = 1, b = 2, c = 3.<br/>
       extractdesc: `<strong style='paddingRight: 20px'>taosX supports three kinds of extractor currently</strong>:<br/>
@@ -1467,6 +1477,9 @@ export default {
       col_select: "Please select the column",
       filter_type: "Please select  parse type",
       expre_input: "exp1;exp2;exp3",
+      expre_: "",
+      expre_regex: "please input the regex extract expression",
+      expre_join: "please input the join char or string",
       filter_input: "Please enter the filter expression",
       st_input: "Please enter the super table name",
       create_st: "Create STable",
