@@ -127,40 +127,56 @@ int64_t taosCopyFile(const char *from, const char *to) {
 
   // fidfrom = open(from, O_RDONLY);
   TdFilePtr pFileFrom = taosOpenFile(from, TD_FILE_READ);
-  if (pFileFrom == NULL) goto _err;
+  if (pFileFrom == NULL) {
+    code = terrno;
+    goto _err;
+  }
 
   // fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
   TdFilePtr pFileTo = taosOpenFile(to, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_EXCL);
-  if (pFileTo == NULL) goto _err;
+  if (pFileTo == NULL) {
+    code = terrno;
+    goto _err;
+  }
 
   while (true) {
     bytes = taosReadFile(pFileFrom, buffer, sizeof(buffer));
-    if (bytes < 0) goto _err;
+    if (bytes < 0) {
+      code = terrno;
+      goto _err;
+    }
+    
     if (bytes == 0) break;
 
     size += bytes;
 
-    if (taosWriteFile(pFileTo, (void *)buffer, bytes) < bytes) goto _err;
+    if (taosWriteFile(pFileTo, (void *)buffer, bytes) < bytes) {
+      code = terrno;
+      goto _err;
+    }
     if (bytes < sizeof(buffer)) break;
   }
 
   code = taosFsyncFile(pFileTo);
 
-  taosCloseFile(&pFileFrom);
-  taosCloseFile(&pFileTo);
+  (void)taosCloseFile(&pFileFrom);
+  (void)taosCloseFile(&pFileTo);
 
   if (code != 0) {
+    terrno = code;
     return -1;
   }
+  
   return size;
 
 _err:
 
-  if (pFileFrom != NULL) taosCloseFile(&pFileFrom);
-  if (pFileTo != NULL) taosCloseFile(&pFileTo);
+  if (pFileFrom != NULL) (void)taosCloseFile(&pFileFrom);
+  if (pFileTo != NULL) (void)taosCloseFile(&pFileTo);
   /* coverity[+retval] */
-  taosRemoveFile(to);
-  
+  (void)taosRemoveFile(to);
+
+  terrno = code;
   return -1;
 #endif
 }
@@ -168,24 +184,31 @@ _err:
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
   TdFilePtr fp = taosOpenFile(path, tdFileOptions);
   if (!fp) {
-    if (errno == ENOENT) {
+    if (terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
       // Try to create directory recursively
-      char *s = taosStrdup(path);
+      char s[PATH_MAX];
+      tstrncpy(s, path, sizeof(s));
       if (taosMulMkDir(taosDirName(s)) != 0) {
-        taosMemoryFree(s);
         return NULL;
       }
-      taosMemoryFree(s);
       fp = taosOpenFile(path, tdFileOptions);
       if (!fp) {
         return NULL;
       }
     }
   }
+  
   return fp;
 }
 
-int32_t taosRemoveFile(const char *path) { return remove(path); }
+int32_t taosRemoveFile(const char *path) { 
+  int32_t code = remove(path); 
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+  return code;
+}
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
 #ifdef WINDOWS
@@ -217,8 +240,9 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
   return finished ? 0 : -1;
 #else
   int32_t code = rename(oldName, newName);
-  if (code < 0) {
-    printf("failed to rename file %s to %s, reason:%s\n", oldName, newName, strerror(errno));
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   return code;
@@ -233,8 +257,9 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *a
   struct stat fileStat;
   int32_t     code = stat(path, &fileStat);
 #endif
-  if (code < 0) {
-    return code;
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   if (size != NULL) {
@@ -272,13 +297,15 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 
 #else
   if (pFile == NULL || pFile->fd < 0) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
+  
   struct stat fileStat;
   int32_t     code = fstat(pFile->fd, &fileStat);
-  if (code < 0) {
-    printf("taosFStatFile run fstat fail.");
-    return code;
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   if (stDev != NULL) {
@@ -1150,6 +1177,8 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   if (pFile == NULL) {
     return 0;
   }
+  
+  int32_t code = 0;
 
 #ifdef WINDOWS
 #if FILE_WITH_LOCK
@@ -1185,7 +1214,6 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
-  int32_t code = 0;
   int64_t ret = pread(pFile->fd, buf, count, offset);
   if (-1 == ret) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -1205,20 +1233,36 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
     return 0;
   }
 
+  int32_t code = 0;
   // this implementation is WRONG
   // fflush is not a replacement of fsync
-  if (pFile->fp != NULL) return fflush(pFile->fp);
+  if (pFile->fp != NULL) {
+    code = fflush(pFile->fp);
+    if (0 != code) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
+    
+    return code;
+  }
+  
 #ifdef WINDOWS
   if (pFile->hFile != NULL) {
     if (pFile->tdFileOptions & TD_FILE_WRITE_THROUGH) {
       return 0;
     }
     return !FlushFileBuffers(pFile->hFile);
+  }
 #else
   if (pFile->fd >= 0) {
-    return fsync(pFile->fd);
-#endif
+    code = fsync(pFile->fd);
+    if (-1 == code) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
   }
+#endif
+
   return 0;
 }
 
