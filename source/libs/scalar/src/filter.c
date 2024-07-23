@@ -1218,7 +1218,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
     FLT_PACKAGE_UNIT_HASH_KEY(&v, optr, optr2, left->idx, (right ? right->idx : -1), (right2 ? right2->idx : -1));
     if (taosHashPut(info->pctx.unitHash, v, sizeof(v), uidx, sizeof(*uidx))) {
       fltError("taosHashPut to set failed");
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
 
   }
@@ -2163,7 +2163,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
       if (len < 0) {
         qError("filterInitValFieldData taosUcs4ToMbs error 1");
-        return TSDB_CODE_APP_ERROR;
+        return TSDB_CODE_SCALAR_CONVERT_ERROR;
       }
       varDataSetLen(newValData, len);
       (void)varDataCopy(fi->data, newValData);
@@ -3442,7 +3442,7 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
       if (len < 0) {
         qError("castConvert1 taosUcs4ToMbs error");
         taosMemoryFreeClear(newColData);
-        FLT_ERR_RET(TSDB_CODE_APP_ERROR);
+        FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
       } else {
         varDataSetLen(newColData, len);
         p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData,
@@ -3517,7 +3517,7 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
               if (len < 0) {
                 qError("castConvert1 taosUcs4ToMbs error");
                 taosMemoryFreeClear(newColData);
-                FLT_ERR_RET(TSDB_CODE_APP_ERROR);
+                FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
               } else {
                 varDataSetLen(newColData, len);
                 p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
@@ -4439,7 +4439,7 @@ int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len);
         if (!ret) {
           qError("filterConverNcharColumns taosMbsToUcs4 error");
-          return TSDB_CODE_FAILED;
+          return TSDB_CODE_SCALAR_CONVERT_ERROR;
         }
         varDataLen(dst) = len;
       }
@@ -4473,7 +4473,7 @@ int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode *pNode) {
   if (NULL == stat->nodeList) {
     stat->nodeList = taosArrayInit(10, POINTER_BYTES);
     if (NULL == stat->nodeList) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      FLT_ERR_RET(terrno);
     }
   }
 

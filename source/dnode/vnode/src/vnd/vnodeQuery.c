@@ -62,7 +62,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _exit4;
   }
 
@@ -137,7 +137,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
   if (rspLen < 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _exit;
   }
 
@@ -154,7 +154,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   rspLen = tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
   if (rspLen < 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _exit;
   }
 
@@ -200,7 +200,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   // decode req
   if (tDeserializeSTableCfgReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _exit;
   }
 
@@ -295,7 +295,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   // encode and send response
   rspLen = tSerializeSTableCfgRsp(NULL, 0, &cfgRsp);
   if (rspLen < 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _exit;
   }
 
@@ -312,7 +312,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   rspLen = tSerializeSTableCfgRsp(pRsp, rspLen, &cfgRsp);
   if (rspLen < 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _exit;
   }
 
@@ -360,7 +360,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   void        *pRsp = NULL;
 
   if (tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq)) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     qError("tDeserializeSBatchReq failed");
     goto _exit;
   }
@@ -382,7 +382,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   for (int32_t i = 0; i < msgNum; ++i) {
     req = taosArrayGet(batchReq.pMsgs, i);
     if (req == NULL) {
-      code = TSDB_CODE_INVALID_MSG;
+      code = TSDB_CODE_OUT_OF_RANGE;
       goto _exit;
     }
 
@@ -427,18 +427,18 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   rspSize = tSerializeSBatchRsp(NULL, 0, &batchRsp);
   if (rspSize < 0) {
     qError("tSerializeSBatchRsp failed");
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
     qError("rpcMallocCont %d failed", rspSize);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   if (tSerializeSBatchRsp(pRsp, rspSize, &batchRsp) < 0) {
     qError("tSerializeSBatchRsp %d failed", rspSize);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -851,7 +851,7 @@ int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     rsp.streamId = req.streamId;
     rspLen = tSerializeStreamProgressRsp(0, 0, &rsp);
     if (rspLen < 0) {
-      code = TSDB_CODE_INVALID_MSG;
+      code = terrno;
       goto _OVER;
     }
     if (direct) {
@@ -871,7 +871,7 @@ int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   if (code == TSDB_CODE_SUCCESS) {
     rspLen = tSerializeStreamProgressRsp(buf, rspLen, &rsp);
     if (rspLen < 0) {
-      code = TSDB_CODE_INVALID_MSG;
+      code = terrno;
       goto _OVER;
     }
     rpcMsg.pCont = buf;
