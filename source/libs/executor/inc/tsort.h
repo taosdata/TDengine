@@ -165,13 +165,13 @@ void tsortGetValue(STupleHandle* pVHandle, int32_t colId, void** pVal);
  * @return
  */
 uint64_t tsortGetGroupId(STupleHandle* pVHandle);
-void*    tsortGetBlockInfo(STupleHandle* pVHandle);
+void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pInfo);
 /**
  *
  * @param pSortHandle
  * @return
  */
-SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
+int32_t tsortGetSortedDataBlock(const SSortHandle* pSortHandle, SSDataBlock** pBlock);
 
 /**
  * return the sort execution information.
@@ -215,8 +215,8 @@ int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* ke
 */
 void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
 
-int tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
-                      int32_t leftRowIndex, int32_t rightRowIndex, void* pOrder);
+int tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock, int32_t leftRowIndex, int32_t rightRowIndex,
+                         void* pOrder);
 #ifdef __cplusplus
 }
 #endif
