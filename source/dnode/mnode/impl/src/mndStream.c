@@ -1289,7 +1289,7 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
 
     SStreamObj *p = NULL;
     code = mndGetStreamObj(pMnode, pCheckpointInfo->streamId, &p);
-    if (p != NULL || code != 0) {
+    if (p != NULL && code == 0) {
       code = mndProcessStreamCheckpointTrans(pMnode, p, checkpointId, 1, true);
       sdbRelease(pSdb, p);
 
