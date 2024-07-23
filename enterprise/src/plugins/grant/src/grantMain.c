@@ -366,7 +366,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   }
 
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     uError("grant data initialize failed at line %d since %s", lino, tstrerror(code));
     mndCleanupGrant();
   } else {
@@ -743,7 +743,7 @@ static int32_t grantCheckClusterInfo(SMnode *pMnode) {
     }
   }
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     recheckClusterTime = true;
   }
   if (recheckClusterTime) {
@@ -1168,7 +1168,7 @@ static int32_t mndProcessGrantHBSyncInfo(SMnode *pMnode, int8_t type) {
   mndProcessGrantStatusCheck();
 _exit:
   taosArrayDestroy(pGrantMachines);
-  if (code != 0) {
+  if (code < 0) {
     uError("grant hb failed at line %d since %s", lino, tstrerror(code));
   }
   return code;
@@ -1241,7 +1241,7 @@ static int32_t mndProcessGrantHBImpl(SMnode *pMnode, int8_t type) {
   }
 
 _exit:
-  if(code != 0) {
+  if (code < 0) {
     uError("failed to process grant hb at line %d since %s", lino, tstrerror(code));
   }
   TAOS_RETURN(code);
@@ -1507,7 +1507,7 @@ static int32_t tSerializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNo
 _exit:
   tEncoderClear(&encoder);
   if (pLen) *pLen = tlen;
-  if (code != 0) {
+  if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
@@ -1537,7 +1537,7 @@ static int32_t mndSendGrantNotifyToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     uError("failed to send grant notify to dnode %d at line %d since %s", pDnodeInfo->id, lino, tstrerror(code));
   }
   TAOS_RETURN(code);
@@ -1584,7 +1584,7 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
 
 _exit:
   taosArrayDestroy(pDnodeInfo);
-  if(code != 0) {
+  if (code < 0) {
     uError("failed to process grant notify at line %d since %s", lino, tstrerror(code));
   }
   return 0;
@@ -1783,7 +1783,7 @@ static int32_t grantCheckStreams(bool checkNum) {
     if (gStatus.curStreams >= gStatus.limitStreams) code = TSDB_CODE_GRANT_STREAM_LIMITED;
   }
 
-  if (code != 0) {
+  if (code < 0) {
     uError("grant failed to check stream, expire:%" PRIi64 ", num:%d, reason:stream limited",
            (int64_t)gStatus.streamExpireSec, (int32_t)gStatus.curStreams);
   }
@@ -1800,7 +1800,7 @@ static int32_t grantCheckSubscriptions(bool checkNum) {
     if (gStatus.curSubscriptions >= gStatus.limitSubscriptions) code = TSDB_CODE_GRANT_SUBSCRIPTION_LIMITED;
   }
 
-  if (code != 0) {
+  if (code < 0) {
     uError("grant failed to check subscription, expire:%" PRIi64 ", num:%d, reason:subscription limited",
            (int64_t)gStatus.subscriptionExpireSec, (int32_t)gStatus.curSubscriptions);
   }
@@ -1817,7 +1817,7 @@ static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
     if (gStatus.curViews >= gStatus.limitViews) code = TSDB_CODE_GRANT_VIEW_LIMITED;
   }
 
-  if (code != 0) {
+  if (code < 0) {
     if (DEBUG_ERROR == traceLevel) {
       uError("grant failed to check view, expire:%" PRIi64 ", num:%d, reason:view limited",
              (int64_t)gStatus.viewExpireSec, (int32_t)gStatus.curViews);
@@ -2006,7 +2006,7 @@ static int32_t grantOptExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, int6
   }
 
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     uError("grant optional items check failed at line %d since %s", lino, tstrerror(code));
   }
   TAOS_RETURN(code);
@@ -2108,7 +2108,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
   tstrncpy(newObj.active, newActive, newActiveLen + 1);
 
   code = grantUniqParseActiveCode(&newObj, NULL);
-  if (code != 0 || !newObj.granted) {
+  if (code < 0 || !newObj.granted) {
     code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
     TAOS_CHECK_EXIT(code);
   } else {
@@ -2189,7 +2189,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
     oldObj.activeBufLen = oldActiveLen + 1;
     tstrncpy(oldObj.active, oldActive, oldActiveLen + 1);
     code = grantUniqParseActiveCode(&oldObj, NULL);
-    if (code != 0 || !oldObj.granted) {
+    if (code < 0 || !oldObj.granted) {
       code = code != 0 ? code : TSDB_CODE_GRANT_PAR_IVLD_ACTIVE;
       if ((newObj.flags & GRANT_ACTIVE_FLG_SKIP_FAIL_OLD)) {  // skip if old active parse failed
         uInfo("old active parse failed since %s, continue to alter as new flags is:0x%x", tstrerror(code),
@@ -2229,7 +2229,7 @@ _exit:
   tDestroyGrantUniqObj(&mergeObj);
   tDestroyGrantUniqObj(&newObj);
   tDestroyGrantUniqObj(&oldObj);
-  if (code != 0) {
+  if (code < 0) {
     uError("failed to alter grant active:%s at line %d since %s", newActive, lino, tstrerror(code));
   }
   return code;
@@ -2288,7 +2288,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
   pShow->numOfRows += numOfRows;
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -2435,7 +2435,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     for (int32_t i = 0; i < CONN_TYPE_DYN_MAX; ++i) {
       code = mndRetrieveGrantFullItem(pBlock, &numOfRows, gConnName[i], gConnDisplay[i], pStatus->dataIns[i].expireSec,
                                       pStatus->dataIns[i].number, pStatus->dataIns[i].speed, true, true);
-      if (code != 0) {
+      if (code < 0) {
         taosRUnLockLatch(&grantHandle.rwLock);
         TAOS_CHECK_EXIT(code);
       }
@@ -2448,7 +2448,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
           pBlock, &numOfRows, pDataIn->name, tGetConnDisplay(pDataIn->name),
           pDataIn->expire == GRANT_UNIQ_UNLIMITED ? pDataIn->expire : (int64_t)pDataIn->expire * 86400, pDataIn->number,
           pDataIn->speed, true, true);
-      if (code != 0) {
+      if (code < 0) {
         taosRUnLockLatch(&grantHandle.rwLock);
         TAOS_CHECK_EXIT(code);
       }
@@ -2460,7 +2460,7 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   pShow->numOfRows += numOfRows;
 
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -2578,7 +2578,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 _exit:
   mndReleaseGrant(pMnode, pGrant, pIter);
   taosMemoryFree(pBuf);
-  if (code != 0) {
+  if (code < 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -2656,7 +2656,7 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
 _exit:
   taosMemoryFree(pBuf);
-  if (code != 0) {
+  if (code < 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -2680,7 +2680,7 @@ static int32_t tDeserializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *p
 _exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
-  if (code != 0) {
+  if (code < 0) {
     uError("failed to deserialize grant notify at line %d since %s", lino, tstrerror(code));
   }
 
@@ -2736,7 +2736,7 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
 _exit:
   tEncoderClear(&encoder);
   if (pLen) *pLen = tlen;
-  if (code != 0) {
+  if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
@@ -2790,7 +2790,7 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
 _exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
-  if (code != 0) {
+  if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   TAOS_RETURN(code);
@@ -2905,7 +2905,7 @@ static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 
   pShow->numOfRows += numOfRows;
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }

@@ -270,7 +270,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
 
   mndTransDrop(pTrans);
 _exit:
-  if (code != 0) {
+  if (code < 0) {
     mError("grant, %s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   tDestroyGrantObj(&grantObj);
@@ -342,7 +342,7 @@ int32_t tSerializeSGrantObj(void *buf, int32_t bufLen, const SGrantLogObj *pObj)
   tlen = encoder.pos;
 _exit:
   tEncoderClear(&encoder);
-  if (code != 0) {
+  if (code < 0) {
     mError("grant, %s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -397,7 +397,7 @@ int32_t tDeserializeSGrantObj(void *buf, int32_t bufLen, SGrantLogObj *pObj) {
 _exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
-  if (code != 0) {
+  if (code < 0) {
     tDestroyGrantObj(pObj);
     mError("grant, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
   }
