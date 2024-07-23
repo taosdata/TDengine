@@ -39,6 +39,7 @@ static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList);
 
 SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
                            __sl_key_fn_t fn) {
+  int32_t    code = 0;
   SSkipList *pSkipList = (SSkipList *)taosMemoryCalloc(1, sizeof(SSkipList));
   if (pSkipList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -67,8 +68,10 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   pSkipList->comparFn = comparFn;
 #endif
 
-  if (initForwardBackwardPtr(pSkipList) != TSDB_CODE_OUT_OF_MEMORY) {
+  code = initForwardBackwardPtr(pSkipList);
+  if (code) {
     tSkipListDestroy(pSkipList);
+    terrno = code;
     return NULL;
   }
 
