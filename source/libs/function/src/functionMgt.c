@@ -35,14 +35,14 @@ static void doInitFunctionTable() {
   gFunMgtService.pFuncNameHashTable =
       taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == gFunMgtService.pFuncNameHashTable) {
-    initFunctionCode = TSDB_CODE_FAILED;
+    initFunctionCode = terrno;
     return;
   }
 
   for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
     if (TSDB_CODE_SUCCESS != taosHashPut(gFunMgtService.pFuncNameHashTable, funcMgtBuiltins[i].name,
                                          strlen(funcMgtBuiltins[i].name), &i, sizeof(int32_t))) {
-      initFunctionCode = TSDB_CODE_FAILED;
+      initFunctionCode = terrno;
       return;
     }
   }

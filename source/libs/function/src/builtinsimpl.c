@@ -3566,7 +3566,7 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
 
   SArray*  pRows = taosArrayInit_s(sizeof(SFuncInputRow), diffColNum);
   if (NULL == pRows) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   bool keepNull = false;
@@ -5958,7 +5958,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   } else {
     pInfo->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == pInfo->pHash) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
   pInfo->nullTupleSaved = false;

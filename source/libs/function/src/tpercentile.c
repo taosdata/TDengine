@@ -273,7 +273,7 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, dou
   (*pBucket)->groupPagesMap = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if ((*pBucket)->groupPagesMap == NULL) {
     tMemBucketDestroy(*pBucket);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (setBoundingBox(&(*pBucket)->range, (*pBucket)->type, minval, maxval) != 0) {
     //    qError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
@@ -409,7 +409,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
       if (p == NULL) {
         pPageIdList = taosArrayInit(4, sizeof(int32_t));
         if (NULL == pPageIdList) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
         int32_t code = taosHashPut(pBucket->groupPagesMap, &groupId, sizeof(groupId), &pPageIdList, POINTER_BYTES);
         if (TSDB_CODE_SUCCESS != code) {
