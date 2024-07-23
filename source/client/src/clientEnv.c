@@ -305,9 +305,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
-  if (TSDB_CODE_SUCCESS != releaseTscObj(pTscObj->id)) {
-    tscError("failed to release STscObj");
-  }
+  releaseTscObj(pTscObj->id);
 }
 
 // todo close the transporter properly
@@ -419,14 +417,14 @@ void destroyAppInst(void *info) {
 
   int32_t code = taosThreadMutexLock(&appInfo.mutex);
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to lock app info, code:%s", tstrerror(code));
+    tscError("failed to lock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
   }
 
   hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
 
   code = taosThreadMutexUnlock(&appInfo.mutex);
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to unlock app info, code:%s", tstrerror(code));
+    tscError("failed to unlock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
   }
 
   taosMemoryFreeClear(pAppInfo->instKey);
@@ -434,13 +432,13 @@ void destroyAppInst(void *info) {
 
   code = taosThreadMutexLock(&pAppInfo->qnodeMutex);
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to lock qnode mutex, code:%s", tstrerror(code));
+    tscError("failed to lock qnode mutex, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
   }
 
   taosArrayDestroy(pAppInfo->pQnodeList);
   code = taosThreadMutexUnlock(&pAppInfo->qnodeMutex);
   if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to unlock qnode mutex, code:%s", tstrerror(code));
+    tscError("failed to unlock qnode mutex, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
   }
 
   taosMemoryFree(pAppInfo);
@@ -475,51 +473,55 @@ void destroyTscObj(void *pObj) {
 }
 
 int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo,
-                     void **p) {
-  STscObj *pObj = (STscObj *)*p;
-  pObj = (STscObj *)taosMemoryCalloc(1, sizeof(STscObj));
-  if (NULL == pObj) {
+                     STscObj **pObj) {
+  *pObj = (STscObj *)taosMemoryCalloc(1, sizeof(STscObj));
+  if (NULL == *pObj) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pObj->pRequests = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  if (NULL == pObj->pRequests) {
-    taosMemoryFree(pObj);
+  (*pObj)->pRequests = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  if (NULL == (*pObj)->pRequests) {
+    taosMemoryFree(*pObj);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pObj->connType = connType;
-  pObj->pAppInfo = pAppInfo;
-  pObj->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
-  tstrncpy(pObj->user, user, sizeof(pObj->user));
-  (void)memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);
+  (*pObj)->connType = connType;
+  (*pObj)->pAppInfo = pAppInfo;
+  (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
+  tstrncpy((*pObj)->user, user, sizeof((*pObj)->user));
+  (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
 
   if (db != NULL) {
-    tstrncpy(pObj->db, db, tListLen(pObj->db));
+    tstrncpy((*pObj)->db, db, tListLen((*pObj)->db));
   }
 
-  int32_t code = taosThreadMutexInit(&pObj->mutex, NULL);
+  int32_t code = taosThreadMutexInit(&(*pObj)->mutex, NULL);
   if (TSDB_CODE_SUCCESS != code) {
     return TAOS_SYSTEM_ERROR(code);
   }
 
-  pObj->id = taosAddRef(clientConnRefPool, pObj);
-  if (pObj->id < 0) {
+  (*pObj)->id = taosAddRef(clientConnRefPool, *pObj);
+  if ((*pObj)->id < 0) {
     tscError("failed to add object to clientConnRefPool");
     code = terrno;
-    taosMemoryFree(pObj);
+    taosMemoryFree(*pObj);
     return code;
   }
 
-  (void)atomic_add_fetch_64(&pObj->pAppInfo->numOfConns, 1);
+  (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
 
-  tscDebug("connObj created, 0x%" PRIx64 ",p:%p", pObj->id, pObj);
+  tscDebug("connObj created, 0x%" PRIx64 ",p:%p", (*pObj)->id, *pObj);
   return code;
 }
 
 STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientConnRefPool, rid); }
 
-int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, rid); }
+void releaseTscObj(int64_t rid) {
+  int32_t code = taosReleaseRef(clientConnRefPool, rid);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscWarn("failed to release TscObj, rid:%lld, code:%s", rid, tstrerror(code));
+  }
+}
 
 int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj **pRequest) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -535,9 +537,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
-    if (TSDB_CODE_SUCCESS != releaseTscObj(connId)) {
-      tscError("failed to release TscObj");
-    }
+    releaseTscObj(connId);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
@@ -857,20 +857,27 @@ static void *tscCrashReportThreadFp(void *param) {
 
 int32_t tscCrashReportInit() {
   if (!tsEnableCrashReport) {
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
-
+  int32_t      code = TSDB_CODE_SUCCESS;
   TdThreadAttr thAttr;
-  TSC_ERR_RET(taosThreadAttrInit(&thAttr));
-  TSC_ERR_RET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
+  TSC_ERR_JRET(taosThreadAttrInit(&thAttr));
+  TSC_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
   TdThread crashReportThread;
   if (taosThreadCreate(&crashReportThread, &thAttr, tscCrashReportThreadFp, NULL) != 0) {
     tscError("failed to create crashReport thread since %s", strerror(errno));
-    return -1;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    TSC_ERR_RET(errno);
   }
 
-  TSC_ERR_RET(taosThreadAttrDestroy(&thAttr));
-  return 0;
+  (void)taosThreadAttrDestroy(&thAttr);
+_return:
+  if (code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    TSC_ERR_RET(terrno);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void tscStopCrashReport() {

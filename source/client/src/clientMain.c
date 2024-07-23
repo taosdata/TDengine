@@ -1014,10 +1014,12 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     if (pQuery->haveResultSet) {
-      setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols);
+      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols);
       setResPrecision(&pRequest->body.resInfo, pQuery->precision);
     }
+  }
 
+  if (code == TSDB_CODE_SUCCESS) {
     TSWAP(pRequest->dbList, (pQuery)->pDbList);
     TSWAP(pRequest->tableList, (pQuery)->pTableList);
     TSWAP(pRequest->targetTableList, (pQuery)->pTargetTableList);
@@ -1202,7 +1204,7 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
       pWrapper->pCatalogReq->forceUpdate = updateMetaForce;
-      pWrapper->pCatalogReq->qNodeRequired = qnodeRequired(pRequest);
+      TSC_ERR_RET(qnodeRequired(pRequest, &pWrapper->pCatalogReq->qNodeRequired));
       code = qParseSqlSyntax(pWrapper->pParseCtx, &pRequest->pQuery, pWrapper->pCatalogReq);
     }
 

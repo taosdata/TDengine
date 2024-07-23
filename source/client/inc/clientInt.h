@@ -310,7 +310,7 @@ void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
                          bool convertUcs4);
-void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
@@ -349,10 +349,10 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 
 int32_t   createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo,
-                      void **p);
+                      STscObj **p);
 void     destroyTscObj(void* pObj);
 STscObj* acquireTscObj(int64_t rid);
-int32_t  releaseTscObj(int64_t rid);
+void     releaseTscObj(int64_t rid);
 void     destroyAppInst(void* pAppInfo);
 
 uint64_t generateRequestId();
@@ -396,11 +396,11 @@ void taos_close_internal(void* taos);
 
 // --- heartbeat
 // global, called by mgmt
-int  hbMgrInit();
-void hbMgrCleanUp();
+int32_t hbMgrInit();
+void    hbMgrCleanUp();
 
 // cluster level
-SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
+int32_t    appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key, SAppHbMgr **pAppHbMgr);
 void       appHbMgrCleanup(void);
 void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
 void       destroyAllRequests(SHashObj* pRequests);
@@ -409,7 +409,7 @@ void       stopAllRequests(SHashObj* pRequests);
 //SAppInstInfo* getAppInstInfo(const char* clusterKey);
 
 // conn level
-int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
+int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {
@@ -428,7 +428,7 @@ void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
-bool    qnodeRequired(SRequestObj* pRequest);
+int32_t qnodeRequired(SRequestObj* pRequest, bool *required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 void    handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, int32_t code);
