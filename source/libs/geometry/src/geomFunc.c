@@ -180,7 +180,7 @@ int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnI
     goto _exit;
   }
 
-  colDataSetVal(pOutputData, i, output, (output == NULL));
+  code = colDataSetVal(pOutputData, i, output, (output == NULL));
 
 _exit:
   if (output) {
@@ -200,7 +200,7 @@ int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoDat
     goto _exit;
   }
 
-  colDataSetVal(pOutputData, i, output, (output == NULL));
+  code = colDataSetVal(pOutputData, i, output, (output == NULL));
 
 _exit:
   if (output) {
@@ -228,7 +228,7 @@ int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometr
     }
   }
 
-  colDataSetVal(pOutputData, i, &res, (res==-1));
+  code = colDataSetVal(pOutputData, i, &res, (res==-1));
 
   return code;
 }
