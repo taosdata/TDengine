@@ -2229,6 +2229,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
   pThrd->pTransInst = trans;
   pThrd->quit = false;
 
+  *ppThrd = pThrd;
   return code;
 
 _end:
