@@ -318,7 +318,7 @@ void*   tdUidStoreFree(STbUidStore* pStore);
 
 // SMetaSnapReader ========================================
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
-int32_t metaSnapReaderClose(SMetaSnapReader** ppReader);
+void    metaSnapReaderClose(SMetaSnapReader** ppReader);
 int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 // SMetaSnapWriter ========================================
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);

@@ -41,7 +41,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
   pTb = (TTB *)tdbOsCalloc(1, sizeof(*pTb));
   if (pTb == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   // pTb->pEnv
@@ -54,7 +54,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     pPager = tdbEnvGetPager(pEnv, fFullName);
     if (!pPager) {
       tdbOsFree(pTb);
-      return -1;
+      return terrno;
     }
 
     ret = tdbTbGet(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pData, &nData);
@@ -74,7 +74,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
       if (ret < 0) {
         tdbOsFree(pTb);
-        return -1;
+        return ret;
       }
 
       tdbEnvAddPager(pEnv, pPager);
@@ -109,7 +109,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     ret = tdbPagerRestoreJournals(pPager);
     if (ret < 0) {
       tdbOsFree(pTb);
-      return -1;
+      return ret;
     }
   } else {
     tdbPagerRollback(pPager);
@@ -119,7 +119,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, pEnv, &(pTb->pBt));
   if (ret < 0) {
     tdbOsFree(pTb);
-    return -1;
+    return ret;
   }
 
   *ppTb = pTb;
