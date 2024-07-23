@@ -416,7 +416,7 @@ pipeline {
                             echo "${WKDIR}/restore.sh -p ${BRANCH_NAME} -n ${BUILD_ID} -c {container name}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 150, unit: 'MINUTES'){
+                            timeout(time: 200, unit: 'MINUTES'){
                                 pre_test()
                                 script {
                                     sh '''

@@ -280,6 +280,13 @@ void streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
 
   streamMutexLock(&pInfo->checkInfoLock);
 
+  // drop procedure already started, not start check downstream now
+  ETaskStatus s = streamTaskGetStatus(pTask).state;
+  if (s == TASK_STATUS__DROPPING) {
+    streamMutexUnlock(&pInfo->checkInfoLock);
+    return;
+  }
+
   int32_t code = streamTaskStartCheckDownstream(pInfo, pTask->id.idStr);
   if (code != TSDB_CODE_SUCCESS) {
     streamMutexUnlock(&pInfo->checkInfoLock);
