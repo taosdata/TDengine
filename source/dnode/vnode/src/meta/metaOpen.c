@@ -46,7 +46,6 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   int32_t offset;
   char    path[TSDB_FILENAME_LEN] = {0};
   char    indexFullPath[128] = {0};
-  sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
 
   // create handle
   vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
@@ -97,6 +96,7 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   code = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
   TAOS_UNUSED(taosMkDir(indexFullPath));
 
   SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
