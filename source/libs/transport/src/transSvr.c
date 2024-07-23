@@ -202,7 +202,11 @@ static int32_t addHandleToAcceptloop(void* arg);
 void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SSvrConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
-  transAllocBuffer(pBuf, buf);
+  int32_t      code = transAllocBuffer(pBuf, buf);
+  if (code < 0) {
+    tError("conn %p failed to alloc buffer, since %s", conn, tstrerror(code));
+    destroyConn(conn, true);
+  }
 }
 
 // refers specifically to query or insert timeout

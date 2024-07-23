@@ -115,17 +115,20 @@ int32_t transInitBuffer(SConnBuffer* buf) {
   buf->invalid = 0;
   return 0;
 }
-int transDestroyBuffer(SConnBuffer* p) {
+int32_t transDestroyBuffer(SConnBuffer* p) {
   taosMemoryFree(p->buf);
   p->buf = NULL;
   return 0;
 }
 
-int transClearBuffer(SConnBuffer* buf) {
+int32_t transClearBuffer(SConnBuffer* buf) {
   SConnBuffer* p = buf;
   if (p->cap > BUFFER_CAP) {
     p->cap = BUFFER_CAP;
     p->buf = taosMemoryRealloc(p->buf, BUFFER_CAP);
+    if (p->buf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
   p->left = -1;
   p->len = 0;
@@ -134,27 +137,31 @@ int transClearBuffer(SConnBuffer* buf) {
   return 0;
 }
 
-int transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
   static const int HEADSIZE = sizeof(STransMsgHead);
-
-  SConnBuffer* p = connBuf;
+  int32_t          code = 0;
+  SConnBuffer*     p = connBuf;
   if (p->left != 0 || p->total <= 0) {
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
   int total = p->total;
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
+    if (*buf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     memcpy(*buf, p->buf, total);
-    if (transResetBuffer(connBuf, resetBuf) < 0) {
-      return -1;
+    if ((code = transResetBuffer(connBuf, resetBuf)) < 0) {
+      return code;
     }
   } else {
     total = -1;
+    return TSDB_CODE_INVALID_MSG;
   }
   return total;
 }
 
-int transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
+int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
   SConnBuffer* p = connBuf;
   if (p->total < p->len) {
     int left = p->len - p->total;
@@ -170,15 +177,18 @@ int transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
       if (resetBuf) {
         p->cap = BUFFER_CAP;
         p->buf = taosMemoryRealloc(p->buf, p->cap);
+        if (p->buf == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
   } else {
     ASSERTS(0, "invalid read from sock buf");
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
   return 0;
 }
-int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
+int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   /*
    * formate of data buffer:
    * |<--------------------------data from socket------------------------------->|
@@ -195,6 +205,9 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
     } else {
       p->cap = p->left + p->len;
       p->buf = taosMemoryRealloc(p->buf, p->cap);
+      if (p->buf == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       uvBuf->base = p->buf + p->len;
       uvBuf->len = p->left;
     }
