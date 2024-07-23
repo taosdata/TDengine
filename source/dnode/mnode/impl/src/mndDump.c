@@ -29,12 +29,14 @@ void reportStartup(const char *name, const char *desc) {}
 void sendRsp(SRpcMsg *pMsg) { rpcFreeCont(pMsg->pCont); }
 
 int32_t sendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  terrno = TSDB_CODE_INVALID_PTR;
-  return -1;
+  int32_t code = 0;
+  code = TSDB_CODE_INVALID_PTR;
+  TAOS_RETURN(code);
 }
 int32_t sendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  terrno = TSDB_CODE_INVALID_PTR;
-  return -1;
+  int32_t code = 0;
+  code = TSDB_CODE_INVALID_PTR;
+  TAOS_RETURN(code);
 }
 
 char *i642str(int64_t val) {
