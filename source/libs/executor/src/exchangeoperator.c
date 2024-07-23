@@ -337,7 +337,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     SExchangeSrcIndex idx = {.srcIdx = i, .inUseIdx = -1};
     int32_t           code =
         tSimpleHashPut(pInfo->pHashSources, &pNode->addr.nodeId, sizeof(pNode->addr.nodeId), &idx, sizeof(idx));
-    if (code != TSDB_CODE_SUCCESS) {
+    if (pInfo->pHashSources && code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       return code;
     }
