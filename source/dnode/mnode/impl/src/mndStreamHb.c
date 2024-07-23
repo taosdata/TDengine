@@ -265,6 +265,30 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     return -1;
   }
 
+  for(int32_t i = 0; i < taosArrayGetSize(execInfo.pNodeList); ++i) {
+    SNodeEntry* pEntry = taosArrayGet(execInfo.pNodeList, i);
+    if (pEntry == NULL) {
+      continue;
+    }
+
+    if (pEntry->nodeId != req.vgId) {
+      continue;
+    }
+
+    if (pEntry->lastHbMsgId == req.msgId) {
+      mError("vgId:%d Hb msgId:%d already handled, discard", pEntry->nodeId, req.msgId);
+
+      terrno = TSDB_CODE_INVALID_MSG;
+      doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
+
+      taosThreadMutexUnlock(&execInfo.lock);
+      cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
+      return -1;
+    } else {
+      pEntry->lastHbMsgId = req.msgId;
+    }
+  }
+
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
     mDebug("%d stream node(s) need updated from hbMsg(vgId:%d)", numOfUpdated, req.vgId);

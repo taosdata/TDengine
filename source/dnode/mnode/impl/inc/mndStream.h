@@ -73,6 +73,7 @@ typedef struct SNodeEntry {
   bool    stageUpdated;  // the stage has been updated due to the leader/follower change or node reboot.
   SEpSet  epset;         // compare the epset to identify the vgroup tranferring between different dnodes.
   int64_t hbTimestamp;   // second
+  int32_t lastHbMsgId;   // latest hb msgId
 } SNodeEntry;
 
 typedef struct SOrphanTask {

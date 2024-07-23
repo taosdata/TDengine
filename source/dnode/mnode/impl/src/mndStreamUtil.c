@@ -607,7 +607,10 @@ void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
     for (int32_t j = 0; j < size; ++j) {
       SNodeEntry *pEntry = taosArrayGet(pNodeSnapshot, j);
       if (pEntry->nodeId == p->nodeId) {
+        p->hbTimestamp = pEntry->hbTimestamp;
+
         taosArrayPush(pValidList, p);
+        mDebug("vgId:%d ts:%"PRId64" HbMsgId:%d is valid", p->nodeId, p->hbTimestamp, p->lastHbMsgId);
         break;
       }
     }
