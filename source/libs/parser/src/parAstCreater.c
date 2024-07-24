@@ -21,18 +21,19 @@
 #include "tglobal.h"
 #include "ttime.h"
 
-#define CHECK_MAKE_NODE(p)                                          \
-  do {                                                              \
-    if (NULL == (p)) {                                              \
-      return NULL;                                                  \
-    }                                                               \
+#define CHECK_MAKE_NODE(p) \
+  do {                     \
+    if (NULL == (p)) {     \
+      return NULL;         \
+    }                      \
   } while (0)
 
-#define CHECK_OUT_OF_MEM(p)                                                      \
-  do {                                                                           \
-    if (NULL == (p)) {                                                           \
-      return NULL;                                                               \
-    }                                                                            \
+#define CHECK_OUT_OF_MEM(p)                    \
+  do {                                         \
+    if (NULL == (p)) {                         \
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; \
+      return NULL;                             \
+    }                                          \
   } while (0)
 
 #define CHECK_PARSER_STATUS(pCxt)             \
@@ -269,7 +270,7 @@ SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* p
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* target = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_RAW_EXPR, (SNode**)&target);
-  CHECK_OUT_OF_MEM(target);
+  CHECK_MAKE_NODE(target);
   target->p = pToken->z;
   target->n = pToken->n;
   target->pNode = pNode;
@@ -280,7 +281,7 @@ SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* target = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_RAW_EXPR, (SNode**)&target);
-  CHECK_OUT_OF_MEM(target);
+  CHECK_MAKE_NODE(target);
   target->p = pStart->z;
   target->n = (pEnd->z + pEnd->n) - pStart->z;
   target->pNode = pNode;
@@ -347,7 +348,7 @@ SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SNodeList* list = NULL;
   pCxt->errCode = nodesMakeList(&list);
-  CHECK_OUT_OF_MEM(list);
+  CHECK_MAKE_NODE(list);
   pCxt->errCode = nodesListAppend(list, pNode);
   if (TSDB_CODE_SUCCESS != pCxt->errCode) {
     nodesDestroyList(list);
@@ -369,7 +370,7 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
   }
   SColumnNode* col = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&col);
-  CHECK_OUT_OF_MEM(col);
+  CHECK_MAKE_NODE(col);
   if (NULL != pTableAlias) {
     COPY_STRING_FORM_ID_TOKEN(col->tableAlias, pTableAlias);
   }
@@ -381,16 +382,16 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   CHECK_PARSER_STATUS(pCxt);
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
-  CHECK_OUT_OF_MEM(val);
+  CHECK_MAKE_NODE(val);
   val->literal = strndup(pLiteral->z, pLiteral->n);
-  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
-      (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
-    (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
-  }
   if(!val->literal) {
     pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
     nodesDestroyNode((SNode*)val);
     return NULL;
+  }
+  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
+      (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+    (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
   val->node.resType.type = dataType;
   val->node.resType.bytes = IS_VAR_DATA_TYPE(dataType) ? strlen(val->literal) : tDataTypes[dataType].bytes;
@@ -522,13 +523,16 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
 
   SHintNode* hint = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_HINT, (SNode**)&hint);
-  CHECK_OUT_OF_MEM(hint);
+  CHECK_MAKE_NODE(hint);
   hint->option = opt;
   hint->value = value;
 
   if (NULL == *ppHintList) {
     pCxt->errCode = nodesMakeList(ppHintList);
-    CHECK_OUT_OF_MEM(*ppHintList);
+    if (!*ppHintList) {
+      nodesDestroyNode((SNode*)hint);
+      return true;
+    }
   }
 
   pCxt->errCode = nodesListStrictAppend(*ppHintList, (SNode*)hint);
@@ -681,7 +685,7 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
   CHECK_PARSER_STATUS(pCxt);
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
-  CHECK_OUT_OF_MEM(val);
+  CHECK_MAKE_NODE(val);
   if (pLiteral->type == TK_NK_STRING) {
     // like '100s' or "100d"
     // check format: ^[0-9]+[smwbauhdny]$'
@@ -733,7 +737,7 @@ SNode* createTimeOffsetValueNode(SAstCreateContext* pCxt, const SToken* pLiteral
   CHECK_PARSER_STATUS(pCxt);
   SValueNode* val = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
-  CHECK_OUT_OF_MEM(val);
+  CHECK_MAKE_NODE(val);
   if (pLiteral->type == TK_NK_STRING) {
     // like '100s' or "100d"
     // check format: ^[0-9]+[smwbauhdny]$'
@@ -899,7 +903,7 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
   }
   SOperatorNode* op = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&op);
-  CHECK_OUT_OF_MEM(op);
+  CHECK_MAKE_NODE(op);
   op->opType = type;
   op->pLeft = pLeft;
   op->pRight = pRight;
@@ -1014,12 +1018,16 @@ SNode* createNodeListNodeEx(SAstCreateContext* pCxt, SNode* p1, SNode* p2) {
   SNodeListNode* list = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&list);
   CHECK_MAKE_NODE(list);
-  pCxt->errCode = nodesMakeList(&list->pNodeList);
-  CHECK_OUT_OF_MEM(list->pNodeList);
-  pCxt->errCode = nodesListAppend(list->pNodeList, p1);
-  CHECK_PARSER_STATUS(pCxt);
-  pCxt->errCode = nodesListAppend(list->pNodeList, p2);
-  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeStrictAppend(&list->pNodeList, p1);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)list);
+    return NULL;
+  }
+  pCxt->errCode = nodesListStrictAppend(list->pNodeList, p2);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)list);
+    return NULL;
+  }
   return (SNode*)list;
 }
 
@@ -1143,7 +1151,7 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   state->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == state->pCol) {
     nodesDestroyNode((SNode*)state);
-    CHECK_OUT_OF_MEM(NULL);
+    CHECK_MAKE_NODE(NULL);
   }
   state->pExpr = pExpr;
   return (SNode*)state;
@@ -1157,7 +1165,7 @@ SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* 
   pEvent->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == pEvent->pCol) {
     nodesDestroyNode((SNode*)pEvent);
-    CHECK_OUT_OF_MEM(NULL);
+    CHECK_MAKE_NODE(NULL);
   }
   pEvent->pStartCond = pStartCond;
   pEvent->pEndCond = pEndCond;
@@ -1172,7 +1180,7 @@ SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken,
   pCount->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == pCount->pCol) {
     nodesDestroyNode((SNode*)pCount);
-    CHECK_OUT_OF_MEM(NULL);
+    CHECK_MAKE_NODE(NULL);
   }
   pCount->windowCount = taosStr2Int64(pCountToken->z, NULL, 10);
   pCount->windowSliding = taosStr2Int64(pSlidingToken->z, NULL, 10);
@@ -1188,7 +1196,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == interval->pCol) {
     nodesDestroyNode((SNode*)interval);
-    CHECK_OUT_OF_MEM(NULL);
+    CHECK_MAKE_NODE(NULL);
   }
   interval->pInterval = pInterval;
   interval->pOffset = pOffset;
@@ -2086,6 +2094,7 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                               "not support alter column with option except compress");
+      nodesDestroyNode((SNode*)pStmt);
       return NULL;
     }
   }
@@ -3183,9 +3192,15 @@ SNode* createFuncForDelete(SAstCreateContext* pCxt, const char* pFuncName) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   CHECK_MAKE_NODE(pFunc);
   snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pFuncName);
-  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt, NULL))) {
+  SNode* pCol = createPrimaryKeyCol(pCxt, NULL);
+  if (!pCol) {
     nodesDestroyNode((SNode*)pFunc);
-    CHECK_OUT_OF_MEM(NULL);
+    return NULL;
+  }
+  pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pCol);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)pFunc);
+    return NULL;
   }
   return (SNode*)pFunc;
 }
@@ -3202,7 +3217,7 @@ SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
   pStmt->pLastFunc = createFuncForDelete(pCxt, "last");
   if (NULL == pStmt->pCountFunc || NULL == pStmt->pFirstFunc || NULL == pStmt->pLastFunc) {
     nodesDestroyNode((SNode*)pStmt);
-    CHECK_OUT_OF_MEM(NULL);
+    CHECK_MAKE_NODE(NULL);
   }
   return (SNode*)pStmt;
 }
