@@ -1094,6 +1094,7 @@ pub fn get_table_name_from_table_id(
     Some(table_name.to_string())
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn drop_table(
     pool: &TaosPool,
     table_name: &str,
@@ -1103,6 +1104,7 @@ pub(crate) async fn drop_table(
     exec_sql(pool, &sql, req_id).await
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn delete_table_data(
     pool: &TaosPool,
     table_name: &str,
@@ -1113,6 +1115,7 @@ pub(crate) async fn delete_table_data(
     exec_sql(pool, &sql, req_id).await
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn alter_table(
     pool: &TaosPool,
     table_name: &str,
@@ -1123,6 +1126,7 @@ pub(crate) async fn alter_table(
     exec_sql(pool, &sql, req_id).await
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn insert_into_table(
     pool: &TaosPool,
     table_name: &str,
