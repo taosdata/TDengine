@@ -1,16 +1,75 @@
 ---
-sidebar_label: 权限管理
-title: 权限管理
+sidebar_label: 用户和权限
+title: 用户和权限管理
 toc_max_heading_level: 4
 ---
 
-TDengine 支持对系统资源、库、表、视图和主题的访问权限控制。root 用户可以为每个用户针对不同的资源设置不同的访问权限。
+TDengine 默认仅配置了一个 root 用户，该用户拥有最高权限。TDengine 支持对系统资源、库、表、视图和主题的访问权限控制。root 用户可以为每个用户针对不同的资源设置不同的访问权限。本节介绍 TDengine 中的用户和权限管理。
 
-## 资源管理
+## 用户管理
+
+### 创建用户
+
+创建用户的操作只能由 root 用户进行，语法如下。
+```sql
+create user user_name pass'password' [sysinfo {1|0}]
+```
+
+相关参数说明如下。
+- user_name：最长为 23 B。
+- password：最长为 128 B，合法字符包括字母和数字以及单双引号、撇号、反斜杠和空格以外的特殊字符，且不可以为空。
+- sysinfo ：用户是否可以查看系统信息。1 表示可以查看，0 表示不可以查看。系统信息包括服务端配置信息、服务端各种节点信息，如 dnode、查询节点（qnode）等，以及与存储相关的信息等。默认为可以查看系统信息。
+
+如下 SQL 可以创建密码为 123456 且可以查看系统信息的用户 test。
+
+```sql
+create user test pass '123456' sysinfo 1
+```
+
+### 查看用户
+
+查看系统中的用户信息可使用如下 SQL。
+```sql
+show users;
+```
+
+也可以通过查询系统表 information_schema.ins_users 获取系统中的用户信息，示例如下。
+```sql
+select * from information_schema.ins_users;
+```
+
+### 修改用户信息
+
+修改用户信息的 SQL 如下。
+```sql
+alter user user_name alter_user_clause 
+alter_user_clause: { 
+ pass 'literal' 
+ | enable value 
+ | sysinfo value
+}
+```
+
+相关参数说明如下。
+- pass：修改用户密码。
+- enable：是否启用用户。1 表示启用此用户，0 表示禁用此用户。
+- sysinfo ：用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息
+
+如下 SQL 禁用 test 用户。
+```sql
+alter user test enable 0
+```
+
+### 删除用户
+
+删除用户的 SQL 如下。
+```sql
+drop user user_name
+```
+
+## 权限管理
 
 仅 root 用户可以管理用户、节点、vnode、qnode、snode 等系统信息，包括查询、新增、删除和修改。
-
-## 授权
 
 ### 库和表的授权
 
@@ -124,14 +183,14 @@ priv_level : {
 grant subscribe on topic_name to test
 ```
 
-## 查看授权
+### 查看授权
 
 当企业拥有多个数据库用户时，使用如下命令可以查询具体一个用户所拥有的所有授权，SQL 如下。
 ```sql
 show user privileges
 ```
 
-## 撤销授权
+### 撤销授权
 
 由于数据库访问、数据订阅和视图的特性不同，针对具体授权的撤销语法也略有差异。下面列出具体的撤销授权对应不同授权对象的语法。
 撤销数据库访问授权的 SQL 如下。
