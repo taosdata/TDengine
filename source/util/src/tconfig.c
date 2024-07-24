@@ -136,8 +136,7 @@ static int32_t cfgCheckAndSetConf(SConfigItem *pItem, const char *conf) {
 static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
   char fullDir[PATH_MAX] = {0};
   if (taosExpandDir(inputDir, fullDir, PATH_MAX) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to expand dir:%s since %s", inputDir, terrstr());
+    uError("failed to expand dir:%s", inputDir);
     return -1;
   }
 
