@@ -47,7 +47,7 @@ export function executeDBOperations(sql, appId = store.getters.appId) {
       return Promise.reject(err);
     });
 }
-export async function getPaginationData(countSql, dataSql, currentPage, pageSize, handleDataFn, appId = store.getters.appId) {
+export async function getPaginationData(countSql, dataSql, currentPage, pageSize, handleDataFn, appId = store.getters.appId, slimit) {
   // 查询数量
   const count = await sendSQLReq(countSql, false, appId)
     .then(({ data }) => {
@@ -65,7 +65,7 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
   // if(type==='union'){//查询database下所有stable和所有table的
   //   dataSql= '( '+dataSql + `limit ${startIndex},${pageSize}`+ ')  union '+normalSql
   // }
-  let data = await sendSQLReq(`${dataSql} limit ${startIndex},${pageSize};`, true, appId).catch(err => {
+  let data = await sendSQLReq(`${dataSql} ${slimit ? 'slimit': 'limit'} ${startIndex},${pageSize};`, true, appId).catch(err => {
    
     return [];
   });

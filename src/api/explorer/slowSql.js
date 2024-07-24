@@ -136,6 +136,7 @@ export function getSlowSqlLogs(params) {
 
 export function getSlowSqlStatistics(params) {
   let { currentPage, pageSize, conditions, orderSql  } = params;
+  const slimit = true;
   let dataSql = `
     SELECT 
       sql, 
@@ -153,5 +154,5 @@ export function getSlowSqlStatistics(params) {
   dataSql = dataSql.replace(/^\s*$(?:\r\n?|\n)/gm, '');
   const countSql = `select count(*) from (${dataSql});`;
   
-  return getPaginationData(countSql, dataSql, currentPage, pageSize);
+  return getPaginationData(countSql, dataSql, currentPage, pageSize, null, null, slimit);
 }
