@@ -623,8 +623,8 @@ export function getDataSources(lang) {
               "value": "true",
             },
             {
-              "name": "sync_delete_history_data",
-              "display": "Synchronize The Deletion of Data",
+              "name": "sync_delete_data",
+              "display": "Synchronize The Deletion of Point Data",
               "description": "For the dynamic attributes of an element, if the data for a certain period of time is deleted in PI, the corresponding data is set to null in TDengine",
               "hint": {
                 "type": "bool",
@@ -632,7 +632,7 @@ export function getDataSources(lang) {
               "value": "true",
             },
             {
-              "name": "sync_update_history_data",
+              "name": "sync_update_data",
               "display": "Synchronize The Changes of Point Data",
               "description": "For the dynamic attributes of an element, if the data for a certain time is modified in PI, the corresponding data is updated automatically too in TDengine",
               "hint": {
@@ -5072,8 +5072,8 @@ export function getDataSources(lang) {
               "value": "true",
             },
             {
-              "name": "sync_delete_history_data",
-              "display": "同步删除历史数据",
+              "name": "sync_delete_data",
+              "display": "同步删除 PI Point 历史数据",
               "description": "对于某个元素的动态属性，如果在 PI 中某个时间的数据被删除了，TDengine 对应时间对应列的数据会被置空",
               "hint": {
                 "type": "bool",
@@ -5081,8 +5081,8 @@ export function getDataSources(lang) {
               "value": "true",
             },
             {
-              "name": "sync_update_history_data",
-              "display": "同步修改历史数据",
+              "name": "sync_update_data",
+              "display": "同步修改 PI Point 历史数据",
               "description": "对于某个元素的动态属性，如果在 PI 中历史数据被修改了，TDengine 对应时间的数据也会更新",
               "hint": {
                 "type": "bool",
