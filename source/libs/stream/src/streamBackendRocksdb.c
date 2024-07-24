@@ -2538,7 +2538,7 @@ int32_t taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* 
   STaskDbWrapper* pTaskDb = taskDbOpenImpl(key, statePath, dbPath);
   if (pTaskDb != NULL) {
     int64_t chkpId = -1, ver = -1;
-    if ((code = chkpLoadExtraInfo(dbPath, &chkpId, &ver) == 0)) {
+    if ((code = chkpLoadExtraInfo(dbPath, &chkpId, &ver)) == 0) {
       *processVer = ver;
     } else {
       stError("failed to load extra info, path:%s, key:%s, checkpointId: %" PRId64 "reason:%s", path, key, chkptId,
@@ -2546,6 +2546,8 @@ int32_t taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* 
       taskDbDestroy(pTaskDb, false);
       return code;
     }
+  } else {
+    code = TSDB_CODE_INVALID_PARA;
   }
 
   taosMemoryFree(dbPath);
@@ -4906,7 +4908,7 @@ int32_t bkdMgtCreate(char* path, SBkdMgt** mgt) {
   if (taosThreadRwlockInit(&p->rwLock, NULL) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     bkdMgtDestroy(p);
-    return code; 
+    return code;
   }
   *mgt = p;
 
