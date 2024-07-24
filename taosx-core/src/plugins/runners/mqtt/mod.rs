@@ -165,7 +165,7 @@ pub async fn mqtt_to_taos(
     let stderr = child.stderr.take().expect("Failed to capture stderr");
     let is_killed = Arc::new(AtomicBool::new(false));
     let is_killed_clone = is_killed.clone();
-    tokio::spawn(async move {
+    let stderr_handler = tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
         loop {
@@ -204,13 +204,14 @@ pub async fn mqtt_to_taos(
         status = child.wait() => {
             let status = status?;
             tracing::info!("mqtt exit with {status}");
+            let _ = stderr_handler.await;
             if !status.success() {
                 safe_exit!();
                 let error = error_buf.lock().await.iter().join("");
                 anyhow::bail!("MQTT exit with {}\n{error}", status);
             } else if is_killed.load(std::sync::atomic::Ordering::SeqCst) {
                 safe_exit!();
-                anyhow::bail!("MQTT process is killed by user");
+                anyhow::bail!("MQTT process is killed by user or system");
             }
         },
         err = ipc_handler.recv_error() => {
