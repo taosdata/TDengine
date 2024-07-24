@@ -608,9 +608,11 @@ export default {
     },
     async exportFile() {
       let list = await this.getAllSlowSqlData();
-      list.map(item => {
-        item.query_time = this.numToFixed(item.query_time)
-      })
+      if (Array.isArray(list)) {
+        list.map(item => {
+          item.query_time = this.numToFixed(item.query_time)
+        })
+      }
       const FileName = "slowSql.csv";
       const data = parse(list);
       const blob = new Blob(["\uFEFF" + data], {

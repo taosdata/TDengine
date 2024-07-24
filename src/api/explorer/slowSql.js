@@ -136,7 +136,7 @@ export function getSlowSqlLogs(params) {
 
 export function getSlowSqlStatistics(params) {
   let { currentPage, pageSize, conditions, orderSql  } = params;
-  const slimit = true;
+  const slimit = orderSql ? false: true;
   let dataSql = `
     SELECT 
       sql, 
