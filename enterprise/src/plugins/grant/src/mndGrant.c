@@ -411,27 +411,23 @@ SSdbRaw *mndGrantActionEncode(SGrantLogObj *pGrant) {
   SSdbRaw *pRaw = NULL;
   int32_t  tlen = tSerializeSGrantObj(NULL, 0, pGrant);
   if (tlen < 0) {
-    terrno = tlen;
-    goto _exit;
+    TAOS_CHECK_EXIT(tlen);
   }
 
   int32_t size = sizeof(int32_t) + tlen;
   pRaw = sdbAllocRaw(SDB_GRANT, MND_GRANT_VER_NUMBER, size);
   if (pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   tlen = tSerializeSGrantObj(buf, tlen, pGrant);
   if (tlen < 0) {
-    terrno = tlen;
-    goto _exit;
+    TAOS_CHECK_EXIT(tlen);
   }
 
   int32_t dataPos = 0;
@@ -441,8 +437,9 @@ SSdbRaw *mndGrantActionEncode(SGrantLogObj *pGrant) {
 
 _exit:
   taosMemoryFreeClear(buf);
-  if (terrno != TSDB_CODE_SUCCESS) {
-    mError("grant, failed to encode to raw:%p since %s", pRaw, terrstr());
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    mError("grant, failed to encode to raw:%p since %s", pRaw, tstrerror(code));
     sdbFreeRaw(pRaw);
     return NULL;
   }
@@ -457,7 +454,6 @@ SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
   SSdbRow      *pRow = NULL;
   SGrantLogObj *pGrant = NULL;
   void         *buf = NULL;
-  terrno = TSDB_CODE_SUCCESS;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
@@ -465,18 +461,18 @@ SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
   }
 
   if (sver != MND_GRANT_VER_NUMBER) {
-    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    code = TSDB_CODE_SDB_INVALID_DATA_VER;
     mError("grant read invalid ver, data ver: %d, curr ver: %d", sver, MND_GRANT_VER_NUMBER);
     goto _exit;
   }
 
   if (!(pRow = sdbAllocRow(sizeof(SGrantLogObj)))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
   if (!(pGrant = sdbGetRowObj(pRow))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
@@ -485,13 +481,13 @@ SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &tlen, _exit);
   buf = taosMemoryMalloc(tlen + 1);
   if (buf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, _exit);
 
   if (tDeserializeSGrantObj(buf, tlen, pGrant) < 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
@@ -499,8 +495,9 @@ SSdbRow *mndGrantActionDecode(SSdbRaw *pRaw) {
 
 _exit:
   taosMemoryFreeClear(buf);
-  if (terrno != TSDB_CODE_SUCCESS) {
-    mError("grant, failed to decode from raw:%p since %s", pRaw, terrstr());
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    mError("grant, failed to decode from raw:%p since %s", pRaw, tstrerror(code));
     taosMemoryFreeClear(pRow);
     return NULL;
   }

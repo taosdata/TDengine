@@ -618,7 +618,7 @@ _exit:
   pMsg->info.rsp = NULL;
   pMsg->info.rspLen = 0;
 
-  uWarn("failed to process grant notify and send rsp in dnode at line %d since %s", lino, tstrerror(terrno));
+  uWarn("failed to process grant notify and send rsp in dnode at line %d since %s", lino, tstrerror(code));
 
   TAOS_RETURN(code);
 }
@@ -674,7 +674,7 @@ _exit:
   pMsg->info.rsp = NULL;
   pMsg->info.rspLen = 0;
 
-  uWarn("failed to process grant req in dnode at line %d since %s, gtid:%s", lino, tstrerror(terrno), tbuf);
+  uWarn("failed to process grant req in dnode at line %d since %s, gtid:%s", lino, tstrerror(code), tbuf);
 
   TAOS_RETURN(code);
 }
@@ -1525,7 +1525,10 @@ static int32_t mndSendGrantNotifyToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  TAOS_CHECK_EXIT(tSerializeGrantNotify(pCont, contLen, pNotify, NULL));
+  if((code = tSerializeGrantNotify(pCont, contLen, pNotify, NULL)) < 0){
+    rpcFreeCont(pCont);
+    TAOS_CHECK_EXIT(code);
+  }
 
   SRpcMsg rpcMsg = {.pCont = pCont, .contLen = contLen, .msgType = TDMT_MND_GRANT_NOTIFY, .info.noResp = 1};
 
@@ -1918,20 +1921,27 @@ int32_t grantCheck(EGrantType grant) {
 }
 
 static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const char *val) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
   SMCfgDnodeReq req = {0};
   req.dnodeId = pDnodeInfo->id;
   tstrncpy(req.config, cfg, TSDB_DNODE_CONFIG_LEN);
   tstrncpy(req.value, val, TSDB_DNODE_VALUE_LEN);
 
   int32_t contLen = tSerializeSMCfgDnodeReq(NULL, 0, &req);
-  void   *pCont = rpcMallocCont(contLen);
+  if (contLen < 0) {
+    TAOS_CHECK_EXIT(contLen);
+  }
+  void *pCont = rpcMallocCont(contLen);
   if (!pCont) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    uWarn("failed to generate dnodeCfg msg for grant since %s", terrstr());
-    return TSDB_CODE_FAILED;
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  tSerializeSMCfgDnodeReq(pCont, contLen, &req);
+  contLen = tSerializeSMCfgDnodeReq(pCont, contLen, &req);
+  if (contLen < 0) {
+    rpcFreeCont(pCont);
+    TAOS_CHECK_EXIT(contLen);
+  }
 
   SRpcMsg rpcMsg = {
       .pCont = pCont,
@@ -1946,8 +1956,13 @@ static int32_t mndCfgDnodeReq(SDnodeInfo *pDnodeInfo, const char *cfg, const cha
   tstrncpy(epSet.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = tsServerPort;
 
-  tmsgSendReq(&epSet, &rpcMsg);
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 
+_exit:
+  if (code != 0) {
+    uError("failed to send cfg dnode req for grant to dnode:%d at line %d since %s", pDnodeInfo->id, lino,
+           tstrerror(code));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
