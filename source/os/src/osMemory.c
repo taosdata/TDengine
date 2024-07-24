@@ -266,7 +266,7 @@ void *taosMemoryMalloc(int64_t size) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
-  void* p = malloc(size);
+  void *p = malloc(size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -287,7 +287,7 @@ void *taosMemoryCalloc(int64_t num, int64_t size) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
-  void* p = calloc(num, size);
+  void *p = calloc(num, size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -317,7 +317,7 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
-  void* p = realloc(ptr, size);
+  void *p = realloc(ptr, size);
   if (size > 0 && NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -342,12 +342,12 @@ char *taosStrdup(const char *ptr) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
-  char* p = tstrdup(ptr);
+  char *p = tstrdup(ptr);
   if (ptr != NULL && NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
-  
+
 #endif
 }
 
