@@ -106,11 +106,11 @@ int32_t tdigestCompress(TDigest *t) {
   int32_t    i, j;
   SMergeArgs args;
 
-  if (t->num_buffered_pts <= 0) return;
+  if (t->num_buffered_pts <= 0) return 0;
 
   unmerged_centroids = (SCentroid *)taosMemoryMalloc(sizeof(SCentroid) * t->num_buffered_pts);
-  if (unmerged_weight == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (unmerged_centroids == NULL) {
+    return terrno;
   }
   for (i = 0; i < num_unmerged; i++) {
     SPt       *p = t->buffered_pts + i;
@@ -127,7 +127,7 @@ int32_t tdigestCompress(TDigest *t) {
   args.centroids = (SCentroid *)taosMemoryMalloc((size_t)(sizeof(SCentroid) * t->size));
   if (args.centroids == NULL) {
     taosMemoryFree((void *)unmerged_centroids);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memset(args.centroids, 0, (size_t)(sizeof(SCentroid) * t->size));
 
@@ -192,6 +192,7 @@ int32_t tdigestAdd(TDigest *t, double x, int64_t w) {
   if (t->num_buffered_pts >= t->threshold) {
     return tdigestCompress(t);
   }
+  return 0;
 }
 
 #if 0
@@ -309,4 +310,6 @@ int32_t tdigestMerge(TDigest *t1, TDigest *t2) {
     code = tdigestAdd(t1, t2->centroids[i].mean, t2->centroids[i].weight);
     if (code) return code;
   }
+
+  return 0;
 }
