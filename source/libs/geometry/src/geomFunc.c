@@ -203,8 +203,6 @@ int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometr
 
 int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput, _geomInitCtxFunc_t initCtxFn,
                              _geomExecuteOneParamFunc_t executeOneParamFn) {
-  int32_t code = TSDB_CODE_FAILED;
-
   TAOS_CHECK_RETURN(initCtxFn());
 
   SColumnInfoData *pInputData = pInput->columnData;
@@ -213,12 +211,10 @@ int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput, _geomI
 
   if (IS_NULL_TYPE(GET_PARAM_TYPE(pInput))) {
     colDataSetNNULL(pOutputData, 0, pInput->numOfRows);
-    code = TSDB_CODE_SUCCESS;
   } else {
     for (int32_t i = 0; i < pInput->numOfRows; ++i) {
       if (colDataIsNull_s(pInputData, i)) {
         colDataSetNULL(pOutputData, i);
-        code = TSDB_CODE_SUCCESS;
         continue;
       }
 
@@ -226,13 +222,11 @@ int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput, _geomI
     }
   }
 
-  TAOS_RETURN(code);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput, _geomInitCtxFunc_t initCtxFn,
                               _geomExecuteTwoParamsFunc_t executeTwoParamsFn) {
-  int32_t code = TSDB_CODE_FAILED;
-
   TAOS_CHECK_RETURN(initCtxFn());
 
   SColumnInfoData *pInputData[2];
@@ -250,7 +244,6 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput, _geom
       (isConstantLeft && colDataIsNull_s(pInputData[0], 0)) ||   // left operand is constant NULL
       (isConstantRight && colDataIsNull_s(pInputData[1], 0))) {  // right operand is constant NULL
     colDataSetNNULL(pOutputData, 0, numOfRows);
-    code = TSDB_CODE_SUCCESS;
   } else {
     int32_t iLeft = 0;
     int32_t iRight = 0;
@@ -261,7 +254,6 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput, _geom
       if ((!isConstantLeft && colDataIsNull_s(pInputData[0], iLeft)) ||
           (!isConstantRight && colDataIsNull_s(pInputData[1], iRight))) {
         colDataSetNULL(pOutputData, i);
-        code = TSDB_CODE_SUCCESS;
         continue;
       }
 
@@ -269,7 +261,7 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput, _geom
     }
   }
 
-  TAOS_RETURN(code);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput, bool swapAllowed,
@@ -324,7 +316,6 @@ int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput, bool s
   for (int32_t i = 0; i < numOfRows; ++i) {
     if ((!isConstant1 && colDataIsNull_s(pInputData[0], i)) || (!isConstant2 && colDataIsNull_s(pInputData[1], i))) {
       colDataSetNULL(pOutputData, i);
-      code = TSDB_CODE_SUCCESS;
       continue;
     }
 
@@ -345,6 +336,8 @@ int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput, bool s
       destroyGeometry(&geom2, NULL);
     }
   }
+
+  code = TSDB_CODE_SUCCESS;
 
 _exit:
   destroyGeometry(&geom1, &preparedGeom1);
