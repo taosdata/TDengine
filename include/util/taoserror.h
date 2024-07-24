@@ -53,7 +53,7 @@ int32_t  taosGetErrSize();
 #define terrln                              (*taosGetErrln())
 
 #define SET_ERROR_MSG(MSG, ...) \
-  snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
+  (void)snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
@@ -860,6 +860,11 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR TAOS_DEF_ERROR_CODE(0, 0x2807)
 #define TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED TAOS_DEF_ERROR_CODE(0, 0x2808)
 #define TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED    TAOS_DEF_ERROR_CODE(0, 0x2809)
+#define TSDB_CODE_FUNC_TIME_UNIT_INVALID        TAOS_DEF_ERROR_CODE(0, 0x280A)
+#define TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL      TAOS_DEF_ERROR_CODE(0, 0x280B)
+#define TSDB_CODE_FUNC_INVALID_VALUE_RANGE      TAOS_DEF_ERROR_CODE(0, 0x280C)
+#define TSDB_CODE_FUNC_SETUP_ERROR              TAOS_DEF_ERROR_CODE(0, 0x280D)
+
 
 //udf
 #define TSDB_CODE_UDF_STOPPING                  TAOS_DEF_ERROR_CODE(0, 0x2901)

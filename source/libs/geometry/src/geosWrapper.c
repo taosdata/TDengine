@@ -86,9 +86,9 @@ _exit:
   return code;
 }
 
-static int initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData) {
-  int   ret = 0;
-  char *wktPatternWithSpace = taosMemoryCalloc(4, 1024);
+static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData) {
+  int32_t code = 0;
+  char   *wktPatternWithSpace = taosMemoryCalloc(4, 1024);
   sprintf(
       wktPatternWithSpace,
       "^( *)point( *)z?m?( *)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
@@ -142,9 +142,9 @@ static int initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData) {
       "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))( *))*( *)\\)))( *))*( "
       "*)\\)))|(GEOCOLLECTION\\((?R)(( *)(,)( *)(?R))*( *)\\))( *)$");
 
-  ret = doRegComp(ppRegex, ppMatchData, wktPatternWithSpace);
+  code = doRegComp(ppRegex, ppMatchData, wktPatternWithSpace);
   taosMemoryFree(wktPatternWithSpace);
-  return ret;
+  return code;
 }
 
 int32_t initCtxGeomFromText() {

@@ -25,9 +25,10 @@ static bool mmDeployRequired(const SMgmtInputOpt *pInput) {
 }
 
 static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
+  int32_t   code = 0;
   SMnodeOpt option = {0};
-  if (mmReadFile(pInput->path, &option) != 0) {
-    return -1;
+  if ((code = mmReadFile(pInput->path, &option)) != 0) {
+    return code;
   }
 
   if (!option.deploy) {
@@ -41,7 +42,7 @@ static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
     dInfo("deploy mnode required. option deploy:%d", option.deploy);
   }
 
-  return 0;
+  return code;
 }
 
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInput, SMnodeOpt *pOption) {
@@ -73,22 +74,31 @@ static void mmClose(SMnodeMgmt *pMgmt) {
 
   taosMemoryFree(pMgmt);
 }
-
+static int32_t mndOpenWrapper(const char *path, SMnodeOpt *opt, SMnode **pMnode) {
+  int32_t code = 0;
+  *pMnode = mndOpen(path, opt);
+  if (*pMnode == NULL) {
+    code = terrno;
+  }
+  ///*pMnode = pNode;
+  return code;
+}
 static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  if (walInit() != 0) {
-    dError("failed to init wal since %s", terrstr());
-    return -1;
+  int32_t code = 0;
+  if ((code = walInit()) != 0) {
+    dError("failed to init wal since %s", tstrerror(code));
+    return code;
   }
 
-  if (syncInit() != 0) {
-    dError("failed to init sync since %s", terrstr());
-    return -1;
+  if ((code = syncInit()) != 0) {
+    dError("failed to init sync since %s", tstrerror(code));
+    return code;
   }
 
   SMnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SMnodeMgmt));
   if (pMgmt == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pMgmt->pData = pInput->pData;
@@ -100,10 +110,10 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   taosThreadRwlockInit(&pMgmt->lock, NULL);
 
   SMnodeOpt option = {0};
-  if (mmReadFile(pMgmt->path, &option) != 0) {
-    dError("failed to read file since %s", terrstr());
+  if ((code = mmReadFile(pMgmt->path, &option)) != 0) {
+    dError("failed to read file since %s", tstrerror(code));
     mmClose(pMgmt);
-    return -1;
+    return code;
   }
 
   if (!option.deploy) {
@@ -115,18 +125,18 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     mmBuildOptionForOpen(pMgmt, &option);
   }
 
-  pMgmt->pMnode = mndOpen(pMgmt->path, &option);
-  if (pMgmt->pMnode == NULL) {
-    dError("failed to open mnode since %s", terrstr());
+  code = mndOpenWrapper(pMgmt->path, &option, &pMgmt->pMnode);
+  if (code != 0) {
+    dError("failed to open mnode since %s", tstrerror(code));
     mmClose(pMgmt);
-    return -1;
+    return code;
   }
   tmsgReportStartup("mnode-impl", "initialized");
 
-  if (mmStartWorker(pMgmt) != 0) {
-    dError("failed to start mnode worker since %s", terrstr());
+  if ((code = mmStartWorker(pMgmt)) != 0) {
+    dError("failed to start mnode worker since %s", tstrerror(code));
     mmClose(pMgmt);
-    return -1;
+    return code;
   }
   tmsgReportStartup("mnode-worker", "initialized");
 
@@ -134,9 +144,9 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     option.deploy = true;
     option.numOfReplicas = 0;
     option.numOfTotalReplicas = 0;
-    if (mmWriteFile(pMgmt->path, &option) != 0) {
-      dError("failed to write mnode file since %s", terrstr());
-      return -1;
+    if ((code = mmWriteFile(pMgmt->path, &option)) != 0) {
+      dError("failed to write mnode file since %s", tstrerror(code));
+      return code;
     }
   }
 
@@ -160,13 +170,9 @@ static void mmStop(SMnodeMgmt *pMgmt) {
   mndStop(pMgmt->pMnode);
 }
 
-static int32_t mmSyncIsCatchUp(SMnodeMgmt *pMgmt) {
-  return mndIsCatchUp(pMgmt->pMnode);
-}
+static int32_t mmSyncIsCatchUp(SMnodeMgmt *pMgmt) { return mndIsCatchUp(pMgmt->pMnode); }
 
-static ESyncRole mmSyncGetRole(SMnodeMgmt *pMgmt) {
-  return mndGetRole(pMgmt->pMnode);
-}
+static ESyncRole mmSyncGetRole(SMnodeMgmt *pMgmt) { return mndGetRole(pMgmt->pMnode); }
 
 SMgmtFunc mmGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};

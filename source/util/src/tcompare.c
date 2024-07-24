@@ -1299,6 +1299,7 @@ static UsingRegex **getRegComp(const char *pPattern) {
 
   UsingRegex *pUsingRegex = taosMemoryMalloc(sizeof(UsingRegex));
   if (pUsingRegex == NULL) {
+    terrno  = TSDB_CODE_OUT_OF_MEMORY;
     uError("Failed to Malloc when compile regex pattern %s.", pPattern);
     return NULL;
   }
@@ -1309,6 +1310,7 @@ static UsingRegex **getRegComp(const char *pPattern) {
     regerror(ret, &pUsingRegex->pRegex, msgbuf, tListLen(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
     taosMemoryFree(pUsingRegex);
+    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
     return NULL;
   }
 
@@ -1317,6 +1319,7 @@ static UsingRegex **getRegComp(const char *pPattern) {
     if (code != 0 && code != TSDB_CODE_DUP_KEY) {
       regexCacheFree(&pUsingRegex);
       uError("Failed to put regex pattern %s into cache, exception internal error.", pPattern);
+      terrno = code;
       return NULL;
     }
     ppUsingRegex = (UsingRegex **)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
@@ -1350,6 +1353,7 @@ static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
   ret = regexec(&(*pUsingRegex)->pRegex, pString, 1, pmatch, 0);
   releaseRegComp(pUsingRegex);
   if (ret != 0 && ret != REG_NOMATCH) {
+    terrno =  TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR; 
     regerror(ret, &(*pUsingRegex)->pRegex, msgbuf, sizeof(msgbuf));
     uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
   }

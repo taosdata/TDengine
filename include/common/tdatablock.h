@@ -49,7 +49,7 @@ typedef struct SBlockOrderInfo {
 #define colDataSetNull_f_s(c_, r_)                                        \
   do {                                                                    \
     colDataSetNull_f((c_)->nullbitmap, r_);                               \
-    memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
+    (void)memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
   } while (0)
 
 #define colDataClearNull_f(bm_, r_)                             \
@@ -247,7 +247,7 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
-int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
+void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);

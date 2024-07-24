@@ -29,6 +29,7 @@
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
+#include "tcompare.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -79,6 +80,7 @@ void taos_cleanup(void) {
   clientConnRefPool = -1;
   taosCloseRef(id);
 
+  DestroyRegexCache();
   rpcCleanup();
   tscDebug("rpc cleanup");
 

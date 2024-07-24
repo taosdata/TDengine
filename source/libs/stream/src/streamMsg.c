@@ -549,7 +549,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1) < 0) return -1;
 
   tEndEncode(pEncoder);
-  return pEncoder->pos;
+  return 0;
 }
 
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
