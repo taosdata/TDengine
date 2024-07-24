@@ -622,7 +622,8 @@ typedef struct {
   int32_t resetOffsetCfg;
 } SMqConsumerObj;
 
-SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType, char *topic, SCMSubscribeReq *subscribe);
+int32_t         tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
+                           char *topic, SCMSubscribeReq *subscribe, SMqConsumerObj** ppConsumer);
 void            tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
 void            tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
 int32_t         tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
@@ -665,8 +666,8 @@ typedef struct {
   char*     qmsg;  // SubPlanToString
 } SMqSubscribeObj;
 
-SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
-SMqSubscribeObj* tCloneSubscribeObj(const SMqSubscribeObj* pSub);
+int32_t          tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub);
+int32_t          tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj **ppSub);
 void             tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t          tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
 void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
