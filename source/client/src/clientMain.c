@@ -119,6 +119,10 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   int32_t code = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
+    if (NULL == rid) {
+      tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
+      return NULL;
+    }
     *rid = pObj->id;
     return (TAOS *)rid;
   }
@@ -1247,7 +1251,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
-      refreshMeta(pRequest->pTscObj, pRequest);
+      (void)refreshMeta(pRequest->pTscObj, pRequest); //ignore return code,try again
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
       return;

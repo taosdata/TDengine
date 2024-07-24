@@ -519,7 +519,7 @@ STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientCon
 void releaseTscObj(int64_t rid) {
   int32_t code = taosReleaseRef(clientConnRefPool, rid);
   if (TSDB_CODE_SUCCESS != code) {
-    tscWarn("failed to release TscObj, rid:%lld, code:%s", rid, tstrerror(code));
+    tscWarn("failed to release TscObj, code:%s", tstrerror(code));
   }
 }
 

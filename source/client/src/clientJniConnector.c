@@ -1231,7 +1231,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsert
   }
 
   int    numLines = (*env)->GetArrayLength(env, lines);
-  char **c_lines = C(numLines, sizeof(char *));
+  char **c_lines = taosMemoryCalloc(numLines, sizeof(char *));
   if (c_lines == NULL) {
     jniError("c_lines:%p, alloc memory failed", c_lines);
     return JNI_OUT_OF_MEMORY;
