@@ -556,7 +556,8 @@ typedef struct {
   char name[TSDB_LOG_VAR_LEN];
 } SLogVar;
 
-#define TMQ_SEPARATOR ':'
+#define TMQ_SEPARATOR ":"
+#define TMQ_SEPARATOR_CHAR ':'
 
 enum {
   SND_WORKER_TYPE__SHARED = 1,
