@@ -5268,9 +5268,12 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
   return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval, false);
 }
 
-static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit) {
+static int32_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit, int64_t* pMonth) {
   int64_t days = -1;
-  convertTimeFromPrecisionToUnit(val, fromPrecision, 'd', &days);
+  int32_t code = convertTimeFromPrecisionToUnit(val, fromPrecision, 'd', &days);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   switch (unit) {
     case 'b':
     case 'u':
@@ -5280,15 +5283,19 @@ static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char uni
     case 'h':
     case 'd':
     case 'w':
-      return days / 28;
+      *pMonth = days / 28;
+      return code;
     case 'n':
-      return val;
+      *pMonth = val;
+      return code;
     case 'y':
-      return val * 12;
+      *pMonth = val * 12;
+      return code;
     default:
+      code = TSDB_CODE_INVALID_PARA;
       break;
   }
-  return -1;
+  return code;
 }
 
 static const char* getPrecisionStr(uint8_t precision) {
@@ -5355,10 +5362,22 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT);
     }
     bool fixed = !IS_CALENDAR_TIME_DURATION(pOffset->unit) && !valInter;
-    if ((fixed && pOffset->datum.i >= pInter->datum.i) ||
-        (!fixed && getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit) >=
-                       getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit))) {
+    if (fixed && pOffset->datum.i >= pInter->datum.i) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+    }
+    if (!fixed) {
+      int64_t offsetMonth = 0, intervalMonth = 0;
+      int32_t code = getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit, &offsetMonth);
+      if (TSDB_CODE_SUCCESS != code) {
+          return code;
+      }
+      code = getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit, &intervalMonth);
+      if (TSDB_CODE_SUCCESS != code) {
+          return code;
+      }
+      if (offsetMonth > intervalMonth) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+      }
     }
 
     if (pOffset->unit == 'n' || pOffset->unit == 'y') {
@@ -8295,7 +8314,11 @@ static int32_t makeIntervalVal(SRetention* pRetension, int8_t precision, SNode**
     return code;
   }
   int64_t timeVal = -1;
-  convertTimeFromPrecisionToUnit(pRetension->freq, precision, pRetension->freqUnit, &timeVal);
+  code = convertTimeFromPrecisionToUnit(pRetension->freq, precision, pRetension->freqUnit, &timeVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pVal);
+    return code;
+  }
   char    buf[20] = {0};
   int32_t len = snprintf(buf, sizeof(buf), "%" PRId64 "%c", timeVal, pRetension->freqUnit);
   pVal->literal = strndup(buf, len);

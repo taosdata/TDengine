@@ -2672,7 +2672,7 @@ _return:
     ctgReleaseVgInfoToCache(pCtg, pDbCache);
   }
   if (pTsma) {
-    tFreeTableTSMAInfo(pTsma);
+    tFreeAndClearTableTSMAInfo(pTsma);
     pTsma = NULL;
   }
   if (pVgHash) {
