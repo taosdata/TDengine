@@ -1592,7 +1592,7 @@ int32_t mndDupUseDbHash(SHashObj *pOld, SHashObj **ppNew) {
 
 int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   int32_t code = 0;
-  memcpy(pNew, pUser, sizeof(SUserObj));
+  (void)memcpy(pNew, pUser, sizeof(SUserObj));
   pNew->authVersion++;
   pNew->updateTime = taosGetTimestampMs();
 
@@ -2268,8 +2268,9 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
 
   if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
-    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pAlterReq->objname);
-    if (pTopic == NULL) {
+    SMqTopicObj *pTopic = NULL;
+    int32_t code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic);
+    if (code != 0) {
       mndReleaseTopic(pMnode, pTopic);
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
@@ -2282,8 +2283,9 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
 
   if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
-    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pAlterReq->objname);
-    if (pTopic == NULL) {
+    SMqTopicObj *pTopic = NULL;
+    int32_t code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic);
+    if (code != 0) {
       mndReleaseTopic(pMnode, pTopic);
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
