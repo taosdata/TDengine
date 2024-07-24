@@ -2888,7 +2888,7 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
 
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   if (cliMsg == NULL) {
-    sem_destroy(sem);
+    tsem_destroy(sem);
     taosMemoryFree(sem);
     taosMemoryFree(pCtx);
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _RETURN1);

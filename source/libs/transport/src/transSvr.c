@@ -1109,11 +1109,7 @@ static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
     return code;
   }
 #if defined(WINDOWS) || defined(DARWIN)
-  code = uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
-  if (code != 0) {
-    tError("failed to start connect pipe:%s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
+  uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
 
 #else
   code = uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
