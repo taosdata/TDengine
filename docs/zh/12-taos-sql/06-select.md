@@ -58,6 +58,8 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 
 interp_clause:
     RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
@@ -95,6 +97,7 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 | PARTITION_FIRST| 无             | 在聚合之前使用PARTITION计算分组, 与SORT_FOR_GROUP冲突 | partition by 列表有普通列时  |
 | PARA_TABLES_SORT| 无             | 超级表的数据按时间戳排序时, 不使用临时磁盘空间, 只使用内存。当子表数量多, 行长比较大时候, 会使用大量内存, 可能发生OOM | 超级表的数据按时间戳排序时  |
 | SMALLDATA_TS_SORT| 无             | 超级表的数据按时间戳排序时, 查询列长度大于等于256, 但是行数不多, 使用这个提示, 可以提高性能 | 超级表的数据按时间戳排序时  |
+| SKIP_TSMA | 无 | 用于显示的禁用TSMA查询优化 | 带Agg函数的查询语句 |
 
 举例： 
 
@@ -144,6 +147,9 @@ SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 ```sql
 SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
+
+### 别名
+别名的命名规则与列相同，支持直接指定 UTF-8 编码格式的中文别名。
 
 ### 结果去重
 
@@ -277,7 +283,7 @@ GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些�
 
 PARTITION BY 子句是 TDengine 3.0版本引入的特色语法，用于根据 part_list 对数据进行切分，在每个切分的分片中可以进行各种计算。
 
-PARTITION BY 与 GROUP BY 基本含义相似，都是按照指定列表进行数据分组然后进行计算，不同点在于 PARTITION BY 没有 GROUP BY 子句的 SELECT 列表的各种限制，组内可以进行任意运算（常量、聚合、标量、表达式等），因此在使用上 PARTITION BY 完全兼容 GROUP BY，所有使用 GROUP BY 子句的地方都可以替换为 PARTITION BY。
+PARTITION BY 与 GROUP BY 基本含义相似，都是按照指定列表进行数据分组然后进行计算，不同点在于 PARTITION BY 没有 GROUP BY 子句的 SELECT 列表的各种限制，组内可以进行任意运算（常量、聚合、标量、表达式等），因此在使用上 PARTITION BY 完全兼容 GROUP BY，所有使用 GROUP BY 子句的地方都可以替换为 PARTITION BY, 需要注意的是在没有聚合查询时两者的查询结果可能存在差异。
 
 因为 PARTITION BY 没有返回一行聚合数据的要求，因此还可以支持在分组切片后的各种窗口运算，所有需要分组进行的窗口运算都只能使用 PARTITION BY 子句。
 
@@ -453,6 +459,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 :::info
 
 - 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
+- 外层查询支持直接通过列名或\`列名\`的形式引用内层查询的列或伪列。
 - 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
 - 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
   - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。

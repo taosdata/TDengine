@@ -143,12 +143,24 @@ int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32
   getDoubleValueFn[1]= getVectorDoubleValueFn(pInputData[1]->info.type);
 
   unsigned char *output = NULL;
-  code = doMakePointFunc(getDoubleValueFn[0](pInputData[0]->pData, iLeft), getDoubleValueFn[1](pInputData[1]->pData, iRight), &output);
-  if (code != TSDB_CODE_SUCCESS) {
+  double leftRes = 0;
+  double rightRes = 0;
+  code = getDoubleValueFn[0](pInputData[0]->pData, iLeft, &leftRes);
+  if (TSDB_CODE_SUCCESS != code) {
     goto _exit;
   }
-
-  colDataSetVal(pOutputData, TMAX(iLeft, iRight), output, (output == NULL));
+  code = getDoubleValueFn[1](pInputData[1]->pData, iRight, &rightRes);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+  code = doMakePointFunc(leftRes, rightRes, &output);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+  code = colDataSetVal(pOutputData, TMAX(iLeft, iRight), output, (output == NULL));
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
 
 _exit:
   if (output) {
@@ -168,7 +180,7 @@ int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnI
     goto _exit;
   }
 
-  colDataSetVal(pOutputData, i, output, (output == NULL));
+  code = colDataSetVal(pOutputData, i, output, (output == NULL));
 
 _exit:
   if (output) {
@@ -188,7 +200,7 @@ int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoDat
     goto _exit;
   }
 
-  colDataSetVal(pOutputData, i, output, (output == NULL));
+  code = colDataSetVal(pOutputData, i, output, (output == NULL));
 
 _exit:
   if (output) {
@@ -216,7 +228,7 @@ int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometr
     }
   }
 
-  colDataSetVal(pOutputData, i, &res, (res==-1));
+  code = colDataSetVal(pOutputData, i, &res, (res==-1));
 
   return code;
 }

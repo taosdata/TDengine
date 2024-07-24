@@ -30,24 +30,25 @@ void qmGetQnodeLoads(SQnodeMgmt *pMgmt, SQnodeLoad *pInfo) {
 }
 
 int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  int32_t          code = 0;
   SDCreateQnodeReq createReq = {0};
   if (tDeserializeSCreateDropMQSNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    return code;
   }
 
   if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
-    terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to create qnode since %s", terrstr());
+    code = TSDB_CODE_INVALID_OPTION;
+    dError("failed to create qnode since %s", tstrerror(code));
     tFreeSMCreateQnodeReq(&createReq);
-    return -1;
+    return code;
   }
 
   bool deployed = true;
-  if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
-    dError("failed to write qnode file since %s", terrstr());
+  if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
+    dError("failed to write qnode file since %s", tstrerror(code));
     tFreeSMCreateQnodeReq(&createReq);
-    return -1;
+    return code;
   }
 
   tFreeSMCreateQnodeReq(&createReq);
@@ -55,24 +56,25 @@ int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 }
 
 int32_t qmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  int32_t        code = 0;
   SDDropQnodeReq dropReq = {0};
   if (tDeserializeSCreateDropMQSNodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    return code;
   }
 
   if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
-    terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to drop qnode since %s", terrstr());
+    code = TSDB_CODE_INVALID_OPTION;
+    dError("failed to drop qnode since %s", tstrerror(code));
     tFreeSMCreateQnodeReq(&dropReq);
-    return -1;
+    return code;
   }
 
   bool deployed = false;
-  if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
-    dError("failed to write qnode file since %s", terrstr());
+  if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
+    dError("failed to write qnode file since %s", tstrerror(code));
     tFreeSMCreateQnodeReq(&dropReq);
-    return -1;
+    return code;
   }
 
   tFreeSMCreateQnodeReq(&dropReq);

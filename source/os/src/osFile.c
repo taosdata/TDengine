@@ -66,8 +66,8 @@ typedef struct TdFile {
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
-  const char *tdengineTmpFileNamePrefix = "tdengine-";
-  char        tmpPath[PATH_MAX];
+
+  char tmpPath[PATH_MAX];
 
   int32_t len = (int32_t)strlen(inputTmpDir);
   memcpy(tmpPath, inputTmpDir, len);
@@ -76,7 +76,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
     tmpPath[len++] = '\\';
   }
 
-  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
+  strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");
@@ -88,28 +88,26 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
 #else
 
-  const char *tdengineTmpFileNamePrefix = "tdengine-";
-
   char    tmpPath[PATH_MAX];
   int32_t len = strlen(inputTmpDir);
-  memcpy(tmpPath, inputTmpDir, len);
+  (void)memcpy(tmpPath, inputTmpDir, len);
   static uint64_t seqId = 0;
 
   if (tmpPath[len - 1] != '/') {
     tmpPath[len++] = '/';
   }
 
-  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
+  (void)strcpy(tmpPath + len, TD_TMP_FILE_PREFIX);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    strcat(tmpPath, fileNamePrefix);
-    strcat(tmpPath, "-%d-%s");
+    (void)strcat(tmpPath, fileNamePrefix);
+    (void)strcat(tmpPath, "-%d-%s");
   }
 
   char rand[32] = {0};
 
-  sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+  (void)sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
-  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+  (void)snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 
 #endif
 }
@@ -125,41 +123,60 @@ int64_t taosCopyFile(const char *from, const char *to) {
   char    buffer[4096];
   int64_t size = 0;
   int64_t bytes;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   // fidfrom = open(from, O_RDONLY);
   TdFilePtr pFileFrom = taosOpenFile(from, TD_FILE_READ);
-  if (pFileFrom == NULL) goto _err;
+  if (pFileFrom == NULL) {
+    code = terrno;
+    goto _err;
+  }
 
   // fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
   TdFilePtr pFileTo = taosOpenFile(to, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_EXCL);
-  if (pFileTo == NULL) goto _err;
+  if (pFileTo == NULL) {
+    code = terrno;
+    goto _err;
+  }
 
   while (true) {
     bytes = taosReadFile(pFileFrom, buffer, sizeof(buffer));
-    if (bytes < 0) goto _err;
+    if (bytes < 0) {
+      code = terrno;
+      goto _err;
+    }
+    
     if (bytes == 0) break;
 
     size += bytes;
 
-    if (taosWriteFile(pFileTo, (void *)buffer, bytes) < bytes) goto _err;
+    if (taosWriteFile(pFileTo, (void *)buffer, bytes) < bytes) {
+      code = terrno;
+      goto _err;
+    }
     if (bytes < sizeof(buffer)) break;
   }
 
-  int code = taosFsyncFile(pFileTo);
+  code = taosFsyncFile(pFileTo);
 
-  taosCloseFile(&pFileFrom);
-  taosCloseFile(&pFileTo);
+  (void)taosCloseFile(&pFileFrom);
+  (void)taosCloseFile(&pFileTo);
 
   if (code != 0) {
+    terrno = code;
     return -1;
   }
+  
   return size;
 
 _err:
-  if (pFileFrom != NULL) taosCloseFile(&pFileFrom);
-  if (pFileTo != NULL) taosCloseFile(&pFileTo);
+
+  if (pFileFrom != NULL) (void)taosCloseFile(&pFileFrom);
+  if (pFileTo != NULL) (void)taosCloseFile(&pFileTo);
   /* coverity[+retval] */
-  taosRemoveFile(to);
+  (void)taosRemoveFile(to);
+
+  terrno = code;
   return -1;
 #endif
 }
@@ -167,24 +184,31 @@ _err:
 TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
   TdFilePtr fp = taosOpenFile(path, tdFileOptions);
   if (!fp) {
-    if (errno == ENOENT) {
+    if (terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
       // Try to create directory recursively
-      char *s = taosStrdup(path);
+      char s[PATH_MAX];
+      tstrncpy(s, path, sizeof(s));
       if (taosMulMkDir(taosDirName(s)) != 0) {
-        taosMemoryFree(s);
         return NULL;
       }
-      taosMemoryFree(s);
       fp = taosOpenFile(path, tdFileOptions);
       if (!fp) {
         return NULL;
       }
     }
   }
+  
   return fp;
 }
 
-int32_t taosRemoveFile(const char *path) { return remove(path); }
+int32_t taosRemoveFile(const char *path) { 
+  int32_t code = remove(path); 
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+  return code;
+}
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
 #ifdef WINDOWS
@@ -216,8 +240,9 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
   return finished ? 0 : -1;
 #else
   int32_t code = rename(oldName, newName);
-  if (code < 0) {
-    printf("failed to rename file %s to %s, reason:%s\n", oldName, newName, strerror(errno));
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   return code;
@@ -232,8 +257,9 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *a
   struct stat fileStat;
   int32_t     code = stat(path, &fileStat);
 #endif
-  if (code < 0) {
-    return code;
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   if (size != NULL) {
@@ -271,13 +297,15 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 
 #else
   if (pFile == NULL || pFile->fd < 0) {
-    return -1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
+  
   struct stat fileStat;
   int32_t     code = fstat(pFile->fd, &fileStat);
-  if (code < 0) {
-    printf("taosFStatFile run fstat fail.");
-    return code;
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   }
 
   if (stDev != NULL) {
@@ -303,11 +331,15 @@ FILE *taosOpenFileForStream(const char *path, int32_t tdFileOptions) {
   } else {
     mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
   }
-  ASSERT(!(tdFileOptions & TD_FILE_EXCL));
   if (tdFileOptions & TD_FILE_EXCL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
-  return fopen(path, mode);
+  FILE* f = fopen(path, mode);
+  if (NULL == f) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+  return f;
 }
 
 #ifdef WINDOWS
@@ -655,6 +687,9 @@ int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   access |= (tdFileOptions & TD_FILE_CLOEXEC) ? O_CLOEXEC : 0;
 
   int fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
+  if (-1 == fd) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+  }
   return fd;
 }
 
@@ -1062,14 +1097,14 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
 #ifdef WINDOWS
     if (hFile != NULL) CloseHandle(hFile);
 #else
-    if (fd >= 0) close(fd);
+    if (fd >= 0) (void)close(fd);
 #endif
-    if (fp != NULL) fclose(fp);
+    if (fp != NULL) (void)fclose(fp);
     return NULL;
   }
 
 #if FILE_WITH_LOCK
-  taosThreadRwlockInit(&(pFile->rwlock), NULL);
+  (void)taosThreadRwlockInit(&(pFile->rwlock), NULL);
 #endif
   pFile->fp = fp;
   pFile->refId = 0;
@@ -1084,9 +1119,15 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   // Remove it instantly, so when the program exits normally/abnormally, the file
   // will be automatically remove by OS.
   if (tdFileOptions & TD_FILE_AUTO_DEL) {
-    unlink(path);
+    if (-1 == unlink(path)) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      (void)close(fd);
+      taosMemoryFree(pFile);
+      return NULL;
+    }
   }
 #endif
+
   return pFile;
 }
 
@@ -1096,11 +1137,11 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
     return 0;
   }
 #if FILE_WITH_LOCK
-  taosThreadRwlockWrlock(&((*ppFile)->rwlock));
+  (void)taosThreadRwlockWrlock(&((*ppFile)->rwlock));
 #endif
   if ((*ppFile)->fp != NULL) {
-    fflush((*ppFile)->fp);
-    fclose((*ppFile)->fp);
+    (void)fflush((*ppFile)->fp);
+    (void)fclose((*ppFile)->fp);
     (*ppFile)->fp = NULL;
   }
 #ifdef WINDOWS
@@ -1115,16 +1156,20 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
     // warning: never fsync silently in base lib
     /*fsync((*ppFile)->fd);*/
     code = close((*ppFile)->fd);
+    if (-1 == code) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    }
     (*ppFile)->fd = -1;
 #endif
   }
   (*ppFile)->refId = 0;
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&((*ppFile)->rwlock));
-  taosThreadRwlockDestroy(&((*ppFile)->rwlock));
+  (void)taosThreadRwlockUnlock(&((*ppFile)->rwlock));
+  (void)taosThreadRwlockDestroy(&((*ppFile)->rwlock));
 #endif
   taosMemoryFree(*ppFile);
   *ppFile = NULL;
+  
   return code;
 }
 
@@ -1132,6 +1177,8 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   if (pFile == NULL) {
     return 0;
   }
+  
+  int32_t code = 0;
 
 #ifdef WINDOWS
 #if FILE_WITH_LOCK
@@ -1157,20 +1204,27 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   }
 #else
 #if FILE_WITH_LOCK
-  taosThreadRwlockRdlock(&(pFile->rwlock));
+  (void)taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
   if (pFile->fd < 0) {
 #if FILE_WITH_LOCK
-    taosThreadRwlockUnlock(&(pFile->rwlock));
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
+    terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
   int64_t ret = pread(pFile->fd, buf, count, offset);
+  if (-1 == ret) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
 #endif
 #if FILE_WITH_LOCK
-  taosThreadRwlockUnlock(&(pFile->rwlock));
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
+
+  terrno = code;
+  
   return ret;
 }
 
@@ -1179,20 +1233,36 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
     return 0;
   }
 
+  int32_t code = 0;
   // this implementation is WRONG
   // fflush is not a replacement of fsync
-  if (pFile->fp != NULL) return fflush(pFile->fp);
+  if (pFile->fp != NULL) {
+    code = fflush(pFile->fp);
+    if (0 != code) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
+    
+    return code;
+  }
+  
 #ifdef WINDOWS
   if (pFile->hFile != NULL) {
     if (pFile->tdFileOptions & TD_FILE_WRITE_THROUGH) {
       return 0;
     }
     return !FlushFileBuffers(pFile->hFile);
+  }
 #else
   if (pFile->fd >= 0) {
-    return fsync(pFile->fd);
-#endif
+    code = fsync(pFile->fd);
+    if (-1 == code) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return terrno;
+    }
   }
+#endif
+
   return 0;
 }
 
@@ -1224,20 +1294,24 @@ int32_t taosUmaskFile(int32_t maskVal) {
 
 int32_t taosGetErrorFile(TdFilePtr pFile) { return errno; }
 int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
+  int64_t ret = -1;
+#if FILE_WITH_LOCK
+  taosThreadRwlockRdlock(&(pFile->rwlock));
+#endif
   if (pFile == NULL || ptrBuf == NULL) {
-    return -1;
+    goto END;
   }
   if (*ptrBuf != NULL) {
     taosMemoryFreeClear(*ptrBuf);
   }
   ASSERT(pFile->fp != NULL);
   if (pFile->fp == NULL) {
-    return -1;
+    goto END;
   }
 #ifdef WINDOWS
   size_t bufferSize = 512;
   *ptrBuf = taosMemoryMalloc(bufferSize);
-  if (*ptrBuf == NULL) return -1;
+  if (*ptrBuf == NULL) goto END;
 
   size_t bytesRead = 0;
   size_t totalBytesRead = 0;
@@ -1246,7 +1320,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     char *result = fgets(*ptrBuf + totalBytesRead, bufferSize - totalBytesRead, pFile->fp);
     if (result == NULL) {
       taosMemoryFreeClear(*ptrBuf);
-      return -1;
+      goto END;
     }
     bytesRead = strlen(*ptrBuf + totalBytesRead);
     totalBytesRead += bytesRead;
@@ -1259,18 +1333,24 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     void *newBuf = taosMemoryRealloc(*ptrBuf, bufferSize);
     if (newBuf == NULL) {
       taosMemoryFreeClear(*ptrBuf);
-      return -1;
+      goto END;
     }
 
     *ptrBuf = newBuf;
   }
 
   (*ptrBuf)[totalBytesRead] = '\0';
-  return totalBytesRead;
+  ret = totalBytesRead;
 #else
   size_t len = 0;
-  return getline(ptrBuf, &len, pFile->fp);
+  ret = getline(ptrBuf, &len, pFile->fp);
 #endif
+
+END:
+#if FILE_WITH_LOCK
+  taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  return ret;
 }
 
 int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
@@ -1405,31 +1485,27 @@ int32_t taosLinkFile(char *src, char *dst) {
   return 0;
 }
 
-FILE*  taosOpenCFile(const char* filename, const char* mode) {
-  return fopen(filename, mode);
-}
+FILE *taosOpenCFile(const char *filename, const char *mode) { return fopen(filename, mode); }
 
-int taosSeekCFile(FILE* file, int64_t offset, int whence) {
+int taosSeekCFile(FILE *file, int64_t offset, int whence) {
 #ifdef WINDOWS
   return _fseeki64(file, offset, whence);
 #else
   return fseeko(file, offset, whence);
-#endif  
+#endif
 }
 
-size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream ) {
+size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream) {
   return fread(buffer, size, count, stream);
 }
 
-size_t taosWriteToCFile(const void* ptr, size_t size, size_t nitems, FILE* stream) {
+size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *stream) {
   return fwrite(ptr, size, nitems, stream);
 }
 
-int	 taosCloseCFile(FILE *f) {
-  return fclose(f);
-}
+int taosCloseCFile(FILE *f) { return fclose(f); }
 
-int taosSetAutoDelFile(char* path) {
+int taosSetAutoDelFile(char *path) {
 #ifdef WINDOWS
   return SetFileAttributes(path, FILE_ATTRIBUTE_TEMPORARY);
 #else

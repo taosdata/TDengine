@@ -167,23 +167,23 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("config file path overflow");
-          return -1;
+          return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(configDir, argv[i], PATH_MAX);
       } else {
         printf("'-c' requires a parameter, default is %s\n", configDir);
-        return -1;
+        return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-a") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("apollo url overflow");
-          return -1;
+          return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(global.apolloUrl, argv[i], PATH_MAX);
       } else {
         printf("'-a' requires a parameter\n");
-        return -1;
+        return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-s") == 0) {
       global.dumpSdb = true;
@@ -191,31 +191,31 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("env file path overflow");
-          return -1;
+          return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(global.envFile, argv[i], PATH_MAX);
       } else {
         printf("'-E' requires a parameter\n");
-        return -1;
+        return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
     } else if (strcmp(argv[i], "-y") == 0) {
       global.generateCode = true;
-      if(i < argc - 1) {
+      if (i < argc - 1) {
         int32_t len = strlen(argv[++i]);
         if (len < ENCRYPT_KEY_LEN_MIN) {
-          printf("encrypt key is too short, it should be great or equal to %d\n", ENCRYPT_KEY_LEN_MIN);
-          return -1;
+          printf("ERROR: Encrypt key should be at least %d characters\n", ENCRYPT_KEY_LEN_MIN);
+          return TSDB_CODE_INVALID_CFG;
         }
         if (len > ENCRYPT_KEY_LEN) {
-          printf("encrypt key overflow, it should be less or equal to %d\n", ENCRYPT_KEY_LEN);
-          return -1;
+          printf("ERROR: Encrypt key overflow, it should be at most %d characters\n", ENCRYPT_KEY_LEN);
+          return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(global.encryptKey, argv[i], ENCRYPT_KEY_LEN);
       } else {
         printf("'-y' requires a parameter\n");
-        return -1;
+        return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
@@ -258,17 +258,12 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
 static void dmGenerateGrant() { mndGenerateMachineCode(); }
 
 static void dmPrintVersion() {
+  printf("%s\ntaosd version: %s compatible_version: %s\n", TD_PRODUCT_NAME, version, compatible_version);
+  printf("git: %s\n", gitinfo);
 #ifdef TD_ENTERPRISE
-  char *releaseName = "enterprise";
-#else
-  char *releaseName = "community";
+  printf("gitOfInternal: %s\n", gitinfoOfInternal);
 #endif
-  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
-  printf("gitinfo: %s\n", gitinfo);
-#ifdef TD_ENTERPRISE
-  printf("gitinfoOfInternal: %s\n", gitinfoOfInternal);
-#endif
-  printf("buildInfo: %s\n", buildinfo);
+  printf("build: %s\n", buildinfo);
 }
 
 static void dmPrintHelp() {
@@ -315,6 +310,7 @@ static void taosCleanupArgs() {
 }
 
 int main(int argc, char const *argv[]) {
+  int32_t code = 0;
 #ifdef TD_JEMALLOC_ENABLED
   bool jeBackgroundThread = true;
   mallctl("background_thread", NULL, NULL, &jeBackgroundThread, sizeof(bool));
@@ -324,10 +320,10 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  if (dmParseArgs(argc, argv) != 0) {
-    printf("failed to start since parse args error\n");
+  if ((code = dmParseArgs(argc, argv)) != 0) {
+    // printf("failed to start since parse args error\n");
     taosCleanupArgs();
-    return -1;
+    return code;
   }
 
 #ifdef WINDOWS
@@ -340,6 +336,7 @@ int main(int argc, char const *argv[]) {
   return 0;
 }
 int mainWindows(int argc, char **argv) {
+  int32_t code = 0;
 #endif
 
   if (global.generateGrant) {
@@ -362,7 +359,7 @@ int mainWindows(int argc, char **argv) {
 
 #if defined(LINUX)
   if (global.memDbg) {
-    int32_t code = taosMemoryDbgInit();
+    code = taosMemoryDbgInit();
     if (code) {
       printf("failed to init memory dbg, error:%s\n", tstrerror(code));
       return code;
@@ -371,49 +368,49 @@ int mainWindows(int argc, char **argv) {
     printf("memory dbg enabled\n");
   }
 #endif
-
-  if (dmInitLog() != 0) {
-    printf("failed to start since init log error\n");
-    taosCleanupArgs();
-    return -1;
-  }
-
-  dmPrintArgs(argc, argv);
-
-  if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
-    dError("failed to start since read config error");
-    taosCloseLog();
-    taosCleanupArgs();
-    return -1;
-  }
-
-  if(global.generateCode) {
-    if(dmCheckRunning(tsDataDir) == NULL) {
-      dError("failed to generate encrypt code since taosd is running, please stop it first");
-      return -1;
+  if (global.generateCode) {
+    bool toLogFile = false;
+    if ((code = taosReadDataFolder(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs)) != 0) {
+      encryptError("failed to generate encrypt code since dataDir can not be set from cfg file,reason:%s",
+                   tstrerror(code));
+      return code;
+    };
+    TdFilePtr pFile;
+    if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
+      encryptError("failed to generate encrypt code since taosd is running, please stop it first, reason:%s",
+                   tstrerror(code));
+      return code;
     }
-    int ret = dmUpdateEncryptKey(global.encryptKey);
+    int ret = dmUpdateEncryptKey(global.encryptKey, toLogFile);
     taosCloseLog();
     taosCleanupArgs();
     return ret;
   }
 
-  if(dmGetEncryptKey() != 0){
-    dError("failed to start since failed to get encrypt key");
+  if ((code = dmInitLog()) != 0) {
+    printf("failed to start since init log error\n");
+    taosCleanupArgs();
+    return code;
+  }
+
+  dmPrintArgs(argc, argv);
+
+  if ((code = taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
+    dError("failed to start since read config error");
     taosCloseLog();
     taosCleanupArgs();
-    return -1;
-  };
+    return code;
+  }
 
-  if (taosConvInit() != 0) {
+  if ((code = taosConvInit()) != 0) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();
-    return -1;
+    return code;
   }
 
   if (global.checkS3) {
-    int32_t code = dmCheckS3();
+    code = dmCheckS3();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
@@ -442,24 +439,32 @@ int mainWindows(int argc, char **argv) {
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 
-  if (dmInit() != 0) {
-    if (terrno == TSDB_CODE_NOT_FOUND) {
+  if ((code = dmGetEncryptKey()) != 0) {
+    dError("failed to start since failed to get encrypt key");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  };
+
+  if ((code = dmInit()) != 0) {
+    if (code == TSDB_CODE_NOT_FOUND) {
       dError("failed to init dnode since unsupported platform, please visit https://www.taosdata.com for support");
     } else {
-      dError("failed to init dnode since %s", terrstr());
+      dError("failed to init dnode since %s", tstrerror(code));
     }
 
     taosCleanupCfg();
     taosCloseLog();
     taosConvDestroy();
-    return -1;
+    return code;
   }
 
   dInfo("start to init service");
   dmSetSignalHandle();
   tsDndStart = taosGetTimestampMs();
   tsDndStartOsUptime = taosGetOsUptime();
-  int32_t code = dmRun();
+
+  code = dmRun();
   dInfo("shutting down the service");
 
   dmCleanup();

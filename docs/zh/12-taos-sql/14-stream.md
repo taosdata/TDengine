@@ -8,7 +8,7 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK      time
@@ -27,12 +27,12 @@ subquery: SELECT select_list
     from_clause
     [WHERE condition]
     [PARTITION BY tag_list]
-    [window_clause]
+    window_clause
 ```
 
-支持会话窗口、状态窗口、滑动窗口、事件窗口和计数窗口，其中，状态窗口、事件窗口和计数窗口搭配超级表时必须与partition by tbname一起使用
+支持会话窗口、状态窗口、滑动窗口、事件窗口和计数窗口，其中，状态窗口、事件窗口和计数窗口搭配超级表时必须与partition by tbname一起使用。对于数据源表是复合主键的流，不支持状态窗口、事件窗口、计数窗口的计算。
 
-stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的schema信息。详见 写入已存在的超级表
+stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的schema信息。详见 写入已存在的超级表。
 
 TAGS 子句定义了流计算中创建TAG的规则，可以为每个partition对应的子表生成自定义的TAG值，详见 自定义TAG
 ```sql
@@ -54,8 +54,10 @@ window_clause: {
 }
 ```
 
-其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。
+其中，SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。该窗口的 _wend 等于最后一条数据的时间加上 tol_val。
+
 EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。 start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+
 COUNT_WINDOW 是计数窗口,按固定的数据行数来划分窗口。 count_val 是常量，是正整数，必须大于等于2，小于2147483648。 count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val 。 sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
 
 窗口的定义与时序数据特色查询中的定义完全相同，详见 [TDengine 特色查询](../distinguished)
@@ -91,7 +93,7 @@ SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WIN
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
 ```
 
-PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名(从3.2.3.0开始，为了避免 sutable 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 _groupId)。
+PARTITION 子句中，为 tbname 定义了一个别名 tname, 在PARTITION 子句中的别名可以用于 SUBTABLE 子句中的表达式计算，在上述示例中，流新创建的子表将以前缀 'new-' 连接原表名作为表名(从3.2.3.0开始，为了避免 SUBTABLE 中的表达式无法区分各个子表，即误将多个相同时间线写入一个子表，在指定的子表名后面加上 _stableName_groupId)。
 
 注意，子表名的长度若超过 TDengine 的限制，将被截断。若要生成的子表名已经存在于另一超级表，由于 TDengine 的子表名是唯一的，因此对应新子表的创建以及数据的写入将会失败。
 
@@ -190,7 +192,7 @@ T3 时刻，最新事件到达，T 向后推移超过了第二个窗口关闭的
 
 TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项指定：
 
-1. 重新计算，即 IGNORE EXPIRED 0：从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
+1. 增量计算，即 IGNORE EXPIRED 0。
 
 2. 直接丢弃，即 IGNORE EXPIRED 1：默认配置，忽略过期数据
 
@@ -271,3 +273,21 @@ PAUSE STREAM [IF EXISTS] stream_name;
 RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 没有指定IF EXISTS，如果该stream不存在，则报错，如果存在，则恢复流计算；指定了IF EXISTS，如果stream不存在，则返回成功；如果存在，则恢复流计算。如果指定IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
 
+## 状态数据备份与同步
+流计算的中间结果成为计算的状态数据，需要在流计算整个生命周期中进行持久化保存。为了确保流计算中间状态能够在集群环境下在不同的节点间可靠地同步和迁移，至3.3.2.1 版本开始，需要在运行环境中部署 rsync 软件，还需要增加以下的步骤：
+1. 在配置文件中配置 snode 的地址（IP+端口）和状态数据备份目录（该目录系 snode 所在的物理节点的目录）。
+2. 然后创建 snode。
+完成上述两个步骤以后才能创建流。
+如果没有创建 snode 并正确配置 snode 的地址，流计算过程中将无法生成检查点（checkpoint），并可能导致后续的计算结果产生错误。
+
+> snodeAddress           127.0.0.1:873
+> 
+> checkpointBackupDir    /home/user/stream/backup/checkpoint/
+
+
+## 创建 snode 的方式
+使用以下命令创建 snode（stream node）， snode 是流计算中有状态的计算节点，可用于部署聚合任务，同时负责备份不同的流计算任务生成的检查点数据。
+```sql
+CREATE SNODE ON DNODE [id]
+```
+其中的 id 是集群中的 dnode 的序号。请注意选择的dnode，流计算的中间状态将自动在其上进行备份。

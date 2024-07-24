@@ -23,11 +23,12 @@
 static void tLDataIterClose2(SLDataIter *pIter);
 
 // SLDataIter =================================================
-SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols) {
+int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo) {
+  *pInfo = NULL;
+
   SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(1, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pLoadInfo->blockData[0].sttBlockIndex = -1;
@@ -37,20 +38,29 @@ SSttBlockLoadInfo *tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, 
 
   int32_t code = tBlockDataCreate(&pLoadInfo->blockData[0].data);
   if (code) {
-    terrno = code;
+    taosMemoryFreeClear(pLoadInfo);
+    return code;
   }
 
   code = tBlockDataCreate(&pLoadInfo->blockData[1].data);
   if (code) {
-    terrno = code;
+    taosMemoryFreeClear(pLoadInfo);
+    return code;
   }
 
   pLoadInfo->aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
+  if (pLoadInfo->aSttBlk == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(pLoadInfo);
+    return code;
+  }
+
   pLoadInfo->pSchema = pSchema;
   pLoadInfo->colIds = colList;
   pLoadInfo->numOfCols = numOfCols;
 
-  return pLoadInfo;
+  *pInfo = pLoadInfo;
+  return code;
 }
 
 static void freeItem(void* pValue) {
@@ -60,9 +70,9 @@ static void freeItem(void* pValue) {
   }
 }
 
-void *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
+void destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   if (pLoadInfo == NULL) {
-    return NULL;
+    return;
   }
 
   pLoadInfo->currentLoadBlockIndex = 1;
@@ -88,7 +98,6 @@ void *destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
 
   taosArrayDestroy(pLoadInfo->aSttBlk);
   taosMemoryFree(pLoadInfo);
-  return NULL;
 }
 
 void destroyLDataIter(SLDataIter *pIter) {
@@ -97,9 +106,9 @@ void destroyLDataIter(SLDataIter *pIter) {
   taosMemoryFree(pIter);
 }
 
-void *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost) {
+void destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost) {
   if (pLDataIterArray == NULL) {
-    return NULL;
+    return;
   }
 
   int32_t numOfLevel = taosArrayGetSize(pLDataIterArray);
@@ -107,20 +116,25 @@ void *destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoa
     SArray *pList = taosArrayGetP(pLDataIterArray, i);
     for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
       SLDataIter *pIter = taosArrayGetP(pList, j);
+      if (pIter->pBlockLoadInfo == NULL) {
+        continue;
+      }
+
+      SSttBlockLoadCostInfo* pCost = &pIter->pBlockLoadInfo->cost;
       if (pLoadCost != NULL) {
-        pLoadCost->loadBlocks += pIter->pBlockLoadInfo->cost.loadBlocks;
-        pLoadCost->loadStatisBlocks += pIter->pBlockLoadInfo->cost.loadStatisBlocks;
-        pLoadCost->blockElapsedTime += pIter->pBlockLoadInfo->cost.blockElapsedTime;
-        pLoadCost->statisElapsedTime += pIter->pBlockLoadInfo->cost.statisElapsedTime;
+        pLoadCost->loadBlocks += pCost->loadBlocks;
+        pLoadCost->loadStatisBlocks += pCost->loadStatisBlocks;
+        pLoadCost->blockElapsedTime += pCost->blockElapsedTime;
+        pLoadCost->statisElapsedTime += pCost->statisElapsedTime;
       }
 
       destroyLDataIter(pIter);
     }
+
     taosArrayDestroy(pList);
   }
 
   taosArrayDestroy(pLDataIterArray);
-  return NULL;
 }
 
 // choose the unpinned slot to load next data block
@@ -828,7 +842,7 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const SRBTreeNode *p1, const SRBTre
   SLDataIter *pIter1 = (SLDataIter *)(((uint8_t *)p1) - offsetof(SLDataIter, node));
   SLDataIter *pIter2 = (SLDataIter *)(((uint8_t *)p2) - offsetof(SLDataIter, node));
 
-  SRowKey rkey1, rkey2;
+  SRowKey rkey1 = {0}, rkey2 = {0};
   tRowGetKeyEx(&pIter1->rInfo.row, &rkey1);
   tRowGetKeyEx(&pIter2->rInfo.row, &rkey2);
 
@@ -902,7 +916,10 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
       }
 
       if (pLoadInfo == NULL) {
-        pLoadInfo = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols);
+        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols, &pLoadInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _end;
+        }
       }
 
       memset(pIter, 0, sizeof(SLDataIter));

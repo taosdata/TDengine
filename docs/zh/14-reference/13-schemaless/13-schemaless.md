@@ -28,6 +28,7 @@ measurement,tag_set field_set timestamp
 - tag_set 将作为标签数据，其格式形如 `<tag_key>=<tag_value>,<tag_key>=<tag_value>`，也即可以使用英文逗号来分隔多个标签数据。它与 field_set 之间使用一个半角空格来分隔。
 - field_set 将作为普通列数据，其格式形如 `<field_key>=<field_value>,<field_key>=<field_value>`，同样是使用英文逗号来分隔多个普通列的数据。它与 timestamp 之间使用一个半角空格来分隔。
 - timestamp 即本行数据对应的主键时间戳。
+- 无模式写入不支持含第二主键列的表的数据写入。
 
 tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要使用双引号（")。
 
@@ -116,7 +117,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
    
 :::tip
 无模式所有的处理逻辑，仍会遵循 TDengine 对数据结构的底层限制，例如每行数据的总长度不能超过
-48KB（从 3.0.5.0 版本开始为 64KB），标签值的总长度不超过16KB。这方面的具体限制约束请参见 [TDengine SQL 边界限制](/taos-sql/limit)
+48KB（从 3.0.5.0 版本开始为 64KB），标签值的总长度不超过16KB。这方面的具体限制约束请参见 [TDengine SQL 边界限制](../../taos-sql/limit)
 
 :::
 

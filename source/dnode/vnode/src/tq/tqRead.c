@@ -99,14 +99,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       taosArrayDestroy(reqNew.pArray);
     }
 
-    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
-      pCreateReq = req.pReqs + iReq;
-      taosMemoryFreeClear(pCreateReq->comment);
-      taosMemoryFreeClear(pCreateReq->sql);
-      if (pCreateReq->type == TSDB_CHILD_TABLE) {
-        taosArrayDestroy(pCreateReq->ctb.tagName);
-      }
-    }
+    tDeleteSVCreateTbBatchReq(&req);
   } else if (msgType == TDMT_VND_ALTER_TABLE) {
     SVAlterTbReq req = {0};
 
@@ -195,9 +188,9 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
   int64_t committedVer = walGetCommittedVer(pHandle->pWalReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pHandle->pWalReader->pWal);
 
-  wDebug("vgId:%d, start to fetch wal, index:%" PRId64 ", last:%" PRId64 " commit:%" PRId64 ", applied:%" PRId64
-         ", 0x%" PRIx64,
-         vgId, offset, lastVer, committedVer, appliedVer, id);
+  tqDebug("vgId:%d, start to fetch wal, index:%" PRId64 ", last:%" PRId64 " commit:%" PRId64 ", applied:%" PRId64
+          ", 0x%" PRIx64,
+          vgId, offset, lastVer, committedVer, appliedVer, id);
 
   while (offset <= appliedVer) {
     if (walFetchHead(pHandle->pWalReader, offset) < 0) {
@@ -247,14 +240,12 @@ END:
   return code;
 }
 
-bool tqGetTablePrimaryKey(STqReader* pReader){
-  return pReader->hasPrimaryKey;
-}
+bool tqGetTablePrimaryKey(STqReader* pReader) { return pReader->hasPrimaryKey; }
 
-void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid){
-  bool ret = false;
-  SSchemaWrapper *schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1);
-  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY){
+void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid) {
+  bool            ret = false;
+  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1);
+  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     ret = true;
   }
   tDeleteSchemaWrapper(schema);
@@ -318,10 +309,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
   int32_t code = 0;
 
   while (1) {
-    code = walNextValidMsg(pReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+    TAOS_CHECK_RETURN(walNextValidMsg(pReader));
 
     SWalCont* pCont = &pReader->pHead->head;
     int64_t   ver = pCont->version;
@@ -348,10 +336,8 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
       memcpy(data, pBody, len);
       SPackedData data1 = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
 
-      *pItem = (SStreamQueueItem*)streamDataSubmitNew(&data1, STREAM_INPUT__DATA_SUBMIT);
-      if (*pItem == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        terrno = code;
+      code = streamDataSubmitNew(&data1, STREAM_INPUT__DATA_SUBMIT, (SStreamDataSubmit**)pItem);
+      if (code != 0) {
         tqError("%s failed to create data submit for stream since out of memory", id);
         return code;
       }
@@ -383,9 +369,9 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
 }
 
 bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
-  SWalReader*  pWalReader = pReader->pWalReader;
+  SWalReader* pWalReader = pReader->pWalReader;
 
-  uint64_t st = taosGetTimestampMs();
+  int64_t st = taosGetTimestampMs();
   while (1) {
     int32_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
     while (pReader->nextBlk < numOfBlocks) {
@@ -413,7 +399,8 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
     tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
     pReader->msg.msgStr = NULL;
 
-    if (taosGetTimestampMs() - st > 1000) {
+    int64_t elapsed = taosGetTimestampMs() - st;
+    if (elapsed > 1000 || elapsed < 0) {
       return false;
     }
 
@@ -689,10 +676,11 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         continue;
       }
 
-      SColData*        pCol = taosArrayGet(pCols, sourceIdx);
-      SColVal          colVal;
+      SColData* pCol = taosArrayGet(pCols, sourceIdx);
+      SColVal   colVal;
 
-      tqTrace("lostdata colActual:%d, sourceIdx:%d, targetIdx:%d, numOfCols:%d, source cid:%d, dst cid:%d", colActual, sourceIdx, targetIdx, numOfCols, pCol->cid, pColData->info.colId);
+      tqTrace("lostdata colActual:%d, sourceIdx:%d, targetIdx:%d, numOfCols:%d, source cid:%d, dst cid:%d", colActual,
+              sourceIdx, targetIdx, numOfCols, pCol->cid, pColData->info.colId);
       if (pCol->cid < pColData->info.colId) {
         sourceIdx++;
       } else if (pCol->cid == pColData->info.colId) {
@@ -1089,7 +1077,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
       int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
       if (code != 0) {
         tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);

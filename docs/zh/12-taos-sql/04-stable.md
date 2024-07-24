@@ -13,17 +13,28 @@ create_definition:
     col_name column_definition
  
 column_definition:
-    type_name
+    type_name [comment 'string_value'] [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
+
+table_options:
+    table_option ...
+
+table_option: {
+    COMMENT 'string_value'
+  | SMA(col_name [, col_name] ...)
+  | TTL value
+}
 ```
 
 **使用说明**
-- 超级表中列的最大个数为 4096，需要注意，这里的 4096 是包含 TAG 列在内的，最小个数为 3，包含一个时间戳主键、一个 TAG 列和一个数据列。
-- TAGS语法指定超级表的标签列，标签列需要遵循以下约定：
+1. 超级表中列的最大个数为 4096，需要注意，这里的 4096 是包含 TAG 列在内的，最小个数为 3，包含一个时间戳主键、一个 TAG 列和一个数据列。
+2. 除时间戳主键列之外，还可以通过 PRIMARY KEY 关键字指定第二列为额外的主键列。被指定为主键列的第二列必须为整型或字符串类型（varchar）
+3. TAGS语法指定超级表的标签列，标签列需要遵循以下约定：
     - TAGS 中的 TIMESTAMP 列写入数据时需要提供给定值，而暂不支持四则运算，例如 NOW + 10s 这类表达式。
     - TAGS 列名不能与其他列名相同。
     - TAGS 列名不能为预留关键字。
     - TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
-- 关于表参数的详细说明，参见 CREATE TABLE 中的介绍。
+4. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考 [按列压缩](../compress)
+5. 关于 table_option 中的参数说明，请参考 [建表 SQL 说明](../table)
 
 ## 查看超级表
 
@@ -112,6 +123,8 @@ DROP STABLE [IF EXISTS] [db_name.]stb_name
 
 删除 STable 会自动删除通过 STable 创建的子表以及子表中的所有数据。
 
+**注意**：删除超级表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动或用户手动进行数据重整时。
+
 ## 修改超级表
 
 ```sql
@@ -148,6 +161,7 @@ alter_table_option: {
 - DROP TAG：删除超级表的一个标签。从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
 - MODIFY TAG：修改超级表的一个标签的列宽度。标签的类型只能是 nchar 和 binary，使用此指令可以修改其宽度，只能改大，不能改小。
 - RENAME TAG：修改超级表的一个标签的名称。从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
+- 与普通表一样，超级表的主键列不允许被修改，也不允许通过 ADD/DROP COLUMN 来添加或删除主键列。
 
 ### 增加列
 

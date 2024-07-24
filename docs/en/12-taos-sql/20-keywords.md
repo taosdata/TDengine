@@ -151,7 +151,7 @@ The following list shows all reserved keywords:
 - INTERVAL
 - INTO
 - IS
-- ISNULL
+- IS NULL
 
 ### J
 
@@ -197,7 +197,7 @@ The following list shows all reserved keywords:
 - NMATCH
 - NONE
 - NOT
-- NOTNULL
+- NOT NULL
 - NOW
 - NULL
 - NULLS

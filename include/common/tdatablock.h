@@ -49,7 +49,7 @@ typedef struct SBlockOrderInfo {
 #define colDataSetNull_f_s(c_, r_)                                        \
   do {                                                                    \
     colDataSetNull_f((c_)->nullbitmap, r_);                               \
-    memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
+    (void)memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
   } while (0)
 
 #define colDataClearNull_f(bm_, r_)                             \
@@ -102,7 +102,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
     return false;
   }
 
-  if (pColAgg != NULL) {
+  if (pColAgg != NULL && pColAgg->colId != -1) {
     if (pColAgg->numOfNull == totalRows) {
       ASSERT(pColumnInfoData->nullbitmap == NULL);
       return true;
@@ -247,13 +247,13 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
-int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
+void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
-int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src);
+int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
 SSDataBlock* createDataBlock();
-void*        blockDataDestroy(SSDataBlock* pBlock);
+void         blockDataDestroy(SSDataBlock* pBlock);
 void         blockDataFreeRes(SSDataBlock* pBlock);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 SSDataBlock* createSpecialDataBlock(EStreamType type);
@@ -274,13 +274,15 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, c
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema, int64_t uid, int32_t vgId,
                                     tb_uid_t suid);
 
-bool  alreadyAddGroupId(char* ctbName);
+bool  alreadyAddGroupId(char* ctbName, int64_t groupId);
 bool  isAutoTableName(char* ctbName);
 void  buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId);
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
 void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
+
+void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 #ifdef __cplusplus
 }

@@ -33,6 +33,7 @@ int32_t vmGetPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
 }
 
 int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
+  int32_t code = 0;
   STfs   *pTfs = pMgmt->pTfs;
   int32_t diskId = 0;
   if (!pTfs) {
@@ -59,7 +60,12 @@ int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   // alloc
   int32_t     disks[TFS_MAX_DISKS_PER_TIER] = {0};
   int32_t     numOfVnodes = 0;
-  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  SVnodeObj **ppVnodes = NULL;
+
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    return code;
+  }
   for (int32_t v = 0; v < numOfVnodes; v++) {
     SVnodeObj *pVnode = ppVnodes[v];
     disks[pVnode->diskPrimary] += 1;
@@ -436,12 +442,20 @@ static void *vmCloseVnodeInThread(void *param) {
 }
 
 static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
+  int32_t code = 0;
   dInfo("start to close all vnodes");
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
   dInfo("vnodes mgmt worker is stopped");
+  tSingleWorkerCleanup(&pMgmt->mgmtMultiWorker);
+  dInfo("vnodes multiple mgmt worker is stopped");
 
   int32_t     numOfVnodes = 0;
-  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  SVnodeObj **ppVnodes = NULL;
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    dError("failed to get vnode list since %s", tstrerror(code));
+    return;
+  }
 
   int32_t threadNum = tsNumOfCores / 2;
   if (threadNum < 1) threadNum = 1;
@@ -506,12 +520,19 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   vmStopWorker(pMgmt);
   vnodeCleanup();
   taosThreadRwlockDestroy(&pMgmt->lock);
+  taosThreadMutexDestroy(&pMgmt->createLock);
   taosMemoryFree(pMgmt);
 }
 
 static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
+  int32_t     code = 0;
   int32_t     numOfVnodes = 0;
-  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  SVnodeObj **ppVnodes = NULL;
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    dError("failed to get vnode list since %s", tstrerror(code));
+    return;
+  }
 
   if (ppVnodes != NULL) {
     for (int32_t i = 0; i < numOfVnodes; ++i) {
@@ -546,12 +567,14 @@ static void *vmThreadFp(void *param) {
 }
 
 static int32_t vmInitTimer(SVnodeMgmt *pMgmt) {
+  int32_t      code = 0;
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   if (taosThreadCreate(&pMgmt->thread, &thAttr, vmThreadFp, pMgmt) != 0) {
-    dError("failed to create vnode timer thread since %s", strerror(errno));
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create vnode timer thread since %s", tstrerror(code));
+    return code;
   }
 
   taosThreadAttrDestroy(&thAttr);
@@ -570,7 +593,10 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t code = -1;
 
   SVnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SVnodeMgmt));
-  if (pMgmt == NULL) goto _OVER;
+  if (pMgmt == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
   pMgmt->pData = pInput->pData;
   pMgmt->path = pInput->path;
@@ -579,7 +605,18 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.putToQueueFp = (PutToQueueFp)vmPutRpcMsgToQueue;
   pMgmt->msgCb.qsizeFp = (GetQueueSizeFp)vmGetQueueSize;
   pMgmt->msgCb.mgmt = pMgmt;
-  taosThreadRwlockInit(&pMgmt->lock, NULL);
+
+  code = taosThreadRwlockInit(&pMgmt->lock, NULL);
+  if (code != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _OVER;
+  }
+
+  code = taosThreadMutexInit(&pMgmt->createLock, NULL);
+  if (code != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _OVER;
+  }
 
   pMgmt->pTfs = pInput->pTfs;
   if (pMgmt->pTfs == NULL) {
@@ -588,38 +625,39 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("vnode-tfs", "initialized");
 
-  if (walInit() != 0) {
-    dError("failed to init wal since %s", terrstr());
+  if ((code = walInit()) != 0) {
+    dError("failed to init wal since %s", tstrerror(code));
     goto _OVER;
   }
+
   tmsgReportStartup("vnode-wal", "initialized");
 
-  if (syncInit() != 0) {
-    dError("failed to open sync since %s", terrstr());
+  if ((code = syncInit()) != 0) {
+    dError("failed to open sync since %s", tstrerror(code));
     goto _OVER;
   }
   tmsgReportStartup("vnode-sync", "initialized");
 
-  if (vnodeInit(tsNumOfCommitThreads) != 0) {
-    dError("failed to init vnode since %s", terrstr());
+  if ((code = vnodeInit(tsNumOfCommitThreads)) != 0) {
+    dError("failed to init vnode since %s", tstrerror(code));
     goto _OVER;
   }
   tmsgReportStartup("vnode-commit", "initialized");
 
-  if (vmStartWorker(pMgmt) != 0) {
-    dError("failed to init workers since %s", terrstr());
+  if ((code = vmStartWorker(pMgmt)) != 0) {
+    dError("failed to init workers since %s", tstrerror(code));
     goto _OVER;
   }
   tmsgReportStartup("vnode-worker", "initialized");
 
-  if (vmOpenVnodes(pMgmt) != 0) {
-    dError("failed to open all vnodes since %s", terrstr());
+  if ((code = vmOpenVnodes(pMgmt)) != 0) {
+    dError("failed to open all vnodes since %s", tstrerror(code));
     goto _OVER;
   }
   tmsgReportStartup("vnode-vnodes", "initialized");
 
-  if (udfcOpen() != 0) {
-    dError("failed to open udfc in vnode");
+  if ((code = udfcOpen()) != 0) {
+    dError("failed to open udfc in vnode since %s", tstrerror(code));
     goto _OVER;
   }
 
@@ -629,7 +667,7 @@ _OVER:
   if (code == 0) {
     pOutput->pMgmt = pMgmt;
   } else {
-    dError("failed to init vnodes-mgmt since %s", terrstr());
+    dError("failed to init vnodes-mgmt since %s", tstrerror(code));
     vmCleanup(pMgmt);
   }
 
@@ -679,18 +717,32 @@ static void *vmRestoreVnodeInThread(void *param) {
 }
 
 static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
+  int32_t     code = 0;
   int32_t     numOfVnodes = 0;
-  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  SVnodeObj **ppVnodes = NULL;
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    dError("failed to get vnode list since %s", tstrerror(code));
+    return code;
+  }
 
   int32_t threadNum = tsNumOfCores / 2;
   if (threadNum < 1) threadNum = 1;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
+  if (threads == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   for (int32_t t = 0; t < threadNum; ++t) {
     threads[t].threadIndex = t;
     threads[t].pMgmt = pMgmt;
     threads[t].ppVnodes = taosMemoryCalloc(vnodesPerThread, sizeof(SVnode *));
+    if (threads[t].ppVnodes == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
   }
 
   for (int32_t v = 0; v < numOfVnodes; ++v) {
@@ -713,6 +765,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
     if (taosThreadCreate(&pThread->thread, &thAttr, vmRestoreVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to restore vnode since %s", pThread->threadIndex, strerror(errno));
+      ASSERT(errno == 0);
     }
 
     taosThreadAttrDestroy(&thAttr);
@@ -738,6 +791,14 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
   }
 
   return vmInitTimer(pMgmt);
+
+_exit:
+  for (int32_t t = 0; t < threadNum; ++t) {
+    SVnodeThread *pThread = &threads[t];
+    taosMemoryFree(pThread->ppVnodes);
+  }
+  taosMemoryFree(threads);
+  return code;
 }
 
 static void vmStop(SVnodeMgmt *pMgmt) { vmCleanupTimer(pMgmt); }

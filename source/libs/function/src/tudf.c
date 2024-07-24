@@ -26,6 +26,10 @@
 #include "tudf.h"
 #include "tudfInt.h"
 
+#ifdef _TD_DARWIN_64
+#include <mach-o/dyld.h>
+#endif
+
 typedef struct SUdfdData {
   bool         startCalled;
   bool         needCleanUp;
@@ -141,9 +145,9 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   udfdPathLdLib[udfdLdLibPathLen] = ':';
   strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
-    fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
+    fnInfo("[UDFD]udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
-    fnError("can not set correct udfd LD_LIBRARY_PATH");
+    fnError("[UDFD]can not set correct udfd LD_LIBRARY_PATH");
   }
   char ldLibPathEnvItem[1024 + 32] = {0};
   snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", "LD_LIBRARY_PATH", udfdPathLdLib);
@@ -1029,7 +1033,7 @@ void    releaseUdfFuncHandle(char *udfName, UdfcFuncHandle handle);
 int32_t cleanUpUdfs();
 
 bool    udfAggGetEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
-bool    udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
+int32_t udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 
@@ -1214,15 +1218,18 @@ bool udfAggGetEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv) {
   return true;
 }
 
-bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo) {
-  if (functionSetup(pCtx, pResultCellInfo) != true) {
-    return false;
+int32_t udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo) {
+  if (pResultCellInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (functionSetup(pCtx, pResultCellInfo) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
   }
   UdfcFuncHandle handle;
   int32_t        udfCode = 0;
   if ((udfCode = acquireUdfFuncHandle((char *)pCtx->udfName, &handle)) != 0) {
     fnError("udfAggInit error. step doSetupUdf. udf code: %d", udfCode);
-    return false;
+    return TSDB_CODE_FUNC_SETUP_ERROR;
   }
   SUdfcUvSession *session = (SUdfcUvSession *)handle;
   SUdfAggRes     *udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(pResultCellInfo);
@@ -1236,7 +1243,7 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResult
   if ((udfCode = doCallUdfAggInit(handle, &buf)) != 0) {
     fnError("udfAggInit error. step doCallUdfAggInit. udf code: %d", udfCode);
     releaseUdfFuncHandle(pCtx->udfName, handle);
-    return false;
+    return TSDB_CODE_FUNC_SETUP_ERROR;
   }
   if (buf.bufLen <= session->bufSize) {
     memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
@@ -1245,11 +1252,11 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResult
   } else {
     fnError("udfc inter buf size %d is greater than function bufSize %d", buf.bufLen, session->bufSize);
     releaseUdfFuncHandle(pCtx->udfName, handle);
-    return false;
+    return TSDB_CODE_FUNC_SETUP_ERROR;
   }
   releaseUdfFuncHandle(pCtx->udfName, handle);
   freeUdfInterBuf(&buf);
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {

@@ -1,16 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * Copyright 2019-2020 DigitalOcean Inc.
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <pthread.h>
@@ -90,7 +91,7 @@ taos_map_t *taos_map_new() {
     return NULL;
   }
 
-  self->addrs = taos_malloc(sizeof(taos_linked_list_t) * self->max_size);
+  self->addrs = taos_malloc(sizeof(taos_linked_list_t*) * self->max_size);
   self->free_value_fn = destroy_map_node_value_no_op;
 
   for (int i = 0; i < self->max_size; i++) {
@@ -273,7 +274,7 @@ int taos_map_ensure_space(taos_map_t *self) {
   if (r) return r;
 
   // Create a new array of addrs
-  taos_linked_list_t **new_addrs = taos_malloc(sizeof(taos_linked_list_t) * new_max);
+  taos_linked_list_t **new_addrs = taos_malloc(sizeof(taos_linked_list_t*) * new_max);
 
   // Initialize the new array
   for (int i = 0; i < new_max; i++) {

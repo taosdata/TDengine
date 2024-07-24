@@ -1490,6 +1490,7 @@ static int32_t mndAddAlterVnodeHashRangeAction(SMnode *pMnode, STrans *pTrans, i
     return -1;
   }
 
+  mInfo("trans:%d, add alter vnode hash range action for from vgId:%d to vgId:%d", pTrans->id, srcVgId, pVgroup->vgId);
   return 0;
 }
 
@@ -1951,6 +1952,10 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "red-vgroup");
   if (pTrans == NULL) goto _OVER;
+
+  mndTransSetDbName(pTrans, pVgroup->dbName, NULL);
+  if (mndTransCheckConflictWithCompact(pMnode, pTrans) != 0) goto _OVER;
+
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to redistribute vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
 
@@ -2719,15 +2724,6 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   STrans *pTrans = NULL;
   SDbObj  dbObj = {0};
   SArray *pArray = mndBuildDnodesArray(pMnode, 0);
-
-  //  int32_t numOfTopics = 0;
-  //  if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
-  //    goto _OVER;
-  //  }
-  //  if (numOfTopics > 0) {
-  //    terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
-  //    goto _OVER;
-  //  }
 
   int32_t numOfStreams = 0;
   if (mndGetNumOfStreams(pMnode, pDb->name, &numOfStreams) != 0) {

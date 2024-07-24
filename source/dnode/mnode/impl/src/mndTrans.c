@@ -26,7 +26,7 @@
 #define TRANS_VER1_NUMBER  1
 #define TRANS_VER2_NUMBER  2
 #define TRANS_ARRAY_SIZE   8
-#define TRANS_RESERVE_SIZE 48
+#define TRANS_RESERVE_SIZE 44
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
@@ -196,10 +196,21 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
   }
 
   SDB_SET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER)
+
+  int32_t arbGroupNum = taosHashGetSize(pTrans->arbGroupIds);
+  SDB_SET_INT32(pRaw, dataPos, arbGroupNum, _OVER)
+  void *pIter = NULL;
+  pIter = taosHashIterate(pTrans->arbGroupIds, NULL);
+  while (pIter) {
+    int32_t arbGroupId = *(int32_t *)pIter;
+    SDB_SET_INT32(pRaw, dataPos, arbGroupId, _OVER)
+    pIter = taosHashIterate(pTrans->arbGroupIds, pIter);
+  }
+
   SDB_SET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
-  terrno = 0;
+      terrno = 0;
 
 _OVER:
   if (terrno != 0) {
@@ -279,6 +290,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   int32_t  undoActionNum = 0;
   int32_t  commitActionNum = 0;
   int32_t  dataPos = 0;
+  int32_t  arbgroupIdNum = 0;
 
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
@@ -350,6 +362,16 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   }
 
   SDB_GET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER);
+
+  pTrans->arbGroupIds = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+
+  SDB_GET_INT32(pRaw, dataPos, &arbgroupIdNum, _OVER)
+  for (int32_t i = 0; i < arbgroupIdNum; ++i) {
+    int32_t arbGroupId = 0;
+    SDB_GET_INT32(pRaw, dataPos, &arbGroupId, _OVER)
+    taosHashPut(pTrans->arbGroupIds, &arbGroupId, sizeof(int32_t), NULL, 0);
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -461,6 +483,9 @@ void mndTransDropData(STrans *pTrans) {
   if (pTrans->commitActions != NULL) {
     mndTransDropActions(pTrans->commitActions);
     pTrans->commitActions = NULL;
+  }
+  if (pTrans->arbGroupIds != NULL) {
+    taosHashCleanup(pTrans->arbGroupIds);
   }
   if (pTrans->pRpcArray != NULL) {
     taosArrayDestroy(pTrans->pRpcArray);
@@ -581,6 +606,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->redoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->undoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->commitActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
+  pTrans->arbGroupIds = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
   pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : tGenIdPI64();
   taosInitRWLatch(&pTrans->lockRpcArray);
@@ -733,7 +759,9 @@ void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) 
   }
 }
 
-void mndTransSetArbGroupId(STrans *pTrans, int32_t groupId) { pTrans->arbGroupId = groupId; }
+void mndTransAddArbGroupId(STrans *pTrans, int32_t groupId) {
+  taosHashPut(pTrans->arbGroupIds, &groupId, sizeof(int32_t), NULL, 0);
+}
 
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
 
@@ -768,7 +796,13 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
 
 static bool mndCheckDbConflict(const char *conflict, STrans *pTrans) {
   if (conflict[0] == 0) return false;
-  if (strcasecmp(conflict, pTrans->dbname) == 0 || strcasecmp(conflict, pTrans->stbname) == 0) return true;
+  if (strcasecmp(conflict, pTrans->dbname) == 0) return true;
+  return false;
+}
+
+static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
+  if (conflict[0] == 0) return false;
+  if (strcasecmp(conflict, pTrans->stbname) == 0) return true;
   return false;
 }
 
@@ -788,40 +822,49 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
         if (mndCheckDbConflict(pNew->dbname, pTrans)) conflict = true;
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;
       }
     }
     if (pNew->conflict == TRN_CONFLICT_DB_INSIDE) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB) {
         if (mndCheckDbConflict(pNew->dbname, pTrans)) conflict = true;
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;
       }
       if (pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
       }
     }
 
-    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
-      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-      }
-    }
-    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-      }
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0)
-          conflict = true;
-      }
-    }
+//    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
+//      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
+//      }
+//    }
+//    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
+//      }
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0)
+//          conflict = true;
+//      }
+//    }
     if (pNew->conflict == TRN_CONFLICT_ARBGROUP) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_ARBGROUP) {
-        if (pNew->arbGroupId == pTrans->arbGroupId) conflict = true;
+        void* pGidIter = taosHashIterate(pNew->arbGroupIds, NULL);
+        while (pGidIter != NULL) {
+          int32_t groupId = *(int32_t *)pGidIter;
+          if (taosHashGet(pTrans->arbGroupIds, &groupId, sizeof(int32_t)) != NULL) {
+            taosHashCancelIterate(pNew->arbGroupIds, pGidIter);
+            conflict = true;
+            break;
+          }
+          pGidIter = taosHashIterate(pNew->arbGroupIds, pGidIter);
+        }
       }
     }
 
@@ -850,6 +893,41 @@ int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
 
   if (mndCheckTransConflict(pMnode, pTrans)) {
     terrno = TSDB_CODE_MND_TRANS_CONFLICT;
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    return terrno;
+  }
+
+  return 0;
+}
+
+int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
+  void        *pIter = NULL;
+  bool         conflict = false;
+  SCompactObj *pCompact = NULL;
+
+  while (1) {
+    bool thisConflict = false;
+    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
+    if (pIter == NULL) break;
+
+    if (pTrans->conflict == TRN_CONFLICT_GLOBAL || pTrans->conflict == TRN_CONFLICT_DB ||
+        pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+      if (strcasecmp(pTrans->dbname, pCompact->dbname) == 0) thisConflict = true;
+    }
+
+    if (thisConflict) {
+      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with compact:%d db:%s", pTrans->id,
+             pTrans->dbname, pTrans->stbname, pTrans->conflict, pCompact->compactId, pCompact->dbname);
+      conflict = true;
+    } else {
+      mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with compact:%d db:%s", pTrans->id, pTrans->dbname,
+            pTrans->stbname, pTrans->conflict, pCompact->compactId, pCompact->dbname);
+    }
+    sdbRelease(pMnode->pSdb, pCompact);
+  }
+
+  if (conflict) {
+    terrno = TSDB_CODE_MND_TRANS_CONFLICT_COMPACT;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     return terrno;
   }
@@ -1163,6 +1241,7 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
   }
 }
 
+// execute at bottom half
 static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->rawWritten) return 0;
   if (topHalf) {
@@ -1189,6 +1268,7 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
   return code;
 }
 
+// execute at top half
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->msgSent) return 0;
   if (mndCannotExecuteTransAction(pMnode, topHalf)) {
@@ -1372,7 +1452,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
   mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->actionPos);
 
   for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
-    STransAction *pAction = taosArrayGet(pActions, pTrans->actionPos);
+    STransAction *pAction = taosArrayGet(pActions, action);
 
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
     if (code == 0) {
@@ -1566,6 +1646,11 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans, boo
     pTrans->stage = TRN_STAGE_FINISH;  // TRN_STAGE_PRE_FINISH is not necessary
     mInfo("trans:%d, stage from commitAction to finished", pTrans->id);
     continueExec = true;
+  } else if (code == TSDB_CODE_MND_TRANS_CTX_SWITCH && topHalf) {
+    pTrans->code = 0;
+    pTrans->stage = TRN_STAGE_COMMIT;
+    mInfo("trans:%d, back to commit stage", pTrans->id);
+    continueExec = true;
   } else {
     pTrans->code = terrno;
     pTrans->failedTimes++;
@@ -1705,11 +1790,13 @@ void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   mndTransSendRpcRsp(pMnode, pTrans);
 }
 
+// start trans, pullup, receive rsp, kill
 void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   bool topHalf = true;
   return mndTransExecuteImp(pMnode, pTrans, topHalf);
 }
 
+// update trans
 void mndTransRefresh(SMnode *pMnode, STrans *pTrans) {
   bool topHalf = false;
   return mndTransExecuteImp(pMnode, pTrans, topHalf);

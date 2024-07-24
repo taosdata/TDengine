@@ -21,29 +21,29 @@ target_include_directories(
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
     PRIVATE "${TD_SOURCE_DIR}/contrib/lzma2/"
+    PRIVATE "${TD_SOURCE_DIR}/contrib/pcre2/"
 )
 
 target_link_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
 )
-
 
 if (TD_LINUX)
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC lz4_static fast-lzma2 
-        PUBLIC api cjson geos_c TSZ 
-    
-    ) 
-else() 
+        PUBLIC lz4_static fast-lzma2 pcre2-8
+        PUBLIC api cjson geos_c TSZ
+    )
+else()
     target_link_libraries(
     util
     PUBLIC os common
-    PUBLIC lz4_static 
-    PUBLIC api cjson geos_c TSZ 
-    ) 
+    PUBLIC lz4_static pcre2-8
+    PUBLIC api cjson geos_c TSZ
+    )
 endif()
 
 if(${BUILD_TEST})

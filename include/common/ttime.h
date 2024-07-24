@@ -86,11 +86,11 @@ void    deltaToUtcInitOnce();
 char    getPrecisionUnit(int32_t precision);
 
 int64_t convertTimePrecision(int64_t ts, int32_t fromPrecision, int32_t toPrecision);
-int64_t convertTimeFromPrecisionToUnit(int64_t ts, int32_t fromPrecision, char toUnit);
+int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit, int64_t* pRes);
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal);
 int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision);
 
-void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
+int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
 
 struct STm {
   struct tm tm;
@@ -126,6 +126,9 @@ int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const c
 /// @param offset seconds, eg: +08 offset -28800, -01 offset 3600
 /// @return 0 success, other fail
 int32_t offsetOfTimezone(char* tzStr, int64_t* offset);
+
+bool checkRecursiveTsmaInterval(int64_t baseInterval, int8_t baseUnit, int64_t interval, int8_t unit, int8_t precision,
+                                bool checkEq);
 
 #ifdef __cplusplus
 }

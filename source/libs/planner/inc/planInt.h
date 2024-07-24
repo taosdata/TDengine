@@ -60,6 +60,7 @@ bool        keysHasCol(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
 SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
 int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict);
+int32_t tagScanSetExecutionMode(SScanLogicNode* pScan);
 
 #define CLONE_LIMIT 1
 #define CLONE_SLIMIT 1 << 1

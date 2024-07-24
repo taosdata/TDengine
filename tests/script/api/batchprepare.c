@@ -124,6 +124,7 @@ int queryColumnTest(TAOS_STMT *stmt, TAOS *taos);
 int queryMiscTest(TAOS_STMT *stmt, TAOS *taos);
 int insertNonExistsTb(TAOS_STMT *stmt, TAOS *taos);
 int insertVarLenErr(TAOS_STMT *stmt, TAOS *taos);
+int insertStbTest(TAOS_STMT *stmt, TAOS *taos);
 
 enum {
   TTYPE_INSERT = 1,
@@ -148,53 +149,56 @@ typedef struct {
   int32_t  bindNullNum;
   int32_t  runTimes;
   int32_t  preCaseIdx;
+  bool     stbInsert;
 } CaseCfg;
 
 CaseCfg gCase[] = {
-  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1},
-  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1},
+  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1, false},
+  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, 0, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1, false},
 
-  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 0, 1, -1, false},
+  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 0, 1, -1, false},
+  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 0, 1, -1, false},
 
-  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest2, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest2, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 0, 1, -1, false},
+  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest2, 10, 10, 2, 12, 0, 0, 1, -1, false},
+  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBSETest2, 10, 10, 2, 2, 0, 0, 1, -1, false},
 
-  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest1, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest1, 10, 10, 2, 0, 0, 0, 1, -1, false},
+  {"insert:MBME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest1, 10, 10, 2, 12, 0, 0, 1, -1, false},
+  {"insert:MBME1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest1, 10, 10, 2, 2, 0, 0, 1, -1, false},
 
   // 11
-  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest2, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest2, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest2, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest2, 10, 10, 2, 0, 0, 0, 1, -1, false},
+  {"insert:MBME2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest2, 10, 10, 2, 12, 0, 0, 1, -1, false},
+  {"insert:MBME2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest2, 10, 10, 2, 2, 0, 0, 1, -1, false},
 
-  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME3-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME3-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 0, 1, -1, false},
+  {"insert:MBME3-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 0, 1, -1, false},
+  {"insert:MBME3-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 0, 1, -1, false},
 
-  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MBME4-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 0, 1, -1},
-  {"insert:MBME4-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 0, 1, -1},
+  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 0, 1, -1, false},
+  {"insert:MBME4-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 0, 1, -1, false},
+  {"insert:MBME4-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 0, 1, -1, false},
 
-  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 0, 1, -1, false},
+  {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 0, 1, -1, false},
 
-  // 22
-  {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 1, false, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
-  {"insert:AUTO2-TBEXISTS", tListLen(fullColList), fullColList, TTYPE_INSERT, 3, false, true, insertAUTOTest2, 10, 10, 2, 0, 0, 0, 1, -1},
-//  {"insert:AUTO3-NTB", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, true, insertAUTOTest3, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:STBI-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, false, true, insertStbTest, 10, 10, 2, 0, 0, 0, 1, -1, true},
 
-  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
-  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  // 23
+  {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, 1, false, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1, false},
+  {"insert:AUTO2-TBEXISTS", tListLen(fullColList), fullColList, TTYPE_INSERT, 3, false, true, insertAUTOTest2, 10, 10, 2, 0, 0, 0, 1, -1, false},
+//  {"insert:AUTO3-NTB", tListLen(fullColList), fullColList, TTYPE_INSERT, 0, true, true, insertAUTOTest3, 10, 10, 2, 0, 0, 0, 1, -1, false},
 
-  {"query:NG-TBNEXISTS",tListLen(fullColList), fullColList, TTYPE_INSERT_NG,0, false, false, insertNonExistsTb, 10, 10, 1, 3, 0, 0, 1, -1},
-  {"query:NG-VARLENERR",tListLen(fullColList), fullColList, TTYPE_INSERT_NG,0, false, true, insertVarLenErr, 10, 10, 1, 3, 0, 0, 1, -1},
+  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2, false},
+  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2, false},
 
-//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
-//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
+  {"query:NG-TBNEXISTS",tListLen(fullColList), fullColList, TTYPE_INSERT_NG,0, false, false, insertNonExistsTb, 10, 10, 1, 3, 0, 0, 1, -1, false},
+  {"query:NG-VARLENERR",tListLen(fullColList), fullColList, TTYPE_INSERT_NG,0, false, true, insertVarLenErr, 10, 10, 1, 3, 0, 0, 1, -1, false},
+
+//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2, false},
+//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2, false},
 
 };
 
@@ -233,7 +237,7 @@ typedef struct {
 
 #if 0
 CaseCtrl gCaseCtrl = {
-  .precision = TIME_PRECISION_MICRO,
+  .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
   .printCreateTblSql = true,
   .printQuerySql = true,
@@ -256,7 +260,7 @@ CaseCtrl gCaseCtrl = {
   .funcIdxList = NULL,
   .checkParamNum = false,
   .runTimes = 0,
-  .caseIdx = 26,
+  .caseIdx = 20,
   .caseNum = 1,
   .caseRunIdx = -1,
   .caseRunNum = -1,
@@ -268,7 +272,7 @@ CaseCtrl gCaseCtrl = {
 CaseCtrl gCaseCtrl = {  // default
   .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
-  .printCreateTblSql = false,
+  .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
   .printVerbose = false,
@@ -456,9 +460,6 @@ void generateInsertSQL(BindData *data) {
           case TSDB_DATA_TYPE_UBIGINT:
             len += sprintf(data->sql + len, "tubigdata");
             break;
-          case TSDB_DATA_TYPE_GEOMETRY:
-            len += sprintf(data->sql + len, "tgeometrydata");
-            break;
           default:
             printf("!!!invalid tag type:%d", data->pTags[c].buffer_type);
             exit(1);
@@ -527,9 +528,6 @@ void generateInsertSQL(BindData *data) {
         case TSDB_DATA_TYPE_UBIGINT:
           len += sprintf(data->sql + len, "ubigdata");
           break;
-        case TSDB_DATA_TYPE_GEOMETRY:
-          len += sprintf(data->sql + len, "tgeometrydata");
-          break;
         default:
           printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
           exit(1);
@@ -560,7 +558,11 @@ void bpAppendOperatorParam(BindData *data, int32_t *len, int32_t dataType, int32
     pInfo = &operInfo[gCaseCtrl.optrIdxList[idx]];
   } else {
     if (TSDB_DATA_TYPE_VARCHAR == dataType || TSDB_DATA_TYPE_NCHAR == dataType || TSDB_DATA_TYPE_GEOMETRY == dataType) {
+#if 1
       pInfo = &operInfo[varoperatorList[rand() % tListLen(varoperatorList)]];
+#else 
+      pInfo = &operInfo[11];
+#endif
     } else {
       pInfo = &operInfo[operatorList[rand() % tListLen(operatorList)]];
     }
@@ -643,9 +645,6 @@ int32_t bpAppendColumnName(BindData *data, int32_t type, int32_t len) {
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       return sprintf(data->sql + len, "ubigdata");
-      break;
-    case TSDB_DATA_TYPE_GEOMETRY:
-      len += sprintf(data->sql + len, "tgeometrydata");
       break;
     default:
       printf("!!!invalid col type:%d", type);
@@ -751,7 +750,7 @@ void generateErrorSQL(BindData *data, int32_t tblIdx) {
   }  
 }
 
-void generateColDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
+void generateColDataType(bool isQuery, BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
   if (bindIdx < gCurCase->bindColNum) {
     if (gCaseCtrl.bindColTypeNum) {
       *dataType = gCaseCtrl.bindColTypeList[colIdx];
@@ -769,15 +768,23 @@ void generateColDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_
         break;
       }
       return;
-    } else if (0 == colIdx) {
+    } else if (0 == colIdx && !isQuery) {
       *dataType = TSDB_DATA_TYPE_TIMESTAMP;
       return;
     } else {
       while (true) {
+#if 1
         *dataType = rand() % (TSDB_DATA_TYPE_MAX - 1) + 1;
+#else
+        if (!colExists(data->pBind, TSDB_DATA_TYPE_NCHAR)) {
+          *dataType = TSDB_DATA_TYPE_NCHAR;
+        } else {
+          *dataType = rand() % (TSDB_DATA_TYPE_MAX - 1) + 1;
+        }
+#endif
         if (*dataType == TSDB_DATA_TYPE_JSON || *dataType == TSDB_DATA_TYPE_DECIMAL 
          || *dataType == TSDB_DATA_TYPE_BLOB || *dataType == TSDB_DATA_TYPE_MEDIUMBLOB
-         || *dataType == TSDB_DATA_TYPE_VARBINARY) {
+         || *dataType == TSDB_DATA_TYPE_VARBINARY || *dataType == TSDB_DATA_TYPE_GEOMETRY) {
           continue;
         }
 
@@ -806,7 +813,7 @@ void generateTagDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_
         *dataType = rand() % (TSDB_DATA_TYPE_MAX - 1) + 1;
         if (*dataType == TSDB_DATA_TYPE_JSON || *dataType == TSDB_DATA_TYPE_DECIMAL 
          || *dataType == TSDB_DATA_TYPE_BLOB || *dataType == TSDB_DATA_TYPE_MEDIUMBLOB
-         || *dataType == TSDB_DATA_TYPE_VARBINARY) {
+         || *dataType == TSDB_DATA_TYPE_VARBINARY || *dataType == TSDB_DATA_TYPE_GEOMETRY) {
           continue;
         }
 
@@ -823,7 +830,7 @@ void generateTagDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_
 }
 
 
-int32_t prepareColData(BP_BIND_TYPE bType, BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t colIdx) {
+int32_t prepareColData(bool isQuery, BP_BIND_TYPE bType, BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t colIdx) {
   int32_t dataType = TSDB_DATA_TYPE_TIMESTAMP;
   TAOS_MULTI_BIND *pBase = NULL;
   
@@ -832,7 +839,7 @@ int32_t prepareColData(BP_BIND_TYPE bType, BindData *data, int32_t bindIdx, int3
     generateTagDataType(data, bindIdx, colIdx, &dataType);
   } else {
     pBase = data->pBind;
-    generateColDataType(data, bindIdx, colIdx, &dataType);
+    generateColDataType(isQuery, data, bindIdx, colIdx, &dataType);
   }
 
 
@@ -993,13 +1000,13 @@ int32_t prepareInsertData(BindData *data) {
 
   for (int b = 0; b < (allRowNum/gCurCase->bindRowNum); b++) {
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
-      prepareColData(BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
+      prepareColData(false, BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
     }
   }
 
   for (int b = 0; b < gCurCase->tblNum; b++) {
     for (int c = 0; c < gCurCase->bindTagNum; ++c) {
-      prepareColData(BP_BIND_TAG, data, b*gCurCase->bindTagNum+c, b, c);
+      prepareColData(false, BP_BIND_TAG, data, b*gCurCase->bindTagNum+c, b, c);
     }
   }
 
@@ -1056,7 +1063,7 @@ int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
 
   for (int b = 0; b < bindNum; b++) {
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
-      prepareColData(BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
+      prepareColData(true, BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
     }
   }
 
@@ -1116,10 +1123,10 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
   } else {
     gCaseCtrl.numericParam = false;
   }
-  
+
   for (int b = 0; b < bindNum; b++) {
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
-      prepareColData(BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
+      prepareColData(true, BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
     }
   }
 
@@ -1462,7 +1469,7 @@ int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, bool expectFail) {
   }
   
   if (gCurCase->bindRowNum > 1) {
-    if (0 == (n++%2)) {
+    if (0 == (n++%2) || gCurCase->stbInsert) {
       if (taos_stmt_bind_param_batch(stmt, bind)) {
         if (expectFail) return 0;
         printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
@@ -1473,7 +1480,7 @@ int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, bool expectFail) {
       for (int32_t i = 0; i < gCurCase->bindColNum; ++i) {
         if (taos_stmt_bind_single_param_batch(stmt, bind+i, i)) {
           if (expectFail) continue;
-          printf("!!!taos_stmt_bind_single_param_batch %d error:%s\n", taos_stmt_errstr(stmt), i);
+          printf("!!!taos_stmt_bind_single_param_batch %d error:%s\n", i, taos_stmt_errstr(stmt));
           bpShowBindParam(bind, gCurCase->bindColNum);
           exit(1);
         }
@@ -1924,6 +1931,62 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
   
   return 0;
 }
+
+/* prepare [settbname [bind] exec]   */
+int insertStbTest(TAOS_STMT *stmt, TAOS *taos) {
+  BindData data = {0};
+  prepareInsertData(&data);
+
+  int code = taos_stmt_prepare(stmt, data.sql, 0);
+  if (code != 0){
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  bpCheckIsInsert(stmt, 1);
+
+  int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
+  for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+    if (gCurCase->tblNum > 1) {
+      char buf[32];
+      sprintf(buf, "t%d", t);
+      code = bpSetTableNameTags(&data, t, buf, stmt);
+      if (code != 0){
+        printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }  
+    }
+
+    if (gCaseCtrl.checkParamNum) {
+      bpCheckParamNum(stmt);
+    }
+    
+    for (int32_t b = 0; b <bindTimes; ++b) {
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
+        exit(1);
+      }
+    }
+
+    if (taos_stmt_add_batch(stmt)) {
+      printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+      exit(1);
+    }
+
+    if (taos_stmt_execute(stmt) != 0) {
+      printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+      exit(1);
+    }
+  }
+
+  bpCheckIsInsert(stmt, 1);
+
+  destroyData(&data);
+
+  bpCheckAffectedRows(stmt, 1);
+  
+  return 0;
+}
+
 
 
 /* [prepare [settbnametag [bind add] exec]]   */
@@ -2556,9 +2619,6 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "ubigdata bigint unsigned");
           break;
-        case TSDB_DATA_TYPE_GEOMETRY:
-          blen += sprintf(buf + blen, "geometrydata geometry(%d)", gVarCharSize);
-          break;
         default:
           printf("invalid col type:%d", colList[c]);
           exit(1);
@@ -2617,9 +2677,6 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "tubigdata bigint unsigned");
           break;
-        case TSDB_DATA_TYPE_GEOMETRY:
-          blen += sprintf(buf + blen, "tgeometrydata geometry(%d)", gVarCharSize);
-          break;
         default:
           printf("invalid col type:%d", colList[c]);
           exit(1);
@@ -2677,9 +2734,6 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
           break;
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "%d", rand() % 128);
-          break;
-        case TSDB_DATA_TYPE_GEOMETRY:
-          blen += sprintf(buf + blen, "'geo%d'", rand() % 128);
           break;
         default:
           printf("invalid col type:%d", colList[c]);
@@ -2880,8 +2934,16 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
     }
     
     beginUs = taosGetTimestampUs();
-   
-    stmt = taos_stmt_init(taos);
+
+    if (gCurCase->stbInsert) {
+      TAOS_STMT_OPTIONS op;
+      op.reqId = 0;
+      op.singleStbInsert = true;
+      op.singleTableBindOnce = true;
+      stmt = taos_stmt_init_with_options(taos, &op);
+    } else {
+      stmt = taos_stmt_init(taos);
+    }
     if (NULL == stmt) {
       printf("!!!taos_stmt_init failed, error:%s\n", taos_stmt_errstr(stmt));
       exit(1);

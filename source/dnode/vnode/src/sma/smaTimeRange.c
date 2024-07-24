@@ -69,8 +69,9 @@ static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t c
   }
 
   STsdbCfg *pTsdbCfg = &pCfg->tsdbCfg;
-  int64_t   sInterval = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_SECOND);
-  if (sInterval <= 0) {
+  int64_t   sInterval = -1;
+  code = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_SECOND, &sInterval);
+  if (TSDB_CODE_SUCCESS != code || 0 == sInterval) {
     *days = pTsdbCfg->days;
     goto _exit;
   }
@@ -78,7 +79,11 @@ static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t c
   if (records >= SMA_STORAGE_SPLIT_FACTOR) {
     *days = pTsdbCfg->days;
   } else {
-    int64_t mInterval = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_MINUTE);
+    int64_t mInterval = -1;
+    code = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_MINUTE, &mInterval);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _exit;
+    }
     int64_t daysPerFile = mInterval * SMA_STORAGE_MINUTES_DAY * 2;
 
     if (daysPerFile > SMA_STORAGE_MINUTES_MAX) {
@@ -196,14 +201,19 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = SUBMIT_REQ_AUTO_CREATE_TABLE};
 
     int32_t cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1;
-    tbData.pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true);
+
+    code = buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray, true, &tbData.pCreateTbReq);
+    if (code) {
+      smaError("failed to build create-table req, code:%d", code);
+      continue;
+    }
 
     {
       uint64_t groupId = pDataBlock->info.id.groupId;
 
       int32_t *index = taosHashGet(pTableIndexMap, &groupId, sizeof(groupId));
       if (index == NULL) {  // no data yet, append it
-        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, INT64_MIN, "");
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }
@@ -213,7 +223,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
         int32_t size = (int32_t)taosArrayGetSize(pReq->aSubmitTbData) - 1;
         taosHashPut(pTableIndexMap, &groupId, sizeof(groupId), &size, sizeof(size));
       } else {
-        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, "");
+        code = tqSetDstTableDataPayload(suid, pTSchema, i, pDataBlock, &tbData, INT64_MIN, "");
         if (code != TSDB_CODE_SUCCESS) {
           continue;
         }

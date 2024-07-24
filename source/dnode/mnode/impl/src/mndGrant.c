@@ -36,7 +36,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   if (pShow->numOfRows < 1) {
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    const char      *src = "community";
+    const char      *src = TD_PRODUCT_NAME;
     STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataSetVal(pColInfo, numOfRows, tmp, false);
 
@@ -77,6 +77,7 @@ void    grantParseParameter() { mError("can't parsed parameter k"); }
 void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
+int64_t grantRemain(EGrantType grant) { return 0; }
 char   *tGetMachineId() { return NULL; };
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }

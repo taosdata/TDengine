@@ -103,7 +103,7 @@ typedef void* queue[2];
 #define TRANS_MAGIC_NUM           0x5f375a86
 #define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
 
-typedef SRpcMsg      STransMsg;
+typedef struct SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
 typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
@@ -123,7 +123,7 @@ typedef struct {
   STransMsg* pRsp;
   SEpSet     epSet;
   int8_t     hasEpSet;
-  tsem_t*    pSem;
+  tsem2_t*   pSem;
   int8_t     inited;
   SRWLatch   latch;
 } STransSyncMsg;
@@ -302,8 +302,8 @@ int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
 int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool transReadComplete(SConnBuffer* connBuf);
-int  transResetBuffer(SConnBuffer* connBuf);
-int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf);
+int  transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
 int transSetConnOption(uv_tcp_t* stream, int keepalive);
 

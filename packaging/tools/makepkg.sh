@@ -101,6 +101,7 @@ else
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
+      ${script_dir}/quick_deploy.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
 
@@ -231,7 +232,7 @@ fi
 
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
-  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" remove_temp.sh  
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" remove_temp.sh  
   sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" remove_temp.sh  
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
@@ -258,7 +259,7 @@ cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
 if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
-  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" install_temp.sh    
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" install_temp.sh
   sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" install_temp.sh
   cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
   sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" install_temp.sh

@@ -58,6 +58,8 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 
 interp_clause:
     RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
@@ -95,6 +97,7 @@ The list of currently supported Hints is as follows:
 | PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
 | PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used. When there are numerous tables, each with long rows, the corresponding algorithm associated with this prompt may consume a substantial amount of memory, potentially leading to an Out Of Memory (OOM) situation. | Sorting the supertable rows by timestamp  |
 | SMALLDATA_TS_SORT| None             | When sorting the supertable rows by timestamp, if the length of query columns >= 256, and there are relatively few rows, this hint can improve performance. | Sorting the supertable rows by timestamp  |
+| SKIP_TSMA| None| To explicitly disable tsma optimization for select query|Select query with agg funcs|
 
 For example:
 
@@ -144,6 +147,11 @@ You can query tag columns in supertables and subtables and receive results in th
 ```sql
 SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
+
+### Alias Name
+
+The naming rules for aliases are the same as those for columns, and it supports directly specifying Chinese aliases in UTF-8 encoding format.
+
 
 ### Distinct Values
 
@@ -275,7 +283,7 @@ The GROUP BY clause does not guarantee that the results are ordered. If you want
 
 The PARTITION BY clause is a TDengine-specific extension to standard SQL introduced in TDengine 3.0. This clause partitions data based on the part_list and performs computations per partition.
 
-PARTITION BY and GROUP BY have similar meanings. They both group data according to a specified list and then perform calculations. The difference is that PARTITION BY does not have various restrictions on the SELECT list of the GROUP BY clause. Any operation can be performed within the group (constants, aggregations, scalars, expressions, etc.). Therefore, PARTITION BY is fully compatible with GROUP BY in terms of usage. All places that use the GROUP BY clause can be replaced with PARTITION BY.
+PARTITION BY and GROUP BY have similar meanings. They both group data according to a specified list and then perform calculations. The difference is that PARTITION BY does not have various restrictions on the SELECT list of the GROUP BY clause. Any operation can be performed within the group (constants, aggregations, scalars, expressions, etc.). Therefore, PARTITION BY is fully compatible with GROUP BY in terms of usage. All places that use the GROUP BY clause can be replaced with PARTITION BY, there may be differences in the query results while no aggregation function in the query.
 
 Because PARTITION BY does not require returning a row of aggregated data, it can also support various window operations after grouping slices. All window operations that need to be grouped can only use the PARTITION BY clause.
 
@@ -436,7 +444,7 @@ FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
 ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-For more information about JOIN operations, please refer to the page [TDengine Join] (../join).
+For more information about JOIN operations, please refer to the page [TDengine Join](../join).
 
 ## Nested Query
 
@@ -451,6 +459,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 :::info
 
 - The result of a nested query is returned as a virtual table used by the outer query. It's recommended to give an alias to this table for the convenience of using it in the outer query.
+- Outer queries support directly referencing columns or pseudo-columns of inner queries in the form of column names or \`column names\`.
 - JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
 - The features that can be used in the inner query are the same as those that can be used in a non-nested query.
   - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.

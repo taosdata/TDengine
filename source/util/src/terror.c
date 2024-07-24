@@ -21,21 +21,18 @@
 
 #define TAOS_ERROR_C
 
-typedef struct {
-  int32_t     val;
-  const char* str;
-} STaosError;
-
 static threadlocal int32_t tsErrno;
+static threadlocal int32_t tsErrln;
 static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
 static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 
 int32_t* taosGetErrno() { return &tsErrno; }
+int32_t* taosGetErrln() { return &tsErrln; }
 char*    taosGetErrMsg() { return tsErrMsgDetail; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
-#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg)},
+#define TAOS_DEFINE_ERROR(name, msg) {.val = (name), .str = (msg), .macro = #name},
 #else
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = TAOS_DEF_ERROR_CODE(mod, code);
 #endif
@@ -46,7 +43,7 @@ char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
 STaosError errors[] = {
-    {.val = 0, .str = "success"},
+    TAOS_DEFINE_ERROR(TSDB_CODE_SUCCESS, "success")
 #endif
 
 // rpc
@@ -58,6 +55,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED,   "some vnode/qnode/mnode(s) out of service")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MAX_SESSIONS,             "rpc open too many session")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_ERROR,            "rpc network error")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_BUSY,        "rpc network busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_MODULE_QUIT,         "http-report already quit")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -100,6 +99,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISKSPACE,                 "Out of disk space")
 TAOS_DEFINE_ERROR(TSDB_CODE_TIMEOUT_ERROR,                "Operation timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DISKSPACE,          "No enough disk space")
+TAOS_DEFINE_ERROR(TSDB_CODE_THIRDPARTY_ERROR,             "third party error, please check the log")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting up")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
@@ -108,6 +108,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration
 TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,         "Not allowed to connect")
 TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_CONNECT_S3,         "Failed to connect to s3 server")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been processed in preprocess")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_BUFFER,                "Out of buffer")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -167,6 +168,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         "Invalid query id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          "Invalid connection id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_DISABLED,            "User is disabled")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PLATFORM,         "Unsupported feature on this platform")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_RETURN_VALUE_NULL,        "Return value is null")
 
 // mnode-sdb
 TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_ALREADY_THERE,        "Object already there")
@@ -224,8 +226,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREADY_EXIST,     "Column already exists
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,         "Column does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STB_OPTION,       "Invalid stable options")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ROW_BYTES,        "Invalid row bytes")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_VALUE_OVERFLOW,          "out of range and overflow")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST, "Same with old param")  
+// TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_VALUE_OVERFLOW,  "out of range and overflow") // unused
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_COMPRESS_ALREADY_EXIST, "Same with old param")
 
 
 // mnode-func
@@ -249,15 +251,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB,               "Invalid database name
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DATABASES,       "Too many databases for account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           "Database in dropping status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_NOT_EXIST,             "Database not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO, "WAL retention period is zero")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_ACCT,          "Invalid database account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_OPTION_UNCHANGED,      "Database options not changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_INDEX_NOT_EXIST,       "Index not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_CREATING,           "Database in creating status")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not allowed to be changed after database is created")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INCONSIST_ENCRYPT_KEY,    "Inconsistent encryption key")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO, "WAL retention period is zero")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ENCRYPT_KEY,      "The cluster has not been set properly for database encryption")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_CREATING,           "Database in creating status")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not allowed to be changed after database is created")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_WAL_LEVEL,        "Invalid option, wal_level 0 should be used with replica 1")
 
 // mnode-node
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_ALREADY_EXIST,      "Mnode already exists")
@@ -307,6 +309,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL,   "Unable to establish c
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED,  "Last Transaction not finished")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_SYNC_TIMEOUT,       "Sync timeout While execute transaction and will continue in the background")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CTX_SWITCH,         "Transaction context switch")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT_COMPACT,   "Transaction not completed due to conflict with compact")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
 
 // mnode-mq
@@ -375,6 +378,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_ENCRYPTKEY,     "invalid encryption ke
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_ENCRYPTKEY_CHANGED,     "encryption key was changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_ENCRYPT_KLEN,   "Invalid encryption key length")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_STATUS_INTERVAL,"statusInterval not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_MONITOR_PARAS,  "monitor paras not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_TIMEZONE,       "timezone not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_CHARSET,        "charset not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_LOCALE,         "locale not match")
@@ -431,6 +435,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_STB_NOT_EXIST,            "Stable not exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER, "Table schema is old")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TDB_ENV_OPEN_ERROR,       "TDB env open error")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE,    "Table already exists in other stables")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INCONSISTENT_DB_ID,       "Inconsistent database id")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          "Invalid handle")
@@ -466,8 +471,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QWORKER_QUIT,             "Vnode/Qnode is quitti
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR,    "Geometry not support in this operator")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_WINDOW_CONDITION, "The time pseudo column is illegally used in the condition of the event window.")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,  "Executor internal error")
-TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,  "Executor internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_JOIN_CONDITION,   "Not supported join on condition")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE,  "Not supported range type")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -497,9 +502,19 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_BASIC,          "Lack of basic functio
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OBJ_NOT_EXIST,          "Grant object not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LAST_ACTIVE_NOT_FOUND,  "The historial active code does not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MACHINES_MISMATCH,      "Cluster machines mismatch with active code")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE,   "Expire time of optional grant item is too large")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OPT_EXPIRE_TOO_LARGE,   "Expiration time of optional grant item is too large")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DUPLICATED_ACTIVE,      "The active code can't be activated repeatedly")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VIEW_LIMITED,           "Number of view has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VIEW_LIMITED,           "Number of views has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_BASIC_EXPIRED,          "License expired for basic functions")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_STREAM_EXPIRED,         "License expired for stream function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_SUBSCRIPTION_EXPIRED,   "License expired for subscription function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VIEW_EXPIRED,           "License expired for view function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_AUDIT_EXPIRED,          "License expired for audit function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CSV_EXPIRED,            "License expired for CSV function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED,  "License expired for multi-tier storage function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED, "License expired for object storage function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED,"License expired for dual-replica HA function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED,  "License expired for database encryption function")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
@@ -652,7 +667,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC,  "System table not al
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED,       "System table not allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VARBINARY,          "Invalid varbinary value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_IP_RANGE,           "Invalid IPV4 address ranges")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STREAM_QUERY,       "Invalid stream query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VIEW_QUERY,         "Invalid view query type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_QUERY_MISMATCH,         "Columns number mismatch with query result")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_VIEW_CONFLICT_WITH_TABLE,   "View name is conflict with table")
@@ -669,6 +683,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PK_TYPE,                "primary key column 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PK_OP,              "primary key column can not be added, modified, and dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL,        "Primary key column should not be null")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE,        "Primary key column should not be none")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Pseudo tag tbname not set")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_DUPLICATED,          "Table name duplicated")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_NAME_DUPLICATED,        "Tag name duplicated")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC,  "Some functions cannot appear in the select list at the same time")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,  "Syntax error in regular expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -688,6 +707,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR, "Func to_timest
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR, "Func to_timestamp failed for wrong timestamp")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED, "Func to_timestamp failed for unsupported timestamp format")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED,    "Func to_char failed for unsupported format")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TIME_UNIT_INVALID,        "Invalid function time unit")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL,      "Function time unit cannot be smaller than db precision")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_VALUE_RANGE,      "Function got invalid value range")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_SETUP_ERROR,              "Function set up failed")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
@@ -718,7 +741,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_STAT,              "Invalid tsma state"
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PTR,               "Invalid tsma pointer")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PARA,              "Invalid tsma parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_TB,                "Invalid table to create tsma, only stable or normal table allowed")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_INTERVAL,          "Invalid tsma interval, 1ms ~ 1h is allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_INTERVAL,          "Invalid tsma interval, 1m ~ 1h is allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_FUNC_PARAM,        "Invalid tsma func param, only one non-tag column allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_UNSUPPORTED_FUNC,          "Tsma func not supported")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_MUST_BE_DROPPED,           "Tsma must be dropped first")
@@ -757,6 +780,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_GROUP_OUT_OF_RANGE,         "Group num out of ra
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_SAME_COMMITTED_VALUE,       "Same committed value")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP,     "Replay need only one vgroup if subscribe super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled if subscribe db or stable")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_TABLE_QUALIFIED,         "No table qualified for query")
 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")
@@ -772,6 +796,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open
 
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory")
 
+//AUDIT
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD,   "Failed to send out audit record")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_GENERATE_JSON,       "Failed to generate json")
 #ifdef TAOS_ERROR_C
 };
 #endif
@@ -825,3 +853,5 @@ const char* tstrerror(int32_t err) {
 }
 
 const char* terrstr() { return tstrerror(terrno); }
+
+int32_t  taosGetErrSize() { return sizeof(errors)/sizeof(errors[0]); }

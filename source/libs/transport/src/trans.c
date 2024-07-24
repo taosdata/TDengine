@@ -67,6 +67,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->startTimer = pInit->tfp;
   pRpc->destroyFp = pInit->dfp;
   pRpc->failFastFp = pInit->ffp;
+  pRpc->noDelayFp = pInit->noDelayFp;
   pRpc->connLimitNum = pInit->connLimitNum;
   if (pRpc->connLimitNum == 0) {
     pRpc->connLimitNum = 20;

@@ -25,6 +25,7 @@ extern "C" {
 #include "tarray.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tsimplehash.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 
@@ -191,7 +192,29 @@ typedef struct SBoundColInfo {
   int16_t* pColIndex;  // bound index => schema index
   int32_t  numOfCols;
   int32_t  numOfBound;
+  bool     hasBoundCols;
 } SBoundColInfo;
+
+typedef struct STableColsData {
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  SArray*  aCol;
+  bool     getFromHash;
+} STableColsData;
+
+typedef struct STableVgUid {
+  uint64_t uid;
+  int32_t  vgid;
+} STableVgUid;
+
+typedef struct STableBufInfo {
+  void*     pCurBuff;
+  SArray*   pBufList;
+  int64_t   buffUnit;
+  int64_t   buffSize;
+  int64_t   buffIdx;
+  int64_t   buffOffset;
+} STableBufInfo;
+
 
 typedef struct STableDataCxt {
   STableMeta*    pMeta;
@@ -203,6 +226,33 @@ typedef struct STableDataCxt {
   bool           ordered;
   bool           duplicateTs;
 } STableDataCxt;
+
+typedef struct SStbInterlaceInfo {
+  void*          pCatalog;
+  void*          pQuery;
+  int32_t        acctId;
+  char*          dbname;
+  void*          transport;
+  SEpSet         mgmtEpSet;
+  void*          pRequest;
+  uint64_t       requestId;
+  int64_t        requestSelf;
+  bool           tbFromHash;      
+  SHashObj*      pVgroupHash;
+  SArray*        pVgroupList;
+  SSHashObj*     pTableHash;
+  int64_t        tbRemainNum;
+  STableBufInfo  tbBuf;
+  char           firstName[TSDB_TABLE_NAME_LEN];
+  STSchema      *pTSchema;
+  STableDataCxt *pDataCtx;
+  void          *boundTags;
+
+  bool           tableColsReady;
+  SArray        *pTableCols;
+  int32_t        pTableColsIdx;
+} SStbInterlaceInfo;
+
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
@@ -248,6 +298,8 @@ int32_t cleanupTaskQueue();
  * @return
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+int32_t taosAsyncWait();
+int32_t taosAsyncRecover();
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
@@ -283,7 +335,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
 
 void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t* len);
-char*   parseTagDatatoJson(void* p);
+void    parseTagDatatoJson(void* p, char** jsonStr);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);

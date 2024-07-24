@@ -112,7 +112,7 @@ int32_t syncNodeGetConfig(int64_t rid, SSyncCfg* cfg) {
 
   if (pSyncNode == NULL) {
     sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
-    return -1;
+    return terrno;
   }
 
   *cfg = pSyncNode->raftCfg.cfg;
@@ -463,7 +463,7 @@ _DEL_WAL:
                   pSyncNode->snapshottingIndex, lastApplyIndex);
         } else {
           sNError(pSyncNode, "wal snapshot begin error since:%s, index:%" PRId64 ", last apply index:%" PRId64,
-                  terrstr(terrno), pSyncNode->snapshottingIndex, lastApplyIndex);
+                  terrstr(), pSyncNode->snapshottingIndex, lastApplyIndex);
           atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
         }
 
@@ -2036,7 +2036,7 @@ void syncNodeBecomeAssignedLeader(SSyncNode* pSyncNode) {
   pSyncNode->hbrSlowNum = 0;
 
   // reset restoreFinish
-  //pSyncNode->restoreFinish = false;
+  // pSyncNode->restoreFinish = false;
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_ASSIGNED_LEADER;
@@ -2149,7 +2149,8 @@ int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode) {
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   sInfo("vgId:%d, become leader from assigned leader. term:%" PRId64 ", commit index:%" PRId64
         "assigned commit index:%" PRId64 ", last index:%" PRId64,
-        pSyncNode->vgId, raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, pSyncNode->assignedCommitIndex, lastIndex);
+        pSyncNode->vgId, raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, pSyncNode->assignedCommitIndex,
+        lastIndex);
   return 0;
 }
 

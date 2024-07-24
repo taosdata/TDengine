@@ -212,9 +212,19 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_COL_PK_TYPE:
       return "primary key column must be of type int, uint, bigint, ubigint, and varchar";
     case TSDB_CODE_PAR_INVALID_PK_OP:
-      return "primary key column can not be added, modified, and dropped";    
+      return "primary key column can not be added, modified, and dropped";
     case TSDB_CODE_TSMA_NAME_TOO_LONG:
       return "Tsma name too long";
+    case TSDB_CODE_PAR_TBNAME_ERROR:
+      return "Pseudo tag tbname not set";
+    case TSDB_CODE_PAR_TBNAME_DUPLICATED:
+      return "Table name:%s duplicated";
+    case TSDB_CODE_PAR_TAG_NAME_DUPLICATED:
+      return "Tag name:%s duplicated";
+    case TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC:
+      return "Some functions cannot appear in the select list at the same time";
+    case TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR:
+      return "Syntax error in regular expression";
     default:
       return "Unknown error";
   }
@@ -766,6 +776,7 @@ SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* 
   select->onlyHasKeepOrderFunc = true;
   select->timeRange = TSWINDOW_INITIALIZER;
   select->pHint = pHint;
+  select->lastProcessByRowFuncId = -1;
   return (SNode*)select;
 }
 
@@ -1225,7 +1236,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   SSchema* pSchema = taosMemoryMalloc(schemaSize);
   memcpy(pSchema, pCfg->pSchemas, schemaSize);
   SSchemaExt* pSchemaExt = NULL;
-  if (useCompress(pCfg->tableType)) {
+  if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
     int32_t schemaExtSize = pCfg->numOfColumns * sizeof(SSchemaExt);
     pSchemaExt = taosMemoryMalloc(schemaExtSize);
     memcpy(pSchemaExt, pCfg->pSchemaExt, schemaExtSize);

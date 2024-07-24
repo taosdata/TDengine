@@ -12,14 +12,23 @@ import RustInsert from "../07-develop/03-insert-data/_rust_sql.mdx"
 import RustBind from "../07-develop/03-insert-data/_rust_stmt.mdx"
 import RustSml from "../07-develop/03-insert-data/_rust_schemaless.mdx"
 import RustQuery from "../07-develop/04-query-data/_rust.mdx"
+import RequestId from "./_request_id.mdx";
 
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
 `taos` 是 TDengine 的官方 Rust 语言连接器。Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
 
-`taos` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。另外一种是 **Websocket 连接**，它通过 taosAdapter 的 Websocket 接口连接 TDengine 运行实例。你可以通过不同的 “特性（即 Cargo 关键字 `features`）” 来指定使用哪种连接器（默认同时支持）。Websocket 连接支持任何平台，原生连接支持所有 TDengine 客户端能运行的平台。
-
 该 Rust 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-rust)。
+
+## 连接方式
+
+`taos` 提供两种建立连接的方式。一般我们推荐使用 **Websocket 连接**。
+- **原生连接**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例。
+- **Websocket 连接**，它通过 taosAdapter 的 Websocket 接口连接 TDengine 运行实例。
+
+你可以通过不同的 “特性（即 Cargo 关键字 `features`）” 来指定使用哪种连接器（默认同时支持）。
+
+连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
 
 ## 支持的平台
 
@@ -30,8 +39,11 @@ Websocket 连接支持所有能运行 Rust 的平台。
 
 |   Rust 连接器版本   |   TDengine 版本   |                        主要功能                       |
 | :----------------: | :--------------: | :--------------------------------------------------: |
-|       v0.9.2       |      3.0.7.0 or later    | STMT：ws 下获取 tag_fields、col_fields。 |
-|       v0.8.12       |      3.0.5.0    | 消息订阅：获取消费进度及按照指定进度开始消费。 |
+|       v0.12.0      |      3.2.3.0 or later    | WS 支持压缩。 |
+|       v0.11.0      |      3.2.0.0     | TMQ 功能优化。 |
+|       v0.10.0      |      3.1.0.0     | WS endpoint 变更。 |
+|       v0.9.2       |      3.0.7.0     | STMT：ws 下获取 tag_fields、col_fields。 |
+|       v0.8.12      |      3.0.5.0     | 消息订阅：获取消费进度及按照指定进度开始消费。 |
 |       v0.8.0       |      3.0.4.0     | 支持无模式写入。 |
 |       v0.7.6       |      3.0.3.0     | 支持在请求中使用 req_id。 |
 |       v0.6.0       |      3.0.0.0     | 基础功能。 |
@@ -68,7 +80,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Rust 对�
 | SMALLINT          | i16               |
 | TINYINT           | i8                |
 | BOOL              | bool              |
-| BINARY            | Vec<u8\>          |
+| BINARY            | Vec\<u8>          |
 | NCHAR             | String            |
 | JSON              | serde_json::Value |
 
@@ -274,52 +286,29 @@ async fn demo(taos: &Taos, db: &str) -> Result<(), Error> {
 ### 创建数据库和表
 
 ```rust
-use taos::*;
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let dsn = "taos://localhost:6030";
-    let builder = TaosBuilder::from_dsn(dsn)?;
-
-    let taos = builder.build()?;
-
-    let db = "query";
-
-    // create database
-    taos.exec_many([
-        format!("DROP DATABASE IF EXISTS `{db}`"),
-        format!("CREATE DATABASE `{db}`"),
-        format!("USE `{db}`"),
-    ])
-    .await?;
-
-    // create table
-    taos.exec_many([
-        // create super table
-        "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) \
-         TAGS (`groupid` INT, `location` BINARY(16))",
-        // create child table
-        "CREATE TABLE `d0` USING `meters` TAGS(0, 'Los Angles')",
-    ]).await?;
-}
+{{#include docs/examples/rust/nativeexample/examples/query.rs:create_db_and_table}}
 ```
 
 > **注意**：如果不使用 `use db` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 db.tb。
 
 ### 插入数据
 
-<RustInsert />
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:insert_data}}
+```
 
 ### 查询数据
 
-<RustQuery />
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:query_data}}
+```
 
 ### 执行带有 req_id 的 SQL
 
-此 req_id 可用于请求链路追踪。
+<RequestId />
 
 ```rust
-let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
+{{#include docs/examples/rust/nativeexample/examples/query.rs:query_with_req_id}}
 ```
 
 ### 通过参数绑定写入数据
@@ -328,13 +317,17 @@ TDengine 的 Rust 连接器实现了参数绑定方式对数据写入（INSERT�
 
 参数绑定接口详见[API参考](#stmt-api)
 
-<RustBind />
+```rust
+{{#include docs/examples/rust/nativeexample/examples/stmt.rs}}
+```
 
 ### 无模式写入
 
 TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](../../reference/schemaless/)。
 
-<RustSml />
+```rust
+{{#include docs/examples/rust/nativeexample/examples/schemaless.rs}}
+```
 
 ### 执行带有 req_id 的无模式写入
 
@@ -357,25 +350,15 @@ TDengine 通过消息队列 [TMQ](../../taos-sql/tmq/) 启动一个订阅。
 #### 创建 Topic
 
 ```rust
-taos.exec_many([
-    // create topic for subscription
-    format!("CREATE TOPIC tmq_meters with META AS DATABASE {db}")
-])
-.await?;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_topic}}
 ```
 
 #### 创建 Consumer
 
-从 DSN 开始，构建一个 TMQ 连接器。
-
-```rust
-let tmq = TmqBuilder::from_dsn("taos://localhost:6030/?group.id=test")?;
-```
-
 创建消费者：
 
 ```rust
-let mut consumer = tmq.build()?;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer}}
 ```
 
 #### 订阅消费数据
@@ -383,40 +366,13 @@ let mut consumer = tmq.build()?;
 消费者可订阅一个或多个 `TOPIC`。
 
 ```rust
-consumer.subscribe(["tmq_meters"]).await?;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:subscribe}}
 ```
 
 TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) 类型，可以使用相应 API 对每个消息进行消费，并通过 `.commit` 进行已消费标记。
 
 ```rust
-{
-    let mut stream = consumer.stream();
-
-    while let Some((offset, message)) = stream.try_next().await? {
-        // get information from offset
-
-        // the topic
-        let topic = offset.topic();
-        // the vgroup id, like partition id in kafka.
-        let vgroup_id = offset.vgroup_id();
-        println!("* in vgroup id {vgroup_id} of topic {topic}\n");
-
-        if let Some(data) = message.into_data() {
-            while let Some(block) = data.fetch_raw_block().await? {
-                // one block for one table, get table name if needed
-                let name = block.table_name();
-                let records: Vec<Record> = block.deserialize().try_collect()?;
-                println!(
-                    "** table: {}, got {} records: {:#?}\n",
-                    name.unwrap(),
-                    records.len(),
-                    records
-                );
-            }
-        }
-        consumer.commit(offset).await?;
-    }
-}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:consume}}
 ```
 
 获取消费进度：
@@ -424,7 +380,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 版本要求 connector-rust >= v0.8.8， TDengine >= 3.0.5.0
 
 ```rust
-let assignments = consumer.assignments().await.unwrap();
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:assignments}}
 ```
 
 #### 指定订阅 Offset
@@ -434,13 +390,13 @@ let assignments = consumer.assignments().await.unwrap();
 版本要求 connector-rust >= v0.8.8， TDengine >= 3.0.5.0
 
 ```rust
-consumer.offset_seek(topic, vgroup_id, offset).await;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:seek_offset}}
 ```
 
 #### 关闭订阅
 
 ```rust
-consumer.unsubscribe().await;
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:unsubscribe}}
 ```
 
 对于 TMQ DSN, 有以下配置项可以进行设置，需要注意的是，`group.id` 是必须的。
@@ -453,7 +409,7 @@ consumer.unsubscribe().await;
 
 #### 完整示例
 
-完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/rust/nativeexample/examples/subscribe_demo.rs).
+完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/rust/nativeexample/examples/tmq.rs).
 
 ### 与连接池使用
 
@@ -655,7 +611,7 @@ stmt.execute()?;
 一个可运行的示例请见 [GitHub 上的示例](https://github.com/taosdata/taos-connector-rust/blob/main/examples/bind.rs)。
 
 
-其他相关结构体 API 使用说明请移步 Rust 文档托管网页：<https://docs.rs/taos>。
+其他相关结构体 API 使用说明请移步 Rust 文档托管网页：\<https://docs.rs/taos>。
 
 [taos]: https://github.com/taosdata/rust-connector-taos
 [deadpool]: https://crates.io/crates/deadpool

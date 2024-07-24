@@ -57,6 +57,7 @@ typedef struct {
   STimeWindow winRange;
 
   struct SStorageAPI api;
+  void*              pWorkerCb;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -139,8 +140,9 @@ void   qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
  * @param qId
  * @return
  */
-int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan,
-                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model);
+int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
+                        EOPTR_EXEC_MODEL model);
 
 /**
  *
@@ -150,7 +152,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @return
  */
 int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                    int32_t* tversion, int32_t idx);
+                                    int32_t* tversion, int32_t idx, bool* tbGet);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -201,7 +203,7 @@ void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
 
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
-SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
+SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 

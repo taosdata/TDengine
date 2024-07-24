@@ -46,10 +46,11 @@ int32_t walInit() {
     tsWal.refSetId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
 
     int32_t code = walCreateThread();
-    if (code != 0) {
+    if (TSDB_CODE_SUCCESS != code) {
       wError("failed to init wal module since %s", tstrerror(code));
       atomic_store_8(&tsWal.inited, 0);
-      return code;
+
+      TAOS_RETURN(code);
     }
 
     wInfo("wal module is initialized, rsetId:%d", tsWal.refSetId);
@@ -103,7 +104,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   if (taosMkDir(pWal->path) != 0) {
-    wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, tstrerror(terrno));
     goto _err;
   }
 
@@ -171,19 +172,20 @@ _err:
   taosArrayDestroy(pWal->fileInfoSet);
   taosHashCleanup(pWal->pRefHash);
   taosThreadMutexDestroy(&pWal->mutex);
-  taosMemoryFree(pWal);
-  pWal = NULL;
+  taosMemoryFreeClear(pWal);
+
   return NULL;
 }
 
 int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
-  if (pWal == NULL) return TSDB_CODE_APP_ERROR;
+  if (pWal == NULL) TAOS_RETURN(TSDB_CODE_APP_ERROR);
 
   if (pWal->cfg.level == pCfg->level && pWal->cfg.fsyncPeriod == pCfg->fsyncPeriod &&
       pWal->cfg.retentionPeriod == pCfg->retentionPeriod && pWal->cfg.retentionSize == pCfg->retentionSize) {
     wDebug("vgId:%d, walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64 " not change",
            pWal->cfg.vgId, pWal->cfg.level, pWal->cfg.fsyncPeriod, pWal->cfg.retentionPeriod, pWal->cfg.retentionSize);
-    return 0;
+
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   wInfo("vgId:%d, change old walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64
@@ -199,14 +201,17 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t walPersist(SWal *pWal) {
+  int32_t code = 0;
+
   taosThreadMutexLock(&pWal->mutex);
-  int32_t ret = walSaveMeta(pWal);
+  code = walSaveMeta(pWal);
   taosThreadMutexUnlock(&pWal->mutex);
-  return ret;
+
+  TAOS_RETURN(code);
 }
 
 void walClose(SWal *pWal) {
@@ -231,6 +236,12 @@ void walClose(SWal *pWal) {
   taosHashCleanup(pWal->pRefHash);
   pWal->pRefHash = NULL;
   taosThreadMutexUnlock(&pWal->mutex);
+
+  if (pWal->cfg.level == TAOS_WAL_SKIP) {
+    wInfo("vgId:%d, remove all wals, path:%s", pWal->cfg.vgId, pWal->path);
+    taosRemoveDir(pWal->path);
+    taosMkDir(pWal->path);
+  }
 
   taosRemoveRef(tsWal.refSetId, pWal->refId);
 }
@@ -295,14 +306,14 @@ static int32_t walCreateThread() {
 
   if (taosThreadCreate(&tsWal.thread, &thAttr, walThreadFunc, NULL) != 0) {
     wError("failed to create wal thread since %s", strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
 
   taosThreadAttrDestroy(&thAttr);
   wDebug("wal thread is launched, thread:0x%08" PRIx64, taosGetPthreadId(tsWal.thread));
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static void walStopThread() {

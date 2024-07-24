@@ -1,6 +1,9 @@
 # vnode
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
+if(${TD_DARWIN})
+    target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
+endif(${TD_DARWIN})
 set(
   VNODE_SOURCE_FILES
   "src/vnd/vnodeOpen.c"
@@ -19,7 +22,6 @@ set(
 
     # meta
     "src/meta/metaOpen.c"
-    "src/meta/metaIdx.c"
     "src/meta/metaTable.c"
     "src/meta/metaSma.c"
     "src/meta/metaQuery.c"
@@ -65,11 +67,8 @@ set(
     "src/tq/tqOffset.c"
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
-    "src/tq/tqCommit.c"
     "src/tq/tqStreamTask.c"
-    "src/tq/tqHandleSnapshot.c"
-    "src/tq/tqCheckInfoSnapshot.c"
-    "src/tq/tqOffsetSnapshot.c"
+    "src/tq/tqSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
     

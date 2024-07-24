@@ -31,25 +31,25 @@ A PARTITION BY clause is processed as follows:
 select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
 
-The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data. For example, calculate the average voltage of each meter every 10 minutes£º
+The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data. For example, calculate the average voltage of each meter every 10 minutes:
 ```sql
 select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
 ```
 
 ## Windowed Queries
 
-Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are four kinds of windows: time window, status window, session window, and event window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
+Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are five kinds of windows: time window, status window, session window, event window, and count window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
 ```
 
-Both interval_val and sliding_value are time durations which have 3 forms of representation.
+Both interval_val and sliding_value are time durations, and interval_offset is the window offset, interval_offset must be less than interval_val, There are 3 forms of representation.
 - INTERVAL(1s, 500a) SLIDING(1s), the unit char should be any one of a (millisecond), b (nanosecond), d (day), h (hour), m (minute), n (month), s (second), u (microsecond), w (week), y (year).
 - INTERVAL(1000, 500) SLIDING(1000), the unit will the same as the queried database, if there are more than one databases, higher precision will be used.
 - INTERVAL('1s', '500a') SLIDING('1s'), unit must be specified, no spaces allowed.
@@ -80,7 +80,7 @@ These pseudocolumns occur after the aggregation clause.
 `FILL` clause is used to specify how to fill when there is data missing in any window, including:
 
 1. NONE: No fill (the default fill mode)
-2. VALUE: Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled.
+2. VALUE: Fill with a fixed value, which should be specified together, for example `FILL(VALUE, 1.23)` Note: The value filled depends on the data type. For example, if you run FILL(VALUE 1.23) on an integer column, the value 1 is filled.  If multiple columns in select list need to be filled, then in the fill clause there must be a fill value for each of these columns, for example, `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`.
 3. PREV: Fill with the previous non-NULL value, `FILL(PREV)`
 4. NULL: Fill with NULL, `FILL(NULL)`
 5. LINEAR: Fill with the closest non-NULL value, `FILL(LINEAR)`

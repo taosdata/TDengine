@@ -392,60 +392,6 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
 
 static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
 
-static EDealRes tagScanNodeHasTbnameFunc(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType ||
-        (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType)) {
-    *(bool*)pContext = true;
-    return DEAL_RES_END;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static bool tagScanNodeListHasTbname(SNodeList* pCols) {
-  bool hasTbname = false;
-  nodesWalkExprs(pCols, tagScanNodeHasTbnameFunc, &hasTbname);
-  return hasTbname;
-}
-
-static bool tagScanNodeHasTbname(SNode* pKeys) {
-  bool hasTbname = false;
-  nodesWalkExpr(pKeys, tagScanNodeHasTbnameFunc, &hasTbname);
-  return hasTbname;
-}
-
-static int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
-  pScan->onlyMetaCtbIdx = false;
-
-  if (pScan->tableType == TSDB_CHILD_TABLE) {
-    pScan->onlyMetaCtbIdx = false;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (tagScanNodeListHasTbname(pScan->pScanPseudoCols)) {
-    pScan->onlyMetaCtbIdx = false;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pScan->node.pConditions == NULL) {
-    pScan->onlyMetaCtbIdx = true;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode* pCond = nodesCloneNode(pScan->node.pConditions);
-  SNode* pTagCond = NULL;
-  SNode* pTagIndexCond = NULL;
-  filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
-  if (pTagIndexCond || tagScanNodeHasTbname(pTagCond)) {
-    pScan->onlyMetaCtbIdx = false;
-  } else {
-    pScan->onlyMetaCtbIdx = true;
-  }
-  nodesDestroyNode(pCond);
-  nodesDestroyNode(pTagIndexCond);
-  nodesDestroyNode(pTagCond);
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
@@ -542,12 +488,12 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pScan;
+    pScan->paraTablesSort = getParaTablesSortOptHint(pSelect->pHint);
+    pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
+    pCxt->hasScan = true;
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
-  pScan->paraTablesSort = getParaTablesSortOptHint(pSelect->pHint);
-  pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
-  pCxt->hasScan = true;
 
   return code;
 }
@@ -593,7 +539,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->pJLimit = nodesCloneNode(pJoinTable->pJLimit);
   pJoin->addPrimEqCond = nodesCloneNode(pJoinTable->addPrimCond);
   pJoin->node.pChildren = nodesMakeList();
-  pJoin->seqWinGroup = (JOIN_STYPE_WIN == pJoinTable->subType) && (pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc);  
+  pJoin->seqWinGroup = (JOIN_STYPE_WIN == pJoinTable->subType) && (pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc);
 
   if (NULL == pJoin->node.pChildren) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -673,7 +619,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     }
   }
 
-#else 
+#else
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
     SNodeList* pColList = NULL;
@@ -792,11 +738,13 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
       pProbeTable = (SRealTableNode*)pJoinTable->pRight;
       break;
     default:
+      if (!*pList) nodesDestroyList(pTargets);
       return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
+    if (!*pList) nodesDestroyList(pTargets);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -814,7 +762,7 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
   pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
-  pCol->node.resType.precision = pProbeTable->pMeta->tableInfo.precision;  
+  pCol->node.resType.precision = pProbeTable->pMeta->tableInfo.precision;
 
   SNode* pFunc = (SNode*)createGroupKeyAggFunc(pCol);
 
@@ -893,7 +841,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   pAgg->isGroupTb = pAgg->pGroupKeys ? keysHasTbname(pAgg->pGroupKeys) : 0;
   pAgg->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
   pAgg->hasGroup = pAgg->pGroupKeys || pSelect->pPartitionByList;
-  
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;
   } else {
@@ -943,7 +891,7 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
 }
 
 static bool isInterpFunc(int32_t funcId) {
-  return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId);
+  return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId);
 }
 
 static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -1259,7 +1207,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pFill->node.groupAction = getGroupAction(pCxt, pSelect);
   pFill->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pFill->node.resultDataOrder = pFill->node.requireDataOrder;
-  pFill->node.inputTsOrder = 0;
+  pFill->node.inputTsOrder = TSDB_ORDER_ASC;
 
   int32_t code = partFillExprs(pSelect, &pFill->pFillExprs, &pFill->pNotFillExprs);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1641,6 +1589,7 @@ static int32_t createSetOpProjectLogicNode(SLogicPlanContext* pCxt, SSetOperator
     TSWAP(pProject->node.pLimit, pSetOperator->pLimit);
   }
   pProject->ignoreGroupId = true;
+  pProject->isSetOpProj = true;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1759,6 +1708,7 @@ static int32_t getMsgType(ENodeType sqlType) {
   switch (sqlType) {
     case QUERY_NODE_CREATE_TABLE_STMT:
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+    case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
       return TDMT_VND_CREATE_TABLE;
     case QUERY_NODE_DROP_TABLE_STMT:
       return TDMT_VND_DROP_TABLE;

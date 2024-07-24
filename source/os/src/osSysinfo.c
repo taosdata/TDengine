@@ -29,6 +29,12 @@ typedef struct {
   uint64_t nice;
   uint64_t system;
   uint64_t idle;
+  uint64_t wa;
+  uint64_t hi;
+  uint64_t si;
+  uint64_t st;
+  uint64_t guest;
+  uint64_t guest_nice;
 } SysCpuInfo;
 
 typedef struct {
@@ -173,8 +179,11 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   }
 
   char cpu[10] = {0};
-  sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system,
-         &cpuInfo->idle);
+  sscanf(line,
+         "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64
+         " %" PRIu64,
+         cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle, &cpuInfo->wa, &cpuInfo->hi,
+         &cpuInfo->si, &cpuInfo->st, &cpuInfo->guest, &cpuInfo->guest_nice);
 
   taosCloseFile(&pFile);
 #endif
@@ -250,7 +259,7 @@ void taosGetSystemInfo() {
   taosGetCpuCores(&tsNumOfCores, false);
   taosGetTotalMemory(&tsTotalMemoryKB);
   taosGetCpuUsage(NULL, NULL);
-  taosGetCpuInstructions(&tsSSE42Enable, &tsAVXEnable, &tsAVX2Enable, &tsFMAEnable, &tsAVX512Enable);
+  taosGetCpuInstructions(&tsSSE42Supported, &tsAVXSupported, &tsAVX2Supported, &tsFMASupported, &tsAVX512Supported);
 #endif
 }
 
@@ -576,7 +585,8 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   SysCpuInfo  sysCpu = {0};
   ProcCpuInfo procCpu = {0};
   if (taosGetSysCpuInfo(&sysCpu) == 0 && taosGetProcCpuInfo(&procCpu) == 0) {
-    curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system;
+    curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system + sysCpu.wa + sysCpu.hi + sysCpu.si + sysCpu.st +
+                 sysCpu.guest + sysCpu.guest_nice;
     curSysTotal = curSysUsed + sysCpu.idle;
     curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
 

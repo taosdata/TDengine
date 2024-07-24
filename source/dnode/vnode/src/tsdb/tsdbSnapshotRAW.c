@@ -141,36 +141,21 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
 
 _exit:
   if (code) {
+    tsdbSnapRAWReadFileSetCloseReader(reader);
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   }
   return code;
 }
 
 static int32_t tsdbSnapRAWReadFileSetCloseReader(STsdbSnapRAWReader* reader) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
   TARRAY2_CLEAR(reader->dataReaderArr, tsdbDataFileRAWReaderClose);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
-  }
-  return code;
+  return 0;
 }
 
 static int32_t tsdbSnapRAWReadFileSetOpenIter(STsdbSnapRAWReader* reader) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
   reader->dataIter->count = TARRAY2_SIZE(reader->dataReaderArr);
   reader->dataIter->idx = 0;
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
-  }
-  return code;
+  return 0;
 }
 
 static int32_t tsdbSnapRAWReadFileSetCloseIter(STsdbSnapRAWReader* reader) {
@@ -391,17 +376,6 @@ _exit:
   return code;
 }
 
-static int32_t tsdbSnapRAWWriteFileSetOpenIter(STsdbSnapRAWWriter* writer) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer->tsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
 static int32_t tsdbSnapRAWWriteFileSetCloseIter(STsdbSnapRAWWriter* writer) { return 0; }
 
 static int32_t tsdbSnapRAWWriteFileSetOpenWriter(STsdbSnapRAWWriter* writer) {
@@ -444,10 +418,8 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
 
   int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
-  if (tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did)) {
-    code = TSDB_CODE_NO_AVAIL_DISK;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  code = tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did);
+  TSDB_CHECK_CODE(code, lino, _exit);
   tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did);
 
   code = tsdbSnapRAWWriteFileSetOpenWriter(writer);
@@ -546,7 +518,7 @@ static int32_t tsdbSnapRAWWriteTimeSeriesData(STsdbSnapRAWWriter* writer, STsdbD
   int32_t lino = 0;
 
   int32_t encryptAlgorithm = writer->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char*   encryptKey = writer->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   code = tsdbFSetRAWWriteBlockData(writer->ctx->fsetWriter, bHdr, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
