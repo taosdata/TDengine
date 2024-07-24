@@ -429,8 +429,8 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
   // rebuild meta of file info
   code = walRebuildFileInfoSet(pWal->fileInfoSet, actualLog);
+  taosArrayDestroy(actualLog);
   if (code) {
-    taosArrayDestroy(actualLog);
     TAOS_RETURN(code);
   }
 
