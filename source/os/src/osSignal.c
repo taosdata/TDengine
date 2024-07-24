@@ -26,8 +26,8 @@
 
 typedef void (*FWinSignalHandler)(int32_t signum);
 
-void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
-  if (signum == SIGUSR1) return;
+int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp) {
+  if (signum == SIGUSR1) return 0;
 
   // SIGHUP doesn't exist in windows, we handle it in the way of ctrlhandler
   if (signum == SIGHUP) {
@@ -35,16 +35,21 @@ void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
   } else {
     signal(signum, (FWinSignalHandler)sigfp);
   }
+  return 0;
 }
 
-void taosIgnSignal(int32_t signum) {
-  if (signum == SIGUSR1 || signum == SIGHUP) return;
+int32_t taosIgnSignal(int32_t signum) {
+  if (signum == SIGUSR1 || signum == SIGHUP) return 0;
   signal(signum, SIG_IGN);
+
+  return 0;
 }
 
-void taosDflSignal(int32_t signum) {
-  if (signum == SIGUSR1 || signum == SIGHUP) return;
+int32_t taosDflSignal(int32_t signum) {
+  if (signum == SIGUSR1 || signum == SIGHUP) return 0;
   signal(signum, SIG_DFL);
+
+  return 0;
 }
 
 void taosKillChildOnParentStopped() {}
