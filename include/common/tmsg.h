@@ -2828,19 +2828,24 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   return tlen;
 }
 
-static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
+static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
   buf = taosDecodeStringTo(buf, pReq->clientId);
 
-  int32_t topicNum;
+  int32_t topicNum = 0;
   buf = taosDecodeFixedI32(buf, &topicNum);
 
   pReq->topicNames = taosArrayInit(topicNum, sizeof(void*));
+  if (pReq->topicNames == NULL){
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   for (int32_t i = 0; i < topicNum; i++) {
-    char* name;
+    char* name = NULL;
     buf = taosDecodeString(buf, &name);
-    taosArrayPush(pReq->topicNames, &name);
+    if (taosArrayPush(pReq->topicNames, &name) == NULL){
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   buf = taosDecodeFixedI8(buf, &pReq->withTbName);
@@ -2849,7 +2854,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
   buf = taosDecodeFixedI8(buf, &pReq->enableReplay);
   buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
-  return buf;
+  return 0;
 }
 
 typedef struct {
