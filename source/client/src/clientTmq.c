@@ -448,12 +448,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
 
   pOffset.consumerId = tmq->consumerId;
   pOffset.offset.val = *offset;
-
-  int32_t groupLen = strlen(tmq->groupId);
-  (void)memcpy(pOffset.offset.subKey, tmq->groupId, groupLen);
-  pOffset.offset.subKey[groupLen] = TMQ_SEPARATOR;
-  (void)strcpy(pOffset.offset.subKey + groupLen + 1, pTopicName);
-
+  (void)snprintf(pOffset.offset.subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", tmq->groupId, TMQ_SEPARATOR, pTopicName);
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeMqVgOffset, &pOffset, len, code);
@@ -1746,11 +1741,7 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
 }
 
 void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqClientTopic* pTopic, SMqClientVg* pVg) {
-  int32_t groupLen = strlen(tmq->groupId);
-  (void)memcpy(pReq->subKey, tmq->groupId, groupLen);
-  pReq->subKey[groupLen] = TMQ_SEPARATOR;
-  (void)strcpy(pReq->subKey + groupLen + 1, pTopic->topicName);
-
+  (void)snprintf(pReq->subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", tmq->groupId, TMQ_SEPARATOR, pTopic->topicName);
   pReq->withTbName = tmq->withTbName;
   pReq->consumerId = tmq->consumerId;
   pReq->timeout = timeout;
@@ -2804,7 +2795,7 @@ int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
     pWrapper->tmqRspType = TMQ_MSG_TYPE__EP_RSP;
     pWrapper->epoch = head->epoch;
     (void)memcpy(&pWrapper->msg, pMsg->pData, sizeof(SMqRspHead));
-    if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pWrapper->msg) != NULL){
+    if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pWrapper->msg) == NULL){
       taosFreeQitem(pWrapper);
     }else{
       (void)taosWriteQitem(tmq->mqueue, pWrapper);
@@ -3077,11 +3068,7 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
   SMqVgOffset pOffset = {0};
 
   pOffset.consumerId = tmq->consumerId;
-
-  int32_t groupLen = strlen(tmq->groupId);
-  (void)memcpy(pOffset.offset.subKey, tmq->groupId, groupLen);
-  pOffset.offset.subKey[groupLen] = TMQ_SEPARATOR;
-  (void)strcpy(pOffset.offset.subKey + groupLen + 1, tname);
+  (void)snprintf(pOffset.offset.subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", tmq->groupId, TMQ_SEPARATOR, tname);
 
   int32_t len = 0;
   tEncodeSize(tEncodeMqVgOffset, &pOffset, len, code);

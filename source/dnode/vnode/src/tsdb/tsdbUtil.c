@@ -152,15 +152,19 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
 }
 #endif
 
-int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
+int32_t tGetMapData(uint8_t *p, SMapData *pMapData, int32_t *decodedSize) {
   int32_t n = 0;
+  int32_t code;
   int32_t offset;
 
   tMapDataReset(pMapData);
 
   n += tGetI32v(p + n, &pMapData->nItem);
   if (pMapData->nItem) {
-    if (tRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem)) return -1;
+    code = tRealloc((uint8_t **)&pMapData->aOffset, sizeof(int32_t) * pMapData->nItem);
+    if (code) {
+      return code;
+    }
 
     int32_t lOffset = 0;
     for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
@@ -170,12 +174,19 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
     }
 
     n += tGetI32v(p + n, &pMapData->nData);
-    if (tRealloc(&pMapData->pData, pMapData->nData)) return -1;
+    code = tRealloc(&pMapData->pData, pMapData->nData);
+    if (code) {
+      return code;
+    }
     memcpy(pMapData->pData, p + n, pMapData->nData);
     n += pMapData->nData;
   }
 
-  return n;
+  if (decodedSize) {
+    *decodedSize = n;
+  }
+
+  return 0;
 }
 
 #ifdef BUILD_NO_CALL
@@ -680,20 +691,17 @@ int32_t tsdbRowCompareWithoutVersion(const void *p1, const void *p2) {
 
 // STSDBRowIter ======================================================
 int32_t tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
-  int32_t code = 0;
-
   pIter->pRow = pRow;
   if (pRow->type == TSDBROW_ROW_FMT) {
-    code = tRowIterOpen(pRow->pTSRow, pTSchema, &pIter->pIter);
-    if (code) goto _exit;
+    int32_t code = tRowIterOpen(pRow->pTSRow, pTSchema, &pIter->pIter);
+    if (code) return code;
   } else if (pRow->type == TSDBROW_COL_FMT) {
     pIter->iColData = 0;
   } else {
     ASSERT(0);
   }
 
-_exit:
-  return code;
+  return 0;
 }
 
 void tsdbRowClose(STSDBRowIter *pIter) {
@@ -748,7 +756,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
     *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = key.ts}));
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       return code;
     }
 
@@ -760,7 +768,9 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
         --iCol;
         continue;
       } else if (pTSchema->columns[jCol].colId > pTColumn->colId) {
-        taosArrayPush(pMerger->pArray, &COL_VAL_NONE(pTColumn->colId, pTColumn->type));
+        if (taosArrayPush(pMerger->pArray, &COL_VAL_NONE(pTColumn->colId, pTColumn->type)) == NULL) {
+          return terrno;
+        }
         continue;
       }
 
@@ -771,7 +781,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
         pColVal->value.pData = NULL;
         code = tRealloc(&pColVal->value.pData, pColVal->value.nData);
         if (code) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return code;
         }
 
         if (pColVal->value.nData) {
@@ -780,14 +790,15 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       }
 
       if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        return code;
+        return terrno;
       }
     }
 
     for (; iCol < pMerger->pTSchema->numOfCols; ++iCol) {
       pTColumn = &pMerger->pTSchema->columns[iCol];
-      taosArrayPush(pMerger->pArray, &COL_VAL_NONE(pTColumn->colId, pTColumn->type));
+      if (taosArrayPush(pMerger->pArray, &COL_VAL_NONE(pTColumn->colId, pTColumn->type)) == NULL) {
+        return terrno;
+      }
     }
 
     pMerger->version = key.version;
@@ -858,7 +869,7 @@ int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema) {
   pMerger->pTSchema = pSchema;
   pMerger->pArray = taosArrayInit(pSchema->numOfCols, sizeof(SColVal));
   if (pMerger->pArray == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   } else {
     return TSDB_CODE_SUCCESS;
   }
@@ -962,8 +973,7 @@ _exit:
 */
 
 // delete skyline ======================================================
-static int32_t tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pSkyline) {
-  int32_t  code = 0;
+static void tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pSkyline) {
   int32_t  i1 = 0;
   int32_t  n1 = taosArrayGetSize(pSkyline1);
   int32_t  i2 = 0;
@@ -1017,7 +1027,6 @@ static int32_t tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pS
   }
 
   pSkyline->size = TARRAY_ELEM_IDX(pSkyline, pItem);
-  return code;
 }
 
 int32_t tsdbBuildDeleteSkylineImpl(SArray *aSkyline, int32_t sidx, int32_t eidx, SArray *pSkyline) {
@@ -1029,18 +1038,26 @@ int32_t tsdbBuildDeleteSkylineImpl(SArray *aSkyline, int32_t sidx, int32_t eidx,
   if (sidx == eidx) {
     TSDBKEY *pItem1 = taosArrayGet(aSkyline, sidx * 2);
     TSDBKEY *pItem2 = taosArrayGet(aSkyline, sidx * 2 + 1);
-    taosArrayPush(pSkyline, &pItem1);
-    taosArrayPush(pSkyline, &pItem2);
+    if (taosArrayPush(pSkyline, &pItem1) == NULL) {
+      return terrno;
+    }
+
+    if (taosArrayPush(pSkyline, &pItem2) == NULL) {
+      return terrno;
+    }
   } else {
     SArray *pSkyline1 = NULL;
     SArray *pSkyline2 = NULL;
     midx = (sidx + eidx) / 2;
 
     pSkyline1 = taosArrayInit((midx - sidx + 1) * 2, POINTER_BYTES);
+    if (pSkyline1 == NULL) {
+      return terrno;
+    }
     pSkyline2 = taosArrayInit((eidx - midx) * 2, POINTER_BYTES);
-    if (pSkyline1 == NULL || pSkyline1 == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _clear;
+    if (pSkyline2 == NULL) {
+      taosArrayDestroy(pSkyline1);
+      return terrno;
     }
 
     code = tsdbBuildDeleteSkylineImpl(aSkyline, sidx, midx, pSkyline1);
@@ -1049,7 +1066,7 @@ int32_t tsdbBuildDeleteSkylineImpl(SArray *aSkyline, int32_t sidx, int32_t eidx,
     code = tsdbBuildDeleteSkylineImpl(aSkyline, midx + 1, eidx, pSkyline2);
     if (code) goto _clear;
 
-    code = tsdbMergeSkyline(pSkyline1, pSkyline2, pSkyline);
+    tsdbMergeSkyline(pSkyline1, pSkyline2, pSkyline);
 
   _clear:
     taosArrayDestroy(pSkyline1);
@@ -1064,13 +1081,28 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
   int32_t   code = 0;
   int32_t   dataNum = eidx - sidx + 1;
   SArray   *aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
-  SArray   *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
+  if (aTmpSkyline == NULL) {
+    return terrno;
+  }
+
+  SArray *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
+  if (pSkyline == NULL) {
+    taosArrayDestroy(aTmpSkyline);
+    return terrno;
+  }
 
   taosArrayClear(aSkyline);
   for (int32_t i = sidx; i <= eidx; ++i) {
     pDelData = (SDelData *)taosArrayGet(aDelData, i);
-    taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->sKey, .version = pDelData->version});
-    taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->eKey, .version = 0});
+    if (taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->sKey, .version = pDelData->version}) == NULL) {
+      code = terrno;
+      goto _clear;
+    }
+
+    if (taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->eKey, .version = 0}) == NULL) {
+      code = terrno;
+      goto _clear;
+    }
   }
 
   code = tsdbBuildDeleteSkylineImpl(aTmpSkyline, sidx, eidx, pSkyline);
@@ -1079,7 +1111,10 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
   int32_t skylineNum = taosArrayGetSize(pSkyline);
   for (int32_t i = 0; i < skylineNum; ++i) {
     TSDBKEY *p = taosArrayGetP(pSkyline, i);
-    taosArrayPush(aSkyline, p);
+    if (taosArrayPush(aSkyline, p) == NULL) {
+      code = terrno;
+      goto _clear;
+    }
   }
 
 _clear:
@@ -1167,7 +1202,7 @@ static int32_t tBlockDataAdjustColData(SBlockData *pBlockData, int32_t nColData)
   } else if (pBlockData->nColData < nColData) {
     SColData *aColData = taosMemoryRealloc(pBlockData->aColData, sizeof(SBlockData) * nColData);
     if (aColData == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
@@ -1255,7 +1290,7 @@ int32_t tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, i
 
   SColData *newColData = taosMemoryRealloc(pBlockData->aColData, sizeof(SColData) * (pBlockData->nColData + 1));
   if (newColData == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBlockData->aColData = newColData;
@@ -1423,6 +1458,7 @@ int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SB
 
   SColCompressInfo *pInfo = pCompr;
   code = tsdbGetColCmprAlgFromSet(pInfo->pColCmpr, 1, &pInfo->defaultCmprAlg);
+  TAOS_UNUSED(code);
 
   SDiskDataHdr hdr = {
       .delimiter = TSDB_FILE_DLMT,
@@ -1519,8 +1555,8 @@ int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *
     SBlockCol blockCol;
 
     code = tGetBlockCol(&br2, &blockCol, hdr.fmtVer, hdr.cmprAlg);
-    if (blockCol.alg == 0) blockCol.alg = hdr.cmprAlg;
     TSDB_CHECK_CODE(code, lino, _exit);
+    if (blockCol.alg == 0) blockCol.alg = hdr.cmprAlg;
     code = tBlockDataDecompressColData(&hdr, &blockCol, br, blockData, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -1812,7 +1848,9 @@ int32_t tsdbGetColCmprAlgFromSet(SHashObj *set, int16_t colId, uint32_t *alg) {
   if (set == NULL) return -1;
 
   uint32_t *ret = taosHashGet(set, &colId, sizeof(colId));
-  if (ret == NULL) return -1;
+  if (ret == NULL) {
+    return TSDB_CODE_NOT_FOUND;
+  }
 
   *alg = *ret;
   return 0;

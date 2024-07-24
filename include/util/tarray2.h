@@ -55,7 +55,7 @@ static FORCE_INLINE int32_t tarray2_make_room(void *arr, int32_t expSize, int32_
     capacity <<= 1;
   }
   void *p = taosMemoryRealloc(a->data, capacity * eleSize);
-  if (p == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (p == NULL) return terrno;
   a->capacity = capacity;
   a->data = p;
   return 0;

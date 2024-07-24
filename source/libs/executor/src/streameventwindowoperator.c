@@ -542,7 +542,11 @@ void doStreamEventSaveCheckpoint(SOperatorInfo* pOperator) {
   if (needSaveStreamOperatorInfo(&pInfo->basic)) {
     int32_t len = doStreamEventEncodeOpState(NULL, 0, pOperator);
     void*   buf = taosMemoryCalloc(1, len);
-    void*   pBuf = buf;
+    if (!buf) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      return;
+    }
+    void* pBuf = buf;
     len = doStreamEventEncodeOpState(&pBuf, len, pOperator);
     pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_EVENT_OP_CHECKPOINT_NAME,
                                                        strlen(STREAM_EVENT_OP_CHECKPOINT_NAME), buf, len);

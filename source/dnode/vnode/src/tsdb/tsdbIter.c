@@ -507,7 +507,7 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
 
   iter[0] = taosMemoryCalloc(1, sizeof(*iter[0]));
   if (iter[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   iter[0]->type = config->type;
@@ -677,7 +677,7 @@ int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger
 
   merger[0] = taosMemoryCalloc(1, sizeof(*merger[0]));
   if (merger[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   merger[0]->isTomb = isTomb;

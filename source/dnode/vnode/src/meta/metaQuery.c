@@ -1542,9 +1542,14 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
   // slow path: search TDB
   int64_t ctbNum = 0;
   int32_t colNum = 0;
-  vnodeGetCtbNum(pVnode, uid, &ctbNum);
-  vnodeGetStbColumnNum(pVnode, uid, &colNum);
+  code = vnodeGetCtbNum(pVnode, uid, &ctbNum);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = vnodeGetStbColumnNum(pVnode, uid, &colNum);
+  }
   metaULock(pVnodeObj->pMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
 
   if (numOfTables) *numOfTables = ctbNum;
   if (numOfCols) *numOfCols = colNum;
