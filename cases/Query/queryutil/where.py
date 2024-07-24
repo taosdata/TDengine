@@ -159,9 +159,9 @@ class TDWhere():
         # t_like_match = column + like  + condition
         t_like = ['t_binary like \'binary%\' and','t_nchar like \'nchar%\' and','(t_binary like \'binary%\'  or t_nchar = \'0\' ) and','(t_nchar like \'nchar%\' or t_binary = \'0\' ) and',]
         t_match = ['t_binary match \'binary\' and','t_binary nmatch \'binarynchar\' and','t_nchar match \'nchar\' and','t_nchar nmatch \'binarynchar\' and',]
-        t_match_regular = ['loc match \'<table>\' and', 'loc match \'<^qwryuiop>\' and','loc nmatch \'<qwryuiop>\' and', 'loc nmatch \'<^>\' and', #[abc] 匹配[...]的所有字符
-                           't_binary match \'<binary>\' and', 't_binary match \'<^爨龘>\' and','t_binary nmatch \'<爨龘>\' and', 't_binary nmatch \'<^>\' and', #[^abc] 取反，除了[...]的其他字符
-                           't_nchar match \'<nchar>\' and', 't_nchar match \'<^爨龘>\' and','t_nchar nmatch \'<爨龘>\' and', 't_nchar nmatch \'<^>\' and',
+        t_match_regular = ['loc match \'<table>\' and', 'loc match \'<^qwryuiop>\' and','loc nmatch \'<qwryuiop>\' and', 'loc nmatch \'<^t>\' and', #[abc] 匹配[...]的所有字符
+                           't_binary match \'<binary>\' and', 't_binary match \'<^爨龘>\' and','t_binary nmatch \'<爨龘>\' and', #, 't_binary nmatch \'<^z>\' and' [^abc] 取反，除了[...]的其他字符
+                           't_nchar match \'<nchar>\' and', 't_nchar match \'<^爨龘>\' and','t_nchar nmatch \'<爨龘>\' and', 't_nchar nmatch \'<^a>\' and',
                            'loc match \'<a-z>\' and','t_binary match \'<a-z>\' and','t_nchar match \'<a-z>\' and', #[A-Z] 区间字母A到Z
                            'loc match \'<a-zA-Z>\' and','t_binary match \'<a-zA-Z>\' and','t_nchar match \'<a-zA-Z>\' and',
                            'loc match \'.\' and','t_binary match \'.\' and','t_nchar match \'.\' and',  # . 匹配除（\n换行符 \r 回车符）的任何单个字符
@@ -379,9 +379,9 @@ class TDWhere():
                                               "q_binary match STAbinaryEND","q_binary nmatch STAncharEND","q_nchar match STAncharEND","q_nchar nmatch STAbinaryEND",
                                               "t_binary not like STAbinary_END","t_binary like STAbinaryENND","t_nchar not like STAnchar_END","t_nchar like STAncharENND",
                                               "t_binary match STAbinaryEND","t_binary nmatch STAncharEND","t_nchar match STAncharEND","t_nchar nmatch STAbinaryEND",
-                                              "loc match STA<table>END","loc match STA<^qwryuiop>END","loc nmatch STA<^>END","loc nmatch STA<qwryuiop>END",
-                                              "t_binary match STA<binary>END","t_binary match STA<^爨龘>END","t_binary nmatch STA<爨龘>END","t_binary nmatch STA<^>END",
-                                              "t_nchar match STA<nchar>END","t_nchar match STA<^爨龘>END","t_nchar nmatch STA<爨龘>END","t_nchar nmatch STA<^>END",
+                                              "loc match STA<table>END","loc match STA<^qwryuiop>END","loc nmatch STA<qwryuiop>END",#,"loc nmatch STA<^z>END"
+                                              "t_binary match STA<binary>END","t_binary match STA<^爨龘>END","t_binary nmatch STA<爨龘>END",#"t_binary nmatch STA<^z>END",
+                                              "t_nchar match STA<nchar>END","t_nchar match STA<^爨龘>END","t_nchar nmatch STA<爨龘>END",#"t_nchar nmatch STA<^z>END",
                                               "loc match STA<a-z>END","t_binary match STA<a-z>END","t_nchar match STA<a-z>END",
                                               "loc match STA<a-zA-Z>END","t_binary match STA<a-zA-Z>END","t_nchar match STA<a-zA-Z>END",
                                               "loc match STA.END","t_binary match STA.END","t_nchar match STA.END",
