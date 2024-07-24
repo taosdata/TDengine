@@ -957,19 +957,17 @@ mod tests {
 
         let field = Field::new("a", DataType::Utf8, false);
         let array: ArrayRef = Arc::new(StringArray::from(vec![
-            r#"[{"a1": "a1", "b1": 1}, {"a1": "a1", "b1": "none", }]"#,
+            r#"[{"a1": "a1", "b1": 1}, {"a1": "a1", "b1": "none"}]"#,
             r#"{"a1": "a2", "c1": 1}"#,
         ]));
 
         // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
         let v = extract.parse_array(&field, &array);
-        assert!(v.is_err());
+        assert!(!v.is_err());
 
-        // dbg!(&records);
-        // dbg!(&indices);
-        // assert_eq!(records.num_columns(), 2);
-        // assert_eq!(records.num_rows(), 1);
-        // assert_eq!(indices, Some(vec![1]));
+        let (records, indices) = v.unwrap();
+        assert_eq!(records.num_rows(), 3);
+        assert_eq!(indices, Some(vec![0, 0, 1]));
     }
 }
