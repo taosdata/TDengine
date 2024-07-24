@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tqueue.h"
 #include "executor.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
+#include "tqueue.h"
 
 int32_t qndOpen(const SQnodeOpt *pOption, SQnode **pQnode) {
   *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
   if (NULL == *pQnode) {
     qError("calloc SQnode failed");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   (*pQnode)->qndId = QNODE_HANDLE;
 
@@ -75,9 +75,9 @@ int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg, false);
 }
 
-int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo* pInfo, SRpcMsg *pMsg) {
+int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t     code = -1;
-  int64_t ts = pInfo->timestamp;
+  int64_t     ts = pInfo->timestamp;
   SReadHandle handle = {.pMsgCb = &pQnode->msgCb, .pWorkerCb = pInfo->workerCb};
   qTrace("message in qnode queue is processing");
 
@@ -113,6 +113,9 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo* pInfo, SRpcMsg *pMsg) {
       terrno = TSDB_CODE_APP_ERROR;
   }
 
-  if (code == 0) return TSDB_CODE_ACTION_IN_PROGRESS;
-  return code;
+  if (code == 0) {
+    return TSDB_CODE_ACTION_IN_PROGRESS;
+  } else {
+    return code;
+  }
 }

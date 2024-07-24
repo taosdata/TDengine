@@ -18,9 +18,9 @@
 #include "tcoding.h"
 
 // todo refactor API
-#define BOUNDARY_SIZE 1024*1024*1024   // 1G
+#define BOUNDARY_SIZE         1024 * 1024 * 1024  // 1G
 #define BOUNDARY_SMALL_FACTOR 1.2
-#define BOUNDARY_BIG_FACTOR 2
+#define BOUNDARY_BIG_FACTOR   2
 
 SArray* taosArrayInit(size_t size, size_t elemSize) {
   if (elemSize == 0) {
@@ -198,7 +198,7 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
   }
 
   if (index >= pArray->size) {
-    uError("index is out of range, current:%" PRIzu " max:%"PRIzu, index, pArray->size);
+    uError("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
     return NULL;
   }
 
