@@ -6779,7 +6779,7 @@ export function getDataSources(lang) {
               "host": {
                 "name": "host",
                 "required": true,
-                "display": "bootstrap-servers",
+                "display": "bootstrap-server",
                 "description": "Kafka Server 地址。\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n",
                 "placeholder": "127.0.0.1"
               },
