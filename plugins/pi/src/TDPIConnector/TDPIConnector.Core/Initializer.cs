@@ -111,7 +111,7 @@ namespace TDPIConnector.Core
             // 创建超级表和 Client
             await tdEngineProxy.CreateSuperTableForAFElement(tdDatabaseName, superTable);
 
-            //get all elements based on template
+            // 获取模板下的所有元素
             List<AFElementWrapper> elements = piSystemManager.GetElementsByTemplate(AppSettings.tomlConfig.AFDatabaseName, elementTemplate.Name).ToList();
             log.Info($"Found {elements.Count()} elements of template:{elementTemplate.Name}.");
 
@@ -123,7 +123,7 @@ namespace TDPIConnector.Core
                 chunks.Add(elements.GetRange(i, Math.Min(chunkSize, elements.Count - i)));
             }
 
-            var templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
+            IEnumerable<TDColumn> templateAttributeColumns = AttributeColumnConverter.Convert(elementTemplate.AttributeTemplates);
 
             List<Task> tasks = new List<Task>();
             int groups = 5;
@@ -131,7 +131,7 @@ namespace TDPIConnector.Core
             for (int i = 0; i < groups; ++i)
             {
                 int groupIndex = i;
-                tasks.Add(Task.Run(async () =>
+                tasks.Add(Task.Run(() =>
                 {
                     try {
                         Stopwatch stopwatch = new Stopwatch();
@@ -139,7 +139,7 @@ namespace TDPIConnector.Core
                         {
                             stopwatch.Reset();
                             stopwatch.Start();
-                            var elementChunk = chunks[j];
+                            List<AFElementWrapper> elementChunk = chunks[j];
                             InitTaskForElements(ref elementTemplate, ref superTable, ref elementChunk, ref templateAttributeColumns);
                             Interlocked.Add(ref finishedCount, elementChunk.Count);
                             stopwatch.Stop();

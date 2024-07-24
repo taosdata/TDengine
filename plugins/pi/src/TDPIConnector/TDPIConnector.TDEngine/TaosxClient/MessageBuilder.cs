@@ -365,9 +365,9 @@ namespace TDPIConnector.TDEngine.TaosxClient
             return batch;
         }
 
-        public RecordBatch BuildControlMessage()
+        public RecordBatch BuildControlMessage(string[] values)
         {
-            IEnumerable<IArrowArray> arrays = CreateArraysForControlMessage(this);
+            IEnumerable<IArrowArray> arrays = CreateArraysForControlMessage(values);
             var batch = new RecordBatch(Schema, arrays, 1);
             return batch;
         }
@@ -425,23 +425,23 @@ namespace TDPIConnector.TDEngine.TaosxClient
             return arrays;
         }
 
-        private IEnumerable<IArrowArray> CreateArraysForControlMessage(MessageBuilder builder)
+        private IEnumerable<IArrowArray> CreateArraysForControlMessage(string[] values)
         {
-            var schema = builder.Schema;
+            var schema = Schema;
             const int fieldCount = 3;
             List<IArrowArray> arrays = new List<IArrowArray>(fieldCount);
             // 添加 __type__ 列
             Field typeField = schema.GetFieldByName(TaosxConstants.TYPE);
-            arrays.Add(CreateTypeArray(typeField, MessageType.Insert));
+            arrays.Add(CreateTypeArray(typeField, MessageType.Control));
             // 添加 __tables__ 列
             Field tablesField = schema.GetFieldByName(TaosxConstants.TABLES);
-            arrays.Add(CreateTablesArray(builder, tablesField, MessageType.Insert, 0));
+            arrays.Add(CreateTablesArray(this, tablesField, MessageType.Insert, 0));
             // 添加 __records__ 列
             Field recordsField = schema.GetFieldByName(TaosxConstants.RECORDS);
-            arrays.Add(CreateRecordsArray(builder, recordsField, MessageType.Insert, 0));
+            arrays.Add(CreateRecordsArray(this, recordsField, MessageType.Insert, 0));
             // 添加 __control__ 列
             Field controlField = schema.GetFieldByName(TaosxConstants.CONTROL);
-            arrays.Add(CreateControlArray(controlField, new string[0]));
+            arrays.Add(CreateControlArray(controlField, values));
             return arrays;
         }
 

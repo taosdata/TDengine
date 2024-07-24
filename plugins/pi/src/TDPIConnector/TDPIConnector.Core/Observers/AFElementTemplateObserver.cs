@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using OSIsoft.AF;
 using TDPIConnector.PI;
+using TDPIConnector.TDEngine;
 
 namespace TDPIConnector.Core
 {
@@ -13,17 +14,19 @@ namespace TDPIConnector.Core
     {
         private readonly AFDatabase db;
         readonly PISystemManager piSystemManager;
+        private readonly TDEngineProxy tdEngineProxy;
         Initializer initializer;
-        System.Timers.Timer refreshTimer = new System.Timers.Timer(10 * 1000); // every 60 seconds
+        System.Timers.Timer refreshTimer = new System.Timers.Timer(10 * 1000); // 10 秒
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         HashSet<string> observeSet;
         Action<AFElementTemplateWrapper> elementTemplateEventHandle;
 
-        public AFElementTemplateObserver(PISystemManager piSystemManager, Initializer initializer, string afDatabaseName, List<string> ElementTemplates2)
+        public AFElementTemplateObserver(PISystemManager piSystemManager, Initializer initializer, string afDatabaseName, List<string> ElementTemplates2, TDEngineProxy tdEngineProxy)
         {
             this.piSystemManager = piSystemManager;
             this.initializer = initializer;
+            this.tdEngineProxy = tdEngineProxy;
             db = piSystemManager.GetAFDatabase(afDatabaseName);
             if (db == null)
             {
@@ -48,9 +51,9 @@ namespace TDPIConnector.Core
             log.Info($"AFChangedEvent:{e.ID},Identity={e.Identity},Action={e.Action}");
             // e.Identity 表示事件的对象的类型
             if (e.Identity == AFIdentity.ElementTemplate)
-            { 
+            {
                 // 暂不处理模板本身变化的事件， 只在日志中记录事件
-                var template = piSystemManager.GetElementsByTemplateID(e.ID);
+                AFElementTemplateWrapper template = piSystemManager.GetElementsByTemplateID(e.ID);
                 log.Info($"AFChangedEvent:{e.ID},Template={template.Name},Action={e.Action}.Ignored");
                 return;
                 //if (observeSet.Contains(template.Name))
@@ -58,10 +61,15 @@ namespace TDPIConnector.Core
                 //    elementTemplateEventHandle(template);
                 //} 
             }
-            else if (e.Identity == AFIdentity.Element)
+            else if (e.Identity == AFIdentity.Element || e.Identity == AFIdentity.Analysis)
             {
                 // 模板元素变化事件
                 AFElementWrapper element = piSystemManager.GetElementsById(e.ID);
+                if (element == null)
+                {
+                    log.Info($"AFChangedEvent:{e.ID},Element not actually exists.Ignored");
+                    return;
+                }
                 if (e.Action == AFChangeAction.SubObjectAdd)
                 {
                     // 添加新元素
@@ -82,7 +90,8 @@ namespace TDPIConnector.Core
                 }
                 else if (e.Action == AFChangeAction.SubObjectRemove)
                 {
-                    // TODO：删除元素
+                    // 删除元素
+                    tdEngineProxy.DropElement(e.ID.ToString());
                     log.Info($"AFChangedEvent:{e.ID}.Delete element done");
                     return;
                 }

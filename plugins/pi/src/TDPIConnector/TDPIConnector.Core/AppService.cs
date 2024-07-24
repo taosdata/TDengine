@@ -202,7 +202,7 @@ namespace TDPIConnector.Core
             }
 
             var afElementTemplateObserver = new AFElementTemplateObserver(piSystemManager, initializer,
-               AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.TemplateForAFElement);
+               AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.TemplateForAFElement, tdEngineProxy);
             afElementTemplateObserver.Observe(elementTemplateEventHandle);
         }
 

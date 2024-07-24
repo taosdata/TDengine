@@ -471,7 +471,7 @@ namespace TDPIConnector.Core
 
         internal void BackfillElementsOfTemplate(in string templateName, in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
         {
-            var elemmentBackfillManager = GetElementBackfillManager(templateName);
+            ElementsBackfillTaskManager elemmentBackfillManager = GetElementBackfillManager(templateName);
             elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime);
         }
 
@@ -556,7 +556,7 @@ namespace TDPIConnector.Core
                 var elementTableKey = element.ID.ToString();
                 tables.Add(elementTableKey, elementValues);
                 stables.Add(superTableName, tables);
-                tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
+                tdEngineProxy.InsertValuesForAFElements(stables, columnNames).Wait();
                 log.Info($"Backfill element {superTableName}:{elementID} from {currentStart} rows {elementValues.Count} in {stopwatch.ElapsedMilliseconds} ms");
 
                 if (count < AppSettings.tomlConfig.BackfillBatchSize) {

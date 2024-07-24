@@ -92,7 +92,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
             return Interlocked.Increment(ref _batchNumber);
         }
 
-
         // For AFElement
         public TDEngineTaosxClient(string hostname, int port, string database,
             string stableName,
@@ -462,6 +461,16 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 log.Debug($"Stable:{builder.stableName},localPort:{localPort}, Write batch:{batchNumber},records {builder.tableUniqKeyArrowArray.Length},QueueSize {actualQueueBufferSize}");
                 clear();
                 lastSend = DateTime.UtcNow;
+            }
+        }
+
+        public void SendControlMessage(string[] values) {
+            lock (stLock)
+            {
+                var batchNumber = NextBatchNumber();
+                var recordBatch = builder.BuildControlMessage(values);
+                writeRecordBatch(recordBatch);
+                log.Info($"Stable:{builder.stableName},localPort:{localPort},Write batch:{batchNumber},Message:{values[0]}");
             }
         }
 
