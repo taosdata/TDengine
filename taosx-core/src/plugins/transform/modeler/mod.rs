@@ -31,6 +31,10 @@ impl Modeler {
     pub fn new(tables: Vec<Table>) -> Self {
         Self(tables)
     }
+
+    pub fn table0(&self) -> Option<&Table> {
+        self.0.get(0)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -251,23 +255,37 @@ mod once_lock_serde {
         value.get().serialize(serializer)
     }
 }
+
+fn template_to_expr(template: &str) -> Result<Expr, super::Error> {
+    if template.starts_with("`") {
+        Expr::try_new(template, false)
+            .map_err(|err| super::Error::TemplateError(template.to_string(), err))
+    } else {
+        let name = template.replace("{", "${").replace("$$", "$");
+        Expr::try_new(format!("`{name}`"), false)
+            .map_err(|err| super::Error::TemplateError(template.to_string(), err))
+    }
+}
+
 impl Table {
+    pub fn eval_table_name(&self, records: &RecordBatch) -> Result<StringArray, super::Error> {
+        let name_expr = template_to_expr(&self.name)?;
+        let name_array = name_expr.eval_as(&records, DataType::Utf8)?;
+        let name_array = name_array
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .clone();
+        Ok(name_array)
+    }
+
     pub fn apply(&self, records: &RecordBatch) -> Result<ModeledRecordBatch, super::Error> {
         // Check if the table has at least two column.
         assert!(records.num_columns() >= 2);
         if self.name.is_empty() {
             return Err(super::Error::EmptyTableName);
         }
-        fn template_to_expr(template: &str) -> Result<Expr, super::Error> {
-            if template.starts_with("`") {
-                Expr::try_new(template, false)
-                    .map_err(|err| super::Error::TemplateError(template.to_string(), err))
-            } else {
-                let name = template.replace("{", "${").replace("$$", "$");
-                Expr::try_new(format!("`{name}`"), false)
-                    .map_err(|err| super::Error::TemplateError(template.to_string(), err))
-            }
-        }
+
         let records = if let Some(expr) = self.r#where.as_ref() {
             expr.filter(records)?
         } else {

@@ -359,6 +359,12 @@ impl RequestID {
     }
 }
 
+impl std::fmt::Display for RequestID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#018x}", self.inner.load(Ordering::SeqCst))
+    }
+}
+
 /// Stream Trace ID is 16 bits random number in hex format.
 ///
 /// It is used to identify the stream of data.

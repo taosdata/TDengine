@@ -925,6 +925,7 @@ async fn consume_lush_record(
                 }
             }
         }
+        LushMessage::Control(_) => todo!(),
     }
     info!("consume lush record done");
     Ok(())
@@ -943,8 +944,78 @@ async fn consume_lush_record_with_transform(
 ) -> anyhow::Result<()> {
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
+        LushMessage::Control(message) => match message {
+            taosx_ipc::stream::lush::LushMessageControl::DELETE(msg) => {
+                let table_id = msg.table_id();
+                let table_name = lush::get_table_name_from_table_id(
+                    table_id,
+                    table_cache.clone(),
+                    lush_model_config.clone(),
+                );
+                if table_name.is_none() {
+                    tracing::error!("Can't get table_name from table_id: {}", table_id);
+                    return Ok(());
+                }
+                let table_name = table_name.unwrap();
+                tracing::info!("Deleting data from table: {}", table_name);
+                lush::delete_table_data(pool, table_name.as_str(), msg.condition.as_str(), &req_id)
+                    .await?;
+            }
+            taosx_ipc::stream::lush::LushMessageControl::ALTER(msg) => {
+                let table_id = msg.table_id();
+                let table_name = lush::get_table_name_from_table_id(
+                    table_id,
+                    table_cache.clone(),
+                    lush_model_config.clone(),
+                );
+                if table_name.is_none() {
+                    tracing::error!("Can't get table_name from table_id: {}", table_id);
+                    return Ok(());
+                }
+                let table_name = table_name.unwrap();
+                tracing::info!("Alter table: {}", table_name);
+                lush::alter_table(
+                    pool,
+                    table_name.as_str(),
+                    msg.alter_table_clause.as_str(),
+                    &req_id,
+                )
+                .await?;
+            }
+            taosx_ipc::stream::lush::LushMessageControl::DROP(msg) => {
+                let table_id = msg.table_id();
+                let table_name = lush::get_table_name_from_table_id(
+                    table_id,
+                    table_cache.clone(),
+                    lush_model_config.clone(),
+                );
+                if table_name.is_none() {
+                    tracing::error!("Can't get table_name from table_id: {}", table_id);
+                    return Ok(());
+                }
+                let table_name = table_name.unwrap();
+                tracing::info!("Dropping table: {}", table_name);
+                lush::drop_table(pool, table_name.as_str(), &req_id).await?;
+            }
+            taosx_ipc::stream::lush::LushMessageControl::INSERT(msg) => {
+                let table_id = msg.table_id();
+                let table_name = lush::get_table_name_from_table_id(
+                    table_id,
+                    table_cache.clone(),
+                    lush_model_config.clone(),
+                );
+                if table_name.is_none() {
+                    tracing::error!("Can't get table_name from table_id: {}", table_id);
+                    return Ok(());
+                }
+                let table_name = table_name.unwrap();
+                tracing::info!("Insert into table: {}", table_name);
+                lush::insert_into_table(pool, table_name.as_str(), msg.column_values(), &req_id)
+                    .await?;
+            }
+        },
         LushMessage::Tables(tables, full_record) => {
-            tracing::trace!(
+            tracing::debug!(
                 "Got tables: {}",
                 tables.iter().map(|t| t.table_name()).join(",")
             );
@@ -1002,31 +1073,26 @@ async fn consume_lush_record_with_transform(
                 metrics_arc.ipc(),
             )
             .await;
-            let modeler = parser.modeler();
-            let is_labels_only = LushModelConfig::is_labels_only_stable(modeler);
-            if is_labels_only {
-                tracing::info!("Super table {} is labels-only", super_table);
-                // transform tables 消息
-                let message: transform::Message = parser
-                    .parse_message_from_records(&full_record, false)
-                    .with_context(|| {
-                        format!(
-                            "failed to transform Tables message, super table: {}",
-                            super_table
-                        )
-                    })?;
-                // 创建子表
-                if let transform::Message::Records(tables) = message {
-                    lush::create_sub_tables(
-                        pool,
-                        &mut taos,
-                        super_table.as_str(),
-                        &req_id,
-                        &tables,
-                        metrics_arc.ipc(),
+            // transform tables 消息
+            let message: transform::Message = parser
+                .parse_message_from_records(&full_record, false)
+                .with_context(|| {
+                    format!(
+                        "failed to transform Tables message, super table: {}",
+                        super_table
                     )
-                    .await?;
-                }
+                })?;
+            // 创建子表
+            if let transform::Message::Records(tables) = message {
+                lush::create_sub_tables(
+                    pool,
+                    &mut taos,
+                    super_table.as_str(),
+                    &req_id,
+                    &tables,
+                    metrics_arc.ipc(),
+                )
+                .await?;
             }
         }
         LushMessage::Insert(record) => {
@@ -1068,7 +1134,7 @@ async fn consume_lush_record_with_transform(
                     .unwrap();
                 // 只包含 tag 列的值
                 let tags_records: Result<RecordBatch, anyhow::Error> =
-                    lush::create_tags_record(table_id_column, table_cache.clone());
+                    lush::create_tags_record(name_of_table_id_column, table_id_column, table_cache.clone());
                 if let Err(err) = tags_records {
                     tracing::error!("{err:#}");
                     return Ok(());
