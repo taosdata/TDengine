@@ -1,8 +1,10 @@
 ---
-sidebar_label: 数据源接入
+sidebar_label: 数据写入
 title: 零代码数据源接入
 toc_max_heading_level: 4
 ---
+
+## 概述
 
 TDengine Enterprise 配备了一个强大的可视化数据管理工具—taosExplorer。借助 taosExplorer，用户只须在浏览器中简单配置，就能轻松地向 TDengine 提交任务，实现以零代码方式将来自不同数据源的数据无缝导入 TDengine。在导入过程中，TDengine 会对数据进行自动提取、过滤和转换，以保证导入的数据质量。通过这种零代码数据源接入方式，TDengine 成功转型为一个卓越的时序大数据汇聚平台。用户无须部署额外的 ETL 工具，从而大大简化整体架构的设计，提高了数据处理效率。
 
