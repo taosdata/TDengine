@@ -64,7 +64,6 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   int32_t code = 0;
   SSnode *pSnode = taosMemoryCalloc(1, sizeof(SSnode));
   if (pSnode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
