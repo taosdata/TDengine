@@ -382,8 +382,8 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
                                       &curWin.winInfo.sessionWin.win.ekey, &uid, &groupId, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = tSimpleHashRemove(pSeUpdated, &curWin.winInfo.sessionWin, sizeof(SSessionKey));
-      QUERY_CHECK_CODE(code, lino, _end);
+      int32_t tmpRes = tSimpleHashRemove(pSeUpdated, &curWin.winInfo.sessionWin, sizeof(SSessionKey));
+      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
 
       doDeleteEventWindow(pAggSup, pSeUpdated, &curWin.winInfo.sessionWin);
       if (pInfo->destHasPrimaryKey && curWin.winInfo.isOutput && IS_NORMAL_EVENT_OP(pOperator) &&
@@ -574,9 +574,10 @@ static SSDataBlock* buildEventResult(SOperatorInfo* pOperator) {
   return NULL;
 }
 
-static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
+static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t                      code = TSDB_CODE_SUCCESS;
@@ -589,7 +590,8 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_RES_TO_RETURN) {
     SSDataBlock* resBlock = buildEventResult(pOperator);
     if (resBlock != NULL) {
-      return resBlock;
+      (*ppRes) = resBlock;
+      return code;
     }
 
     if (pInfo->recvGetAll) {
@@ -600,11 +602,13 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
     if (pInfo->reCkBlock) {
       pInfo->reCkBlock = false;
       printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-      return pInfo->pCheckpointRes;
+      (*ppRes) = pInfo->pCheckpointRes;
+      return code;
     }
 
     setStreamOperatorCompleted(pOperator);
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -636,7 +640,8 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
-      return pBlock;
+      (*ppRes) = pBlock;
+      return code;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
       doStreamEventSaveCheckpoint(pOperator);
@@ -697,15 +702,24 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
 
   SSDataBlock* resBlock = buildEventResult(pOperator);
   if (resBlock != NULL) {
-    return resBlock;
+    (*ppRes) = resBlock;
+    return code;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    pTaskInfo->code = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   setStreamOperatorCompleted(pOperator);
-  return NULL;
+  (*ppRes) = NULL;
+  return code;
+}
+
+static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = doStreamEventAggNext(pOperator, &pRes);
+  return pRes;
 }
 
 void streamEventReleaseState(SOperatorInfo* pOperator) {

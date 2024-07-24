@@ -604,7 +604,7 @@ _end:
   return code;
 }
 
-static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
+static int32_t doStreamCountAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   SExprSupp*                   pSup = &pOperator->exprSupp;
@@ -614,11 +614,13 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   qDebug("stask:%s  %s status: %d", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType), pOperator->status);
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   } else if (pOperator->status == OP_RES_TO_RETURN) {
     SSDataBlock* opRes = buildCountResult(pOperator);
     if (opRes) {
-      return opRes;
+      (*ppRes) = opRes;
+      return code;
     }
 
     if (pInfo->recvGetAll) {
@@ -629,11 +631,13 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
     if (pInfo->reCkBlock) {
       pInfo->reCkBlock = false;
       printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-      return pInfo->pCheckpointRes;
+      (*ppRes) = pInfo->pCheckpointRes;
+      return code;
     }
 
     setStreamOperatorCompleted(pOperator);
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -667,7 +671,8 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
-      return pBlock;
+      (*ppRes) = pBlock;
+      return code;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       pAggSup->stateStore.streamStateCommit(pAggSup->pState);
       doStreamCountSaveCheckpoint(pOperator);
@@ -712,15 +717,24 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
 
   SSDataBlock* opRes = buildCountResult(pOperator);
   if (opRes) {
-    return opRes;
+    (*ppRes) = opRes;
+    return code;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    pTaskInfo->code = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   setStreamOperatorCompleted(pOperator);
-  return NULL;
+  (*ppRes) = NULL;
+  return code;
+}
+
+static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = doStreamCountAggNext(pOperator, &pRes);
+  return pRes;
 }
 
 void streamCountReleaseState(SOperatorInfo* pOperator) {
@@ -729,10 +743,8 @@ void streamCountReleaseState(SOperatorInfo* pOperator) {
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
   int32_t                      resSize = sizeof(TSKEY);
   char*                        pBuff = taosMemoryCalloc(1, resSize);
-  if (pBuff) {
-    code = terrno;
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  QUERY_CHECK_NULL(pBuff, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
   memcpy(pBuff, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
   qDebug("===stream=== count window operator relase state. ");
   pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_COUNT_OP_STATE_NAME,
@@ -745,6 +757,7 @@ void streamCountReleaseState(SOperatorInfo* pOperator) {
   }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
@@ -773,6 +786,7 @@ void streamCountReloadState(SOperatorInfo* pOperator) {
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }

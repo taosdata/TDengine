@@ -563,8 +563,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
     code = checkResult(pFillSup, pFillInfo->current, groupId, &ckRes);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if ((pFillSup->hasDelete && !ckRes) ||
-        !inWinRange(&pFillSup->winRange, &st)) {
+    if ((pFillSup->hasDelete && !ckRes) || !inWinRange(&pFillSup->winRange, &st)) {
       pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                        pFillSup->interval.precision);
       pFillInfo->pLinearInfo->winIndex++;
@@ -1013,14 +1012,15 @@ _end:
   return code;
 }
 
-static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
+static int32_t doStreamFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
   blockDataCleanup(pInfo->pRes);
   if (hasRemainCalc(pInfo->pFillInfo) ||
@@ -1028,18 +1028,21 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
     doStreamFillRange(pInfo->pFillInfo, pInfo->pFillSup, pInfo->pRes);
     if (pInfo->pRes->info.rows > 0) {
       printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-      return pInfo->pRes;
+      (*ppRes) = pInfo->pRes;
+      return code;
     }
   }
   if (pOperator->status == OP_RES_TO_RETURN) {
     doDeleteFillFinalize(pOperator);
     if (pInfo->pRes->info.rows > 0) {
       printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-      return pInfo->pRes;
+      (*ppRes) = pInfo->pRes;
+      return code;
     }
     setOperatorCompleted(pOperator);
     resetStreamFillInfo(pInfo);
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SSDataBlock*   fillResult = NULL;
@@ -1053,7 +1056,8 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
         pInfo->pFillInfo->preRowKey = INT64_MIN;
         if (pInfo->pRes->info.rows > 0) {
           printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-          return pInfo->pRes;
+          (*ppRes) = pInfo->pRes;
+          return code;
         }
         break;
       }
@@ -1071,7 +1075,8 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
 
       switch (pBlock->info.type) {
         case STREAM_RETRIEVE:
-          return pBlock;
+          (*ppRes) = pBlock;
+          return code;
         case STREAM_DELETE_RESULT: {
           pInfo->pSrcDelBlock = pBlock;
           pInfo->srcDelRowIndex = 0;
@@ -1082,7 +1087,8 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
 
           if (pInfo->pDelRes->info.rows > 0) {
             printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-            return pInfo->pDelRes;
+            (*ppRes) = pInfo->pDelRes;
+            return code;
           }
           continue;
         } break;
@@ -1097,7 +1103,8 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
         } break;
         case STREAM_CHECKPOINT:
         case STREAM_CREATE_CHILD_TABLE: {
-          return pBlock;
+          (*ppRes) = pBlock;
+          return code;
         } break;
         default:
           ASSERTS(false, "invalid SSDataBlock type");
@@ -1121,20 +1128,30 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
   if (pInfo->pRes->info.rows == 0) {
     setOperatorCompleted(pOperator);
     resetStreamFillInfo(pInfo);
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
   printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-  return pInfo->pRes;
+  (*ppRes) = pInfo->pRes;
+  return code;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    pTaskInfo->code = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   setOperatorCompleted(pOperator);
   resetStreamFillInfo(pInfo);
-  return NULL;
+  (*ppRes) = NULL;
+  return code;
+}
+
+static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = doStreamFillNext(pOperator, &pRes);
+  return pRes;
 }
 
 static int32_t initResultBuf(SStreamFillSupporter* pFillSup) {

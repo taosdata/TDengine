@@ -316,12 +316,14 @@ _end:
   return NULL;
 }
 
-static SSDataBlock* doFill(SOperatorInfo* pOperator) {
+static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t        code = TSDB_CODE_SUCCESS;
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SSDataBlock* fillResult = NULL;
@@ -332,9 +334,10 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    int32_t code = doFilter(fillResult, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
+    code = doFilter(fillResult, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
     if (fillResult->info.rows > 0) {
@@ -346,7 +349,14 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
     pOperator->resultInfo.totalRows += fillResult->info.rows;
   }
 
-  return fillResult;
+  (*ppRes) = fillResult;
+  return code;
+}
+
+static SSDataBlock* doFill(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = doFillNext(pOperator, &pRes);
+  return pRes;
 }
 
 void destroyFillOperatorInfo(void* param) {
