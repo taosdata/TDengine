@@ -100,6 +100,7 @@
               :config="item.children"
               :data="data[item.field]"
               :parent="parent + item.field + '.'"
+              :parentConfigList="item.children"
             />
           </template>
           <template v-else>
