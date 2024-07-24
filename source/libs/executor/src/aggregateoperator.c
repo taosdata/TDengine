@@ -69,11 +69,15 @@ static void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutp
 static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode,
-                                           SExecTaskInfo* pTaskInfo) {
+int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
+                                    SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
+  int32_t code = 0;
   SAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAggOperatorInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -87,7 +91,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
-  int32_t    code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
+  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
                                pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -132,7 +136,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
     goto _error;
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -145,7 +150,7 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void destroyAggOperatorInfo(void* param) {

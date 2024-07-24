@@ -2293,12 +2293,11 @@ void tsortSetMergeLimit(SSortHandle* pHandle, int64_t mergeLimit) {
   pHandle->mergeLimit = mergeLimit;
 }
 
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
+void tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
                                void* param) {
   pHandle->fetchfp = fetchFp;
   pHandle->beforeFp = fp;
   pHandle->param = param;
-  return TSDB_CODE_SUCCESS;
 }
 
 void tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp) {

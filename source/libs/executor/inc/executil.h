@@ -118,7 +118,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
                                 SExecTaskInfo* pTaskInfo);
 
 STableListInfo* tableListCreate();
-void*           tableListDestroy(STableListInfo* pTableListInfo);
+void            tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);

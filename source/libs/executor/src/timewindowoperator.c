@@ -1202,13 +1202,16 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
   return needed;
 }
 
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode,
-                                          SExecTaskInfo* pTaskInfo) {
+int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                   SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SIntervalAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
   SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -1299,7 +1302,8 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
     goto _error;
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -1307,7 +1311,7 @@ _error:
   }
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 // todo handle multiple timeline cases. assume no timeline interweaving
@@ -1459,13 +1463,16 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
 }
 
 // todo make this as an non-blocking operator
-SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhysiNode* pStateNode,
-                                             SExecTaskInfo* pTaskInfo) {
+int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhysiNode* pStateNode,
+                                      SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SStateWindowOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStateWindowOperatorInfo));
   SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -1476,8 +1483,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
   if (pStateNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pStateNode->window.pExprs, NULL, &numOfScalarExpr);
-    int32_t    code =
-        initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
+    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -1532,7 +1538,8 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
     goto _error;
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -1541,7 +1548,7 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void destroySWindowOperatorInfo(void* param) {
@@ -1560,13 +1567,16 @@ void destroySWindowOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPhysiNode* pSessionNode,
-                                            SExecTaskInfo* pTaskInfo) {
+int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPhysiNode* pSessionNode,
+                                     SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SSessionAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSessionAggOperatorInfo));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -1625,13 +1635,14 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionW
     goto _error;
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   destroySWindowOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void destroyMAIOperatorInfo(void* param) {
@@ -1838,18 +1849,22 @@ static SSDataBlock* mergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
   return (rows == 0) ? NULL : pRes;
 }
 
-SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMergeAlignedIntervalPhysiNode* pNode,
-                                                      SExecTaskInfo* pTaskInfo) {
+int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMergeAlignedIntervalPhysiNode* pNode,
+                                                      SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t                               code = TSDB_CODE_SUCCESS;
   int32_t                               lino = 0;
   SMergeAlignedIntervalAggOperatorInfo* miaInfo = taosMemoryCalloc(1, sizeof(SMergeAlignedIntervalAggOperatorInfo));
   SOperatorInfo*                        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (miaInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
   miaInfo->intervalAggOperatorInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
   if (miaInfo->intervalAggOperatorInfo == NULL) {
+    code = terrno;
     goto _error;
   }
 
@@ -1912,13 +1927,14 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
     goto _error;
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   destroyMAIOperatorInfo(miaInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 //=====================================================================================================================
@@ -2137,13 +2153,16 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
   return (rows == 0) ? NULL : pRes;
 }
 
-SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode,
-                                               SExecTaskInfo* pTaskInfo) {
+int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode,
+                                               SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
   SMergeIntervalAggOperatorInfo* pMergeIntervalInfo = taosMemoryCalloc(1, sizeof(SMergeIntervalAggOperatorInfo));
   SOperatorInfo*                 pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pMergeIntervalInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -2203,8 +2222,8 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
     goto _error;
   }
 
-  return pOperator;
-
+  *pOptrInfo = pOperator;
+  return code;
 _error:
   if (pMergeIntervalInfo != NULL) {
     destroyMergeIntervalOperatorInfo(pMergeIntervalInfo);
@@ -2212,5 +2231,5 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }

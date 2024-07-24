@@ -74,7 +74,7 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 
 static int32_t setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
 
-static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
+static int32_t initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
@@ -1228,20 +1228,24 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   }
 }
 
-FORCE_INLINE SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx,
-                                                         bool clearParam) {
+FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
+                                                    SSDataBlock** pResBlock) {
+  QRY_OPTR_CHECK(pResBlock);
+
+  int32_t code = 0;
   if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
     qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
-    SSDataBlock* pBlock = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx],
-                                                                          pOperator->pDownstreamGetParams[idx]);
-    if (clearParam) {
+    code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx],
+                                                           pOperator->pDownstreamGetParams[idx], pResBlock);
+    if (clearParam && (code == 0)) {
       freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
       pOperator->pDownstreamGetParams[idx] = NULL;
     }
-    return pBlock;
+    return code;
   }
 
-  return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+  *pResBlock = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+  return code;
 }
 
 bool compareVal(const char* v, const SStateKeys* pKey) {

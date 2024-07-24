@@ -820,8 +820,10 @@ _end:
   }
 }
 
-SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
+int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                         SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   SStreamEventWinodwPhysiNode* pEventNode = (SStreamEventWinodwPhysiNode*)pPhyNode;
   int32_t                      tsSlotId = ((SColumnNode*)pEventNode->window.pTspk)->slotId;
   int32_t                      code = TSDB_CODE_SUCCESS;
@@ -931,12 +933,13 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
   code = filterInitFromNode((SNode*)pEventNode->pEndCond, &pInfo->pEndCondInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   destroyStreamEventOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return NULL;
+  return code;
 }

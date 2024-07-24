@@ -316,15 +316,20 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   return initDataSource(numOfSources, pInfo, id);
 }
 
-SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo) {
+int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo,
+                                   SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
+  int32_t code = 0;
   SExchangeInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
   pInfo->dynamicOp = pExNode->node.dynamicOp;
-  int32_t code = initExchangeOperator(pExNode, pInfo, GET_TASKID(pTaskInfo));
+  code = initExchangeOperator(pExNode, pInfo, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -351,7 +356,8 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -360,7 +366,7 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void destroyExchangeOperatorInfo(void* param) {

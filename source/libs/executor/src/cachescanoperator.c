@@ -51,10 +51,10 @@ typedef struct SCacheRowsScanInfo {
 } SCacheRowsScanInfo;
 
 static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
-static void         destroyCacheScanOperator(void* param);
-static int32_t      extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds,
-                                           int32_t** pDstSlotIds);
-static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo);
+static void    destroyCacheScanOperator(void* param);
+static int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds,
+                                      int32_t** pDstSlotIds);
+static int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo);
 
 #define SCAN_ROW_TYPE(_t) ((_t) ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
 
@@ -84,8 +84,11 @@ static void setColIdForCacheReadBlock(SSDataBlock* pBlock, SLastRowScanPhysiNode
   }
 }
 
-SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
-                                           STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
+int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
+                                    STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
+                                    SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             numOfCols = 0;
   SNodeList*          pScanCols = pScanNode->scan.pScanCols;
@@ -200,20 +203,23 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
       createOperatorFpSet(optrDummyOpenFn, doScanCache, NULL, destroyCacheScanOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   pOperator->cost.openCost = 0;
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   pTaskInfo->code = code;
   destroyCacheScanOperator(pInfo);
   taosMemoryFree(pOperator);
-  return NULL;
+  return code;
 }
 
 SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    return 0;
   }
 
+  int32_t             code = 0;
   SCacheRowsScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
   STableListInfo*     pTableList = pInfo->pTableList;
@@ -224,7 +230,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
   int32_t  size = tableListGetSize(pTableList);
   if (size == 0) {
     setOperatorCompleted(pOperator);
-    return NULL;
+    return 0;
   }
 
   blockDataCleanup(pInfo->pRes);
@@ -239,7 +245,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       blockDataCleanup(pBufRes);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code =
+      code =
           pReaderFn->retrieveRows(pInfo->pLastrowReader, pBufRes, pInfo->pSlotIds, pInfo->pDstSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
@@ -278,8 +284,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       pRes->info.scanFlag = MAIN_SCAN;
 
       SExprSupp* pSup = &pInfo->pseudoExprSup;
-      int32_t    code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes,
-                                               pRes->info.rows, pTaskInfo, NULL);
+      code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes, pRes->info.rows,
+                                    pTaskInfo, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
@@ -303,7 +309,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       STableKeyInfo* pList = NULL;
       int32_t        num = 0;
 
-      int32_t code = tableListGetGroupList(pTableList, pInfo->currentGroupIndex, &pList, &num);
+      code = tableListGetGroupList(pTableList, pInfo->currentGroupIndex, &pList, &num);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }

@@ -777,8 +777,10 @@ _end:
   }
 }
 
-SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
+int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   SCountWinodwPhysiNode*       pCountNode = (SCountWinodwPhysiNode*)pPhyNode;
   int32_t                      numOfCols = 0;
   int32_t                      code = TSDB_CODE_SUCCESS;
@@ -873,7 +875,9 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
     code = appendDownstream(pOperator, &downstream, 1);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -883,5 +887,5 @@ _error:
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return NULL;
+  return code;
 }

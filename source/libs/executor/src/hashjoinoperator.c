@@ -1177,12 +1177,13 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
 }
 
 
-SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                           SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
-  SHJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SHJoinOperatorInfo));
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                           SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SHJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SHJoinOperatorInfo));
+  SOperatorInfo*      pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
@@ -1223,7 +1224,8 @@ SOperatorInfo* createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t n
 
   qDebug("create hash Join operator done");
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _return:
 
@@ -1233,7 +1235,7 @@ _return:
 
   taosMemoryFree(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 

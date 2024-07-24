@@ -107,8 +107,8 @@ void tsortClose(SSortHandle* pHandle);
  *
  * @return
  */
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
-                               void* param);
+void tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
+                            void* param);
 
 /**
  *

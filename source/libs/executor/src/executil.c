@@ -2024,6 +2024,7 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
+
   if (pTableList->map == NULL) {
     pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     QUERY_CHECK_NULL(pTableList->map, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
@@ -2108,9 +2109,9 @@ _error:
   return NULL;
 }
 
-void* tableListDestroy(STableListInfo* pTableListInfo) {
+void tableListDestroy(STableListInfo* pTableListInfo) {
   if (pTableListInfo == NULL) {
-    return NULL;
+    return;
   }
 
   taosArrayDestroy(pTableListInfo->pTableList);
@@ -2122,7 +2123,6 @@ void* tableListDestroy(STableListInfo* pTableListInfo) {
   pTableListInfo->pTableList = NULL;
   pTableListInfo->map = NULL;
   taosMemoryFree(pTableListInfo);
-  return NULL;
 }
 
 void tableListClear(STableListInfo* pTableListInfo) {
