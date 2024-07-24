@@ -66,6 +66,7 @@ namespace TDPIConnector.Core
             }
         }
 
+        // TODO: 删除
         public void InitializeTaosConnections()
         {
             tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
@@ -95,6 +96,7 @@ namespace TDPIConnector.Core
         }
         public void InitializeConnections() {
             InitializePIConnections();
+            // TODO: 删除
             InitializeTaosConnections();
             InitObserver();
         }
@@ -108,7 +110,7 @@ namespace TDPIConnector.Core
         public async void Start()
         {
             TDEngineClient.OnlyTestConnector = AppSettings.tomlConfig.OnlyTestConnector;
-
+            // 初始化连接，并初始化 Observer
             InitializeConnections();
             // 启动 backfill 任务，一旦有 ElementBackfillTask 添加到队列，就会开始执行
             backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
@@ -134,6 +136,7 @@ namespace TDPIConnector.Core
 
             if (!AppSettings.tomlConfig.ForBackfill && AppSettings.tomlConfig.TemplateEventStart)
             {
+                // 监听模板变化，实际上是注册数据库的事件监听函数
                 StartTemplateObserve();
             }
 
@@ -141,6 +144,7 @@ namespace TDPIConnector.Core
             {
                 try
                 {
+                    // 启动多列模式的数据处理流程， backfill + 监听元素的属性变化
                     await initializer.InitAFModeTask(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                 }
                 catch (Exception e)
@@ -153,6 +157,7 @@ namespace TDPIConnector.Core
             
             if (piPoints != null && piPoints.Count > 0)
             {
+                // 启动单列模式的数据处理流程
                 StartDataPipe();
                 StartBackfillPiPoints();
                 standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
@@ -185,7 +190,7 @@ namespace TDPIConnector.Core
         }
         private void StartTemplateObserve()
         {
-            if (this.piSystemManager == null) {
+            if (piSystemManager == null) {
                 log.Info("Working on only point mode.");
                 return;
             }
@@ -196,17 +201,19 @@ namespace TDPIConnector.Core
                 return;
             }
 
-            var afElementTemplateObserver = new AFElementTemplateObserver(this.piSystemManager, this.initializer,
-               AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.TemplateForAFElement);
+            var afElementTemplateObserver = new AFElementTemplateObserver(piSystemManager, initializer,
+               AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.TemplateForAFElement, tdEngineProxy);
             afElementTemplateObserver.Observe(elementTemplateEventHandle);
         }
+
+        // 这个方法不会被调用。暂不处理模板变化事件
         public async void elementTemplateEventHandle(AFElementTemplateWrapper template)
         {
             var hasNewAttribute = await tablesCreator.CreateOrUpdateSuperTables(AppSettings.tomlConfig.TDDataBase, template);
             if (hasNewAttribute)
             {
                 log.Info($"New attribute found in template {template.Name}, we can not handle this event properly now.");
-                // ReStartDataPipe();
+                ReStartDataPipe();
             }
         }
 

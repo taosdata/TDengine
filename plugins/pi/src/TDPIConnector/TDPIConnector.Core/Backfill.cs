@@ -191,12 +191,12 @@ namespace TDPIConnector.Core
                 var task = groupManager.GetNextTask();
                 if (task != null) return task;
                 tdEngineProxy.LimitTaosxClientCapToOne(groupManager.templateName);
-                log.Info($"[backfill task manager]Templalte finished: {groupManager.templateName}. Group({groupNum}) waitting new task.");
+                log.Info($"[BackfillManager]Templalte finished: {groupManager.templateName}. Group({groupNum}) waitting new task.");
             }
             
             ElementsBackfillTaskManager newGroupManager = GetNotStartedGroup(groupNum);
             if (null != newGroupManager) {
-                log.Info($"[backfill task manager]Template start:{newGroupManager.templateName}. Group({groupNum}).");
+                log.Info($"[BackfillManager]Template start:{newGroupManager.templateName}. Group({groupNum}).");
                 tdEngineProxy.ExpandTaosxClientCap(newGroupManager.templateName, AppSettings.tomlConfig.ConcurrencyCountsForOneTemplate);
                 return newGroupManager.GetNextTask();
             }
@@ -216,7 +216,7 @@ namespace TDPIConnector.Core
                         if (task != null)
                         {
                             tdEngineProxy.ExpandTaosxClientCap(newManagerToadd.templateName, AppSettings.tomlConfig.ConcurrencyCountsForOneTemplate);
-                            log.Info($"[backfill task manager]Add new backfill group for template:{newManagerToadd.templateName}, group({groupNum}).");
+                            log.Info($"[BackfillManager]Add new backfill group for template:{newManagerToadd.templateName}, group({groupNum}).");
                             return task;
                         }
                         else {
@@ -294,25 +294,33 @@ namespace TDPIConnector.Core
                             var task = GetNextTask(groupNum);
                             if (task != null)
                             {
-                                var element = piSystemManager.GetElementsById(task.elementID);
+                                AFElementWrapper element = piSystemManager.GetElementsById(task.elementID);
                                 if (element != null)
                                 {
-                                    BackfillElement(tdDatabaseName, element, task.startTime, task.endTime);
-                                    FinishedOne(element, groupNum);
+                                    try
+                                    {
+                                        BackfillElement(tdDatabaseName, element, task.startTime, task.endTime);
+                                        FinishedOne(element, groupNum);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        log.Error($"[BackfillManager]Backfill element error:{element}", e);
+                                    }
+
                                 }
                             }
                             else
                             {
                                 if (stopAddNewTask)
                                 {
-                                    log.Info($"[backfill task manager]Finished, group({groupNum}) quit!");
+                                    log.Info($"[BackfillManager]Finished, group({groupNum}) quit!");
                                     return;
                                 }
                                 await Task.Delay(500);
                             }
                         }
                         catch (Exception e) {
-                            log.Error($"[backfill task manager]Exception in backfill task: {e.Message}");
+                            log.Error($"[BackfillManager]Exception in backfill task", e);
                         }
                     }
                 }));
@@ -383,11 +391,11 @@ namespace TDPIConnector.Core
         internal void WaitTask()
         {
             stopAddNewTask = true;
-            log.Info("[backfill task manager]Init Finished, stop add new element into backfill list.");
+            log.Info("[BackfillManager]Init Finished, stop add new element into backfill list.");
             Task.WaitAll(backFillTasks.ToArray());
-            log.Info("[backfill task manager]All task Finished.");
+            log.Info("[BackfillManager]All task Finished.");
             tdEngineProxy.StopAll();
-            log.Info("[backfill task manager]Close connection with agent.");
+            log.Info("[BackfillManager]Close connection with agent.");
         }
         internal void StopAddTask()
         {
@@ -447,23 +455,6 @@ namespace TDPIConnector.Core
             return await GetTDPointsFirstRecordedValue(tdDatabaseName, piPointNames);
         }
 
-        public async void BackfillAFElementsFromLastRecordedValue(string tdDatabaseName, Dictionary<AFElementWrapper, DateTime> lastValueTimestamps)
-        {
-            List<Task> tasks = new List<Task>();
-            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(10);
-            foreach (var lastTDValue in lastValueTimestamps)
-            {
-                await concurrencySemaphore.WaitAsync();
-                tasks.Add(Task.Run(async () =>
-                {
-                    AFElementWrapper element = lastTDValue.Key;
-                    BackfillElement(tdDatabaseName, element, lastTDValue.Value, DateTime.Now);
-                    concurrencySemaphore.Release();
-                }));
-            }
-            Task.WaitAll(tasks.ToArray());
-        }
-
         internal void BackfillElements(string tdDatabaseName, in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
         {
             var elemmentBackfillManager = GetElementBackfillManager("default");
@@ -480,7 +471,7 @@ namespace TDPIConnector.Core
 
         internal void BackfillElementsOfTemplate(in string templateName, in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
         {
-            var elemmentBackfillManager = GetElementBackfillManager(templateName);
+            ElementsBackfillTaskManager elemmentBackfillManager = GetElementBackfillManager(templateName);
             elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime);
         }
 
@@ -565,7 +556,7 @@ namespace TDPIConnector.Core
                 var elementTableKey = element.ID.ToString();
                 tables.Add(elementTableKey, elementValues);
                 stables.Add(superTableName, tables);
-                tdEngineProxy.InsertValuesForAFElements(tdDatabaseName, stables, columnNames).Wait();
+                tdEngineProxy.InsertValuesForAFElements(stables, columnNames).Wait();
                 log.Info($"Backfill element {superTableName}:{elementID} from {currentStart} rows {elementValues.Count} in {stopwatch.ElapsedMilliseconds} ms");
 
                 if (count < AppSettings.tomlConfig.BackfillBatchSize) {

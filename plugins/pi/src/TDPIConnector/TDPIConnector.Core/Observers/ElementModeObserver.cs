@@ -27,7 +27,7 @@ namespace TDPIConnector.Core
 
         public void OnNext(AFDataPipeEventWrapper dpEvent)
         {
-            this.eventsSender.AddAFValue(dpEvent);
+            eventsSender.AddAFValue(dpEvent);
         }
     }
 }
