@@ -67,11 +67,15 @@ class TDTestCase:
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(f'create stable {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute(f'create stream `{self.streamname}` into `{self.streamtb}` as select count(*) from {self.stbname} interval(10s);')
+
+        time.sleep(15)
         tdSql.query('show streams')
         tdSql.checkEqual(tdSql.queryResult[0][0],self.streamname)
         tdSql.execute(f'drop stream {self.streamname}')
         tdSql.execute(f'drop stable {self.streamtb}')
         tdSql.execute(f'create stream {self.streamname} into `{self.streamtb}` as select count(*) from {self.stbname} interval(10s);')
+
+        time.sleep(10)
         tdSql.query('show streams')
         tdSql.checkEqual(tdSql.queryResult[0][0],self.streamname)
         tdSql.execute(f'drop stream `{self.streamname}`')

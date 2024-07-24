@@ -70,8 +70,12 @@ int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
 
   int32_t numOfBufPage = pSortMergeInfo->sortBufSize / pSortMergeInfo->bufPageSize;
 
-  pSortMergeInfo->pSortHandle = tsortCreateSortHandle(pSortMergeInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pSortMergeInfo->bufPageSize, numOfBufPage,
-                                             pSortMergeInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0);
+  pSortMergeInfo->pSortHandle = NULL;
+  int32_t code = tsortCreateSortHandle(pSortMergeInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pSortMergeInfo->bufPageSize,
+                                       numOfBufPage, pSortMergeInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pSortMergeInfo->pSortHandle);
+  if (code) {
+    return code;
+  }
 
   tsortSetFetchRawDataFp(pSortMergeInfo->pSortHandle, sortMergeloadNextDataBlock, NULL, NULL);
   tsortSetCompareGroupId(pSortMergeInfo->pSortHandle, pInfo->groupMerge);
@@ -96,12 +100,17 @@ static void doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle*
                                  SSDataBlock* p, bool* newgroup) {
   SSortMergeInfo* pSortMergeInfo = &pInfo->sortMergeInfo;
   *newgroup = false;
+  int32_t code = 0;
 
   while (1) {
     STupleHandle* pTupleHandle = NULL;
     if (pInfo->groupMerge || pInfo->inputWithGroupId) {
       if (pSortMergeInfo->prefetchedTuple == NULL) {
-        pTupleHandle = tsortNextTuple(pHandle);
+        pTupleHandle = NULL;
+        code = tsortNextTuple(pHandle, &pTupleHandle);
+        if (code) {
+          // todo handle error
+        }
       } else {
         pTupleHandle = pSortMergeInfo->prefetchedTuple;
         pSortMergeInfo->prefetchedTuple = NULL;
@@ -112,11 +121,11 @@ static void doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle*
         }
       }
     } else {
-      pTupleHandle = tsortNextTuple(pHandle);
+      code = tsortNextTuple(pHandle, &pTupleHandle);
       pInfo->groupId = 0;
     }
 
-    if (pTupleHandle == NULL) {
+    if (pTupleHandle == NULL || (code != 0)) {
       break;
     }
 
@@ -159,8 +168,10 @@ SSDataBlock* doSortMerge(SOperatorInfo* pOperator) {
   blockDataCleanup(pDataBlock);
 
   if (pSortMergeInfo->pIntermediateBlock == NULL) {
-    pSortMergeInfo->pIntermediateBlock = tsortGetSortedDataBlock(pHandle);
-    if (pSortMergeInfo->pIntermediateBlock == NULL) {
+    pSortMergeInfo->pIntermediateBlock = NULL;
+
+    int32_t code = tsortGetSortedDataBlock(pHandle, &pSortMergeInfo->pIntermediateBlock);
+    if (pSortMergeInfo->pIntermediateBlock == NULL || code != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
