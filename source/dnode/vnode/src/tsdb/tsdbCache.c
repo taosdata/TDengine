@@ -23,13 +23,12 @@
 #define ROCKS_BATCH_SIZE (4096)
 
 static int32_t tsdbOpenBCache(STsdb *pTsdb) {
-  int32_t    code = 0;
+  int32_t    code = 0, lino = 0;
   int32_t    szPage = pTsdb->pVnode->config.tsdbPageSize;
   int64_t    szBlock = tsS3BlockSize <= 1024 ? 1024 : tsS3BlockSize;
   SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3BlockCacheSize * szBlock * szPage, 0, .5);
   if (pCache == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
 
   taosLRUCacheSetStrictCapacity(pCache, false);
@@ -39,7 +38,11 @@ static int32_t tsdbOpenBCache(STsdb *pTsdb) {
   pTsdb->bCache = pCache;
 
 _err:
-  return code;
+  if (code) {
+    tsdbError("tsdb/bcache: vgId:%d, open failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino, tstrerror(code));
+  }
+
+  TAOS_RETURN(code);
 }
 
 static void tsdbCloseBCache(STsdb *pTsdb) {
@@ -58,23 +61,27 @@ static void tsdbCloseBCache(STsdb *pTsdb) {
 }
 
 static int32_t tsdbOpenPgCache(STsdb *pTsdb) {
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   // SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 0, .5);
   int32_t szPage = pTsdb->pVnode->config.tsdbPageSize;
 
   SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3PageCacheSize * szPage, 0, .5);
   if (pCache == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
 
   taosLRUCacheSetStrictCapacity(pCache, false);
 
   taosThreadMutexInit(&pTsdb->pgMutex, NULL);
 
-_err:
   pTsdb->pgCache = pCache;
-  return code;
+
+_err:
+  if (code) {
+    tsdbError("tsdb/pgcache: vgId:%d, open failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino, tstrerror(code));
+  }
+
+  TAOS_RETURN(code);
 }
 
 static void tsdbClosePgCache(STsdb *pTsdb) {
