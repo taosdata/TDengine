@@ -325,12 +325,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         continue;
       }
 
-      code = setInfoForNewGroup(pBlock, pLimitInfo, pOperator);
-      if (code) {
-        pTaskInfo->code = code;
-        return code;
-      }
-
+      (void) setInfoForNewGroup(pBlock, pLimitInfo, pOperator);
       if (pOperator->status == OP_EXEC_DONE) {
         break;
       }
