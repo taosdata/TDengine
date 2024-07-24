@@ -9,11 +9,10 @@ use std::{
 
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, BooleanArray, Datum, Float16Array, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
-        LargeStringArray, ListArray, StringArray, StructArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
+        Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
+        ListArray, StringArray, StructArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
