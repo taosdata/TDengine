@@ -294,7 +294,11 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 
 bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type) {
   bool       update = false;
-  SIpV4Range range = {.ip = taosGetIpv4FromFqdn(fqdn), .mask = 32};
+  SIpV4Range range = {.ip = 0, .mask = 32};
+  int32_t    code = taosGetIpv4FromFqdn(fqdn, &range.ip);
+  if (code) {
+    //TODO
+  }
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
   SIpWhiteList  *pList = NULL;

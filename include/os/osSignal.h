@@ -49,6 +49,9 @@ typedef BOOL (*FSignalHandler)(DWORD fdwCtrlType);
 #else
 typedef void (*FSignalHandler)(int32_t signum, void *sigInfo, void *context);
 #endif
+
+typedef void (*sighandler_t)(int);
+
 int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp);
 int32_t taosIgnSignal(int32_t signum);
 int32_t taosDflSignal(int32_t signum);

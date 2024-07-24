@@ -56,7 +56,6 @@ void taosKillChildOnParentStopped() {}
  */
 
 typedef void (*FLinuxSignalHandler)(int32_t signum, siginfo_t *sigInfo, void *context);
-typedef void (*sighandler_t)(int);
 
 int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp) {
   struct sigaction act;
