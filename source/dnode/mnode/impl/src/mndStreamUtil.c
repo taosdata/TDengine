@@ -744,8 +744,9 @@ int32_t mndInitExecInfo() {
 void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
   SArray *pValidList = taosArrayInit(4, sizeof(SNodeEntry));
   int32_t size = taosArrayGetSize(pNodeSnapshot);
+  int32_t oldSize = taosArrayGetSize(execInfo.pNodeList);
 
-  for (int32_t i = 0; i < taosArrayGetSize(execInfo.pNodeList); ++i) {
+  for (int32_t i = 0; i < oldSize; ++i) {
     SNodeEntry *p = taosArrayGet(execInfo.pNodeList, i);
 
     for (int32_t j = 0; j < size; ++j) {
@@ -763,7 +764,8 @@ void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
   taosArrayDestroy(execInfo.pNodeList);
   execInfo.pNodeList = pValidList;
 
-  mDebug("remain %d valid node entries after clean expired nodes info", (int32_t)taosArrayGetSize(pValidList));
+  mDebug("remain %d valid node entries after clean expired nodes info, prev size:%d",
+         (int32_t)taosArrayGetSize(pValidList), oldSize);
 }
 
 int32_t doRemoveTasks(SStreamExecInfo *pExecNode, STaskId *pRemovedId) {
