@@ -317,7 +317,7 @@ _end:
 }
 
 static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t            code = TSDB_CODE_SUCCESS;
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
@@ -355,7 +355,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
 static SSDataBlock* doFill(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t code = doFillNext(pOperator, &pRes);
+  int32_t      code = doFillNext(pOperator, &pRes);
   return pRes;
 }
 
@@ -384,8 +384,9 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
 
   //  STimeWindow w = {0};
   //  getInitialStartTimeWindow(pInterval, startKey, &w, order == TSDB_ORDER_ASC);
-  pInfo->pFillInfo = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
-                                        pInfo->primaryTsCol, order, id, pTaskInfo);
+  pInfo->pFillInfo = NULL;
+  taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
+                     pInfo->primaryTsCol, order, id, pTaskInfo, &pInfo->pFillInfo);
 
   if (order == TSDB_ORDER_ASC) {
     pInfo->win.skey = win.skey;

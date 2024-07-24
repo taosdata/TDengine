@@ -1984,7 +1984,11 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
     char*   buf1 = taosMemoryCalloc(1, contLen);
-    (void)tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
+    int32_t tempRes = tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
+    if (tempRes < 0) {
+      code = terrno;
+      return NULL;
+    }
 
     // send the fetch remote task result reques
     SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -2589,7 +2593,11 @@ static int32_t doBlockInfoScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
   char*   p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
   QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  (void)tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
+  int32_t tempRes = tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
+  if (tempRes < 0) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
   varDataSetLen(p, len);
 
   code = colDataSetVal(pColInfo, 0, p, false);
@@ -2619,7 +2627,7 @@ _end:
 
 static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t code = doBlockInfoScanNext(pOperator, &pRes);
+  int32_t      code = doBlockInfoScanNext(pOperator, &pRes);
   return pRes;
 }
 

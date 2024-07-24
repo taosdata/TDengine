@@ -285,7 +285,7 @@ static int32_t compactEventWindow(SOperatorInfo* pOperator, SEventWindowInfo* pC
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   return code;
 }
@@ -444,7 +444,7 @@ _end:
   colDataDestroy(pColEnd);
   taosMemoryFree(pColEnd);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
 }
 
@@ -490,6 +490,7 @@ int32_t doStreamEventDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   if (!pInfo) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
@@ -532,7 +533,7 @@ int32_t doStreamEventDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   return code;
 }
@@ -555,7 +556,8 @@ void doStreamEventSaveCheckpoint(SOperatorInfo* pOperator) {
   }
 }
 
-static SSDataBlock* buildEventResult(SOperatorInfo* pOperator) {
+static int32_t buildEventResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t                      code = TSDB_CODE_SUCCESS;
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*              pBInfo = &pInfo->binfo;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
@@ -563,15 +565,18 @@ static SSDataBlock* buildEventResult(SOperatorInfo* pOperator) {
   doBuildDeleteDataBlock(pOperator, pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
     printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-    return pInfo->pDelRes;
+    (*ppRes) = pInfo->pDelRes;
+    return code;
   }
 
   doBuildSessionResult(pOperator, pInfo->streamAggSup.pState, &pInfo->groupResInfo, pBInfo->pRes);
   if (pBInfo->pRes->info.rows > 0) {
     printDataBlock(pBInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-    return pBInfo->pRes;
+    (*ppRes) = pBInfo->pRes;
+    return code;
   }
-  return NULL;
+  (*ppRes) = NULL;
+  return code;
 }
 
 static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -588,7 +593,9 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   qDebug("===stream=== stream event agg");
   if (pOperator->status == OP_RES_TO_RETURN) {
-    SSDataBlock* resBlock = buildEventResult(pOperator);
+    SSDataBlock* resBlock = NULL;
+    code = buildEventResult(pOperator, &resBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
     if (resBlock != NULL) {
       (*ppRes) = resBlock;
       return code;
@@ -700,7 +707,9 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  SSDataBlock* resBlock = buildEventResult(pOperator);
+  SSDataBlock* resBlock = NULL;
+  code = buildEventResult(pOperator, &resBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
   if (resBlock != NULL) {
     (*ppRes) = resBlock;
     return code;
@@ -709,7 +718,7 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = code;
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   setStreamOperatorCompleted(pOperator);
   (*ppRes) = NULL;
@@ -718,7 +727,7 @@ _end:
 
 static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t code = doStreamEventAggNext(pOperator, &pRes);
+  int32_t      code = doStreamEventAggNext(pOperator, &pRes);
   return pRes;
 }
 
@@ -747,6 +756,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
   int32_t                      lino = 0;
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   resetWinRange(&pAggSup->winRange);
 
   SSessionKey seKey = {.win.skey = INT64_MIN, .win.ekey = INT64_MIN, .groupId = 0};
@@ -830,7 +840,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
 }
 
@@ -951,6 +961,6 @@ _error:
   destroyStreamEventOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   return NULL;
 }
