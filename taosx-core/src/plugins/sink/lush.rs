@@ -1133,6 +1133,7 @@ pub(crate) async fn insert_into_table(
     exec_sql(pool, &sql, req_id).await
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str, req_id: &RequestID) -> anyhow::Result<()> {
     tracing::debug!("exec_sql:{}, req_id={}", sql, req_id);
     let mut taos = Some(pool.get().await.context("get connection error")?);

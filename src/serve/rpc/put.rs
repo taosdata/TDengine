@@ -733,7 +733,7 @@ impl PutStream {
                 async move {
                     match message.payload {
                         arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
-                            // tracing::debug!("Enqueue batch {}\nschema=\n{:?} \ncolumns=\n{:?}", trace_id, batch.schema(), batch.columns()); // debug
+                            tracing::trace!("Enqueue batch {}\nschema=\n{:?} \ncolumns=\n{:?}", trace_id, batch.schema(), batch.columns());
                             if let Err(err) = tx.send_async((batch, trace_id)).await {
                                 tracing::warn!(
                                     trace_id = %trace_id,
