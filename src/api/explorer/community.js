@@ -285,7 +285,7 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "Second"
                     },
-                  ] 
+                  ]
                 },
                 "short_description": "Polling interval to query schema.",
                 "description": "Polling interval to query schema.",
@@ -595,6 +595,51 @@ export function getDataSources(lang) {
           "collapsible": true,
           "connection_option": false,
           "params": [
+            {
+              "name": "sync_add_element",
+              "display": "Synchronize New Elements",
+              "description": "Monitor the newly added elements under the configured templates, and synchronize the data of the newly added elements without restarting the task",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
+            {
+              "name": "sync_update_attributes",
+              "display": "Synchronize The Changes of Static Attribute",
+              "description": "Synchronize the changes of all static attribute to TDengine",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
+            {
+              "name": "sync_delete_element",
+              "display": "Synchronize The Deletions of Elements",
+              "description": "Monitor deleting elements under the configured templates, and correspondingly drop the corresponding child tables in TDengine",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
+            {
+              "name": "sync_delete_history_data",
+              "display": "Synchronize The Deletion of Data",
+              "description": "For the dynamic attributes of an element, if the data for a certain period of time is deleted in PI, the corresponding data is set to null in TDengine",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
+            {
+              "name": "sync_update_history_data",
+              "display": "Synchronize The Changes of Point Data",
+              "description": "For the dynamic attributes of an element, if the data for a certain time is modified in PI, the corresponding data is updated automatically too in TDengine",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
             {
               "name": "log_level",
               "display": "Log Level",
@@ -2443,7 +2488,7 @@ export function getDataSources(lang) {
               },
               {
                 "name": "sasl_kerberos_principal",
-                "display":" Kerberos Principal",
+                "display": " Kerberos Principal",
                 "description": "The Kerberos principal for GSSAPI authentication mechanism.",
                 "placeholder": "for example: kafkaclient",
                 "required": true,
@@ -2960,7 +3005,7 @@ export function getDataSources(lang) {
                     {
                       "value": "ms",
                       "label": "Millisecond"
-                    },         
+                    },
                     {
                       "value": "u",
                       "label": "Microsecond"
@@ -4688,7 +4733,7 @@ export function getDataSources(lang) {
                       "value": "s",
                       "label": "秒"
                     },
-                  ] 
+                  ]
                 },
                 "short_description": "元数据轮询间隔，用于同步过程中的元数据变更检测。",
                 "description": "元数据轮询间隔，用于同步过程中的元数据变更检测。",
@@ -4995,10 +5040,55 @@ export function getDataSources(lang) {
         ],
         "advanced": {
           "name": "高级选项",
-          "description": "对数据源性能、日志等其他参数进行调整，可修改以下选项。\n",
+          "description": "对数据源性能、日志等其他参数进行调整，可修改以下选项",
           "collapsible": true,
           "connection_option": false,
           "params": [
+            {
+              "name": "sync_add_element",
+              "display": "同步新增的元素",
+              "description": "监听配置的模板下新增的元素，无需重启任务，即可自动同步新增元素",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
+            {
+              "name": "sync_update_attributes",
+              "display": "同步静态属性的变化",
+              "description": "同步所有静态属性（非 PI Point 属性）的变化",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
+            {
+              "name": "sync_delete_element",
+              "display": "同步删除元素的操作",
+              "description": "监听配置的模板下删除元素的事件，并同步删除 TDengine 对应子表",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
+            {
+              "name": "sync_delete_history_data",
+              "display": "同步删除历史数据",
+              "description": "对于某个元素的动态属性，如果在 PI 中某个时间的数据被删除了，TDengine 对应时间对应列的数据会被置空",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
+            {
+              "name": "sync_update_history_data",
+              "display": "同步修改历史数据",
+              "description": "对于某个元素的动态属性，如果在 PI 中历史数据被修改了，TDengine 对应时间的数据也会更新",
+              "hint": {
+                "type": "bool",
+              },
+              "value": "true",
+            },
             {
               "name": "log_level",
               "display": "日志级别",
@@ -6844,24 +6934,24 @@ export function getDataSources(lang) {
               {
                 "name": "sasl_kerberos_service_name",
                 "display": "Kerberos 服务名",
-                "description":" 用于 GSSAPI 认证机制的 Kerberos 服务名",
+                "description": " 用于 GSSAPI 认证机制的 Kerberos 服务名",
                 "placeholder": "示例：kafka",
                 "required": true,
                 "hint": {
                   "type": "str"
                 }
               },
-              { 
+              {
                 "name": "sasl_kerberos_principal",
                 "display": "Kerberos 主体",
-                "description":" 用于 GSSAPI 认证机制的 Kerberos 主体",
+                "description": " 用于 GSSAPI 认证机制的 Kerberos 主体",
                 "placeholder": "示例：kafkaclient",
                 "required": true,
                 "hint": {
                   "type": "str"
                 }
               },
-              { 
+              {
                 "name": "sasl_kerberos_kinit_cmd",
                 "display": "Kerberos 初始化命令",
                 "description": "用于 GSSAPI 认证机制的 Kerberos 初始化命令",
@@ -7368,7 +7458,7 @@ export function getDataSources(lang) {
                     {
                       "value": "ms",
                       "label": "毫秒"
-                    },         
+                    },
                     {
                       "value": "u",
                       "label": "微秒"
