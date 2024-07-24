@@ -206,17 +206,17 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
-  SyncIndex    index = 0;
   SWalSyncInfo syncMeta = {0};
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
+
   int64_t tsWriteBegin = taosGetTimestampNs();
-  index = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
   int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
 
-  if (index < 0) {
+  if (TSDB_CODE_SUCCESS != code) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
@@ -227,9 +227,11 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     return -1;
   }
 
-  ASSERT(pEntry->index == index);
-
-  walFsync(pWal, forceSync);
+  code = walFsync(pWal, forceSync);
+  if (TSDB_CODE_SUCCESS != code) {
+    sNError(pData->pSyncNode, "wal fsync failed since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
 
   sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
           TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
