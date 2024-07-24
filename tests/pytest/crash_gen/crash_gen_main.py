@@ -32,7 +32,6 @@ from decimal import Decimal, getcontext
 import sys
 import os
 import io
-import datetime
 import signal
 import traceback
 import requests
@@ -2610,6 +2609,7 @@ class TaskAddData(StateTransitionTask):
     # We use these two files to record operations to DB, useful for power-off tests
     fAddLogReady = None  # type: Optional[io.TextIOWrapper]
     fAddLogDone = None  # type: Optional[io.TextIOWrapper]
+    smlSupportTypeList = ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', "DOUBLE", "VARCHAR", "NCHAR", "BOOL"]
 
     @classmethod
     def prepToRecordOps(cls):
@@ -2698,16 +2698,16 @@ class TaskAddData(StateTransitionTask):
         ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type
         return ret
 
-    def getMeta(self, db: Database, dbc: DbConn):
-        stableName = self._getStableName(db)
+    def getMeta(self, db: Database, dbc: DbConn, customStable=None):
+        stableName = self._getStableName(db, customStable)
         dbc.query("DESCRIBE {}.{}".format(db.getName(), stableName))
         sts = dbc.getQueryResult()
         cols = {row[0]: row[1] for row in sts if row[3] != 'TAG'}
         tags = {row[0]: row[1] for row in sts if row[3] == 'TAG'}
         return cols, tags
 
-    def _getStableName(self, db: Database):
-        sTable = db.getFixedSuperTable()
+    def _getStableName(self, db: Database, customStable=None):
+        sTable = db.getFixedSuperTable() if customStable is None else customStable
         return sTable.getName()
 
     def _getRandomCols(self, db: Database, dbc: DbConn):
@@ -3026,73 +3026,254 @@ class TaskAddData(StateTransitionTask):
             return
         res = dbc.getQueryResult()
         lines = list()
-        regTables = list(map(lambda x:x[0], res[0:self.SMALL_NUMBER_OF_RECORDS]))
+        regTables = list(map(lambda x:f'{x[0]}_stmt', res[0:self.SMALL_NUMBER_OF_RECORDS]))
         for regTable in regTables:
             cols = self.getMeta(db, dbc)[0]
             tags = self.getMeta(db, dbc)[1]
             colStrs = self._getTagColStrForSql(db, dbc, cols)[1]
             tagStrs = self._getTagColStrForSql(db, dbc, tags)[1]
-            print("-----colStrs:", colStrs)
             combine_list = [regTable] + colStrs + tagStrs
-            print("-----combine_list:", combine_list)
             lines.append(tuple(combine_list))
         return lines, cols, tags
 
     def _transTs(self, ts):
-        dt = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S.%f')
-        return int(dt.timestamp() * 1000)
+        # dt = datetime.datetime.strptime(ts, '%Y-%m-%d %H:%M:%S.%f')
+        return int(ts.timestamp() * 1000)
 
     def bind_row_by_row(self, stmt: taos.TaosStmt, lines, tag_dict, col_dict):
-        print("====lines:", lines)
         tb_name = None
         for row in lines:
-            print("====row:", row)
             if tb_name != row[0]:
                 tb_name = row[0]
                 # Dynamic tag binding based on tag_types list
                 tags = taos.new_bind_params(len(tag_dict))  # Dynamically set the count of tags
-                print(tag_dict)
                 for i, tag_name in enumerate(tag_dict):
-                    print("====tags[i]:", tags[i])
-                    print("====tag_type:", tag_dict[tag_name])
-                    print("getattr====", getattr(tags[i], tag_dict[tag_name].lower()))
-                    print("======row[len(col_dict) + i]", f'row{[len(col_dict) + i]}')
-                    # getattr(tags[i], tag_dict[tag_name].lower())("row"[len(col_dict) + i])  # Dynamically call the appropriate binding method
-                    getattr(tags[i], tag_dict[tag_name].lower())(f'row{[len(col_dict) + i]}')  # Dynamically call the appropriate binding method
+                    bind_type = tag_dict[tag_name].lower()
+                    if "unsigned" in tag_dict[tag_name].lower():
+                        bind_type = bind_type.replace(" unsigned", "_unsigned")
+                    if bind_type == "varbinary" or bind_type == "geometry":
+                        getattr(tags[i], bind_type)((row[len(col_dict) + i + 1]).encode('utf-8'))  # Dynamically call the appropriate binding method
+                    else:
+                        getattr(tags[i], bind_type)(row[len(col_dict) + i + 1])  # Dynamically call the appropriate binding method
                 stmt.set_tbname_tags(tb_name, tags)
 
             # Dynamic value binding based on value_types list
             values = taos.new_bind_params(len(col_dict))  # Dynamically set the count of columns
             for j, col_name in enumerate(col_dict):
-                print("====col_name:", col_name)
-                print("getattr====", getattr(values[j], col_dict[col_name].lower()))
+                bind_type = col_dict[col_name].lower()
+                if "unsigned" in col_dict[col_name].lower():
+                        bind_type = bind_type.replace("unsigned", "_unsigned")
                 if j == 0:
                     getattr(values[j], col_dict[col_name].lower())(self._transTs(row[1 + j]))  # Dynamically call the appropriate binding method
                 else:
-                    getattr(values[j], col_dict[col_name].lower())(row[1 + j])  # Dynamically call the appropriate binding method
+                    if bind_type == "varbinary" or bind_type == "geometry":
+                        getattr(values[j], bind_type)(row[1 + j].encode('utf-8'))
+                    else:
+                        getattr(values[j], bind_type)(row[1 + j])  # Dynamically call the appropriate binding method
             stmt.bind_param(values)
         return stmt
 
     def _addDataBySTMT(self, db: Database, dbc):
-        print("====db.getName():", db.getName())
         lines, col_dict, tag_dict = self._getStmtBindLines(db, dbc)
-        print("lines, col_dict, tag_dict----", [lines, col_dict, tag_dict])
+        # TODO replace dbc
         conn = taos.connect(database=db.getName())
+        stbname = db.getFixedSuperTable().getName()
         try:
             # Dynamically create the SQL statement based on the number of tags and values
             tag_placeholders = ', '.join(['?' for _ in tag_dict])
             value_placeholders = ', '.join(['?' for _ in col_dict])
-            sql = f"INSERT INTO ? USING meters TAGS({tag_placeholders}) VALUES({value_placeholders})"
+            sql = f"INSERT INTO ? USING {stbname} TAGS({tag_placeholders}) VALUES({value_placeholders})"
 
             stmt = conn.statement(sql)
             self.bind_row_by_row(stmt, lines, tag_dict, col_dict)
-            # for row in lines:
-            #     tb_name, tags, values = row[0], row[1:len(tag_dict)+1], row[len(tag_dict)+1:]
-            #     self.bind_row_by_row(stmt, tb_name, tags, tag_dict, values, col_dict)
             stmt.execute()
             stmt.close()
         finally:
             conn.close()
+
+    def _format_sml(self, data):
+        """
+        Formats the given data into a string representation of SML (Simple Markup Language).
+
+        Args:
+            data (dict): A dictionary containing the data to be formatted.
+
+        Returns:
+            str: The formatted SML string.
+
+        """
+        result = []
+        type_mapping = {
+            "TINYINT": "i8",
+            "SMALLINT": "i16",
+            "INT": "i32",
+            "BIGINT": "i64",
+            "TINYINT UNSIGNED": "i8",
+            "SMALLINT UNSIGNED": "i16",
+            "INT UNSIGNED": "i32",
+            "BIGINT UNSIGNED": "i64",
+            "VARCHAR": '""',
+            "BINARY": '""',
+            "NCHAR": 'L""',
+            "BOOL": ""
+        }
+
+        for key, value in data.items():
+            if key in type_mapping:
+                if key in ["BINARY", "VARCHAR", "NCHAR"]:
+                    formatted_value = f'{value}{type_mapping[key]}'
+                    if key == "NCHAR":
+                        formatted_value = f'L"{value}"'
+                    else:
+                        formatted_value = f'"{value}"'
+                else:
+                    formatted_value = f'{value}{type_mapping[key]}'
+                result.append(f"t{len(result)}={formatted_value}")
+        return ','.join(result)
+
+    def _transSmlVal(self, ):
+        pass
+
+    def _addDataByInfluxdbLine(self, db: Database, dbc):  # implied: NOT in batches
+        dbc.query("show {}.stables like influxdb_%".format(db.getName()))
+        res = dbc.getQueryResult()
+        newCreateStable = f'influxdb_{TDCom.get_long_name(8)}'
+        stbList = list(map(lambda x: x[0], res)) + [newCreateStable] if len(res) > 0 else [newCreateStable]
+        for stbname in stbList:
+            dataDictList = list()
+            if stbname == newCreateStable:
+                for i in range(2):
+                    sample_cnt = random.randint(1, self.smlSupportTypeList)
+                    typeList = random.sample(self.smlSupportTypeList, sample_cnt)
+                    valList = self._getTagColStrForSql(db, dbc, typeList)
+                    dataDict = dict(zip(typeList, valList))
+                    dataDictList.append(dataDict)
+                tagStrs = self._format_sml(dataDictList[0])
+                colStrs = self._format_sml(dataDictList[1])
+                ts = self._transTs(db.getNextTick())
+                lines = f'{stbname},{tagStrs} {colStrs} {ts}'
+            else:
+                cols, tags = self.getMeta(db, dbc, customStable=stbname)
+                tagTypeList = list(tags.keys())
+                tagValList = self._getTagColStrForSql(db, dbc, tags)[1]
+                dataDict = dict(zip(tagTypeList, tagValList))
+                
+                
+                colStrs = self._getTagColStrForSql(db, dbc)[0]
+                ts = self._transTs(db.getNextTick())
+                lines = f'{stbname} {colStrs} {ts}'
+        
+            
+            
+
+
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
+        for j in range(numRecords):  # number of records per table
+            colNames, colValues = self._getRandomCols(db, dbc)
+            tagNames, tagValues = self._getRandomTags(db, dbc)
+            colStrs = self._getTagColStrForSql(db, dbc, colValues)[0]
+            tagStrs = self._getTagColStrForSql(db, dbc, tagValues)[0]
+            regTableName = self.getRegTableName(j)  # "db.reg_table_{}".format(i
+            fullStableName = db.getName() + '.' + self._getStableName(db)
+            fullRegTableName = db.getName() + '.' + regTableName
+
+            try:
+                sql = "INSERT INTO {} using {}({}) TAGS({}) ({}) VALUES ({});".format(  # removed: tags ('{}', {})
+                    fullRegTableName,
+                    fullStableName,
+                    tagNames,
+                    tagStrs,
+                    colNames,
+                    colStrs)
+                # Logging.info("Adding data: {}".format(sql))
+                dbc.execute(sql)
+                # Logging.info("Data added: {}".format(sql))
+            except:  # Any exception at all
+                raise
+
+        """
+    def gen_full_type_sql(self, stb_name="", tb_name="", value="", t0="", t1="127i8", t2="32767i16", t3="2147483647i32",
+        t4="9223372036854775807i64", t5="11.12345f32", t6="22.123456789f64", t7="\"binaryTagValue\"",
+        t8="L\"ncharTagValue\"", c0="", c1="127i8", c2="32767i16", c3="2147483647i32",
+        c4="9223372036854775807i64", c5="11.12345f32", c6="22.123456789f64", c7="\"binaryColValue\"",
+        c8="L\"ncharColValue\"", c9="7u64", ts=None,
+        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_mixul_tag=None, id_double_tag=None,
+        ct_add_tag=None, ct_am_tag=None, ct_ma_tag=None, ct_min_tag=None, c_multi_tag=None, t_multi_tag=None,
+        c_blank_tag=None, t_blank_tag=None, chinese_tag=None, t_add_tag=None, t_mul_tag=None, point_trans_tag=None,
+        tcp_keyword_tag=None, multi_field_tag=None):
+        if stb_name == "":
+            stb_name = self.get_long_name()
+        if tb_name == "":
+            tb_name = f'{stb_name}_{random.randint(0, 65535)}_{random.randint(0, 65535)}'
+        if t0 == "":
+            t0 = "t"
+        if c0 == "":
+            c0 = random.choice(["f", "F", "false", "False", "t", "T", "true", "True"])
+        if value == "":
+            # value = random.choice(["f", "F", "false", "False", "t", "T", "true", "True", "TRUE", "FALSE"])
+            value = random.choice(["1.11111", "2.2222222", "3.333333333333", "5.555555555555"])
+        if id_upper_tag is not None:
+            id = "ID"
+        else:
+            id = "id"
+        if id_mixul_tag is not None:
+            id = random.choice(["iD", "Id"])
+        else:
+            id = "id"
+        if self.sml_type == "influxdb" or self.sml_type == "influxdb_restful":
+            if ts is None:
+                ts = "1626006833639000000"
+            input_sql = self.gen_influxdb_line(stb_name, tb_name, id, t0, t1, t2, t3, t4, t5, t6, t7, t8, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, ts,
+                id_noexist_tag, id_change_tag, id_double_tag, ct_add_tag, ct_am_tag, ct_ma_tag, ct_min_tag, c_multi_tag, t_multi_tag, c_blank_tag, t_blank_tag, chinese_tag)
+        elif self.sml_type == "opentsdb_telnet" or self.sml_type == "opentsdb_telnet_restful" or self.sml_type == "telnet-tcp":
+            if ts is None:
+                ts = "1626006833641"
+            input_sql = self.gen_opentsdb_telnet_line(stb_name, tb_name, id, value, t0, t1, t2, t3, t4, t5, t6, t7, t8, ts,
+                id_noexist_tag, id_change_tag,id_double_tag, t_add_tag, t_mul_tag, point_trans_tag, tcp_keyword_tag,
+                c_multi_tag, multi_field_tag, c_blank_tag, t_blank_tag, chinese_tag)
+        return input_sql, stb_name
+
+
+        def gen_influxdb_line(self, stb_name, tb_name, id, t0, t1, t2, t3, t4, t5, t6, t7, t8, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9,
+            ts, id_noexist_tag, id_change_tag, id_double_tag, ct_add_tag, ct_am_tag, ct_ma_tag, ct_min_tag, c_multi_tag, t_multi_tag, c_blank_tag, t_blank_tag, chinese_tag):
+            input_sql = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+            if id_noexist_tag is not None:
+                input_sql = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+                if ct_add_tag is not None:
+                    input_sql = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t9={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+            if id_change_tag is not None:
+                input_sql = f'{stb_name},t0={t0},t1={t1},{id}={tb_name},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+            if id_double_tag is not None:
+                input_sql = f'{stb_name},{id}=\"{tb_name}_1\",t0={t0},t1={t1},{id}=\"{tb_name}_2\",t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+            if ct_add_tag is not None:
+                input_sql = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
+            if ct_am_tag is not None:
+                input_sql = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
+                if id_noexist_tag is not None:
+                        input_sql = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
+            if ct_ma_tag is not None:
+                input_sql = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
+                if id_noexist_tag is not None:
+                    input_sql = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
+            if ct_min_tag is not None:
+                input_sql = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
+            if c_multi_tag is not None:
+                input_sql = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} c10={c9} {ts}'
+            if t_multi_tag is not None:
+                input_sql = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} t9={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+            if c_blank_tag is not None:
+                input_sql = f'{stb_name},{id}={tb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} {ts}'
+            if t_blank_tag is not None:
+                input_sql = f'{stb_name} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
+            if chinese_tag is not None:
+                input_sql = f'{stb_name},to=L"涛思数据" c0=L"涛思数据" {ts}'
+            return input_sql
+        """
+
+
+
+    def genInfluxdbLine(self):
+        
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access

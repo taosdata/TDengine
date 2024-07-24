@@ -14,6 +14,7 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.log import *
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 import traceback
 # from .service_manager import TdeInstance
@@ -305,7 +306,7 @@ class MyTDSql:
 
     def __init__(self, hostAddr, cfgPath):
         # Make the DB connection
-        self._conn = taos.connect(host=hostAddr, config=cfgPath) 
+        self._conn = taos.connect(host=hostAddr, config=cfgPath)
         self._cursor = self._conn.cursor()
         self.cfgPath = cfgPath
         self.queryRows = 0
@@ -332,7 +333,7 @@ class MyTDSql:
         # except taos.error.ProgrammingError as err:
         #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
         #     raise CrashGenError(err.msg)
-            
+
         # print("\nSQL success: {}".format(sql))
         queryTime =  time.time() - startTime
         # Record the query time
@@ -362,7 +363,6 @@ class MyTDSql:
                     raise CrashGenError("Did not find db_0 in CREATE TABLE statement: {}".format(sql))
             else: # not an insert statement
                 pass
-        
         return ret
 
     def query(self, sql):
@@ -402,13 +402,20 @@ class MyTDSql:
             else:
                 f.write(f'{sql};\n')
 
+    def influxdbLineInsert(self, line, ts_type=None):
+        precision = None if ts_type is None else ts_type
+        self._conn.schemaless_insert([line], TDSmlProtocolType.LINE.value, precision)
+
+    def openTsdbTelnetLineInsert(self, line, ts_type=None):
+        precision = None if ts_type is None else ts_type
+        self._conn.schemaless_insert([line], TDSmlProtocolType.TELNET.value, precision)
 
 class DbTarget:
     def __init__(self, cfgPath, hostAddr, port):
         self.cfgPath  = cfgPath
         self.hostAddr = hostAddr
         self.port     = port
-    
+
     def __repr__(self):
         return "[DbTarget: cfgPath={}, host={}:{}]".format(
             Helper.getFriendlyPath(self.cfgPath), self.hostAddr, self.port)
@@ -421,18 +428,18 @@ class DbConnNative(DbConn):
     _lock = threading.Lock()
     # _connInfoDisplayed = False # TODO: find another way to display this
     totalConnections = 0 # Not private
-    totalRequests = 0 
+    totalRequests = 0
     time_cost = -1
 
     def __init__(self, dbTarget):
         super().__init__(dbTarget)
         self._type = self.TYPE_NATIVE
         self._conn = None
-        # self._cursor = None   
-        
+        # self._cursor = None
+
     @classmethod
-    def resetTotalRequests(cls):        
-        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!            
+    def resetTotalRequests(cls):
+        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!
             cls.totalRequests = 0
 
     def openByType(self):  # Open connection
@@ -447,21 +454,21 @@ class DbConnNative(DbConn):
             dbTarget = self._dbTarget
             # if not cls._connInfoDisplayed:
             #     cls._connInfoDisplayed = True # updating CLASS variable
-            Logging.debug("Initiating TAOS native connection to {}".format(dbTarget))                    
-            # Make the connection         
+            Logging.debug("Initiating TAOS native connection to {}".format(dbTarget))
+            # Make the connection
             # self._conn = taos.connect(host=hostAddr, config=cfgPath)  # TODO: make configurable
             # self._cursor = self._conn.cursor()
             # Record the count in the class
             self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath) # making DB connection
-            cls.totalConnections += 1 
-        
+            cls.totalConnections += 1
+
         self._tdSql.execute('reset query cache')
         # self._cursor.execute('use db') # do this at the beginning of every
 
         # Open connection
         # self._tdSql = MyTDSql()
         # self._tdSql.init(self._cursor)
-        
+
     def close(self):
         if (not self.isOpen):
             raise RuntimeError("Cannot clean up database until connection is open")
@@ -492,7 +499,7 @@ class DbConnNative(DbConn):
         finally:
             time_cost =  time.time() - time_start
             self.sql_exec_spend(time_cost)
-        
+
         cls = self.__class__
         cls.totalRequests += 1
         Logging.debug(
