@@ -2612,7 +2612,7 @@ int32_t tsCompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
   } else if (cmprAlg == TWO_STAGE_COMP) {
     int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_SMALLINT);
     if (len < 0) {
-      return 0;
+      return len;
     }
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
