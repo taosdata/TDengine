@@ -345,7 +345,7 @@ int32_t tsdbSnapRAWWriterPrepareClose(STsdbSnapRAWWriter* pWriter);
 int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** ppWriter, int8_t rollback);
 // STqSnapshotReader ==
 int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqSnapReader** ppReader);
-int32_t tqSnapReaderClose(STqSnapReader** ppReader);
+void    tqSnapReaderClose(STqSnapReader** ppReader);
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData);
 // STqSnapshotWriter ======================================
 int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter);
