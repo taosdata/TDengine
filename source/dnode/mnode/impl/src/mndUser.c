@@ -1724,7 +1724,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   if (pCreate->numIpRanges == 0) {
     TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteList));
   } else {
-    SHashObj *pUniqueTab = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
+    SHashObj *pUniqueTab = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
     if (pUniqueTab == NULL) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
@@ -2082,7 +2082,7 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
   int32_t len = strlen(tbFName) + 1;
 
   if (taosHashRemove(hash, tbFName, len) != 0) {
-    TAOS_RETURN(TSDB_CODE_NOT_FOUND);
+    TAOS_RETURN(0);  // not found
   }
 
   int32_t  dbKeyLen = strlen(alterReq->objname) + 1;
@@ -2093,7 +2093,7 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
 
   if (1 == *currRef) {
     if (taosHashRemove(useDbHash, alterReq->objname, dbKeyLen) != 0) {
-      TAOS_RETURN(TSDB_CODE_NOT_FOUND);
+      TAOS_RETURN(0);  // not found
     }
     return 0;
   }
