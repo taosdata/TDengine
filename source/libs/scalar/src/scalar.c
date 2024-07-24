@@ -90,6 +90,9 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
 
 int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockList) {
   SSDataBlock  *pb = taosArrayGetP(pBlockList, 0);
+  if (NULL == pb) {
+    SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+  }
   SScalarParam *pLeft = taosMemoryCalloc(1, sizeof(SScalarParam));
   int32_t       code = TSDB_CODE_SUCCESS;
   if (NULL == pLeft) {
@@ -116,7 +119,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   if (NULL == pObj) {
     sclError("taosHashInit failed, size:%d", 256);
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type));
@@ -176,7 +179,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
 
     if (taosHashPut(pObj, buf, (size_t)len, NULL, 0)) {
       sclError("taosHashPut to set failed");
-      SCL_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_JRET(terrno);
     }
 
     colInfoDataCleanup(out.columnData, out.numOfRows);
@@ -336,6 +339,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
   switch (nodeType(node)) {
     case QUERY_NODE_LEFT_VALUE: {
       SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, 0);
+      if (NULL == pb) {
+        SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      }
       param->numOfRows = pb->info.rows;
       break;
     }
@@ -347,10 +353,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
       param->numOfRows = 1;
-      int32_t code = sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
-      if (code != TSDB_CODE_SUCCESS) {
-        SCL_RET(TSDB_CODE_OUT_OF_MEMORY);
-      }
+      SCL_ERR_RET(sclCreateColumnInfoData(&valueNode->node.resType, 1, param));
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataSetNULL(param->columnData, 0);
       } else {
@@ -377,7 +380,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         taosHashCleanup(param->pHashFilter);
         param->pHashFilter = NULL;
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       param->colAlloced = false;
       break;
@@ -393,6 +396,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       int32_t index = -1;
       for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
         SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
+        if (NULL == pb) {
+          SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+        }
         if (pb->info.id.blockId == ref->dataBlockId) {
           index = i;
           break;
@@ -461,6 +467,9 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
   if (NULL == pParamList) {
     if (ctx->pBlockList) {
       SSDataBlock *pBlock = taosArrayGetP(ctx->pBlockList, 0);
+      if (NULL == pBlock) {
+        SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      }
       *rowNum = pBlock->info.rows;
     } else {
       *rowNum = 1;
@@ -919,6 +928,9 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   if (ctx->pBlockList) {
     SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, 0);
+    if (NULL == pb) {
+      SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+    }
     rowNum = pb->info.rows;
     output->numOfRows = pb->info.rows;
   }
@@ -1532,6 +1544,10 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   int32_t index = -1;
   for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
     SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
+    if (NULL == pb) {
+      ctx->code = TSDB_CODE_OUT_OF_RANGE;
+      return DEAL_RES_ERROR;
+    }
     if (pb->info.id.blockId == target->dataBlockId) {
       index = i;
       break;
@@ -1636,7 +1652,7 @@ int32_t sclCalcConstants(SNode *pNode, bool dual, SNode **pRes) {
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   nodesRewriteExprPostOrder(&pNode, sclConstantsRewriter, (void *)&ctx);
@@ -1770,7 +1786,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   nodesWalkExprPostOrder(pNode, sclCalcWalker, (void *)&ctx);
@@ -1784,6 +1800,9 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     }
 
     SSDataBlock *pb = taosArrayGetP(pBlockList, 0);
+    if (NULL == pb) {
+      SCL_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
+    }
     if (1 == res->numOfRows && pb->info.rows > 0) {
       SCL_ERR_JRET(sclExtendResRows(pDst, res, pBlockList));
     } else {

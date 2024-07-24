@@ -312,8 +312,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       goto _exit;
     } else {
       pReader->metaDone = 1;
-      code = metaSnapReaderClose(&pReader->pMetaReader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      metaSnapReaderClose(&pReader->pMetaReader);
     }
   }
 

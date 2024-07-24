@@ -19,21 +19,22 @@
 #include "query.h"
 #include "qworker.h"
 
-SQnode *qndOpen(const SQnodeOpt *pOption) {
-  SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
-  if (NULL == pQnode) {
+int32_t qndOpen(const SQnodeOpt *pOption, SQnode **pQnode) {
+  *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
+  if (NULL == *pQnode) {
     qError("calloc SQnode failed");
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pQnode->qndId = QNODE_HANDLE;
+  (*pQnode)->qndId = QNODE_HANDLE;
 
-  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, (void **)&pQnode->pQuery, &pOption->msgCb)) {
+  int32_t code = qWorkerInit(NODE_TYPE_QNODE, (*pQnode)->qndId, (void **)&(*pQnode)->pQuery, &pOption->msgCb);
+  if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFreeClear(pQnode);
-    return NULL;
+    return code;
   }
 
-  pQnode->msgCb = pOption->msgCb;
-  return pQnode;
+  (*pQnode)->msgCb = pOption->msgCb;
+  return TSDB_CODE_SUCCESS;
 }
 
 void qndClose(SQnode *pQnode) {

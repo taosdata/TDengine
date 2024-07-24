@@ -44,8 +44,8 @@ static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator);
 static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator);
 static SArray*      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols);
-static void setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
-                                    int32_t numOfExprs);
+static int32_t      setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup,
+                                            int32_t stage, int32_t numOfExprs);
 
 static void destroyProjectOperatorInfo(void* param) {
   if (NULL == param) {
@@ -142,7 +142,10 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   }
 
   initBasicInfo(&pInfo->binfo, pResBlock);
-  setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols);
+  code = setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   code = filterInitFromNode((SNode*)pProjPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -447,7 +450,11 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
     goto _error;
   }
 
-  setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
+  code = setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   code = filterInitFromNode((SNode*)pPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -589,7 +596,8 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
   return (rows > 0) ? pInfo->pRes : NULL;
 }
 
-void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
+int32_t initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t j = 0; j < size; ++j) {
     struct SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
     if (isRowEntryInitialized(pResInfo) || fmIsPseudoColumnFunc(pCtx[j].functionId) || pCtx[j].functionId == -1 ||
@@ -597,8 +605,12 @@ void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
       continue;
     }
 
-    pCtx[j].fpSet.init(&pCtx[j], pCtx[j].resultInfo);
+    code = pCtx[j].fpSet.init(&pCtx[j], pCtx[j].resultInfo);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
+  return code;
 }
 
 /*
@@ -610,7 +622,7 @@ void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size) {
  *           offset[0]                                  offset[1]                                   offset[2]
  */
 // TODO refactor: some function move away
-void setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
+int32_t setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
                              int32_t numOfExprs) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
@@ -632,7 +644,7 @@ void setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SA
     pCtx[i].scanFlag = stage;
   }
 
-  initCtxOutputBuffer(pCtx, numOfExprs);
+  return initCtxOutputBuffer(pCtx, numOfExprs);
 }
 
 SArray* setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols) {
@@ -841,7 +853,10 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         // do nothing
       } else if (fmIsIndefiniteRowsFunc(pfCtx->functionId)) {
         SResultRowEntryInfo* pResInfo = GET_RES_INFO(pfCtx);
-        pfCtx->fpSet.init(pfCtx, pResInfo);
+        code = pfCtx->fpSet.init(pfCtx, pResInfo);
+        if (TSDB_CODE_SUCCESS != code) {
+          goto _exit;
+        }
 
         pfCtx->pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
         pfCtx->offset = createNewColModel ? 0 : pResult->info.rows;  // set the start offset

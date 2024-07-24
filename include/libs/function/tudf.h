@@ -77,7 +77,7 @@ void freeUdfInterBuf(SUdfInterBuf *buf);
 
 // high level APIs
 bool    udfAggGetEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
-bool    udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
+int32_t udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 
