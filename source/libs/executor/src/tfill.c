@@ -521,10 +521,7 @@ struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t 
   }
 
   SFillInfo* pFillInfo = taosMemoryCalloc(1, sizeof(SFillInfo));
-  if (pFillInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  QUERY_CHECK_NULL(pFillInfo, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
   pFillInfo->order = order;
   pFillInfo->srcTsSlotId = primaryTsSlotId;
@@ -562,8 +559,8 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(pFillInfo->next.pRowVal);
     taosArrayDestroy(pFillInfo->prev.pRowVal);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    terrno = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
   return pFillInfo;
 }
