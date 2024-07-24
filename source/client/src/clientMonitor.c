@@ -801,9 +801,8 @@ int32_t monitorInit() {
   }
 
   if (taosMulModeMkDir(tmpSlowLogPath, 0777, true) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     tscError("failed to create dir:%s since %s", tmpSlowLogPath, terrstr());
-    return -1;
+    return terrno;
   }
 
   if (tsem2_init(&monitorSem, 0, 0) != 0) {

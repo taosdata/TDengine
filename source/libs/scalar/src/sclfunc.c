@@ -399,7 +399,7 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
     bool    ret = taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len);
     if (!ret) {
       taosMemoryFree(newBuf);
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
     memcpy(varDataVal(output) + *dataLen, newBuf, varDataLen(input) * TSDB_NCHAR_SIZE);
     *dataLen += varDataLen(input) * TSDB_NCHAR_SIZE;
@@ -818,7 +818,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
 
@@ -837,7 +837,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -855,7 +855,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
 
@@ -874,7 +874,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -892,7 +892,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -910,7 +910,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -928,7 +928,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -946,7 +946,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
 
@@ -965,7 +965,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -983,7 +983,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -1001,7 +1001,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -1041,7 +1041,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
           if (len < 0) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           len = TMIN(len, outputLen - VARSTR_HEADER_SIZE);
@@ -1075,7 +1075,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           len = sprintf(tmp, "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false");
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
 
@@ -1085,7 +1085,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, (TdUcs4 *)varDataVal(output),
                                    outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           varDataSetLen(output, len);
@@ -1099,7 +1099,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           len = outputCharLen > len ? len : outputCharLen;
           bool ret = taosMbsToUcs4(buf, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
-            code = TSDB_CODE_FAILED;
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
           }
           varDataSetLen(output, len);

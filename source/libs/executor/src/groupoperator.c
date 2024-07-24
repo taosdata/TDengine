@@ -778,6 +778,9 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
     QUERY_CHECK_NULL(gi.pPageList, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
     code = taosHashPut(pInfo->pGroupSet, pInfo->keyBuf, len, &gi, sizeof(SDataGroupInfo));
+    if (code == TSDB_CODE_DUP_KEY) {
+      code = TSDB_CODE_SUCCESS;
+    }
     QUERY_CHECK_CODE(code, lino, _end);
 
     p = taosHashGet(pInfo->pGroupSet, pInfo->keyBuf, len);
@@ -1403,6 +1406,9 @@ static void doStreamHashPartitionImpl(SStreamPartitionOperatorInfo* pInfo, SSDat
 
       code =
           taosHashPut(pInfo->pPartitions, pInfo->partitionSup.keyBuf, keyLen, &newParData, sizeof(SPartitionDataInfo));
+      if (code == TSDB_CODE_DUP_KEY) {
+        code = TSDB_CODE_SUCCESS;
+      }
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -1622,7 +1628,9 @@ int32_t createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPart
     QUERY_CHECK_NULL(pSubTableExpr, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
 
     pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
-    createExprFromOneNode(pSubTableExpr, pPartNode->pSubtable, 0);
+    code = createExprFromOneNode(pSubTableExpr, pPartNode->pSubtable, 0);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     code = initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }

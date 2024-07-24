@@ -199,7 +199,9 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       if (!pAggInfo->hasValidBlock) {
-        createDataBlockForEmptyInput(pOperator, &pBlock);
+        code = createDataBlockForEmptyInput(pOperator, &pBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+
         if (pBlock == NULL) {
           break;
         }
@@ -245,7 +247,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
 
   initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
-  
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -256,6 +258,8 @@ _end:
 }
 
 SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
   SAggOperatorInfo* pAggInfo = pOperator->info;
   SOptrBasicInfo*   pInfo = &pAggInfo->binfo;
 
@@ -267,11 +271,13 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   bool           hasNewGroups = false;
   do {
     hasNewGroups = nextGroupedResult(pOperator);
-    blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+    code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     while (1) {
       doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-      doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       if (!hasRemainResults(&pAggInfo->groupResInfo)) {
         if (!hasNewGroups) setOperatorCompleted(pOperator);
@@ -286,6 +292,12 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 
   size_t rows = blockDataGetNumOfRows(pInfo->pRes);
   pOperator->resultInfo.totalRows += rows;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
 
   return (rows == 0) ? NULL : pInfo->pRes;
 }
@@ -317,6 +329,8 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
 }
 
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (!tsCountAlwaysReturnValue) {
     return TSDB_CODE_SUCCESS;
   }
@@ -357,9 +371,12 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
         int32_t slotId = pFuncParam->pCol->slotId;
         int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
         if (slotId >= numOfCols) {
-          taosArrayEnsureCap(pBlock->pDataBlock, slotId + 1);
+          code = taosArrayEnsureCap(pBlock->pDataBlock, slotId + 1);
+          QUERY_CHECK_CODE(code, lino, _end);
+
           for (int32_t k = numOfCols; k < slotId + 1; ++k) {
-            taosArrayPush(pBlock->pDataBlock, &colInfo);
+            void* tmp = taosArrayPush(pBlock->pDataBlock, &colInfo);
+            QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
           }
         }
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
@@ -368,14 +385,20 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     }
   }
 
-  blockDataEnsureCapacity(pBlock, pBlock->info.rows);
+  code = blockDataEnsureCapacity(pBlock, pBlock->info.rows);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   for (int32_t i = 0; i < blockDataGetNumOfCols(pBlock); ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     colDataSetNULL(pColInfoData, 0);
   }
   *ppBlock = pBlock;
 
-  return TSDB_CODE_SUCCESS;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
+  return code;
 }
 
 void destroyDataBlockForEmptyInput(bool blockAllocated, SSDataBlock** ppBlock) {
@@ -576,7 +599,12 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
 
       SScalarParam out = {.columnData = &idata};
       SScalarParam tw = {.numOfRows = 5, .columnData = pTimeWindowData};
-      pCtx[k].sfp.process(&tw, 1, &out);
+      int32_t      code = pCtx[k].sfp.process(&tw, 1, &out);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        taskInfo->code = code;
+        T_LONG_JMP(taskInfo->env, code);
+      }
       pEntryInfo->numOfRes = 1;
     } else {
       int32_t code = TSDB_CODE_SUCCESS;

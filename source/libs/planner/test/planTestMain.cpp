@@ -27,7 +27,8 @@
 class PlannerEnv : public testing::Environment {
  public:
   virtual void SetUp() {
-    fmFuncMgtInit();
+    // TODO(smj) : How to handle return value of fmFuncMgtInit
+    (void)fmFuncMgtInit();
     initMetaDataEnv();
     generateMetaData();
     initLog(TD_TMP_DIR_PATH "td");

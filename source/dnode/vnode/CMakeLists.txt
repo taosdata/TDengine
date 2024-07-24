@@ -22,7 +22,6 @@ set(
 
     # meta
     "src/meta/metaOpen.c"
-    "src/meta/metaIdx.c"
     "src/meta/metaTable.c"
     "src/meta/metaSma.c"
     "src/meta/metaQuery.c"

@@ -106,9 +106,9 @@ typedef struct STableListInfo {
   int32_t          numOfOuputGroups;  // the data block will be generated one by one
   int32_t*         groupOffset;       // keep the offset value for each group in the tableList
   SArray*          pTableList;
-  SHashObj*        map;     // speedup acquire the tableQueryInfo by table uid
-  SHashObj*        remainGroups; // remaining group has not yet processed the empty group
-  STableListIdInfo idInfo;  // this maybe the super table or ordinary table
+  SHashObj*        map;           // speedup acquire the tableQueryInfo by table uid
+  SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
+  STableListIdInfo idInfo;        // this maybe the super table or ordinary table
 } STableListInfo;
 
 struct SqlFunctionCtx;
@@ -130,7 +130,7 @@ uint64_t        tableListGetSize(const STableListInfo* pTableList);
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
-void            tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
+void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
@@ -165,7 +165,8 @@ SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode);
 int32_t      prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId, SStorageAPI* pAPI);
+int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId,
+                               SStorageAPI* pAPI);
 size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
 SArray* createSortInfo(SNodeList* pNodeList);
@@ -173,18 +174,20 @@ SArray* makeColumnArrayFromList(SNodeList* pNodeList);
 int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type, SColMatchInfo* pMatchInfo);
 
-void       createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
-void       createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
+int32_t    createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
+int32_t       createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
-SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset, SFunctionStateStore* pStore);
-void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
+SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset,
+                                     SFunctionStateStore* pStore);
+int32_t relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
 int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
 
 SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
-int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode, const SReadHandle* readHandle);
+int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode,
+                               const SReadHandle* readHandle);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
@@ -198,7 +201,7 @@ void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t orde
 void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
-void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t  delta);
+void  updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t delta);
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI);
@@ -212,9 +215,9 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
 int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock* pBlock, int32_t rowIndex);
 
 int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t oldKeysLen, const SSDataBlock* pDataBlock,
-              int32_t rowIndex);
+                 int32_t rowIndex);
 
-uint64_t calcGroupId(char *pData, int32_t len);
+uint64_t calcGroupId(char* pData, int32_t len);
 
 SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
 
