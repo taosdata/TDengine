@@ -3446,10 +3446,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       SSDataBlock* pBlock = NULL;
       code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pInfo->dataReader, &pBlock, NULL);
-      if (pBlock == NULL || code != TSDB_CODE_SUCCESS) {
-        code = terrno;
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
 
       if (pBlock && pBlock->info.rows > 0) {
         bool hasPrimaryKey = pAPI->snapshotFn.taosXGetTablePrimaryKey(pInfo->sContext);
