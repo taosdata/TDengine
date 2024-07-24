@@ -317,7 +317,7 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
 
 int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock) {
   // GRANT_CFG_SET;
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   if (lock) {
     taosThreadMutexLock(&pCfg->lock);
@@ -421,10 +421,12 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
     case CFG_DTYPE_STRING: {
       if (strcasecmp(name, "slowLogScope") == 0) {
         char *tmp = taosStrdup(pVal);
-        if (taosSetSlowLogScope(tmp) < 0) {
+        int32_t scope = 0;
+        int32_t code = taosSetSlowLogScope(tmp, &scope);
+        if (TSDB_CODE_SUCCESS != code) {
           cfgUnLock(pCfg);
           taosMemoryFree(tmp);
-          TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+          TAOS_RETURN(code);
         }
         taosMemoryFree(tmp);
       }
