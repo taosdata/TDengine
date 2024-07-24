@@ -56,26 +56,55 @@ void taosKillChildOnParentStopped() {}
  */
 
 typedef void (*FLinuxSignalHandler)(int32_t signum, siginfo_t *sigInfo, void *context);
+typedef void (*sighandler_t)(int);
 
-void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
+int32_t taosSetSignal(int32_t signum, FSignalHandler sigfp) {
   struct sigaction act;
-  memset(&act, 0, sizeof(act));
+  (void)memset(&act, 0, sizeof(act));
 #if 1
   act.sa_flags = SA_SIGINFO | SA_RESTART;
   act.sa_sigaction = (FLinuxSignalHandler)sigfp;
 #else
   act.sa_handler = sigfp;
 #endif
-  sigaction(signum, &act, NULL);
+  int32_t code = sigaction(signum, &act, NULL);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  return code;
 }
 
-void taosIgnSignal(int32_t signum) { signal(signum, SIG_IGN); }
+int32_t taosIgnSignal(int32_t signum) { 
+  sighandler_t h = signal(signum, SIG_IGN); 
+  if (SIG_ERR == h) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
 
-void taosDflSignal(int32_t signum) { signal(signum, SIG_DFL); }
+  return 0;
+}
 
-void taosKillChildOnParentStopped() {
+int32_t taosDflSignal(int32_t signum) { 
+  sighandler_t h = signal(signum, SIG_DFL); 
+  if (SIG_ERR == h) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  return 0;
+}
+
+int32_t taosKillChildOnParentStopped() {
 #ifndef _TD_DARWIN_64
-  prctl(PR_SET_PDEATHSIG, SIGKILL);
+  int32_t code = prctl(PR_SET_PDEATHSIG, SIGKILL);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  return code;
 #endif
 }
 

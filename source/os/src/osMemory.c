@@ -342,12 +342,7 @@ char *taosStrdup(const char *ptr) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
-  char* p = tstrdup(ptr);
-  if (ptr != NULL && NULL == p) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-  }
-  return p;
-  
+  return tstrdup(ptr);  
 #endif
 }
 
