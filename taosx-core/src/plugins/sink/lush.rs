@@ -269,6 +269,7 @@ pub fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch)
 }
 
 pub fn create_tags_record(
+    name_of_table_id_column: &str,
     table_id_column: &StringArray,
     table_cache: Arc<TableTagCache>,
 ) -> anyhow::Result<RecordBatch> {
@@ -317,6 +318,13 @@ pub fn create_tags_record(
     columns.push(Arc::new(StringArray::from_iter_values(
         stables.iter().map(|fs| fs.as_str()),
     )) as ArrayRef);
+    // 添加 table id 列
+    fields.push(Field::new(
+        name_of_table_id_column.to_string(),
+        DataType::Utf8,
+        true,
+    ));
+    columns.push(Arc::new(table_id_column.clone()) as ArrayRef);
     let schema = Schema::new(fields);
     RecordBatch::try_new(Arc::new(schema), columns).map_err(|err| err.into())
 }
@@ -461,7 +469,7 @@ pub async fn write(
                                     match err {
                                         WriteError::ContainerLengthTooShort(field) => {
                                             // 尝试修改超级表
-                                            if let Err(alter) = alter_table(
+                                            if let Err(alter) = alter_stable(
                                                 pool, taos, stable, &field, &messages, req_id,
                                             )
                                             .in_current_span()
@@ -495,7 +503,7 @@ pub async fn write(
                     }
                     WriteError::ContainerLengthTooShort(field) => {
                         if let Err(alter) =
-                            alter_table(pool, taos, stable, &field, &messages, req_id)
+                            alter_stable(pool, taos, stable, &field, &messages, req_id)
                                 .in_current_span()
                                 .await
                         {
@@ -604,7 +612,7 @@ pub async fn create_sub_tables(
                     WriteError::ContainerLengthTooShort(field) => {
                         // 尝试修改超级表
                         if let Err(alter) =
-                            alter_table(pool, taos, stable, &field, &messages, req_id)
+                            alter_stable(pool, taos, stable, &field, &messages, req_id)
                                 .in_current_span()
                                 .await
                         {
@@ -632,7 +640,7 @@ pub async fn create_sub_tables(
     Ok(())
 }
 
-async fn alter_table(
+async fn alter_stable(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     stable: &str,
@@ -1039,7 +1047,7 @@ pub fn get_table_name_from_table_id(
 ) -> Option<String> {
     let table_id_column = StringArray::from(vec![table_id]);
     let tags_records: Result<RecordBatch, anyhow::Error> =
-        create_tags_record(&table_id_column, table_cache.clone());
+        create_tags_record("element_id", &table_id_column, table_cache.clone());
     if let Err(err) = tags_records {
         tracing::error!("{err:#}");
         return None;
@@ -1091,12 +1099,42 @@ pub(crate) async fn drop_table(
     table_name: &str,
     req_id: &RequestID,
 ) -> anyhow::Result<()> {
-    let sql = format!("drop table if exists `{}`", table_name);
+    let sql = format!("DROP TABLE IF EXISTS `{}`", table_name);
+    exec_sql(pool, &sql, req_id).await
+}
+
+pub(crate) async fn delete_table_data(
+    pool: &TaosPool,
+    table_name: &str,
+    condition: &str,
+    req_id: &RequestID,
+) -> anyhow::Result<()> {
+    let sql = format!("DELETE FROM `{}` WHERE {}", table_name, condition);
+    exec_sql(pool, &sql, req_id).await
+}
+
+pub(crate) async fn alter_table(
+    pool: &TaosPool,
+    table_name: &str,
+    alter_table_clause: &str,
+    req_id: &RequestID,
+) -> anyhow::Result<()> {
+    let sql = format!("ALTER TABLE `{}` {}", table_name, alter_table_clause);
+    exec_sql(pool, &sql, req_id).await
+}
+
+pub(crate) async fn insert_into_table(
+    pool: &TaosPool,
+    table_name: &str,
+    column_values: &str,
+    req_id: &RequestID,
+) -> anyhow::Result<()> {
+    let sql = format!("INSERT INTO `{}` {}", table_name, column_values);
     exec_sql(pool, &sql, req_id).await
 }
 
 pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str, req_id: &RequestID) -> anyhow::Result<()> {
-    tracing::debug!("sql={}, req_id={}", sql, req_id);
+    tracing::debug!("exec_sql:{}, req_id={}", sql, req_id);
     let mut taos = Some(pool.get().await.context("get connection error")?);
     let mut write_retries = 0;
     loop {
@@ -1119,7 +1157,7 @@ pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str, req_id: &RequestID) -> 
                         taos.replace(pool.get().await?);
                     }
                     0x2603 | 0x0618 => {
-                        // stable/table not exists
+                        tracing::warn!("Table not exists, sql={}, req_id={}", sql, req_id);
                         return Ok(());
                     }
                     _ => {
