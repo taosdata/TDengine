@@ -166,7 +166,7 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized);
 int32_t walMetaDeserialize(SWal* pWal, const char* bytes);
 // meta section end
 
-void decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func);
+int32_t decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func);
 
 int64_t walGetSeq();
 

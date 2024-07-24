@@ -140,7 +140,7 @@ static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, in
 
       logContent = (SWalCkHead*)(buf + pos);
       if (walValidHeadCksum(logContent) != 0) {
-        terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
+        code = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry header. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
               offset + pos, fnameStr);
         haystack = buf + pos + 1;
@@ -171,21 +171,25 @@ static FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, in
         if (ret < 0) {
           wError("vgId:%d, failed to lseek file due to %s. offset:%" PRId64 "", pWal->cfg.vgId, strerror(errno),
                  offset);
-          terrno = TAOS_SYSTEM_ERROR(errno);
+          code = TAOS_SYSTEM_ERROR(errno);
           break;
         }
         if (extraSize != taosReadFile(pFile, buf + readSize, extraSize)) {
           wError("vgId:%d, failed to read file due to %s. offset:%" PRId64 ", extraSize:%" PRId64 ", file:%s",
                  pWal->cfg.vgId, strerror(errno), offset + readSize, extraSize, fnameStr);
-          terrno = TAOS_SYSTEM_ERROR(errno);
+          code = TAOS_SYSTEM_ERROR(errno);
           break;
         }
       }
 
       logContent = (SWalCkHead*)(buf + pos);
-      decryptBody(&pWal->cfg, logContent, logContent->head.bodyLen, __FUNCTION__);
+      code = decryptBody(&pWal->cfg, logContent, logContent->head.bodyLen, __FUNCTION__);
+      if (code) {
+        break;
+      }
+
       if (walValidBodyCksum(logContent) != 0) {
-        terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
+        code = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry body. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
               offset + pos, fnameStr);
         haystack = buf + pos + 1;
@@ -715,8 +719,7 @@ int32_t walRollFileInfo(SWal* pWal) {
   // TODO: change to emplace back
   SWalFileInfo* pNewInfo = taosMemoryMalloc(sizeof(SWalFileInfo));
   if (pNewInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
   pNewInfo->firstVer = pWal->vers.lastVer + 1;
   pNewInfo->lastVer = -1;

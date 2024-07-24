@@ -362,7 +362,7 @@ int32_t walFetchBody(SWalReader *pRead) {
     TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   }
 
-  decryptBody(&pRead->pWal->cfg, pRead->pHead, plainBodyLen, __FUNCTION__);
+  TAOS_CHECK_RETURN(decryptBody(&pRead->pWal->cfg, pRead->pHead, plainBodyLen, __FUNCTION__));
 
   if (walValidBodyCksum(pRead->pHead) != 0) {
     wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed, 0x%" PRIx64, vgId, ver,
@@ -482,7 +482,12 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   }
 
-  decryptBody(&pReader->pWal->cfg, pReader->pHead, plainBodyLen, __FUNCTION__);
+  code = decryptBody(&pReader->pWal->cfg, pReader->pHead, plainBodyLen, __FUNCTION__);
+  if (code) {
+    taosThreadMutexUnlock(&pReader->mutex);
+
+    TAOS_RETURN(code);
+  }
 
   code = walValidBodyCksum(pReader->pHead);
   if (code != 0) {
@@ -504,11 +509,14 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-void decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const char *func) {
+int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const char *func) {
   // TODO: dmchen emun
   if (cfg->encryptAlgorithm == 1) {
     int32_t cryptedBodyLen = ENCRYPTED_LEN(plainBodyLen);
     char   *newBody = taosMemoryMalloc(cryptedBodyLen);
+    if (!newBody) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
 
     SCryptOpts opts;
     opts.len = cryptedBodyLen;
@@ -525,6 +533,8 @@ void decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const ch
 
     taosMemoryFree(newBody);
   }
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 void walReadReset(SWalReader *pReader) {
