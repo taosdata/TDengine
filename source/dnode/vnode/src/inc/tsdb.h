@@ -226,7 +226,7 @@ void    tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32
 int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem);
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
-int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
+int32_t tGetMapData(uint8_t *p, SMapData *pMapData, int32_t *decodedSize);
 int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItemFn)(uint8_t *, void *),
                         SArray **ppArray);
 // other
@@ -706,7 +706,6 @@ typedef TARRAY2(STsdbFSetPartition *) STsdbFSetPartList;
 
 STsdbFSetPartList *tsdbFSetPartListCreate();
 void               tsdbFSetPartListDestroy(STsdbFSetPartList **ppList);
-int32_t            tSerializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
 int32_t            tDeserializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
 int32_t            tsdbFSetPartListToRangeDiff(STsdbFSetPartList *pList, TFileSetRangeArray **ppRanges);
 
