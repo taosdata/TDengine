@@ -2474,10 +2474,7 @@ static int32_t extractNodeListFromStream(SMnode *pMnode, SArray *pNodeList) {
 
       SNodeEntry entry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId};
       epsetAssign(&entry.epset, &pTask->info.epSet);
-      code = taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry));
-      if (code) {
-        break;
-      }
+      (void)taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry));
     }
 
     destroyStreamTaskIter(pTaskIter);
