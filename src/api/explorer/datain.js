@@ -116,7 +116,7 @@ function mergeTaskDetailOptions(cfgOptions, data, from) {
     } else {
         for (let key in cfgOptions) {
             if (data[key]) {
-                cfgOptions[key].value = data[key].toString();;
+                cfgOptions[key].value = data[key].toString();
             } else if (data.params[key]) {
                 cfgOptions[key].value = data.params[key];
             }
