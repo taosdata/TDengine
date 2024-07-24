@@ -22,40 +22,6 @@
 
 #define ROCKS_BATCH_SIZE (4096)
 
-#if 0
-static int32_t tsdbOpenBICache(STsdb *pTsdb) {
-  int32_t    code = 0;
-  SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 0, .5);
-  if (pCache == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  taosLRUCacheSetStrictCapacity(pCache, false);
-
-  taosThreadMutexInit(&pTsdb->biMutex, NULL);
-
-_err:
-  pTsdb->biCache = pCache;
-  return code;
-}
-
-static void tsdbCloseBICache(STsdb *pTsdb) {
-  SLRUCache *pCache = pTsdb->biCache;
-  if (pCache) {
-    int32_t elems = taosLRUCacheGetElems(pCache);
-    tsdbTrace("vgId:%d, elems: %d", TD_VID(pTsdb->pVnode), elems);
-    taosLRUCacheEraseUnrefEntries(pCache);
-    elems = taosLRUCacheGetElems(pCache);
-    tsdbTrace("vgId:%d, elems: %d", TD_VID(pTsdb->pVnode), elems);
-
-    taosLRUCacheCleanup(pCache);
-
-    taosThreadMutexDestroy(&pTsdb->biMutex);
-  }
-}
-#endif
-
 static int32_t tsdbOpenBCache(STsdb *pTsdb) {
   int32_t    code = 0;
   int32_t    szPage = pTsdb->pVnode->config.tsdbPageSize;
@@ -1760,14 +1726,6 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
     goto _err;
   }
 
-#if 0
-  code = tsdbOpenBICache(pTsdb);
-  if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-#endif
-
   code = tsdbOpenBCache(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1808,9 +1766,6 @@ void tsdbCloseCache(STsdb *pTsdb) {
     taosThreadMutexDestroy(&pTsdb->lruMutex);
   }
 
-#if 0
-  tsdbCloseBICache(pTsdb);
-#endif
   tsdbCloseBCache(pTsdb);
   tsdbClosePgCache(pTsdb);
   tsdbCloseRocksCache(pTsdb);
@@ -3302,7 +3257,7 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
     STsdbRowKey rowKey = {0};
     tsdbRowGetKey(pRow, &rowKey);
 
-    if (lastRowKey.key.ts == TSKEY_MAX) { // first time
+    if (lastRowKey.key.ts == TSKEY_MAX) {  // first time
       lastRowKey = rowKey;
 
       for (int16_t iCol = noneCol; iCol < nCols; ++iCol) {
@@ -3590,93 +3545,6 @@ int32_t tsdbCacheGetElems(SVnode *pVnode) {
 
   return elems;
 }
-
-#if 0
-static void getBICacheKey(int32_t fid, int64_t commitID, char *key, int *len) {
-  struct {
-    int32_t fid;
-    int64_t commitID;
-  } biKey = {0};
-
-  biKey.fid = fid;
-  biKey.commitID = commitID;
-
-  *len = sizeof(biKey);
-  memcpy(key, &biKey, *len);
-}
-
-static int32_t tsdbCacheLoadBlockIdx(SDataFReader *pFileReader, SArray **aBlockIdx) {
-  SArray *pArray = taosArrayInit(8, sizeof(SBlockIdx));
-  int32_t code = tsdbReadBlockIdx(pFileReader, pArray);
-
-  if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(pArray);
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    return code;
-  }
-
-  *aBlockIdx = pArray;
-
-  return code;
-}
-
-static void deleteBICache(const void *key, size_t keyLen, void *value, void *ud) {
-  (void)ud;
-  SArray *pArray = (SArray *)value;
-
-  taosArrayDestroy(pArray);
-}
-
-int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHandle **handle) {
-  int32_t code = 0;
-  char    key[128] = {0};
-  int     keyLen = 0;
-
-  getBICacheKey(pFileReader->pSet->fid, pFileReader->pSet->pHeadF->commitID, key, &keyLen);
-  LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (!h) {
-    STsdb *pTsdb = pFileReader->pTsdb;
-    taosThreadMutexLock(&pTsdb->biMutex);
-
-    h = taosLRUCacheLookup(pCache, key, keyLen);
-    if (!h) {
-      SArray *pArray = NULL;
-      code = tsdbCacheLoadBlockIdx(pFileReader, &pArray);
-      //  if table's empty or error, return code of -1
-      if (code != TSDB_CODE_SUCCESS || pArray == NULL) {
-        taosThreadMutexUnlock(&pTsdb->biMutex);
-
-        *handle = NULL;
-        return 0;
-      }
-
-      size_t              charge = pArray->capacity * pArray->elemSize + sizeof(*pArray);
-      _taos_lru_deleter_t deleter = deleteBICache;
-      LRUStatus           status =
-          taosLRUCacheInsert(pCache, key, keyLen, pArray, charge, deleter, &h, TAOS_LRU_PRIORITY_LOW, NULL);
-      if (status != TAOS_LRU_STATUS_OK) {
-        code = -1;
-      }
-    }
-
-    taosThreadMutexUnlock(&pTsdb->biMutex);
-  }
-
-  tsdbTrace("bi cache:%p, ref", pCache);
-  *handle = h;
-
-  return code;
-}
-
-int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h) {
-  int32_t code = 0;
-
-  taosLRUCacheRelease(pCache, h, false);
-  tsdbTrace("bi cache:%p, release", pCache);
-
-  return code;
-}
-#endif
 
 // block cache
 static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key, int *len) {
