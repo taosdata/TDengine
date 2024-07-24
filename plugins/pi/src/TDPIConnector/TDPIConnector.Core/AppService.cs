@@ -66,7 +66,6 @@ namespace TDPIConnector.Core
             }
         }
 
-        // TODO: 删除
         public void InitializeTaosConnections()
         {
             tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
@@ -96,7 +95,6 @@ namespace TDPIConnector.Core
         }
         public void InitializeConnections() {
             InitializePIConnections();
-            // TODO: 删除
             InitializeTaosConnections();
             InitObserver();
         }

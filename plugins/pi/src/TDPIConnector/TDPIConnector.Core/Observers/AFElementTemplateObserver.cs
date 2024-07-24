@@ -1,28 +1,37 @@
-﻿using log4net;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using log4net;
 using OSIsoft.AF;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 
 namespace TDPIConnector.Core
 {
-    public class AFElementTemplateEvent
-    {
-    }
+    public class AFElementTemplateEvent { }
+
     public class AFElementTemplateObserver
     {
         private readonly AFDatabase db;
         readonly PISystemManager piSystemManager;
         private readonly TDEngineProxy tdEngineProxy;
+        private readonly bool SyncDeleteElement;
+        private readonly bool SyncAddElement;
         Initializer initializer;
         System.Timers.Timer refreshTimer = new System.Timers.Timer(10 * 1000); // 10 秒
-        private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILog log = LogManager.GetLogger(
+            System.Reflection.MethodBase.GetCurrentMethod().DeclaringType
+        );
 
         HashSet<string> observeSet;
         Action<AFElementTemplateWrapper> elementTemplateEventHandle;
 
-        public AFElementTemplateObserver(PISystemManager piSystemManager, Initializer initializer, string afDatabaseName, List<string> ElementTemplates2, TDEngineProxy tdEngineProxy)
+        public AFElementTemplateObserver(
+            PISystemManager piSystemManager,
+            Initializer initializer,
+            string afDatabaseName,
+            List<string> ElementTemplates2,
+            TDEngineProxy tdEngineProxy
+        )
         {
             this.piSystemManager = piSystemManager;
             this.initializer = initializer;
@@ -33,15 +42,21 @@ namespace TDPIConnector.Core
                 throw new Exception("AF Database not found.");
             }
             observeSet = new HashSet<string>(ElementTemplates2);
+            SyncDeleteElement = AppSettings.tomlConfig.SyncDeleteElement;
+            SyncAddElement = AppSettings.tomlConfig.SyncAddElement;
         }
 
         public void Observe(Action<AFElementTemplateWrapper> elementTemplateEventHandle)
         {
             this.elementTemplateEventHandle = elementTemplateEventHandle;
-            EventHandler<AFChangedEventArgs> changedEH = new EventHandler<AFChangedEventArgs>(OnChanged);
+            EventHandler<AFChangedEventArgs> changedEH = new EventHandler<AFChangedEventArgs>(
+                OnChanged
+            );
             db.Changed += changedEH;
 
-            System.Timers.ElapsedEventHandler elapsedEH = new System.Timers.ElapsedEventHandler(OnTemplateElapsed);
+            System.Timers.ElapsedEventHandler elapsedEH = new System.Timers.ElapsedEventHandler(
+                OnTemplateElapsed
+            );
             refreshTimer.Elapsed += elapsedEH;
             refreshTimer.Start();
         }
@@ -54,12 +69,14 @@ namespace TDPIConnector.Core
             {
                 // 暂不处理模板本身变化的事件， 只在日志中记录事件
                 AFElementTemplateWrapper template = piSystemManager.GetElementsByTemplateID(e.ID);
-                log.Info($"AFChangedEvent:{e.ID},Template={template.Name},Action={e.Action}.Ignored");
+                log.Info(
+                    $"AFChangedEvent:{e.ID},Template={template.Name},Action={e.Action}.Ignored"
+                );
                 return;
                 //if (observeSet.Contains(template.Name))
-                //{                    
+                //{
                 //    elementTemplateEventHandle(template);
-                //} 
+                //}
             }
             else if (e.Identity == AFIdentity.Element || e.Identity == AFIdentity.Analysis)
             {
@@ -72,6 +89,11 @@ namespace TDPIConnector.Core
                 }
                 if (e.Action == AFChangeAction.SubObjectAdd)
                 {
+                    if (!SyncAddElement)
+                    {
+                        log.Info($"AFChangedEvent:{e.ID},Ignore add new element {element.Name}");
+                        return;
+                    }
                     // 添加新元素
                     initializer.AddNewElementToTaskAsync(element).Wait();
                     log.Info($"AFChangedEvent:{e.ID},Add new element {element.Name}");
@@ -83,13 +105,19 @@ namespace TDPIConnector.Core
                     log.Info($"AFChangedEvent:{e.ID}.Refresh element {element.Name}.Ignored");
                     return;
                 }
-                else if (e.Action == AFChangeAction.SubObjectChange) {
+                else if (e.Action == AFChangeAction.SubObjectChange)
+                {
                     // 修改元素
                     log.Info($"AFChangedEvent:{e.ID}.Change element {element.Name}.Ignored");
                     return;
                 }
                 else if (e.Action == AFChangeAction.SubObjectRemove)
                 {
+                    if (!SyncDeleteDelement)
+                    {
+                        log.Info($"AFChangedEvent:{e.ID},Ignore delete element {element.Name}");
+                        return;
+                    }
                     // 删除元素
                     tdEngineProxy.DropElement(e.ID.ToString());
                     log.Info($"AFChangedEvent:{e.ID}.Delete element done");
