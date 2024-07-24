@@ -184,19 +184,6 @@ export default {
     },
   },
   watch: {
-    configData: {
-      deep: true,
-      immediate: true,
-      handler(data) {
-        this.sourceParent.currentDefinition.config =
-          this.sourceParent.currentDefinition.config.map((config) => {
-            if (config.field == optionsField) {
-              config.children = data;
-            }
-            return config;
-          });
-      },
-    },
     data: {
       deep: true,
       immediate: true,
@@ -217,6 +204,8 @@ export default {
       item.port.field = "port_" + key;
       item.host.required = false;
       item.port.required = false;
+      item.host.value = "";
+      item.port.value = "";
       this.configData = this.configData.concat(item);
     },
     remove(index, hostField, portField) {

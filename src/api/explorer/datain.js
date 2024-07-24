@@ -107,7 +107,7 @@ function mergeTaskDetailOptions(cfgOptions, data, from) {
         let item = deepClone(cfgOptions.params[0])
      
         while (cfgOptions.params.length < endpoints.length) {
-            cfgOptions.params.push(item); 
+            cfgOptions.params.push({...item}); 
         }
         for (let i = 0; i < endpoints.length; i++) {
             cfgOptions.params[i].host.value = endpoints[i].split(':')[0]
