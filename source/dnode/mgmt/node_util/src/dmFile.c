@@ -429,9 +429,7 @@ int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
     }
   }
 
-  if ((code = tGetMachineId(&machineId)) != 0) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tGetMachineId(&machineId), &lino, _OVER);
 
   TAOS_CHECK_GOTO(generateEncryptCode(key, machineId, &encryptCode), &lino, _OVER);
 

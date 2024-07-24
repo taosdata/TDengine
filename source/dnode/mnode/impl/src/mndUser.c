@@ -1958,8 +1958,7 @@ int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
 
   len = tSerializeSUpdateIpWhite(NULL, 0, &ipWhite);
   if (len < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(code, &lino, _OVER);
+    TAOS_CHECK_GOTO(len, &lino, _OVER);
   }
 
   pRsp = rpcMallocCont(len);
@@ -1968,8 +1967,7 @@ int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
   }
   len = tSerializeSUpdateIpWhite(pRsp, len, &ipWhite);
   if (len < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(code, &lino, _OVER);
+    TAOS_CHECK_GOTO(len, &lino, _OVER);
   }
 
 _OVER:
@@ -2597,7 +2595,10 @@ static int32_t mndProcessGetUserAuthReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  TAOS_CHECK_EXIT(tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp));
+  contLen =tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp);
+  if(contLen < 0) {
+    TAOS_CHECK_EXIT(contLen);
+  }
 
 _exit:
   mndReleaseUser(pMnode, pUser);
@@ -3190,14 +3191,17 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
   }
 
   rspLen = tSerializeSUserAuthBatchRsp(NULL, 0, &batchRsp);
-  if (rspLen <= 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  if (rspLen < 0) {
+    TAOS_CHECK_GOTO(rspLen, &lino, _OVER);
   }
   pRsp = taosMemoryMalloc(rspLen);
   if (pRsp == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
-  TAOS_CHECK_GOTO(tSerializeSUserAuthBatchRsp(pRsp, rspLen, &batchRsp), &lino, _OVER);
+  rspLen = tSerializeSUserAuthBatchRsp(pRsp, rspLen, &batchRsp);
+  if (rspLen < 0) {
+    TAOS_CHECK_GOTO(rspLen, &lino, _OVER);
+  }
 _OVER:
   tFreeSUserAuthBatchRsp(&batchRsp);
   if (code < 0) {
