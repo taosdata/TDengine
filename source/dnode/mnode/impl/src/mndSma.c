@@ -815,8 +815,8 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};
   mndGetStreamNameFromSmaName(streamName, createReq.name);
 
-  pStream = mndAcquireStream(pMnode, streamName);
-  if (pStream != NULL) {
+  code = mndAcquireStream(pMnode, streamName, &pStream);
+  if (pStream != NULL || code == 0) {
     mError("sma:%s, failed to create since stream:%s already exist", createReq.name, streamName);
     code = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
     goto _OVER;
@@ -991,8 +991,10 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};
   mndGetStreamNameFromSmaName(streamName, pSma->name);
 
-  SStreamObj *pStream = mndAcquireStream(pMnode, streamName);
-  if (pStream == NULL || pStream->smaId != pSma->uid) {
+  SStreamObj *pStream = NULL;
+
+  code = mndAcquireStream(pMnode, streamName, &pStream);
+  if (pStream == NULL || pStream->smaId != pSma->uid || code != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     goto _OVER;
   } else {
@@ -1050,10 +1052,11 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
       char streamName[TSDB_TABLE_FNAME_LEN] = {0};
       mndGetStreamNameFromSmaName(streamName, pSma->name);
 
-      SStreamObj *pStream = mndAcquireStream(pMnode, streamName);
-      if (pStream != NULL && pStream->smaId == pSma->uid) {
+      SStreamObj *pStream = NULL;
+      code = mndAcquireStream(pMnode, streamName, &pStream);
+      if ((pStream != NULL && pStream->smaId == pSma->uid) || code != 0) {
         if ((code = mndStreamSetDropAction(pMnode, pTrans, pStream)) < 0) {
-          mError("stream:%s, failed to drop task since %s", pStream->name, tstrerror(code));
+          mError("stream:%s, failed to drop task since %s", pStream->name, terrstr());
           mndReleaseStream(pMnode, pStream);
           goto _OVER;
         }
@@ -1800,6 +1803,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
     code = 0;
     goto _OVER;
   }
+
   if (pSma) {
     code = TSDB_CODE_MND_SMA_ALREADY_EXIST;
     goto _OVER;
@@ -1813,8 +1817,8 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
     goto _OVER;
   }
 
-  pStream = mndAcquireStream(pMnode, streamName);
-  if (pStream != NULL) {
+  code = mndAcquireStream(pMnode, streamName, &pStream);
+  if (pStream != NULL || code != TSDB_CODE_MND_STREAM_NOT_EXIST) {
     mError("tsma:%s, failed to create since stream:%s already exist", createReq.name, streamName);
     code = TSDB_CODE_MND_SMA_ALREADY_EXIST;
     goto _OVER;
@@ -2292,7 +2296,7 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
   SSmaObj *      pBaseTsma = NULL;
   SSdb *         pSdb = pMnode->pSdb;
   void *         pIter = NULL;
-  SStreamObj *   pStreamObj = NULL;
+  SStreamObj *   pStream = NULL;
   SStbObj *      pStb = NULL;
 
   while (1) {
@@ -2314,14 +2318,16 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
     char streamName[TSDB_TABLE_FNAME_LEN] = {0};
     tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     sprintf(streamName, "%d.%s", smaName.acctId, smaName.tname);
-    pStreamObj = mndAcquireStream(pMnode, streamName);
-    if (!pStreamObj) {
+    pStream = NULL;
+
+    code = mndAcquireStream(pMnode, streamName, &pStream);
+    if (!pStream || (code != 0)) {
       sdbRelease(pSdb, pSma);
       continue;
     }
 
-    int64_t streamId = pStreamObj->uid;
-    mndReleaseStream(pMnode, pStreamObj);
+    int64_t streamId = pStream->uid;
+    mndReleaseStream(pMnode, pStream);
 
     STableTSMAInfo *pTsma = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
     if (!pTsma) {

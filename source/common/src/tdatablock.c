@@ -2491,7 +2491,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
       .tags = tags, .stbFullName = stbFullName, .stbFullNameLen = strlen(stbFullName), .ctbShortName = cname};
 
   int32_t code = buildChildTableName(&rname);
-  if(code != TSDB_CODE_SUCCESS){
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
   taosArrayDestroy(tags);
