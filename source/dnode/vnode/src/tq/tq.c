@@ -336,7 +336,7 @@ int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
                        .pCont = pHandle->msg->pCont,
                        .contLen = pHandle->msg->contLen,
                        .info = pHandle->msg->info};
-        tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+        (void)tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
         taosMemoryFree(pHandle->msg);
         pHandle->msg = NULL;
       }
@@ -451,8 +451,7 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   tEncodeSize(tEncodeMqVgOffset, &vgOffset, len, code);
   if (code < 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return TAOS_GET_TERRNO(TSDB_CODE_INVALID_PARA);
   }
 
   void* buf = rpcMallocCont(len);
@@ -462,8 +461,12 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   SEncoder encoder;
   tEncoderInit(&encoder, buf, len);
-  tEncodeMqVgOffset(&encoder, &vgOffset);
+  code = tEncodeMqVgOffset(&encoder, &vgOffset);
   tEncoderClear(&encoder);
+  if (code < 0) {
+    rpcFreeCont(buf);
+    return TAOS_GET_TERRNO(TSDB_CODE_INVALID_PARA);
+  }
 
   SRpcMsg rsp = {.info = pMsg->info, .pCont = buf, .contLen = len, .code = 0};
 

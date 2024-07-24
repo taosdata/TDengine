@@ -415,7 +415,7 @@ static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-  tdbTbcClose(pCur);
+  (void)tdbTbcClose(pCur);
   tDeleteSTqCheckInfo(&info);
   return code;
 }
