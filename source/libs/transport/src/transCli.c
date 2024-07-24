@@ -872,7 +872,8 @@ static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_
   SConnBuffer* pBuf = &conn->readBuf;
   int32_t      code = transAllocBuffer(pBuf, buf);
   if (code < 0) {
-    cliDestroyConn(conn, true);
+    tError("conn %p failed to alloc buffer, since %s", conn, tstrerror(code));
+    // cliDestroyConn(conn, true);
   }
 }
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
