@@ -1,0 +1,262 @@
+name: PR-CI-workflow
+# run-name: ${{ github.actor }}, your PR is under test. 🚀
+
+on:
+  # workflow_dispatch:
+  # pull_request:
+  push:
+
+env:
+  RELEASE_HOST: 192.168.1.45
+  RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
+  ARTIFACT_BASE_DIR: /data/artifacts
+  COVERAGE_BASE_DIR: /data/coverage
+  # DIR_PATH: ${{ github.event.number }}
+  DIR_PATH: test_pr_ci
+  RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  remove_artifacts:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    steps:
+      - name: Remove artifacts
+        run: |
+          rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/
+
+  build_rust:
+    needs: remove_artifacts
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Print Env
+        run: |
+          pwd
+          rustup component add llvm-tools-preview
+          command -v cargo-llvm-cov || cargo install cargo-llvm-cov
+          command -v cargo-nextest || cargo install cargo-nextest
+          rustc --version
+          echo $DIR_PATH
+
+      - name: Build taosx
+        run: |
+          # build taosx and taosx-agent
+          # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
+          rm -rf ./target/debug/taosx-profraw/
+          export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
+          cargo build --target-dir ./target/debug/taosx-build/
+      - name: taosx unit test
+        run: |
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+              echo "run taosx unit test"
+              # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
+              # cargo test --target-dir ./target/debug/taosx-build/
+              cargo llvm-cov nextest --workspace --ignore-run-fail
+              cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info
+              ls $ARTIFACT_BASE_DIR/$DIR_PATH/
+          fi
+      - name: Build agent
+        run: |
+          # build agent
+          rm -rf ./target/debug/taosx-agent-profraw/
+          # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
+          export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
+          cargo build --package taosx-agent --target-dir ./target/debug/taosx-agent-build/
+
+      - name: Copy files
+        run: |
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          cp ./target/debug/taosx-build/debug/taosx ./target/debug/taosx-agent-build/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cp -r ./target/debug/taosx-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH/
+          cp -r ./target/debug/taosx-agent-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH/
+          cd ..
+          tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
+          cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm taosx.tar.gz
+          tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
+
+  build_go:
+    needs: remove_artifacts
+    runs-on: [self-hosted, linux, x64, qa, go]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Print Env
+        run: |
+          pwd
+          go version
+      - name: Build opc
+        run: |
+          cd plugins/opc
+          go build -cover -o taosx-opc
+      - name: Run OPC Unit Test
+        continue-on-error: true
+        run: |
+          cd plugins/opc
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+            echo "run opc unit test"
+            go test -coverpkg=./... -coverprofile=opc_unit_report.txt  -timeout=5s ./...
+          fi
+      - name: Copy OPC Files
+        run: |
+          cd plugins/opc
+          if [-f "opc_unit_report.txt"]; then
+            echo "Copy OPC Unit Test Coverage Data"
+            ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/"
+            scp opc_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/
+            rm opc_unit_report.txt
+          fi
+          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/"
+          scp taosx-opc root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/
+
+      - name: Build mqtt
+        run: |
+          cd plugins/mqtt
+          go build -cover -o taosx-mqtt
+
+      - name: Run Mqtt Unit Test
+        continue-on-error: true
+        run: |
+          cd plugins/mqtt
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+            echo "run mqtt unit test"
+            go test -coverpkg=./... -coverprofile=mqtt_unit_report.txt  -timeout=5s ./...
+          fi
+      - name: Copy MQTT Files
+        run: |
+          cd plugins/mqtt
+          if [ -f "mqtt_unit_report.txt" ]; then
+            ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/"
+            scp mqtt_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/mqtt_cover_data/
+            rm mqtt_unit_report.txt
+          fi
+          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt/"
+          scp taosx-mqtt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/mqtt/
+
+  build_java:
+    needs: remove_artifacts
+    runs-on: [self-hosted, linux, x64, qa, java]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Print Env
+        run: |
+          pwd
+          java -version
+
+      - name: Run InfluxDB Unit Test
+        continue-on-error: true
+        run: |
+          cd plugins/influxdb
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+            echo "run influxdb unit test"
+            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+            mvn test
+          fi
+      - name: Package influxdb
+        run: |
+          cd plugins/influxdb
+          mvn clean package -Dmaven.test.skip=true
+          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/"
+          # scp ./target/taosx-influxdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/
+          scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/
+
+      - name: Run OpenTSDB Unit Test
+        continue-on-error: true
+        run: |
+          cd plugins/opentsdb
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+            echo "run opentsdb unit test"
+            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+            mvn test
+          fi
+      - name: Package OpenTSDB
+        run: |
+          cd plugins/opentsdb
+          mvn clean package -Dmaven.test.skip=true
+          ssh root@$RELEASE_HOST "ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/"
+          #scp ./target/taosx-opentsdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
+          scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
+
+  deploy_with_docker:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [build_rust, build_go, build_java]
+    outputs: 
+      CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
+      WINDOWS_AGENT_PROCESS_ID: ${{ steps.deploy_windows_agent.outputs.windows_agent_process_id }}
+    steps:
+      - name: run container
+        id: run_container
+        # 1. 寻找可用端口
+        # 2. 启动容器
+        # 3. 启动 taosx
+        # 4. 启动 taosx-agent
+        # 5. 启动 windows-agent（这里需要将容器映射的端口传递到 windows 服务器上）
+        run: |
+          for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { first_port=$port; break; }; done && for port in $(seq $((first_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { second_port=$port; break; }; done && echo "First available port: $first_port, Second available port: $second_port"
+
+          run_container_id=$(docker run -d -v /data/github/TestNG_taosX/:/data/github/TestNG_taosX/ -v /data/artifacts/3.0_temp/:/data/artifacts/3.0_temp/ -v /data/coverage/:/data/coverage/ -p $first_port:6055 -p $second_port:6060 6830ee2fbee7)
+          echo "container_id: $run_container_id"
+          echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
+      - name: run taosx & taosx-agent in container
+        run: |
+          echo "container_id: $run_container_id"
+          docker exec $CONTAINER_ID -it bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
+          docker exec $CONTAINER_ID -it bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
+
+      - name: Deploy windows agent taosx-agent
+        id: deploy_windows_agent
+        run: |
+          # TODO
+
+  run_test:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: deploy_with_docker
+    steps:
+      - name: Update Repo
+        run: |
+          # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
+          # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
+          cd /data/github/TestNG_taosX && git pull
+      
+      - name: Run Test
+        continue-on-error: true
+        run: |
+          echo "container_id: ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
+          docker exec -it ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity'
+
+  cleanup_and_generate_report:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [deploy_with_docker, run_test]
+    env:
+      REPORT_BASE_URL: http://192.168.1.45:8787
+    steps:
+      - name: allure report
+        run: |
+          allure generate $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH/allure_report/ --clean
+          echo "see report at $REPORT_BASE_URL/$DIR_PATH/allure_report/"
+      
+      - name: Force stop taosx-agent & taosx
+        if: always()
+        # shell: bash {0}
+        run: |
+          docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+  
+
+  feishu_report:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [build_rust, build_go, build_java, deploy_with_docker, run_test, cleanup_and_generate_report]
+    if: failure()
+    steps: 
+      - name: Send Feishu Message
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"${{ github.workflow }} run failed, \n see reason at: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\"}}" \
+          https://open.feishu.cn/open-apis/bot/v2/hook/ead5417f-20b9-425c-8ce7-f4b8dd008deb
+        
