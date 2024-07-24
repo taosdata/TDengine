@@ -117,91 +117,81 @@ static void freeCacheEntryFp(void* param) {
 }
 
 int32_t metaCacheOpen(SMeta* pMeta) {
-  int32_t     code = 0;
-  SMetaCache* pCache = NULL;
+  int32_t code = 0;
+  int32_t lino;
 
-  pCache = (SMetaCache*)taosMemoryMalloc(sizeof(SMetaCache));
-  if (pCache == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+  pMeta->pCache = (SMetaCache*)taosMemoryCalloc(1, sizeof(SMetaCache));
+  if (pMeta->pCache == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
   // open entry cache
-  pCache->sEntryCache.nEntry = 0;
-  pCache->sEntryCache.nBucket = META_CACHE_BASE_BUCKET;
-  pCache->sEntryCache.aBucket =
-      (SMetaCacheEntry**)taosMemoryCalloc(pCache->sEntryCache.nBucket, sizeof(SMetaCacheEntry*));
-  if (pCache->sEntryCache.aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+  pMeta->pCache->sEntryCache.nEntry = 0;
+  pMeta->pCache->sEntryCache.nBucket = META_CACHE_BASE_BUCKET;
+  pMeta->pCache->sEntryCache.aBucket =
+      (SMetaCacheEntry**)taosMemoryCalloc(pMeta->pCache->sEntryCache.nBucket, sizeof(SMetaCacheEntry*));
+  if (pMeta->pCache->sEntryCache.aBucket == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
   // open stats cache
-  pCache->sStbStatsCache.nEntry = 0;
-  pCache->sStbStatsCache.nBucket = META_CACHE_STATS_BUCKET;
-  pCache->sStbStatsCache.aBucket =
-      (SMetaStbStatsEntry**)taosMemoryCalloc(pCache->sStbStatsCache.nBucket, sizeof(SMetaStbStatsEntry*));
-  if (pCache->sStbStatsCache.aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err2;
+  pMeta->pCache->sStbStatsCache.nEntry = 0;
+  pMeta->pCache->sStbStatsCache.nBucket = META_CACHE_STATS_BUCKET;
+  pMeta->pCache->sStbStatsCache.aBucket =
+      (SMetaStbStatsEntry**)taosMemoryCalloc(pMeta->pCache->sStbStatsCache.nBucket, sizeof(SMetaStbStatsEntry*));
+  if (pMeta->pCache->sStbStatsCache.aBucket == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
-  pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
-  if (pCache->sTagFilterResCache.pUidResCache == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err2;
+  pMeta->pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
+  if (pMeta->pCache->sTagFilterResCache.pUidResCache == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  pCache->sTagFilterResCache.accTimes = 0;
-  pCache->sTagFilterResCache.pTableEntry =
+  pMeta->pCache->sTagFilterResCache.accTimes = 0;
+  pMeta->pCache->sTagFilterResCache.pTableEntry =
       taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
-  if (pCache->sTagFilterResCache.pTableEntry == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err2;
+  if (pMeta->pCache->sTagFilterResCache.pTableEntry == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  taosHashSetFreeFp(pCache->sTagFilterResCache.pTableEntry, freeCacheEntryFp);
-  taosThreadMutexInit(&pCache->sTagFilterResCache.lock, NULL);
+  taosHashSetFreeFp(pMeta->pCache->sTagFilterResCache.pTableEntry, freeCacheEntryFp);
+  taosThreadMutexInit(&pMeta->pCache->sTagFilterResCache.lock, NULL);
 
-  pCache->STbGroupResCache.pResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
-  if (pCache->STbGroupResCache.pResCache == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err2;
+  pMeta->pCache->STbGroupResCache.pResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
+  if (pMeta->pCache->STbGroupResCache.pResCache == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  pCache->STbGroupResCache.accTimes = 0;
-  pCache->STbGroupResCache.pTableEntry =
+  pMeta->pCache->STbGroupResCache.accTimes = 0;
+  pMeta->pCache->STbGroupResCache.pTableEntry =
       taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
-  if (pCache->STbGroupResCache.pTableEntry == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err2;
+  if (pMeta->pCache->STbGroupResCache.pTableEntry == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  taosHashSetFreeFp(pCache->STbGroupResCache.pTableEntry, freeCacheEntryFp);
-  taosThreadMutexInit(&pCache->STbGroupResCache.lock, NULL);
+  taosHashSetFreeFp(pMeta->pCache->STbGroupResCache.pTableEntry, freeCacheEntryFp);
+  taosThreadMutexInit(&pMeta->pCache->STbGroupResCache.lock, NULL);
 
-  pCache->STbFilterCache.pStb = taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  if (pCache->STbFilterCache.pStb == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err2;
+  pMeta->pCache->STbFilterCache.pStb =
+      taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (pMeta->pCache->STbFilterCache.pStb == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  pCache->STbFilterCache.pStbName =
+  pMeta->pCache->STbFilterCache.pStbName =
       taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
-  if (pCache->STbFilterCache.pStbName == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err2;
+  if (pMeta->pCache->STbFilterCache.pStbName == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  pMeta->pCache = pCache;
-  return code;
-
-_err2:
-  entryCacheClose(pMeta);
-
-_err:
-  taosMemoryFree(pCache);
-  metaError("vgId:%d, meta open cache failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+    metaCacheClose(pMeta);
+  } else {
+    metaDebug("vgId:%d, %s success", TD_VID(pMeta->pVnode), __func__);
+  }
   return code;
 }
 
@@ -289,8 +279,7 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
     }
   } else {  // insert
     if (pCache->sEntryCache.nEntry >= pCache->sEntryCache.nBucket) {
-      code = metaRehashCache(pCache, 1);
-      if (code) goto _exit;
+      TAOS_UNUSED(metaRehashCache(pCache, 1));
 
       iBucket = TABS(pInfo->uid) % pCache->sEntryCache.nBucket;
     }
@@ -328,8 +317,7 @@ int32_t metaCacheDrop(SMeta* pMeta, int64_t uid) {
     pCache->sEntryCache.nEntry--;
     if (pCache->sEntryCache.nEntry < pCache->sEntryCache.nBucket / 4 &&
         pCache->sEntryCache.nBucket > META_CACHE_BASE_BUCKET) {
-      code = metaRehashCache(pCache, 0);
-      if (code) goto _exit;
+      TAOS_UNUSED(metaRehashCache(pCache, 0));
     }
   } else {
     code = TSDB_CODE_NOT_FOUND;
@@ -351,7 +339,9 @@ int32_t metaCacheGet(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo) {
   }
 
   if (pEntry) {
-    *pInfo = pEntry->info;
+    if (pInfo) {
+      *pInfo = pEntry->info;
+    }
   } else {
     code = TSDB_CODE_NOT_FOUND;
   }
@@ -415,9 +405,7 @@ int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
     (*ppEntry)->info.ctbNum = pInfo->ctbNum;
   } else {  // insert
     if (pCache->sStbStatsCache.nEntry >= pCache->sStbStatsCache.nBucket) {
-      code = metaRehashStatsCache(pCache, 1);
-      if (code) goto _exit;
-
+      TAOS_UNUSED(metaRehashStatsCache(pCache, 1));
       iBucket = TABS(pInfo->uid) % pCache->sStbStatsCache.nBucket;
     }
 
@@ -454,8 +442,7 @@ int32_t metaStatsCacheDrop(SMeta* pMeta, int64_t uid) {
     pCache->sStbStatsCache.nEntry--;
     if (pCache->sStbStatsCache.nEntry < pCache->sStbStatsCache.nBucket / 4 &&
         pCache->sStbStatsCache.nBucket > META_CACHE_STATS_BUCKET) {
-      code = metaRehashStatsCache(pCache, 0);
-      if (code) goto _exit;
+      TAOS_UNUSED(metaRehashStatsCache(pCache, 0));
     }
   } else {
     code = TSDB_CODE_NOT_FOUND;
@@ -477,7 +464,9 @@ int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo) {
   }
 
   if (pEntry) {
-    *pInfo = pEntry->info;
+    if (pInfo) {
+      *pInfo = pEntry->info;
+    }
   } else {
     code = TSDB_CODE_NOT_FOUND;
   }
@@ -502,7 +491,9 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
     // check whether it is existed in LRU cache, and remove it from linked list if not.
     LRUHandle* pRes = taosLRUCacheLookup(pCache, buf, len);
     if (pRes == NULL) {  // remove the item in the linked list
-      taosArrayPush(pInvalidRes, &pNode);
+      if (taosArrayPush(pInvalidRes, &pNode) == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     } else {
       taosLRUCacheRelease(pCache, pRes, false);
     }
@@ -626,7 +617,7 @@ static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyL
 
   p->hitTimes = 0;
   tdListInit(&p->list, keyLen);
-  taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES);
+  TAOS_CHECK_RETURN(taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES));
   tdListAppend(&p->list, pKey);
   return 0;
 }
@@ -956,9 +947,7 @@ int32_t metaInitTbFilterCache(SMeta* pMeta) {
   }
   if (tbNum && pTbArr) {
     for (int32_t i = 0; i < tbNum; ++i) {
-      if (metaPutTbToFilterCache(pMeta, pTbArr[i], 1) != 0) {
-        return terrno ? terrno : -1;
-      }
+      TAOS_CHECK_RETURN(metaPutTbToFilterCache(pMeta, pTbArr[i], 1));
     }
   }
 #else

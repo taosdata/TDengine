@@ -1600,7 +1600,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
 
         if (pBlock->info.type != STREAM_CLEAR) {
           void* tmp = taosArrayAddAll(pInfo->pDelWins, delWins);
-          if (!tmp) {
+          if (!tmp && taosArrayGetSize(delWins) > 0) {
             code = TSDB_CODE_OUT_OF_MEMORY;
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -1610,7 +1610,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       }
       removeResults(delWins, pInfo->pUpdatedMap);
       void* tmp = taosArrayAddAll(pInfo->pDelWins, delWins);
-      if (!tmp) {
+      if (!tmp && taosArrayGetSize(delWins) > 0) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -5313,7 +5313,7 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
 
       removeResults(delWins, pInfo->pUpdatedMap);
       void* tmp = taosArrayAddAll(pInfo->pDelWins, delWins);
-      if (!tmp) {
+      if (!tmp && taosArrayGetSize(delWins) > 0) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         QUERY_CHECK_CODE(code, lino, _end);
       }
