@@ -52,14 +52,12 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
 SArray* taosArrayInit_s(size_t elemSize, size_t initialSize) {
   SArray* pArray = taosMemoryMalloc(sizeof(SArray));
   if (pArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pArray->size = initialSize;
   pArray->pData = taosMemoryCalloc(initialSize, elemSize);
   if (pArray->pData == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pArray);
     return NULL;
   }
@@ -75,7 +73,7 @@ static int32_t taosArrayResize(SArray* pArray) {
 
   void* tmp = taosMemoryRealloc(pArray->pData, size * pArray->elemSize);
   if (tmp == NULL) {  // reallocate failed, the original buffer remains
-    return -1;
+    return terrno;
   }
 
   pArray->pData = tmp;
@@ -99,7 +97,7 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
 
     pArray->pData = taosMemoryRealloc(pArray->pData, tsize * pArray->elemSize);
     if (pArray->pData == NULL) {
-      return -1;
+      return terrno;
     }
 
     pArray->capacity = tsize;
@@ -109,10 +107,13 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
 
 void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
   if (pData == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
-  if (taosArrayEnsureCap(pArray, pArray->size + nEles) != 0) {
+  int32_t code = taosArrayEnsureCap(pArray, pArray->size + nEles);
+  if (code) {
+    terrno = code;
     return NULL;
   }
 
@@ -171,7 +172,9 @@ void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
 }
 
 void* taosArrayReserve(SArray* pArray, int32_t num) {
-  if (taosArrayEnsureCap(pArray, pArray->size + num) != 0) {
+  int32_t code = taosArrayEnsureCap(pArray, pArray->size + num);
+  if (code) {
+    terrno = code;
     return NULL;
   }
 
@@ -230,6 +233,7 @@ size_t taosArrayGetSize(const SArray* pArray) {
 
 void* taosArrayInsert(SArray* pArray, size_t index, const void* pData) {
   if (pArray == NULL || pData == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -239,7 +243,6 @@ void* taosArrayInsert(SArray* pArray, size_t index, const void* pData) {
 
   if (pArray->size >= pArray->capacity) {
     int32_t ret = taosArrayResize(pArray);
-
     if (ret < 0) {
       return NULL;
     }
@@ -316,8 +319,10 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
   }
 
   SArray* pDst = taosArrayInit(size, elemSize);
-  memcpy(pDst->pData, src, elemSize * size);
-  pDst->size = size;
+  if (pDst) {
+    memcpy(pDst->pData, src, elemSize * size);
+    pDst->size = size;
+  }
 
   return pDst;
 }
@@ -333,18 +338,20 @@ SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
 
   SArray* dst = taosArrayInit(pSrc->size, pSrc->elemSize);
 
-  if (fn == NULL) {
-    memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
-  } else {
-    ASSERT(pSrc->elemSize == sizeof(void*));
+  if (dst) {
+    if (fn == NULL) {
+      memcpy(dst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
+    } else {
+      ASSERT(pSrc->elemSize == sizeof(void*));
 
-    for (int32_t i = 0; i < pSrc->size; ++i) {
-      void* p = fn(taosArrayGetP(pSrc, i));
-      memcpy(((char*)dst->pData) + i * dst->elemSize, &p, dst->elemSize);
+      for (int32_t i = 0; i < pSrc->size; ++i) {
+        void* p = fn(taosArrayGetP(pSrc, i));
+        memcpy(((char*)dst->pData) + i * dst->elemSize, &p, dst->elemSize);
+      }
     }
-  }
 
-  dst->size = pSrc->size;
+    dst->size = pSrc->size;
+  }
 
   return dst;
 }
@@ -508,10 +515,21 @@ void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t 
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
   *pArray = taosArrayInit(sz, sizeof(void*));
+  if (*pArray == NULL) {
+    return NULL;
+  }
   for (int32_t i = 0; i < sz; i++) {
     void* data = taosMemoryCalloc(1, dataSz);
+    if (data == NULL) {
+      return NULL;
+    }
+
     buf = decode(buf, data, sver);
-    taosArrayPush(*pArray, &data);
+
+    if (taosArrayPush(*pArray, &data) == NULL) {
+      taosMemoryFree(data);
+      return NULL;
+    }
   }
   return (void*)buf;
 }
