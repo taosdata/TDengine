@@ -197,8 +197,8 @@ static void smlDestroySTableMeta(void *para) {
   SSmlSTableMeta *meta = *(SSmlSTableMeta **)para;
   taosHashCleanup(meta->tagHash);
   taosHashCleanup(meta->colHash);
-  (void)taosArrayDestroy(meta->tags);
-  (void)taosArrayDestroy(meta->cols);
+  taosArrayDestroy(meta->tags);
+  taosArrayDestroy(meta->cols);
   taosMemoryFreeClear(meta->tableMeta);
   taosMemoryFree(meta);
 }
@@ -568,7 +568,7 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
     if (code != TSDB_CODE_SUCCESS){
       return code;
     }
-    (void)taosArrayDestroy(dst);
+    taosArrayDestroy(dst);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1198,25 +1198,25 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       SArray *pTags = taosArrayInit(taosArrayGetSize(sTableData->tags), sizeof(SField));
       if (pTags == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        (void)taosArrayDestroy(pColumns);
+        taosArrayDestroy(pColumns);
         goto end;
       }
       code = smlBuildFieldsList(info, NULL, NULL, sTableData->tags, pTags, 0, true);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlBuildFieldsList tag1 failed. %s", info->id, pName.tname);
-        (void)taosArrayDestroy(pColumns);
-        (void)taosArrayDestroy(pTags);
+        taosArrayDestroy(pColumns);
+        taosArrayDestroy(pTags);
         goto end;
       }
       code = smlBuildFieldsList(info, NULL, NULL, sTableData->cols, pColumns, 0, false);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlBuildFieldsList col1 failed. %s", info->id, pName.tname);
-        (void)taosArrayDestroy(pColumns);
-        (void)taosArrayDestroy(pTags);
+        taosArrayDestroy(pColumns);
+        taosArrayDestroy(pTags);
         goto end;
       }
       code = smlSendMetaMsg(info, &pName, pColumns, pTags, NULL, SCHEMA_ACTION_CREATE_STABLE);
-      (void)taosArrayDestroy(pColumns);
+      taosArrayDestroy(pColumns);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, pName.tname);
         goto end;
@@ -1271,7 +1271,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         SArray *pTags =
             taosArrayInit(taosArrayGetSize(sTableData->tags) + pTableMeta->tableInfo.numOfTags, sizeof(SField));
         if (pTags == NULL){
-          (void)taosArrayDestroy(pColumns);
+          taosArrayDestroy(pColumns);
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto end;
         }
@@ -1282,15 +1282,15 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           tstrncpy(field.name, pTableMeta->schema[i].name, sizeof(field.name));
           if (i < pTableMeta->tableInfo.numOfColumns) {
             if (taosArrayPush(pColumns, &field) == NULL){
-              (void)taosArrayDestroy(pColumns);
-              (void)taosArrayDestroy(pTags);
+              taosArrayDestroy(pColumns);
+              taosArrayDestroy(pTags);
               code = TSDB_CODE_OUT_OF_MEMORY;
               goto end;
             }
           } else {
             if (taosArrayPush(pTags, &field) == NULL){
-              (void)taosArrayDestroy(pColumns);
-              (void)taosArrayDestroy(pTags);
+              taosArrayDestroy(pColumns);
+              taosArrayDestroy(pTags);
               code = TSDB_CODE_OUT_OF_MEMORY;
               goto end;
             }
@@ -1300,28 +1300,28 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
                                   pTableMeta->tableInfo.numOfColumns, true);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlBuildFieldsList tag2 failed. %s", info->id, pName.tname);
-          (void)taosArrayDestroy(pColumns);
-          (void)taosArrayDestroy(pTags);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
 
         if (taosArrayGetSize(pTags) + pTableMeta->tableInfo.numOfColumns > TSDB_MAX_COLUMNS) {
           uError("SML:0x%" PRIx64 " too many columns than 4096", info->id);
           code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
-          (void)taosArrayDestroy(pColumns);
-          (void)taosArrayDestroy(pTags);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
         if (taosArrayGetSize(pTags) > TSDB_MAX_TAGS) {
           uError("SML:0x%" PRIx64 " too many tags than 128", info->id);
           code = TSDB_CODE_PAR_INVALID_TAGS_NUM;
-          (void)taosArrayDestroy(pColumns);
-          (void)taosArrayDestroy(pTags);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
 
         code = smlSendMetaMsg(info, &pName, pColumns, pTags, pTableMeta, action);
-        (void)taosArrayDestroy(pColumns);
+        taosArrayDestroy(pColumns);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, pName.tname);
           goto end;
@@ -1367,7 +1367,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         SArray *pTags =
             taosArrayInit(taosArrayGetSize(sTableData->tags) + pTableMeta->tableInfo.numOfTags, sizeof(SField));
         if (pTags == NULL){
-          (void)taosArrayDestroy(pColumns);
+          taosArrayDestroy(pColumns);
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto end;
         }
@@ -1378,15 +1378,15 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           tstrncpy(field.name, pTableMeta->schema[i].name, sizeof(field.name));
           if (i < pTableMeta->tableInfo.numOfColumns) {
             if (taosArrayPush(pColumns, &field) == NULL){
-              (void)taosArrayDestroy(pColumns);
-              (void)taosArrayDestroy(pTags);
+              taosArrayDestroy(pColumns);
+              taosArrayDestroy(pTags);
               code = TSDB_CODE_OUT_OF_MEMORY;
               goto end;
             }
           } else {
             if (taosArrayPush(pTags, &field) == NULL){
-              (void)taosArrayDestroy(pColumns);
-              (void)taosArrayDestroy(pTags);
+              taosArrayDestroy(pColumns);
+              taosArrayDestroy(pTags);
               code = TSDB_CODE_OUT_OF_MEMORY;
               goto end;
             }
@@ -1397,21 +1397,21 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
                                   pTableMeta->tableInfo.numOfColumns, false);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlBuildFieldsList col2 failed. %s", info->id, pName.tname);
-          (void)taosArrayDestroy(pColumns);
-          (void)taosArrayDestroy(pTags);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
 
         if (taosArrayGetSize(pColumns) + pTableMeta->tableInfo.numOfTags > TSDB_MAX_COLUMNS) {
           uError("SML:0x%" PRIx64 " too many columns than 4096", info->id);
           code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
-          (void)taosArrayDestroy(pColumns);
-          (void)taosArrayDestroy(pTags);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
 
         code = smlSendMetaMsg(info, &pName, pColumns, pTags, pTableMeta, action);
-        (void)taosArrayDestroy(pColumns);
+        taosArrayDestroy(pColumns);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, pName.tname);
           goto end;
@@ -1555,7 +1555,7 @@ void smlDestroyTableInfo(void *para) {
     taosHashCleanup(kvHash);
   }
 
-  (void)taosArrayDestroy(tag->cols);
+  taosArrayDestroy(tag->cols);
   taosArrayDestroyEx(tag->tags, freeSSmlKv);
   taosMemoryFree(tag);
 }
@@ -1581,13 +1581,13 @@ void smlDestroyInfo(SSmlHandle *info) {
     cJSON *tags = (cJSON *)taosArrayGetP(info->tagJsonArray, i);
     cJSON_Delete(tags);
   }
-  (void)taosArrayDestroy(info->tagJsonArray);
+  taosArrayDestroy(info->tagJsonArray);
 
   for (int i = 0; i < taosArrayGetSize(info->valueJsonArray); i++) {
     cJSON *value = (cJSON *)taosArrayGetP(info->valueJsonArray, i);
     cJSON_Delete(value);
   }
-  (void)taosArrayDestroy(info->valueJsonArray);
+  taosArrayDestroy(info->valueJsonArray);
 
   taosArrayDestroyEx(info->preLineTagKV, freeSSmlKv);
 

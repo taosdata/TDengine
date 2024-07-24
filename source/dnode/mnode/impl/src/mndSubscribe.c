@@ -1371,7 +1371,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
     if (data) {
       // vg id
       char buf[TSDB_OFFSET_LEN * 2 + VARSTR_HEADER_SIZE] = {0};
-      MND_TMQ_RETURN_CHECK(tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &data->offset));
+      tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &data->offset);
       (void)sprintf(varDataVal(buf) + strlen(varDataVal(buf)), "/%" PRId64, data->ever);
       varDataSetLen(buf, strlen(varDataVal(buf)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

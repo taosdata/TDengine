@@ -942,7 +942,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
       char         buf[TSDB_OFFSET_LEN] = {0};
       STqOffsetVal pVal = {.type = pConsumer->resetOffsetCfg};
-      MND_TMQ_RETURN_CHECK(tFormatOffset(buf, TSDB_OFFSET_LEN, &pVal));
+      tFormatOffset(buf, TSDB_OFFSET_LEN, &pVal);
 
       char parasStr[64 + TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE] = {0};
       (void)sprintf(varDataVal(parasStr), "tbname:%d,commit:%d,interval:%dms,reset:%s", pConsumer->withTbName,
