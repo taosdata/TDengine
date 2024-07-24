@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tqueue.h"
+
 #include "executor.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
-#include "tqueue.h"
 
 int32_t qndOpen(const SQnodeOpt *pOption, SQnode **pQnode) {
   *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
