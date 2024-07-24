@@ -110,6 +110,7 @@ int32_t taosKillChildOnParentStopped() {
 
   return code;
 #endif
+  return 0;
 }
 
 #endif

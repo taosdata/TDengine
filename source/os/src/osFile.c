@@ -1284,15 +1284,17 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
 
-  terrno = code;
+  if (code) {
+    terrno = code;
+    return code;
+  }
   
-  return code;
+  return ret;
 }
 
 int32_t taosFsyncFile(TdFilePtr pFile) {
   if (pFile == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return 0;
   }
 
   int32_t code = 0;
