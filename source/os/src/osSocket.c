@@ -957,11 +957,13 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
   hints.ai_socktype = SOCK_STREAM;
 
   struct addrinfo *result = NULL;
-
+  bool inRetry = false;
+  
   while (true) {
     int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
     if (ret) {
-      if (EAI_AGAIN == ret) {
+      if (EAI_AGAIN == ret && !inRetry) {
+        inRetry = true;
         continue;
       } else if (EAI_SYSTEM == ret) {
         terrno = TAOS_SYSTEM_ERROR(errno);

@@ -57,7 +57,7 @@ TEST(osTest, osFQDNFailed) {
   char     ipString[24];
   uint32_t ipv4 = 0;
   int32_t code = taosGetIpv4FromFqdn(fqdn, &ipv4);
-  ASSERT_EQ(ipv4, 0xffffffff);
+  ASSERT_NE(code, 0);
 
   terrno = TSDB_CODE_RPC_FQDN_ERROR;
   printf("fqdn:%s transfer to ip failed!\n", fqdn);

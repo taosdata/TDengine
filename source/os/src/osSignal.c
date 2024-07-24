@@ -52,7 +52,9 @@ int32_t taosDflSignal(int32_t signum) {
   return 0;
 }
 
-void taosKillChildOnParentStopped() {}
+int32_t taosKillChildOnParentStopped() {
+  return 0;
+}
 
 #else
 
