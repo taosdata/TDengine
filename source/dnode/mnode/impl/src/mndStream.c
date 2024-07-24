@@ -2443,6 +2443,8 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
   void       *pIter = NULL;
   int32_t     code = 0;
 
+  mDebug("start to refresh node list by existed streams");
+
   SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (pHash == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
