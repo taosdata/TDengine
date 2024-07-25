@@ -227,7 +227,7 @@ int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f) {
 int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0] = taosMemoryMalloc(sizeof(*fobj[0]));
   if (!fobj[0]) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   taosThreadMutexInit(&fobj[0]->mutex, NULL);
