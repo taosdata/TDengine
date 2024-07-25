@@ -89,7 +89,7 @@ int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char
     TAOS_RETURN(code);
   }
 
-  memcpy(pRsp->pSchemas, meta->pSchemas, meta->numOfColumns * sizeof(SSchema));
+  (void)memcpy(pRsp->pSchemas, meta->pSchemas, meta->numOfColumns * sizeof(SSchema));
   TAOS_RETURN(code);
 }
 
@@ -107,9 +107,9 @@ int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *t
     TAOS_RETURN(code);
   }
 
-  strcpy(pRsp->tbName, pMeta->tbName);
-  strcpy(pRsp->stbName, pMeta->stbName);
-  strcpy(pRsp->dbFName, pMeta->dbFName);
+  (void)strcpy(pRsp->tbName, pMeta->tbName);
+  (void)strcpy(pRsp->stbName, pMeta->stbName);
+  (void)strcpy(pRsp->dbFName, pMeta->dbFName);
   pRsp->numOfTags = pMeta->numOfTags;
   pRsp->numOfColumns = pMeta->numOfColumns;
   pRsp->tableType = pMeta->tableType;
@@ -121,7 +121,7 @@ int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *t
     TAOS_RETURN(code);
   }
 
-  memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
+  (void)memcpy(pRsp->pSchemas, pMeta->pSchemas, pMeta->numOfColumns * sizeof(SSchema));
   TAOS_RETURN(code);
 }
 

@@ -270,7 +270,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
       }
     }
     if (pObj->pDnode != NULL) {
-      addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+      (void)addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
     }
     sdbRelease(pSdb, pObj);
   }
@@ -341,7 +341,7 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pCreateReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSDCreateMnodeReq(pReq, contLen, pCreateReq);
+  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pCreateReq);
 
   STransAction action = {
       .epSet = *pCreateEpSet,
@@ -363,7 +363,7 @@ static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans, SDAlterMnodeType
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterMnodeTypeReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSDCreateMnodeReq(pReq, contLen, pAlterMnodeTypeReq);
+  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pAlterMnodeTypeReq);
 
   STransAction action = {
       .epSet = *pAlterMnodeTypeEpSet,
@@ -385,7 +385,7 @@ static int32_t mndBuildAlterMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *pA
   int32_t code = 0;
   int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, pAlterReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSDCreateMnodeReq(pReq, contLen, pAlterReq);
+  (void)tSerializeSDCreateMnodeReq(pReq, contLen, pAlterReq);
 
   STransAction action = {
       .epSet = *pAlterEpSet,
@@ -407,7 +407,7 @@ static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDrop
   int32_t code = 0;
   int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, pDropReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
 
   STransAction action = {
       .epSet = *pDroprEpSet,
@@ -440,12 +440,12 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     if (pMObj->role == TAOS_SYNC_ROLE_VOTER) {
       createReq.replicas[numOfReplicas].id = pMObj->id;
       createReq.replicas[numOfReplicas].port = pMObj->pDnode->port;
-      memcpy(createReq.replicas[numOfReplicas].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
+      (void)memcpy(createReq.replicas[numOfReplicas].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       numOfReplicas++;
     } else {
       createReq.learnerReplicas[numOfLearnerReplicas].id = pMObj->id;
       createReq.learnerReplicas[numOfLearnerReplicas].port = pMObj->pDnode->port;
-      memcpy(createReq.learnerReplicas[numOfLearnerReplicas].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
+      (void)memcpy(createReq.learnerReplicas[numOfLearnerReplicas].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       numOfLearnerReplicas++;
     }
 
@@ -456,14 +456,14 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   createReq.learnerReplica = numOfLearnerReplicas + 1;
   createReq.learnerReplicas[numOfLearnerReplicas].id = pDnode->id;
   createReq.learnerReplicas[numOfLearnerReplicas].port = pDnode->port;
-  memcpy(createReq.learnerReplicas[numOfLearnerReplicas].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(createReq.learnerReplicas[numOfLearnerReplicas].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   createReq.lastIndex = pObj->lastIndex;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
   createEpset.eps[0].port = pDnode->port;
-  memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   TAOS_CHECK_RETURN(mndBuildCreateMnodeRedoAction(pTrans, &createReq, &createEpset));
 
@@ -489,12 +489,12 @@ int32_t mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     if (pMObj->role == TAOS_SYNC_ROLE_VOTER) {
       createReq.replicas[createReq.replica].id = pMObj->id;
       createReq.replicas[createReq.replica].port = pMObj->pDnode->port;
-      memcpy(createReq.replicas[createReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
+      (void)memcpy(createReq.replicas[createReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       createReq.replica++;
     } else {
       createReq.learnerReplicas[createReq.learnerReplica].id = pMObj->id;
       createReq.learnerReplicas[createReq.learnerReplica].port = pMObj->pDnode->port;
-      memcpy(createReq.learnerReplicas[createReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
+      (void)memcpy(createReq.learnerReplicas[createReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       createReq.learnerReplica++;
     }
 
@@ -503,7 +503,7 @@ int32_t mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
 
   createReq.learnerReplicas[createReq.learnerReplica].id = pDnode->id;
   createReq.learnerReplicas[createReq.learnerReplica].port = pDnode->port;
-  memcpy(createReq.learnerReplicas[createReq.learnerReplica].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(createReq.learnerReplicas[createReq.learnerReplica].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
   createReq.learnerReplica++;
 
   createReq.lastIndex = pObj->lastIndex;
@@ -511,7 +511,7 @@ int32_t mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
   createEpset.eps[0].port = pDnode->port;
-  memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   TAOS_CHECK_RETURN(mndBuildCreateMnodeRedoAction(pTrans, &createReq, &createEpset));
 
@@ -532,12 +532,12 @@ static int32_t mndSetAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
     if (pMObj->role == TAOS_SYNC_ROLE_VOTER) {
       alterReq.replicas[alterReq.replica].id = pMObj->id;
       alterReq.replicas[alterReq.replica].port = pMObj->pDnode->port;
-      memcpy(alterReq.replicas[alterReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
+      (void)memcpy(alterReq.replicas[alterReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       alterReq.replica++;
     } else {
       alterReq.learnerReplicas[alterReq.learnerReplica].id = pMObj->id;
       alterReq.learnerReplicas[alterReq.learnerReplica].port = pMObj->pDnode->port;
-      memcpy(alterReq.learnerReplicas[alterReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
+      (void)memcpy(alterReq.learnerReplicas[alterReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       alterReq.learnerReplica++;
     }
 
@@ -546,7 +546,7 @@ static int32_t mndSetAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
 
   alterReq.replicas[alterReq.replica].id = pDnode->id;
   alterReq.replicas[alterReq.replica].port = pDnode->port;
-  memcpy(alterReq.replicas[alterReq.replica].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(alterReq.replicas[alterReq.replica].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
   alterReq.replica++;
 
   alterReq.lastIndex = pObj->lastIndex;
@@ -554,7 +554,7 @@ static int32_t mndSetAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
   createEpset.eps[0].port = pDnode->port;
-  memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   TAOS_CHECK_RETURN(mndBuildAlterMnodeTypeRedoAction(pTrans, &alterReq, &createEpset));
 
@@ -580,12 +580,12 @@ int32_t mndSetRestoreAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
     if (pMObj->role == TAOS_SYNC_ROLE_VOTER) {
       alterReq.replicas[alterReq.replica].id = pMObj->id;
       alterReq.replicas[alterReq.replica].port = pMObj->pDnode->port;
-      memcpy(alterReq.replicas[alterReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
+      (void)memcpy(alterReq.replicas[alterReq.replica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       alterReq.replica++;
     } else {
       alterReq.learnerReplicas[alterReq.learnerReplica].id = pMObj->id;
       alterReq.learnerReplicas[alterReq.learnerReplica].port = pMObj->pDnode->port;
-      memcpy(alterReq.learnerReplicas[alterReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
+      (void)memcpy(alterReq.learnerReplicas[alterReq.learnerReplica].fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       alterReq.learnerReplica++;
     }
 
@@ -594,7 +594,7 @@ int32_t mndSetRestoreAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
 
   alterReq.replicas[alterReq.replica].id = pDnode->id;
   alterReq.replicas[alterReq.replica].port = pDnode->port;
-  memcpy(alterReq.replicas[alterReq.replica].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(alterReq.replicas[alterReq.replica].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
   alterReq.replica++;
 
   alterReq.lastIndex = pObj->lastIndex;
@@ -602,7 +602,7 @@ int32_t mndSetRestoreAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
   createEpset.eps[0].port = pDnode->port;
-  memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   TAOS_CHECK_RETURN(mndBuildAlterMnodeTypeRedoAction(pTrans, &alterReq, &createEpset));
 
@@ -690,7 +690,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[40] = {0};
-  sprintf(obj, "%d", createReq.dnodeId);
+  (void)sprintf(obj, "%d", createReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen);
 
@@ -743,7 +743,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   dropReq.dnodeId = pDnode->id;
   dropEpSet.numOfEps = 1;
   dropEpSet.eps[0].port = pDnode->port;
-  memcpy(dropEpSet.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+  (void)memcpy(dropEpSet.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 2) {
@@ -844,7 +844,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[40] = {0};
-  sprintf(obj, "%d", dropReq.dnodeId);
+  (void)sprintf(obj, "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen);
 
@@ -881,17 +881,17 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char b1[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, TSDB_EP_LEN + VARSTR_HEADER_SIZE);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, b1, false);
+    (void)colDataSetVal(pColInfo, numOfRows, b1, false);
 
     char role[20] = "offline";
     if (pObj->id == pMnode->selfDnodeId) {
-      snprintf(role, sizeof(role), "%s%s", syncStr(TAOS_SYNC_STATE_LEADER), pMnode->restored ? "" : "*");
+      (void)snprintf(role, sizeof(role), "%s%s", syncStr(TAOS_SYNC_STATE_LEADER), pMnode->restored ? "" : "*");
     }
     bool isDnodeOnline = mndIsDnodeOnline(pObj->pDnode, curMs);
     if (isDnodeOnline) {
@@ -904,7 +904,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b2, role, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
 
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
@@ -913,14 +913,14 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char b3[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     int64_t roleTimeMs = (isDnodeOnline) ? pObj->roleTimeMs : 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
