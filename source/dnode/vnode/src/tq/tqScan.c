@@ -357,9 +357,16 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, STaosxRsp* pRsp, int3
     *totalRows += pBlock->info.rows;
     blockDataFreeRes(pBlock);
     SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
-    (void) taosArrayPush(pRsp->common.blockSchema, &pSW);
+    if (taosArrayPush(pRsp->common.blockSchema, &pSW) == NULL){
+      tqError("vgId:%d, failed to add schema to rsp msg", pTq->pVnode->config.vgId);
+      continue;
+    }
     pRsp->common.blockNum++;
   }
+
+  taosArrayDestroy(pBlocks);
+  taosArrayDestroy(pSchemas);
+  return;
 
 END:
   taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
