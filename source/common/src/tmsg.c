@@ -1031,7 +1031,7 @@ int32_t tDeserializeSEpSet(void *buf, int32_t bufLen, SEpSet *pEpset) {
 
 _exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq) {
@@ -1295,7 +1295,7 @@ int32_t tDeserializeSDropTagIdxReq(void *buf, int32_t bufLen, SDropTagIndexReq *
 
 _exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 int32_t tSerializeSMCreateFullTextReq(void *buf, int32_t bufLen, SMCreateFullTextReq *pReq) {
@@ -1330,7 +1330,7 @@ int32_t tDeserializeSMCreateFullTextReq(void *buf, int32_t bufLen, SMCreateFullT
 
 _exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 void tFreeSMCreateFullTextReq(SMCreateFullTextReq *pReq) {
   // impl later
@@ -1649,7 +1649,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
@@ -2130,7 +2130,7 @@ int32_t tDeserializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteR
 
 _exit:
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 void tFreeSCreateUserReq(SCreateUserReq *pReq) {
