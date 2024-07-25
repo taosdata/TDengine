@@ -31,13 +31,10 @@
 #include "tref.h"
 #include "ttimer.h"
 #include "tutil.h"
-// #include "mnodeSdb.h"
 #include "mndShow.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmsgtype.h"
-// #include "mnodeRead.h"
-// #include "mnodeWrite.h"
 
 #define TSDB_MIN_USERS_PER_ACCT 2
 #define TSDB_MAX_USERS_PER_ACCT 10
@@ -248,7 +245,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
 
     // create a user in the same name and pass
     char suser[64] = {0};
-    sprintf(suser, "_%s", name);
+    (void)sprintf(suser, "_%s", name);
     mnodeCreateUser(pAcct, name, pass, NULL);
     mnodeCreateUser(pAcct, suser, tsInternalPass, NULL);  // create stream user
   }
@@ -398,30 +395,30 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
+    (void)sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
+    (void)sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
+    (void)sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfStreams, pAcct->cfg.maxStreams);
+    (void)sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfStreams, pAcct->cfg.maxStreams);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pAcct->cfg.maxStorage == INT64_MAX) {
-      sprintf(tmp, "%.3f/unlimited", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024.));
+      (void)sprintf(tmp, "%.3f/unlimited", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024.));
     } else {
-      sprintf(tmp, "%.3f/%.3f", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024),
+      (void)sprintf(tmp, "%.3f/%.3f", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024),
               pAcct->cfg.maxStorage / (1024. * 1024. * 1024));
     }
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
