@@ -538,7 +538,7 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     goto _sys;
   }
   char qline[32] = {0};
-  if (taosGetsFile(pFile, sizeof(qline), qline) < 0) {
+  if (taosGetsFile(pFile, sizeof(qline), qline) <= 0) {
     taosCloseFile(&pFile);
     goto _sys;
   }
@@ -552,7 +552,7 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     goto _sys;
   }
   char pline[32] = {0};
-  if (taosGetsFile(pFile, sizeof(pline), pline) < 0) {
+  if (taosGetsFile(pFile, sizeof(pline), pline) <= 0) {
     taosCloseFile(&pFile);
     goto _sys;
   }
@@ -713,7 +713,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   char    line[1024] = {0};
   while (!taosEOFFile(pFile)) {
     bytes = taosGetsFile(pFile, sizeof(line), line);
-    if (bytes < 0) {
+    if (bytes <= 0) {
       break;
     }
     if (strstr(line, "VmRSS:") != NULL) {
@@ -917,7 +917,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
     char    nouse0[200] = {0};
 
     _bytes = taosGetsFile(pFile, sizeof(line), line);
-    if (_bytes < 0) {
+    if (_bytes <= 0) {
       break;
     }
 

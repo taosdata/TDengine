@@ -1442,7 +1442,12 @@ int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
   }
   
   if (fgets(buf, maxSize, pFile->fp) == NULL) {
-    return 0;
+    if (feof(pFile->fp)) {
+      return 0;
+    } else {
+      terrno = TAOS_SYSTEM_ERROR(ferror(pFile->fp));
+      return terrno;
+    }
   }
   
   return strlen(buf);
