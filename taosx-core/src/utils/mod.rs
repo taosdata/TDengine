@@ -5,6 +5,7 @@ use taos::*;
 
 pub mod breakpoints;
 pub mod constants;
+pub mod dsn;
 pub mod files;
 pub mod interval;
 pub mod license;
@@ -15,7 +16,6 @@ pub mod port_pool;
 pub mod rhai_syntax_validator;
 pub mod sql;
 pub mod trace;
-pub mod dsn;
 
 pub fn value_equals(value: &Value, other: &Value) -> bool {
     match (value, other) {
