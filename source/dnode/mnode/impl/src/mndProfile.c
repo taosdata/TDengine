@@ -546,7 +546,10 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
   int32_t kvNum = taosHashGetSize(pHbReq->info);
   if (NULL == pHbReq->info || kvNum <= 0) {
-    return taosArrayPush(pBatchRsp->rsps, &hbRsp);
+    if (taosArrayPush(pBatchRsp->rsps, &hbRsp) == NULL) {
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
+    }
   }
 
   hbRsp.info = taosArrayInit(kvNum, sizeof(SKv));
@@ -654,7 +657,10 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     pIter = taosHashIterate(pHbReq->info, pIter);
   }
 
-  return taosArrayPush(pBatchRsp->rsps, &hbRsp);
+  if (taosArrayPush(pBatchRsp->rsps, &hbRsp) == NULL) {
+    if (terrno != 0) code = terrno;
+  }
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
