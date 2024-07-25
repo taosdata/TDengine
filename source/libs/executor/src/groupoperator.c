@@ -460,9 +460,10 @@ _end:
   return (pRes->info.rows == 0) ? NULL : pRes;
 }
 
-static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
+static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -471,7 +472,8 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   SGroupbyOperatorInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_RES_TO_RETURN) {
-    return buildGroupResultDataBlockByHash(pOperator);
+    (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
+    return code;
   }
   SGroupResInfo* pGroupResInfo = &pInfo->groupResInfo;
 
@@ -523,7 +525,14 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  return buildGroupResultDataBlockByHash(pOperator);
+  (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
+  return code;
+}
+
+static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = hashGroupbyAggregateNext(pOperator, &pRes);
+  return pRes;
 }
 
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo) {
@@ -978,9 +987,10 @@ _end:
   return pInfo->binfo.pRes;
 }
 
-static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
+static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -990,7 +1000,8 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
   SSDataBlock*            pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    return buildPartitionResult(pOperator);
+    (*ppRes) =  buildPartitionResult(pOperator);
+    return code;
   }
 
   int64_t        st = taosGetTimestampUs();
@@ -1005,21 +1016,21 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
     pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
-      pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                              pInfo->scalarSup.numOfExprs, NULL);
-      if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-      }
+      code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
+                                   pInfo->scalarSup.numOfExprs, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     terrno = TSDB_CODE_SUCCESS;
     doHashPartition(pOperator, pBlock);
     if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
-      T_LONG_JMP(pTaskInfo->env, terrno);
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
   SArray* groupArray = taosArrayInit(taosHashGetSize(pInfo->pGroupSet), sizeof(SDataGroupInfo));
+  QUERY_CHECK_NULL(groupArray, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
   void* pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
   while (pGroupIter != NULL) {
@@ -1043,10 +1054,18 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  return buildPartitionResult(pOperator);
+  (*ppRes) = buildPartitionResult(pOperator);
+  return code;
+}
+
+static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = hashPartitionNext(pOperator, &pRes);
+  return pRes;
 }
 
 static void destroyPartitionOperatorInfo(void* param) {
@@ -1413,26 +1432,29 @@ _end:
   }
 }
 
-static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
+static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
   SExecTaskInfo*                pTaskInfo = pOperator->pTaskInfo;
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   if (hasRemainTbName(pInfo)) {
     code = buildStreamCreateTableResult(pOperator);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pInfo->pCreateTbRes && pInfo->pCreateTbRes->info.rows > 0) {
-      return pInfo->pCreateTbRes;
+      (*ppRes) = pInfo->pCreateTbRes;
+      return code;
     }
   }
 
   if (hasRemainPartion(pInfo)) {
-    return buildStreamPartitionResult(pOperator);
+    (*ppRes) = buildStreamPartitionResult(pOperator);
+    return code;
   }
 
   int64_t        st = taosGetTimestampUs();
@@ -1442,7 +1464,8 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       setOperatorCompleted(pOperator);
-      return NULL;
+      (*ppRes) = NULL;
+      return code;
     }
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
     switch (pBlock->info.type) {
@@ -1457,13 +1480,15 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
 
         pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
         printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-        return pInfo->pDelRes;
+        (*ppRes) = pInfo->pDelRes;
+        return code;
       } break;
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_RETRIEVE:
       case STREAM_CHECKPOINT:
       case STREAM_GET_ALL: {
-        return pBlock;
+        (*ppRes) = pBlock;
+        return code;
       }
       default:
         ASSERTS(0, "invalid SSDataBlock type");
@@ -1485,15 +1510,25 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
   code = buildStreamCreateTableResult(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
   if (pInfo->pCreateTbRes && pInfo->pCreateTbRes->info.rows > 0) {
-    return pInfo->pCreateTbRes;
+    (*ppRes) = pInfo->pCreateTbRes;
+    return code;
   }
-  return buildStreamPartitionResult(pOperator);
+  (*ppRes) = buildStreamPartitionResult(pOperator);
+  return code;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    pTaskInfo->code = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  return NULL;
+  (*ppRes) = NULL;
+  return code;
+}
+
+static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = doStreamHashPartitionNext(pOperator, &pRes);
+  return pRes;
 }
 
 static void destroyStreamPartitionOperatorInfo(void* param) {

@@ -357,12 +357,13 @@ static void doStreamCountAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   destroySBuffInfo(pAggSup, &buffInfo);
 }
 
-static SSDataBlock* buildCountResult(SOperatorInfo* pOperator) {
+static int32_t buildCountResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t                      code = TSDB_CODE_SUCCESS;
   SStreamCountAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
   SOptrBasicInfo*              pBInfo = &pInfo->binfo;
@@ -370,15 +371,18 @@ static SSDataBlock* buildCountResult(SOperatorInfo* pOperator) {
   doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
     printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-    return pInfo->pDelRes;
+    (*ppRes) = pInfo->pDelRes;
+    return code;
   }
 
   doBuildSessionResult(pOperator, pAggSup->pState, &pInfo->groupResInfo, pBInfo->pRes);
   if (pBInfo->pRes->info.rows > 0) {
     printDataBlock(pBInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-    return pBInfo->pRes;
+    (*ppRes) = pBInfo->pRes;
+    return code;
   }
-  return NULL;
+  (*ppRes) = NULL;
+  return code;
 }
 
 int32_t doStreamCountEncodeOpState(void** buf, int32_t len, SOperatorInfo* pOperator, bool isParent) {
@@ -425,6 +429,7 @@ int32_t doStreamCountDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   SStreamCountAggOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   if (!pInfo) {
     code = TSDB_CODE_FAILED;
     QUERY_CHECK_CODE(code, lino, _end);
@@ -465,7 +470,7 @@ int32_t doStreamCountDecodeOpState(void* buf, int32_t len, SOperatorInfo* pOpera
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   return code;
 }
@@ -475,6 +480,7 @@ void doStreamCountSaveCheckpoint(SOperatorInfo* pOperator) {
   int32_t                      lino = 0;
   void*                        pBuf = NULL;
   SStreamCountAggOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   if (needSaveStreamOperatorInfo(&pInfo->basic)) {
     int32_t len = doStreamCountEncodeOpState(NULL, 0, pOperator, true);
     pBuf = taosMemoryCalloc(1, len);
@@ -492,7 +498,7 @@ void doStreamCountSaveCheckpoint(SOperatorInfo* pOperator) {
 _end:
   taosMemoryFreeClear(pBuf);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
 }
 
@@ -604,7 +610,7 @@ _end:
   return code;
 }
 
-static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
+static int32_t doStreamCountAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   SExprSupp*                   pSup = &pOperator->exprSupp;
@@ -614,11 +620,15 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   qDebug("stask:%s  %s status: %d", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType), pOperator->status);
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   } else if (pOperator->status == OP_RES_TO_RETURN) {
-    SSDataBlock* opRes = buildCountResult(pOperator);
+    SSDataBlock* opRes = NULL;
+    code = buildCountResult(pOperator, &opRes);
+    QUERY_CHECK_CODE(code, lino, _end);
     if (opRes) {
-      return opRes;
+      (*ppRes) = opRes;
+      return code;
     }
 
     if (pInfo->recvGetAll) {
@@ -629,11 +639,13 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
     if (pInfo->reCkBlock) {
       pInfo->reCkBlock = false;
       printDataBlock(pInfo->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-      return pInfo->pCheckpointRes;
+      (*ppRes) = pInfo->pCheckpointRes;
+      return code;
     }
 
     setStreamOperatorCompleted(pOperator);
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -667,7 +679,8 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
-      return pBlock;
+      (*ppRes) = pBlock;
+      return code;
     } else if (pBlock->info.type == STREAM_CHECKPOINT) {
       pAggSup->stateStore.streamStateCommit(pAggSup->pState);
       doStreamCountSaveCheckpoint(pOperator);
@@ -710,29 +723,39 @@ static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  SSDataBlock* opRes = buildCountResult(pOperator);
+  SSDataBlock* opRes = NULL;
+  code = buildCountResult(pOperator, &opRes);
+  QUERY_CHECK_CODE(code, lino, _end);
   if (opRes) {
-    return opRes;
+    (*ppRes) = opRes;
+    return code;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
   setStreamOperatorCompleted(pOperator);
-  return NULL;
+  (*ppRes) = NULL;
+  return code;
+}
+
+static SSDataBlock* doStreamCountAgg(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t      code = doStreamCountAggNext(pOperator, &pRes);
+  return pRes;
 }
 
 void streamCountReleaseState(SOperatorInfo* pOperator) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   int32_t                      resSize = sizeof(TSKEY);
   char*                        pBuff = taosMemoryCalloc(1, resSize);
-  if (pBuff) {
-    code = terrno;
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  QUERY_CHECK_NULL(pBuff, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
   memcpy(pBuff, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
   qDebug("===stream=== count window operator relase state. ");
   pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_COUNT_OP_STATE_NAME,
@@ -745,7 +768,8 @@ void streamCountReleaseState(SOperatorInfo* pOperator) {
   }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    terrno = code;
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
 }
 
@@ -753,6 +777,7 @@ void streamCountReloadState(SOperatorInfo* pOperator) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   SStreamCountAggOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   SStreamAggSupporter*         pAggSup = &pInfo->streamAggSup;
   int32_t                      size = 0;
   void*                        pBuf = NULL;
@@ -773,7 +798,8 @@ void streamCountReloadState(SOperatorInfo* pOperator) {
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    terrno = code;
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
 }
 
@@ -882,6 +908,6 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   return NULL;
 }
