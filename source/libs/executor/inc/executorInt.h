@@ -24,7 +24,6 @@ extern "C" {
 #include "theap.h"
 #include "tlosertree.h"
 #include "tsort.h"
-#include "ttszip.h"
 #include "tvariant.h"
 
 #include "dataSinkMgt.h"
@@ -904,7 +903,7 @@ int32_t appendDataToSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pE
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
 void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
-                           SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
+                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 bool    groupbyTbname(SNodeList* pGroupList);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);

@@ -61,6 +61,8 @@ int32_t mndInitFunc(SMnode *pMnode) {
 void mndCleanupFunc(SMnode *pMnode) {}
 
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t  size = pFunc->commentSize + pFunc->codeSize + sizeof(SFuncObj) + SDB_FUNC_RESERVE_SIZE;
@@ -101,6 +103,8 @@ _OVER:
 }
 
 static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow  *pRow = NULL;
   SFuncObj *pFunc = NULL;

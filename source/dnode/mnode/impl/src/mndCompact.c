@@ -88,6 +88,8 @@ int32_t tDeserializeSCompactObj(void *buf, int32_t bufLen, SCompactObj *pObj) {
 }
 
 SSdbRaw *mndCompactActionEncode(SCompactObj *pCompact) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_SUCCESS;
 
   void    *buf = NULL;
@@ -136,6 +138,8 @@ OVER:
 }
 
 SSdbRow *mndCompactActionDecode(SSdbRaw *pRaw) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
   SSdbRow     *pRow = NULL;
   SCompactObj *pCompact = NULL;
   void        *buf = NULL;

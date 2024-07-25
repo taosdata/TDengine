@@ -21,17 +21,16 @@ extern "C" {
 #endif
 
 #include "tpagedbuf.h"
-#include "ttszip.h"
 
 typedef struct MinMaxEntry {
   union {
-    double   dMinVal;
-    //double   i64MinVal;
+    double dMinVal;
+    // double   i64MinVal;
     uint64_t u64MinVal;
   };
   union {
-    double  dMaxVal;
-    //double  i64MaxVal;
+    double dMaxVal;
+    // double  i64MaxVal;
     int64_t u64MaxVal;
   };
 } MinMaxEntry;

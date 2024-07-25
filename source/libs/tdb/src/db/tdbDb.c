@@ -31,7 +31,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
 
   pPtr = (uint8_t *)tdbOsCalloc(1, zsize);
   if (pPtr == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pDb = (TDB *)pPtr;
@@ -64,7 +64,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   tsize = sizeof(SPager *) * pDb->nPgrHash;
   pDb->pgrHash = tdbOsMalloc(tsize);
   if (pDb->pgrHash == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   memset(pDb->pgrHash, 0, tsize);
 
@@ -125,7 +125,7 @@ int32_t tdbBegin(TDB *pDb, TXN **ppTxn, void *(*xMalloc)(void *, size_t), void (
 
   TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
   if (!pTxn) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   ret = tdbTxnOpen(pTxn, txnId, xMalloc, xFree, xArg, flags);

@@ -103,7 +103,7 @@ typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char *, void **);
 
 typedef struct SFilterDataInfo {
   int32_t idx;
-  void*   addr;
+  void   *addr;
 } SFilterDataInfo;
 
 typedef struct SFilterRangeCompare {
@@ -227,10 +227,9 @@ typedef struct SFltTreeStat {
   SFilterInfo *info;
 } SFltTreeStat;
 
-
 typedef struct SFltScalarCtx {
-  SNode *node;
-  SArray* fltSclRange;
+  SNode  *node;
+  SArray *fltSclRange;
 } SFltScalarCtx;
 
 typedef struct SFltBuildGroupCtx {
@@ -271,9 +270,9 @@ struct SFilterInfo {
   SFilterPCtx pctx;
 };
 
-#define FILTER_NO_MERGE_DATA_TYPE(t)                                                            \
-  ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_VARBINARY || (t) == TSDB_DATA_TYPE_NCHAR || (t) == TSDB_DATA_TYPE_JSON || \
-   (t) == TSDB_DATA_TYPE_GEOMETRY)
+#define FILTER_NO_MERGE_DATA_TYPE(t)                                                                 \
+  ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_VARBINARY || (t) == TSDB_DATA_TYPE_NCHAR || \
+   (t) == TSDB_DATA_TYPE_JSON || (t) == TSDB_DATA_TYPE_GEOMETRY)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == OP_TYPE_IS_NULL || (o) == OP_TYPE_IS_NOT_NULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
@@ -361,29 +360,29 @@ struct SFilterInfo {
       _r = n;                           \
     }                                   \
   } while (0)
-#define INSERT_RANGE(ctx, r, ra)                   \
-  do {                                             \
-    SFilterRangeNode *n = NULL;                    \
-    FLT_ERR_RET(filterNewRange(ctx, ra, &n));      \
-    n->prev = (r)->prev;                           \
-    if ((r)->prev) {                               \
-      (r)->prev->next = n;                         \
-    } else {                                       \
-      (ctx)->rs = n;                               \
-    }                                              \
-    (r)->prev = n;                                 \
-    n->next = r;                                   \
+#define INSERT_RANGE(ctx, r, ra)              \
+  do {                                        \
+    SFilterRangeNode *n = NULL;               \
+    FLT_ERR_RET(filterNewRange(ctx, ra, &n)); \
+    n->prev = (r)->prev;                      \
+    if ((r)->prev) {                          \
+      (r)->prev->next = n;                    \
+    } else {                                  \
+      (ctx)->rs = n;                          \
+    }                                         \
+    (r)->prev = n;                            \
+    n->next = r;                              \
   } while (0)
-#define APPEND_RANGE(ctx, r, ra)                   \
-  do {                                             \
-    SFilterRangeNode *n = NULL;                    \
-    FLT_ERR_RET(filterNewRange(ctx, ra, &n));      \
-    n->prev = (r);                                 \
-    if (r) {                                       \
-      (r)->next = n;                               \
-    } else {                                       \
-      (ctx)->rs = n;                               \
-    }                                              \
+#define APPEND_RANGE(ctx, r, ra)              \
+  do {                                        \
+    SFilterRangeNode *n = NULL;               \
+    FLT_ERR_RET(filterNewRange(ctx, ra, &n)); \
+    n->prev = (r);                            \
+    if (r) {                                  \
+      (r)->next = n;                          \
+    } else {                                  \
+      (ctx)->rs = n;                          \
+    }                                         \
   } while (0)
 
 #define FLT_IS_COMPARISON_OPERATOR(_op) ((_op) >= OP_TYPE_GREATER_THAN && (_op) < OP_TYPE_IS_NOT_UNKNOWN)
@@ -454,7 +453,7 @@ struct SFilterInfo {
 #define FILTER_UNIT_OPTR(u)            ((u)->compare.optr)
 #define FILTER_UNIT_COMP_FUNC(u)       ((u)->compare.func)
 
-#define FILTER_UNIT_CLR_F(i)         memset((i)->unitFlags, 0, (i)->unitNum * sizeof(*info->unitFlags))
+#define FILTER_UNIT_CLR_F(i)         (void)memset((i)->unitFlags, 0, (i)->unitNum * sizeof(*info->unitFlags))
 #define FILTER_UNIT_SET_F(i, idx)    (i)->unitFlags[idx] = 1
 #define FILTER_UNIT_GET_F(i, idx)    ((i)->unitFlags[idx])
 #define FILTER_UNIT_GET_R(i, idx)    ((i)->unitRes[idx])
@@ -482,7 +481,7 @@ struct SFilterInfo {
 #define FILTER_COPY_IDX(dst, src, n)                 \
   do {                                               \
     *(dst) = taosMemoryMalloc(sizeof(uint32_t) * n); \
-    memcpy(*(dst), src, sizeof(uint32_t) * n);       \
+    (void)memcpy(*(dst), src, sizeof(uint32_t) * n); \
   } while (0)
 
 #define FILTER_ADD_CTX_TO_GRES(gres, idx, ctx)                              \

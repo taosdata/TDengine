@@ -1099,6 +1099,8 @@ END:
 void mndCleanupSubscribe(SMnode *pMnode) {}
 
 static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   void   *buf = NULL;
   int32_t tlen = tEncodeSubscribeObj(NULL, pSub);
@@ -1137,6 +1139,8 @@ SUB_ENCODE_OVER:
 }
 
 static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow         *pRow = NULL;
   SMqSubscribeObj *pSub = NULL;
