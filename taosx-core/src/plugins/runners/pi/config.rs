@@ -1,3 +1,4 @@
+use crate::utils::dsn::DsnParamGetter;
 use anyhow::{anyhow, Context};
 use std::str::FromStr;
 use taos::Dsn;
@@ -73,6 +74,23 @@ pub struct PiConfig {
     log_level: Option<String>,
     #[serde(rename = "TaskID", skip_serializing_if = "Option::is_none")]
     task_id: Option<i64>,
+
+    #[serde(rename = "SyncAddElement", skip_serializing_if = "Option::is_none")]
+    sync_add_element: Option<bool>,
+
+    #[serde(rename = "SyncAddElement", skip_serializing_if = "Option::is_none")]
+    sync_delete_element: Option<bool>,
+
+    #[serde(
+        rename = "SyncUpdateAttribute",
+        skip_serializing_if = "Option::is_none"
+    )]
+    sync_update_attribute: Option<bool>,
+    #[serde(rename = "SyncUpdateData", skip_serializing_if = "Option::is_none")]
+    sync_update_data: Option<bool>,
+
+    #[serde(rename = "SyncDeleteData", skip_serializing_if = "Option::is_none")]
+    sync_delete_data: Option<bool>,
 }
 
 impl PiConfig {
@@ -107,6 +125,11 @@ impl PiConfig {
             backfill_end_time: Self::parse_backfill_end_time(dsn)?,
             log_level: Self::parse_log_level(dsn)?,
             task_id: None,
+            sync_add_element: None,
+            sync_delete_element: None,
+            sync_update_attribute: None,
+            sync_update_data: None,
+            sync_delete_data: None,
         };
 
         Ok(pi_config)
@@ -207,6 +230,18 @@ impl PiConfig {
         } else {
             (template_list, Vec::new())
         };
+        let mut sync_add_element = None;
+        let mut sync_delete_element = None;
+        let mut sync_update_attribute = None;
+        let mut sync_update_data = None;
+        let mut sync_delete_data = None;
+        if !for_backfill {
+            sync_add_element = from.get_bool("sync_add_element")?;
+            sync_delete_element = from.get_bool("sync_delete_element")?;
+            sync_update_attribute = from.get_bool("sync_update_attribute")?;
+            sync_update_data = from.get_bool("sync_update_data")?;
+            sync_delete_data = from.get_bool("sync_delete_data")?;
+        }
         Ok(Self {
             server_name,
             system_name,
@@ -231,6 +266,11 @@ impl PiConfig {
             backfill_end_time,
             log_level,
             task_id,
+            sync_add_element,
+            sync_delete_element,
+            sync_update_attribute,
+            sync_update_data,
+            sync_delete_data,
         })
     }
 
