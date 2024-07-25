@@ -84,7 +84,7 @@ int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
     if (state->taskId.async == taskId->async && state->taskId.id == taskId->id) {
       tsdbInfo("vid:%d, fid:%d, taskId:%" PRId64 " is removed from compact monitor, number of tasks:%d",
                TD_VID(tsdb->pVnode), state->fid, taskId->id, TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr));
-      TAOS_UNUSED(TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL));
+      TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL);
       break;
     }
   }
@@ -107,7 +107,7 @@ int32_t tsdbStopAllCompTask(STsdb *tsdb) {
   while (i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr)) {
     SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
     if (vnodeACancel(&state->taskId) == 0) {
-      TAOS_UNUSED(TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL));
+      TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL);
     } else {
       i++;
     }

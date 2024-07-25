@@ -567,7 +567,7 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&compactor.fset);
   TARRAY2_DESTROY(compactor.fopArr, NULL);
-  TAOS_UNUSED(tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid););
+  TAOS_UNUSED(tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid));
   taosMemoryFree(arg);
 
   if (code) {

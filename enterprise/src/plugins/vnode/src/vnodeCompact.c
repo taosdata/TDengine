@@ -40,7 +40,7 @@ int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   }
   vInfo("vgId:%d, kill compact msg will be processed, compactId:%d", TD_VID(pVnode), req.compactId);
 
-  TAOS_UNUSED(tsdbStopAllCompTask(pVnode->pTsdb););
+  TAOS_UNUSED(tsdbStopAllCompTask(pVnode->pTsdb));
 
   pRsp->msgType = TDMT_VND_KILL_COMPACT_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
