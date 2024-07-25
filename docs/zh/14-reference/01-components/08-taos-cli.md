@@ -1,16 +1,12 @@
 ---
-title: TDengine 命令行(CLI)
-sidebar_label: TDengine CLI
-description: TDengine CLI 的使用说明和技巧
+title: TDengine CLI 参考手册
+sidebar_label: taos
+toc_max_heading_level: 4
 ---
 
-TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 实例并与之交互的最简洁最常用的方式。
+TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 实例并与之交互的最简洁最常用的方式。 使用前需要安装 TDengine Server 安装包或 TDengine Client 安装包。
 
-## 安装
-
-如果在 TDengine 服务器端执行，无需任何安装，已经自动安装好 TDengine CLI。如果要在非 TDengine 服务器端运行，需要安装 TDengine 客户端驱动安装包，具体安装，请参考 [连接器](../../connector/)。
-
-## 执行
+## 启动
 
 要进入 TDengine CLI，您只要在终端执行 `taos` 即可。
 
@@ -18,9 +14,11 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 taos
 ```
 
-如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息。（请参考 [FAQ](../../train-faq/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
+如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息。
 
-```cmd
+TDengine CLI 的提示符号如下：
+
+```shell
 taos>
 ```
 
@@ -81,6 +79,10 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 ```bash
 taos -h h1.taos.com -s "use db; show tables;"
 ```
+
+## 配置文件
+
+也可以通过配置文件中的参数设置来控制 TDengine CLI 的行为。可用配置参数请参考[客户端配置](../taosc)
 
 ## TDengine CLI 小技巧
 
