@@ -145,8 +145,8 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 static void buildCountResult(SExprSupp* pExprSup, SCountWindowSupp* pCountSup, SExecTaskInfo* pTaskInfo,
                              SFilterInfo* pFilterInfo, SSDataBlock* pBlock) {
   SResultRow* pResultRow = NULL;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
   for (int32_t i = 0; i < taosArrayGetSize(pCountSup->pWinStates); i++) {
     SCountWindowResult* pBuff = NULL;
     code = setCountWindowOutputBuff(pExprSup, pCountSup, &pResultRow, &pBuff);
@@ -171,7 +171,7 @@ _end:
   }
 }
 
-static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
+static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SCountWindowOperatorInfo* pInfo = pOperator->info;
@@ -198,11 +198,9 @@ static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
-      pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                              pInfo->scalarSup.numOfExprs, NULL);
-      if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-      }
+      code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
+                                   pInfo->scalarSup.numOfExprs, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pInfo->groupId == 0) {
@@ -214,7 +212,8 @@ static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
 
     doCountWindowAggImpl(pOperator, pBlock);
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
-      return pRes;
+      (*ppRes) = pRes;
+      return code;
     }
   }
 
@@ -223,9 +222,17 @@ static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  return pRes->info.rows == 0 ? NULL : pRes;
+  (*ppRes) = pRes->info.rows == 0 ? NULL : pRes;
+  return code;
+}
+
+static SSDataBlock* countWindowAggregate(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = countWindowAggregateNext(pOperator, &pRes);
+  return pRes;
 }
 
 SOperatorInfo* createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
