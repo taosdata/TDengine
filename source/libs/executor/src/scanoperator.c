@@ -3521,8 +3521,8 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         void*    metaBuff = POINTER_SHIFT(tBuf, sizeof(SMqRspHead));
         SEncoder encoder = {0};
         tEncoderInit(&encoder, metaBuff, len);
-        tempRes = tEncodeMqMetaRsp(&encoder, &tmpMetaRsp);
-        if (TSDB_CODE_SUCCESS != tempRes) {
+        int32_t tempLen = tEncodeMqMetaRsp(&encoder, &tmpMetaRsp);
+        if (tempLen < 0) {
           qError("tmqsnap tEncodeMqMetaRsp error");
           tEncoderClear(&encoder);
           taosMemoryFreeClear(tBuf);
