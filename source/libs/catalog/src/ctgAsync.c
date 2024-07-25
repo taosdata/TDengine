@@ -1203,43 +1203,6 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 
-      if (CTG_FLAG_IS_STB(flag)) {
-        break;
-      }
-
-      if (CTG_IS_META_TABLE(pOut->metaType) && TSDB_SUPER_TABLE == pOut->tbMeta->tableType) {
-        ctgTaskDebug("will continue to refresh tbmeta since got stb, tbName:%s", tNameGetTableName(pName));
-
-        taosMemoryFreeClear(pOut->tbMeta);
-
-        CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, pName, NULL, tReq));
-      } else if (CTG_IS_META_BOTH(pOut->metaType)) {
-        int32_t exist = 0;
-        if (!CTG_FLAG_IS_FORCE_UPDATE(flag)) {
-          SName stbName = *pName;
-          strcpy(stbName.tname, pOut->tbName);
-          SCtgTbMetaCtx stbCtx = {0};
-          stbCtx.flag = flag;
-          stbCtx.pName = &stbName;
-
-          STableMeta* stbMeta = NULL;
-          (void)ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta);
-          if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
-            ctgTaskDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
-            exist = 1;
-            taosMemoryFreeClear(stbMeta);
-          } else {
-            ctgTaskDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
-            taosMemoryFreeClear(pOut->tbMeta);
-            taosMemoryFreeClear(stbMeta);
-          }
-        }
-
-        if (0 == exist) {
-          TSWAP(pMsgCtx->lastOut, pMsgCtx->out);
-          CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pOut->dbFName, pOut->tbName, NULL, tReq));
-        }
-      }
       break;
     }
     default:
@@ -1617,13 +1580,6 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTaskReq* tReq, int32_t flag, SName* pName, int
     ctgDebug("will refresh sys db tbmeta, tbName:%s", tNameGetTableName(pName));
 
     CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, (char*)pName->dbname, (char*)pName->tname, NULL, tReq));
-  }
-
-  if (CTG_FLAG_IS_STB(flag)) {
-    ctgDebug("will refresh tbmeta, supposed to be stb, tbName:%s", tNameGetTableName(pName));
-
-    // if get from mnode failed, will not try vnode
-    CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, pName, NULL, tReq));
   }
 
   SCtgDBCache* dbCache = NULL;
