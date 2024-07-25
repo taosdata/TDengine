@@ -547,7 +547,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
   SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
-  QUERY_CHECK_NULL(pWrapper, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pWrapper, code, lino, _end, terrno);
   pWrapper->exchangeId = pExchangeInfo->self;
   pWrapper->sourceIndex = sourceIndex;
 
@@ -764,12 +764,12 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   if (pRetrieveRsp->compressed) {  // decompress the data
     if (pDataInfo->decompBuf == NULL) {
       pDataInfo->decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
-      QUERY_CHECK_NULL(pDataInfo->decompBuf, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(pDataInfo->decompBuf, code, lino, _end, terrno);
       pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
     } else {
       if (pDataInfo->decompBufSize < pRetrieveRsp->payloadLen) {
         char* p = taosMemoryRealloc(pDataInfo->decompBuf, pRetrieveRsp->payloadLen);
-        QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(p, code, lino, _end, terrno);
         if (p != NULL) {
           pDataInfo->decompBuf = p;
           pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
@@ -787,7 +787,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       blockDataCleanup(pb);
     } else {
       pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
-      QUERY_CHECK_NULL(pb, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(pb, code, lino, _end, terrno);
     }
 
     int32_t compLen = *(int32_t*)pStart;
@@ -811,7 +811,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     }
 
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
 _end:

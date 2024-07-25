@@ -132,20 +132,20 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   }
 
   SArray* pCidList = taosArrayInit(numOfCols, sizeof(int16_t));
-  QUERY_CHECK_NULL(pCidList, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pCidList, code, lino, _error, terrno);
 
   pInfo->pFuncTypeList = taosArrayInit(taosArrayGetSize(pScanNode->pFuncTypes), sizeof(int32_t));
-  QUERY_CHECK_NULL(pInfo->pFuncTypeList, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pInfo->pFuncTypeList, code, lino, _error, terrno);
 
   void* tmp = taosArrayAddAll(pInfo->pFuncTypeList, pScanNode->pFuncTypes);
   if (!tmp && taosArrayGetSize(pScanNode->pFuncTypes) > 0) {
-    QUERY_CHECK_NULL(tmp, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
   }
 
   for (int i = 0; i < TARRAY_SIZE(pInfo->matchInfo.pList); ++i) {
     SColMatchItem* pColInfo = taosArrayGet(pInfo->matchInfo.pList, i);
     void*          tmp = taosArrayPush(pCidList, &pColInfo->colId);
-    QUERY_CHECK_NULL(tmp, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
     if (pInfo->pFuncTypeList != NULL && taosArrayGetSize(pInfo->pFuncTypeList) > i) {
       pColInfo->funcType = *(int32_t*)taosArrayGet(pInfo->pFuncTypeList, i);
     }
@@ -469,7 +469,7 @@ int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pC
 
   size_t  size = taosArrayGetSize(pColMatchInfo->pList);
   SArray* pMatchInfo = taosArrayInit(size, sizeof(SColMatchItem));
-  QUERY_CHECK_NULL(pMatchInfo, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pMatchInfo, code, lino, _end, terrno);
 
   for (int32_t i = 0; i < size; ++i) {
     SColMatchItem* pColInfo = taosArrayGet(pColMatchInfo->pList, i);
@@ -480,10 +480,10 @@ int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pC
     SSlotDescNode* pDesc = (SSlotDescNode*)nodesListGetNode(pList, slotId);
     if (pDesc->dataType.type != TSDB_DATA_TYPE_TIMESTAMP) {
       void* tmp = taosArrayPush(pMatchInfo, pColInfo);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     } else if (FUNCTION_TYPE_CACHE_LAST_ROW == pColInfo->funcType) {
       void* tmp = taosArrayPush(pMatchInfo, pColInfo);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     }
   }
 
