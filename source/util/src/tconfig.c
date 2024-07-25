@@ -1270,7 +1270,8 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       return -1;
     }
     size_t fileSize = taosLSeekFile(pFile, 0, SEEK_END);
-    char  *buf = taosMemoryMalloc(fileSize);
+    char  *buf = taosMemoryMalloc(fileSize + 1);
+    buf[fileSize] = 0;
     taosLSeekFile(pFile, 0, SEEK_SET);
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
       taosCloseFile(&pFile);
@@ -1296,16 +1297,14 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       if (item == NULL) break;
       char *itemName = NULL, *itemValueString = NULL;
       tjsonGetObjectName(item, &itemName);
-      tjsonGetObjectName(item, &itemName);
       tjsonGetObjectValueString(item, &itemValueString);
       if (itemValueString != NULL && itemName != NULL) {
         size_t itemNameLen = strlen(itemName);
         size_t itemValueStringLen = strlen(itemValueString);
-        cfgLineBuf = taosMemoryMalloc(itemNameLen + itemValueStringLen + 2);
+        cfgLineBuf = taosMemoryRealloc(cfgLineBuf, itemNameLen + itemValueStringLen + 3);
         memcpy(cfgLineBuf, itemName, itemNameLen);
         cfgLineBuf[itemNameLen] = ' ';
         memcpy(&cfgLineBuf[itemNameLen + 1], itemValueString, itemValueStringLen);
-        cfgLineBuf[itemNameLen + itemValueStringLen + 1] = '\0';
 
         paGetToken(cfgLineBuf, &name, &olen);
         if (olen == 0) continue;
@@ -1344,6 +1343,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     return -1;
   }
 
+  taosMemoryFree(cfgLineBuf);
   uInfo("load from apoll url not implemented yet");
   return 0;
 }

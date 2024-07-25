@@ -866,9 +866,10 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 
   if (code) {
     terrno = code;
+    return terrno;
   }
 
-  return code;
+  return ret;
 }
 
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
