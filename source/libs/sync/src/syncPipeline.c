@@ -38,16 +38,16 @@ FORCE_INLINE static int64_t syncGetRetryMaxWaitMs() {
 }
 
 int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf) {
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   int64_t index = pBuf->endIndex;
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return index;
 }
 
 int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
   int32_t code = 0;
-  taosThreadMutexLock(&pBuf->mutex);
-  syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
   SyncIndex index = pEntry->index;
 
   if (index - pBuf->startIndex >= pBuf->size) {
@@ -86,13 +86,13 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   pBuf->entries[index % pBuf->size] = tmp;
   pBuf->endIndex = index + 1;
 
-  syncLogBufferValidate(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 
 _err:
-  syncLogBufferValidate(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   taosMsleep(1);
   TAOS_RETURN(code);
 }
@@ -263,7 +263,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 
   // validate
-  syncLogBufferValidate(pBuf);
+  (void)syncLogBufferValidate(pBuf);
   return 0;
 
 _exit:
@@ -274,29 +274,29 @@ _exit:
 }
 
 int32_t syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   int32_t ret = syncLogBufferInitWithoutLock(pBuf, pNode);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return ret;
 }
 
 int32_t syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
-  taosThreadMutexLock(&pBuf->mutex);
-  syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
   for (SyncIndex index = pBuf->startIndex; index < pBuf->endIndex; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     if (pEntry == NULL) continue;
     syncEntryDestroy(pEntry);
     pEntry = NULL;
-    memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
+    (void)memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
   }
   pBuf->startIndex = pBuf->commitIndex = pBuf->matchIndex = pBuf->endIndex = 0;
   int32_t code = syncLogBufferInitWithoutLock(pBuf, pNode);
   if (code < 0) {
     sError("vgId:%d, failed to re-initialize sync log buffer since %s.", pNode->vgId, tstrerror(code));
   }
-  syncLogBufferValidate(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return code;
 }
 
@@ -308,22 +308,22 @@ FORCE_INLINE SyncTerm syncLogBufferGetLastMatchTermWithoutLock(SSyncLogBuffer* p
 }
 
 SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf) {
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   SyncTerm term = syncLogBufferGetLastMatchTermWithoutLock(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return term;
 }
 
 bool syncLogBufferIsEmpty(SSyncLogBuffer* pBuf) {
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   bool empty = (pBuf->endIndex <= pBuf->startIndex);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return empty;
 }
 
 int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm) {
-  taosThreadMutexLock(&pBuf->mutex);
-  syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
   int32_t         code = 0;
   SyncIndex       index = pEntry->index;
   SyncIndex       prevIndex = pEntry->index - 1;
@@ -411,8 +411,8 @@ _out:
     syncEntryDestroy(pExist);
     pExist = NULL;
   }
-  syncLogBufferValidate(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   TAOS_RETURN(code);
 }
 
@@ -444,8 +444,8 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
 }
 
 int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char* str) {
-  taosThreadMutexLock(&pBuf->mutex);
-  syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
 
   SSyncLogStore* pLogStore = pNode->pLogStore;
   int64_t        matchIndex = pBuf->matchIndex;
@@ -544,8 +544,8 @@ _out:
   if (pMatchTerm) {
     *pMatchTerm = pBuf->entries[(matchIndex + pBuf->size) % pBuf->size].pItem->term;
   }
-  syncLogBufferValidate(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return matchIndex;
 }
 
@@ -617,8 +617,8 @@ int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf) {
 }
 
 int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex) {
-  taosThreadMutexLock(&pBuf->mutex);
-  syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
 
   SSyncLogStore*  pLogStore = pNode->pLogStore;
   SSyncFSM*       pFsm = pNode->pFsm;
@@ -720,7 +720,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     ASSERT(pEntry != NULL);
     syncEntryDestroy(pEntry);
-    memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
+    (void)memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
     pBuf->startIndex = index + 1;
   }
 
@@ -743,8 +743,8 @@ _out:
     syncEntryDestroy(pNextEntry);
     pNextEntry = NULL;
   }
-  syncLogBufferValidate(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   TAOS_RETURN(code);
 }
 
@@ -753,7 +753,7 @@ void syncLogReplReset(SSyncLogReplMgr* pMgr) {
 
   ASSERT(pMgr->startIndex >= 0);
   for (SyncIndex index = pMgr->startIndex; index < pMgr->endIndex; index++) {
-    memset(&pMgr->states[index % pMgr->size], 0, sizeof(pMgr->states[0]));
+    (void)memset(&pMgr->states[index % pMgr->size], 0, sizeof(pMgr->states[0]));
   }
   pMgr->startIndex = 0;
   pMgr->matchIndex = 0;
@@ -935,20 +935,20 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
 
 int32_t syncLogReplProcessHeartbeatReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncHeartbeatReply* pMsg) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   if (pMsg->startTime != 0 && pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl in heartbeat. peer:%" PRIx64 ", start time:%" PRId64 ", old:%" PRId64 "",
           pNode->vgId, pMsg->srcId.addr, pMsg->startTime, pMgr->peerStartTime);
     syncLogReplReset(pMgr);
     pMgr->peerStartTime = pMsg->startTime;
   }
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 }
 
 int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   if (pMsg->startTime != pMgr->peerStartTime) {
     sInfo("vgId:%d, reset sync log repl in appendlog reply. peer:%" PRIx64 ", start time:%" PRId64 ", old:%" PRId64,
           pNode->vgId, pMsg->srcId.addr, pMsg->startTime, pMgr->peerStartTime);
@@ -961,7 +961,7 @@ int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncApp
   } else {
     (void)syncLogReplRecover(pMgr, pNode, pMsg);
   }
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 }
 
@@ -1083,7 +1083,7 @@ int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendE
     pMgr->states[pMsg->lastSendIndex % pMgr->size].acked = true;
     pMgr->matchIndex = TMAX(pMgr->matchIndex, pMsg->matchIndex);
     for (SyncIndex index = pMgr->startIndex; index < pMgr->matchIndex; index++) {
-      memset(&pMgr->states[index % pMgr->size], 0, sizeof(pMgr->states[0]));
+      (void)memset(&pMgr->states[index % pMgr->size], 0, sizeof(pMgr->states[0]));
     }
     pMgr->startIndex = pMgr->matchIndex;
   }
@@ -1169,16 +1169,16 @@ _exit:
 }
 
 void syncLogBufferClear(SSyncLogBuffer* pBuf) {
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   for (SyncIndex index = pBuf->startIndex; index < pBuf->endIndex; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     if (pEntry == NULL) continue;
     syncEntryDestroy(pEntry);
     pEntry = NULL;
-    memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
+    (void)memset(&pBuf->entries[(index + pBuf->size) % pBuf->size], 0, sizeof(pBuf->entries[0]));
   }
   pBuf->startIndex = pBuf->commitIndex = pBuf->matchIndex = pBuf->endIndex = 0;
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
 }
 
 void syncLogBufferDestroy(SSyncLogBuffer* pBuf) {
@@ -1211,7 +1211,7 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
     if (pEntry != NULL) {
       (void)syncEntryDestroy(pEntry);
       pEntry = NULL;
-      memset(&pBuf->entries[index % pBuf->size], 0, sizeof(pBuf->entries[0]));
+      (void)memset(&pBuf->entries[index % pBuf->size], 0, sizeof(pBuf->entries[0]));
     }
     index--;
   }
@@ -1238,13 +1238,13 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
   }
 
   ASSERT(pBuf->endIndex == toIndex);
-  syncLogBufferValidate(pBuf);
+  (void)syncLogBufferValidate(pBuf);
   return 0;
 }
 
 int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
-  taosThreadMutexLock(&pBuf->mutex);
-  syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexLock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
   SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
   ASSERT(lastVer == pBuf->matchIndex);
   SyncIndex index = pBuf->endIndex - 1;
@@ -1261,8 +1261,8 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
     syncLogReplReset(pMgr);
   }
-  syncLogBufferValidate(pBuf);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)syncLogBufferValidate(pBuf);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 }
 

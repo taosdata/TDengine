@@ -44,7 +44,7 @@ static void syncSnapBufferDestroy(SSyncSnapBuffer **ppBuf) {
 
   syncSnapBufferReset(pBuf);
 
-  taosThreadMutexDestroy(&pBuf->mutex);
+  (void)taosThreadMutexDestroy(&pBuf->mutex);
   taosMemoryFree(ppBuf[0]);
   ppBuf[0] = NULL;
   return;
@@ -141,7 +141,7 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
     syncSnapBufferDestroy(&pSender->pSndBuf);
   }
 
-  snapshotSenderClearInfoData(pSender);
+  (void)snapshotSenderClearInfoData(pSender);
 
   // free sender
   taosMemoryFree(pSender);
@@ -214,7 +214,7 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   // update flag
   int8_t stopped = !atomic_val_compare_exchange_8(&pSender->start, true, false);
   if (stopped) return;
-  taosThreadMutexLock(&pSender->pSndBuf->mutex);
+  (void)taosThreadMutexLock(&pSender->pSndBuf->mutex);
   {
     pSender->finish = finish;
 
@@ -226,12 +226,12 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
 
     syncSnapBufferReset(pSender->pSndBuf);
 
-    snapshotSenderClearInfoData(pSender);
+    (void)snapshotSenderClearInfoData(pSender);
 
     SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
     sSInfo(pSender, "snapshot sender stop, to dnode:%d, finish:%d", DID(&destId), finish);
   }
-  taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
+  (void)taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
 }
 
 int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock, int32_t blockLen, int32_t typ) {
@@ -256,7 +256,7 @@ int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock,
   pMsg->seq = seq;
 
   if (pBlock != NULL && blockLen > 0) {
-    memcpy(pMsg->data, pBlock, blockLen);
+    (void)memcpy(pMsg->data, pBlock, blockLen);
   }
   pMsg->payloadType = typ;
 
@@ -340,7 +340,7 @@ _OUT:;
 int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   SSyncSnapBuffer *pSndBuf = pSender->pSndBuf;
   int32_t          code = 0;
-  taosThreadMutexLock(&pSndBuf->mutex);
+  (void)taosThreadMutexLock(&pSndBuf->mutex);
   if (pSender->pReader == NULL || pSender->finish || !snapshotSenderIsStart(pSender)) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _out;
@@ -371,7 +371,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     }
   }
 _out:;
-  taosThreadMutexUnlock(&pSndBuf->mutex);
+  (void)taosThreadMutexUnlock(&pSndBuf->mutex);
   TAOS_RETURN(code);
 }
 
@@ -544,7 +544,7 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
 
   int8_t stopped = !atomic_val_compare_exchange_8(&pReceiver->start, true, false);
   if (stopped) return;
-  taosThreadMutexLock(&pReceiver->pRcvBuf->mutex);
+  (void)taosThreadMutexLock(&pReceiver->pRcvBuf->mutex);
   {
     if (pReceiver->pWriter != NULL) {
       int32_t code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter,
@@ -559,9 +559,9 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
 
     syncSnapBufferReset(pReceiver->pRcvBuf);
 
-    snapshotReceiverClearInfoData(pReceiver);
+    (void)snapshotReceiverClearInfoData(pReceiver);
   }
-  taosThreadMutexUnlock(&pReceiver->pRcvBuf->mutex);
+  (void)taosThreadMutexUnlock(&pReceiver->pRcvBuf->mutex);
 }
 
 static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
@@ -685,7 +685,7 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
   }
   pInfo->data = data;
   data = NULL;
-  memcpy(pInfo->data, pMsg->data, pMsg->dataLen);
+  (void)memcpy(pInfo->data, pMsg->data, pMsg->dataLen);
 
   // exchange snap info
   if ((code = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, pInfo)) != 0) {
@@ -711,7 +711,7 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
   }
   pParam->data = data;
   data = NULL;
-  memcpy(pParam->data, pInfo->data, dataLen);
+  (void)memcpy(pParam->data, pInfo->data, dataLen);
 
 _exit:
   TAOS_RETURN(code);
@@ -848,7 +848,7 @@ int32_t syncSnapSendRsp(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg
   pRspMsg->payloadType = type;
 
   if (pBlock != NULL && blockLen > 0) {
-    memcpy(pRspMsg->data, pBlock, blockLen);
+    (void)memcpy(pRspMsg->data, pBlock, blockLen);
   }
 
   // send msg
@@ -864,7 +864,7 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
   SSyncSnapBuffer  *pRcvBuf = pReceiver->pRcvBuf;
   SyncSnapshotSend *pMsg = ppMsg[0];
 
-  taosThreadMutexLock(&pRcvBuf->mutex);
+  (void)taosThreadMutexLock(&pRcvBuf->mutex);
 
   if (pMsg->seq - pRcvBuf->start >= pRcvBuf->size) {
     code = TSDB_CODE_SYN_BUFFER_FULL;
@@ -900,14 +900,14 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
       }
     }
     pRcvBuf->start = seq + 1;
-    syncSnapSendRsp(pReceiver, pRcvBuf->entries[seq % pRcvBuf->size], NULL, 0, 0, code);
+    (void)syncSnapSendRsp(pReceiver, pRcvBuf->entries[seq % pRcvBuf->size], NULL, 0, 0, code);
     pRcvBuf->entryDeleteCb(pRcvBuf->entries[seq % pRcvBuf->size]);
     pRcvBuf->entries[seq % pRcvBuf->size] = NULL;
     if (code) goto _out;
   }
 
 _out:
-  taosThreadMutexUnlock(&pRcvBuf->mutex);
+  (void)taosThreadMutexUnlock(&pRcvBuf->mutex);
   TAOS_RETURN(code);
 }
 
@@ -995,7 +995,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     sRError(pReceiver, "reject snap replication with smaller term. msg term:%" PRId64 ", seq:%d", pMsg->term,
             pMsg->seq);
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code);
+    (void)syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code);
     TAOS_RETURN(code);
   }
 
@@ -1078,7 +1078,7 @@ static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSe
   if (data == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  memcpy(data, pMsg->data, dataLen);
+  (void)memcpy(data, pMsg->data, dataLen);
 
   pParam->data = data;
   data = NULL;
@@ -1098,7 +1098,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
     TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
   }
 
-  taosThreadMutexLock(&pSender->pSndBuf->mutex);
+  (void)taosThreadMutexLock(&pSender->pSndBuf->mutex);
   TAOS_CHECK_GOTO(pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot), NULL, _out);
 
   // prepare <begin, end>
@@ -1128,7 +1128,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   code = snapshotSend(pSender);
 
 _out:
-  taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
+  (void)taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
   TAOS_RETURN(code);
 }
 
@@ -1145,7 +1145,7 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
   SSyncSnapBuffer *pSndBuf = pSender->pSndBuf;
   SyncSnapshotRsp *pMsg = ppMsg[0];
 
-  taosThreadMutexLock(&pSndBuf->mutex);
+  (void)taosThreadMutexLock(&pSndBuf->mutex);
   if (snapshotSenderSignatureCmp(pSender, pMsg) != 0) {
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
     goto _out;
@@ -1196,7 +1196,7 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
     }
   }
 _out:
-  taosThreadMutexUnlock(&pSndBuf->mutex);
+  (void)taosThreadMutexUnlock(&pSndBuf->mutex);
   TAOS_RETURN(code);
 }
 

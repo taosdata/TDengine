@@ -19,7 +19,7 @@
 extern int64_t tsMinDiskFreeSize;
 
 int32_t tfsInitTier(STfsTier *pTier, int32_t level) {
-  memset(pTier, 0, sizeof(STfsTier));
+  (void)memset(pTier, 0, sizeof(STfsTier));
 
   if (taosThreadSpinInit(&pTier->lock, 0) != 0) {
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
@@ -35,7 +35,7 @@ void tfsDestroyTier(STfsTier *pTier) {
   }
 
   pTier->ndisk = 0;
-  taosThreadSpinDestroy(&pTier->lock);
+  (void)taosThreadSpinDestroy(&pTier->lock);
 }
 
 int32_t tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg, STfsDisk **ppDisk) {
@@ -88,7 +88,7 @@ void tfsUpdateTierSize(STfsTier *pTier) {
   SDiskSize size = {0};
   int32_t   nAvailDisks = 0;
 
-  tfsLockTier(pTier);
+  (void)tfsLockTier(pTier);
 
   for (int32_t id = 0; id < pTier->ndisk; id++) {
     STfsDisk *pDisk = pTier->disks[id];
@@ -104,15 +104,15 @@ void tfsUpdateTierSize(STfsTier *pTier) {
   pTier->size = size;
   pTier->nAvailDisks = nAvailDisks;
 
-  tfsUnLockTier(pTier);
+  (void)tfsUnLockTier(pTier);
 }
 
 // Round-Robin to allocate disk on a tier
 int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
-  tfsLockTier(pTier);
+  (void)tfsLockTier(pTier);
 
   if (pTier->ndisk <= 0 || pTier->nAvailDisks <= 0) {
-    tfsUnLockTier(pTier);
+    (void)tfsUnLockTier(pTier);
     TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
   }
 
@@ -155,7 +155,7 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
 #endif
   }
 
-  tfsUnLockTier(pTier);
+  (void)tfsUnLockTier(pTier);
   if (retId < 0) {
     TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
   }

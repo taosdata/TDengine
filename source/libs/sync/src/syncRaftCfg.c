@@ -124,7 +124,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   const char *realfile = pNode->configPath;
   SRaftCfg   *pCfg = &pNode->raftCfg;
   char        file[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s.bak", realfile);
+  (void)snprintf(file, sizeof(file), "%s.bak", realfile);
 
   if ((pJson = tjsonCreateObject()) == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
