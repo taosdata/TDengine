@@ -949,7 +949,6 @@ int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
 
 // open/close --------------
 SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
-  int32_t    code = 0;
   SSyncNode* pSyncNode = taosMemoryCalloc(1, sizeof(SSyncNode));
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1042,9 +1041,9 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->syncEqCtrlMsg = pSyncInfo->syncEqCtrlMsg;
 
   // create raft log ring buffer
-  code = syncLogBufferCreate(&pSyncNode->pLogBuf);
+  (void)syncLogBufferCreate(&pSyncNode->pLogBuf); // TODO: check return value
   if (pSyncNode->pLogBuf == NULL) {
-    sError("failed to init sync log buffer since %s. vgId:%d", tstrerror(code), pSyncNode->vgId);
+    sError("failed to init sync log buffer since %s. vgId:%d", terrstr(), pSyncNode->vgId);
     goto _error;
   }
 
@@ -1219,7 +1218,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   }
 
   // tools
-  pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS);
+  (void)syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS, &pSyncNode->pSyncRespMgr); // TODO: check return value
   if (pSyncNode->pSyncRespMgr == NULL) {
     sError("vgId:%d, failed to create SyncRespMgr", pSyncNode->vgId);
     goto _error;
