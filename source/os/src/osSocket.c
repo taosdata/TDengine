@@ -1000,7 +1000,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
     struct in_addr      ia = si->sin_addr;
     uint32_t            ip = ia.s_addr;
     freeaddrinfo(result);
-    return ip;
+    return 0;
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
