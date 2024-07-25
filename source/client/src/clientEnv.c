@@ -482,7 +482,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->pRequests = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == (*pObj)->pRequests) {
     taosMemoryFree(*pObj);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
   }
 
   (*pObj)->connType = connType;
@@ -495,10 +495,9 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
     tstrncpy((*pObj)->db, db, tListLen((*pObj)->db));
   }
 
-  int32_t code = taosThreadMutexInit(&(*pObj)->mutex, NULL);
-  if (TSDB_CODE_SUCCESS != code) {
-    return TAOS_SYSTEM_ERROR(code);
-  }
+  TSC_ERR_RET(taosThreadMutexInit(&(*pObj)->mutex, NULL));
+
+  int32_t code = TSDB_CODE_SUCCESS;
 
   (*pObj)->id = taosAddRef(clientConnRefPool, *pObj);
   if ((*pObj)->id < 0) {

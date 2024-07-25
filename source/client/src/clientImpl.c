@@ -1569,15 +1569,16 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     const char* errorMsg = (code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
     tscError("failed to connect to server, reason: %s", errorMsg);
 
+    terrno = pRequest->code;
     destroyRequest(pRequest);
     taos_close_internal(*pTscObj);
     *pTscObj = NULL;
+    return terrno;
   } else {
     tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, (*pTscObj)->id,
              (*pTscObj)->connId, (*pTscObj)->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
-
   return code;
 }
 

@@ -570,10 +570,9 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   int32_t           idx = *(int32_t *)param;
   SClientHbBatchRsp pRsp = {0};
   if (TSDB_CODE_SUCCESS == code) {
-    if (TSDB_CODE_SUCCESS != tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp)) {
-      code = terrno;
+    code = tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
+    if (TSDB_CODE_SUCCESS != code) {
       tscError("deserialize hb rsp failed");
-      goto _return;
     }
     int32_t now = taosGetTimestampSec();
     int32_t delta = abs(now - pRsp.svrTimestamp);
@@ -585,25 +584,27 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
-  code = taosThreadMutexLock(&clientHbMgr.lock);
-  if (TSDB_CODE_SUCCESS != code) {
-    tscError("lock failed");
-    code = TAOS_SYSTEM_ERROR(code);
-    goto _return;
-  }
+  (void)taosThreadMutexLock(&clientHbMgr.lock);
 
   SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, idx);
   if (pAppHbMgr == NULL) {
+    (void)taosThreadMutexUnlock(&clientHbMgr.lock);
     tscError("appHbMgr not exist, idx:%d", idx);
-    code = TSDB_CODE_OUT_OF_RANGE;
-    goto _returnunlock;
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    tFreeClientHbBatchRsp(&pRsp);
+    return TSDB_CODE_OUT_OF_RANGE;
   }
 
   SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
-    goto _returnunlock;
+    (void)taosThreadMutexUnlock(&clientHbMgr.lock);
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    tFreeClientHbBatchRsp(&pRsp);
+    return code;
   }
 
   pInst->monitorParas = pRsp.monitorParas;
@@ -619,25 +620,17 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   for (int32_t i = 0; i < rspNum; ++i) {
     SClientHbRsp *rsp = taosArrayGet(pRsp.rsps, i);
-    if (NULL == rsp) {
-      tscError("invalid hb rsp, idx:%d", i);
-      break;
-    }
     code = (*clientHbMgr.rspHandle[rsp->connKey.connType])(pAppHbMgr, rsp);
     if (code) {
       break;
     }
   }
 
-_returnunlock:
-  code = taosThreadMutexUnlock(&clientHbMgr.lock);
-  if (TSDB_CODE_SUCCESS != code) {
-    tscError("unlock failed");
-    code = TAOS_SYSTEM_ERROR(code);
-  }
+  (void)taosThreadMutexUnlock(&clientHbMgr.lock);
+
+  tFreeClientHbBatchRsp(&pRsp);
 
 _return:
-  tFreeClientHbBatchRsp(&pRsp);
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   return code;
@@ -1111,10 +1104,12 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
         tscWarn("hbGetExpiredUserInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
         return code;
       }
-      code = taosHashPut(clientHbMgr.appHbHash, &hbParam->clusterId, sizeof(uint64_t), NULL, 0);
-      if (TSDB_CODE_SUCCESS != code) {
-        tscWarn("hbQueryHbReqHandle put clusterId failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
-        return code;
+      if (clientHbMgr.appHbHash) {
+        code = taosHashPut(clientHbMgr.appHbHash, &hbParam->clusterId, sizeof(uint64_t), NULL, 0);
+        if (TSDB_CODE_SUCCESS != code) {
+          tscWarn("hbQueryHbReqHandle put clusterId failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+          return code;
+        }
       }
     }
 
@@ -1308,7 +1303,7 @@ static void *hbThreadFunc(void *param) {
       }
       if (sz > 1 && !clientHbMgr.appHbHash) {
         clientHbMgr.appHbHash =
-            taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+            taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_NO_LOCK);
         if (NULL == clientHbMgr.appHbHash) {
           tscError("taosHashInit failed");
           return NULL;
@@ -1527,7 +1522,7 @@ int32_t hbMgrInit() {
   clientHbMgr.appId = tGenIdPI64();
   tscDebug("app %" PRIx64 " initialized", clientHbMgr.appId);
 
-  clientHbMgr.appSummary = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  clientHbMgr.appSummary = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (NULL == clientHbMgr.appSummary) {
     uError("hbMgrInit:taosHashInit error") return terrno;
   }

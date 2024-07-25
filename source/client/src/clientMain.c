@@ -897,7 +897,7 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
   }
 
   int code = TSDB_CODE_SUCCESS;
-  TSC_ERR_JRET(taosThreadMutexLock(&pTscObj->mutex));
+  (void)taosThreadMutexLock(&pTscObj->mutex);
   if (database == NULL || len <= 0) {
     if (required != NULL) *required = strlen(pTscObj->db) + 1;
     TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
@@ -910,7 +910,7 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
     code = 0;
   }
 _return:
-  code = taosThreadMutexUnlock(&pTscObj->mutex);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
   releaseTscObj(*(int64_t *)taos);
   return code;
 }
