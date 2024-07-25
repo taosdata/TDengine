@@ -1067,7 +1067,12 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
-      SArray*         pInfoList = getTableListInfo(pTask);
+      SArray* pInfoList = NULL;
+      int32_t code = getTableListInfo(pTask, &pInfoList);
+      if (code || pInfoList == NULL) {
+        return code;
+      }
+
       STableListInfo* pTableListInfo = taosArrayGetP(pInfoList, 0);
       taosArrayDestroy(pInfoList);
 

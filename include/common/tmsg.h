@@ -691,7 +691,7 @@ static FORCE_INLINE SColCmprWrapper* tCloneSColCmprWrapper(const SColCmprWrapper
 
   int32_t size = sizeof(SColCmpr) * pDstWrapper->nCols;
   pDstWrapper->pColCmpr = (SColCmpr*)taosMemoryCalloc(1, size);
-  memcpy(pDstWrapper->pColCmpr, pSrcWrapper->pColCmpr, size);
+  (void)memcpy(pDstWrapper->pColCmpr, pSrcWrapper->pColCmpr, size);
 
   return pDstWrapper;
 }
@@ -732,7 +732,7 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
     return NULL;
   }
 
-  memcpy(pSW->pSchema, pSchemaWrapper->pSchema, pSW->nCols * sizeof(SSchema));
+  (void)memcpy(pSW->pSchema, pSchemaWrapper->pSchema, pSW->nCols * sizeof(SSchema));
   return pSW;
 }
 
@@ -2837,13 +2837,13 @@ static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeR
   buf = taosDecodeFixedI32(buf, &topicNum);
 
   pReq->topicNames = taosArrayInit(topicNum, sizeof(void*));
-  if (pReq->topicNames == NULL){
+  if (pReq->topicNames == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   for (int32_t i = 0; i < topicNum; i++) {
     char* name = NULL;
     buf = taosDecodeString(buf, &name);
-    if (taosArrayPush(pReq->topicNames, &name) == NULL){
+    if (taosArrayPush(pReq->topicNames, &name) == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -4041,7 +4041,9 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
   for (int32_t i = 0; i < sz; i++) {
     SMqSubTopicEp topicEp;
     buf = tDecodeMqSubTopicEp(buf, &topicEp);
-    taosArrayPush(pRsp->topics, &topicEp);
+    if (taosArrayPush(pRsp->topics, &topicEp) == NULL) {
+      return NULL;
+    }
   }
   return buf;
 }

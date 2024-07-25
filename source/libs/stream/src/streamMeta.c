@@ -539,9 +539,11 @@ void streamMetaClear(SStreamMeta* pMeta) {
     streamMetaReleaseTask(pMeta, p);
   }
 
-  int32_t code = taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
-  if (code) {
-    stError("vgId:%d remove stream backend Ref failed, rid:%"PRId64, pMeta->vgId, pMeta->streamBackendRid);
+  if (pMeta->streamBackendRid != 0) {
+    int32_t code = taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
+    if (code) {
+      stError("vgId:%d remove stream backend Ref failed, rid:%" PRId64, pMeta->vgId, pMeta->streamBackendRid);
+    }
   }
 
   taosHashClear(pMeta->pTasksMap);
@@ -726,7 +728,7 @@ int32_t streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask == NULL || streamTaskShouldStop(*ppTask)) {
     *pTask = NULL;
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
   int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
