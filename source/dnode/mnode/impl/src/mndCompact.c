@@ -231,7 +231,7 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompac
   int32_t code = 0;
   pCompact->compactId = tGenIdPI32();
 
-  strcpy(pCompact->dbname, pDb->name);
+  (void)strcpy(pCompact->dbname, pDb->name);
 
   pCompact->startTime = taosGetTimestampMs();
 
@@ -283,21 +283,21 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->compactId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->compactId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pDb != NULL || !IS_SYS_DBNAME(pCompact->dbname)) {
       SName name = {0};
-      tNameFromString(&name, pCompact->dbname, T_NAME_ACCT | T_NAME_DB);
-      tNameGetDbName(&name, varDataVal(tmpBuf));
+      (void)tNameFromString(&name, pCompact->dbname, T_NAME_ACCT | T_NAME_DB);
+      (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     } else {
-      strncpy(varDataVal(tmpBuf), pCompact->dbname, TSDB_SHOW_SQL_LEN);
+      (void)strncpy(varDataVal(tmpBuf), pCompact->dbname, TSDB_SHOW_SQL_LEN);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->startTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompact->startTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pCompact);
@@ -334,7 +334,11 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req);
+  contLen = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   *pContLen = contLen;
   return pReq;
 }
@@ -478,7 +482,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[TSDB_INT32_ID_LEN] = {0};
-  sprintf(obj, "%d", pCompact->compactId);
+  (void)sprintf(obj, "%d", pCompact->compactId);
 
   auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql, killCompactReq.sqlLen);
 
@@ -587,7 +591,11 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
       pHead->contLen = htonl(contLen);
       pHead->vgId = htonl(pDetail->vgId);
 
-      tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req);
+      contLen = tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req);
+      if (contLen < 0) {
+        sdbRelease(pMnode->pSdb, pDetail);
+        continue;
+      }
 
       SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, .contLen = contLen};
 
@@ -602,7 +610,10 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
 
       mDebug("compact:%d, send update progress msg to %s", pDetail->compactId, detail);
 
-      tmsgSendReq(&epSet, &rpcMsg);
+      if (tmsgSendReq(&epSet, &rpcMsg) < 0) {
+        sdbRelease(pMnode->pSdb, pDetail);
+        continue;
+      }
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
@@ -806,7 +817,7 @@ void mndCompactPullup(SMnode *pMnode) {
     SCompactObj *pCompact = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
     if (pIter == NULL) break;
-    taosArrayPush(pArray, &pCompact->compactId);
+    (void)taosArrayPush(pArray, &pCompact->compactId);
     sdbRelease(pSdb, pCompact);
   }
 
