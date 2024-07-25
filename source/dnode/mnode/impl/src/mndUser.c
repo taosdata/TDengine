@@ -337,7 +337,6 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 }
 
 int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type, bool *pUpdate) {
-  int32_t    code = 0;
   int32_t    lino = 0;
   bool       update = false;
   SIpV4Range range = {.ip = 0, .mask = 32};
