@@ -78,7 +78,7 @@ pub struct PiConfig {
     #[serde(rename = "SyncAddElement", skip_serializing_if = "Option::is_none")]
     sync_add_element: Option<bool>,
 
-    #[serde(rename = "SyncAddElement", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "SyncDeleteElement", skip_serializing_if = "Option::is_none")]
     sync_delete_element: Option<bool>,
 
     #[serde(
@@ -86,6 +86,7 @@ pub struct PiConfig {
         skip_serializing_if = "Option::is_none"
     )]
     sync_update_attribute: Option<bool>,
+
     #[serde(rename = "SyncUpdateData", skip_serializing_if = "Option::is_none")]
     sync_update_data: Option<bool>,
 
