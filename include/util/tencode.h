@@ -127,7 +127,7 @@ static FORCE_INLINE int32_t tEncodeFixed(SEncoder* pCoder, const void* val, uint
     if (pCoder->pos + size > pCoder->size) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
-    memcpy(pCoder->data + pCoder->pos, val, size);
+    TAOS_MEMCPY(pCoder->data + pCoder->pos, val, size);
   }
 
   pCoder->pos += size;
@@ -212,7 +212,7 @@ static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, 
       if (pCoder->pos + len > pCoder->size) {
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
-      memcpy(pCoder->data + pCoder->pos, val, len);
+      TAOS_MEMCPY(pCoder->data + pCoder->pos, val, len);
     }
 
     pCoder->pos += len;
@@ -233,7 +233,7 @@ static int32_t tDecodeFixed(SDecoder* pCoder, void* val, uint32_t size) {
   if (pCoder->pos + size > pCoder->size) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   } else if (val) {
-    memcpy(val, pCoder->data + pCoder->pos, size);
+    TAOS_MEMCPY(val, pCoder->data + pCoder->pos, size);
   }
   pCoder->pos += size;
   return 0;
@@ -427,7 +427,7 @@ static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
   uint32_t len;
   TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
 
-  memcpy(val, pStr, len + 1);
+  TAOS_MEMCPY(val, pStr, len + 1);
   return 0;
 }
 
@@ -446,7 +446,7 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uin
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    memcpy(*val, pCoder->data + pCoder->pos, length);
+    TAOS_MEMCPY(*val, pCoder->data + pCoder->pos, length);
 
     pCoder->pos += length;
   } else {
@@ -468,7 +468,7 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, u
     if (*val == NULL) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    memcpy(*val, pCoder->data + pCoder->pos, length);
+    TAOS_MEMCPY(*val, pCoder->data + pCoder->pos, length);
 
     pCoder->pos += length;
   } else {
@@ -757,7 +757,7 @@ static FORCE_INLINE int32_t tPutBinary(uint8_t* p, uint8_t* pData, uint32_t nDat
   int n = 0;
 
   n += tPutU32v(p ? p + n : p, nData);
-  if (p) memcpy(p + n, pData, nData);
+  if (p) TAOS_MEMCPY(p + n, pData, nData);
   n += nData;
 
   return n;

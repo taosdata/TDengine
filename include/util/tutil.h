@@ -64,7 +64,7 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *tar
   tMD5Init(&context);
   tMD5Update(&context, inBuf, (uint32_t)inLen);
   tMD5Final(&context);
-  memcpy(target, context.digest, tListLen(context.digest));
+  (void)memcpy(target, context.digest, tListLen(context.digest));
 }
 
 static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *target) {
@@ -79,7 +79,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
           context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
           context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
           context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
-  memcpy(target, buf, TSDB_PASSWORD_LEN);
+  (void)memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
 
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
