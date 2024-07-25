@@ -79,8 +79,7 @@
         return decrypt(localStorage.getItem("pwd")) || '';
       },
       TDengineVersion() {
-        return '3.3.2.1'
-        // return localStorage.getItem('agent_version');
+        return localStorage.getItem('agent_version');
       },
       isLessThen3_1_1_11() {
         return compareVersion(this.TDengineVersion, '<3.1.1.11');
