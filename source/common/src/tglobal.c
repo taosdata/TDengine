@@ -1884,7 +1884,8 @@ int32_t taosSetGlobalDebugFlag(int32_t flag) { return taosSetAllDebugFlag(tsCfg,
 
 // NOTE: set all command does not change the tmrDebugFlag
 static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
-  if (flag <= 0) TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  if (flag < 0) TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  if (flag == 0) TAOS_RETURN(TSDB_CODE_SUCCESS); // just ignore
 
   SArray      *noNeedToSetVars = NULL;
   SConfigItem *pItem = cfgGetItem(pCfg, "debugFlag");
