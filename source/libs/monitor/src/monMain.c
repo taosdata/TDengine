@@ -15,17 +15,17 @@
 
 #define _DEFAULT_SOURCE
 #include "monInt.h"
+#include "taos_monitor.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "thttp.h"
 #include "ttime.h"
-#include "taos_monitor.h"
-#include "tglobal.h"
 
 SMonitor tsMonitor = {0};
-char* tsMonUri = "/report";
-char* tsMonFwUri = "/general-metric";
-char* tsMonSlowLogUri = "/slow-sql-detail-batch";
-char* tsMonFwBasicUri = "/taosd-cluster-basic";
+char    *tsMonUri = "/report";
+char    *tsMonFwUri = "/general-metric";
+char    *tsMonSlowLogUri = "/slow-sql-detail-batch";
+char    *tsMonFwBasicUri = "/taosd-cluster-basic";
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
   taosThreadMutexLock(&tsMonitor.lock);
@@ -54,8 +54,7 @@ int32_t monGetLogs(SMonLogs *logs) {
   taosArrayClear(tsMonitor.logs);
   taosThreadMutexUnlock(&tsMonitor.lock);
   if (logs->logs == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
   return 0;
 }
@@ -105,8 +104,7 @@ void monSetBmInfo(SMonBmInfo *pInfo) {
 int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.logs = taosArrayInit(16, sizeof(SMonLogItem));
   if (tsMonitor.logs == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   tsMonitor.cfg = *pCfg;
@@ -146,6 +144,7 @@ static void monCleanupMonitorInfo(SMonInfo *pMonitor) {
 }
 
 static SMonInfo *monCreateMonitorInfo() {
+  terrno = 0;
   SMonInfo *pMonitor = taosMemoryCalloc(1, sizeof(SMonInfo));
   if (pMonitor == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -274,11 +273,11 @@ static void monGenClusterJsonBasic(SMonInfo *pMonitor) {
   SMonClusterInfo *pInfo = &pMonitor->mmInfo.cluster;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
 
-  //tjsonAddStringToObject(pMonitor->pJson, "first_ep", pInfo->first_ep);
+  // tjsonAddStringToObject(pMonitor->pJson, "first_ep", pInfo->first_ep);
   tjsonAddStringToObject(pMonitor->pJson, "first_ep", tsFirst);
   tjsonAddDoubleToObject(pMonitor->pJson, "first_ep_dnode_id", pInfo->first_ep_dnode_id);
   tjsonAddStringToObject(pMonitor->pJson, "cluster_version", pInfo->version);
-  //tjsonAddDoubleToObject(pMonitor->pJson, "monitor_interval", pInfo->monitor_interval);
+  // tjsonAddDoubleToObject(pMonitor->pJson, "monitor_interval", pInfo->monitor_interval);
 }
 
 static void monGenVgroupJson(SMonInfo *pMonitor) {
@@ -554,9 +553,9 @@ static void monGenLogJson(SMonInfo *pMonitor) {
   if (tjsonAddItemToArray(pSummaryJson, pLogTrace) != 0) tjsonDelete(pLogTrace);
 }
 
-void monSendReport(SMonInfo *pMonitor){
+void monSendReport(SMonInfo *pMonitor) {
   char *pCont = tjsonToString(pMonitor->pJson);
-  if(tsMonitorLogProtocol){
+  if (tsMonitorLogProtocol) {
     uInfoL("report cont:\n%s", pCont);
   }
   if (pCont != NULL) {
@@ -591,7 +590,7 @@ void monGenAndSendReport() {
   SMonInfo *pMonitor = monCreateMonitorInfo();
   if (pMonitor == NULL) return;
 
-  if(!tsMonitorForceV2){
+  if (!tsMonitorForceV2) {
     monGenBasicJson(pMonitor);
     monGenClusterJson(pMonitor);
     monGenVgroupJson(pMonitor);
@@ -602,8 +601,7 @@ void monGenAndSendReport() {
     monGenLogJson(pMonitor);
 
     monSendReport(pMonitor);
-  }
-  else{
+  } else {
     monGenClusterInfoTable(pMonitor);
     monGenVgroupInfoTable(pMonitor);
     monGenDnodeInfoTable(pMonitor);
@@ -624,10 +622,10 @@ void monGenAndSendReport() {
   monCleanupMonitorInfo(pMonitor);
 }
 
-void monSendContent(char *pCont, const char* uri) {
+void monSendContent(char *pCont, const char *uri) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
-  if(tsMonitorLogProtocol){
-    if (pCont != NULL){
+  if (tsMonitorLogProtocol) {
+    if (pCont != NULL) {
       uInfoL("report client cont:\n%s\n", pCont);
     }
   }
