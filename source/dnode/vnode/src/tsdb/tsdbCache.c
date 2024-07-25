@@ -63,7 +63,6 @@ static void tsdbCloseBCache(STsdb *pTsdb) {
 
 static int32_t tsdbOpenPgCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
-  // SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 0, .5);
   int32_t szPage = pTsdb->pVnode->config.tsdbPageSize;
 
   SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3PageCacheSize * szPage, 0, .5);
@@ -659,11 +658,23 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
   int32_t code = 0;
 
   // build keys & multi get from rocks
-  char       **keys_list = taosMemoryCalloc(2, sizeof(char *));
-  size_t      *keys_list_sizes = taosMemoryCalloc(2, sizeof(size_t));
+  char **keys_list = taosMemoryCalloc(2, sizeof(char *));
+  if (!keys_list) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  size_t *keys_list_sizes = taosMemoryCalloc(2, sizeof(size_t));
+  if (!keys_list_sizes) {
+    taosMemoryFree(keys_list);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   const size_t klen = ROCKS_KEY_LEN;
 
   char *keys = taosMemoryCalloc(2, sizeof(SLastKey));
+  if (!keys) {
+    taosMemoryFree(keys_list);
+    taosMemoryFree(keys_list_sizes);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   ((SLastKey *)keys)[0] = (SLastKey){.lflag = LFLAG_LAST, .uid = uid, .cid = cid};
   ((SLastKey *)keys)[1] = (SLastKey){.lflag = LFLAG_LAST_ROW, .uid = uid, .cid = cid};
 
@@ -672,9 +683,30 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
   keys_list_sizes[0] = klen;
   keys_list_sizes[1] = klen;
 
-  char  **values_list = taosMemoryCalloc(2, sizeof(char *));
+  char **values_list = taosMemoryCalloc(2, sizeof(char *));
+  if (!values_list) {
+    taosMemoryFree(keys_list);
+    taosMemoryFree(keys_list_sizes);
+    taosMemoryFree(keys_list[0]);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   size_t *values_list_sizes = taosMemoryCalloc(2, sizeof(size_t));
-  char  **errs = taosMemoryCalloc(2, sizeof(char *));
+  if (!values_list_sizes) {
+    taosMemoryFree(keys_list);
+    taosMemoryFree(keys_list_sizes);
+    taosMemoryFree(keys_list[0]);
+    taosMemoryFree(values_list);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  char **errs = taosMemoryCalloc(2, sizeof(char *));
+  if (!errs) {
+    taosMemoryFree(keys_list);
+    taosMemoryFree(keys_list_sizes);
+    taosMemoryFree(keys_list[0]);
+    taosMemoryFree(values_list);
+    taosMemoryFree(values_list_sizes);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   // rocksMayWrite(pTsdb, true, false, false);
   rocksdb_multi_get(pTsdb->rCache.db, pTsdb->rCache.readoptions, 2, (const char *const *)keys_list, keys_list_sizes,
@@ -960,6 +992,9 @@ static int32_t tsdbCacheUpdateValue(SValue *pOld, SValue *pNew) {
   if (IS_VAR_DATA_TYPE(pNew->type)) {
     if (nData < pNew->nData) {
       pOld->pData = taosMemoryCalloc(1, pNew->nData);
+      if (!pOld->pData) {
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
     } else {
       pOld->pData = pFree;
       pFree = NULL;
@@ -1044,17 +1079,35 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
     num_keys = TARRAY_SIZE(remainCols);
   }
   if (remainCols && num_keys > 0) {
-    char  **keys_list = taosMemoryCalloc(num_keys, sizeof(char *));
-    size_t *keys_list_sizes = taosMemoryCalloc(num_keys, sizeof(size_t));
+    char  **keys_list = NULL;
+    size_t *keys_list_sizes = NULL;
+    char  **values_list = NULL;
+    size_t *values_list_sizes = NULL;
+    char  **errs = NULL;
+    keys_list = taosMemoryCalloc(num_keys, sizeof(char *));
+    keys_list_sizes = taosMemoryCalloc(num_keys, sizeof(size_t));
+    if (!keys_list || !keys_list_sizes) {
+      taosMemoryFree(keys_list);
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
     for (int i = 0; i < num_keys; ++i) {
       SIdxKey *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
 
       keys_list[i] = (char *)&idxKey->key;
       keys_list_sizes[i] = ROCKS_KEY_LEN;
     }
-    char  **values_list = taosMemoryCalloc(num_keys, sizeof(char *));
-    size_t *values_list_sizes = taosMemoryCalloc(num_keys, sizeof(size_t));
-    char  **errs = taosMemoryCalloc(num_keys, sizeof(char *));
+    values_list = taosMemoryCalloc(num_keys, sizeof(char *));
+    values_list_sizes = taosMemoryCalloc(num_keys, sizeof(size_t));
+    errs = taosMemoryCalloc(num_keys, sizeof(char *));
+    if (!values_list || !values_list_sizes || !errs) {
+      taosMemoryFree(keys_list);
+      taosMemoryFree(keys_list_sizes);
+      taosMemoryFree(values_list);
+      taosMemoryFree(values_list_sizes);
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
     rocksdb_multi_get(pTsdb->rCache.db, pTsdb->rCache.readoptions, num_keys, (const char *const *)keys_list,
                       keys_list_sizes, values_list, values_list_sizes, errs);
     for (int i = 0; i < num_keys; ++i) {
@@ -1104,6 +1157,16 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
 
         pLastCol = &lastColTmp;
         SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
+        if (!pTmpLastCol) {
+          taosMemoryFree(keys_list);
+          taosMemoryFree(keys_list_sizes);
+          taosMemoryFree(values_list);
+          taosMemoryFree(values_list_sizes);
+
+          taosArrayDestroy(remainCols);
+          taosThreadMutexUnlock(&pTsdb->lruMutex);
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
         *pTmpLastCol = *pLastCol;
         pLastCol = pTmpLastCol;
 
@@ -1322,17 +1385,29 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   int      num_keys = TARRAY_SIZE(remainCols);
   int16_t *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
 
-  int16_t *lastColIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
-  int16_t *lastSlotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
-  int16_t *lastrowColIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
-  int16_t *lastrowSlotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
-  SArray  *lastTmpColArray = NULL;
-  SArray  *lastTmpIndexArray = NULL;
-  SArray  *lastrowTmpColArray = NULL;
-  SArray  *lastrowTmpIndexArray = NULL;
+  int16_t *lastColIds = NULL;
+  int16_t *lastSlotIds = NULL;
+  int16_t *lastrowColIds = NULL;
+  int16_t *lastrowSlotIds = NULL;
+  lastColIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  lastSlotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  lastrowColIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  lastrowSlotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
+  SArray *lastTmpColArray = NULL;
+  SArray *lastTmpIndexArray = NULL;
+  SArray *lastrowTmpColArray = NULL;
+  SArray *lastrowTmpIndexArray = NULL;
 
   int lastIndex = 0;
   int lastrowIndex = 0;
+
+  if (!slotIds || !lastColIds || !lastSlotIds || !lastrowColIds || !lastrowSlotIds) {
+    taosMemoryFree(slotIds);
+    taosMemoryFree(lastColIds);
+    taosMemoryFree(lastSlotIds);
+    taosMemoryFree(lastrowColIds);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   for (int i = 0; i < num_keys; ++i) {
     SIdxKey *idxKey = taosArrayGet(remainCols, i);
@@ -1401,6 +1476,14 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     }
 
     SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
+    if (!pTmpLastCol) {
+      taosMemoryFree(slotIds);
+      taosMemoryFree(lastColIds);
+      taosMemoryFree(lastSlotIds);
+      taosMemoryFree(lastrowColIds);
+      taosMemoryFree(lastrowSlotIds);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
     *pTmpLastCol = *pLastCol;
     pLastCol = pTmpLastCol;
 
@@ -1420,7 +1503,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     LRUStatus status = taosLRUCacheInsert(pCache, &idxKey->key, ROCKS_KEY_LEN, pLastCol, charge, tsdbCacheDeleter, NULL,
                                           TAOS_LRU_PRIORITY_LOW, &pTsdb->flushState);
     if (status != TAOS_LRU_STATUS_OK) {
-      code = -1;
+      // code = -1;
     }
 
     // store result back to rocks cache
@@ -1466,6 +1549,11 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   char  **keys_list = taosMemoryMalloc(num_keys * sizeof(char *));
   size_t *keys_list_sizes = taosMemoryMalloc(num_keys * sizeof(size_t));
   char   *key_list = taosMemoryMalloc(num_keys * ROCKS_KEY_LEN);
+  if (!keys_list || !keys_list_sizes || !key_list) {
+    taosMemoryFree(keys_list);
+    taosMemoryFree(keys_list_sizes);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   for (int i = 0; i < num_keys; ++i) {
     int16_t cid = *(int16_t *)taosArrayGet(remainCols, i);
 
@@ -1477,6 +1565,13 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   char  **values_list = taosMemoryCalloc(num_keys, sizeof(char *));
   size_t *values_list_sizes = taosMemoryCalloc(num_keys, sizeof(size_t));
   char  **errs = taosMemoryMalloc(num_keys * sizeof(char *));
+  if (!values_list || !values_list_sizes || !errs) {
+    taosMemoryFree(keys_list);
+    taosMemoryFree(keys_list_sizes);
+    taosMemoryFree(values_list);
+    taosMemoryFree(values_list_sizes);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   rocksdb_multi_get(pTsdb->rCache.db, pTsdb->rCache.readoptions, num_keys, (const char *const *)keys_list,
                     keys_list_sizes, values_list, values_list_sizes, errs);
   for (int i = 0; i < num_keys; ++i) {
@@ -1486,6 +1581,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
       rocksdb_free(errs[i]);
     }
   }
+  taosMemoryFree(errs);
 
   SLRUCache *pCache = pTsdb->lruCache;
   for (int i = 0, j = 0; i < num_keys && j < TARRAY_SIZE(remainCols); ++i) {
@@ -1498,6 +1594,13 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
     SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
     if (pLastCol) {
       SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
+      if (!pTmpLastCol) {
+        taosMemoryFree(keys_list);
+        taosMemoryFree(keys_list_sizes);
+        taosMemoryFree(values_list);
+        taosMemoryFree(values_list_sizes);
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
       *pTmpLastCol = *pLastCol;
       pLastCol = pTmpLastCol;
 
@@ -1535,7 +1638,6 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
     }
   }
 
-  taosMemoryFree(errs);
   taosMemoryFree(key_list);
   taosMemoryFree(keys_list);
   taosMemoryFree(keys_list_sizes);
@@ -1649,15 +1751,24 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   TAOS_CHECK_RETURN(metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema));
 
   // build keys & multi get from rocks
-  int          num_keys = pTSchema->numOfCols;
-  char       **keys_list = taosMemoryCalloc(num_keys * 2, sizeof(char *));
-  size_t      *keys_list_sizes = taosMemoryCalloc(num_keys * 2, sizeof(size_t));
+  int     num_keys = pTSchema->numOfCols;
+  char  **keys_list = taosMemoryCalloc(num_keys * 2, sizeof(char *));
+  size_t *keys_list_sizes = taosMemoryCalloc(num_keys * 2, sizeof(size_t));
+  if (!keys_list || !keys_list_sizes) {
+    taosMemoryFree(keys_list);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   const size_t klen = ROCKS_KEY_LEN;
 
   for (int i = 0; i < num_keys; ++i) {
     int16_t cid = pTSchema->columns[i].colId;
 
     char *keys = taosMemoryCalloc(2, sizeof(SLastKey));
+    if (!keys) {
+      taosMemoryFree(keys_list);
+      taosMemoryFree(keys_list_sizes);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
     ((SLastKey *)keys)[0] = (SLastKey){.lflag = LFLAG_LAST, .uid = uid, .cid = cid};
     ((SLastKey *)keys)[1] = (SLastKey){.lflag = LFLAG_LAST_ROW, .uid = uid, .cid = cid};
 
@@ -1669,6 +1780,15 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   char  **values_list = taosMemoryCalloc(num_keys * 2, sizeof(char *));
   size_t *values_list_sizes = taosMemoryCalloc(num_keys * 2, sizeof(size_t));
   char  **errs = taosMemoryCalloc(num_keys * 2, sizeof(char *));
+  if (!values_list_sizes || !values_list) {
+    taosMemoryFree(keys_list);
+    taosMemoryFree(keys_list_sizes);
+    taosMemoryFree(values_list);
+    for (int i = 0; i < num_keys; ++i) {
+      taosMemoryFree(keys_list[i]);
+    }
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   (void)tsdbCacheCommit(pTsdb);
 
@@ -1885,7 +2005,9 @@ static STableLoadInfo *getTableLoadInfo(SCacheRowsReader *pReader, uint64_t uid)
   STableLoadInfo **ppInfo = tSimpleHashGet(pReader->pTableMap, &uid, sizeof(uid));
   if (!ppInfo) {
     pInfo = taosMemoryCalloc(1, sizeof(STableLoadInfo));
-    tSimpleHashPut(pReader->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+    if (pInfo) {
+      tSimpleHashPut(pReader->pTableMap, &uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
+    }
 
     return pInfo;
   }
@@ -1898,6 +2020,9 @@ static uint64_t *getUidList(SCacheRowsReader *pReader) {
     int32_t numOfTables = pReader->numOfTables;
 
     pReader->uidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
+    if (!pReader->uidList) {
+      return NULL;
+    }
 
     for (int32_t i = 0; i < numOfTables; ++i) {
       uint64_t uid = pReader->pTableList[i].uid;
@@ -1913,9 +2038,13 @@ static uint64_t *getUidList(SCacheRowsReader *pReader) {
 static int32_t loadTombFromBlk(const TTombBlkArray *pTombBlkArray, SCacheRowsReader *pReader, void *pFileReader,
                                bool isFile) {
   int32_t   code = 0;
-  uint64_t *uidList = getUidList(pReader);
   int32_t   numOfTables = pReader->numOfTables;
   int64_t   suid = pReader->info.suid;
+  uint64_t *uidList = getUidList(pReader);
+
+  if (!uidList) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   for (int i = 0, j = 0; i < pTombBlkArray->size && j < numOfTables; ++i) {
     STombBlk *pTombBlk = &pTombBlkArray->data[i];
@@ -3296,6 +3425,9 @@ int32_t tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_
     size_t              charge = pFD->szPage;
     _taos_lru_deleter_t deleter = deleteBCache;
     uint8_t            *pPg = taosMemoryMalloc(charge);
+    if (!pPg) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
     memcpy(pPg, pPage, charge);
 
     LRUStatus status =
