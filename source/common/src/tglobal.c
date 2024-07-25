@@ -1578,7 +1578,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"experimental", &tsExperimental},
                                          {"maxTsmaNum", &tsMaxTsmaNum}};
 
-    if (TSDB_CODE_SUCCESS != taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) {
+    if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
     }
   }
@@ -1834,7 +1834,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"maxTsmaCalcDelay", &tsMaxTsmaCalcDelay},
                                          {"tsmaDataDeleteMark", &tsmaDataDeleteMark}};
 
-    if (TSDB_CODE_SUCCESS != taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) {
+    if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
     }
   }
