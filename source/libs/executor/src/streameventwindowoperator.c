@@ -591,7 +591,7 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*              pBInfo = &pInfo->binfo;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
-  qDebug("===stream=== stream event agg");
+  qDebug("===stream=== stream event agg. history task:%d, taskId:%s", pInfo->isHistoryOp, GET_TASKID(pTaskInfo));
   if (pOperator->status == OP_RES_TO_RETURN) {
     SSDataBlock* resBlock = NULL;
     code = buildEventResult(pOperator, &resBlock);
@@ -691,6 +691,10 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
     code = copyUpdateResult(&pInfo->pAllUpdated, pHisWins, sessionKeyCompareAsc);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+    pInfo->pAllUpdated = tSimpleHashInit(64, hashFn);
+    QUERY_CHECK_NULL(pInfo->pAllUpdated, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
     code = getMaxTsWins(pHisWins, pInfo->historyWins);
     QUERY_CHECK_CODE(code, lino, _end);
