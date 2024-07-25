@@ -170,7 +170,7 @@ static void *dmDecodeDFHeader(void *buf, SDFHeader *pHeader) {
 static int32_t dmEncodeVars(void *buf, int32_t bufLen, SEngineInfo *pInfo) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
-  int32_t code = -1;
+  int32_t code = 0;
 
   TAOS_CHECK_GOTO(tStartEncode(&encoder), NULL, _exit);
   TAOS_CHECK_GOTO(tEncodeI8(&encoder, pInfo->type), NULL, _exit);
@@ -366,6 +366,9 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
 
   fHeader.version = DM_ENG_FVER_MAX;
   fHeader.len = dmEncodeVars(NULL, 0, pInfo) + sizeof(TSCKSUM);
+  if (fHeader.len < 0) {
+    TAOS_CHECK_GOTO(fHeader.len, &lino, _exit);
+  }
 
   ptr = hbuf;
   dmEncodeDFHeader(&ptr, &fHeader);
@@ -383,7 +386,11 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
     }
 
     ptr = pBuf;
-    dmEncodeVars(ptr, fHeader.len - sizeof(TSCKSUM), pInfo);
+    int32_t len = dmEncodeVars(ptr, fHeader.len - sizeof(TSCKSUM), pInfo);
+    if (len < 0) {
+      TAOS_CHECK_GOTO(len, &lino, _exit);
+    }
+
     taosCalcChecksumAppend(0, (uint8_t *)pBuf, fHeader.len);
 
     if (taosWriteFile(tFile, pBuf, fHeader.len) < fHeader.len) {
