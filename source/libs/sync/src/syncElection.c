@@ -73,7 +73,7 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
   if (pSyncNode->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
     sNError(pSyncNode, "skip leader election due to incomplete fsm state");
-    return -1;
+    return TSDB_CODE_SYN_WRONG_FSM_STATE;
   }
 
   sNInfo(pSyncNode, "begin election");
@@ -86,7 +86,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
 
   if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
     sNError(pSyncNode, "not candidate, can not elect");
-    return -1;
+    return TSDB_CODE_SYN_WRONG_SYNC_STATE;
   }
 
   // start election

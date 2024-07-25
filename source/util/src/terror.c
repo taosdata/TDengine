@@ -527,6 +527,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG,     "Sync invalid snapshot
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BUFFER_FULL,              "Sync buffer is full")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRITE_STALL,              "Sync write stall")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NEGOTIATION_WIN_FULL,     "Sync negotiation win is full")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_TERM,               "Sync got a wrong term")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_FSM_STATE,          "Sync got a wrong fsm state")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_SYNC_STATE,         "Sync got a wrong state")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_REF,                "Sync got a wrong ref")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_ID,               "Sync invalid id")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 //tq
