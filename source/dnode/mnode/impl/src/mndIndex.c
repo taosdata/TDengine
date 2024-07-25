@@ -136,8 +136,8 @@ static void *mndBuildDropIdxReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStbOb
   int32_t ret = 0;
 
   SDropIndexReq req = {0};
-  memcpy(req.colName, pIdx->colName, sizeof(pIdx->colName));
-  memcpy(req.stb, pIdx->stb, sizeof(pIdx->stb));
+  (void)memcpy(req.colName, pIdx->colName, sizeof(pIdx->colName));
+  (void)memcpy(req.stb, pIdx->stb, sizeof(pIdx->stb));
   req.dbUid = pIdx->dbUid;
   req.stbUid = pIdx->stbUid;
 
@@ -159,7 +159,7 @@ static void *mndBuildDropIdxReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStbOb
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tSerializeSDropIdxReq(pBuf, len - sizeof(SMsgHead), &req);
+  (void)tSerializeSDropIdxReq(pBuf, len - sizeof(SMsgHead), &req);
   *contLen = len;
   return pHead;
 _err:
@@ -311,7 +311,7 @@ static int32_t mndIdxActionDelete(SSdb *pSdb, SIdxObj *pIdx) {
 static int32_t mndIdxActionUpdate(SSdb *pSdb, SIdxObj *pOld, SIdxObj *pNew) {
   // lock no not
   if (strncmp(pOld->colName, pNew->colName, TSDB_COL_NAME_LEN) != 0) {
-    memcpy(pOld->colName, pNew->colName, sizeof(pNew->colName));
+    (void)memcpy(pOld->colName, pNew->colName, sizeof(pNew->colName));
   }
   mTrace("idx:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   return 0;
@@ -333,10 +333,14 @@ void mndReleaseIdx(SMnode *pMnode, SIdxObj *pIdx) {
 
 SDbObj *mndAcquireDbByIdx(SMnode *pMnode, const char *idxName) {
   SName name = {0};
-  tNameFromString(&name, idxName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if ((terrno = tNameFromString(&name, idxName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
+    return NULL;
+  }
 
   char db[TSDB_TABLE_FNAME_LEN] = {0};
-  tNameGetFullDbName(&name, db);
+  if ((terrno = tNameGetFullDbName(&name, db)) != 0) {
+    return NULL;
+  }
 
   return mndAcquireDb(pMnode, db);
 }
@@ -578,7 +582,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     cols = 0;
 
     SName idxName = {0};
-    tNameFromString(&idxName, pIdx->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    (void)tNameFromStrin(&idxName, pIdx->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
     STR_TO_VARSTR(n1, (char *)tNameGetTableName(&idxName));
@@ -587,37 +591,37 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     STR_TO_VARSTR(n2, (char *)mndGetDbStr(pIdx->db));
 
     SName stbName = {0};
-    tNameFromString(&stbName, pIdx->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    (void)tNameFromStrin(&stbName, pIdx->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     char n3[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(n3, (char *)tNameGetTableName(&stbName));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)n1, false);
+    (void)colDataSetValpColInfo, numOfRows, (const char *)n1, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)n2, false);
+    (void)colDataSetValpColInfo, numOfRows, (const char *)n2, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)n3, false);
+    (void)colDataSetValpColInfo, numOfRows, (const char *)n3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-    colDataSetVal(pColInfo, numOfRows, NULL, true);
+    (void)colDataSetValpColInfo, numOfRows, NULL, true);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pIdx->createdTime, false);
+    (void)colDataSetValpColInfo, numOfRows, (const char *)&pIdx->createdTime, false);
 
     char col[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(col, (char *)pIdx->colName);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)col, false);
+    (void)colDataSetValpColInfo, numOfRows, (const char *)col, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
     char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tag, (char *)"tag_index");
-    colDataSetVal(pColInfo, numOfRows, (const char *)tag, false);
+    (void)colDataSetValpColInfo, numOfRows, (const char *)tag, false);
 
     numOfRows++;
     sdbRelease(pSdb, pIdx);
@@ -642,7 +646,7 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
                                             int on) {
   int32_t code = 0;
   taosRLockLatch(&pOld->lock);
-  memcpy(pNew, pOld, sizeof(SStbObj));
+  (void)memcpy(pNew, pOld, sizeof(SStbObj));
   taosRUnLockLatch(&pOld->lock);
 
   pNew->pTags = NULL;
@@ -761,10 +765,10 @@ int8_t mndCheckIndexNameByTagName(SMnode *pMnode, SIdxObj *pIdxObj) {
 static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
   SIdxObj idxObj = {0};
-  memcpy(idxObj.name, req->idxName, TSDB_INDEX_FNAME_LEN);
-  memcpy(idxObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
-  memcpy(idxObj.db, pDb->name, TSDB_DB_FNAME_LEN);
-  memcpy(idxObj.colName, req->colName, TSDB_COL_NAME_LEN);
+  (void)memcpy(idxObj.name, req->idxName, TSDB_INDEX_FNAME_LEN);
+  (void)memcpy(idxObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
+  (void)memcpy(idxObj.db, pDb->name, TSDB_DB_FNAME_LEN);
+  (void)memcpy(idxObj.colName, req->colName, TSDB_COL_NAME_LEN);
 
   idxObj.createdTime = taosGetTimestampMs();
   idxObj.uid = mndGenerateUid(req->idxName, strlen(req->idxName));
@@ -931,7 +935,7 @@ int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxOb
     if (pIter == NULL) break;
 
     if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
-      memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
+      (void)memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
       sdbRelease(pSdb, pIdx);
       sdbCancelFetch(pSdb, pIter);
       return 0;
