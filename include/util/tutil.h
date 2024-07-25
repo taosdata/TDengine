@@ -152,6 +152,9 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
 
+#define TAOS_GET_TERRNO(code) \
+ (terrno == 0 ? code : terrno)
+
 #define TAOS_RETURN(CODE)     \
   do {                        \
     return (terrno = (CODE)); \

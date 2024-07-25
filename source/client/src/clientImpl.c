@@ -324,7 +324,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
 
-  tsem_wait(&pRequest->body.rspSem);
+  (void)tsem2_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1427,7 +1427,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
-  tsem_wait(&pRequest->body.rspSem);
+  (void)tsem_wait(&pRequest->body.rspSem);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);

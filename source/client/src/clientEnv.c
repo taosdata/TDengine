@@ -162,7 +162,7 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   data.clusterId = pTscObj->pAppInfo->clusterId;
   data.type = SLOW_LOG_WRITE;
   data.data = value;
-  if(monitorPutData2MonitorQueue(data) < 0){
+  if(monitorPutData2MonitorQueue(data) != 0){
     taosMemoryFree(value);
   }
 
@@ -479,7 +479,10 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
 
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
-  tsem_init(&pRequest->body.rspSem, 0, 0);
+  if (tsem2_init(&pRequest->body.rspSem, 0, 0) != 0) {
+    doDestroyRequest(pRequest);
+    return NULL;
+  }
 
   if (registerRequest(pRequest, pTscObj)) {
     doDestroyRequest(pRequest);
@@ -601,7 +604,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->msgBuf);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
-  tsem_destroy(&pRequest->body.rspSem);
+  (void)tsem2_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->targetTableList);

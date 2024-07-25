@@ -41,7 +41,7 @@ void tmqGlobalMethod(JNIEnv *env) {
   }
 
   if (g_vm == NULL) {
-    (*env)->GetJavaVM(env, &g_vm);
+    (void)((*env)->GetJavaVM(env, &g_vm));
   }
 
   jclass offset = (*env)->FindClass(env, "com/taosdata/jdbc/tmq/OffsetWaitCallback");
@@ -68,7 +68,7 @@ void tmqAssignmentMethod(JNIEnv *env) {
   }
 
   if (g_vm == NULL) {
-    (*env)->GetJavaVM(env, &g_vm);
+    (void)((*env)->GetJavaVM(env, &g_vm));
   }
 
   jclass assignment = (*env)->FindClass(env, "com/taosdata/jdbc/tmq/Assignment");
@@ -104,7 +104,7 @@ void commit_cb(tmq_t *tmq, int32_t code, void *param) {
   param = NULL;
 
   if (needDetach) {
-    (*g_vm)->DetachCurrentThread(g_vm);
+    (void)((*g_vm)->DetachCurrentThread(g_vm));
   }
   env = NULL;
 }
@@ -126,7 +126,7 @@ void consumer_callback(tmq_t *tmq, int32_t code, void *param) {
   param = NULL;
 
   if (needDetach) {
-    (*g_vm)->DetachCurrentThread(g_vm);
+    (void)((*g_vm)->DetachCurrentThread(g_vm));
   }
   env = NULL;
 }
