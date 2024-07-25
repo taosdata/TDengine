@@ -1872,8 +1872,9 @@ static void getDBNameFromCondition(SNode* pCondition, const char* dbName) {
   nodesWalkExpr(pCondition, getDBNameFromConditionWalker, (char*)dbName);
 }
 
-static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
+static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   // build message and send to mnode to fetch the content of system tables.
+  int32_t            code = TSDB_CODE_SUCCESS;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
@@ -1881,7 +1882,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   while (1) {
     if (isTaskKilled(pOperator->pTaskInfo)) {
       setOperatorCompleted(pOperator);
-      return NULL;
+      (*ppRes) = NULL;
+      return code;
     }
 
     blockDataCleanup(pInfo->pRes);
@@ -1923,11 +1925,19 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       if (pBlock->info.rows == 0) {
         continue;
       }
-      return pBlock;
+      (*ppRes) = pBlock;
+      return code;
     } else {
-      return NULL;
+      (*ppRes) = NULL;
+      return code;
     }
   }
+}
+
+static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t      code = doSysTableScanNext(pOperator, &pRes);
+  return pRes;
 }
 
 static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo, const char* name,
@@ -1974,7 +1984,11 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
     int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
     char*   buf1 = taosMemoryCalloc(1, contLen);
-    (void)tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
+    int32_t tempRes = tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
+    if (tempRes < 0) {
+      code = terrno;
+      return NULL;
+    }
 
     // send the fetch remote task result reques
     SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -2548,11 +2562,12 @@ static int32_t doGetTableRowSize(SReadHandle* pHandle, uint64_t uid, int32_t* ro
   return TSDB_CODE_SUCCESS;
 }
 
-static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
+static int32_t doBlockInfoScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SBlockDistInfo* pBlockScanInfo = pOperator->info;
@@ -2578,7 +2593,11 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   char*   p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
   QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  (void)tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
+  int32_t tempRes = tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
+  if (tempRes < 0) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
   varDataSetLen(p, len);
 
   code = colDataSetVal(pColInfo, 0, p, false);
@@ -2602,7 +2621,14 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  return pBlock;
+  (*ppRes) = pBlock;
+  return code;
+}
+
+static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t      code = doBlockInfoScanNext(pOperator, &pRes);
+  return pRes;
 }
 
 static void destroyBlockDistScanOperatorInfo(void* param) {

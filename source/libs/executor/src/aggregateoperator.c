@@ -252,14 +252,15 @@ _end:
   return pBlock != NULL;
 }
 
-SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
+int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
   SAggOperatorInfo* pAggInfo = pOperator->info;
   SOptrBasicInfo*   pInfo = &pAggInfo->binfo;
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -291,10 +292,18 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  return (rows == 0) ? NULL : pInfo->pRes;
+  (*ppRes) = (rows == 0) ? NULL : pInfo->pRes;
+  return code;
+}
+
+static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = getAggregateResultNext(pOperator, &pRes);
+  return pRes;
 }
 
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {

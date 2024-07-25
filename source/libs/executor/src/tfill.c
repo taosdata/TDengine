@@ -47,9 +47,9 @@ static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo,
   }
 
   SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
-  int32_t code = doSetVal(pDstColInfo, rowIndex, pKey);
+  int32_t     code = doSetVal(pDstColInfo, rowIndex, pKey);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__,  __LINE__, tstrerror(code));
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     T_LONG_JMP(pFillInfo->pTaskInfo->env, code);
   }
 }
@@ -511,20 +511,18 @@ static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
   return pFillInfo->numOfRows - pFillInfo->index;
 }
 
-struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
-                                     SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol,
-                                     int32_t primaryTsSlotId, int32_t order, const char* id, SExecTaskInfo* pTaskInfo) {
+void taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
+                        SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t primaryTsSlotId,
+                        int32_t order, const char* id, SExecTaskInfo* pTaskInfo, SFillInfo** ppFillInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (fillType == TSDB_FILL_NONE) {
-    return NULL;
+    (*ppFillInfo) = NULL;
+    return;
   }
 
   SFillInfo* pFillInfo = taosMemoryCalloc(1, sizeof(SFillInfo));
-  if (pFillInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  QUERY_CHECK_NULL(pFillInfo, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
   pFillInfo->order = order;
   pFillInfo->srcTsSlotId = primaryTsSlotId;
@@ -562,10 +560,10 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(pFillInfo->next.pRowVal);
     taosArrayDestroy(pFillInfo->prev.pRowVal);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    terrno = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
-  return pFillInfo;
+  (*ppFillInfo) = pFillInfo;
 }
 
 void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {

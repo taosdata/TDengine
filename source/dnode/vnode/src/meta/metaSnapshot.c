@@ -32,7 +32,7 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
   // alloc
   pReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   pReader->pMeta = pMeta;
   pReader->sver = sver;
