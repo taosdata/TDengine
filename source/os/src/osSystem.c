@@ -301,8 +301,8 @@ int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   (*ptrBuf)[1023] = 0;
   return strlen(*ptrBuf);
 #else
-  int64_t len = 0;
-  len = getline(ptrBuf, &len, (FILE*)pCmd);
+  ssize_t len = 0;
+  len = getline(ptrBuf, (size_t*)&len, (FILE*)pCmd);
   if (-1 == len) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
