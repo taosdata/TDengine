@@ -32,6 +32,9 @@ namespace TDPIConnector.Core
 
         List<AFDataPipeEventWrapper> allEvents = new List<AFDataPipeEventWrapper>();
         RangeDeleteEventsSender deleteSender;
+        private readonly bool SyncDeleteData;
+        private readonly bool SyncUpdateData;
+        private readonly bool SyncUpdateAttribute;
 
         public EventsSender(TDEngineProxy tdEngineProxy)
         {
@@ -39,6 +42,9 @@ namespace TDPIConnector.Core
             dpPIEvents = new ConcurrentQueue<AFDataPipeEventWrapper>();
             dpAFEvents = new ConcurrentQueue<AFDataPipeEventWrapper>();
             deleteSender = new RangeDeleteEventsSender(tdEngineProxy, null);
+            SyncDeleteData = AppSettings.tomlConfig.SyncDeleteData;
+            SyncUpdateData = AppSettings.tomlConfig.SyncUpdateData;
+            SyncUpdateAttribute = AppSettings.tomlConfig.SyncUpdateAttribute;
         }
 
         public void SetBackfill(BackfillManager backfill)
@@ -109,11 +115,30 @@ namespace TDPIConnector.Core
                     var timestamp = tdValue.TimestampString;
                     bool isTDTag = dpEvent.Value.Attribute.IsTDengineTag();
                     // 更新历史数据(Update)、插入新数据(Add)、插入历史数据(Insert)
-                    if ((action == OSIsoft.AF.Data.AFDataPipeAction.Add || action == OSIsoft.AF.Data.AFDataPipeAction.Insert || action == OSIsoft.AF.Data.AFDataPipeAction.Update) && !isTDTag)
+                    if (
+                        (
+                            action == OSIsoft.AF.Data.AFDataPipeAction.Add
+                            || action == OSIsoft.AF.Data.AFDataPipeAction.Insert
+                            || action == OSIsoft.AF.Data.AFDataPipeAction.Update
+                        ) && !isTDTag
+                    )
                     {
-                        if (action == OSIsoft.AF.Data.AFDataPipeAction.Update || action == OSIsoft.AF.Data.AFDataPipeAction.Insert) 
+                        if (
+                            action == OSIsoft.AF.Data.AFDataPipeAction.Update
+                            || action == OSIsoft.AF.Data.AFDataPipeAction.Insert
+                        )
                         {
-                            log.Info($"DataPipeEvent-{action}:{stableName}:{elementName}_{elementId}:{attributeName}:{timestamp}");
+                            log.Info(
+                                $"DataPipeEvent-{action}:{stableName}:{elementName}_{elementId}:{attributeName}:{timestamp}"
+                            );
+                            if (
+                                action == OSIsoft.AF.Data.AFDataPipeAction.Update
+                                && !SyncUpdateData
+                            )
+                            {
+                                log.Info($"DataPipeEvent-{action}:ignore update event");
+                                continue;
+                            }
                         }
                         if (!columnNames.Contains(attributeName))
                         {
@@ -169,13 +194,20 @@ namespace TDPIConnector.Core
                         continue;
                     }
                     // 日志记录所有其它事件
-                    log.Info($"DataPipeEvent-{action}:{stableName}:{elementName}_{elementId}:{attributeName}:{timestamp}");
+                    log.Info(
+                        $"DataPipeEvent-{action}:{stableName}:{elementName}_{elementId}:{attributeName}:{timestamp}"
+                    );
 
                     // 处理 TAG 列变化
                     if (isTDTag)
                     {
                         if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Update)
                         {
+                            if (!SyncUpdateAttribute)
+                            {
+                                log.Info($"DataPipeEvent-{action}:ignore update tag event");
+                                continue;
+                            }
                             var valueString = dpEvent.Value.Attribute.ToStringWithUOM();
                             log.Info(
                                 $"DataPipeEvent-{action}:Tag change,{stableName}:{elementName}_{elementId}:{attributeName}:{valueString}"
@@ -196,13 +228,26 @@ namespace TDPIConnector.Core
                     // 删除历史数据
                     if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Delete)
                     {
+                        if (!SyncDeleteData)
+                        {
+                            log.Info($"DataPipeEvent-{action}:ignore delete event");
+                            continue;
+                        }
                         if (dpEvent.Value.Attribute.Unsupported())
                         {
-                            log.Debug($"DataPipeEvent-{action}:ignore unsupported datarefrence type");
+                            log.Info(
+                                $"DataPipeEvent-{action}:ignore unsupported datarefrence type"
+                            );
                         }
-                        else {
+                        else
+                        {
                             // 更新属性值为 null
-                            tdEngineProxy.DeleteByTime(stableName, elementId, tdValue.Name.ToTDEngineNamingPattern(), timestamp);
+                            tdEngineProxy.DeleteByTime(
+                                stableName,
+                                elementId,
+                                tdValue.Name.ToTDEngineNamingPattern(),
+                                timestamp
+                            );
                         }
                         continue;
                     }
@@ -224,9 +269,7 @@ namespace TDPIConnector.Core
                         continue;
                     }
                     // 处理刷新事件
-                    if (
-                        dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Refresh
-                    )
+                    if (dpEvent.AFEventAction() == OSIsoft.AF.Data.AFDataPipeAction.Refresh)
                     {
                         log.Info($"DataPipeEvent-{action}:ignore refresh event");
                         continue;
