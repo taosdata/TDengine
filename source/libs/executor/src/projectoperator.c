@@ -888,6 +888,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       }
 
       if (pResult->info.rows > 0 && !createNewColModel) {
+        int32_t ret = 0;
+
         if (pInputData->pData[0] == NULL) {
           int32_t slotId = pfCtx->param[0].pCol->slotId;
 
@@ -897,12 +899,17 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
             TSDB_CHECK_CODE(code, lino, _exit);
           }
 
-          code = colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInput,
-                          pSrcBlock->info.rows);
+          ret = colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInput,
+                                pSrcBlock->info.rows);
         } else {
-          code = colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInputData->pData[0],
-                          pInputData->numOfRows);
+          ret = colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity,
+                                pInputData->pData[0], pInputData->numOfRows);
         }
+
+        if (ret < 0) {
+          code = ret;
+        }
+
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
         if (pInputData->pData[0] == NULL) {
@@ -977,10 +984,14 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
       ASSERT(pResult->info.capacity > 0);
 
-      code = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
-      colDataDestroy(&idata);
+      int32_t ret = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+      if (ret < 0) {
+        code = ret;
+      }
 
+      colDataDestroy(&idata);
       TSDB_CHECK_CODE(code, lino, _exit);
+
       numOfRows = dest.numOfRows;
       taosArrayDestroy(pBlockList);
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
@@ -1099,7 +1110,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
         ASSERT(pResult->info.capacity > 0);
-        code = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+        int32_t ret = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+        if (ret < 0) {
+          code = ret;
+        }
+
         colDataDestroy(&idata);
 
         numOfRows = dest.numOfRows;
@@ -1122,6 +1137,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     TSDB_CHECK_CODE(code, lino, _exit);
     numOfRows = (*pfCtx)->resultInfo->numOfRes;
   }
+
   if (!createNewColModel) {
     pResult->info.rows += numOfRows;
   }
