@@ -230,30 +230,30 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   }
 }
 
-static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
+static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
-  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-  }
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   while (1) {
     SSDataBlock* pBlock = doLoadRemoteDataImpl(pOperator);
     if (pBlock == NULL) {
-      return NULL;
+      (*ppRes) = NULL;
+      return code;
     }
 
-    pTaskInfo->code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
-    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pTaskInfo->code));
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-    }
+    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (blockDataGetNumOfRows(pBlock) == 0) {
       continue;
     }
@@ -266,15 +266,33 @@ static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
       } else if (status == PROJECT_RETRIEVE_DONE) {
         if (pBlock->info.rows == 0) {
           setOperatorCompleted(pOperator);
-          return NULL;
+          (*ppRes) = NULL;
+          return code;
         } else {
-          return pBlock;
+          (*ppRes) = pBlock;
+          return code;
         }
       }
     } else {
-      return pBlock;
+      (*ppRes) = pBlock;
+      return code;
     }
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  (*ppRes) =  NULL;
+  return code;
+}
+
+static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = loadRemoteDataNext(pOperator, &pRes);
+  return pRes;
 }
 
 static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const char* id) {
