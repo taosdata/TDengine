@@ -27,7 +27,7 @@ int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
 void mndPostProcessQueryMsg(SRpcMsg *pMsg) {
   if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return;
   SMnode *pMnode = pMsg->info.node;
-  qWorkerAbortPreprocessQueryMsg(pMnode->pQuery, pMsg);
+  (void)qWorkerAbortPreprocessQueryMsg(pMnode->pQuery, pMsg);
 }
 
 int32_t mndProcessQueryMsg(SRpcMsg *pMsg, SQueueInfo* pInfo) {
@@ -134,7 +134,10 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     rsp.msgLen = reqMsg.info.rspLen;
     rsp.msg = reqMsg.info.rsp;
 
-    taosArrayPush(batchRsp.pRsps, &rsp);
+    if (taosArrayPush(batchRsp.pRsps, &rsp) == NULL) {
+      mError("msg:%p, failed to put array since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+             TMSG_INFO(pMsg->msgType));
+    }
   }
 
   rspSize = tSerializeSBatchRsp(NULL, 0, &batchRsp);
