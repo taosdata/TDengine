@@ -971,6 +971,7 @@ _failed:
     taosMemoryFree(conn->stream);
     transReqQueueClear(&conn->wreqQueue);
     transDestroyBuffer(&conn->readBuf);
+    transQueueDestroy(&conn->cliMsgs);
   }
   taosMemoryFree(conn);
   return code;
