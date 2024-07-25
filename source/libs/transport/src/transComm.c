@@ -637,6 +637,10 @@ void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs) {
   uint64_t    now = taosGetTimestampMs();
   SDelayTask* task = taosMemoryCalloc(1, sizeof(SDelayTask));
+  if (task == NULL) {
+    return NULL;
+  }
+
   task->func = func;
   task->arg = arg;
   task->execTime = now + timeoutMs;
