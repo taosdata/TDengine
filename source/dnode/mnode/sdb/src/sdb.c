@@ -136,15 +136,14 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_ENTRY_LOCK);
   if (hash == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_RETURN(code);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
   mInfo("sdb table:%s is initialized", sdbTableName(sdbType));
 
-  return 0;
+  TAOS_RETURN(0);
 }
 
 static int32_t sdbCreateDir(SSdb *pSdb) {
