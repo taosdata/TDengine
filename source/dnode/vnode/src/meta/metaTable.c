@@ -185,7 +185,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   int32_t     nTagData = 0;
 
   SArray *pTagVals = NULL;
-  code = tTagToValArray((const STag *)data, &pTagVals);
+  int32_t code = tTagToValArray((const STag *)data, &pTagVals);
   if (code) {
     return code;
   }
