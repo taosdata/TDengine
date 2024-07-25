@@ -1,7 +1,7 @@
 ---
 sidebar_label: taosKeeper
-title: taosKeeper
-description: TDengine 3.0 版本监控指标的导出工具
+title: taosKeeper 参考手册
+toc_max_heading_level: 4
 ---
 
 import Tabs from "@theme/Tabs";
