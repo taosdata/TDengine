@@ -1027,7 +1027,8 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
 
   mndTransExecute(pMnode, pNew);
   mndReleaseTrans(pMnode, pNew);
-  TAOS_RETURN(code);
+  // TDOD change to TAOS_RETURN(code);
+  return 0;
 }
 
 static int32_t mndTransCommit(SMnode *pMnode, STrans *pTrans) {
