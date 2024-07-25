@@ -122,7 +122,9 @@ void clearBlockScanInfoBuf(SBlockInfoBuf* pBuf) {
   size_t num = taosArrayGetSize(pBuf->pData);
   for (int32_t i = 0; i < num; ++i) {
     char** p = taosArrayGet(pBuf->pData, i);
-    taosMemoryFree(*p);
+    if (p != NULL) {
+      taosMemoryFree(*p);
+    }
   }
 
   taosArrayDestroy(pBuf->pData);
@@ -446,8 +448,8 @@ void cleanupInfoForNextFileset(SSHashObj* pTableMap) {
 
 // brin records iterator
 void initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList) {
-  memset(&pIter->block, 0, sizeof(SBrinBlock));
-  memset(&pIter->record, 0, sizeof(SBrinRecord));
+  (void) memset(&pIter->block, 0, sizeof(SBrinBlock));
+  (void) memset(&pIter->record, 0, sizeof(SBrinRecord));
   pIter->blockIndex = -1;
   pIter->recordIndex = -1;
 
@@ -465,6 +467,9 @@ int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord) {
     }
 
     pIter->pCurrentBlk = taosArrayGet(pIter->pBrinBlockList, pIter->blockIndex);
+    if (pIter->pCurrentBlk == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
 
     (void) tBrinBlockClear(&pIter->block);
     int32_t code = tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
@@ -631,6 +636,10 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
     for (int32_t k = 0; k < num; ++k) {
       SFileDataBlockInfo* pBlockInfo = taosArrayGet(pTableScanInfo->pBlockList, k);
+      if (pBlockInfo == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+
       sup.pDataBlockInfo[sup.numOfTables][k] =
           (SBlockOrderWrapper){.uid = pTableScanInfo->uid, .offset = pBlockInfo->blockOffset, .pInfo = pTableScanInfo};
       cnt++;
@@ -689,6 +698,10 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     int32_t index = sup.indexPerTable[pos]++;
 
     SFileDataBlockInfo* pBlockInfo = taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+    if (pBlockInfo == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
     void* px = taosArrayPush(pBlockIter->blockList, pBlockInfo);
     if (px == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -1208,6 +1221,10 @@ bool isCleanSttBlock(SArray* pKeyRangeList, STimeWindow* pQueryWindow, STableBlo
   }
 
   SSttKeyRange* pRange = taosArrayGet(pKeyRangeList, 0);
+  if (pRange == NULL) {
+    return false;
+  }
+
   STimeWindow w = {.skey = pRange->skey.ts, .ekey = pRange->ekey.ts};
   if (overlapWithTimeWindow(&w, pQueryWindow, pScanInfo, order)) {
     return false;
@@ -1216,6 +1233,9 @@ bool isCleanSttBlock(SArray* pKeyRangeList, STimeWindow* pQueryWindow, STableBlo
   for (int32_t i = 0; i < num - 1; ++i) {
     SSttKeyRange* p1 = taosArrayGet(pKeyRangeList, i);
     SSttKeyRange* p2 = taosArrayGet(pKeyRangeList, i + 1);
+    if (p1 == NULL || p2 == NULL) {
+      return false;
+    }
 
     if (p1->ekey.ts >= p2->skey.ts) {
       return false;
@@ -1237,6 +1257,10 @@ static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const S
 
   for (int32_t i = startIndex; i < num; i += 1) {
     TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
+    if (p == NULL) {
+      return false;
+    }
+
     if (p->ts >= pRecord->firstKey.key.ts && p->ts <= pRecord->lastKey.key.ts) {
       if (p->version >= pRecord->minVer) {
         return true;
@@ -1245,6 +1269,10 @@ static bool doCheckDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const S
       if (p->version >= pRecord->minVer) {
         if (i < num - 1) {
           TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
+          if (pnext == NULL) {
+            return false;
+          }
+
           if (pnext->ts >= pRecord->firstKey.key.ts) {
             return true;
           }
@@ -1266,11 +1294,19 @@ static bool doCheckDatablockOverlapWithoutVersion(STableBlockScanInfo* pBlockSca
 
   for (int32_t i = startIndex; i < num; i += 1) {
     TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
+    if (p == NULL) {
+      return false;
+    }
+
     if (p->ts >= pRecord->firstKey.key.ts && p->ts <= pRecord->lastKey.key.ts) {
       return true;
     } else if (p->ts < pRecord->firstKey.key.ts) {  // p->ts < pBlock->minKey.ts
       if (i < num - 1) {
         TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
+        if (pnext == NULL) {
+          return false;
+        }
+
         if (pnext->ts >= pRecord->firstKey.key.ts) {
           return true;
         }
@@ -1291,6 +1327,10 @@ bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecor
   // ts is not overlap
   TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
   TSDBKEY* pLast = taosArrayGetLast(pBlockScanInfo->delSkyline);
+  if (pFirst == NULL || pLast == NULL) {
+    return false;
+  }
+
   if (pRecord->firstKey.key.ts > pLast->ts || pRecord->lastKey.key.ts < pFirst->ts) {
     return false;
   }
@@ -1302,6 +1342,10 @@ bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecor
     int32_t index = pBlockScanInfo->fileDelIndex;
     while (1) {
       TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
+      if (p == NULL) {
+        return false;
+      }
+
       if (p->ts > pRecord->firstKey.key.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
@@ -1324,6 +1368,10 @@ bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const 
   // ts is not overlap
   TSDBKEY* pFirst = taosArrayGet(pBlockScanInfo->delSkyline, 0);
   TSDBKEY* pLast = taosArrayGetLast(pBlockScanInfo->delSkyline);
+  if (pFirst == NULL || pLast == NULL) {
+    return false;
+  }
+
   if (pRecord->firstKey.key.ts > pLast->ts || pRecord->lastKey.key.ts < pFirst->ts) {
     return false;
   }
@@ -1335,6 +1383,10 @@ bool overlapWithDelSkylineWithoutVer(STableBlockScanInfo* pBlockScanInfo, const 
     int32_t index = pBlockScanInfo->fileDelIndex;
     while (1) {
       TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
+      if (p == NULL) {
+        return false;
+      }
+
       if (p->ts > pRecord->firstKey.key.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.

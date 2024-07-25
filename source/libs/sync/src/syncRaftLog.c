@@ -51,7 +51,12 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   taosLRUCacheSetStrictCapacity(pLogStore->pCache, false);
 
   pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));
-  ASSERT(pLogStore->data != NULL);
+  if (!pLogStore->data) {
+    taosMemoryFree(pLogStore);
+    taosLRUCacheCleanup(pLogStore->pCache);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   SSyncLogStoreData* pData = pLogStore->data;
   pData->pSyncNode = pSyncNode;
@@ -60,7 +65,13 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
 
   taosThreadMutexInit(&(pData->mutex), NULL);
   pData->pWalHandle = walOpenReader(pData->pWal, NULL, 0);
-  ASSERT(pData->pWalHandle != NULL);
+  if (!pData->pWalHandle) {
+    taosMemoryFree(pLogStore);
+    taosLRUCacheCleanup(pLogStore->pCache);
+    taosThreadMutexDestroy(&(pData->mutex));
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   pLogStore->syncLogUpdateCommitIndex = raftLogUpdateCommitIndex;
   pLogStore->syncLogCommitIndex = raftlogCommitIndex;
@@ -110,7 +121,7 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
   SWal*              pWal = pData->pWal;
   int32_t            code = walRestoreFromSnapshot(pWal, snapshotIndex);
   if (code != 0) {
-    int32_t     err = terrno;
+    int32_t     err = code;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
@@ -118,10 +129,10 @@ static int32_t raftLogRestoreFromSnapshot(struct SSyncLogStore* pLogStore, SyncI
     sNError(pData->pSyncNode,
             "wal restore from snapshot error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s", snapshotIndex,
             err, errStr, sysErr, sysErrStr);
-    return -1;
+    TAOS_RETURN(err);
   }
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore) {
@@ -206,17 +217,17 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
-  SyncIndex    index = 0;
   SWalSyncInfo syncMeta = {0};
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
+
   int64_t tsWriteBegin = taosGetTimestampNs();
-  index = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
   int64_t tsWriteEnd = taosGetTimestampNs();
   int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
 
-  if (index < 0) {
+  if (TSDB_CODE_SUCCESS != code) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
@@ -224,16 +235,19 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
     sNError(pData->pSyncNode, "wal write error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s",
             pEntry->index, err, errStr, sysErr, sysErrStr);
-    return -1;
+
+    TAOS_RETURN(err);
   }
 
-  ASSERT(pEntry->index == index);
-
-  walFsync(pWal, forceSync);
+  code = walFsync(pWal, forceSync);
+  if (TSDB_CODE_SUCCESS != code) {
+    sNError(pData->pSyncNode, "wal fsync failed since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
 
   sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
           TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 // entry found, return 0
@@ -251,10 +265,10 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
 
   SWalReader* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("vgId:%d, wal handle is NULL", pData->pSyncNode->vgId);
     taosThreadMutexUnlock(&(pData->mutex));
-    return -1;
+
+    TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
   }
 
   int64_t ts2 = taosGetTimestampNs();
@@ -264,7 +278,7 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
 
   // code = walReadVerCached(pWalHandle, index);
   if (code != 0) {
-    int32_t     err = terrno;
+    int32_t     err = code;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
@@ -284,7 +298,8 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     */
 
     taosThreadMutexUnlock(&(pData->mutex));
-    return code;
+
+    TAOS_RETURN(code);
   }
 
   *ppEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
@@ -317,7 +332,7 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
           ", elapsed-build:%" PRId64,
           index, tsElapsed, tsElapsedLock, tsElapsedRead, tsElapsedBuild);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 // truncate semantic
@@ -327,7 +342,7 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
 
   int32_t code = walRollback(pWal, fromIndex);
   if (code != 0) {
-    int32_t     err = terrno;
+    int32_t     err = code;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
@@ -337,7 +352,8 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
 
   // event log
   sNTrace(pData->pSyncNode, "log truncate, from-index:%" PRId64, fromIndex);
-  return code;
+
+  TAOS_RETURN(code);
 }
 
 // entry found, return 0
@@ -350,16 +366,16 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
 
   *ppLastEntry = NULL;
   if (walIsEmpty(pWal)) {
-    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
   } else {
     SyncIndex lastIndex = raftLogLastIndex(pLogStore);
     ASSERT(lastIndex >= SYNC_INDEX_BEGIN);
     int32_t code = raftLogGetEntry(pLogStore, lastIndex, ppLastEntry);
-    return code;
+
+    TAOS_RETURN(code);
   }
 
-  return -1;
+  TAOS_RETURN(TSDB_CODE_FAILED);
 }
 
 int32_t raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
@@ -373,20 +389,22 @@ int32_t raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
 
   if (index < snapshotVer || index > wallastVer) {
     // ignore
-    return 0;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
   int32_t code = walCommit(pWal, index);
   if (code != 0) {
-    int32_t     err = terrno;
+    int32_t     err = code;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
     sError("vgId:%d, wal update commit index error, index:%" PRId64 ", err:0x%x, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, index, err, errStr, sysErr, sysErrStr);
-    return -1;
+
+    TAOS_RETURN(code);
   }
-  return 0;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 SyncIndex raftlogCommitIndex(SSyncLogStore* pLogStore) {
@@ -403,5 +421,6 @@ SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore) {
 SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
+
   return walGetCommittedVer(pWal);
 }

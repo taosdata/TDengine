@@ -11089,24 +11089,24 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   int32_t code = 0;
   int32_t lino;
   if (pVal->type == TMQ_OFFSET__RESET_NONE) {
-    snprintf(buf, maxLen, "none");
+    (void)snprintf(buf, maxLen, "none");
   } else if (pVal->type == TMQ_OFFSET__RESET_EARLIEST) {
-    snprintf(buf, maxLen, "earliest");
+    (void)snprintf(buf, maxLen, "earliest");
   } else if (pVal->type == TMQ_OFFSET__RESET_LATEST) {
-    snprintf(buf, maxLen, "latest");
+    (void)snprintf(buf, maxLen, "latest");
   } else if (pVal->type == TMQ_OFFSET__LOG) {
-    snprintf(buf, maxLen, "wal:%" PRId64, pVal->version);
+    (void)snprintf(buf, maxLen, "wal:%" PRId64, pVal->version);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (IS_VAR_DATA_TYPE(pVal->primaryKey.type)) {
       char *tmp = taosMemoryCalloc(1, pVal->primaryKey.nData + 1);
       if (tmp == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-      memcpy(tmp, pVal->primaryKey.pData, pVal->primaryKey.nData);
-      snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%s", pVal->uid, pVal->ts,
-               pVal->primaryKey.type, tmp);
+      (void)memcpy(tmp, pVal->primaryKey.pData, pVal->primaryKey.nData);
+      (void)snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%s", pVal->uid, pVal->ts,
+                     pVal->primaryKey.type, tmp);
       taosMemoryFree(tmp);
     } else {
-      snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%" PRId64, pVal->uid, pVal->ts,
-               pVal->primaryKey.type, pVal->primaryKey.val);
+      (void)snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%" PRId64, pVal->uid, pVal->ts,
+                     pVal->primaryKey.type, pVal->primaryKey.val);
     }
   } else {
     return TSDB_CODE_INVALID_PARA;
@@ -11140,9 +11140,9 @@ int32_t tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   *pLeft = *pRight;
   if (IS_VAR_DATA_TYPE(pRight->primaryKey.type)) {
     if ((pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData)) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
-    memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
+    (void)memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
   }
   return 0;
 }

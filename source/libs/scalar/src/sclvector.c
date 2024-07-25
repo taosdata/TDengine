@@ -105,7 +105,7 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
   if (len < 0) {
     sclError("castConvert taosUcs4ToMbs error 1");
-    SCL_ERR_JRET(TSDB_CODE_FAILED);
+    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
 
   tmp[len] = 0;
@@ -596,7 +596,7 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
              (char *)varDataVal(buf));
     taosMemoryFree(*out);
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
   varDataSetLen(*out, len);
   SCL_RET(TSDB_CODE_SUCCESS);

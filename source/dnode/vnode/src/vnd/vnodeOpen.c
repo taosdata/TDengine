@@ -175,7 +175,8 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
   int32_t prefixLen = strlen(tsdbFilePrefix);
 
-  STfsDir *tsdbDir = tfsOpendir(pTfs, tsdbPath);
+  STfsDir *tsdbDir = NULL;
+  (void)tfsOpendir(pTfs, tsdbPath, &tsdbDir);
   if (tsdbDir == NULL) return 0;
 
   while (1) {
