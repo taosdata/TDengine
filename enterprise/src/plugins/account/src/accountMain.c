@@ -78,11 +78,11 @@ static void acctDoStatistic(void *handle, void *tmrId) {
       pIter = mnodeGetNextAcct(pIter, &pAcct);
       if (pAcct == NULL) break;
       totalStorage += acctGetStatistic(pAcct);
-      mnodeDecAcctRef(pAcct);
+      (void)mnodeDecAcctRef(pAcct);
     }
 
     grantReset(NULL, TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
-    taosReleaseRef(tsSdbRid, tsAcctRid);
+    (void)taosReleaseRef(tsSdbRid, tsAcctRid);
   }
 
   taosTmrReset(acctDoStatistic, tsMonitorInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
@@ -191,14 +191,14 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   SAcctObj *pAcct = mnodeGetAcct(name);
   if (pAcct != NULL) {
     mWarn("acct:%s, is already there", name);
-    mnodeDecAcctRef(pAcct);
+    (void)mnodeDecAcctRef(pAcct);
     return TSDB_CODE_MND_ACCT_ALREADY_EXIST;
   }
 
   SUserObj *pUser = mnodeGetUser(name);
   if (pUser != NULL) {
     mWarn("user:%s, is already there", name);
-    mnodeDecUserRef(pUser);
+    (void)mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_USER_ALREADY_EXIST;
   }
 
@@ -246,8 +246,8 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
     // create a user in the same name and pass
     char suser[64] = {0};
     (void)sprintf(suser, "_%s", name);
-    mnodeCreateUser(pAcct, name, pass, NULL);
-    mnodeCreateUser(pAcct, suser, tsInternalPass, NULL);  // create stream user
+    (void)mnodeCreateUser(pAcct, name, pass, NULL);
+    (void)mnodeCreateUser(pAcct, suser, tsInternalPass, NULL);  // create stream user
   }
 
   return code;
@@ -269,7 +269,7 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
     mInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
   }
 
-  mnodeDecAcctRef(pAcct);
+  (void)(void)mnodeDecAcctRef(pAcct);
   return code;
 }
 
@@ -285,7 +285,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0) {
-    mnodeDecUserRef(pUser);
+    (void)mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
@@ -355,7 +355,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pShow->numOfRows = (int32_t)sdbGetNumOfRows(tsAcctSdb);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mnodeDecUserRef(pUser);
+  (void)mnodeDecUserRef(pUser);
   return 0;
 }
 
@@ -435,7 +435,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
 
     numOfRows++;
 
-    mnodeDecAcctRef(pAcct);
+    (void)mnodeDecAcctRef(pAcct);
   }
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
@@ -574,7 +574,7 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
     mInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
   }
 
-  mnodeDecAcctRef(pAcct);
+  (void)mnodeDecAcctRef(pAcct);
   return code;
 }
 
@@ -598,10 +598,10 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
       pointsWritten += pVgroup->pointsWritten;
       pVgroup->accessState = pAcct->acctInfo.accessState;
     }
-    mnodeDecVgroupRef(pVgroup);
+    (void)mnodeDecVgroupRef(pVgroup);
   }
 
-  taosReleaseRef(tsSdbRid, tsVgroupRid);
+  (void)taosReleaseRef(tsSdbRid, tsVgroupRid);
 
   pAcct->acctInfo.totalStorage = totalStorage;
   pAcct->acctInfo.numOfPointsPerSecond =
@@ -665,7 +665,7 @@ static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
   SAcctObj       *pAcct = mnodeGetAcct(pCreate->user);
   if (pAcct != NULL) {
     mInfo("acct:%s, already exist, update it", pCreate->user);
-    mnodeDecAcctRef(pAcct);
+    (void)mnodeDecAcctRef(pAcct);
     return acctProcessAlterAcctMsg(pMsg);
   }
 
