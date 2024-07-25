@@ -605,7 +605,7 @@ export function getDataSources(lang) {
               "value": "true",
             },
             {
-              "name": "sync_update_attributes",
+              "name": "sync_update_attribute",
               "display": "Synchronize The Changes of Static Attribute",
               "description": "Synchronize the changes of all static attribute to TDengine",
               "hint": {
@@ -5054,7 +5054,7 @@ export function getDataSources(lang) {
               "value": "true",
             },
             {
-              "name": "sync_update_attributes",
+              "name": "sync_update_attribute",
               "display": "同步静态属性的变化",
               "description": "同步所有静态属性（非 PI Point 属性）的变化",
               "hint": {
