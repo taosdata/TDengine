@@ -77,29 +77,29 @@ int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId) {
 }
 
 int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
-  taosThreadMutexLock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
 
   for (int32_t i = 0; i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr); i++) {
     SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
     if (state->taskId.async == taskId->async && state->taskId.id == taskId->id) {
       tsdbInfo("vid:%d, fid:%d, taskId:%" PRId64 " is removed from compact monitor, number of tasks:%d",
                TD_VID(tsdb->pVnode), state->fid, taskId->id, TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr));
-      TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL);
+      TAOS_UNUSED(TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL));
       break;
     }
   }
 
-  taosThreadMutexUnlock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return 0;
 }
 
 int32_t tsdbStopAllCompTask(STsdb *tsdb) {
   int32_t i;
 
-  taosThreadMutexLock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
 
   if (tsdb->pCompMonitor == NULL) {
-    taosThreadMutexUnlock(&tsdb->mutex);
+    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
     return 0;
   }
 
@@ -107,22 +107,22 @@ int32_t tsdbStopAllCompTask(STsdb *tsdb) {
   while (i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr)) {
     SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
     if (vnodeACancel(&state->taskId) == 0) {
-      TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL);
+      TAOS_UNUSED(TARRAY2_REMOVE(&tsdb->pCompMonitor->stateArr, i, NULL));
     } else {
       i++;
     }
   }
 
-  taosThreadMutexUnlock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return 0;
 }
 
 int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {
-  taosThreadMutexLock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
   rsp->compactId = 0;  // TODO
   rsp->vgId = TD_VID(tsdb->pVnode);
   rsp->numberFileset = tsdb->pCompMonitor->totalCompTasks;
   rsp->finished = rsp->numberFileset - TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr);
-  taosThreadMutexUnlock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return 0;
 }

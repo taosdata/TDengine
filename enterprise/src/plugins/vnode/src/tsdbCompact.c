@@ -144,7 +144,7 @@ _exit:
 
 static int32_t tsdbCompactFSetCloseReader(SCompactor2 *compactor) {
   TARRAY2_CLEAR(compactor->ctx->sttReaderArr, tsdbSttFileReaderClose);
-  tsdbDataFileReaderClose(&compactor->ctx->dataReader);
+  TAOS_UNUSED(tsdbDataFileReaderClose(&compactor->ctx->dataReader));
   return 0;
 }
 
@@ -223,8 +223,8 @@ _exit:
 }
 
 static int32_t tsdbCompactFSetCloseIter(SCompactor2 *compactor) {
-  tsdbIterMergerClose(&compactor->ctx->dataIterMerger);
-  tsdbIterMergerClose(&compactor->ctx->tombIterMerger);
+  TAOS_UNUSED(tsdbIterMergerClose(&compactor->ctx->dataIterMerger));
+  TAOS_UNUSED(tsdbIterMergerClose(&compactor->ctx->tombIterMerger));
   TARRAY2_CLEAR(compactor->ctx->tombIterArr, tsdbIterClose);
   TARRAY2_CLEAR(compactor->ctx->dataIterArr, tsdbIterClose);
   return 0;
@@ -308,12 +308,12 @@ static int32_t tsdbCompactFSetEnd(SCompactor2 *compactor) {
     code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, TSDB_FEDIT_COMPACT);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    taosThreadMutexLock(&compactor->tsdb->mutex);
+    TAOS_UNUSED(taosThreadMutexLock(&compactor->tsdb->mutex));
     if ((code = tsdbFSEditCommit(compactor->tsdb->pFS))) {
-      taosThreadMutexUnlock(&compactor->tsdb->mutex);
+      TAOS_UNUSED(taosThreadMutexUnlock(&compactor->tsdb->mutex));
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    taosThreadMutexUnlock(&compactor->tsdb->mutex);
+    TAOS_UNUSED(taosThreadMutexUnlock(&compactor->tsdb->mutex));
   }
 
 _exit:
@@ -481,9 +481,9 @@ static bool tsdbShouldCompact(SCompactor2 *compactor) {
 }
 
 static void tsdbCompactEnd(SCompactor2 *compactor) {
-  tsdbCompactFSetCloseWriter(compactor);
-  tsdbCompactFSetCloseIter(compactor);
-  tsdbCompactFSetCloseReader(compactor);
+  TAOS_UNUSED(tsdbCompactFSetCloseWriter(compactor));
+  TAOS_UNUSED(tsdbCompactFSetCloseIter(compactor));
+  TAOS_UNUSED(tsdbCompactFSetCloseReader(compactor));
   taosArrayDestroy(compactor->ctx->aSkyLine);
   TARRAY2_DESTROY(compactor->ctx->tombIterArr, NULL);
   TARRAY2_DESTROY(compactor->ctx->dataIterArr, NULL);
@@ -542,13 +542,13 @@ static int32_t tsdbCompact(void *arg) {
   };
 
   // begin task
-  taosThreadMutexLock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
   tsdbBeginTaskOnFileSet(tsdb, compactArg->fid, &fset);
   if (fset && (code = tsdbTFileSetInitCopy(tsdb, fset, &compactor.fset))) {
-    taosThreadMutexUnlock(&tsdb->mutex);
+    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  taosThreadMutexUnlock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
 
   // do compact
   if (compactor.fset && tsdbShouldCompact(&compactor)) {
@@ -559,15 +559,15 @@ static int32_t tsdbCompact(void *arg) {
 _exit:
   // finish task
   if (compactor.fset) {
-    taosThreadMutexLock(&tsdb->mutex);
+    TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
     tsdbFinishTaskOnFileSet(tsdb, compactArg->fid);
-    taosThreadMutexUnlock(&tsdb->mutex);
+    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   }
 
   // clear resources
   tsdbTFileSetClear(&compactor.fset);
   TARRAY2_DESTROY(compactor.fopArr, NULL);
-  tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
+  TAOS_UNUSED(tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid););
   taosMemoryFree(arg);
 
   if (code) {
@@ -606,7 +606,7 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw) {
         taosMemoryFree(arg);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid);
+        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid));
       }
     }
   }
@@ -620,8 +620,8 @@ _exit:
 
 int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw) {
   int32_t code = 0;
-  taosThreadMutexLock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
   code = tsdbAsyncCompactImpl(tsdb, tw);
-  taosThreadMutexUnlock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return code;
 }
