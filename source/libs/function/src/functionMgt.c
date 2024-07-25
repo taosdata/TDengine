@@ -550,7 +550,7 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
     code = createFunction(funcMgtBuiltins[pFunc->funcId].pStateFunc, pParams, pStateFunc);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyList(pParams);
-      return terrno;
+      return code;
     }
     (void)strcpy((*pStateFunc)->node.aliasName, pFunc->node.aliasName);
     (void)strcpy((*pStateFunc)->node.userAlias, pFunc->node.userAlias);

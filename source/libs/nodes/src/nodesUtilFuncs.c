@@ -1768,7 +1768,7 @@ int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
 
 int32_t nodesListStrictAppend(SNodeList* pList, SNode* pNode) {
   if (NULL == pNode) {
-    return terrno;
+    return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = nodesListAppend(pList, pNode);
   if (TSDB_CODE_SUCCESS != code) {
