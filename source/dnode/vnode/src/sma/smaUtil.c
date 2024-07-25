@@ -39,9 +39,10 @@ void *tdAcquireSmaRef(int32_t rsetId, int64_t refId) { return taosAcquireRef(rse
 
 int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId) {
   if (taosReleaseRef(rsetId, refId) < 0) {
-    smaWarn("rsma release ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
-    return TSDB_CODE_FAILED;
+    int32_t code = terrno;
+    smaWarn("rsma release ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

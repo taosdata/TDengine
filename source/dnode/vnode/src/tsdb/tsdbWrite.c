@@ -34,7 +34,7 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2
   int32_t numOfRows = 0;
 
   if (ASSERTS(pTsdb->mem != NULL, "vgId:%d, mem is NULL", TD_VID(pTsdb->pVnode))) {
-    return -1;
+    TAOS_RETURN(TSDB_CODE_INVALID_PTR);
   }
 
   arrSize = taosArrayGetSize(pMsg->aSubmitTbData);
@@ -42,7 +42,7 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2
   // scan and convert
   if ((code = tsdbScanAndConvertSubmitMsg(pTsdb, pMsg)) < 0) {
     if (code != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      tsdbError("vgId:%d, failed to insert data since %s", TD_VID(pTsdb->pVnode), tstrerror(terrno));
+      tsdbError("vgId:%d, failed to insert data since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
     }
     return code;
   }

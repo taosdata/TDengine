@@ -65,6 +65,16 @@ void   *taosMemoryMallocAlign(uint32_t alignment, int64_t size);
     }                              \
   } while (0)
 
+#define TAOS_MEMORY_REALLOC(ptr, len)          \
+  do {                                         \
+    void *tmp = taosMemoryRealloc(ptr, (len)); \
+    if (tmp) {                                 \
+      (ptr) = tmp;                             \
+    } else {                                   \
+      taosMemoryFreeClear(ptr);                \
+    }                                          \
+  } while (0)
+
 #ifdef __cplusplus
 }
 #endif

@@ -32,7 +32,7 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
   // alloc
   pReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   pReader->pMeta = pMeta;
   pReader->sver = sver;
@@ -261,7 +261,9 @@ static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) 
 int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
                          SSnapContext** ctxRet) {
   SSnapContext* ctx = taosMemoryCalloc(1, sizeof(SSnapContext));
-  if (ctx == NULL) return -1;
+  if (ctx == NULL) {
+    return terrno;
+  }
   *ctxRet = ctx;
   ctx->pMeta = pVnode->pMeta;
   ctx->snapVersion = snapVersion;
@@ -271,12 +273,12 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   ctx->withMeta = withMeta;
   ctx->idVersion = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->idVersion == NULL) {
-    return -1;
+    return terrno;
   }
 
   ctx->suidInfo = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->suidInfo == NULL) {
-    return -1;
+    return terrno;
   }
   taosHashSetFreeFp(ctx->suidInfo, destroySTableInfoForChildTable);
 
@@ -426,21 +428,21 @@ static int32_t buildSuperTableInfo(SVCreateStbReq* req, void** pBuf, int32_t* co
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, req, *contLen, ret);
   if (ret < 0) {
-    return -1;
+    return ret;
   }
 
   *contLen += sizeof(SMsgHead);
   *pBuf = taosMemoryMalloc(*contLen);
   if (NULL == *pBuf) {
-    return -1;
+    return terrno;
   }
 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, POINTER_SHIFT(*pBuf, sizeof(SMsgHead)), *contLen);
-  if (tEncodeSVCreateStbReq(&encoder, req) < 0) {
+  if ((ret = tEncodeSVCreateStbReq(&encoder, req)) < 0) {
     taosMemoryFreeClear(*pBuf);
     tEncoderClear(&encoder);
-    return -1;
+    return ret;
   }
   tEncoderClear(&encoder);
   return 0;

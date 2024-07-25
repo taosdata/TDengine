@@ -20,6 +20,7 @@
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "tutil.h"
 
 typedef struct SLRUEntry      SLRUEntry;
 typedef struct SLRUEntryTable SLRUEntryTable;
@@ -114,13 +115,13 @@ static int taosLRUEntryTableInit(SLRUEntryTable *table, int maxUpperHashBits) {
   table->lengthBits = 4;
   table->list = taosMemoryCalloc(1 << table->lengthBits, sizeof(SLRUEntry *));
   if (!table->list) {
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   table->elems = 0;
   table->maxLengthBits = maxUpperHashBits;
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static void taosLRUEntryTableApply(SLRUEntryTable *table, _taos_lru_table_func_t func, uint32_t begin, uint32_t end) {
@@ -349,9 +350,7 @@ static void taosLRUCacheShardSetCapacity(SLRUCacheShard *shard, size_t capacity)
 
 static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool strict, double highPriPoolRatio,
                                  int maxUpperHashBits) {
-  if (taosLRUEntryTableInit(&shard->table, maxUpperHashBits) < 0) {
-    return -1;
-  }
+  TAOS_CHECK_RETURN(taosLRUEntryTableInit(&shard->table, maxUpperHashBits));
 
   taosThreadMutexInit(&shard->mutex, NULL);
 
@@ -372,7 +371,7 @@ static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool st
 
   taosLRUCacheShardSetCapacity(shard, capacity);
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static void taosLRUCacheShardCleanup(SLRUCacheShard *shard) {
@@ -671,16 +670,13 @@ static int getDefaultCacheShardBits(size_t capacity) {
 
 SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoolRatio) {
   if (numShardBits >= 20) {
-    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
   if (highPriPoolRatio < 0.0 || highPriPoolRatio > 1.0) {
-    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
   SLRUCache *cache = taosMemoryCalloc(1, sizeof(SLRUCache));
   if (!cache) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -692,14 +688,15 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
   cache->shards = taosMemoryCalloc(numShards, sizeof(SLRUCacheShard));
   if (!cache->shards) {
     taosMemoryFree(cache);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   bool   strictCapacity = 1;
   size_t perShard = (capacity + (numShards - 1)) / numShards;
   for (int i = 0; i < numShards; ++i) {
-    taosLRUCacheShardInit(&cache->shards[i], perShard, strictCapacity, highPriPoolRatio, 32 - numShardBits);
+    if (TSDB_CODE_SUCCESS !=
+        taosLRUCacheShardInit(&cache->shards[i], perShard, strictCapacity, highPriPoolRatio, 32 - numShardBits))
+      return NULL;
   }
 
   cache->numShards = numShards;

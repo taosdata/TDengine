@@ -89,6 +89,8 @@ int32_t mndInitVgroup(SMnode *pMnode) {
 void mndCleanupVgroup(SMnode *pMnode) {}
 
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_VGROUP, VGROUP_VER_NUMBER, sizeof(SVgObj) + VGROUP_RESERVE_SIZE);
@@ -127,6 +129,8 @@ _OVER:
 }
 
 SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SVgObj  *pVgroup = NULL;
