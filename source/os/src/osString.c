@@ -201,14 +201,14 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
       iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
       if ((iconv_t)-1 == c || (iconv_t)0 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        return c;
       }
+      return c;
     } else {
       iconv_t c = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
       if ((iconv_t)-1 == c || (iconv_t)0 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        return c;
       }
+      return c;
     }
   }
 

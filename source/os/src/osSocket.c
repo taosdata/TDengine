@@ -952,6 +952,8 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
     return 0xFFFFFFFF;
   }
 #endif
+
+#if defined(LINUX)
   struct addrinfo hints = {0};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -984,6 +986,34 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
 
     return 0;
   }
+#else
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+
+  int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+  if (result) {
+    struct sockaddr    *sa = result->ai_addr;
+    struct sockaddr_in *si = (struct sockaddr_in *)sa;
+    struct in_addr      ia = si->sin_addr;
+    uint32_t            ip = ia.s_addr;
+    freeaddrinfo(result);
+    return ip;
+  } else {
+#ifdef EAI_SYSTEM
+    if (ret == EAI_SYSTEM) {
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, errno, strerror(errno));
+    } else {
+      // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+    }
+#else
+    // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+#endif
+    return 0xFFFFFFFF;
+  }
+#endif
 }
 
 int32_t taosGetFqdn(char *fqdn) {
