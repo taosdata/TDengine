@@ -218,13 +218,13 @@ int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeOb
   SDCreateQnodeReq createReq = {0};
   createReq.dnodeId = pDnode->id;
 
-  int32_t contLen = (void)tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  (void)(void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);

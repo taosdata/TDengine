@@ -312,7 +312,7 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   SEncoder encoder = {0};
   int32_t  contLen = 0;
   SName    name = {0};
-  if ((terrno = ttNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) return NULL;
+  if ((terrno = tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) return NULL;
 
   SVCreateTSmaReq req = {0};
   req.version = 0;

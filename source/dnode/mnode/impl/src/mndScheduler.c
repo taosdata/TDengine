@@ -368,7 +368,7 @@ static void addNewTaskList(SStreamObj* pStream) {
   }
   if (pStream->conf.fillHistory) {
     pTaskList = taosArrayInit(0, POINTER_BYTES);
-    if (aosArrayPush(pStream->pHTasksList, &pTaskList) == NULL) {
+    if (taosArrayPush(pStream->pHTasksList, &pTaskList) == NULL) {
       mError("failed to put array");
     }
   }
