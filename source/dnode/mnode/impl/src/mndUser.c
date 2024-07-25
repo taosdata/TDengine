@@ -357,9 +357,9 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
       memcpy(pNewList->pIpRange, &range, sizeof(SIpV4Range));
       pNewList->num = 1;
 
-      if (taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *)) != 0) {
+      if ((code = taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *))) != 0) {
         taosMemoryFree(pNewList);
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
       update = true;
     } else {
@@ -375,9 +375,9 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
 
         pNewList->num = pList->num + 1;
 
-        if (taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *)) != 0) {
+        if ((code = taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *))) != 0) {
           taosMemoryFree(pNewList);
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+          TAOS_CHECK_GOTO(code, &lino, _OVER);
         }
         taosMemoryFree(pList);
         update = true;
@@ -405,9 +405,9 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
             }
           }
           pNewList->num = idx;
-          if (taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *) != 0)) {
+          if ((code = taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *)) != 0)) {
             taosMemoryFree(pNewList);
-            TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+            TAOS_CHECK_GOTO(code, &lino, _OVER);
           }
           taosMemoryFree(pList);
         }
@@ -573,11 +573,11 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
       sdbCancelFetch(pSdb, pIter);
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
     }
-    if (taosHashPut(pIpWhiteTab, pUser->user, strlen(pUser->user), &pWhiteList, sizeof(void *)) != 0) {
+    if ((code = taosHashPut(pIpWhiteTab, pUser->user, strlen(pUser->user), &pWhiteList, sizeof(void *))) != 0) {
       taosMemoryFree(pWhiteList);
       sdbRelease(pSdb, pUser);
       sdbCancelFetch(pSdb, pIter);
-      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
 
     char *name = taosStrdup(pUser->user);
@@ -1323,9 +1323,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      if (taosHashPut(pUser->readTbs, key, keyLen, value, valuelen) != 0) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
-      }
+      TAOS_CHECK_GOTO(taosHashPut(pUser->readTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     for (int32_t i = 0; i < numOfWriteTbs; ++i) {
@@ -1348,9 +1346,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      if (taosHashPut(pUser->writeTbs, key, keyLen, value, valuelen) != 0) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
-      }
+      TAOS_CHECK_GOTO(taosHashPut(pUser->writeTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     if (sver >= 6) {
@@ -1374,9 +1370,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        if (taosHashPut(pUser->alterTbs, key, keyLen, value, valuelen) != 0) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
-        }
+        TAOS_CHECK_GOTO(taosHashPut(pUser->alterTbs, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfReadViews; ++i) {
@@ -1399,9 +1393,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        if (taosHashPut(pUser->readViews, key, keyLen, value, valuelen) != 0) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
-        }
+        TAOS_CHECK_GOTO(taosHashPut(pUser->readViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfWriteViews; ++i) {
@@ -1424,9 +1416,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        if (taosHashPut(pUser->writeViews, key, keyLen, value, valuelen) != 0) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
-        }
+        TAOS_CHECK_GOTO(taosHashPut(pUser->writeViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfAlterViews; ++i) {
@@ -1449,9 +1439,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        if (taosHashPut(pUser->alterViews, key, keyLen, value, valuelen) != 0) {
-          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
-        }
+        TAOS_CHECK_GOTO(taosHashPut(pUser->alterViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
     }
 
@@ -1469,9 +1457,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       int32_t ref = 0;
       SDB_GET_INT32(pRaw, dataPos, &ref, _OVER);
 
-      if (taosHashPut(pUser->useDbs, key, keyLen, &ref, sizeof(ref)) != 0) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
-      }
+      TAOS_CHECK_GOTO(taosHashPut(pUser->useDbs, key, keyLen, &ref, sizeof(ref)), &lino, _OVER);
     }
   }
   // decoder white list
@@ -2135,7 +2121,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
       if (pDb == NULL) {
         mndReleaseDb(pMnode, pDb);
-        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
       if ((code = taosHashPut(pNewUser->readDbs, pAlterReq->objname, len, pAlterReq->objname, TSDB_DB_FNAME_LEN)) !=
           0) {
@@ -2166,7 +2152,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
       if (pDb == NULL) {
         mndReleaseDb(pMnode, pDb);
-        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
       if ((code = taosHashPut(pNewUser->writeDbs, pAlterReq->objname, len, pAlterReq->objname, TSDB_DB_FNAME_LEN)) !=
           0) {
@@ -2197,7 +2183,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
       if (pDb == NULL) {
         mndReleaseDb(pMnode, pDb);
-        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
       taosHashRemove(pNewUser->readDbs, pAlterReq->objname, len);
       mndReleaseDb(pMnode, pDb);
@@ -2213,7 +2199,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
       if (pDb == NULL) {
         mndReleaseDb(pMnode, pDb);
-        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
       taosHashRemove(pNewUser->writeDbs, pAlterReq->objname, len);
       mndReleaseDb(pMnode, pDb);
@@ -2267,10 +2253,9 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
   if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
-    int32_t code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic);
-    if (code != 0) {
+    if ((code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic)) != 0) {
       mndReleaseTopic(pMnode, pTopic);
-      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
     if ((code = taosHashPut(pNewUser->topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN)) != 0) {
       mndReleaseTopic(pMnode, pTopic);
@@ -2282,18 +2267,17 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
   if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
-    int32_t code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic);
-    if (code != 0) {
+    if ((code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic)) != 0) {
       mndReleaseTopic(pMnode, pTopic);
-      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
-    taosHashRemove(pNewUser->topics, pAlterReq->objname, len);
+    (void)taosHashRemove(pNewUser->topics, pAlterReq->objname, len);
     mndReleaseTopic(pMnode, pTopic);
   }
 
 _OVER:
   if (code < 0) {
-    mError("user:%s, failed to alter user privileges at line %d since %s", pAlterReq->user, lino, terrstr());
+    mError("user:%s, failed to alter user privileges at line %d since %s", pAlterReq->user, lino, tstrerror(code));
   }
   TAOS_RETURN(code);
 }
@@ -2595,8 +2579,8 @@ static int32_t mndProcessGetUserAuthReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  contLen =tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp);
-  if(contLen < 0) {
+  contLen = tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp);
+  if (contLen < 0) {
     TAOS_CHECK_EXIT(contLen);
   }
 
@@ -3010,7 +2994,6 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       STR_WITH_MAXSIZE_TO_VARSTR(condition, "", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       COL_DATA_SET_VAL_GOTO((const char *)condition, false, pUser, _exit);
-
 
       char notes[2] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(notes, "", sizeof(notes));
