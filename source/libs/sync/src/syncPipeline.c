@@ -1133,13 +1133,10 @@ void syncNodeLogReplDestroy(SSyncNode* pNode) {
 }
 
 int32_t syncLogBufferCreate(SSyncLogBuffer** ppBuf) {
-  int32_t code = 0;
-
-  *ppBuf = NULL;
-
+  int32_t         code = 0;
   SSyncLogBuffer* pBuf = taosMemoryCalloc(1, sizeof(SSyncLogBuffer));
   if (pBuf == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exit);
   }
 
   pBuf->size = sizeof(pBuf->entries) / sizeof(pBuf->entries[0]);
@@ -1149,25 +1146,25 @@ int32_t syncLogBufferCreate(SSyncLogBuffer** ppBuf) {
   if (taosThreadMutexAttrInit(&pBuf->attr) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     sError("failed to init log buffer mutexattr due to %s", tstrerror(code));
-    goto _err;
+    goto _exit;
   }
 
   if (taosThreadMutexAttrSetType(&pBuf->attr, PTHREAD_MUTEX_RECURSIVE) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     sError("failed to set log buffer mutexattr type due to %s", tstrerror(code));
-    goto _err;
+    goto _exit;
   }
 
   if (taosThreadMutexInit(&pBuf->mutex, &pBuf->attr) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     sError("failed to init log buffer mutex due to %s", tstrerror(code));
-    goto _err;
+    goto _exit;
   }
-
+_exit:
+  if (code != 0) {
+    taosMemoryFreeClear(pBuf);
+  }
   *ppBuf = pBuf;
-
-_err:
-  taosMemoryFree(pBuf);
   TAOS_RETURN(code);
 }
 
