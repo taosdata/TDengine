@@ -931,6 +931,7 @@ static int32_t tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid, SRSmaInfo **ppR
     if (ASSERTS(pRSmaInfo->suid == suid, "suid:%" PRIi64 " != %" PRIi64, pRSmaInfo->suid, suid)) {
       TAOS_RETURN(TSDB_CODE_APP_ERROR);
     }
+    *ppRSmaInfo = pRSmaInfo;
     TAOS_RETURN(code);
   }
   taosRUnLockLatch(SMA_ENV_LOCK(pEnv));

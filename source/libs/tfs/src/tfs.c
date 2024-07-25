@@ -440,7 +440,10 @@ int32_t tfsOpendir(STfs *pTfs, const char *rname, STfsDir **ppDir) {
   TAOS_CHECK_GOTO(tfsOpendirImpl(pTfs, pDir), NULL, _exit);
 
 _exit:
-  taosMemoryFree(pDir);
+  if (code != 0) {
+    taosMemoryFreeClear(pDir);
+  }
+  *ppDir = pDir;
   TAOS_RETURN(code);
 }
 
@@ -634,9 +637,13 @@ static int32_t tfsGetDiskByName(STfs *pTfs, const char *dir, STfsDisk **ppDisk) 
 static int32_t tfsOpendirImpl(STfs *pTfs, STfsDir *pTfsDir) {
   STfsDisk *pDisk = NULL;
   char      adir[TMPNAME_LEN * 2] = "\0";
+  int32_t   code = 0;
 
   if (pTfsDir->pDir != NULL) {
-    taosCloseDir(&pTfsDir->pDir);
+    if ((code = taosCloseDir(&pTfsDir->pDir)) != 0) {
+      fError("%s failed to close dir since %s", __func__, tstrerror(code));
+      TAOS_RETURN(code);
+    }
     pTfsDir->pDir = NULL;
   }
 
