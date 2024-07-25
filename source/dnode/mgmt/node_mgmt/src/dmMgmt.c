@@ -145,7 +145,8 @@ int32_t dmInitVars(SDnode *pDnode) {
   pData->rebootTime = taosGetTimestampMs();
   pData->dropped = 0;
   pData->stopped = 0;
-  char *machineId = tGetMachineId();
+  char *machineId = NULL;
+  code = tGetMachineId(&machineId);
   if (machineId) {
     tstrncpy(pData->machineId, machineId, TSDB_MACHINE_ID_LEN + 1);
     taosMemoryFreeClear(machineId);
@@ -181,7 +182,7 @@ int32_t dmInitVars(SDnode *pDnode) {
       code = 0;
       strncpy(tsEncryptKey, tsAuthCode, 16);
 
-      if(code != 0) {
+      if (code != 0) {
         if(code == -1){
           terrno = TSDB_CODE_DNODE_NO_ENCRYPT_KEY;
           dError("machine code changed, can't get crypt key");

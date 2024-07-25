@@ -380,6 +380,7 @@ _OVER:
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
 #ifdef TD_ENTERPRISE
   int32_t code = -1;
+  int32_t lino = 0;
   char   *machineId = NULL;
   char   *encryptCode = NULL;
 
@@ -428,14 +429,9 @@ int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
     }
   }
 
-  if (!(machineId = tGetMachineId())) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(tGetMachineId(&machineId), &lino, _OVER);
 
-  if ((code = generateEncryptCode(key, machineId, &encryptCode)) != 0) {
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(generateEncryptCode(key, machineId, &encryptCode), &lino, _OVER);
 
   if ((code = dmWriteEncryptCodeFile(encryptFile, realEncryptFile, encryptCode, toLogFile)) != 0) {
     goto _OVER;
@@ -452,9 +448,9 @@ _OVER:
   taosMemoryFree(encryptCode);
   taosMemoryFree(machineId);
   if (code != 0) {
-    encryptError("failed to update encrypt key since %s", tstrerror(code));
+    encryptError("failed to update encrypt key at line %d since %s", lino, tstrerror(code));
   }
-  return code;
+  TAOS_RETURN(code);
 #else
   return 0;
 #endif
@@ -539,8 +535,7 @@ int32_t dmGetEncryptKey() {
     goto _OVER;
   }
 
-  if (!(machineId = tGetMachineId())) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  if ((code = tGetMachineId(&machineId)) != 0) {
     goto _OVER;
   }
 
@@ -574,7 +569,7 @@ _OVER:
   if (code != 0) {
     dError("failed to get encrypt key since %s", tstrerror(code));
   }
-  return code;
+  TAOS_RETURN(code);
 #else
   return 0;
 #endif

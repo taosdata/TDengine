@@ -601,7 +601,7 @@ int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, suid);
   if (!pCur) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   while (1) {

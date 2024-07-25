@@ -590,6 +590,8 @@ END:
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   void   *buf = NULL;
@@ -628,6 +630,8 @@ CM_ENCODE_OVER:
 }
 
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
+  int32_t         code = 0;
+  int32_t         lino = 0;
   SSdbRow        *pRow = NULL;
   SMqConsumerObj *pConsumer = NULL;
   void           *buf = NULL;

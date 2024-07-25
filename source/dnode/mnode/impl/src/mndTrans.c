@@ -105,6 +105,8 @@ static int32_t mndTransGetActionsSize(SArray *pArray) {
 }
 
 static int32_t mndTransEncodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionsNum) {
+  int32_t code = 0;
+  int32_t lino = 0;
   int32_t dataPos = *offset;
   int8_t  unused = 0;
   int32_t ret = -1;
@@ -142,6 +144,8 @@ _OVER:
 }
 
 SSdbRaw *mndTransEncode(STrans *pTrans) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_INVALID_MSG;
   int8_t sver = taosArrayGetSize(pTrans->prepareActions) ? TRANS_VER2_NUMBER : TRANS_VER1_NUMBER;
 
@@ -225,6 +229,8 @@ _OVER:
 }
 
 static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionNum) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
   STransAction action = {0};
   int32_t      dataPos = *offset;
   int8_t       unused = 0;
@@ -279,7 +285,8 @@ _OVER:
 
 SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_INVALID_MSG;
-
+  int32_t code = 0;
+  int32_t lino = 0;
   SSdbRow *pRow = NULL;
   STrans  *pTrans = NULL;
   char    *pData = NULL;
