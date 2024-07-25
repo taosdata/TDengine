@@ -127,6 +127,8 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pObj) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_MNODE, MNODE_VER_NUMBER, sizeof(SMnodeObj) + MNODE_RESERVE_SIZE);
@@ -154,6 +156,8 @@ _OVER:
 }
 
 static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow   *pRow = NULL;
   SMnodeObj *pObj = NULL;

@@ -115,6 +115,8 @@ int32_t mndInitStb(SMnode *pMnode) {
 void mndCleanupStb(SMnode *pMnode) {}
 
 SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + pStb->commentLen +
@@ -205,6 +207,8 @@ _OVER:
 }
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SStbObj *pStb = NULL;
@@ -2898,9 +2902,9 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   int32_t       code = -1;
   STableInfoReq infoReq = {0};
   STableMetaRsp metaRsp = {0};
+  SUserObj     *pUser = NULL;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  //TODO why return 0 here
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
 

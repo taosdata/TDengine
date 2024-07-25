@@ -521,8 +521,8 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
 
     if (!pResInfo->initialized) {
       if (pCtx[i].functionId != -1) {
-        bool ini = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
-        if (!ini && fmIsUserDefinedFunc(pCtx[i].functionId)) {
+        int32_t code = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+        if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)){
           pResInfo->initialized = false;
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
         }
@@ -677,7 +677,7 @@ _end:
 }
 
 // todo refactor. SResultRow has direct pointer in miainfo
-int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
+void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   SFilePage* page = getBufPage(pBuf, resultRowPosition->pageId);
   if (page == NULL) {
@@ -694,7 +694,7 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
   doUpdateNumOfRows(pCtx, pRow, pSup->numOfExprs, rowEntryOffset);
   if (pRow->numOfRows == 0) {
     releaseBufPage(pBuf, page);
-    return 0;
+    return ;
   }
 
   int32_t size = pBlock->info.capacity;
@@ -713,7 +713,6 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
 
   releaseBufPage(pBuf, page);
   pBlock->info.rows += pRow->numOfRows;
-  return 0;
 }
 
 void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
@@ -1068,7 +1067,12 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
-      SArray*         pInfoList = getTableListInfo(pTask);
+      SArray* pInfoList = NULL;
+      int32_t code = getTableListInfo(pTask, &pInfoList);
+      if (code || pInfoList == NULL) {
+        return code;
+      }
+
       STableListInfo* pTableListInfo = taosArrayGetP(pInfoList, 0);
       taosArrayDestroy(pInfoList);
 

@@ -97,6 +97,7 @@ extern "C" {
 #include <nmmintrin.h>
 #endif
 
+
 #include "osThread.h"
 
 #include "osAtomic.h"

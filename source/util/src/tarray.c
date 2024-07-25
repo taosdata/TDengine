@@ -54,14 +54,12 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
 SArray* taosArrayInit_s(size_t elemSize, size_t initialSize) {
   SArray* pArray = taosMemoryMalloc(sizeof(SArray));
   if (pArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pArray->size = initialSize;
   pArray->pData = taosMemoryCalloc(initialSize, elemSize);
   if (pArray->pData == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pArray);
     return NULL;
   }
@@ -77,7 +75,7 @@ static int32_t taosArrayResize(SArray* pArray) {
 
   void* tmp = taosMemoryRealloc(pArray->pData, size * pArray->elemSize);
   if (tmp == NULL) {  // reallocate failed, the original buffer remains
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pArray->pData = tmp;
@@ -101,7 +99,7 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
 
     pArray->pData = taosMemoryRealloc(pArray->pData, tsize * pArray->elemSize);
     if (pArray->pData == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     pArray->capacity = tsize;
@@ -531,7 +529,6 @@ void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t 
   for (int32_t i = 0; i < sz; i++) {
     void* data = taosMemoryCalloc(1, dataSz);
     if (data == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
 

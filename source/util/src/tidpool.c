@@ -19,7 +19,9 @@
 
 void *taosInitIdPool(int32_t maxId) {
   id_pool_t *pIdPool = taosMemoryCalloc(1, sizeof(id_pool_t));
-  if (pIdPool == NULL) return NULL;
+  if (pIdPool == NULL) {
+    return NULL;
+  }
 
   pIdPool->freeList = taosMemoryCalloc(maxId, sizeof(bool));
   if (pIdPool->freeList == NULL) {
@@ -120,7 +122,7 @@ int32_t taosUpdateIdPool(id_pool_t *pIdPool, int32_t maxId) {
 
   bool *idList = taosMemoryCalloc(maxId, sizeof(bool));
   if (idList == NULL) {
-    return -1;
+    return terrno;
   }
 
   taosThreadMutexLock(&pIdPool->mutex);

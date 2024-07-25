@@ -230,6 +230,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheNode *
 static FORCE_INLINE STrashElem *doRemoveElemInTrashcan(SCacheObj *pCacheObj, STrashElem *pElem) {
   if (pElem->pData->signature != pElem->pData) {
     uWarn("key:sig:0x%" PRIx64 " %p data has been released, ignore", (int64_t)pElem->pData->signature, pElem->pData);
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -358,6 +359,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
   SCacheObj *pCacheObj = (SCacheObj *)taosMemoryCalloc(1, sizeof(SCacheObj));
   if (pCacheObj == NULL) {
     uError("failed to allocate memory, reason:%s", strerror(errno));
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -393,6 +395,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
 void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize,
                    int32_t durationMS) {
   if (pCacheObj == NULL || pCacheObj->pEntryList == NULL || pCacheObj->deleting == 1) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -501,11 +504,15 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
 }
 
 void *taosCacheTransferData(SCacheObj *pCacheObj, void **data) {
-  if (pCacheObj == NULL || data == NULL || (*data) == NULL) return NULL;
+  if (pCacheObj == NULL || data == NULL || (*data) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   SCacheNode *ptNode = (SCacheNode *)((char *)(*data) - sizeof(SCacheNode));
   if (ptNode->signature != ptNode) {
     uError("cache:%s, key: %p the data from cache is invalid", pCacheObj->name, ptNode);
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -702,8 +709,8 @@ SCacheNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pDat
 
   SCacheNode *pNewNode = taosMemoryCalloc(1, sizeInBytes);
   if (pNewNode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("failed to allocate memory, reason:%s", strerror(errno));
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

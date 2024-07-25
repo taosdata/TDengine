@@ -186,7 +186,7 @@ static void print_line(Dwarf_Debug dbg, Dwarf_Line line, Dwarf_Addr pc) {
     dwarf_linesrc(line, &linesrc, NULL);
     dwarf_lineno(line, &lineno, NULL);
   }
-  printf("BackTrace %08" PRId64 " %s:%" DW_PR_DUu "\n", taosGetSelfPthreadId(), linesrc, lineno);
+  (void)printf("BackTrace %08" PRId64 " %s:%" DW_PR_DUu "\n", taosGetSelfPthreadId(), linesrc, lineno);
   if (line) dwarf_dealloc(dbg, linesrc, DW_DLA_STRING);
 }
 void taosPrintBackTrace() {
@@ -267,7 +267,7 @@ void *taosMemoryMalloc(int64_t size) {
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
   void *p = malloc(size);
-  if (!p) {
+  if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
@@ -288,7 +288,7 @@ void *taosMemoryCalloc(int64_t num, int64_t size) {
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
   void *p = calloc(num, size);
-  if (!p) {
+  if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
@@ -318,7 +318,7 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
   void *p = realloc(ptr, size);
-  if (!p) {
+  if (size > 0 && NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
@@ -342,7 +342,12 @@ char *taosStrdup(const char *ptr) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
-  return tstrdup(ptr);
+  char *p = tstrdup(ptr);
+  if (ptr != NULL && NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
+
 #endif
 }
 
@@ -369,8 +374,7 @@ int64_t taosMemorySize(void *ptr) {
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
   ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
-    +return NULL;
-    +
+    return NULL;
   }
 
   return pTdMemoryInfo->memorySize;
@@ -390,7 +394,7 @@ void taosMemoryTrim(int32_t size) {
   // do nothing
   return;
 #else
-  malloc_trim(size);
+  (void)malloc_trim(size);
 #endif
 }
 
@@ -400,6 +404,13 @@ void *taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
 #else
 #if defined(LINUX)
   void *p = memalign(alignment, size);
+  if (NULL == p) {
+    if (ENOMEM == errno) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    }
+  }
   return p;
 #else
   return taosMemoryMalloc(size);
