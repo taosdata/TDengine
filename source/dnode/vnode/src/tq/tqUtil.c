@@ -612,7 +612,6 @@ int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void*
     colDataSetNULL(tmp, i);
   }
 
-  taosArrayDestroy(pRes->uidList);
   if (type == 0) {
     code = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0, pRefBlock);
     if (code) {
