@@ -173,7 +173,7 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
   char    line[1024];
   ssize_t bytes = taosGetsFile(pFile, sizeof(line), line);
-  if (bytes < 0) {
+  if (bytes <= 0) {
     taosCloseFile(&pFile);
     return -1;
   }
@@ -215,7 +215,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 
   char    line[1024] = {0};
   ssize_t bytes = taosGetsFile(pFile, sizeof(line), line);
-  if (bytes < 0) {
+  if (bytes <= 0) {
     taosCloseFile(&pFile);
     return -1;
   }
@@ -378,7 +378,7 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
   TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return code;
 
-  while ((size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
+  while ((size = taosGetsFile(pFile, sizeof(line), line)) > 0) {
     line[size - 1] = '\0';
     if (strncmp(line, "NAME", 4) == 0) {
       dest = sName;
@@ -456,7 +456,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return code;
 
-  while (done != 3 && (size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
+  while (done != 3 && (size = taosGetsFile(pFile, sizeof(line), line)) > 0) {
     line[size - 1] = '\0';
     if (((done & 1) == 0) && strncmp(line, "model name", 10) == 0) {
       const char *v = strchr(line, ':') + 2;
@@ -516,7 +516,7 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     goto _sys;
   }
   char qline[32] = {0};
-  if (taosGetsFile(pFile, sizeof(qline), qline) < 0) {
+  if (taosGetsFile(pFile, sizeof(qline), qline) <= 0) {
     taosCloseFile(&pFile);
     goto _sys;
   }
@@ -530,7 +530,7 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     goto _sys;
   }
   char pline[32] = {0};
-  if (taosGetsFile(pFile, sizeof(pline), pline) < 0) {
+  if (taosGetsFile(pFile, sizeof(pline), pline) <= 0) {
     taosCloseFile(&pFile);
     goto _sys;
   }
@@ -691,7 +691,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   char    line[1024] = {0};
   while (!taosEOFFile(pFile)) {
     bytes = taosGetsFile(pFile, sizeof(line), line);
-    if (bytes < 0) {
+    if (bytes <= 0) {
       break;
     }
     if (strstr(line, "VmRSS:") != NULL) {
@@ -895,7 +895,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
     char    nouse0[200] = {0};
 
     _bytes = taosGetsFile(pFile, sizeof(line), line);
-    if (_bytes < 0) {
+    if (_bytes <= 0) {
       break;
     }
 
