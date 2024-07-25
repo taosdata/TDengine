@@ -1043,6 +1043,11 @@ int32_t taosGetFqdn(char *fqdn) {
   strcpy(fqdn, hostname);
   strcpy(fqdn + strlen(hostname), ".local");
 #else   // linux
+
+#endif  // linux
+
+#if defined(LINUX)
+
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
@@ -1067,7 +1072,21 @@ int32_t taosGetFqdn(char *fqdn) {
   (void)strcpy(fqdn, result->ai_canonname);
 
   freeaddrinfo(result);
-#endif  // linux
+
+#else
+  struct addrinfo  hints = {0};
+  struct addrinfo *result = NULL;
+  hints.ai_flags = AI_CANONNAME;
+
+  int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
+  if (!result) {
+    fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
+    return -1;
+  }
+  strcpy(fqdn, result->ai_canonname);
+  freeaddrinfo(result);
+
+#endif
 
   return 0;
 }
