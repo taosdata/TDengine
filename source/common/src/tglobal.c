@@ -1442,11 +1442,12 @@ typedef struct {
 } OptionNameAndVar;
 
 static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, SConfigItem *pItem, bool isDebugflag) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_CFG_NOT_FOUND;
   char *name = pItem->name;
   for (int32_t d = 0; d < optionSize; ++d) {
     const char *optName = pOptions[d].optionName;
     if (strcasecmp(name, optName) != 0) continue;
+    code = TSDB_CODE_SUCCESS;
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
         int32_t flag = pItem->i32;
