@@ -743,8 +743,8 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
         }
         arg->param1 = *pMsg;
         arg->param2 = pThrd;
-        SDelayTask* task = transDQSched(pThrd->waitConnQueue, doFreeTimeoutMsg, arg, pTransInst->timeToGetConn);
 
+        SDelayTask* task = transDQSched(pThrd->waitConnQueue, doFreeTimeoutMsg, arg, pTransInst->timeToGetConn);
         if (task == NULL) {
           taosMemoryFree(arg);
           doNotifyApp(*pMsg, pThrd, TSDB_CODE_OUT_OF_MEMORY);
