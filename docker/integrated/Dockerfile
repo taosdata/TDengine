@@ -1,31 +1,32 @@
 FROM ubuntu:22.04
-LABEL maintainer "Linhe Huo <linhe.huo@gmail.com>"
+LABEL maintainer="Linhe Huo <linhe.huo@gmail.com>"
 
 ADD https://github.com/krallin/tini/releases/download/v0.19.0/tini /tini
 
+RUN apt update \
+  && apt install -y wget curl jq sqlite3 openjdk-18-jre ca-certificates \
+  && apt-get install -y locales tzdata netcat \
+  && locale-gen en_US.UTF-8 \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/ \
+  && rm -rf /var/cache/apt/
+
 COPY ./release/TDengine-enterprise /root/TDengine-enterprise
+COPY ./startup.sh /root/startup.sh
+
+RUN chmod +x /tini \
+  && chmod +x /root/startup.sh \
+  && cd /root/TDengine-enterprise \
+  && /bin/bash install.sh -e no \
+  && rm -rf ../TDengine-enterprise
+
 COPY ./release/taosx /usr/bin/taosx
 COPY ./release/taos-explorer /usr/bin/taos-explorer
 COPY ./release/plugins/taosx-influxdb.jar /taosx/plugins/influxdb/taosx-influxdb.jar
 COPY ./release/plugins/taosx-opentsdb.jar /taosx/plugins/opentsdb/taosx-opentsdb.jar
 COPY ./release/plugins/taosx-opc /taosx/plugins/opc/taosx-opc
 COPY ./release/plugins/taosx-mqtt /taosx/plugins/mqtt/taosx-mqtt
-COPY ./startup.sh /root/startup.sh
 
-RUN chmod +x /tini \
-  && chmod +x /root/startup.sh \
-  && apt update \
-  && apt install -y wget curl jq sqlite3 openjdk-18-jre ca-certificates \
-  && apt-get install -y locales tzdata netcat \
-  && locale-gen en_US.UTF-8 \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/ \
-  && rm -rf /var/cache/apt/ \
-  && cd /root/TDengine-enterprise \
-  && /bin/bash install.sh -e no \
-  && rm -rf ../TDengine-enterprise
-
-ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib"
 ENV LC_CTYPE=en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
@@ -46,4 +47,4 @@ EXPOSE 6055
 EXPOSE 6060
 
 ENTRYPOINT ["/tini", "--"]
-CMD /usr/bin/sh /root/startup.sh
+CMD ["/usr/bin/sh", "/root/startup.sh"]
