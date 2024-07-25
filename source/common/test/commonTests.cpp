@@ -465,7 +465,8 @@ TEST(timeTest, timestamp2tm) {
 
 void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* expected) {
   char buf[256] = {0};
-  TEST_ts2char(format, ts, precison, buf, 256);
+  int32_t code = TEST_ts2char(format, ts, precison, buf, 256);
+  ASSERT_EQ(code, 0);
   printf("ts: %ld format: %s res: [%s], expected: [%s]\n", ts, format, buf, expected);
   ASSERT_STREQ(expected, buf);
 }

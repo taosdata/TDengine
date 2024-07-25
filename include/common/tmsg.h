@@ -4041,7 +4041,9 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
   for (int32_t i = 0; i < sz; i++) {
     SMqSubTopicEp topicEp;
     buf = tDecodeMqSubTopicEp(buf, &topicEp);
-    taosArrayPush(pRsp->topics, &topicEp);
+    if (taosArrayPush(pRsp->topics, &topicEp) == NULL) {
+      return NULL;
+    }
   }
   return buf;
 }

@@ -332,8 +332,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   return (SReqResultInfo*)&msg->common.resInfo;
 }
 
-SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4);
-
+int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pResInfo);
 static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
   if (TD_RES_QUERY(res)) return &(((SRequestObj*)res)->body.resInfo);
   return tmqGetCurResInfo(res);
