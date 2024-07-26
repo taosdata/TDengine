@@ -77,7 +77,7 @@ int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId) {
 }
 
 int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
-  taosThreadMutexLock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
 
   for (int32_t i = 0; i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr); i++) {
     SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
@@ -89,17 +89,17 @@ int32_t tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
     }
   }
 
-  taosThreadMutexUnlock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return 0;
 }
 
 int32_t tsdbStopAllCompTask(STsdb *tsdb) {
   int32_t i;
 
-  taosThreadMutexLock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
 
   if (tsdb->pCompMonitor == NULL) {
-    taosThreadMutexUnlock(&tsdb->mutex);
+    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
     return 0;
   }
 
@@ -113,16 +113,16 @@ int32_t tsdbStopAllCompTask(STsdb *tsdb) {
     }
   }
 
-  taosThreadMutexUnlock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return 0;
 }
 
 int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {
-  taosThreadMutexLock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
   rsp->compactId = 0;  // TODO
   rsp->vgId = TD_VID(tsdb->pVnode);
   rsp->numberFileset = tsdb->pCompMonitor->totalCompTasks;
   rsp->finished = rsp->numberFileset - TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr);
-  taosThreadMutexUnlock(&tsdb->mutex);
+  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return 0;
 }
