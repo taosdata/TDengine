@@ -521,7 +521,7 @@ static int32_t genTbGroupDigest(const SNode* pGroup, uint8_t* filterDigest, T_MD
 
   if (filterDigest[0]) {
     payload = taosMemoryRealloc(payload, len + tListLen(pContext->digest));
-    QUERY_CHECK_NULL(payload, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(payload, code, lino, _end, terrno);
     memcpy(payload + len, filterDigest + 1, tListLen(pContext->digest));
     len += tListLen(pContext->digest);
   }
@@ -597,13 +597,13 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   }
 
   pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
-  QUERY_CHECK_NULL(pUidTagList, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pUidTagList, code, lino, end, terrno);
 
   for (int32_t i = 0; i < rows; ++i) {
     STableKeyInfo* pkeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
     STUidTagInfo   info = {.uid = pkeyInfo->uid};
     void*          tmp = taosArrayPush(pUidTagList, &info);
-    QUERY_CHECK_NULL(tmp, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
   }
 
   code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
@@ -622,13 +622,13 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   //  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
 
   pBlockList = taosArrayInit(2, POINTER_BYTES);
-  QUERY_CHECK_NULL(pBlockList, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pBlockList, code, lino, end, terrno);
 
   void* tmp = taosArrayPush(pBlockList, &pResBlock);
-  QUERY_CHECK_NULL(tmp, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
 
   groupData = taosArrayInit(2, POINTER_BYTES);
-  QUERY_CHECK_NULL(groupData, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(groupData, code, lino, end, terrno);
 
   FOREACH(pNode, group) {
     SScalarParam output = {0};
@@ -668,7 +668,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     }
 
     void* tmp = taosArrayPush(groupData, &output.columnData);
-    QUERY_CHECK_NULL(tmp, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
   }
 
   int32_t keyLen = 0;
@@ -792,7 +792,7 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
   SListCell* cell = pList->pNodeList->pHead;
 
   SArray* pTbList = taosArrayInit(len, POINTER_BYTES);
-  QUERY_CHECK_NULL(pTbList, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pTbList, code, lino, _end, terrno);
 
   for (int i = 0; i < pList->pNodeList->length; i++) {
     SValueNode* valueNode = (SValueNode*)cell->pNode;
@@ -804,7 +804,7 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
 
     char* name = varDataVal(valueNode->datum.p);
     void* tmp = taosArrayPush(pTbList, &name);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     cell = cell->pNext;
   }
 
@@ -816,7 +816,7 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
   // remove the duplicates
   SArray* pNewList = taosArrayInit(taosArrayGetSize(pTbList), sizeof(void*));
   void*   tmp = taosArrayPush(pNewList, taosArrayGet(pTbList, 0));
-  QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
   for (int32_t i = 1; i < numOfTables; ++i) {
     char** name = taosArrayGetLast(pNewList);
@@ -826,7 +826,7 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
     }
 
     tmp = taosArrayPush(pNewList, nameInOldList);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
 _end:
@@ -1051,7 +1051,7 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
             QUERY_CHECK_CODE(code, lino, _end);
           } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
             char* tmp = taosMemoryMalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1);
-            QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+            QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
             varDataSetLen(tmp, tagVal.nData);
             memcpy(tmp + VARSTR_HEADER_SIZE, tagVal.pData, tagVal.nData);
             code = colDataSetVal(pColInfo, i, tmp, false);
@@ -1171,7 +1171,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
 
   //  int64_t stt = taosGetTimestampUs();
   pUidTagList = taosArrayInit(10, sizeof(STUidTagInfo));
-  QUERY_CHECK_NULL(pUidTagList, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pUidTagList, code, lino, end, terrno);
 
   code = copyExistedUids(pUidTagList, pUidList);
   QUERY_CHECK_CODE(code, lino, end);
@@ -1189,7 +1189,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     for (int32_t i = 0; i < numOfRows; ++i) {
       STUidTagInfo* pInfo = taosArrayGet(pUidTagList, i);
       void*         tmp = taosArrayPush(pUidList, &pInfo->uid);
-      QUERY_CHECK_NULL(tmp, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
     }
     terrno = 0;
   } else {
@@ -1219,10 +1219,10 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
   //  int64_t st1 = taosGetTimestampUs();
   //  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
   pBlockList = taosArrayInit(2, POINTER_BYTES);
-  QUERY_CHECK_NULL(pBlockList, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pBlockList, code, lino, end, terrno);
 
   void* tmp = taosArrayPush(pBlockList, &pResBlock);
-  QUERY_CHECK_NULL(tmp, code, lino, end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
 
   code = createResultData(&type, numOfTables, &output);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1270,14 +1270,14 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   pListInfo->idInfo.tableType = pScanNode->tableType;
 
   SArray* pUidList = taosArrayInit(8, sizeof(uint64_t));
-  QUERY_CHECK_NULL(pUidList, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pUidList, code, lino, _error, terrno);
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
   if (pScanNode->tableType != TSDB_SUPER_TABLE) {
     pListInfo->idInfo.uid = pScanNode->uid;
     if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
       void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
-      QUERY_CHECK_NULL(tmp, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
     }
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false, &listAdded);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1334,7 +1334,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     if (tsTagFilterCache) {
       size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
       char*  pPayload = taosMemoryMalloc(size);
-      QUERY_CHECK_NULL(pPayload, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(pPayload, code, lino, _end, terrno);
 
       *(int32_t*)pPayload = numOfTables;
       if (numOfTables > 0) {
@@ -1531,7 +1531,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.isPk = pColNode->isPk;
       c.dataType = pColNode->node.resType;
       void* tmp = taosArrayPush(pList, &c);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     }
   }
 
@@ -1608,7 +1608,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   pExp->pExpr = taosMemoryCalloc(1, sizeof(tExprNode));
-  QUERY_CHECK_NULL(pExp->pExpr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pExp->pExpr, code, lino, _end, terrno);
 
   pExp->pExpr->_function.num = 1;
   pExp->pExpr->_function.functionId = -1;
@@ -1620,7 +1620,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
 
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
-    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
 
     pExp->base.numOfParams = 1;
 
@@ -1635,7 +1635,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SValueNode* pValNode = (SValueNode*)pNode;
 
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
-    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
 
     pExp->base.numOfParams = 1;
 
@@ -1898,9 +1898,9 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
 
     pCtx->input.numOfInputCols = pFunct->numOfParams;
     pCtx->input.pData = taosMemoryCalloc(pFunct->numOfParams, POINTER_BYTES);
-    QUERY_CHECK_NULL(pCtx->input.pData, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pCtx->input.pData, code, lino, _end, terrno);
     pCtx->input.pColumnDataAgg = taosMemoryCalloc(pFunct->numOfParams, POINTER_BYTES);
-    QUERY_CHECK_NULL(pCtx->input.pColumnDataAgg, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pCtx->input.pColumnDataAgg, code, lino, _end, terrno);
 
     pCtx->pTsOutput = NULL;
     pCtx->resDataInfo.bytes = pFunct->resSchema.bytes;
@@ -2238,12 +2238,12 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
   int32_t lino = 0;
   if (pTableList->map == NULL) {
     pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-    QUERY_CHECK_NULL(pTableList->map, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pTableList->map, code, lino, _end, terrno);
   }
 
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
   void*         tmp = taosArrayPush(pTableList->pTableList, &keyInfo);
-  QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
   code = taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));

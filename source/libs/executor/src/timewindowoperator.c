@@ -1210,10 +1210,10 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
 
   if (needed) {
     pInfo->pInterpCols = taosArrayInit(4, sizeof(SColumn));
-    QUERY_CHECK_NULL(pInfo->pInterpCols, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pInfo->pInterpCols, code, lino, _end, terrno);
 
     pInfo->pPrevValues = taosArrayInit(4, sizeof(SGroupKeys));
-    QUERY_CHECK_NULL(pInfo->pPrevValues, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pInfo->pPrevValues, code, lino, _end, terrno);
 
     {  // ts column
       SColumn c = {0};
@@ -1222,17 +1222,17 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
       c.type = TSDB_DATA_TYPE_TIMESTAMP;
       c.bytes = sizeof(int64_t);
       tmp = taosArrayPush(pInfo->pInterpCols, &c);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
       SGroupKeys key;
       key.bytes = c.bytes;
       key.type = c.type;
       key.isNull = true;  // to denote no value is assigned yet
       key.pData = taosMemoryCalloc(1, c.bytes);
-      QUERY_CHECK_NULL(key.pData, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(key.pData, code, lino, _end, terrno);
 
       tmp = taosArrayPush(pInfo->pPrevValues, &key);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     }
   }
 
@@ -1244,17 +1244,17 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
 
       SColumn c = *pParam->pCol;
       tmp = taosArrayPush(pInfo->pInterpCols, &c);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
       SGroupKeys key = {0};
       key.bytes = c.bytes;
       key.type = c.type;
       key.isNull = false;
       key.pData = taosMemoryCalloc(1, c.bytes);
-      QUERY_CHECK_NULL(key.pData, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(key.pData, code, lino, _end, terrno);
 
       tmp = taosArrayPush(pInfo->pPrevValues, &key);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     }
   }
 

@@ -296,19 +296,19 @@ static int32_t initBeforeAfterDataBuf(SFillInfo* pFillInfo) {
     SGroupKeys  key = {0};
     SResSchema* pSchema = &pCol->pExpr->base.resSchema;
     key.pData = taosMemoryMalloc(pSchema->bytes);
-    QUERY_CHECK_NULL(key.pData, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(key.pData, code, lino, _end, terrno);
     key.isNull = true;
     key.bytes = pSchema->bytes;
     key.type = pSchema->type;
 
     void* tmp = taosArrayPush(pFillInfo->next.pRowVal, &key);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
     key.pData = taosMemoryMalloc(pSchema->bytes);
-    QUERY_CHECK_NULL(key.pData, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(key.pData, code, lino, _end, terrno);
 
     tmp = taosArrayPush(pFillInfo->prev.pRowVal, &key);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
 _end:
@@ -522,7 +522,7 @@ void taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillC
   }
 
   SFillInfo* pFillInfo = taosMemoryCalloc(1, sizeof(SFillInfo));
-  QUERY_CHECK_NULL(pFillInfo, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pFillInfo, code, lino, _end, terrno);
 
   pFillInfo->order = order;
   pFillInfo->srcTsSlotId = primaryTsSlotId;
@@ -546,10 +546,10 @@ void taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillC
   pFillInfo->interval = *pInterval;
 
   pFillInfo->next.pRowVal = taosArrayInit(pFillInfo->numOfCols, sizeof(SGroupKeys));
-  QUERY_CHECK_NULL(pFillInfo->next.pRowVal, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pFillInfo->next.pRowVal, code, lino, _end, terrno);
 
   pFillInfo->prev.pRowVal = taosArrayInit(pFillInfo->numOfCols, sizeof(SGroupKeys));
-  QUERY_CHECK_NULL(pFillInfo->prev.pRowVal, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pFillInfo->prev.pRowVal, code, lino, _end, terrno);
 
   code = initBeforeAfterDataBuf(pFillInfo);
   QUERY_CHECK_CODE(code, lino, _end);
