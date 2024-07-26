@@ -11,14 +11,25 @@
       </section>
     </section>
     <section id="view-content" class="markdown-body">
-      <component :url="url" :token="token" :is="component" :user="username" :password="decryptPwd"></component>
+      <component 
+        :url="url" 
+        :token="token" 
+        :is="component" 
+        :user="username" 
+        :password="decryptPwd" 
+        :installUrlLinux="installUrlLinux" 
+        :installUrlMac="installUrlMac" 
+        :installUrlMacArm="installUrlMacArm" 
+        :installUrlWindows="installUrlWindows"
+      ></component>
     </section>
   </div>
 </template>
 
 <script>
   import * as config from "@/utils/config";
-  import { debounce, decrypt } from "@/utils";
+  import { debounce, decrypt, compareVersion } from "@/utils";
+  import { OfficialSite } from '@/const';
   import "github-markdown-css/github-markdown-light.css";
   export default {
     props: {
@@ -66,6 +77,34 @@
       },
       decryptPwd() {
         return decrypt(localStorage.getItem("pwd")) || '';
+      },
+      TDengineVersion() {
+        return localStorage.getItem('agent_version');
+      },
+      isLessThen3_1_1_11() {
+        return compareVersion(this.TDengineVersion, '<3.1.1.11');
+      },
+      isLessThen3_3_2_1() {
+        return compareVersion(this.TDengineVersion, '<3.3.2.1');
+      },
+      commonDownloadUrl() {
+        return `${OfficialSite}/assets-download/3.0/TDengine${(this.isLessThen3_1_1_11 || this.$COMMUNITY) ? '' : '-enterprise'}-client-${this.TDengineVersion}-`;
+      },
+      installUrlLinux() {
+        return this.commonDownloadUrl + `Linux-x64.tar.gz`;
+      },
+      macDownloadPrefix() {
+        const prefix = this.commonDownloadUrl + 'macOS-';
+        return this.isLessThen3_3_2_1 ? prefix.replace('-enterprise', '') : prefix;
+      },
+      installUrlMac() {
+        return this.macDownloadPrefix + `x64.pkg`;
+      },
+      installUrlMacArm() {
+        return this.macDownloadPrefix + `arm64.pkg`;
+      },
+      installUrlWindows() {
+        return this.commonDownloadUrl + `Windows-x64.exe`;
       }
     },
     data() {

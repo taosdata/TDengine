@@ -9,7 +9,7 @@
       >{{ $t("docs.tool.cli.step1desc3")
       }}<a :href="installUrlWindows">Windows</a
       >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installUrlMac">MacOS-x64</a
-      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installURLArm">MacOS-arm64</a
+      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installUrlMacArm">MacOS-arm64</a
       >{{ $t("docs.tool.cli.step1desc4") }}
     </p>
     <h2 id="config">{{ $t("docs.tool.cli.step2") }}</h2>
@@ -125,7 +125,23 @@ export default {
     password: {
       type: String,
       default: ''
-    }
+    },
+    installUrlLinux: {
+      type: String,
+      default: ''
+    },
+    installUrlWindows: {
+      type: String,
+      default: ''
+    },
+    installUrlMac: {
+      type: String,
+      default: ''
+    },
+    installUrlMacArm: {
+      type: String,
+      default: ''
+    },
   },
   data() {
     return {
@@ -143,25 +159,6 @@ taos>`
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
-    },
-    urlEnterprise() {
-      return this.$COMMUNITY ? '' : '-enterprise'
-    },
-    installUrlLinux() {
-      const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine${this.urlEnterprise}-client-${this.version}-Linux-x64.tar.gz`;
-    },
-    installUrlMac() {
-      const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${this.version}-macOS-x64.pkg`;
-    },
-    installURLArm(){
-      const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${this.version}-macOS-arm64.pkg`;
-    },
-    installUrlWindows() {
-      const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine${this.urlEnterprise}-client-${this.version}-Windows-x64.exe`;
     },
   },
 };
