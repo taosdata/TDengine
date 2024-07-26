@@ -42,7 +42,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
   int32_t code = -1;
   char    path[PATH_MAX + 100] = {0};
 
-  if (dmInitVars(pDnode) != 0) {
+  if ((code = dmInitVarsWrapper(pDnode)) != 0) {
     goto _OVER;
   }
 
@@ -65,26 +65,31 @@ int32_t dmInitDnode(SDnode *pDnode) {
     snprintf(path, sizeof(path), "%s%s%s", tsDataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = taosStrdup(path);
     if (pWrapper->path == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
 
     pWrapper->required = dmRequireNode(pDnode, pWrapper);
   }
 
-  pDnode->lockfile = dmCheckRunning(tsDataDir);
-  if (pDnode->lockfile == NULL) {
+  code = dmCheckRunning(tsDataDir, &pDnode->lockfile);
+  if (code != 0) {
     goto _OVER;
   }
-  if (dmInitModule(pDnode) != 0) {
+
+  if ((code = dmInitModule(pDnode)) != 0) {
     goto _OVER;
   }
 
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
 
-  dmInitStatusClient(pDnode);
-  dmInitSyncClient(pDnode);
+  if ((code = dmInitStatusClient(pDnode)) != 0) {
+    goto _OVER;
+  }
+  if ((code = dmInitSyncClient(pDnode)) != 0) {
+    goto _OVER;
+  }
 
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
@@ -94,7 +99,7 @@ _OVER:
   if (code != 0 && pDnode != NULL) {
     dmClearVars(pDnode);
     pDnode = NULL;
-    dError("failed to create dnode since %s", terrstr());
+    dError("failed to create dnode since %s", tstrerror(code));
   }
 
   return code;
@@ -122,7 +127,15 @@ void dmCleanupDnode(SDnode *pDnode) {
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
+int32_t dmInitVarsWrapper(SDnode *pDnode) {
+  int32_t code = dmInitVars(pDnode);
+  if (code == -1) {
+    return terrno;
+  }
+  return 0;
+}
 int32_t dmInitVars(SDnode *pDnode) {
+  int32_t     code = 0;
   SDnodeData *pData = &pDnode->data;
   pData->dnodeId = 0;
   pData->clusterId = 0;
@@ -132,27 +145,28 @@ int32_t dmInitVars(SDnode *pDnode) {
   pData->rebootTime = taosGetTimestampMs();
   pData->dropped = 0;
   pData->stopped = 0;
-  char *machineId = tGetMachineId();
+  char *machineId = NULL;
+  code = tGetMachineId(&machineId);
   if (machineId) {
     tstrncpy(pData->machineId, machineId, TSDB_MACHINE_ID_LEN + 1);
     taosMemoryFreeClear(machineId);
   } else {
 #if defined(TD_ENTERPRISE) && !defined(GRANTS_CFG)
-    terrno = TSDB_CODE_DNODE_NO_MACHINE_CODE;
-    return -1;
+    code = TSDB_CODE_DNODE_NO_MACHINE_CODE;
+    return terrno = code;
 #endif
   }
 
   pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pData->dnodeHash == NULL) {
     dError("failed to init dnode hash");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno = code;
   }
 
-  if (dmReadEps(pData) != 0) {
-    dError("failed to read file since %s", terrstr());
-    return -1;
+  if ((code = dmReadEps(pData)) != 0) {
+    dError("failed to read file since %s", tstrerror(code));
+    return code;
   }
 
 #if defined(TD_ENTERPRISE)
@@ -168,7 +182,7 @@ int32_t dmInitVars(SDnode *pDnode) {
       code = 0;
       strncpy(tsEncryptKey, tsAuthCode, 16);
 
-      if(code != 0) {
+      if (code != 0) {
         if(code == -1){
           terrno = TSDB_CODE_DNODE_NO_ENCRYPT_KEY;
           dError("machine code changed, can't get crypt key");
@@ -274,22 +288,21 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   } else {
     switch (pWrapper->ntype) {
       case MNODE:
-        terrno = TSDB_CODE_MNODE_NOT_FOUND;
+        code = TSDB_CODE_MNODE_NOT_FOUND;
         break;
       case QNODE:
-        terrno = TSDB_CODE_QNODE_NOT_FOUND;
+        code = TSDB_CODE_QNODE_NOT_FOUND;
         break;
       case SNODE:
-        terrno = TSDB_CODE_SNODE_NOT_FOUND;
+        code = TSDB_CODE_SNODE_NOT_FOUND;
         break;
       case VNODE:
-        terrno = TSDB_CODE_VND_STOPPED;
+        code = TSDB_CODE_VND_STOPPED;
         break;
       default:
-        terrno = TSDB_CODE_APP_IS_STOPPING;
+        code = TSDB_CODE_APP_IS_STOPPING;
         break;
     }
-    code = -1;
   }
   taosThreadRwlockUnlock(&pWrapper->lock);
 

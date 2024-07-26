@@ -5045,7 +5045,13 @@ static int32_t hashJoinOptSplitPrimFromLogicCond(SNode **pCondition, SNode **pPr
   SNodeList *pPrimaryKeyConds = NULL;
   SNode     *pCond = NULL;
   WHERE_EACH(pCond, pLogicCond->pParameterList) {
-    if (filterIsMultiTableColsCond(pCond) || COND_TYPE_PRIMARY_KEY != filterClassifyCondition(pCond)) {
+    bool result = false;
+    code = filterIsMultiTableColsCond(pCond, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+
+    if (result || COND_TYPE_PRIMARY_KEY != filterClassifyCondition(pCond)) {
       WHERE_NEXT;
       continue;
     }
@@ -5089,7 +5095,12 @@ int32_t hashJoinOptSplitPrimCond(SNode **pCondition, SNode **pPrimaryKeyCond) {
   }
 
   bool needOutput = false;
-  if (filterIsMultiTableColsCond(*pCondition)) {
+  bool result = false;
+  int32_t code = filterIsMultiTableColsCond(*pCondition, &result);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (result) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5325,9 +5336,13 @@ static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode) {
 }
 
 int32_t stbJoinOptAddFuncToScanNode(char* funcName, SScanLogicNode* pScan) {
-  SFunctionNode* pUidFunc = createFunction(funcName, NULL);
+  SFunctionNode* pUidFunc = NULL;
+  int32_t code = createFunction(funcName, NULL, &pUidFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   snprintf(pUidFunc->node.aliasName, sizeof(pUidFunc->node.aliasName), "%s.%p", pUidFunc->functionName, pUidFunc);
-  int32_t code = nodesListStrictAppend(pScan->pScanPseudoCols, (SNode*)pUidFunc);
+  code = nodesListStrictAppend(pScan->pScanPseudoCols, (SNode*)pUidFunc);
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExpr((SNode*)pUidFunc, &pScan->node.pTargets);
   }

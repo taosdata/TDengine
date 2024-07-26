@@ -825,18 +825,19 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
     transRemoveExHandle(transGetRefMgt(), conn->refId);
     conn->refId = -1;
   }
-  SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
-  exh->handle = conn;
-  exh->pThrd = conn->hostThrd;
-  QUEUE_INIT(&exh->q);
-  taosInitRWLatch(&exh->latch);
 
+  SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
-  ASSERT(exh == self);
+  if (self != exh) {
+    taosMemoryFree(exh);
+    return TSDB_CODE_REF_INVALID_ID;
+  }
 
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
+  exh->handle = conn;
+  exh->pThrd = conn->hostThrd;
 
   conn->refId = exh->refId;
   if (conn->refId == -1) {
@@ -2836,6 +2837,10 @@ int64_t transAllocHandle() {
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
   ASSERT(exh == self);
+  if (exh != self) {
+    taosMemoryFree(exh);
+    return TSDB_CODE_REF_INVALID_ID;
+  }
 
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);

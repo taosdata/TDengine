@@ -17,13 +17,15 @@
 #include "vnd.h"
 
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
-  if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) {
+    return terrno;
+  }
   lvl[0]->level = level;
   TARRAY2_INIT(lvl[0]->fobjArr);
   return 0;
 }
 
-static void tsdbSttLvlClearFObj(void *data) { tsdbTFileObjUnref(*(STFileObj **)data); }
+static void tsdbSttLvlClearFObj(void *data) { TAOS_UNUSED(tsdbTFileObjUnref(*(STFileObj **)data)); }
 
 int32_t tsdbSttLvlClear(SSttLvl **lvl) {
   if (lvl[0] != NULL) {
@@ -81,14 +83,14 @@ static int32_t tsdbSttLvlFilteredInitEx(STsdb *pTsdb, const SSttLvl *lvl1, int64
         return code;
       }
 
-      TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
+      TAOS_CHECK_RETURN(TARRAY2_APPEND(lvl[0]->fobjArr, fobj));
     } else {
       STFileOp op = {
           .optype = TSDB_FOP_REMOVE,
           .fid = fobj1->f->fid,
           .of = fobj1->f[0],
       };
-      TARRAY2_APPEND(fopArr, op);
+      TAOS_CHECK_RETURN(TARRAY2_APPEND(fopArr, op));
     }
   }
   return 0;
@@ -449,7 +451,9 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
 
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   fset[0] = taosMemoryCalloc(1, sizeof(STFileSet));
-  if (fset[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (fset[0] == NULL) {
+    return terrno;
+  }
 
   fset[0]->fid = fid;
   fset[0]->maxVerValid = VERSION_MAX;
@@ -541,7 +545,9 @@ int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_
 int32_t tsdbTFileSetRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever,
                                  STFileSetRange **fsr) {
   fsr[0] = taosMemoryCalloc(1, sizeof(*fsr[0]));
-  if (fsr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (fsr[0] == NULL) {
+    return terrno;
+  }
   fsr[0]->fid = fset1->fid;
   fsr[0]->sver = sver;
   fsr[0]->ever = ever;

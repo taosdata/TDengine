@@ -157,7 +157,8 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
     if (isNull) {
       colDataSetNULL(pColInfo, pBlock->info.rows);
     } else {
-      char* pData = tsortGetValue(pTupleHandle, i);
+      char* pData = NULL;
+      tsortGetValue(pTupleHandle, i, (void**) &pData);
       if (pData != NULL) {
         colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
       }
@@ -165,7 +166,11 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   }
 
   pBlock->info.dataLoad = 1;
-  pBlock->info.scanFlag = ((SDataBlockInfo*)tsortGetBlockInfo(pTupleHandle))->scanFlag;
+
+  SDataBlockInfo info = {0};
+  tsortGetBlockInfo(pTupleHandle, &info);
+
+  pBlock->info.scanFlag = info.scanFlag;
   pBlock->info.rows += 1;
 }
 
@@ -176,9 +181,13 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
  * @retval NULL if no more tuples
  */
 static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pInfo, SSDataBlock* pBlock) {
+  int32_t code = 0;
   STupleHandle* retTuple = pInfo->pGroupIdCalc->pSavedTuple;
   if (!retTuple) {
-    retTuple = tsortNextTuple(pHandle);
+    code = tsortNextTuple(pHandle, &retTuple);
+    if (code) {
+      return NULL;
+    }
   }
 
   if (retTuple) {
@@ -219,8 +228,9 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
                                 SSortOperatorInfo* pInfo) {
   blockDataCleanup(pDataBlock);
 
-  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
-  if (p == NULL) {
+  SSDataBlock* p = NULL;
+  int32_t code = tsortGetSortedDataBlock(pHandle, &p);
+  if (p == NULL || (code != 0)) {
     return NULL;
   }
 
@@ -231,9 +241,9 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
     if (pInfo->pGroupIdCalc) {
       pTupleHandle = nextTupleWithGroupId(pHandle, pInfo, p);
     } else {
-      pTupleHandle = tsortNextTuple(pHandle);
+      code = tsortNextTuple(pHandle, &pTupleHandle);
     }
-    if (pTupleHandle == NULL) {
+    if (pTupleHandle == NULL || code != 0) {
       break;
     }
 
@@ -295,8 +305,12 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 
   pInfo->startTs = taosGetTimestampUs();
   //  pInfo->binfo.pRes is not equalled to the input datablock.
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str,
-                                             pInfo->maxRows, pInfo->maxTupleLength, tsPQSortMemThreshold * 1024 * 1024);
+  pInfo->pSortHandle = NULL;
+  int32_t code = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str,
+                                             pInfo->maxRows, pInfo->maxTupleLength, tsPQSortMemThreshold * 1024 * 1024, &pInfo->pSortHandle);
+  if (code) {
+    return code;
+  }
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
 
@@ -305,8 +319,7 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   ps->onlyRef = true;
   tsortAddSource(pInfo->pSortHandle, ps);
 
-  int32_t code = tsortOpen(pInfo->pSortHandle);
-
+  code = tsortOpen(pInfo->pSortHandle);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
@@ -368,7 +381,8 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
 
 void destroySortOperatorInfo(void* param) {
   SSortOperatorInfo* pInfo = (SSortOperatorInfo*)param;
-  pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
+  blockDataDestroy(pInfo->binfo.pRes);
+  pInfo->binfo.pRes = NULL;
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
@@ -433,16 +447,18 @@ SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlo
   blockDataCleanup(pDataBlock);
   blockDataEnsureCapacity(pDataBlock, capacity);
 
-  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
-  if (p == NULL) {
+  SSDataBlock* p = NULL;
+  int32_t code = tsortGetSortedDataBlock(pHandle, &p);
+  if (p == NULL || (code != 0)) {
     return NULL;
   }
 
   blockDataEnsureCapacity(p, capacity);
 
   while (1) {
-    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
-    if (pTupleHandle == NULL) {
+    STupleHandle* pTupleHandle = NULL;
+    code = tsortNextTuple(pHandle, &pTupleHandle);
+    if (pTupleHandle == NULL || code != 0) {
       break;
     }
 
@@ -507,8 +523,13 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
 
   //  pInfo->binfo.pRes is not equalled to the input datablock.
-  pInfo->pCurrSortHandle =
-      tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str, 0, 0, 0);
+  pInfo->pCurrSortHandle = NULL;
+
+  int32_t code = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str, 0, 0,
+                                       0, &pInfo->pCurrSortHandle);
+  if (code) {
+    return code;
+  }
 
   tsortSetFetchRawDataFp(pInfo->pCurrSortHandle, fetchNextGroupSortDataBlock, applyScalarFunction, pOperator);
 
@@ -520,13 +541,12 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
   ps->onlyRef = false;
   tsortAddSource(pInfo->pCurrSortHandle, ps);
 
-  int32_t code = tsortOpen(pInfo->pCurrSortHandle);
-
+  code = tsortOpen(pInfo->pCurrSortHandle);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t finishSortGroup(SOperatorInfo* pOperator) {
@@ -611,7 +631,8 @@ int32_t getGroupSortExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, u
 
 void destroyGroupSortOperatorInfo(void* param) {
   SGroupSortOperatorInfo* pInfo = (SGroupSortOperatorInfo*)param;
-  pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
+  blockDataDestroy(pInfo->binfo.pRes);
+  pInfo->binfo.pRes = NULL;
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);

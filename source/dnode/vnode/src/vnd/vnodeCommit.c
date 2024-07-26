@@ -125,20 +125,16 @@ int vnodeBegin(SVnode *pVnode) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // begin meta
-  if (metaBegin(pVnode->pMeta, META_BEGIN_HEAP_BUFFERPOOL) < 0) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  code = metaBegin(pVnode->pMeta, META_BEGIN_HEAP_BUFFERPOOL);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // begin tsdb
-  if (tsdbBegin(pVnode->pTsdb) < 0) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  code = tsdbBegin(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // begin sma
-  if (VND_IS_RSMA(pVnode) && smaBegin(pVnode->pSma) < 0) {
-    code = terrno;
+  if (VND_IS_RSMA(pVnode)) {
+    code = smaBegin(pVnode->pSma);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -171,54 +167,41 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
 }
 
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
+  int32_t   code = 0;
+  int32_t   lino;
   char      fname[TSDB_FILENAME_LEN];
-  TdFilePtr pFile;
-  char     *data;
+  TdFilePtr pFile = NULL;
+  char     *data = NULL;
 
   snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
 
-  // encode info
-  data = NULL;
-
-  if (vnodeEncodeInfo(pInfo, &data) < 0) {
-    vError("failed to encode json info.");
-    return -1;
-  }
+  code = vnodeEncodeInfo(pInfo, &data);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // save info to a vnode_tmp.json
   pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
-    vError("failed to open info file:%s for write:%s", fname, terrstr());
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
   if (taosWriteFile(pFile, data, strlen(data)) < 0) {
-    vError("failed to write info file:%s error:%s", fname, terrstr());
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    vError("failed to fsync info file:%s error:%s", fname, terrstr());
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
-  taosCloseFile(&pFile);
-
-  // free info binary
-  taosMemoryFree(data);
-
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
-        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
-
-  return 0;
-
-_err:
+_exit:
+  if (code) {
+    vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
+          pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
+  }
   taosCloseFile(&pFile);
   taosMemoryFree(data);
-  return -1;
+  return code;
 }
 
 int vnodeCommitInfo(const char *dir) {
@@ -229,8 +212,7 @@ int vnodeCommitInfo(const char *dir) {
   snprintf(tfname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   if (taosRenameFile(tfname, fname) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    return terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
   vInfo("vnode info is committed, dir:%s", dir);
@@ -238,6 +220,8 @@ int vnodeCommitInfo(const char *dir) {
 }
 
 int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
+  int32_t   code = 0;
+  int32_t   lino;
   char      fname[TSDB_FILENAME_LEN];
   TdFilePtr pFile = NULL;
   char     *pData = NULL;
@@ -248,44 +232,35 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   // read info
   pFile = taosOpenFile(fname, TD_FILE_READ);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
   if (taosFStatFile(pFile, &size, NULL) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
   pData = taosMemoryMalloc(size + 1);
   if (pData == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
   if (taosReadFile(pFile, pData, size) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
   }
 
   pData[size] = '\0';
 
-  taosCloseFile(&pFile);
-
   // decode info
-  if (vnodeDecodeInfo(pData, pInfo) < 0) {
-    taosMemoryFree(pData);
-    return -1;
+  code = vnodeDecodeInfo(pData, pInfo);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
   }
-
   taosMemoryFree(pData);
-
-  return 0;
-
-_err:
   taosCloseFile(&pFile);
-  taosMemoryFree(pData);
-  return -1;
+  return code;
 }
 
 static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
@@ -297,7 +272,8 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   // wait last commit task
   vnodeAWait(&pVnode->commitTask);
 
-  if (syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
+  code = syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
@@ -312,17 +288,16 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
-  if (vnodeSaveInfo(dir, &pInfo->info) < 0) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  code = vnodeSaveInfo(dir, &pInfo->info);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   tsdbPreCommit(pVnode->pTsdb);
 
-  metaPrepareAsyncCommit(pVnode->pMeta);
+  code = metaPrepareAsyncCommit(pVnode->pMeta);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = smaPrepareAsyncCommit(pVnode->pSma);
-  if (code) goto _exit;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   taosThreadMutexLock(&pVnode->mutex);
   ASSERT(pVnode->onCommit == NULL);
@@ -458,16 +433,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (tqCommit(pVnode->pTq) < 0) {
-    code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   // commit info
-  if (vnodeCommitInfo(dir) < 0) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  code = vnodeCommitInfo(dir);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbCommitCommit(pVnode->pTsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -477,10 +445,8 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (metaFinishCommit(pVnode->pMeta, pInfo->txn) < 0) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  code = metaFinishCommit(pVnode->pMeta, pInfo->txn);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   pVnode->state.committed = pInfo->info.state.committed;
 
@@ -497,7 +463,7 @@ _exit:
   } else {
     vInfo("vgId:%d, commit end", TD_VID(pVnode));
   }
-  return 0;
+  return code;
 }
 
 bool vnodeShouldRollback(SVnode *pVnode) {
@@ -519,15 +485,15 @@ void vnodeRollback(SVnode *pVnode) {
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
-  (void)taosRemoveFile(tFName);
+  TAOS_UNUSED(taosRemoveFile(tFName));
 }
 
 static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   const SVState *pState = (SVState *)pObj;
 
-  if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "commit ID", pState->commitID) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "commit term", pState->commitTerm) < 0) return -1;
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "commit version", pState->committed));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "commit ID", pState->commitID));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "commit term", pState->commitTerm));
 
   return 0;
 }
@@ -537,70 +503,67 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
 
   int32_t code;
   tjsonGetNumberValue(pJson, "commit version", pState->committed, code);
-  if (code < 0) return -1;
+  if (code) return code;
   tjsonGetNumberValue(pJson, "commit ID", pState->commitID, code);
-  if (code < 0) return -1;
+  if (code) return code;
   tjsonGetNumberValue(pJson, "commit term", pState->commitTerm, code);
-  if (code < 0) return -1;
+  if (code) return code;
 
   return 0;
 }
 
 static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData) {
-  SJson *pJson;
-  char  *pData;
-
-  *ppData = NULL;
+  int32_t code = 0;
+  int32_t lino;
+  SJson  *pJson = NULL;
+  char   *pData = NULL;
 
   pJson = tjsonCreateObject();
   if (pJson == NULL) {
-    return -1;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  if (tjsonAddObject(pJson, "config", vnodeEncodeConfig, (void *)&pInfo->config) < 0) {
-    goto _err;
-  }
+  code = tjsonAddObject(pJson, "config", vnodeEncodeConfig, (void *)&pInfo->config);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (tjsonAddObject(pJson, "state", vnodeEncodeState, (void *)&pInfo->state) < 0) {
-    goto _err;
-  }
+  code = tjsonAddObject(pJson, "state", vnodeEncodeState, (void *)&pInfo->state);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   pData = tjsonToString(pJson);
   if (pData == NULL) {
-    goto _err;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   tjsonDelete(pJson);
 
-  *ppData = pData;
-  return 0;
-
-_err:
-  tjsonDelete(pJson);
-  return -1;
+_exit:
+  if (code) {
+    tjsonDelete(pJson);
+    *ppData = NULL;
+  } else {
+    *ppData = pData;
+  }
+  return code;
 }
 
 int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
-  SJson *pJson = NULL;
+  int32_t code = 0;
+  int32_t lino;
+  SJson  *pJson = NULL;
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_DATA_FMT, lino, _exit);
     return -1;
   }
 
-  if (tjsonToObject(pJson, "config", vnodeDecodeConfig, (void *)&pInfo->config) < 0) {
-    goto _err;
-  }
+  code = tjsonToObject(pJson, "config", vnodeDecodeConfig, (void *)&pInfo->config);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (tjsonToObject(pJson, "state", vnodeDecodeState, (void *)&pInfo->state) < 0) {
-    goto _err;
-  }
+  code = tjsonToObject(pJson, "state", vnodeDecodeState, (void *)&pInfo->state);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
+_exit:
   tjsonDelete(pJson);
-
-  return 0;
-
-_err:
-  tjsonDelete(pJson);
-  return -1;
+  return code;
 }

@@ -35,6 +35,7 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
+#include "tcompare.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -127,7 +128,7 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   cJSON_AddItemToObject(json, "error_info",   cJSON_CreateString(tstrerror(pRequest->code)));
   cJSON_AddItemToObject(json, "type",         cJSON_CreateNumber(reqType));
   cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows));
-  if(strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
+  if(pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
     char tmp = pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen];
     pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = '\0';
     cJSON_AddItemToObject(json, "sql",          cJSON_CreateString(pRequest->sqlstr));
@@ -875,6 +876,12 @@ void taos_init_imp(void) {
   }
   rpcInit();
 
+  if (InitRegexCache() != 0) {
+    tscInitRes = -1;
+    tscError("failed to init regex cache");
+    return;
+  }
+
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
@@ -885,8 +892,16 @@ void taos_init_imp(void) {
   taosSetCoreDump(true);
 #endif
 
-  initTaskQueue();
-  fmFuncMgtInit();
+  if (initTaskQueue() != 0){
+    tscInitRes = -1;
+    tscError("failed to init task queue");
+    return;
+  }
+  if (fmFuncMgtInit() != TSDB_CODE_SUCCESS) {
+    tscInitRes = -1;
+    tscError("failed to init function manager");
+    return;
+  }
   nodesInitAllocatorSet();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);

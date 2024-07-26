@@ -16,13 +16,12 @@
 #include "vnd.h"
 
 /* ------------------------ STRUCTURES ------------------------ */
-static int vnodeBufPoolCreate(SVnode *pVnode, int32_t id, int64_t size, SVBufPool **ppPool) {
+static int32_t vnodeBufPoolCreate(SVnode *pVnode, int32_t id, int64_t size, SVBufPool **ppPool) {
   SVBufPool *pPool;
 
   pPool = taosMemoryMalloc(sizeof(SVBufPool) + size);
   if (pPool == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   memset(pPool, 0, sizeof(SVBufPool));
 
@@ -44,14 +43,12 @@ static int vnodeBufPoolCreate(SVnode *pVnode, int32_t id, int64_t size, SVBufPoo
     pPool->lock = taosMemoryMalloc(sizeof(TdThreadSpinlock));
     if (!pPool->lock) {
       taosMemoryFree(pPool);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+      return terrno = TSDB_CODE_OUT_OF_MEMORY;
     }
     if (taosThreadSpinInit(pPool->lock, 0) != 0) {
       taosMemoryFree((void *)pPool->lock);
       taosMemoryFree(pPool);
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
+      return terrno = TAOS_SYSTEM_ERROR(errno);
     }
   } else {
     pPool->lock = NULL;
@@ -77,10 +74,11 @@ int vnodeOpenBufPool(SVnode *pVnode) {
 
   for (int i = 0; i < VNODE_BUFPOOL_SEGMENTS; i++) {
     // create pool
-    if (vnodeBufPoolCreate(pVnode, i, size, &pVnode->aBufPool[i])) {
+    int32_t code;
+    if ((code = vnodeBufPoolCreate(pVnode, i, size, &pVnode->aBufPool[i]))) {
       vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
       vnodeCloseBufPool(pVnode);
-      return -1;
+      return code;
     }
 
     // add to free list
@@ -142,8 +140,9 @@ void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
     // allocate a new node
     pNode = taosMemoryMalloc(sizeof(*pNode) + size);
     if (pNode == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
+      if (pPool->lock) {
+        taosThreadSpinUnlock(pPool->lock);
+      }
       return NULL;
     }
 
@@ -175,7 +174,6 @@ void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
     // allocate a new node
     pNode = taosMemoryMalloc(sizeof(*pNode) + size);
     if (pNode == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
       return NULL;
     }
@@ -274,8 +272,6 @@ _exit:
 }
 
 int32_t vnodeBufPoolRegisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
-  int32_t code = 0;
-
   taosThreadMutexLock(&pPool->mutex);
 
   pQNode->pNext = pPool->qList.pNext;
@@ -285,9 +281,7 @@ int32_t vnodeBufPoolRegisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
   pPool->nQuery++;
 
   taosThreadMutexUnlock(&pPool->mutex);
-
-_exit:
-  return code;
+  return 0;
 }
 
 void vnodeBufPoolDeregisterQuery(SVBufPool *pPool, SQueryNode *pQNode, bool proactive) {

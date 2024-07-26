@@ -9197,23 +9197,23 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
 
 int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   if (pVal->type == TMQ_OFFSET__RESET_NONE) {
-    snprintf(buf, maxLen, "none");
+    (void)snprintf(buf, maxLen, "none");
   } else if (pVal->type == TMQ_OFFSET__RESET_EARLIEST) {
-    snprintf(buf, maxLen, "earliest");
+    (void)snprintf(buf, maxLen, "earliest");
   } else if (pVal->type == TMQ_OFFSET__RESET_LATEST) {
-    snprintf(buf, maxLen, "latest");
+    (void)snprintf(buf, maxLen, "latest");
   } else if (pVal->type == TMQ_OFFSET__LOG) {
-    snprintf(buf, maxLen, "wal:%" PRId64, pVal->version);
+    (void)snprintf(buf, maxLen, "wal:%" PRId64, pVal->version);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (IS_VAR_DATA_TYPE(pVal->primaryKey.type)) {
       char *tmp = taosMemoryCalloc(1, pVal->primaryKey.nData + 1);
       if (tmp == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-      memcpy(tmp, pVal->primaryKey.pData, pVal->primaryKey.nData);
-      snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%s", pVal->uid, pVal->ts,
+      (void)memcpy(tmp, pVal->primaryKey.pData, pVal->primaryKey.nData);
+      (void)snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%s", pVal->uid, pVal->ts,
                pVal->primaryKey.type, tmp);
       taosMemoryFree(tmp);
     } else {
-      snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%" PRId64, pVal->uid, pVal->ts,
+      (void)snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%" PRId64, pVal->uid, pVal->ts,
                pVal->primaryKey.type, pVal->primaryKey.val);
     }
   } else {
@@ -9248,7 +9248,7 @@ void tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   *pLeft = *pRight;
   if (IS_VAR_DATA_TYPE(pRight->primaryKey.type)) {
     pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData);
-    memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
+    (void)memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
   }
 }
 
@@ -9258,6 +9258,12 @@ void tOffsetDestroy(void *param) {
     taosMemoryFreeClear(pVal->primaryKey.pData);
   }
 }
+
+void tDeleteSTqOffset(void *param) {
+  STqOffset *pVal = (STqOffset *)param;
+  tOffsetDestroy(&pVal->val);
+}
+
 int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
   if (tEncodeSTqOffsetVal(pEncoder, &pOffset->val) < 0) return -1;
   if (tEncodeCStr(pEncoder, pOffset->subKey) < 0) return -1;
@@ -9297,12 +9303,12 @@ int32_t tEncodeSTqCheckInfo(SEncoder *pEncoder, const STqCheckInfo *pInfo) {
 int32_t tDecodeSTqCheckInfo(SDecoder *pDecoder, STqCheckInfo *pInfo) {
   if (tDecodeCStrTo(pDecoder, pInfo->topic) < 0) return -1;
   if (tDecodeI64(pDecoder, &pInfo->ntbUid) < 0) return -1;
-  int32_t sz;
+  int32_t sz = 0;
   if (tDecodeI32(pDecoder, &sz) < 0) return -1;
   pInfo->colIdList = taosArrayInit(sz, sizeof(int16_t));
   if (pInfo->colIdList == NULL) return -1;
   for (int32_t i = 0; i < sz; i++) {
-    int16_t colId;
+    int16_t colId = 0;
     if (tDecodeI16(pDecoder, &colId) < 0) return -1;
     taosArrayPush(pInfo->colIdList, &colId);
   }
@@ -9505,7 +9511,8 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, void *pRsp) {
 
 static void tDeleteMqDataRspCommon(void *rsp) {
   SMqDataRspCommon *pRsp = rsp;
-  pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
+  taosArrayDestroy(pRsp->blockDataLen);
+  pRsp->blockDataLen = NULL;
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
@@ -9558,7 +9565,8 @@ void tDeleteSTaosxRsp(void *rsp) {
   tDeleteMqDataRspCommon(rsp);
 
   STaosxRsp *pRsp = (STaosxRsp *)rsp;
-  pRsp->createTableLen = taosArrayDestroy(pRsp->createTableLen);
+  taosArrayDestroy(pRsp->createTableLen);
+  pRsp->createTableLen = NULL;
   taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
   pRsp->createTableReq = NULL;
 }
@@ -10820,7 +10828,9 @@ int32_t tDecodeMqBatchMetaRsp(SDecoder *pDecoder, SMqBatchMetaRsp *pRsp) {
   if (tDecodeI32(pDecoder, &size) < 0) return -1;
   if (size > 0) {
     pRsp->batchMetaReq = taosArrayInit(size, POINTER_BYTES);
+    if (!pRsp->batchMetaReq) return -1;
     pRsp->batchMetaLen = taosArrayInit(size, sizeof(int32_t));
+    if (!pRsp->batchMetaLen) return -1;
     for (int32_t i = 0; i < size; i++) {
       void    *pCreate = NULL;
       uint64_t len = 0;

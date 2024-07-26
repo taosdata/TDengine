@@ -65,28 +65,28 @@ int32_t taosGetTimestampSec();
 //@return timestamp in millisecond
 static FORCE_INLINE int64_t taosGetTimestampMs() {
   struct timeval systemTime;
-  taosGetTimeOfDay(&systemTime);
+  (void)taosGetTimeOfDay(&systemTime);
   return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_usec / 1000;
 }
 
 //@return timestamp in microsecond
 static FORCE_INLINE int64_t taosGetTimestampUs() {
   struct timeval systemTime;
-  taosGetTimeOfDay(&systemTime);
+  (void)taosGetTimeOfDay(&systemTime);
   return (int64_t)systemTime.tv_sec * 1000000LL + (int64_t)systemTime.tv_usec;
 }
 
 //@return timestamp in nanosecond
 static FORCE_INLINE int64_t taosGetTimestampNs() {
   struct timespec systemTime = {0};
-  taosClockGetTime(CLOCK_REALTIME, &systemTime);
+  (void)taosClockGetTime(CLOCK_REALTIME, &systemTime);
   return (int64_t)systemTime.tv_sec * 1000000000LL + (int64_t)systemTime.tv_nsec;
 }
 
 //@return timestamp of monotonic clock in millisecond
 static FORCE_INLINE int64_t taosGetMonoTimestampMs() {
   struct timespec systemTime = {0};
-  taosClockGetTime(CLOCK_MONOTONIC, &systemTime);
+  (void)taosClockGetTime(CLOCK_MONOTONIC, &systemTime);
   return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_nsec / 1000000;
 }
 

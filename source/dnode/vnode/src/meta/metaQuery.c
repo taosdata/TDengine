@@ -48,27 +48,23 @@ void metaReaderClear(SMetaReader *pReader) {
 }
 
 int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
+  int32_t  code = 0;
   SMeta   *pMeta = pReader->pMeta;
   STbDbKey tbDbKey = {.version = version, .uid = uid};
 
   // query table.db
   if (tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    goto _err;
+    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   // decode the entry
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
-  if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
-    goto _err;
-  }
+  code = metaDecodeEntry(&pReader->coder, &pReader->me);
+  if (code) return code;
   // taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
 
   return 0;
-
-_err:
-  return -1;
 }
 
 bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
@@ -90,8 +86,7 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   // query uid.idx
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    return -1;
+    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
@@ -103,8 +98,7 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
 
   SMetaInfo info;
   if (metaGetInfo(pMeta, uid, &info, pReader) == TSDB_CODE_NOT_FOUND) {
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    return -1;
+    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   return metaGetTableEntryByVersion(pReader, info.version, uid);
@@ -116,8 +110,7 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
 
   // query name.idx
   if (tdbTbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    return -1;
+    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   uid = *(tb_uid_t *)pReader->pBuf;
@@ -148,7 +141,7 @@ int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
-    return -1;
+    return code;
   }
 
   STR_TO_VARSTR(tbName, mr.me.name);
@@ -164,7 +157,7 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
-    return -1;
+    return code;
   }
   strncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
   metaReaderClear(&mr);
@@ -181,9 +174,8 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
 
   // query name.idx
   if (tdbTbGet(((SMeta *)pReader->pMeta)->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     metaReaderClear(&mr);
-    return -1;
+    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   *uid = *(tb_uid_t *)pReader->pBuf;
@@ -1542,9 +1534,14 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
   // slow path: search TDB
   int64_t ctbNum = 0;
   int32_t colNum = 0;
-  vnodeGetCtbNum(pVnode, uid, &ctbNum);
-  vnodeGetStbColumnNum(pVnode, uid, &colNum);
+  code = vnodeGetCtbNum(pVnode, uid, &ctbNum);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = vnodeGetStbColumnNum(pVnode, uid, &colNum);
+  }
   metaULock(pVnodeObj->pMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
 
   if (numOfTables) *numOfTables = ctbNum;
   if (numOfCols) *numOfCols = colNum;

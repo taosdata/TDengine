@@ -23,20 +23,20 @@ SDataSinkStat gDataSinkStat = {0};
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager) {
   SDataSinkManager* pSinkManager = taosMemoryMalloc(sizeof(SDataSinkManager));
   if (NULL == pSinkManager) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pSinkManager->cfg = *cfg;
   pSinkManager->pAPI = pAPI;
 
   *ppSinkManager = pSinkManager;
-  return 0;  // to avoid compiler eror
+  return TSDB_CODE_SUCCESS;  // to avoid compiler eror
 }
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {
   pStat->cachedSize = atomic_load_64(&gDataSinkStat.cachedSize);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
@@ -56,6 +56,7 @@ int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, D
 
   taosMemoryFree(pSinkManager);
   qError("invalid input node type:%d, %s", nodeType(pDataSink), id);
+  
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
@@ -97,6 +98,6 @@ void dsScheduleProcess(void* ahandle, void* pItem) {
 
 void dsDestroyDataSinker(DataSinkHandle handle) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
-  pHandleImpl->fDestroy(pHandleImpl);
+  (void)pHandleImpl->fDestroy(pHandleImpl);
   taosMemoryFree(pHandleImpl);
 }

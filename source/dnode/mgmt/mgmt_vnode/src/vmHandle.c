@@ -256,8 +256,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   char            path[TSDB_FILENAME_LEN] = {0};
 
   if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   if (req.learnerReplica == 0) {
@@ -298,25 +297,24 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   if (pReplica->id != pMgmt->pData->dnodeId || pReplica->port != tsServerPort ||
       strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    dError("vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode", req.vgId, pReplica->id, pReplica->fqdn,
-           pReplica->port);
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    dError("vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode, reason:%s", req.vgId, pReplica->id,
+           pReplica->fqdn, pReplica->port, tstrerror(code));
+    return code;
   }
 
   if (req.encryptAlgorithm == DND_CA_SM4) {
     if (strlen(tsEncryptKey) == 0) {
-      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-      dError("vgId:%d, failed to create vnode since encrypt key is empty", req.vgId);
-      return -1;
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      dError("vgId:%d, failed to create vnode since encrypt key is empty, reason:%s", req.vgId, tstrerror(code));
+      return code;
     }
   }
 
   vmGenerateVnodeCfg(&req, &vnodeCfg);
 
-  if (vmTsmaAdjustDays(&vnodeCfg, &req) < 0) {
-    dError("vgId:%d, failed to adjust tsma days since %s", req.vgId, terrstr());
-    code = terrno != 0 ? terrno : -1;
+  if ((code = vmTsmaAdjustDays(&vnodeCfg, &req)) < 0) {
+    dError("vgId:%d, failed to adjust tsma days since %s", req.vgId, tstrerror(code));
     goto _OVER;
   }
 
@@ -327,8 +325,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     dError("vgId:%d, already exist", req.vgId);
     tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
-    terrno = TSDB_CODE_VND_ALREADY_EXIST;
-    code = terrno;
+    code = TSDB_CODE_VND_ALREADY_EXIST;
     return 0;
   }
 
@@ -377,11 +374,14 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
+  //taosThreadMutexLock(&pMgmt->createLock);
   code = vmWriteVnodeListToFile(pMgmt);
   if (code != 0) {
     code = terrno != 0 ? terrno : code;
+    //taosThreadMutexUnlock(&pMgmt->createLock);
     goto _OVER;
   }
+  //taosThreadMutexUnlock(&pMgmt->createLock);
 
 _OVER:
   if (code != 0) {

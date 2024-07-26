@@ -67,15 +67,13 @@ int32_t taosOpenRef(int32_t max, RefFp fp) {
 
   nodeList = taosMemoryCalloc(sizeof(SRefNode *), (size_t)max);
   if (nodeList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   lockedBy = taosMemoryCalloc(sizeof(int64_t), (size_t)max);
   if (lockedBy == NULL) {
     taosMemoryFree(nodeList);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   taosThreadMutexLock(&tsRefMutex);
@@ -118,8 +116,7 @@ int32_t taosCloseRef(int32_t rsetId) {
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
     uTrace("rsetId:%d is invalid, out of range", rsetId);
-    terrno = TSDB_CODE_REF_INVALID_ID;
-    return -1;
+    return terrno = TSDB_CODE_REF_INVALID_ID;
   }
 
   pSet = tsRefSetList + rsetId;
@@ -149,8 +146,7 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
     uTrace("rsetId:%d p:%p failed to add, rsetId not valid", rsetId, p);
-    terrno = TSDB_CODE_REF_INVALID_ID;
-    return -1;
+    return terrno = TSDB_CODE_REF_INVALID_ID;
   }
 
   pSet = tsRefSetList + rsetId;
@@ -158,14 +154,12 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
   if (pSet->state != TSDB_REF_STATE_ACTIVE) {
     taosDecRsetCount(pSet);
     uTrace("rsetId:%d p:%p failed to add, not active", rsetId, p);
-    terrno = TSDB_CODE_REF_ID_REMOVED;
-    return -1;
+    return terrno = TSDB_CODE_REF_ID_REMOVED;
   }
 
   pNode = taosMemoryCalloc(sizeof(SRefNode), 1);
   if (pNode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   rid = atomic_add_fetch_64(&pSet->rid, 1);
@@ -389,21 +383,18 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
     uTrace("rsetId:%d rid:%" PRId64 " failed to remove, rsetId not valid", rsetId, rid);
-    terrno = TSDB_CODE_REF_INVALID_ID;
-    return -1;
+    return terrno = TSDB_CODE_REF_INVALID_ID;
   }
 
   if (rid <= 0) {
     uTrace("rsetId:%d rid:%" PRId64 " failed to remove, rid not valid", rsetId, rid);
-    terrno = TSDB_CODE_REF_NOT_EXIST;
-    return -1;
+    return terrno = TSDB_CODE_REF_NOT_EXIST;
   }
 
   pSet = tsRefSetList + rsetId;
   if (pSet->state == TSDB_REF_STATE_EMPTY) {
     uTrace("rsetId:%d rid:%" PRId64 " failed to remove, cleaned", rsetId, rid);
-    terrno = TSDB_CODE_REF_ID_REMOVED;
-    return -1;
+    return terrno = TSDB_CODE_REF_ID_REMOVED;
   }
 
   hash = rid % pSet->max;

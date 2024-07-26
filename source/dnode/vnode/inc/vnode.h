@@ -167,7 +167,7 @@ void         tsdbReaderClose2(STsdbReader *pReader);
 int32_t      tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
 void         tsdbReleaseDataBlock2(STsdbReader *pReader);
-SSDataBlock *tsdbRetrieveDataBlock2(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t      tsdbRetrieveDataBlock2(STsdbReader *pReader, SSDataBlock **pBlock, SArray *pIdList);
 int32_t      tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t      tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t      tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle);
@@ -185,7 +185,7 @@ int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, 
                                 SArray *pFuncTypeList, SColumnInfo *pkCol, int32_t numOfPks);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                               SArray *pTableUids);
-void   *tsdbCacherowsReaderClose(void *pReader);
+void    tsdbCacherowsReaderClose(void *pReader);
 
 void    tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t  tsdbCacheGetCapacity(SVnode *pVnode);

@@ -190,10 +190,10 @@ static int32_t vnodeAsyncCancelAllTasks(SVAsync *async, SArray *cancelArray) {
         task->prev->next = task->next;
         task->next->prev = task->prev;
         if (task->cancel) {
-          taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                         .cancel = task->cancel,
-                                         .arg = task->arg,
-                                     });
+          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                                     .cancel = task->cancel,
+                                                     .arg = task->arg,
+                                                 }));
         }
         vnodeAsyncTaskDone(async, task);
       }
@@ -206,6 +206,9 @@ static void *vnodeAsyncLoop(void *arg) {
   SVWorker *worker = (SVWorker *)arg;
   SVAsync  *async = worker->async;
   SArray   *cancelArray = taosArrayInit(0, sizeof(SVATaskCancelInfo));
+  if (cancelArray == NULL) {
+    return NULL;
+  }
 
   setThreadName(async->label);
 
@@ -466,7 +469,7 @@ int32_t vnodeAsyncOpen(int32_t numOfThreads) {
   vnodeAsyncSetWorkers(2, numOfThreads);
 
 _exit:
-  return 0;
+  return code;
 }
 
 int32_t vnodeAsyncClose() {
@@ -748,10 +751,10 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
         task->prev->next = task->next;
         task->next->prev = task->prev;
         if (task->cancel) {
-          taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                         .cancel = task->cancel,
-                                         .arg = task->arg,
-                                     });
+          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                                     .cancel = task->cancel,
+                                                     .arg = task->arg,
+                                                 }));
         }
         vnodeAsyncTaskDone(async, task);
       }
@@ -763,10 +766,10 @@ int32_t vnodeAChannelDestroy(SVAChannelID *channelID, bool waitRunning) {
         channel->scheduled->prev->next = channel->scheduled->next;
         channel->scheduled->next->prev = channel->scheduled->prev;
         if (channel->scheduled->cancel) {
-          taosArrayPush(cancelArray, &(SVATaskCancelInfo){
-                                         .cancel = channel->scheduled->cancel,
-                                         .arg = channel->scheduled->arg,
-                                     });
+          TAOS_UNUSED(taosArrayPush(cancelArray, &(SVATaskCancelInfo){
+                                                     .cancel = channel->scheduled->cancel,
+                                                     .arg = channel->scheduled->arg,
+                                                 }));
         }
         vnodeAsyncTaskDone(async, channel->scheduled);
       }

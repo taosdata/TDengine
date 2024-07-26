@@ -28,7 +28,8 @@ int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
 }
 
 int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen) {
-  int32_t code = getRowBuff(pFileState, (void*)pKey, sizeof(SWinKey), pVal, pVLen);
+  int32_t winCode = TSDB_CODE_SUCCESS;
+  int32_t code = getRowBuff(pFileState, (void*)pKey, sizeof(SWinKey), pVal, pVLen, &winCode);
   SArray*    pWinStates = NULL;
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
   void**     ppBuff = tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
@@ -51,7 +52,7 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
         break;
       }
       taosArrayPush(pWinStates, &tmp);
-      code = streamStateCurPrev_rocksdb(pCur);
+      streamStateCurPrev_rocksdb(pCur);
     }
     taosArraySort(pWinStates, winKeyCmprImpl);
     streamStateFreeCur(pCur);

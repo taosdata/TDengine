@@ -25,14 +25,14 @@ struct SMetaSnapReader {
 
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader) {
   int32_t          code = 0;
+  int32_t          lino;
   int32_t          c = 0;
   SMetaSnapReader* pReader = NULL;
 
   // alloc
   pReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   pReader->pMeta = pMeta;
   pReader->sver = sver;
@@ -40,36 +40,29 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
 
   // impl
   code = tdbTbcOpen(pMeta->pTbDb, &pReader->pTbc, NULL);
-  if (code) {
-    taosMemoryFree(pReader);
-    goto _err;
-  }
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tdbTbcMoveTo(pReader->pTbc, &(STbDbKey){.version = sver, .uid = INT64_MIN}, sizeof(STbDbKey), &c);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
   if (code) {
-    taosMemoryFree(pReader);
-    goto _err;
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+    metaSnapReaderClose(&pReader);
+    *ppReader = NULL;
+  } else {
+    metaInfo("vgId:%d, %s success", TD_VID(pMeta->pVnode), __func__);
+    *ppReader = pReader;
   }
-
-  metaInfo("vgId:%d, vnode snapshot meta reader opened", TD_VID(pMeta->pVnode));
-
-  *ppReader = pReader;
-  return code;
-
-_err:
-  metaError("vgId:%d, vnode snapshot meta reader open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
-  *ppReader = NULL;
   return code;
 }
 
-int32_t metaSnapReaderClose(SMetaSnapReader** ppReader) {
-  int32_t code = 0;
-
-  tdbTbcClose((*ppReader)->pTbc);
-  taosMemoryFree(*ppReader);
-  *ppReader = NULL;
-
-  return code;
+void metaSnapReaderClose(SMetaSnapReader** ppReader) {
+  if (ppReader && *ppReader) {
+    tdbTbcClose((*ppReader)->pTbc);
+    taosMemoryFree(*ppReader);
+    *ppReader = NULL;
+  }
 }
 
 int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
@@ -106,7 +99,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);
     if (*ppData == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
+      goto _exit;
     }
 
     SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
@@ -122,10 +115,10 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
   }
 
 _exit:
-  return code;
-
-_err:
-  metaError("vgId:%d, vnode snapshot meta read data failed since %s", TD_VID(pReader->pMeta->pVnode), tstrerror(code));
+  if (code) {
+    metaError("vgId:%d, vnode snapshot meta read data failed since %s", TD_VID(pReader->pMeta->pVnode),
+              tstrerror(code));
+  }
   return code;
 }
 
@@ -138,26 +131,30 @@ struct SMetaSnapWriter {
 
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter) {
   int32_t          code = 0;
+  int32_t          lino;
   SMetaSnapWriter* pWriter;
 
   // alloc
   pWriter = (SMetaSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
   pWriter->pMeta = pMeta;
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  metaBegin(pMeta, META_BEGIN_HEAP_NIL);
+  code = metaBegin(pMeta, META_BEGIN_HEAP_NIL);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  *ppWriter = pWriter;
-  return code;
-
-_err:
-  metaError("vgId:%d, meta snapshot writer open failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
-  *ppWriter = NULL;
+_exit:
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+    taosMemoryFree(pWriter);
+    *ppWriter = NULL;
+  } else {
+    metaDebug("vgId:%d, %s success", TD_VID(pMeta->pVnode), __func__);
+    *ppWriter = pWriter;
+  }
   return code;
 }
 
@@ -189,24 +186,23 @@ _err:
 
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t    code = 0;
-  int32_t    line = 0;
+  int32_t    lino = 0;
   SMeta*     pMeta = pWriter->pMeta;
   SMetaEntry metaEntry = {0};
   SDecoder*  pDecoder = &(SDecoder){0};
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = metaDecodeEntry(pDecoder, &metaEntry);
-  VND_CHECK_CODE(code, line, _err);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = metaHandleEntry(pMeta, &metaEntry);
-  VND_CHECK_CODE(code, line, _err);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
+_exit:
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+  }
   tDecoderClear(pDecoder);
-  return code;
-
-_err:
-  tDecoderClear(pDecoder);
-  metaError("vgId:%d, vnode snapshot meta write failed since %s at line:%d", TD_VID(pMeta->pVnode), terrstr(), line);
   return code;
 }
 
@@ -265,7 +261,9 @@ static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) 
 int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
                          SSnapContext** ctxRet) {
   SSnapContext* ctx = taosMemoryCalloc(1, sizeof(SSnapContext));
-  if (ctx == NULL) return -1;
+  if (ctx == NULL) {
+    return terrno;
+  }
   *ctxRet = ctx;
   ctx->pMeta = pVnode->pMeta;
   ctx->snapVersion = snapVersion;
@@ -275,12 +273,12 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   ctx->withMeta = withMeta;
   ctx->idVersion = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->idVersion == NULL) {
-    return -1;
+    return terrno;
   }
 
   ctx->suidInfo = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->suidInfo == NULL) {
-    return -1;
+    return terrno;
   }
   taosHashSetFreeFp(ctx->suidInfo, destroySTableInfoForChildTable);
 
@@ -430,21 +428,21 @@ static int32_t buildSuperTableInfo(SVCreateStbReq* req, void** pBuf, int32_t* co
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, req, *contLen, ret);
   if (ret < 0) {
-    return -1;
+    return ret;
   }
 
   *contLen += sizeof(SMsgHead);
   *pBuf = taosMemoryMalloc(*contLen);
   if (NULL == *pBuf) {
-    return -1;
+    return terrno;
   }
 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, POINTER_SHIFT(*pBuf, sizeof(SMsgHead)), *contLen);
-  if (tEncodeSVCreateStbReq(&encoder, req) < 0) {
+  if ((ret = tEncodeSVCreateStbReq(&encoder, req)) < 0) {
     taosMemoryFreeClear(*pBuf);
     tEncoderClear(&encoder);
-    return -1;
+    return ret;
   }
   tEncoderClear(&encoder);
   return 0;
@@ -468,19 +466,17 @@ int32_t setForSnapShot(SSnapContext* ctx, int64_t uid) {
   return c;
 }
 
-void taosXSetTablePrimaryKey(SSnapContext* ctx, int64_t uid){
-  bool ret = false;
-  SSchemaWrapper *schema = metaGetTableSchema(ctx->pMeta, uid, -1, 1);
-  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY){
+void taosXSetTablePrimaryKey(SSnapContext* ctx, int64_t uid) {
+  bool            ret = false;
+  SSchemaWrapper* schema = metaGetTableSchema(ctx->pMeta, uid, -1, 1);
+  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     ret = true;
   }
   tDeleteSchemaWrapper(schema);
   ctx->hasPrimaryKey = ret;
 }
 
-bool taosXGetTablePrimaryKey(SSnapContext* ctx){
-  return ctx->hasPrimaryKey;
-}
+bool taosXGetTablePrimaryKey(SSnapContext* ctx) { return ctx->hasPrimaryKey; }
 
 int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid) {
   int32_t ret = 0;

@@ -165,8 +165,7 @@ static int32_t data_to_json(const STFile *file, cJSON *json) { return tfile_to_j
 static int32_t sma_to_json(const STFile *file, cJSON *json) { return tfile_to_json(file, json); }
 static int32_t tomb_to_json(const STFile *file, cJSON *json) { return tfile_to_json(file, json); }
 static int32_t stt_to_json(const STFile *file, cJSON *json) {
-  int32_t code = tfile_to_json(file, json);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tfile_to_json(file, json));
 
   /* lvl */
   if (cJSON_AddNumberToObject(json, "level", file->stt->level) == NULL) {
@@ -181,8 +180,7 @@ static int32_t data_from_json(const cJSON *json, STFile *file) { return tfile_fr
 static int32_t sma_from_json(const cJSON *json, STFile *file) { return tfile_from_json(json, file); }
 static int32_t tomb_from_json(const cJSON *json, STFile *file) { return tfile_from_json(json, file); }
 static int32_t stt_from_json(const cJSON *json, STFile *file) {
-  int32_t code = tfile_from_json(json, file);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tfile_from_json(json, file));
 
   const cJSON *item;
 
@@ -202,7 +200,9 @@ int32_t tsdbTFileToJson(const STFile *file, cJSON *json) {
     return g_tfile_info[file->type].to_json(file, json);
   } else {
     cJSON *item = cJSON_AddObjectToObject(json, g_tfile_info[file->type].suffix);
-    if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    if (item == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     return g_tfile_info[file->type].to_json(file, item);
   }
 }
@@ -211,13 +211,11 @@ int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f) {
   f[0] = (STFile){.type = ftype};
 
   if (ftype == TSDB_FTYPE_STT) {
-    int32_t code = g_tfile_info[ftype].from_json(json, f);
-    if (code) return code;
+    TAOS_CHECK_RETURN(g_tfile_info[ftype].from_json(json, f));
   } else {
     const cJSON *item = cJSON_GetObjectItem(json, g_tfile_info[ftype].suffix);
     if (cJSON_IsObject(item)) {
-      int32_t code = g_tfile_info[ftype].from_json(item, f);
-      if (code) return code;
+      TAOS_CHECK_RETURN(g_tfile_info[ftype].from_json(item, f));
     } else {
       return TSDB_CODE_NOT_FOUND;
     }
@@ -228,7 +226,9 @@ int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f) {
 
 int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0] = taosMemoryMalloc(sizeof(*fobj[0]));
-  if (!fobj[0]) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!fobj[0]) {
+    return terrno;
+  }
 
   taosThreadMutexInit(&fobj[0]->mutex, NULL);
   fobj[0]->f[0] = f[0];
