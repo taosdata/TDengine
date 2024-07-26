@@ -53,7 +53,7 @@ void mndReleaseGrant(SMnode *pMnode, SGrantLogObj *pGrant, void *pIter) {
 static void mndGrantObjAppendActive(SGrantLogObj *pObj, const char *active) {
   int8_t idx = pObj->nActives;
   if (idx >= GRANT_ACTIVE_NUM) {
-    memmove(&pObj->actives[0], &pObj->actives[1], sizeof(pObj->actives) - sizeof(pObj->actives[0]));
+    (void)memmove(&pObj->actives[0], &pObj->actives[1], sizeof(pObj->actives) - sizeof(pObj->actives[0]));
     idx = GRANT_ACTIVE_NUM - 1;
   } else {
     ++pObj->nActives;
@@ -84,7 +84,7 @@ static void mndGrantObjAppendState(SGrantLogObj *pObj, SGrantState *pState) {
     pState->ts = ts;
 
     if (idx >= GRANT_STATE_NUM) {
-      memmove(&pObj->states[0], &pObj->states[1], sizeof(pObj->states) - sizeof(pObj->states[0]));
+      (void)memmove(&pObj->states[0], &pObj->states[1], sizeof(pObj->states) - sizeof(pObj->states[0]));
       idx = GRANT_STATE_NUM - 1;
       pObj->nStates = GRANT_STATE_NUM;
     } else {
@@ -120,7 +120,7 @@ int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq 
     if (pGrant->nStates > 0 && pGrant->states[pGrant->nStates - 1].state == GRANT_STATE_REVOKED) goto _exit;
   }
 
-  memcpy(&grantObj, pGrant, sizeof(SGrantLogObj));
+  (void)memcpy(&grantObj, pGrant, sizeof(SGrantLogObj));
   grantObj.pMachines = NULL;
   grantObj.active = NULL;
   if (pGrant->active) {
@@ -222,7 +222,7 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
   }
 
   if (pGrant) {
-    memcpy(&grantObj, pGrant, sizeof(SGrantLogObj));
+    (void)memcpy(&grantObj, pGrant, sizeof(SGrantLogObj));
     grantObj.pMachines = NULL;
     grantObj.active = NULL;
     if (pGrant->active) {
@@ -237,8 +237,8 @@ int32_t mndProcessUpdGrantLog(SMnode *pMnode, SRpcMsg *pReq, SArray *pMachines, 
       if (!(grantObj.pMachines = taosArrayInit(totalMachines, sizeof(SGrantMachine)))) {
         TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
-      taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
-      taosArrayAddAll(grantObj.pMachines, pMachines);
+      (void)taosArrayAddAll(grantObj.pMachines, pGrant->pMachines);
+      (void)taosArrayAddAll(grantObj.pMachines, pMachines);
     }
   }
   if (pState) {
@@ -527,8 +527,8 @@ int32_t mndGrantActionUpdate(SSdb *pSdb, SGrantLogObj *pOldGrant, SGrantLogObj *
   pOldGrant->upgradeTime = pNewGrant->upgradeTime;
   pOldGrant->nStates = pNewGrant->nStates;
   pOldGrant->nActives = pNewGrant->nActives;
-  memcpy(pOldGrant->states, pNewGrant->states, sizeof(pNewGrant->states));
-  memcpy(pOldGrant->actives, pNewGrant->actives, sizeof(pNewGrant->actives));
+  (void)memcpy(pOldGrant->states, pNewGrant->states, sizeof(pNewGrant->states));
+  (void)memcpy(pOldGrant->actives, pNewGrant->actives, sizeof(pNewGrant->actives));
   TSWAP(pOldGrant->active, pNewGrant->active);
   TSWAP(pOldGrant->pMachines, pNewGrant->pMachines);
 

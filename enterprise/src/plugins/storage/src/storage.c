@@ -33,7 +33,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
   if (pItem == NULL) {
     TAOS_RETURN(terrno);  // TODO: remove this terrno if possible
   }
-  memset(tsDataDir, 0, PATH_MAX);
+  (void)memset(tsDataDir, 0, PATH_MAX);
 
   int32_t size = taosArrayGetSize(pItem->array);
   if (size <= 0) {
