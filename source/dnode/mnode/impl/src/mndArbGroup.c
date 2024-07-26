@@ -668,7 +668,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
     SArbGroup newGroup = {0};
     mndArbGroupDupObj(&arbGroupDup, &newGroup);
     mndArbGroupSetAssignedLeader(&newGroup, candidateIndex);
-    if (taosArrayPush(pUpdateArray, &newGroup)) {
+    if (taosArrayPush(pUpdateArray, &newGroup) == NULL) {
       taosArrayDestroy(pUpdateArray);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
