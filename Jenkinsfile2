@@ -97,8 +97,6 @@ def pre_test(){
             git checkout ''' + env.CHANGE_TARGET + '''
             cd ${WKC}
             git checkout ''' + env.CHANGE_TARGET + '''
-            git checkout TD-31000
-            git reset --hard origin/TD-31000
         '''
     }
     if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -216,8 +214,6 @@ def pre_test_win(){
         bat '''
             cd %WIN_COMMUNITY_ROOT%
             git checkout ''' + env.CHANGE_TARGET + '''
-            git checkout TD-31000
-            git reset --hard origin/TD-31000
         '''
     }
     script {
