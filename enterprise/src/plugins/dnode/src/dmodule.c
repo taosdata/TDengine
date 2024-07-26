@@ -371,8 +371,8 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   }
 
   ptr = hbuf;
-  dmEncodeDFHeader(&ptr, &fHeader);
-  taosCalcChecksumAppend(0, (uint8_t *)hbuf, DM_FILE_HEAD_SIZE);
+  (void)dmEncodeDFHeader(&ptr, &fHeader);
+  (void)taosCalcChecksumAppend(0, (uint8_t *)hbuf, DM_FILE_HEAD_SIZE);
 
   if (taosWriteFile(tFile, hbuf, DM_FILE_HEAD_SIZE) < DM_FILE_HEAD_SIZE) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -391,7 +391,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
       TAOS_CHECK_GOTO(len, &lino, _exit);
     }
 
-    taosCalcChecksumAppend(0, (uint8_t *)pBuf, fHeader.len);
+    (void)taosCalcChecksumAppend(0, (uint8_t *)pBuf, fHeader.len);
 
     if (taosWriteFile(tFile, pBuf, fHeader.len) < fHeader.len) {
       code = TAOS_SYSTEM_ERROR(errno);
@@ -417,8 +417,8 @@ _exit:
   taosMemoryFreeClear(pBuf);
   if (code != 0) {
     dError("failed to write vars at line %d since %s", lino, tstrerror(code));
-    taosCloseFile(&tFile);
-    taosRemoveFile(tfname);
+    (void)taosCloseFile(&tFile);
+    (void)taosRemoveFile(tfname);
   }
 
   return code;
@@ -450,17 +450,17 @@ static int32_t dmInitVersion(SDnode *pDnode) {
   char cfgFile[PATH_MAX] = "\0";
   dmGetFname(DNODE_CFG_FILE, cfgFile);
 
-  taosThreadRwlockRdlock(&pDnode->data.lock);
+  (void)taosThreadRwlockRdlock(&pDnode->data.lock);
   // dnode.json not exist, return directly
   if (taosStatFile(cfgFile, NULL, NULL, NULL) < 0) {
-    taosThreadRwlockUnlock(&pDnode->data.lock);
+    (void)taosThreadRwlockUnlock(&pDnode->data.lock);
     goto _exit;
   }
   if (((code = dmReadVars(&eInfo)) != 0) && (code != TSDB_CODE_NOT_FOUND)) {
-    taosThreadRwlockUnlock(&pDnode->data.lock);
+    (void)taosThreadRwlockUnlock(&pDnode->data.lock);
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
-  taosThreadRwlockUnlock(&pDnode->data.lock);
+  (void)taosThreadRwlockUnlock(&pDnode->data.lock);
 
   if (pDnode->data.engineVer == 0) {           // dnode.json history version
     if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // without DM_ENGINE_FILE, create(handle update from history version)
@@ -471,12 +471,12 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       eInfo.createMs = taosGetTimestampMs();
       eInfo.updateMs = eInfo.createMs;
       // save
-      taosThreadRwlockWrlock(&pDnode->data.lock);
+      (void)taosThreadRwlockWrlock(&pDnode->data.lock);
       if ((code = dmWriteVars(&eInfo)) != 0) {
-        taosThreadRwlockUnlock(&pDnode->data.lock);
+        (void)taosThreadRwlockUnlock(&pDnode->data.lock);
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
-      taosThreadRwlockUnlock(&pDnode->data.lock);
+      (void)taosThreadRwlockUnlock(&pDnode->data.lock);
       TAOS_CHECK_GOTO(dmSyncEps(&pDnode->data), &lino, _exit);
     }
   } else if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // not history version, but without DM_ENGINE_FILE, fail
@@ -489,12 +489,12 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       eInfo.engineVer = tsVersion;
       eInfo.clusterId = pDnode->data.clusterId;
       eInfo.updateMs = taosGetTimestampMs();
-      taosThreadRwlockWrlock(&pDnode->data.lock);
+      (void)taosThreadRwlockWrlock(&pDnode->data.lock);
       if ((code = dmWriteVars(&eInfo)) != 0) {
-        taosThreadRwlockUnlock(&pDnode->data.lock);
+        (void)taosThreadRwlockUnlock(&pDnode->data.lock);
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
-      taosThreadRwlockUnlock(&pDnode->data.lock);
+      (void)taosThreadRwlockUnlock(&pDnode->data.lock);
       dInfo("update clusterId from 0 to %" PRId64, pDnode->data.clusterId);
     } else {
       dError("failed to init since inconsistent cluster:%" PRIi64 ",%" PRIi64, eInfo.clusterId, pDnode->data.clusterId);
@@ -513,12 +513,12 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     eInfo.type = eType;
     eInfo.engineVer = tsVersion;
     eInfo.updateMs = taosGetTimestampMs();
-    taosThreadRwlockWrlock(&pDnode->data.lock);
+    (void)taosThreadRwlockWrlock(&pDnode->data.lock);
     if ((code = dmWriteVars(&eInfo)) != 0) {
-      taosThreadRwlockUnlock(&pDnode->data.lock);
+      (void)taosThreadRwlockUnlock(&pDnode->data.lock);
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
-    taosThreadRwlockUnlock(&pDnode->data.lock);
+    (void)taosThreadRwlockUnlock(&pDnode->data.lock);
   }
 
 _exit:
@@ -534,13 +534,13 @@ _exit:
 static int32_t dmSyncEps(SDnodeData *pData) {
   int32_t code = 0;
   char    file[PATH_MAX] = "\0";
-  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-  taosThreadRwlockWrlock(&pData->lock);
+  (void)snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  (void)taosThreadRwlockWrlock(&pData->lock);
   bool fileExist = !(taosStatFile(file, NULL, NULL, NULL) < 0);
   if (fileExist) {
     code = dmWriteEps(pData);
   }
-  taosThreadRwlockUnlock(&pData->lock);
+  (void)taosThreadRwlockUnlock(&pData->lock);
   TAOS_RETURN(code);
 }
 

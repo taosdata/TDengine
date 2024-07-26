@@ -14,54 +14,51 @@
  */
 #if 0
 #define _DEFAULT_SOURCE
+#include "mndAcct.h"
+#include "mndDb.h"
+#include "mndDef.h"
+#include "mndDnode.h"
+#include "mndGrant.h"
+#include "mndInt.h"
+#include "mndMnode.h"
+#include "mnode.h"
+#include "monitor.h"
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tdataformat.h"
+#include "tglobal.h"
+#include "tref.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "mndGrant.h"
-#include "tref.h"
-#include "tglobal.h"
-#include "tdataformat.h"
-#include "monitor.h"
-#include "mnode.h"
-#include "mndDef.h"
-#include "mndInt.h"
-#include "mndAcct.h"
-#include "mndDnode.h"
-#include "mndDb.h"
-#include "mndMnode.h"
-// #include "mnodeSdb.h"
 #include "mndShow.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmsgtype.h"
-// #include "mnodeRead.h"
-// #include "mnodeWrite.h"
 
-#define TSDB_MIN_USERS_PER_ACCT       2
-#define TSDB_MAX_USERS_PER_ACCT       10
-#define TSDB_MIN_DBS_PER_ACCT         1
-#define TSDB_MAX_DBS_PER_ACCT         64
-#define TSDB_MIN_TIMESERIES_PER_ACCT  10
-#define TSDB_MAX_TIMESERIES_PER_ACCT  INT32_MAX
+#define TSDB_MIN_USERS_PER_ACCT 2
+#define TSDB_MAX_USERS_PER_ACCT 10
+#define TSDB_MIN_DBS_PER_ACCT 1
+#define TSDB_MAX_DBS_PER_ACCT 64
+#define TSDB_MIN_TIMESERIES_PER_ACCT 10
+#define TSDB_MAX_TIMESERIES_PER_ACCT INT32_MAX
 #define TSDB_MIN_CONNECTIONS_PER_ACCT 10
 #define TSDB_MAX_CONNECTIONS_PER_ACCT 1024
-#define TSDB_MIN_STREAMS_PER_ACCT     10
-#define TSDB_MAX_STREAMS_PER_ACCT     1000
-#define TSDB_MIN_SPOINTS_PER_ACCT     5000
-#define TSDB_MAX_SPOINTS_PER_ACCT     10000000
-#define TSDB_MIN_STORAGE_PER_ACCT     0  // 1G
-#define TSDB_MAX_STORAGE_PER_ACCT     INT64_MAX
-#define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
-#define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
+#define TSDB_MIN_STREAMS_PER_ACCT 10
+#define TSDB_MAX_STREAMS_PER_ACCT 1000
+#define TSDB_MIN_SPOINTS_PER_ACCT 5000
+#define TSDB_MAX_SPOINTS_PER_ACCT 10000000
+#define TSDB_MIN_STORAGE_PER_ACCT 0  // 1G
+#define TSDB_MAX_STORAGE_PER_ACCT INT64_MAX
+#define TSDB_MIN_QUERYTIME_PER_ACCT 3600  // 1 hour
+#define TSDB_MAX_QUERYTIME_PER_ACCT INT64_MAX
 
 extern int64_t tsVgroupRid;
 extern int64_t tsAcctRid;
 extern int32_t tsSdbRid;
-extern void *  tsAcctSdb;
-extern void *  tsMnodeTmr;
-static void *  tsMgmtStatisTimer = NULL;
+extern void   *tsAcctSdb;
+extern void   *tsMnodeTmr;
+static void   *tsMgmtStatisTimer = NULL;
 
 static int64_t acctGetStatistic(SAcctObj *pAcct);
 // static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg);
@@ -70,22 +67,22 @@ static int64_t acctGetStatistic(SAcctObj *pAcct);
 // static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static void acctDoStatistic(void *handle, void *tmrId) {  
+static void acctDoStatistic(void *handle, void *tmrId) {
   void *acctSdb = taosAcquireRef(tsSdbRid, tsAcctRid);
   if (acctSdb != NULL) {
     SAcctObj *pAcct = NULL;
-    void *    pIter = NULL;
+    void     *pIter = NULL;
     int64_t   totalStorage = 0;
 
     while (1) {
       pIter = mnodeGetNextAcct(pIter, &pAcct);
       if (pAcct == NULL) break;
       totalStorage += acctGetStatistic(pAcct);
-      mnodeDecAcctRef(pAcct);
+      (void)mnodeDecAcctRef(pAcct);
     }
 
     grantReset(NULL, TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
-    taosReleaseRef(tsSdbRid, tsAcctRid);
+    (void)taosReleaseRef(tsSdbRid, tsAcctRid);
   }
 
   taosTmrReset(acctDoStatistic, tsMonitorInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
@@ -100,7 +97,7 @@ int32_t acctInit() {
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_ACCT, mnodeCancelGetNextAcct);
 
   taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
-  
+
   mDebug("table:accounts, is initialized");
   return 0;
 }
@@ -194,14 +191,14 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   SAcctObj *pAcct = mnodeGetAcct(name);
   if (pAcct != NULL) {
     mWarn("acct:%s, is already there", name);
-    mnodeDecAcctRef(pAcct);
+    (void)mnodeDecAcctRef(pAcct);
     return TSDB_CODE_MND_ACCT_ALREADY_EXIST;
   }
 
   SUserObj *pUser = mnodeGetUser(name);
   if (pUser != NULL) {
     mWarn("user:%s, is already there", name);
-    mnodeDecUserRef(pUser);
+    (void)mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_USER_ALREADY_EXIST;
   }
 
@@ -210,9 +207,9 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   }
 
   pAcct = taosMemoryMalloc(sizeof(SAcctObj));
-  memset(pAcct, 0, sizeof(SAcctObj));
-  strcpy(pAcct->user, name);
-  taosEncryptPass((uint8_t*) pass, strlen(pass), pAcct->pass);
+  (void)memset(pAcct, 0, sizeof(SAcctObj));
+  (void)strcpy(pAcct->user, name);
+  taosEncryptPass((uint8_t *)pass, strlen(pass), pAcct->pass);
   if (pCfg != NULL) {
     pAcct->cfg = *pCfg;
   } else {
@@ -235,14 +232,9 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   int32_t grantCode = grantCheck(TSDB_GRANT_ACCT);
   if (grantCode != TSDB_CODE_SUCCESS) return grantCode;
 
-   SSdbRow row = {
-    .type     = SDB_OPER_GLOBAL,
-    .pTable   = tsAcctSdb,
-    .pObj     = pAcct,
-    .rowSize  = sizeof(SAcctObj),
-    .pMsg     = pMsg
-  };
-  
+  SSdbRow row = {
+      .type = SDB_OPER_GLOBAL, .pTable = tsAcctSdb, .pObj = pAcct, .rowSize = sizeof(SAcctObj), .pMsg = pMsg};
+
   int32_t code = sdbInsertRow(&row);
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
@@ -253,9 +245,9 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
 
     // create a user in the same name and pass
     char suser[64] = {0};
-    sprintf(suser, "_%s", name);
-    mnodeCreateUser(pAcct, name, pass, NULL);
-    mnodeCreateUser(pAcct, suser, tsInternalPass, NULL);  // create stream user
+    (void)sprintf(suser, "_%s", name);
+    (void)mnodeCreateUser(pAcct, name, pass, NULL);
+    (void)mnodeCreateUser(pAcct, suser, tsInternalPass, NULL);  // create stream user
   }
 
   return code;
@@ -268,12 +260,7 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
     return TSDB_CODE_MND_INVALID_ACCT;
   }
 
-  SSdbRow row = {
-    .type   = SDB_OPER_GLOBAL,
-    .pTable = tsAcctSdb,
-    .pObj   = pAcct,
-    .pMsg   = pMsg
-  };
+  SSdbRow row = {.type = SDB_OPER_GLOBAL, .pTable = tsAcctSdb, .pObj = pAcct, .pMsg = pMsg};
 
   int32_t code = sdbDeleteRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
@@ -282,7 +269,7 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
     mInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
   }
 
-  mnodeDecAcctRef(pAcct);
+  (void)(void)mnodeDecAcctRef(pAcct);
   return code;
 }
 
@@ -298,7 +285,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->pAcct->user, "root") != 0) {
-    mnodeDecUserRef(pUser);
+    (void)mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
@@ -307,55 +294,55 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 
   pShow->bytes[cols] = (TSDB_USER_LEN - 1) + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
+  (void)strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
+  (void)strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 14 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "Users/TUsers");
+  (void)strcpy(pSchema[cols].name, "Users/TUsers");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "Dbs/TDbs");
+  (void)strcpy(pSchema[cols].name, "Dbs/TDbs");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 18 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "Series/TSeries");
+  (void)strcpy(pSchema[cols].name, "Series/TSeries");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 18 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "Streams/TStreams");
+  (void)strcpy(pSchema[cols].name, "Streams/TStreams");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 22 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "Storage(G)/TStorage(G)");
+  (void)strcpy(pSchema[cols].name, "Storage(G)/TStorage(G)");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "state");
+  (void)strcpy(pSchema[cols].name, "state");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
-  strcpy(pSchema[cols].name, "UDisk");
+  (void)strcpy(pSchema[cols].name, "UDisk");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -368,7 +355,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pShow->numOfRows = (int32_t)sdbGetNumOfRows(tsAcctSdb);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  mnodeDecUserRef(pUser);
+  (void)mnodeDecUserRef(pUser);
   return 0;
 }
 
@@ -389,7 +376,7 @@ char *mnodeGetAcctStateStr(int32_t accessState) {
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   SAcctObj *pAcct = NULL;
-  char *    pWrite;
+  char     *pWrite;
   int32_t   cols = 0;
   char      tmp[24];
 
@@ -408,35 +395,35 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
+    (void)sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
+    (void)sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
+    (void)sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfStreams, pAcct->cfg.maxStreams);
+    (void)sprintf(tmp, "%d/%d", pAcct->acctInfo.numOfStreams, pAcct->cfg.maxStreams);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pAcct->cfg.maxStorage == INT64_MAX) {
-      sprintf(tmp, "%.3f/unlimited", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024.));
+      (void)sprintf(tmp, "%.3f/unlimited", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024.));
     } else {
-      sprintf(tmp, "%.3f/%.3f", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024),
+      (void)sprintf(tmp, "%.3f/%.3f", pAcct->acctInfo.totalStorage / (1024. * 1024. * 1024),
               pAcct->cfg.maxStorage / (1024. * 1024. * 1024));
     }
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
     cols++;
-  
+
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     char *role = mnodeGetAcctStateStr(pAcct->cfg.accessState);
     STR_TO_VARSTR(pWrite, role);
@@ -448,7 +435,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
 
     numOfRows++;
 
-    mnodeDecAcctRef(pAcct);
+    (void)mnodeDecAcctRef(pAcct);
   }
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
@@ -577,12 +564,7 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
     pAcct->cfg.accessState = pCfg->accessState;
   }
 
-  SSdbRow row = {
-    .type   = SDB_OPER_GLOBAL,
-    .pTable = tsAcctSdb,
-    .pObj   = pAcct,
-    .pMsg   = pMsg
-  };
+  SSdbRow row = {.type = SDB_OPER_GLOBAL, .pTable = tsAcctSdb, .pObj = pAcct, .pMsg = pMsg};
 
   int32_t code = sdbUpdateRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
@@ -592,13 +574,13 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
     mInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
   }
 
-  mnodeDecAcctRef(pAcct);
+  (void)mnodeDecAcctRef(pAcct);
   return code;
 }
 
 static int64_t acctGetStatistic(SAcctObj *pAcct) {
   if (pAcct == NULL) return 0;
-  
+
   void   *pIter = NULL;
   SVgObj *pVgroup;
   int64_t totalStorage = 0;
@@ -616,10 +598,10 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
       pointsWritten += pVgroup->pointsWritten;
       pVgroup->accessState = pAcct->acctInfo.accessState;
     }
-    mnodeDecVgroupRef(pVgroup);
+    (void)mnodeDecVgroupRef(pVgroup);
   }
 
-  taosReleaseRef(tsSdbRid, tsVgroupRid);
+  (void)taosReleaseRef(tsSdbRid, tsVgroupRid);
 
   pAcct->acctInfo.totalStorage = totalStorage;
   pAcct->acctInfo.numOfPointsPerSecond =
@@ -650,28 +632,28 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
 
   // record monitor info
   SAcctMonitorObj monObj = {0};
-  monObj.acctId                 = pAcct->user;
+  monObj.acctId = pAcct->user;
   monObj.currentPointsPerSecond = pAcct->acctInfo.numOfPointsPerSecond;
-  monObj.maxPointsPerSecond     = pAcct->cfg.maxPointsPerSecond;
-  monObj.totalTimeSeries        = pAcct->acctInfo.numOfTimeSeries;
-  monObj.maxTimeSeries          = pAcct->cfg.maxTimeSeries;
-  monObj.totalStorage           = pAcct->acctInfo.totalStorage;
-  monObj.maxStorage             = pAcct->cfg.maxStorage;
-  monObj.totalQueryTime         = pAcct->acctInfo.queryTime;
-  monObj.maxQueryTime           = pAcct->cfg.maxQueryTime;
-  monObj.totalInbound           = pAcct->acctInfo.inblound;
-  monObj.maxInbound             = pAcct->cfg.maxInbound;
-  monObj.totalOutbound          = pAcct->acctInfo.outbound;
-  monObj.maxOutbound            = pAcct->cfg.maxOutbound;
-  monObj.totalDbs               = pAcct->acctInfo.numOfDbs;
-  monObj.maxDbs                 = pAcct->cfg.maxDbs;
-  monObj.totalUsers             = pAcct->acctInfo.numOfUsers;
-  monObj.maxUsers               = pAcct->cfg.maxUsers;
-  monObj.totalStreams           = pAcct->acctInfo.numOfStreams;
-  monObj.maxStreams             = pAcct->cfg.maxStreams;
-  monObj.totalConns             = pAcct->acctInfo.numOfConns;
-  monObj.maxConns               = pAcct->cfg.maxConnections;
-  monObj.accessState            = pAcct->acctInfo.accessState;
+  monObj.maxPointsPerSecond = pAcct->cfg.maxPointsPerSecond;
+  monObj.totalTimeSeries = pAcct->acctInfo.numOfTimeSeries;
+  monObj.maxTimeSeries = pAcct->cfg.maxTimeSeries;
+  monObj.totalStorage = pAcct->acctInfo.totalStorage;
+  monObj.maxStorage = pAcct->cfg.maxStorage;
+  monObj.totalQueryTime = pAcct->acctInfo.queryTime;
+  monObj.maxQueryTime = pAcct->cfg.maxQueryTime;
+  monObj.totalInbound = pAcct->acctInfo.inblound;
+  monObj.maxInbound = pAcct->cfg.maxInbound;
+  monObj.totalOutbound = pAcct->acctInfo.outbound;
+  monObj.maxOutbound = pAcct->cfg.maxOutbound;
+  monObj.totalDbs = pAcct->acctInfo.numOfDbs;
+  monObj.maxDbs = pAcct->cfg.maxDbs;
+  monObj.totalUsers = pAcct->acctInfo.numOfUsers;
+  monObj.maxUsers = pAcct->cfg.maxUsers;
+  monObj.totalStreams = pAcct->acctInfo.numOfStreams;
+  monObj.maxStreams = pAcct->cfg.maxStreams;
+  monObj.totalConns = pAcct->acctInfo.numOfConns;
+  monObj.maxConns = pAcct->cfg.maxConnections;
+  monObj.accessState = pAcct->acctInfo.accessState;
 
   monSaveAcctLog(&monObj);
 
@@ -680,23 +662,23 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
 
 static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
   SCreateAcctMsg *pCreate = pMsg->rpcMsg.pCont;
-  SAcctObj *pAcct = mnodeGetAcct(pCreate->user);
+  SAcctObj       *pAcct = mnodeGetAcct(pCreate->user);
   if (pAcct != NULL) {
     mInfo("acct:%s, already exist, update it", pCreate->user);
-    mnodeDecAcctRef(pAcct);
+    (void)mnodeDecAcctRef(pAcct);
     return acctProcessAlterAcctMsg(pMsg);
   }
-  
-  pCreate->cfg.maxUsers           = htonl(pCreate->cfg.maxUsers);
-  pCreate->cfg.maxDbs             = htonl(pCreate->cfg.maxDbs);
-  pCreate->cfg.maxTimeSeries      = htonl(pCreate->cfg.maxTimeSeries);
-  pCreate->cfg.maxConnections     = htonl(pCreate->cfg.maxConnections);
-  pCreate->cfg.maxStreams         = htonl(pCreate->cfg.maxStreams);
+
+  pCreate->cfg.maxUsers = htonl(pCreate->cfg.maxUsers);
+  pCreate->cfg.maxDbs = htonl(pCreate->cfg.maxDbs);
+  pCreate->cfg.maxTimeSeries = htonl(pCreate->cfg.maxTimeSeries);
+  pCreate->cfg.maxConnections = htonl(pCreate->cfg.maxConnections);
+  pCreate->cfg.maxStreams = htonl(pCreate->cfg.maxStreams);
   pCreate->cfg.maxPointsPerSecond = htonl(pCreate->cfg.maxPointsPerSecond);
-  pCreate->cfg.maxStorage         = htobe64(pCreate->cfg.maxStorage);
-  pCreate->cfg.maxQueryTime       = htobe64(pCreate->cfg.maxQueryTime);
-  pCreate->cfg.maxInbound         = htobe64(pCreate->cfg.maxInbound);
-  pCreate->cfg.maxOutbound        = htobe64(pCreate->cfg.maxOutbound);
+  pCreate->cfg.maxStorage = htobe64(pCreate->cfg.maxStorage);
+  pCreate->cfg.maxQueryTime = htobe64(pCreate->cfg.maxQueryTime);
+  pCreate->cfg.maxInbound = htobe64(pCreate->cfg.maxInbound);
+  pCreate->cfg.maxOutbound = htobe64(pCreate->cfg.maxOutbound);
 
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
@@ -721,16 +703,16 @@ static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
 
 static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
   SAlterAcctMsg *pAlter = pMsg->rpcMsg.pCont;
-  pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
-  pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);
-  pAlter->cfg.maxTimeSeries      = htonl(pAlter->cfg.maxTimeSeries);
-  pAlter->cfg.maxConnections     = htonl(pAlter->cfg.maxConnections);
-  pAlter->cfg.maxStreams         = htonl(pAlter->cfg.maxStreams);
+  pAlter->cfg.maxUsers = htonl(pAlter->cfg.maxUsers);
+  pAlter->cfg.maxDbs = htonl(pAlter->cfg.maxDbs);
+  pAlter->cfg.maxTimeSeries = htonl(pAlter->cfg.maxTimeSeries);
+  pAlter->cfg.maxConnections = htonl(pAlter->cfg.maxConnections);
+  pAlter->cfg.maxStreams = htonl(pAlter->cfg.maxStreams);
   pAlter->cfg.maxPointsPerSecond = htonl(pAlter->cfg.maxPointsPerSecond);
-  pAlter->cfg.maxStorage         = htobe64(pAlter->cfg.maxStorage);
-  pAlter->cfg.maxQueryTime       = htobe64(pAlter->cfg.maxQueryTime);
-  pAlter->cfg.maxInbound         = htobe64(pAlter->cfg.maxInbound);
-  pAlter->cfg.maxOutbound        = htobe64(pAlter->cfg.maxOutbound);
+  pAlter->cfg.maxStorage = htobe64(pAlter->cfg.maxStorage);
+  pAlter->cfg.maxQueryTime = htobe64(pAlter->cfg.maxQueryTime);
+  pAlter->cfg.maxInbound = htobe64(pAlter->cfg.maxInbound);
+  pAlter->cfg.maxOutbound = htobe64(pAlter->cfg.maxOutbound);
 
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
