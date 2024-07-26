@@ -32,8 +32,8 @@ typedef struct SBlockOrderInfo {
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
 
-#define BLOCK_VERSION_1          1
-#define BLOCK_VERSION_2          2
+#define BLOCK_VERSION_1 1
+#define BLOCK_VERSION_2 2
 
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
@@ -46,9 +46,9 @@ typedef struct SBlockOrderInfo {
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
-#define colDataSetNull_f_s(c_, r_)                                        \
-  do {                                                                    \
-    colDataSetNull_f((c_)->nullbitmap, r_);                               \
+#define colDataSetNull_f_s(c_, r_)                                                     \
+  do {                                                                                 \
+    colDataSetNull_f((c_)->nullbitmap, r_);                                            \
     (void)memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
   } while (0)
 
@@ -143,7 +143,7 @@ static FORCE_INLINE void colDataSetNNULL(SColumnInfoData* pColumnInfoData, uint3
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_f(pColumnInfoData->nullbitmap, i);
     }
-    memset(pColumnInfoData->pData + start * pColumnInfoData->info.bytes, 0, pColumnInfoData->info.bytes * nRows);
+    (void)memset(pColumnInfoData->pData + start * pColumnInfoData->info.bytes, 0, pColumnInfoData->info.bytes * nRows);
   }
 
   pColumnInfoData->hasNull = true;
@@ -192,15 +192,17 @@ int32_t getJsonValueLen(const char* data);
 
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData);
-int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows, bool trimValue);
-void colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow, uint32_t numOfRows);
-int32_t colDataCopyNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData,
-                            uint32_t numOfRows, bool isNull);
+int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows,
+                         bool trimValue);
+void    colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow, uint32_t numOfRows);
+int32_t colDataCopyNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows,
+                          bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, int32_t numOfRow2);
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
                       const SDataBlockInfo* pBlockInfo);
-int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx, int32_t numOfRows);                      
+int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx,
+                           int32_t numOfRows);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex);
 int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, bool asc);
 
@@ -214,7 +216,7 @@ size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows);
-void blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows);
+void    blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
                            int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
@@ -237,12 +239,12 @@ int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
-void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
-void blockDataCleanup(SSDataBlock* pDataBlock);
-void blockDataReset(SSDataBlock* pDataBlock);
-void blockDataEmpty(SSDataBlock* pDataBlock);
+void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
+void    blockDataCleanup(SSDataBlock* pDataBlock);
+void    blockDataReset(SSDataBlock* pDataBlock);
+void    blockDataEmpty(SSDataBlock* pDataBlock);
 int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
-                                bool clearPayload);
+                         bool clearPayload);
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
@@ -264,20 +266,20 @@ int32_t      blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColIn
 SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId);
 SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index);
 
-int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
+int32_t     blockGetEncodeSize(const SSDataBlock* pBlock);
+int32_t     blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
 const char* blockDecode(SSDataBlock* pBlock, const char* pData);
 
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr);
 
-int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema, int64_t uid, int32_t vgId,
-                                    tb_uid_t suid);
+int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema,
+                                    int64_t uid, int32_t vgId, tb_uid_t suid);
 
-bool  alreadyAddGroupId(char* ctbName, int64_t groupId);
-bool  isAutoTableName(char* ctbName);
-void  buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId);
-char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
+bool    alreadyAddGroupId(char* ctbName, int64_t groupId);
+bool    isAutoTableName(char* ctbName);
+void    buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId);
+char*   buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
 void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);

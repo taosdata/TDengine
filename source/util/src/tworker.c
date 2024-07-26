@@ -309,8 +309,7 @@ int32_t tWWorkerInit(SWWorkerPool *pool) {
   pool->nextId = 0;
   pool->workers = taosMemoryCalloc(pool->max, sizeof(SWWorker));
   if (pool->workers == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   (void)taosThreadMutexInit(&pool->mutex, NULL);
@@ -434,6 +433,7 @@ _OVER:
     if (queue != NULL) taosCloseQueue(queue);
     if (worker->qset != NULL) taosCloseQset(worker->qset);
     if (worker->qall != NULL) taosFreeQall(worker->qall);
+    terrno = code;
     return NULL;
   } else {
     while (worker->pid <= 0) taosMsleep(10);
@@ -450,6 +450,7 @@ void tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue) {
 }
 
 int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) {
+  int32_t code;
   pWorker->poolType = pCfg->poolType;
   pWorker->name = pCfg->name;
 
@@ -457,32 +458,38 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
     case QWORKER_POOL: {
       SQWorkerPool *pPool = taosMemoryCalloc(1, sizeof(SQWorkerPool));
       if (!pPool) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
+        return terrno = TSDB_CODE_OUT_OF_MEMORY;
       }
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
       pWorker->pool = pPool;
-      if (tQWorkerInit(pPool) != 0) return -1;
+      if ((code = tQWorkerInit(pPool))) {
+        return (terrno = code);
+      }
 
       pWorker->queue = tQWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
-      if (pWorker->queue == NULL) return -1;
+      if (pWorker->queue == NULL) {
+        return terrno;
+      }
     } break;
     case QUERY_AUTO_QWORKER_POOL: {
       SQueryAutoQWorkerPool *pPool = taosMemoryCalloc(1, sizeof(SQueryAutoQWorkerPool));
       if (!pPool) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
+        return (terrno = TSDB_CODE_OUT_OF_MEMORY);
       }
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
       pWorker->pool = pPool;
-      if (tQueryAutoQWorkerInit(pPool) != 0) return -1;
+
+      code = tQueryAutoQWorkerInit(pPool);
+      if (code) return code;
 
       pWorker->queue = tQueryAutoQWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
-      if (!pWorker->queue) return -1;
+      if (!pWorker->queue) {
+        return terrno;
+      }
     } break;
     default:
       assert(0);
@@ -516,10 +523,14 @@ int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg) {
   SWWorkerPool *pPool = &pWorker->pool;
   pPool->name = pCfg->name;
   pPool->max = pCfg->max;
-  if (tWWorkerInit(pPool) != 0) return -1;
+
+  int32_t code = tWWorkerInit(pPool);
+  if (code) return code;
 
   pWorker->queue = tWWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
-  if (pWorker->queue == NULL) return -1;
+  if (pWorker->queue == NULL) {
+    return terrno;
+  }
 
   pWorker->name = pCfg->name;
   return 0;

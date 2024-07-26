@@ -1354,8 +1354,9 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
 }
 
 static int32_t taosCheckGlobalCfg() {
-  uint32_t ipv4 = taosGetIpv4FromFqdn(tsLocalFqdn);
-  if (ipv4 == 0xffffffff) {
+  uint32_t ipv4 = 0;
+  int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
+  if (code) {
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
     uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, terrstr());
     return -1;

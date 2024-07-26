@@ -193,6 +193,8 @@ int32_t doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnCo
 }
 
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   void *buf = NULL;
 

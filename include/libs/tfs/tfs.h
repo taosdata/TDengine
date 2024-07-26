@@ -44,9 +44,9 @@ typedef struct {
  *
  * @param pCfg Config of the fs.
  * @param ndisk Length of the config.
- * @return STfs* The fs object.
+ * @param ppTfs The fs object.
  */
-STfs *tfsOpen(SDiskCfg *pCfg, int32_t ndisk);
+int32_t tfsOpen(SDiskCfg *pCfg, int32_t ndisk, STfs **ppTfs);
 
 /**
  * @brief Close a fs.
@@ -275,7 +275,7 @@ int32_t tfsCopyFile(const STfsFile *pFile1, const STfsFile *pFile2);
  * @param rname The rel name of file.
  * @return STfsDir* The dir object.
  */
-STfsDir *tfsOpendir(STfs *pTfs, const char *rname);
+int32_t tfsOpendir(STfs *pTfs, const char *rname, STfsDir **ppDir);
 
 /**
  * @brief Get a file from dir and move to next pos.

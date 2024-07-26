@@ -945,7 +945,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
         char      buf[68] = {0};
         if (pFile != NULL) {
           int len = taosReadFile(pFile, buf, 64);
-          if (len < 64 && taosGetErrorFile(pFile)) {
+          if (len < 0) {
             (void)taosCloseFile(&pFile);
             (void)printf("read /etc/timezone error, reason:%s", strerror(errno));
             return;

@@ -862,7 +862,7 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
   // Try to allocate from the free list of the pager
   ret = tdbPagerAllocFreePage(pPager, ppgno, pTxn);
   if (ret < 0) {
-    return -1;
+    return ret;
   }
 
   if (*ppgno != 0) return 0;
@@ -875,7 +875,7 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
 
   if (*ppgno == 0) {
     tdbError("tdb/pager:%p, alloc new page failed.", pPager);
-    return -1;
+    return TSDB_CODE_FAILED;
   }
   return 0;
 }
@@ -907,7 +907,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       if (nRead < pPage->pageSize) {
         tdbError("tdb/pager:%p, pgno:%d, nRead:%" PRId64 "pgSize:%" PRId32, pPager, pgno, nRead, pPage->pageSize);
         TDB_UNLOCK_PAGE(pPage);
-        return -1;
+        return TAOS_SYSTEM_ERROR(errno);
       }
 
       int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
@@ -954,7 +954,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       tdbError("tdb/pager:%p, pgno:%d, nRead:%" PRId64 "pgSize:%" PRId32 " init page failed.", pPager, pgno, nRead,
                pPage->pageSize);
       TDB_UNLOCK_PAGE(pPage);
-      return -1;
+      return ret;
     }
 
     tmemory_barrier();
@@ -975,7 +975,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
   } else {
     tdbError("tdb/pager:%p, pgno:%d, nRead:%" PRId64 "pgSize:%" PRId32 " lock page failed.", pPager, pgno, nRead,
              pPage->pageSize);
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
   return 0;
@@ -1127,14 +1127,12 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
 
   if (tdbOsClose(jfd) < 0) {
     tdbError("failed to close jfd due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    return terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
   if (tdbOsRemove(jFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    return terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
   return 0;

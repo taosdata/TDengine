@@ -949,6 +949,7 @@ int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
 
 // open/close --------------
 SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
+  int32_t    code = 0;
   SSyncNode* pSyncNode = taosMemoryCalloc(1, sizeof(SSyncNode));
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1041,7 +1042,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->syncEqCtrlMsg = pSyncInfo->syncEqCtrlMsg;
 
   // create raft log ring buffer
-  pSyncNode->pLogBuf = syncLogBufferCreate();
+  (void)syncLogBufferCreate(&pSyncNode->pLogBuf); // TODO: check return value
   if (pSyncNode->pLogBuf == NULL) {
     sError("failed to init sync log buffer since %s. vgId:%d", terrstr(), pSyncNode->vgId);
     goto _error;
@@ -1218,7 +1219,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   }
 
   // tools
-  pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS);
+  (void)syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS, &pSyncNode->pSyncRespMgr); // TODO: check return value
   if (pSyncNode->pSyncRespMgr == NULL) {
     sError("vgId:%d, failed to create SyncRespMgr", pSyncNode->vgId);
     goto _error;
@@ -1229,7 +1230,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   // snapshot senders
   for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {
-    SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, i);
+    SSyncSnapshotSender* pSender = NULL;
+    code = snapshotSenderCreate(pSyncNode, i, &pSender);
     if (pSender == NULL) return NULL;
 
     pSyncNode->senders[i] = pSender;
@@ -1237,7 +1239,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   }
 
   // snapshot receivers
-  pSyncNode->pNewNodeReceiver = snapshotReceiverCreate(pSyncNode, EMPTY_RAFT_ID);
+  code = snapshotReceiverCreate(pSyncNode, EMPTY_RAFT_ID, &pSyncNode->pNewNodeReceiver);
   if (pSyncNode->pNewNodeReceiver == NULL) return NULL;
   sRDebug(pSyncNode->pNewNodeReceiver, "snapshot receiver create while open sync node, data:%p",
           pSyncNode->pNewNodeReceiver);
@@ -1810,7 +1812,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     // create new
     for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {
       if (pSyncNode->senders[i] == NULL) {
-        pSyncNode->senders[i] = snapshotSenderCreate(pSyncNode, i);
+        snapshotSenderCreate(pSyncNode, i, &pSyncNode->senders[i]);
         if (pSyncNode->senders[i] == NULL) {
           // will be created later while send snapshot
           sSError(pSyncNode->senders[i], "snapshot sender create failed while reconfig");
@@ -2840,8 +2842,9 @@ int32_t syncNodeRebuildAndCopyIfExist(SSyncNode* ths, int32_t oldtotalReplicaNum
   }
 
   for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {
-    SSyncSnapshotSender* pSender = snapshotSenderCreate(ths, i);
-    if (pSender == NULL) return -1;
+    SSyncSnapshotSender* pSender = NULL;
+    int32_t              code = snapshotSenderCreate(ths, i, &pSender);
+    if (pSender == NULL) return terrno = code;
 
     ths->senders[i] = pSender;
     sSDebug(pSender, "snapshot sender create while open sync node, data:%p", pSender);

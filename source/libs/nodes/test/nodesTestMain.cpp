@@ -26,7 +26,8 @@ static EDealRes rewriterTest(SNode** pNode, void* pContext) {
     if (QUERY_NODE_VALUE != nodeType(pOp->pLeft) || QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
       *pRes = DEAL_RES_ERROR;
     }
-    SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* pVal = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
     string tmp = to_string(stoi(((SValueNode*)(pOp->pLeft))->literal) + stoi(((SValueNode*)(pOp->pRight))->literal));
     pVal->literal = taosStrdup(tmp.c_str());
     nodesDestroyNode(*pNode);
@@ -36,15 +37,18 @@ static EDealRes rewriterTest(SNode** pNode, void* pContext) {
 }
 
 TEST(NodesTest, traverseTest) {
-  SNode*         pRoot = (SNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+  SNode*         pRoot = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR,(SNode**)&pRoot);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   SOperatorNode* pOp = (SOperatorNode*)pRoot;
-  SOperatorNode* pLeft = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
-  pLeft->pLeft = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SOperatorNode* pLeft = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pLeft));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pLeft->pLeft));
   ((SValueNode*)(pLeft->pLeft))->literal = taosStrdup("10");
-  pLeft->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pLeft->pRight));
   ((SValueNode*)(pLeft->pRight))->literal = taosStrdup("5");
   pOp->pLeft = (SNode*)pLeft;
-  pOp->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &pOp->pRight));
   ((SValueNode*)(pOp->pRight))->literal = taosStrdup("3");
 
   EXPECT_EQ(nodeType(pRoot), QUERY_NODE_OPERATOR);
@@ -90,27 +94,32 @@ void assert_sort_result(SNodeList* pList) {
 }
 
 TEST(NodesTest, sort) {
-  SValueNode *vn1 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *vn1 = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&vn1));
   vn1->datum.i = 4;
 
-  SValueNode *vn2 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *vn2 = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&vn2));
   vn2->datum.i = 3;
 
-  SValueNode *vn3 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *vn3 = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&vn3));
   vn3->datum.i = 2;
 
-  SValueNode *vn4 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *vn4 = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&vn4));
   vn4->datum.i = 1;
 
-  SValueNode *vn5 = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode *vn5 = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&vn5));
   vn5->datum.i = 0;
 
   SNodeList* l = NULL;
-  nodesListMakeAppend(&l, (SNode*)vn1);
-  nodesListMakeAppend(&l, (SNode*)vn2);
-  nodesListMakeAppend(&l, (SNode*)vn3);
-  nodesListMakeAppend(&l, (SNode*)vn4);
-  nodesListMakeAppend(&l, (SNode*)vn5);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn1));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn2));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn3));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn4));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&l, (SNode*)vn5));
 
   nodesSortList(&l, compareValueNode);
 

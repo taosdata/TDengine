@@ -163,10 +163,10 @@ int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNo
   SNodeList *pPhysiChildren = pNode->pChildren;
 
   if (pPhysiChildren) {
-    *pChildren = nodesMakeList();
+    int32_t code = nodesMakeList(pChildren);
     if (NULL == *pChildren) {
       qError("nodesMakeList failed");
-      QRY_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      QRY_ERR_RET(code);
     }
   }
 

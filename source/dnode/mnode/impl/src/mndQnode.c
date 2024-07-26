@@ -75,6 +75,8 @@ void mndReleaseQnode(SMnode *pMnode, SQnodeObj *pObj) {
 }
 
 static SSdbRaw *mndQnodeActionEncode(SQnodeObj *pObj) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_QNODE, QNODE_VER_NUMBER, sizeof(SQnodeObj) + QNODE_RESERVE_SIZE);
@@ -100,6 +102,8 @@ _OVER:
 }
 
 static SSdbRow *mndQnodeActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow   *pRow = NULL;
   SQnodeObj *pObj = NULL;
