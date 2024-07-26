@@ -204,7 +204,10 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
           continue;
         }
 
-        taosArrayPush(pReq->aSubmitTbData, &tbData);
+        if( taosArrayPush(pReq->aSubmitTbData, &tbData) == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          continue;
+        }
 
         int32_t size = (int32_t)taosArrayGetSize(pReq->aSubmitTbData) - 1;
         TAOS_CHECK_EXIT(taosHashPut(pTableIndexMap, &groupId, sizeof(groupId), &size, sizeof(size)));
