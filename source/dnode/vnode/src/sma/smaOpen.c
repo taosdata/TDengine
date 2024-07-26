@@ -145,7 +145,7 @@ int32_t smaOpen(SVnode *pVnode, int8_t rollback, bool force) {
   pVnode->pSma = pSma;
 
   pSma->pVnode = pVnode;
-  taosThreadMutexInit(&pSma->mutex, NULL);
+  (void)taosThreadMutexInit(&pSma->mutex, NULL);
   pSma->locked = false;
 
   if (VND_IS_RSMA(pVnode)) {
@@ -173,8 +173,8 @@ _exit:
 
 int32_t smaClose(SSma *pSma) {
   if (pSma) {
-    smaPreClose(pSma);
-    taosThreadMutexDestroy(&pSma->mutex);
+    (void)smaPreClose(pSma);
+    (void)taosThreadMutexDestroy(&pSma->mutex);
     SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
     SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
     if SMA_RSMA_TSDB0 (pSma) tsdbClose(&SMA_RSMA_TSDB0(pSma));

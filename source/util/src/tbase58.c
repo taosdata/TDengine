@@ -67,7 +67,7 @@ int32_t base58_encode(const uint8_t *value, int32_t vlen, char **result) {
     if (bfree) taosMemoryFree(pbuf);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  memset(pResult, '1', nz);
+  (void)memset(pResult, '1', nz);
   while (pi != pbuf + size) pResult[nz++] = basis_58[*pi++];
 
   if (bfree) taosMemoryFree(pbuf);
@@ -152,7 +152,7 @@ int32_t base58_decode(const char *value, size_t inlen, int32_t *outlen, uint8_t 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  memset(pResult, 0, nz);
+  (void)memset(pResult, 0, nz);
   while (it != pbuf + size) pResult[nz++] = *it++;
 
   if (outlen) *outlen = nz;
