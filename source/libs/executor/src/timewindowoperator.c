@@ -2278,7 +2278,7 @@ _end:
 
 static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t      code = doMergeIntervalAggNext(pOperator, &pRes);
+  int32_t code = doMergeIntervalAggNext(pOperator, &pRes);
   return pRes;
 }
 

@@ -303,7 +303,7 @@ _end:
 
 static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t      code = getAggregateResultNext(pOperator, &pRes);
+  int32_t code = getAggregateResultNext(pOperator, &pRes);
   return pRes;
 }
 
