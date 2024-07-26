@@ -56,8 +56,8 @@
 
 class constantTest {
  public:
-  constantTest() { InitRegexCache(); }
-  ~constantTest() { DestroyRegexCache(); }
+  constantTest() { (void)InitRegexCache(); }
+  ~constantTest() { (void)DestroyRegexCache(); }
 };
 static constantTest test;
 namespace {
