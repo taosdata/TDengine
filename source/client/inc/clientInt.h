@@ -207,7 +207,7 @@ typedef struct SReqResultInfo {
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {
-  tsem2_t            rspSem;  // not used now
+  tsem_t            rspSem;  // not used now
   __taos_async_fn_t queryFp;
   __taos_async_fn_t fetchFp;
   EQueryExecMode    execMode;

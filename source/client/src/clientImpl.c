@@ -332,7 +332,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   int64_t transporterId = 0;
   TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg));
-  (void)tsem2_wait(&pRequest->body.rspSem);
+  (void)tsem_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1563,7 +1563,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));
     return code;
   }
-  (void)tsem2_wait(&pRequest->body.rspSem);
+  (void)tsem_wait(&pRequest->body.rspSem);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg = (code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
     tscError("failed to connect to server, reason: %s", errorMsg);

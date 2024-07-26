@@ -51,7 +51,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
   }
   return code;
 }
@@ -64,7 +64,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
@@ -73,7 +73,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (NULL == pTscObj->pAppInfo) {
     code = TSDB_CODE_TSC_DISCONNECTED;
     setErrno(pRequest, code);
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
@@ -81,14 +81,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp) != 0) {
     code = TSDB_CODE_TSC_INVALID_VERSION;
     setErrno(pRequest, code);
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(version, connectRsp.sVer, 3)) != 0) {
     tscError("version not compatible. client version: %s, server version: %s", version, connectRsp.sVer);
     setErrno(pRequest, code);
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
@@ -98,14 +98,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     code = TSDB_CODE_TIME_UNSYNCED;
     tscError("time diff:%ds is too big", delta);
     setErrno(pRequest, code);
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
   if (connectRsp.epSet.numOfEps == 0) {
     code = TSDB_CODE_APP_ERROR;
     setErrno(pRequest, code);
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
 
@@ -118,7 +118,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
                         dstEpSet.eps[dstEpSet.inUse].fqdn);
       if (code != 0){
         setErrno(pRequest, code);
-        (void)tsem2_post(&pRequest->body.rspSem);
+        (void)tsem_post(&pRequest->body.rspSem);
         goto End;
       }
       updateEpSet = 0;
@@ -178,14 +178,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     code = hbRegisterConn(pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
     if (code != 0){
       setErrno(pRequest, code);
-      (void)tsem2_post(&pRequest->body.rspSem);
+      (void)tsem_post(&pRequest->body.rspSem);
       goto End;
     }
   } else {
     taosThreadMutexUnlock(&clientHbMgr.lock);
     code = TSDB_CODE_TSC_DISCONNECTED;
     setErrno(pRequest, code);
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
   taosThreadMutexUnlock(&clientHbMgr.lock);
@@ -193,7 +193,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
 
-  (void)tsem2_post(&pRequest->body.rspSem);
+  (void)tsem_post(&pRequest->body.rspSem);
 End:
 
   if (pRequest) {
@@ -256,7 +256,7 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp) {
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
   }
   return code;
 }
@@ -359,7 +359,7 @@ END:
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, pRequest->code);
   } else {
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
   }
   return code;
 }
@@ -406,7 +406,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
   }
   return code;
 }
@@ -459,7 +459,7 @@ END:
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
   }
   return code;
 }
@@ -502,7 +502,7 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
   }
   return code;
 }
@@ -637,7 +637,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
   }
   return code;
 }
@@ -773,7 +773,7 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
   } else {
-    (void)tsem2_post(&pRequest->body.rspSem);
+    (void)tsem_post(&pRequest->body.rspSem);
   }
   return code;  
 }

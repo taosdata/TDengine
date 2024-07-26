@@ -561,7 +561,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
     goto _return;
   }
   (*pRequest)->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
-  TSC_ERR_JRET(tsem2_init(&(*pRequest)->body.rspSem, 0, 0));
+  TSC_ERR_JRET(tsem_init(&(*pRequest)->body.rspSem, 0, 0));
   TSC_ERR_JRET(registerRequest(*pRequest, pTscObj));
 
   return TSDB_CODE_SUCCESS;
@@ -684,7 +684,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->msgBuf);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
-  (void)tsem2_destroy(&pRequest->body.rspSem);
+  (void)tsem_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->targetTableList);
