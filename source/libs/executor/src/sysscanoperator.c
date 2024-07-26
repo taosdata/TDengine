@@ -1055,7 +1055,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
         char* tagJson = NULL;
         parseTagDatatoJson(tagData, &tagJson);
         tagVarChar = taosMemoryMalloc(strlen(tagJson) + VARSTR_HEADER_SIZE);
-        QUERY_CHECK_NULL(tagVarChar, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(tagVarChar, code, lino, _end, terrno);
         memcpy(varDataVal(tagVarChar), tagJson, strlen(tagJson));
         varDataSetLen(tagVarChar, strlen(tagJson));
         taosMemoryFree(tagJson);
@@ -1063,7 +1063,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
         int32_t bufSize = IS_VAR_DATA_TYPE(tagType) ? (tagLen + VARSTR_HEADER_SIZE)
                                                     : (3 + DBL_MANT_DIG - DBL_MIN_EXP + VARSTR_HEADER_SIZE);
         tagVarChar = taosMemoryCalloc(1, bufSize + 1);
-        QUERY_CHECK_NULL(tagVarChar, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(tagVarChar, code, lino, _end, terrno);
         int32_t len = -1;
         if (tagLen > 0)
           convertTagDataToStr(varDataVal(tagVarChar), tagType, tagData, tagLen, &len);
@@ -1258,7 +1258,7 @@ int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TABLES);
-  QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
 
   code = blockDataEnsureCapacity(p, capacity);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1542,7 +1542,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
   SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TABLES);
-  QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
 
   code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2362,7 +2362,7 @@ int32_t optSysIntersection(SArray* in, SArray* out) {
     goto _end;
   }
   MergeIndex* mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
-  QUERY_CHECK_NULL(mi, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(mi, code, lino, _end, terrno);
   for (int i = 0; i < sz; i++) {
     SArray* t = taosArrayGetP(in, i);
     mi[i].len = (int32_t)taosArrayGetSize(t);
@@ -2591,7 +2591,7 @@ static int32_t doBlockInfoScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 
   int32_t len = tSerializeBlockDistInfo(NULL, 0, &blockDistInfo);
   char*   p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
-  QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
 
   int32_t tempRes = tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
   if (tempRes < 0) {

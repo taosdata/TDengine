@@ -754,7 +754,7 @@ void streamCountReleaseState(SOperatorInfo* pOperator) {
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   int32_t                      resSize = sizeof(TSKEY);
   char*                        pBuff = taosMemoryCalloc(1, resSize);
-  QUERY_CHECK_NULL(pBuff, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pBuff, code, lino, _end, terrno);
 
   memcpy(pBuff, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
   qDebug("===stream=== count window operator relase state. ");

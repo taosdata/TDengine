@@ -267,7 +267,7 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
   SColumnInfoData* pColInfo = NULL;
   if (pInput->pData[paramIndex] == NULL) {
     pColInfo = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-    QUERY_CHECK_NULL(pColInfo, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
 
     // Set the correct column info (data type and bytes)
     pColInfo->info.type = pFuncParam->param.nType;

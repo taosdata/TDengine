@@ -1905,7 +1905,11 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
   pInfo->numOfChild = numOfChild;
-  pInfo->pPhyNode = (SPhysiNode*)nodesCloneNode((SNode*)pPhyNode);
+  pInfo->pPhyNode = NULL;
+  code = nodesCloneNode((SNode*)pPhyNode, (SNode**)&pInfo->pPhyNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _error;
+  }
 
   pInfo->pPullWins = taosArrayInit(8, sizeof(SPullWindowInfo));
   pInfo->pullIndex = 0;

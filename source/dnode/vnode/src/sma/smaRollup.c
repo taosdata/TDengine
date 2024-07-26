@@ -89,7 +89,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo) {
       if (pItem->tmrId) {
         smaDebug("vgId:%d, stop fetch timer %p for table %" PRIi64 " level %d", SMA_VID(pSma), pItem->tmrId,
                  pInfo->suid, i + 1);
-        taosTmrStopA(&pItem->tmrId);
+        (void)taosTmrStopA(&pItem->tmrId);
       }
 
       if (pItem->pStreamState) {
@@ -246,7 +246,7 @@ static void tdRSmaTaskInit(SStreamMeta *pMeta, SRSmaInfoItem *pItem, SStreamTask
 }
 
 static void tdRSmaTaskRemove(SStreamMeta *pMeta, int64_t streamId, int32_t taskId) {
-  streamMetaUnregisterTask(pMeta, streamId, taskId);
+  (void)streamMetaUnregisterTask(pMeta, streamId, taskId);
   streamMetaWLock(pMeta);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   if (streamMetaCommit(pMeta) < 0) {
@@ -296,7 +296,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     if (!pStreamTask->exec.qmsg) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    sprintf(pStreamTask->exec.qmsg, "%s", RSMA_EXEC_TASK_FLAG);
+    (void)sprintf(pStreamTask->exec.qmsg, "%s", RSMA_EXEC_TASK_FLAG);
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
 
@@ -347,7 +347,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
+    (void)taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
 
     smaInfo("vgId:%d, open rsma task:%p table:%" PRIi64 " level:%" PRIi8 ", checkpointId:%" PRIi64
             ", submitReqVer:%" PRIi64 ", fetchResultVer:%" PRIi64 ", maxdelay:%" PRIi64 " watermark:%" PRIi64
@@ -799,7 +799,7 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, int64_t version, const void *p
   *(int32_t *)pItem = len;
   pItem = POINTER_SHIFT(pItem, sizeof(int32_t));
   *(int64_t *)pItem = version;
-  memcpy(POINTER_SHIFT(pItem, sizeof(int64_t)), pMsg, len);
+  (void)memcpy(POINTER_SHIFT(pItem, sizeof(int64_t)), pMsg, len);
 
   TAOS_CHECK_RETURN(taosWriteQitem(pInfo->queue, qItem));
 
@@ -810,7 +810,7 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, int64_t version, const void *p
   int64_t nItems = atomic_fetch_add_64(&pRSmaStat->nBufItems, 1);
 
   if (atomic_load_8(&pInfo->assigned) == 0) {
-    tsem_post(&(pRSmaStat->notEmpty));
+    (void)tsem_post(&(pRSmaStat->notEmpty));
   }
 
   // smoothing consume
@@ -1339,7 +1339,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   if (!(pStat = (SRSmaStat *)tdAcquireSmaRef(smaMgmt.rsetId, pRSmaRef->refId))) {
     smaWarn("rsma fetch task not start since rsma stat already destroyed, rsetId:%d refId:%" PRIi64 ")", smaMgmt.rsetId,
             pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
-    taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
+    (void)taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
     return;
   }
 
@@ -1348,8 +1348,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   if ((code = tdAcquireRSmaInfoBySuid(pSma, pRSmaRef->suid, &pRSmaInfo)) != 0) {
     smaDebug("rsma fetch task not start since rsma info not exist, rsetId:%d refId:%" PRIi64 ")", smaMgmt.rsetId,
              pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
-    tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
-    taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
+    (void)tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
+    (void)taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
     return;
   }
 
@@ -1357,8 +1357,8 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
     smaDebug("rsma fetch task not start since rsma info already deleted, rsetId:%d refId:%" PRIi64 ")", smaMgmt.rsetId,
              pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
     tdReleaseRSmaInfo(pSma, pRSmaInfo);
-    tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
-    taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
+    (void)tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
+    (void)taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
     return;
   }
 
@@ -1376,7 +1376,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
         taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
       }
       tdReleaseRSmaInfo(pSma, pRSmaInfo);
-      tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
+      (void)tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
       return;
     }
     default:
@@ -1393,7 +1393,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       atomic_store_8(&pItem->fetchLevel, 1);
 
       if (atomic_load_8(&pRSmaInfo->assigned) == 0) {
-        tsem_post(&(pStat->notEmpty));
+        (void)tsem_post(&(pStat->notEmpty));
       }
     } break;
     case TASK_TRIGGER_STAT_INACTIVE: {
@@ -1414,7 +1414,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
 _end:
   taosTmrReset(tdRSmaFetchTrigger, pItem->maxDelay, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
   tdReleaseRSmaInfo(pSma, pRSmaInfo);
-  tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
+  (void)tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
 }
 
 static void tdFreeRSmaSubmitItems(SArray *pItems, int32_t type) {
@@ -1507,7 +1507,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
 
   // the submitReq/deleteReq msg may exsit alternately in the msg queue, consume them sequentially in batch mode
   while (1) {
-    taosGetQitem(qall, (void **)&msg);
+    (void)taosGetQitem(qall, (void **)&msg);
     if (msg) {
       int8_t inputType = RSMA_EXEC_MSG_TYPE(msg);
       if (inputType == STREAM_INPUT__DATA_SUBMIT) {
@@ -1574,7 +1574,7 @@ _exit:
   tdFreeRSmaSubmitItems(pSubmitArr, nSubmit ? STREAM_INPUT__MERGED_SUBMIT : STREAM_INPUT__REF_DATA_BLOCK);
   while (1) {
     void *msg = NULL;
-    taosGetQitem(qall, (void **)&msg);
+    (void)taosGetQitem(qall, (void **)&msg);
     if (msg) {
       taosFreeQitem(msg);
     } else {
@@ -1687,7 +1687,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
         break;
       }
 
-      tsem_wait(&pRSmaStat->notEmpty);
+      (void)tsem_wait(&pRSmaStat->notEmpty);
 
       if ((pEnv->flag & SMA_ENV_FLG_CLOSE) && (atomic_load_64(&pRSmaStat->nBufItems) <= 0)) {
         smaDebug("vgId:%d, exec task end, flag:%" PRIi8 ", nBufItems:%" PRIi64, SMA_VID(pSma), pEnv->flag,

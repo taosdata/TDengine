@@ -26,8 +26,8 @@ void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHan
 int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
 static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
-  *ip = taosGetIpv4FromFqdn(localFqdn);
-  if (*ip == 0xFFFFFFFF) {
+  int32_t code = taosGetIpv4FromFqdn(localFqdn, ip);
+  if (code) {
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
     return -1;
   }

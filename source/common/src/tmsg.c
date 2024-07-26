@@ -10590,7 +10590,7 @@ int32_t tCloneTbTSMAInfo(STableTSMAInfo *pInfo, STableTSMAInfo **pRes) {
     if (!pRet->ast) code = TSDB_CODE_OUT_OF_MEMORY;
   }
   if (code) {
-    tFreeTableTSMAInfo(pRet);
+    tFreeAndClearTableTSMAInfo(pRet);
     pRet = NULL;
   }
   *pRes = pRet;
