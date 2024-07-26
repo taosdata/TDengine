@@ -1152,7 +1152,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
   tsSlowLogMaxLen = cfgGetItem(pCfg, "slowLogMaxLen")->i32;
   int32_t scope = 0;
-  TAOS_RETURN(taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str, &scope));
+  TAOS_CHECK_RETURN(taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str, &scope));
   tsSlowLogScope = scope;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
