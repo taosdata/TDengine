@@ -296,13 +296,13 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
 
   int ret = insInitBoundColsInfo(getNumOfTags(pTableMeta), &bindTags);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "init bound cols error");
+    ret = buildInvalidOperationMsg(&pBuf, "init bound cols error");
     goto end;
   }
 
   ret = smlBoundColumnData(tags, &bindTags, pTagsSchema, true);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "bound tags error");
+    ret = buildInvalidOperationMsg(&pBuf, "bound tags error");
     goto end;
   }
 
@@ -347,20 +347,20 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
   ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
                            sizeof(pTableMeta->uid), pTableMeta, &pCreateTblReq, &pTableCxt, false, false);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "insGetTableDataCxt error");
+    ret = buildInvalidOperationMsg(&pBuf, "insGetTableDataCxt error");
     goto end;
   }
 
   SSchema* pSchema = getTableColumnSchema(pTableMeta);
   ret = smlBoundColumnData(colsSchema, &pTableCxt->boundColsInfo, pSchema, false);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "bound cols error");
+    ret = buildInvalidOperationMsg(&pBuf, "bound cols error");
     goto end;
   }
 
   ret = initTableColSubmitData(pTableCxt);
   if (ret != TSDB_CODE_SUCCESS) {
-    buildInvalidOperationMsg(&pBuf, "initTableColSubmitData error");
+    ret = buildInvalidOperationMsg(&pBuf, "initTableColSubmitData error");
     goto end;
   }
 
@@ -407,7 +407,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
           if (errno == E2BIG) {
             uError("sml bind taosMbsToUcs4 error, kv length:%d, bytes:%d, kv->value:%s", (int)kv->length,
                    pColSchema->bytes, kv->value);
-            buildInvalidOperationMsg(&pBuf, "value too long");
+            (void)buildInvalidOperationMsg(&pBuf, "value too long");
             ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
             goto end;
           }
@@ -440,7 +440,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
     }
     ret = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
     if (TSDB_CODE_SUCCESS != ret) {
-      buildInvalidOperationMsg(&pBuf, "tRowBuild error");
+      ret = buildInvalidOperationMsg(&pBuf, "tRowBuild error");
       goto end;
     }
     SRowKey key;
@@ -459,19 +459,21 @@ end:
 
 int32_t smlInitHandle(SQuery** query) {
   *query = NULL;
-  SQuery* pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  SQuery* pQuery = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
   if (NULL == pQuery) {
     uError("create pQuery error");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->haveResultSet = false;
   pQuery->msgType = TDMT_VND_SUBMIT;
-  SVnodeModifyOpStmt* stmt = (SVnodeModifyOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT);
+  SVnodeModifyOpStmt* stmt = NULL;
+  code = nodesMakeNode(QUERY_NODE_VNODE_MODIFY_STMT, (SNode**)&stmt);
   if (NULL == stmt) {
     uError("create SVnodeModifyOpStmt error");
     qDestroyQuery(pQuery);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (stmt->pTableBlockHashObj == NULL){
