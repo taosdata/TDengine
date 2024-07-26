@@ -903,7 +903,9 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     if (hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, scanFlag)) break;
   }
 
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->binfo.outputTsOrder);
+  code = initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->binfo.outputTsOrder);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   OPTR_SET_OPENED(pOperator);
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
@@ -1042,7 +1044,9 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
   }
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
+  code = initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   pOperator->status = OP_RES_TO_RETURN;
 
 _end:
@@ -1512,7 +1516,9 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
 
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
+  code = initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   code = blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
   while (1) {
@@ -2272,7 +2278,7 @@ _end:
 
 static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t code = doMergeIntervalAggNext(pOperator, &pRes);
+  int32_t      code = doMergeIntervalAggNext(pOperator, &pRes);
   return pRes;
 }
 

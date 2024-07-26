@@ -241,7 +241,8 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
 
-  initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
+  code = initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
+  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -302,7 +303,7 @@ _end:
 
 static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t code = getAggregateResultNext(pOperator, &pRes);
+  int32_t      code = getAggregateResultNext(pOperator, &pRes);
   return pRes;
 }
 
