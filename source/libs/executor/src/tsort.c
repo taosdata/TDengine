@@ -169,7 +169,8 @@ static void* tupleGetField(char* t, uint32_t colIdx, uint32_t colNum) {
 
 int32_t tsortGetSortedDataBlock(const SSortHandle* pSortHandle, SSDataBlock** pBlock) {
   if (pBlock == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    *pBlock = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   *pBlock = createOneDataBlock(pSortHandle->pDataBlock, false);
