@@ -48,8 +48,8 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
       "dnode:%d cluster:%" PRId64 " fqdn:%s port:%u ",
       vgId, tsResolveFQDNRetryTime, pInfo->nodeId, pInfo->clusterId, pInfo->nodeFqdn, pInfo->nodePort);
   for (int i = 0; i < tsResolveFQDNRetryTime; i++) {
-    ipv4 = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
-    if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
+    int32_t code = taosGetIpv4FromFqdn(pInfo->nodeFqdn, &ipv4);
+    if (code) {
       sError("failed to resolve ipv4 addr, fqdn:%s, wait one second", pInfo->nodeFqdn);
       taosSsleep(1);
     } else {
