@@ -173,6 +173,11 @@ int32_t tsortGetSortedDataBlock(const SSortHandle* pSortHandle, SSDataBlock** pB
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pSortHandle->pDataBlock == NULL) {
+    *pBlock = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
   *pBlock = createOneDataBlock(pSortHandle->pDataBlock, false);
   if (*pBlock == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
