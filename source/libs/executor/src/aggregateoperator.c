@@ -380,7 +380,7 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
 
           for (int32_t k = numOfCols; k < slotId + 1; ++k) {
             void* tmp = taosArrayPush(pBlock->pDataBlock, &colInfo);
-            QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+            QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
           }
         }
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {

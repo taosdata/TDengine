@@ -694,7 +694,7 @@ static int32_t doStreamEventAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->pAllUpdated = tSimpleHashInit(64, hashFn);
-    QUERY_CHECK_NULL(pInfo->pAllUpdated, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pInfo->pAllUpdated, code, lino, _end, terrno);
 
     code = getMaxTsWins(pHisWins, pInfo->historyWins);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -915,18 +915,18 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
 
   if (pInfo->isHistoryOp) {
     pInfo->pAllUpdated = tSimpleHashInit(64, hashFn);
-    QUERY_CHECK_NULL(pInfo->pAllUpdated, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pInfo->pAllUpdated, code, lino, _error, terrno);
   } else {
     pInfo->pAllUpdated = NULL;
   }
 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
-  QUERY_CHECK_NULL(pInfo->pCheckpointRes, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pInfo->pCheckpointRes, code, lino, _error, terrno);
 
   pInfo->reCkBlock = false;
   pInfo->recvGetAll = false;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
-  QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, terrno);
   pInfo->destHasPrimaryKey = pEventNode->window.destHasPrimayKey;
 
   setOperatorInfo(pOperator, "StreamEventAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, true, OP_NOT_OPENED,

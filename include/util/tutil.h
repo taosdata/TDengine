@@ -75,7 +75,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   char buf[TSDB_PASSWORD_LEN + 1];
 
   buf[TSDB_PASSWORD_LEN] = 0;
-  sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0], context.digest[1],
+  (void)sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0], context.digest[1],
           context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
           context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
           context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
@@ -108,10 +108,10 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     int32_t offset = 0;
     if (prefix < 0) {
       offset = -1 * prefix;
-      strncpy(tbName, tbname, offset);
+      (void)strncpy(tbName, tbname, offset);
     }
     if (suffix < 0) {
-      strncpy(tbName + offset, tbname + tblen + suffix, -1 * suffix);
+      (void)strncpy(tbName + offset, tbname + tblen + suffix, -1 * suffix);
       offset += -1 * suffix;
     }
     return MurmurHash3_32(tbName, offset);
