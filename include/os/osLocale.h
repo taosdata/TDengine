@@ -30,7 +30,7 @@ extern "C" {
 
 char *taosCharsetReplace(char *charsetstr);
 void  taosGetSystemLocale(char *outLocale, char *outCharset);
-void  taosSetSystemLocale(const char *inLocale, const char *inCharSet);
+int32_t  taosSetSystemLocale(const char *inLocale, const char *inCharSet);
 
 #ifdef __cplusplus
 }

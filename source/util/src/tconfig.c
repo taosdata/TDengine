@@ -1241,13 +1241,14 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
     }
     size_t fileSize = taosLSeekFile(pFile, 0, SEEK_END);
-    char  *buf = taosMemoryMalloc(fileSize);
+    char  *buf = taosMemoryMalloc(fileSize + 1);
     if (!buf) {
       taosCloseFile(&pFile);
       uError("load json file error: %s, failed to alloc memory", filepath);
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
+    buf[fileSize] = 0;
     taosLSeekFile(pFile, 0, SEEK_SET);
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
       taosCloseFile(&pFile);
@@ -1277,7 +1278,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       if (itemValueString != NULL && itemName != NULL) {
         size_t itemNameLen = strlen(itemName);
         size_t itemValueStringLen = strlen(itemValueString);
-        cfgLineBuf = taosMemoryMalloc(itemNameLen + itemValueStringLen + 2);
+        cfgLineBuf = taosMemoryRealloc(cfgLineBuf, itemNameLen + itemValueStringLen + 3);
         if (NULL == cfgLineBuf) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _err_json;
@@ -1286,7 +1287,6 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
         memcpy(cfgLineBuf, itemName, itemNameLen);
         cfgLineBuf[itemNameLen] = ' ';
         memcpy(&cfgLineBuf[itemNameLen + 1], itemValueString, itemValueStringLen);
-        cfgLineBuf[itemNameLen + itemValueStringLen + 1] = '\0';
 
         paGetToken(cfgLineBuf, &name, &olen);
         if (olen == 0) continue;
@@ -1325,6 +1325,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
+  taosMemoryFree(cfgLineBuf);
   uInfo("load from apoll url not implemented yet");
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 
