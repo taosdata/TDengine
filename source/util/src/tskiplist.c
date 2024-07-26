@@ -21,7 +21,7 @@
 #include "tutil.h"
 
 static int32_t            initForwardBackwardPtr(SSkipList *pSkipList);
-static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
+static SSkipListNode     *getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
 static void               tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode);
 static void               tSkipListCorrectLevel(SSkipList *pSkipList);
 static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t order);
@@ -39,8 +39,12 @@ static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList);
 
 SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
                            __sl_key_fn_t fn) {
+  int32_t    code = 0;
   SSkipList *pSkipList = (SSkipList *)taosMemoryCalloc(1, sizeof(SSkipList));
-  if (pSkipList == NULL) return NULL;
+  if (pSkipList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   if (maxLevel > MAX_SKIP_LIST_LEVEL) {
     maxLevel = MAX_SKIP_LIST_LEVEL;
@@ -64,8 +68,10 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   pSkipList->comparFn = comparFn;
 #endif
 
-  if (initForwardBackwardPtr(pSkipList) < 0) {
+  code = initForwardBackwardPtr(pSkipList);
+  if (code) {
     tSkipListDestroy(pSkipList);
+    terrno = code;
     return NULL;
   }
 
@@ -73,11 +79,14 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
     pSkipList->lock = (TdThreadRwlock *)taosMemoryCalloc(1, sizeof(TdThreadRwlock));
     if (pSkipList->lock == NULL) {
       tSkipListDestroy(pSkipList);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
 
-    if (taosThreadRwlockInit(pSkipList->lock, NULL) != 0) {
+    int32_t rc = taosThreadRwlockInit(pSkipList->lock, NULL);
+    if (rc) {
       tSkipListDestroy(pSkipList);
+      terrno = TAOS_SYSTEM_ERROR(rc);
       return NULL;
     }
   }
@@ -137,8 +146,8 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
   SSkipListNode *backward[MAX_SKIP_LIST_LEVEL] = {0};
   SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
   bool           hasDup = false;
-  char *         pKey = NULL;
-  char *         pDataKey = NULL;
+  char          *pKey = NULL;
+  char          *pDataKey = NULL;
   int32_t        compare = 0;
 
   tSkipListWLock(pSkipList);
@@ -265,13 +274,17 @@ void tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode) {
 #endif
 
 SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList) {
-  if (pSkipList == NULL) return NULL;
+  if (pSkipList == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   return doCreateSkipListIterator(pSkipList, TSDB_ORDER_ASC);
 }
 
 SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order) {
   if (order != TSDB_ORDER_ASC && order != TSDB_ORDER_DESC) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -362,7 +375,7 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
   SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, nlevel - 1);
 
   int32_t id = 1;
-  char *  prev = NULL;
+  char   *prev = NULL;
 
   while (p != pSkipList->pTail) {
     char *key = SL_GET_NODE_KEY(pSkipList, p);
@@ -427,6 +440,10 @@ static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **direction, S
 
 static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t order) {
   SSkipListIterator *iter = taosMemoryCalloc(1, sizeof(SSkipListIterator));
+  if (iter == NULL) {
+    terrno = TSDB_CODE_OUT_OF_BUFFER;
+    return NULL;
+  }
 
   iter->pSkipList = pSkipList;
   iter->order = order;
@@ -465,7 +482,7 @@ static FORCE_INLINE int32_t tSkipListUnlock(SSkipList *pSkipList) {
 static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward, void *pData) {
   int32_t compare = 0;
   bool    hasDupKey = false;
-  char *  pDataKey = pSkipList->keyFn(pData);
+  char   *pDataKey = pSkipList->keyFn(pData);
 
   if (pSkipList->size == 0) {
     for (int32_t i = 0; i < pSkipList->maxLevel; i++) {
@@ -651,13 +668,15 @@ static int32_t initForwardBackwardPtr(SSkipList *pSkipList) {
 
   // head info
   pSkipList->pHead = tSkipListNewNode(maxLevel);
-  if (pSkipList->pHead == NULL) return -1;
+  if (pSkipList->pHead == NULL) {
+    return terrno;
+  }
 
   // tail info
   pSkipList->pTail = tSkipListNewNode(maxLevel);
   if (pSkipList->pTail == NULL) {
     tSkipListFreeNode(pSkipList->pHead);
-    return -1;
+    return terrno;
   }
 
   for (uint32_t i = 0; i < maxLevel; ++i) {
@@ -672,7 +691,10 @@ static SSkipListNode *tSkipListNewNode(uint8_t level) {
   int32_t tsize = sizeof(SSkipListNode) + sizeof(SSkipListNode *) * level * 2;
 
   SSkipListNode *pNode = (SSkipListNode *)taosMemoryCalloc(1, tsize);
-  if (pNode == NULL) return NULL;
+  if (pNode == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   pNode->level = level;
   return pNode;
@@ -699,6 +721,9 @@ static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipL
     if (pNode != NULL) {
       pNode->pData = pData;
       tSkipListDoInsert(pSkipList, direction, pNode, isForward);
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
     }
   }
 
