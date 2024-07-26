@@ -26,9 +26,10 @@ static int32_t buildParseSqlRes(SRequestObj* pRequest, SParseSqlRes* pRes) {
     case PARSE_SQL_RES_QUERY: {
       SParseQueryRes* pQueryRes = &pRes->queryRes;
       if (NULL != pRequest->pQuery) {
-        pQueryRes->pQuery = nodesCloneNode(pRequest->pQuery->pRoot);
+        pQueryRes->pQuery = NULL;
+        code = nodesCloneNode(pRequest->pQuery->pRoot, &pQueryRes->pQuery);
         if (NULL == pQueryRes->pQuery) {
-           return TSDB_CODE_OUT_OF_MEMORY;
+           return code;
         }
       }
       if (NULL != pRequest->pWrapper) {

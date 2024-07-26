@@ -77,9 +77,9 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
      goto _exit;
    }
 
-   STempTableNode* tempTable = (STempTableNode*)nodesMakeNode(QUERY_NODE_TEMP_TABLE);
+   STempTableNode* tempTable = NULL;
+   code = nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&tempTable);
    if (NULL == tempTable) {
-     code = TSDB_CODE_OUT_OF_MEMORY;
      goto _exit;
    }
    tstrncpy(tempTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(tempTable->table.tableAlias));
