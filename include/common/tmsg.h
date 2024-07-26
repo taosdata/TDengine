@@ -690,7 +690,6 @@ static FORCE_INLINE SColCmprWrapper* tCloneSColCmprWrapper(const SColCmprWrapper
 
   SColCmprWrapper* pDstWrapper = (SColCmprWrapper*)taosMemoryMalloc(sizeof(SColCmprWrapper));
   if (pDstWrapper == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   pDstWrapper->nCols = pSrcWrapper->nCols;
@@ -711,7 +710,7 @@ static FORCE_INLINE int32_t tInitDefaultSColCmprWrapperByCols(SColCmprWrapper* p
   assert(!pCmpr->pColCmpr);
   pCmpr->pColCmpr = (SColCmpr*)taosMemoryCalloc(nCols, sizeof(SColCmpr));
   if (pCmpr->pColCmpr == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pCmpr->nCols = nCols;
   return 0;
@@ -722,7 +721,7 @@ static FORCE_INLINE int32_t tInitDefaultSColCmprWrapper(SColCmprWrapper* pCmpr, 
   assert(!pCmpr->pColCmpr);
   pCmpr->pColCmpr = (SColCmpr*)taosMemoryCalloc(pCmpr->nCols, sizeof(SColCmpr));
   if (pCmpr->pColCmpr == NULL) {
-    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < pCmpr->nCols; i++) {
     SColCmpr* pColCmpr = &pCmpr->pColCmpr[i];
@@ -744,7 +743,6 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
 
   SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
   if (pSW == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   pSW->nCols = pSchemaWrapper->nCols;
@@ -752,7 +750,6 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     taosMemoryFree(pSW);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -839,7 +836,6 @@ static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapp
   if (pSW->nCols > 0) {
     pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
     if (pSW->pSchema == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
 
@@ -2866,13 +2862,13 @@ static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeR
 
   pReq->topicNames = taosArrayInit(topicNum, sizeof(void*));
   if (pReq->topicNames == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < topicNum; i++) {
     char* name = NULL;
     buf = taosDecodeString(buf, &name);
     if (taosArrayPush(pReq->topicNames, &name) == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
   }
 
@@ -2894,13 +2890,11 @@ typedef struct {
 static FORCE_INLINE SMqRebInfo* tNewSMqRebSubscribe(const char* key) {
   SMqRebInfo* pRebInfo = (SMqRebInfo*)taosMemoryCalloc(1, sizeof(SMqRebInfo));
   if (pRebInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   tstrncpy(pRebInfo->key, key, TSDB_SUBSCRIBE_KEY_LEN);
   pRebInfo->removedConsumers = taosArrayInit(0, sizeof(int64_t));
   if (pRebInfo->removedConsumers == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
   pRebInfo->newConsumers = taosArrayInit(0, sizeof(int64_t));
@@ -3465,7 +3459,9 @@ static FORCE_INLINE void* taosDecodeSMqTopicInfoMsg(void* buf, SMqTopicInfo* pTo
   for (int32_t i = 0; i < sz; i++) {
     SMqReportVgInfo vgInfo;
     buf = taosDecodeSMqVgInfo(buf, &vgInfo);
-    taosArrayPush(pTopicInfo->pVgInfo, &vgInfo);
+    if (taosArrayPush(pTopicInfo->pVgInfo, &vgInfo) == NULL) {
+      return NULL;
+    }
   }
   return buf;
 }
@@ -3501,7 +3497,9 @@ static FORCE_INLINE void* taosDecodeSMqReportMsg(void* buf, SMqReportReq* pMsg) 
   for (int32_t i = 0; i < sz; i++) {
     SMqTopicInfo topicInfo;
     buf = taosDecodeSMqTopicInfoMsg(buf, &topicInfo);
-    taosArrayPush(pMsg->pTopics, &topicInfo);
+    if (taosArrayPush(pMsg->pTopics, &topicInfo) == NULL) {
+      return NULL;
+    }
   }
   return buf;
 }
@@ -3841,17 +3839,17 @@ int32_t tEncodeTSma(SEncoder* pCoder, const STSma* pSma);
 int32_t tDecodeTSma(SDecoder* pCoder, STSma* pSma, bool deepCopy);
 
 static int32_t tEncodeTSmaWrapper(SEncoder* pEncoder, const STSmaWrapper* pReq) {
-  if (tEncodeI32(pEncoder, pReq->number) < 0) return -1;
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pReq->number));
   for (int32_t i = 0; i < pReq->number; ++i) {
-    tEncodeTSma(pEncoder, pReq->tSma + i);
+    TAOS_CHECK_RETURN(tEncodeTSma(pEncoder, pReq->tSma + i));
   }
   return 0;
 }
 
 static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq, bool deepCopy) {
-  if (tDecodeI32(pDecoder, &pReq->number) < 0) return -1;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pReq->number));
   for (int32_t i = 0; i < pReq->number; ++i) {
-    tDecodeTSma(pDecoder, pReq->tSma + i, deepCopy);
+    TAOS_CHECK_RETURN(tDecodeTSma(pDecoder, pReq->tSma + i, deepCopy));
   }
   return 0;
 }
@@ -4069,7 +4067,6 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
   buf = taosDecodeFixedI32(buf, &sz);
   pRsp->topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
   if (pRsp->topics == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {

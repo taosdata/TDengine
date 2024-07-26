@@ -574,6 +574,7 @@ _exit:
   } else {
     tlen = encoder.pos;
   }
+  tEncoderClear(&encoder);
   return tlen;
 }
 
@@ -691,6 +692,7 @@ _exit:
   } else {
     tlen = encoder.pos;
   }
+  tEncoderClear(&encoder);
   return tlen;
 }
 
