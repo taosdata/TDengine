@@ -40,7 +40,8 @@ TEST(osTest, osFQDNSuccess) {
   char     fqdn[1024];
   char     ipString[INET_ADDRSTRLEN];
   int      code = taosGetFqdn(fqdn);
-  uint32_t ipv4 = taosGetIpv4FromFqdn(fqdn);
+  uint32_t ipv4 = 0;
+  code = taosGetIpv4FromFqdn(fqdn, &ipv4);
   ASSERT_NE(ipv4, 0xffffffff);
 
   struct in_addr addr;
@@ -54,8 +55,9 @@ TEST(osTest, osFQDNSuccess) {
 TEST(osTest, osFQDNFailed) {
   char     fqdn[1024] = "fqdn_test_not_found";
   char     ipString[24];
-  uint32_t ipv4 = taosGetIpv4FromFqdn(fqdn);
-  ASSERT_EQ(ipv4, 0xffffffff);
+  uint32_t ipv4 = 0;
+  int32_t code = taosGetIpv4FromFqdn(fqdn, &ipv4);
+  ASSERT_NE(code, 0);
 
   terrno = TSDB_CODE_RPC_FQDN_ERROR;
   printf("fqdn:%s transfer to ip failed!\n", fqdn);
