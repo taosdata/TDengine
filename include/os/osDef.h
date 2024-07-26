@@ -65,7 +65,7 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #endif
 #define ssize_t int
 #define _SSIZE_T_
-#define bzero(ptr, size) memset((ptr), 0, (size))
+#define bzero(ptr, size) (void)memset((ptr), 0, (size))
 #define strcasecmp       _stricmp
 #define strncasecmp      _strnicmp
 #define wcsncasecmp      _wcsnicmp

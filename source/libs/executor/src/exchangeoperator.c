@@ -230,30 +230,30 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
   }
 }
 
-static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
+static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
-  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-  }
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   while (1) {
     SSDataBlock* pBlock = doLoadRemoteDataImpl(pOperator);
     if (pBlock == NULL) {
-      return NULL;
+      (*ppRes) = NULL;
+      return code;
     }
 
-    pTaskInfo->code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
-    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pTaskInfo->code));
-      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-    }
+    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (blockDataGetNumOfRows(pBlock) == 0) {
       continue;
     }
@@ -266,15 +266,33 @@ static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
       } else if (status == PROJECT_RETRIEVE_DONE) {
         if (pBlock->info.rows == 0) {
           setOperatorCompleted(pOperator);
-          return NULL;
+          (*ppRes) = NULL;
+          return code;
         } else {
-          return pBlock;
+          (*ppRes) = pBlock;
+          return code;
         }
       }
     } else {
-      return pBlock;
+      (*ppRes) = pBlock;
+      return code;
     }
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  (*ppRes) =  NULL;
+  return code;
+}
+
+static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = loadRemoteDataNext(pOperator, &pRes);
+  return pRes;
 }
 
 static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const char* id) {
@@ -534,7 +552,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
   SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
-  QUERY_CHECK_NULL(pWrapper, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pWrapper, code, lino, _end, terrno);
   pWrapper->exchangeId = pExchangeInfo->self;
   pWrapper->sourceIndex = sourceIndex;
 
@@ -751,12 +769,12 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   if (pRetrieveRsp->compressed) {  // decompress the data
     if (pDataInfo->decompBuf == NULL) {
       pDataInfo->decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
-      QUERY_CHECK_NULL(pDataInfo->decompBuf, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(pDataInfo->decompBuf, code, lino, _end, terrno);
       pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
     } else {
       if (pDataInfo->decompBufSize < pRetrieveRsp->payloadLen) {
         char* p = taosMemoryRealloc(pDataInfo->decompBuf, pRetrieveRsp->payloadLen);
-        QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(p, code, lino, _end, terrno);
         if (p != NULL) {
           pDataInfo->decompBuf = p;
           pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
@@ -774,7 +792,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       blockDataCleanup(pb);
     } else {
       pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
-      QUERY_CHECK_NULL(pb, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(pb, code, lino, _end, terrno);
     }
 
     int32_t compLen = *(int32_t*)pStart;
@@ -798,7 +816,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     }
 
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
 _end:

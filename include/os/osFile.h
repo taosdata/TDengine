@@ -114,8 +114,6 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
 bool taosValidFile(TdFilePtr pFile);
 
-int32_t taosGetErrorFile(TdFilePtr pFile);
-
 int32_t taosCompressFile(char *srcFileName, char *destFileName);
 
 int32_t taosSetFileHandlesLimit();

@@ -154,24 +154,29 @@ void schtBuildQueryDag(SQueryPlan *dag) {
 
   dag->queryId = qId;
   dag->numOfSubplans = 2;
-  dag->pSubplans = nodesMakeList();
+  dag->pSubplans = NULL;
+  int32_t code = nodesMakeList(&dag->pSubplans);
   if (NULL == dag->pSubplans) {
     return;
   }
-  SNodeListNode *scan = (SNodeListNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNodeListNode *scan = NULL;
+  code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&scan);
   if (NULL == scan) {
     return;
   }
-  SNodeListNode *merge = (SNodeListNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNodeListNode *merge = NULL;
+  code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&merge);
   if (NULL == merge) {
     return;
   }
 
-  SSubplan *scanPlan = (SSubplan *)nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+  SSubplan *scanPlan = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&scanPlan);
   if (NULL == scanPlan) {
     return;
   }
-  SSubplan *mergePlan = (SSubplan *)nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+  SSubplan *mergePlan = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&mergePlan);
   if (NULL == mergePlan) {
     return;
   }
@@ -187,11 +192,13 @@ void schtBuildQueryDag(SQueryPlan *dag) {
 
   scanPlan->pChildren = NULL;
   scanPlan->level = 1;
-  scanPlan->pParents = nodesMakeList();
+  scanPlan->pParents = NULL;
+  code = nodesMakeList(&scanPlan->pParents);
   if (NULL == scanPlan->pParents) {
     return;
   }
-  scanPlan->pNode = (SPhysiNode *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+  scanPlan->pNode = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, (SNode**)&scanPlan->pNode);
   if (NULL == scanPlan->pNode) {
     return;
   }
@@ -204,22 +211,26 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   mergePlan->level = 0;
   mergePlan->execNode.epSet.numOfEps = 0;
 
-  mergePlan->pChildren = nodesMakeList();
+  mergePlan->pChildren = NULL;
+  code = nodesMakeList(&mergePlan->pChildren);
   if (NULL == mergePlan->pChildren) {
     return;
   }
   mergePlan->pParents = NULL;
-  mergePlan->pNode = (SPhysiNode *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE);
+  mergePlan->pNode = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE, (SNode**)&mergePlan->pNode);
   if (NULL == mergePlan->pNode) {
     return;
   }
   mergePlan->msgType = TDMT_SCH_QUERY;
 
-  merge->pNodeList = nodesMakeList();
+  merge->pNodeList = NULL;
+  code = nodesMakeList(&merge->pNodeList);
   if (NULL == merge->pNodeList) {
     return;
   }
-  scan->pNodeList = nodesMakeList();
+  scan->pNodeList = NULL;
+  code = nodesMakeList(&scan->pNodeList);
   if (NULL == scan->pNodeList) {
     return;
   }
@@ -240,40 +251,48 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
 
   dag->queryId = qId;
   dag->numOfSubplans = 2;
-  dag->pSubplans = nodesMakeList();
+  dag->pSubplans = NULL;
+  int32_t code = nodesMakeList(&dag->pSubplans);
   if (NULL == dag->pSubplans) {
     return;
   }
-  SNodeListNode *scan = (SNodeListNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNodeListNode *scan = NULL;
+  code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&scan);
   if (NULL == scan) {
     return;
   }
-  SNodeListNode *merge = (SNodeListNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNodeListNode *merge = NULL;
+  code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&merge);
   if (NULL == merge) {
     return;
   }
 
-  SSubplan *mergePlan = (SSubplan *)nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+  SSubplan *mergePlan = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&mergePlan);
   if (NULL == mergePlan) {
     return;
   }
 
-  merge->pNodeList = nodesMakeList();
+  merge->pNodeList = NULL;
+  code = nodesMakeList(&merge->pNodeList);
   if (NULL == merge->pNodeList) {
     return;
   }
-  scan->pNodeList = nodesMakeList();
+  scan->pNodeList = NULL;
+  code = nodesMakeList(&scan->pNodeList);
   if (NULL == scan->pNodeList) {
     return;
   }
 
-  mergePlan->pChildren = nodesMakeList();
+  mergePlan->pChildren = NULL;
+  code = nodesMakeList(&mergePlan->pChildren);
   if (NULL == mergePlan->pChildren) {
     return;
   }
 
   for (int32_t i = 0; i < scanPlanNum; ++i) {
-    SSubplan *scanPlan = (SSubplan *)nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+    SSubplan *scanPlan = NULL;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&scanPlan);
     if (NULL == scanPlan) {
       return;
     }
@@ -292,11 +311,13 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
 
     scanPlan->pChildren = NULL;
     scanPlan->level = 1;
-    scanPlan->pParents = nodesMakeList();
+    scanPlan->pParents = NULL;
+    code = nodesMakeList(&scanPlan->pParents);
     if (NULL == scanPlan->pParents) {
       return;
     }
-    scanPlan->pNode = (SPhysiNode *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+    scanPlan->pNode = NULL;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, (SNode**)&scanPlan->pNode);
     if (NULL == scanPlan->pNode) {
       return;
     }
@@ -316,7 +337,8 @@ void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
   mergePlan->execNode.epSet.numOfEps = 0;
 
   mergePlan->pParents = NULL;
-  mergePlan->pNode = (SPhysiNode *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE);
+  mergePlan->pNode = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE, (SNode**)&mergePlan->pNode);
   if (NULL == mergePlan->pNode) {
     return;
   }
@@ -335,20 +357,24 @@ void schtBuildInsertDag(SQueryPlan *dag) {
 
   dag->queryId = qId;
   dag->numOfSubplans = 2;
-  dag->pSubplans = nodesMakeList();
+  dag->pSubplans = NULL;
+  int32_t code = nodesMakeList(&dag->pSubplans);
   if (NULL == dag->pSubplans) {
     return;
   }
-  SNodeListNode *inserta = (SNodeListNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNodeListNode *inserta = NULL;
+  code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&inserta);
   if (NULL == inserta) {
     return;
   }
-  inserta->pNodeList = nodesMakeList();
+  inserta->pNodeList = NULL;
+  code = nodesMakeList(&inserta->pNodeList);
   if (NULL == inserta->pNodeList) {
     return;
   }
 
-  SSubplan *insertPlan = (SSubplan *)nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+  SSubplan *insertPlan = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&insertPlan);
   if (NULL == insertPlan) {
     return;
   }
@@ -366,7 +392,8 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan->pChildren = NULL;
   insertPlan->pParents = NULL;
   insertPlan->pNode = NULL;
-  insertPlan->pDataSink = (SDataSinkNode *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INSERT);
+  insertPlan->pDataSink = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INSERT, (SNode**)&insertPlan->pDataSink);
   if (NULL == insertPlan->pDataSink) {
     return;
   }
@@ -379,7 +406,8 @@ void schtBuildInsertDag(SQueryPlan *dag) {
 
   (void)nodesListAppend(inserta->pNodeList, (SNode *)insertPlan);
 
-  insertPlan = (SSubplan *)nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+  insertPlan = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&insertPlan);
   if (NULL == insertPlan) {
     return;
   }
@@ -397,7 +425,8 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan->pChildren = NULL;
   insertPlan->pParents = NULL;
   insertPlan->pNode = NULL;
-  insertPlan->pDataSink = (SDataSinkNode *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INSERT);
+  insertPlan->pDataSink = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INSERT, (SNode**)&insertPlan->pDataSink);
   if (NULL == insertPlan->pDataSink) {
     return;
   }
@@ -640,11 +669,12 @@ void *schtRunJobThread(void *aa) {
   char       *dbname = "1.db1";
   char       *tablename = "table1";
   SVgroupInfo vgInfo = {0};
-  SQueryPlan *dag = (SQueryPlan *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
-
+  SQueryPlan *dag = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, (SNode**)&dag);
+  assert(code == 0);
   schtInitLogFile();
 
-  int32_t code = schedulerInit();
+  code = schedulerInit();
   assert(code == 0);
 
   schtSetPlanToString();
@@ -828,7 +858,9 @@ TEST(queryTest, normalCase) {
   char       *tablename = "table1";
   SVgroupInfo vgInfo = {0};
   int64_t     job = 0;
-  SQueryPlan *dag = (SQueryPlan *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
+  SQueryPlan *dag = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, (SNode**)&dag);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
 
@@ -838,7 +870,7 @@ TEST(queryTest, normalCase) {
   load.addr.epSet.eps[0].port = 6031;
   assert(taosArrayPush(qnodeList, &load) != NULL);
 
-  int32_t code = schedulerInit();
+  code = schedulerInit();
   ASSERT_EQ(code, 0);
 
   schtBuildQueryDag(dag);
@@ -942,7 +974,9 @@ TEST(queryTest, readyFirstCase) {
   char       *tablename = "table1";
   SVgroupInfo vgInfo = {0};
   int64_t     job = 0;
-  SQueryPlan *dag = (SQueryPlan *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
+  SQueryPlan *dag = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, (SNode**)&dag);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
 
   SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
 
@@ -952,7 +986,7 @@ TEST(queryTest, readyFirstCase) {
   load.addr.epSet.eps[0].port = 6031;
   assert(NULL != taosArrayPush(qnodeList, &load));
 
-  int32_t code = schedulerInit();
+  code = schedulerInit();
   ASSERT_EQ(code, 0);
 
   schtBuildQueryDag(dag);
@@ -1055,7 +1089,9 @@ TEST(queryTest, flowCtrlCase) {
   char       *tablename = "table1";
   SVgroupInfo vgInfo = {0};
   int64_t     job = 0;
-  SQueryPlan *dag = (SQueryPlan *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
+  SQueryPlan *dag = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, (SNode**)&dag);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
 
   schtInitLogFile();
 
@@ -1069,7 +1105,7 @@ TEST(queryTest, flowCtrlCase) {
   load.addr.epSet.eps[0].port = 6031;
   assert(NULL != taosArrayPush(qnodeList, &load));
 
-  int32_t code = schedulerInit();
+  code = schedulerInit();
   ASSERT_EQ(code, 0);
 
   schtBuildQueryFlowCtrlDag(dag);
@@ -1151,7 +1187,9 @@ TEST(insertTest, normalCase) {
   char       *dbname = "1.db1";
   char       *tablename = "table1";
   SVgroupInfo vgInfo = {0};
-  SQueryPlan *dag = (SQueryPlan *)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
+  SQueryPlan *dag = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, (SNode**)&dag);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
   uint64_t    numOfRows = 0;
 
   SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
@@ -1162,7 +1200,7 @@ TEST(insertTest, normalCase) {
   load.addr.epSet.eps[0].port = 6031;
   assert(NULL != taosArrayPush(qnodeList, &load));
 
-  int32_t code = schedulerInit();
+  code = schedulerInit();
   ASSERT_EQ(code, 0);
 
   schtBuildInsertDag(dag);

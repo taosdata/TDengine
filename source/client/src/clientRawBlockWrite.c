@@ -1214,12 +1214,14 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
   SArray* pBufArray = NULL;
   RAW_RETURN_CHECK(serializeVgroupsCreateTableBatch(pVgroupHashmap, &pBufArray));
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  RAW_NULL_CHECK(pQuery);
+  pQuery = NULL;
+  code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_CREATE_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT);
+  code = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT, &pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_NULL_CHECK(pQuery->pRoot);
 
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
@@ -1343,13 +1345,14 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
   SArray* pBufArray = NULL;
   RAW_RETURN_CHECK(serializeVgroupsDropTableBatch(pVgroupHashmap, &pBufArray));
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  RAW_NULL_CHECK(pQuery);
+  code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_DROP_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT);
-  RAW_NULL_CHECK(pQuery->pRoot);
+  pQuery->pRoot = NULL;
+  code = nodesMakeNode(QUERY_NODE_DROP_TABLE_STMT, &pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
   (void)launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1486,13 +1489,15 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   pVgData->numOfTables = 1;
   RAW_NULL_CHECK(taosArrayPush(pArray, &pVgData));
 
-  pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-  RAW_NULL_CHECK(pQuery);
+  pQuery = NULL;
+  code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)&pQuery);
+  if (NULL == pQuery) goto end;
   pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
   pQuery->msgType = TDMT_VND_ALTER_TABLE;
   pQuery->stableQuery = false;
-  pQuery->pRoot = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
-  RAW_NULL_CHECK(pQuery->pRoot);
+  pQuery->pRoot = NULL;
+  code = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, &pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS != code) goto end;
   RAW_RETURN_CHECK(rewriteToVnodeModifyOpStmt(pQuery, pArray));
 
 
@@ -1537,8 +1542,8 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
   SQuery*     pQuery = NULL;
   SHashObj*   pVgHash = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
-  RAW_NULL_CHECK(pRequest);
+  SRequestObj* pRequest = NULL;
+  RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw block with field, rows:%d, pData:%p, tbname:%s, fields:%p, numFields:%d", LOG_ID_VALUE,
          rows, pData, tbname, fields, numFields);
@@ -1597,8 +1602,8 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
   SQuery*     pQuery = NULL;
   SHashObj*   pVgHash = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
-  RAW_NULL_CHECK(pRequest);
+  SRequestObj* pRequest = NULL;
+  RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw block, rows:%d, pData:%p, tbname:%s", LOG_ID_VALUE, rows, pData, tbname);
 
@@ -1667,8 +1672,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   SDecoder    decoder = {0};
   STableMeta* pTableMeta = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
-  RAW_NULL_CHECK(pRequest);
+  SRequestObj* pRequest = NULL;
+  RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw data, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   pRequest->syncQuery = true;
@@ -1778,8 +1783,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   STableMeta*    pTableMeta = NULL;
   SVCreateTbReq* pCreateReqDst = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
-  RAW_NULL_CHECK(pRequest);
+  SRequestObj* pRequest = NULL;
+  RAW_RETURN_CHECK(createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0, &pRequest));
 
   uDebug(LOG_ID_TAG " write raw metadata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
   pRequest->syncQuery = true;
