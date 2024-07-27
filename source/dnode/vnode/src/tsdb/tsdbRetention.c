@@ -209,15 +209,15 @@ static int32_t tsdbDoRetentionEnd(SRTNer *rtner) {
   if (TARRAY2_SIZE(&rtner->fopArr) > 0) {
     TAOS_CHECK_GOTO(tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, TSDB_FEDIT_RETENTION), &lino, _exit);
 
-    taosThreadMutexLock(&rtner->tsdb->mutex);
+    (void)taosThreadMutexLock(&rtner->tsdb->mutex);
 
     code = tsdbFSEditCommit(rtner->tsdb->pFS);
     if (code) {
-      taosThreadMutexUnlock(&rtner->tsdb->mutex);
+      (void)taosThreadMutexUnlock(&rtner->tsdb->mutex);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    taosThreadMutexUnlock(&rtner->tsdb->mutex);
+    (void)taosThreadMutexUnlock(&rtner->tsdb->mutex);
 
     TARRAY2_DESTROY(&rtner->fopArr, NULL);
   }
@@ -315,13 +315,13 @@ static int32_t tsdbRetention(void *arg) {
   };
 
   // begin task
-  taosThreadMutexLock(&pTsdb->mutex);
+  (void)taosThreadMutexLock(&pTsdb->mutex);
   tsdbBeginTaskOnFileSet(pTsdb, rtnArg->fid, &fset);
   if (fset && (code = tsdbTFileSetInitCopy(pTsdb, fset, &rtner.fset))) {
-    taosThreadMutexUnlock(&pTsdb->mutex);
+    (void)taosThreadMutexUnlock(&pTsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  taosThreadMutexUnlock(&pTsdb->mutex);
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
 
   // do retention
   if (rtner.fset) {
@@ -336,9 +336,9 @@ static int32_t tsdbRetention(void *arg) {
 
 _exit:
   if (rtner.fset) {
-    taosThreadMutexLock(&pTsdb->mutex);
+    (void)taosThreadMutexLock(&pTsdb->mutex);
     tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid);
-    taosThreadMutexUnlock(&pTsdb->mutex);
+    (void)taosThreadMutexUnlock(&pTsdb->mutex);
   }
 
   // clear resources
@@ -387,9 +387,9 @@ _exit:
 
 int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
   int32_t code = 0;
-  taosThreadMutexLock(&tsdb->mutex);
+  (void)taosThreadMutexLock(&tsdb->mutex);
   code = tsdbAsyncRetentionImpl(tsdb, now, false);
-  taosThreadMutexUnlock(&tsdb->mutex);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
 
@@ -735,9 +735,9 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
     return 0;
   }
 
-  taosThreadMutexLock(&tsdb->mutex);
+  (void)taosThreadMutexLock(&tsdb->mutex);
   code = tsdbAsyncRetentionImpl(tsdb, now, true);
-  taosThreadMutexUnlock(&tsdb->mutex);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   if (code) {
     tsdbError("vgId:%d, %s failed, reason:%s", TD_VID(tsdb->pVnode), __func__, tstrerror(code));

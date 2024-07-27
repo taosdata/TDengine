@@ -1125,17 +1125,17 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
     code = tsdbFSEditAbort(writer[0]->tsdb->pFS);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    taosThreadMutexLock(&writer[0]->tsdb->mutex);
+    (void)taosThreadMutexLock(&writer[0]->tsdb->mutex);
 
     code = tsdbFSEditCommit(writer[0]->tsdb->pFS);
     if (code) {
-      taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
+      (void)taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     writer[0]->tsdb->pFS->fsstate = TSDB_FS_STATE_NORMAL;
 
-    taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
+    (void)taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
   }
 
   tsdbIterMergerClose(&writer[0]->ctx->tombIterMerger);

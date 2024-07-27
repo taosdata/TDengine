@@ -351,7 +351,7 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
   }
 
   int32_t code = 0;
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   STFileSet* fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     STsdbFSetPartition* pItem = NULL;
@@ -364,7 +364,7 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
     code = TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
     ASSERT(code == 0);
   }
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
     TARRAY2_DESTROY(pList, tsdbFSetPartitionClear);
