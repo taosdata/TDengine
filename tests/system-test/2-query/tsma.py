@@ -603,7 +603,7 @@ class TSMATestSQLGenerator:
 
 
 class TDTestCase:
-    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 3}
+    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 3, 'debugFlag': 143}
 
     def __init__(self):
         self.vgroups = 4
@@ -615,6 +615,7 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
+        tdSql.execute('alter local "debugFlag" "143"')
         self.tsma_tester: TSMATester = TSMATester(tdSql)
         self.tsma_sql_generator: TSMATestSQLGenerator = TSMATestSQLGenerator()
 
