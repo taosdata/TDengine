@@ -245,12 +245,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
       TSDB_CODE_MND_DB_IN_DROPPING == code) {
     SUseDbRsp usedbRsp = {0};
-    code = tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
-    if(code != 0){
-      tscError("0x%" PRIx64 " failed to deserialize SUseDbRsp", pRequest->requestId);
-      tFreeSUsedbRsp(&usedbRsp);
-      return TAOS_GET_TERRNO(code);
-    }
+    (void)tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
     struct SCatalog* pCatalog = NULL;
 
     if (usedbRsp.vgVersion >= 0) {  // cached in local
@@ -260,13 +255,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
         tscWarn("0x%" PRIx64 "catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->requestId, clusterId,
                 tstrerror(code1));
       } else {
-        code = catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
-        if (code != TSDB_CODE_SUCCESS) {
-          tscError("0x%" PRIx64 "catalogRemoveDB failed, db:%s, uid:%" PRId64 ", error:%s", pRequest->requestId,
-                   usedbRsp.db, usedbRsp.uid, tstrerror(code));
-          tFreeSUsedbRsp(&usedbRsp);
-          return TAOS_GET_TERRNO(code);
-        }
+        (void)catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
       }
     }
     tFreeSUsedbRsp(&usedbRsp);
@@ -288,12 +277,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   SUseDbRsp usedbRsp = {0};
-  code = tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
-  if (code != 0){
-    tscError("0x%" PRIx64 " failed to deserialize SUseDbRsp", pRequest->requestId);
-    tFreeSUsedbRsp(&usedbRsp);
-    return TAOS_GET_TERRNO(code);
-  }
+  (void)tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
 
   if (strlen(usedbRsp.db) == 0) {
     if (usedbRsp.errCode != 0) {
@@ -335,10 +319,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
               tstrerror(code1));
     } else {
-      code = catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
-      if(code != 0){
-        tscError("0x%" PRIx64 " failed to update db vgroup info since %s", pRequest->requestId, tstrerror(code));
-      }
+      (void)catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
       output.dbVgroup = NULL;
     }
   }
