@@ -334,7 +334,8 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           int32_t     srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
           SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, srcSlot);
           if (pkey->isNull == false) {
-            colDataSetVal(pDst, rows, pkey->pData, false);
+            code = colDataSetVal(pDst, rows, pkey->pData, false);
+            QUERY_CHECK_CODE(code, lino, _end);
           } else {
             colDataSetNULL(pDst, rows);
           }
