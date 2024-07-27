@@ -258,7 +258,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
         (void)catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
       }
     }
-
+    tFreeSUsedbRsp(&usedbRsp);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
