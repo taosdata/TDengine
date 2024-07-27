@@ -1327,8 +1327,10 @@ _end:
   return NULL;
 }
 
-SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode,
-                                            SExecTaskInfo* pTaskInfo) {
+int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode,
+                                            SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamFillOperatorInfo));
@@ -1424,7 +1426,9 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
 
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1433,5 +1437,5 @@ _error:
   destroyStreamFillOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }

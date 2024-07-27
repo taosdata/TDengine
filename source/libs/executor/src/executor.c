@@ -292,13 +292,11 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
 
     int32_t code = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE, &pReaderHandle->api, &pTaskInfo);
     if (NULL == pTaskInfo || code != 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
 
-    pTaskInfo->pRoot = createRawScanOperatorInfo(pReaderHandle, pTaskInfo);
-    if (NULL == pTaskInfo->pRoot) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    createRawScanOperatorInfo(pReaderHandle, pTaskInfo, &pTaskInfo->pRoot);
+    if (NULL == pTaskInfo->pRoot || code != 0) {
       taosMemoryFree(pTaskInfo);
       return NULL;
     }
@@ -458,7 +456,12 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   }
 
   // traverse to the stream scanner node to add this table id
-  SOperatorInfo*   pInfo = extractOperatorInTree(pTaskInfo->pRoot, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id);
+  SOperatorInfo* pInfo = NULL;
+  code = extractOperatorInTree(pTaskInfo->pRoot, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pInfo);
+  if (code != 0 || pInfo == NULL) {
+    return code;
+  }
+
   SStreamScanInfo* pScanInfo = pInfo->info;
 
   if (isAdd) {  // add new table id
@@ -670,12 +673,11 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
   int32_t      current = 0;
   SSDataBlock* pRes = NULL;
-
-  int64_t st = taosGetTimestampUs();
+  int64_t      st = taosGetTimestampUs();
 
   if (pTaskInfo->pOpParam && !pTaskInfo->paramSet) {
     pTaskInfo->paramSet = true;
-    pRes = pTaskInfo->pRoot->fpSet.getNextExtFn(pTaskInfo->pRoot, pTaskInfo->pOpParam);
+    code = pTaskInfo->pRoot->fpSet.getNextExtFn(pTaskInfo->pRoot, pTaskInfo->pOpParam, &pRes);
   } else {
     pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   }
@@ -688,6 +690,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   if (!pTaskInfo->pSubplan->dynamicRowThreshold || 4096 <= pTaskInfo->pSubplan->rowsThreshold) {
     rowsThreshold = 4096;
   }
+
   int32_t blockIndex = 0;
   while (pRes != NULL) {
     SSDataBlock* p = NULL;
@@ -1209,10 +1212,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   const char*    id = GET_TASKID(pTaskInfo);
 
   if (subType == TOPIC_SUB_TYPE__COLUMN && pOffset->type == TMQ_OFFSET__LOG) {
-    pOperator = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id);
-    if (pOperator == NULL) {
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    code = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pOperator);
+    if (pOperator == NULL || code != 0) {
+      return code;
     }
+
     SStreamScanInfo* pInfo = pOperator->info;
     SStoreTqReader*  pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
     SWalReader*      pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
@@ -1224,9 +1228,9 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
-    pOperator = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id);
-    if (pOperator == NULL) {
-      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pOperator);
+    if (pOperator == NULL || code != 0) {
+      return code;
     }
 
     SStreamScanInfo* pInfo = pOperator->info;
@@ -1338,8 +1342,13 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       SStreamRawScanInfo* pInfo = pOperator->info;
       SSnapContext*       sContext = pInfo->sContext;
+      SOperatorInfo*  p = NULL;
 
-      SOperatorInfo*  p = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, id);
+      code = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, id, &p);
+      if (code != 0) {
+        return code;
+      }
+
       STableListInfo* pTableListInfo = ((SStreamRawScanInfo*)(p->info))->pTableListInfo;
 
       if (pAPI->snapshotFn.setForSnapShot(sContext, pOffset->uid) != 0) {
