@@ -160,10 +160,18 @@ int verdataCompare(const void *a, const void *b) {
 
 SIdxTRslt *idxTRsltCreate() {
   SIdxTRslt *tr = taosMemoryCalloc(1, sizeof(SIdxTRslt));
+  if (tr == NULL) {
+    return NULL;
+  }
 
   tr->total = taosArrayInit(4, sizeof(uint64_t));
   tr->add = taosArrayInit(4, sizeof(uint64_t));
   tr->del = taosArrayInit(4, sizeof(uint64_t));
+
+  if (tr->total == NULL || tr->add == NULL || tr->del == NULL) {
+    idxTRsltClear(tr);
+    tr = NULL;
+  }
   return tr;
 }
 void idxTRsltClear(SIdxTRslt *tr) {

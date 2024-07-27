@@ -78,11 +78,11 @@ typedef struct IdxFstFile {
   CheckSummer summer;
 } IdxFstFile;
 
-int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len);
+int32_t idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len);
 
-int idxFileRead(IdxFstFile* write, uint8_t* buf, uint32_t len);
+int32_t idxFileRead(IdxFstFile* write, uint8_t* buf, uint32_t len);
 
-int idxFileFlush(IdxFstFile* write);
+int32_t idxFileFlush(IdxFstFile* write);
 
 uint32_t idxFileMaskedCheckSum(IdxFstFile* write);
 

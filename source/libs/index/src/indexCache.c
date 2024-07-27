@@ -129,6 +129,10 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
   _cache_range_compare cmpFn = idxGetCompare(type);
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  if (pCt == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pCt->colVal = term->colVal;
   pCt->colType = term->colType;
   pCt->version = atomic_load_64(&pCache->version);
@@ -182,6 +186,10 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
   IndexCache* pCache = mem->pCache;
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  if (pCt == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pCt->colVal = term->colVal;
   pCt->version = atomic_load_64(&pCache->version);
 
@@ -340,7 +348,8 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
 
   cache->mem = idxInternalCacheCreate(type);
   cache->mem->pCache = cache;
-  cache->colName = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? taosStrdup(JSON_COLUMN) : taosStrdup(colName);
+  cache->colName =
+      IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? taosStrdup(JSON_COLUMN) : taosStrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
