@@ -305,14 +305,16 @@ static int32_t jtMergeEqCond(SNode** ppDst, SNode** ppSrc) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SLogicConditionNode* pLogicCond = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCond);
   if (NULL == pLogicCond) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
   pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   pLogicCond->condType = LOGIC_COND_TYPE_AND;
-  pLogicCond->pParameterList = nodesMakeList();
+  pLogicCond->pParameterList = NULL;
+  code = nodesMakeList(&pLogicCond->pParameterList);
   assert(0 == nodesListStrictAppend(pLogicCond->pParameterList, *ppSrc));
   assert(0 == nodesListStrictAppend(pLogicCond->pParameterList, *ppDst));
 
@@ -387,8 +389,10 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
         jtCtx.keyColOffset = dstOffset;
       }
 
-      STargetNode* pTarget = (STargetNode*)nodesMakeNode(QUERY_NODE_TARGET);
-      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      STargetNode* pTarget = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget);
+      SColumnNode* pCol = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
       assert(NULL != pTarget && NULL != pCol);
       pCol->dataBlockId = LEFT_BLK_ID;
       pCol->slotId = i;
@@ -412,8 +416,10 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
         jtCtx.keyColOffset = dstOffset;
       }
 
-      STargetNode* pTarget = (STargetNode*)nodesMakeNode(QUERY_NODE_TARGET);
-      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      STargetNode* pTarget = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget);
+      SColumnNode* pCol = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
       assert(NULL != pTarget && NULL != pCol);
       pCol->dataBlockId = RIGHT_BLK_ID;
       pCol->slotId = i;
@@ -454,9 +460,9 @@ void createColEqCondStart(SSortMergeJoinPhysiNode* p) {
 
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     if (jtCtx.colEqList[i]) {
-      SColumnNode* pCol1 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol1 = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol1);
       assert(pCol1);
-
       pCol1->dataBlockId = LEFT_BLK_ID;
       pCol1->slotId = i;
       pCol1->node.resType.type = jtInputColType[i];
@@ -464,7 +470,8 @@ void createColEqCondStart(SSortMergeJoinPhysiNode* p) {
       
       assert(0 == nodesListMakeStrictAppend(&p->pEqLeft, (SNode*)pCol1));
 
-      SColumnNode* pCol2 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol2 = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol2);
       pCol2->dataBlockId = RIGHT_BLK_ID;
       pCol2->slotId = i;
       pCol2->node.resType.type = jtInputColType[i];
@@ -511,7 +518,7 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
 
   SLogicConditionNode* pLogic = NULL;
   if (jtCtx.colEqNum > 1) {
-    pLogic = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic);
     assert(pLogic);
     pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
@@ -520,21 +527,24 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
   
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     if (jtCtx.colEqList[i]) {
-      SColumnNode* pCol1 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol1 = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol1);
       assert(pCol1);
       pCol1->dataBlockId = RES_BLK_ID;
       pCol1->slotId = getDstSlotId(i);
       pCol1->node.resType.type = jtInputColType[i];
       pCol1->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       
-      SColumnNode* pCol2 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol2 = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol2);
       assert(pCol2);
       pCol2->dataBlockId = RES_BLK_ID;
       pCol2->slotId = getDstSlotId(MAX_SLOT_NUM + i);
       pCol2->node.resType.type = jtInputColType[i];
       pCol2->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
 
-      SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+      SOperatorNode* pOp = NULL;
+      code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
       assert(pOp);
       pOp->opType = OP_TYPE_EQUAL;
       pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -563,7 +573,7 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
 
   SLogicConditionNode* pLogic = NULL;
   if (jtCtx.colOnNum > 1) {
-    pLogic = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic);
     assert(pLogic);
     pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
@@ -572,21 +582,24 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
   
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     if (jtCtx.colOnList[i]) {
-      SColumnNode* pCol1 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol1 = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol1);
       assert(pCol1);
       pCol1->dataBlockId = RES_BLK_ID;
       pCol1->slotId = getDstSlotId(i);
       pCol1->node.resType.type = jtInputColType[i];
       pCol1->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       
-      SColumnNode* pCol2 = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol2 = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol2);
       assert(pCol2);
       pCol2->dataBlockId = RES_BLK_ID;
       pCol2->slotId = getDstSlotId(MAX_SLOT_NUM + i);
       pCol2->node.resType.type = jtInputColType[i];
       pCol2->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       
-      SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+      SOperatorNode* pOp = NULL;
+      code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
       assert(pOp);
       pOp->opType = OP_TYPE_GREATER_THAN;
       pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -607,7 +620,8 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
     p->pColOnCond = (SNode*)pLogic;
   }  
 
-  SNode* pTmp = nodesCloneNode(p->pColOnCond);
+  SNode* pTmp = NULL;
+  int32_t code = nodesCloneNode(p->pColOnCond, &pTmp);
   assert(pTmp);
   assert(0 == jtMergeEqCond(&p->pFullOnCond, &pTmp));
 }
@@ -721,7 +735,7 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
   
   SLogicConditionNode* pLogic = NULL;
   if ((jtCtx.leftFilterNum + jtCtx.rightFilterNum) > 1) {
-    pLogic = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic);
     assert(pLogic);
     pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
@@ -730,7 +744,8 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
   
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     if (jtCtx.leftFilterColList[i]) {
-      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_COLUMN,(SNode**)&pCol);
       assert(pCol);
       pCol->dataBlockId = RES_BLK_ID;
       pCol->slotId = getDstSlotId(i);
@@ -738,13 +753,15 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
       pCol->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       (void)sprintf(pCol->colName, "l%d", i);
 
-      SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+      SValueNode* pVal = NULL;
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
       assert(pVal);
       pVal->node.resType.type = jtInputColType[i];
       pVal->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       assert(0 == nodesSetValueNodeValue(pVal, getFilterValue(jtInputColType[i])));
 
-      SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+      SOperatorNode* pOp = NULL;
+      code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
       assert(pOp);
       pOp->opType = OP_TYPE_GREATER_THAN;
       pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -763,7 +780,8 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
 
   for (int32_t i = 0; i < MAX_SLOT_NUM; ++i) {
     if (jtCtx.rightFilterColList[i]) {
-      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol = NULL;
+      int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
       assert(pCol);
       pCol->dataBlockId = RES_BLK_ID;
       pCol->slotId = getDstSlotId(MAX_SLOT_NUM + i);
@@ -771,13 +789,15 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
       pCol->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       (void)sprintf(pCol->colName, "r%d", i);
 
-      SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+      SValueNode* pVal = NULL;
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
       assert(pVal);
       pVal->node.resType.type = jtInputColType[i];
       pVal->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       assert(0 == nodesSetValueNodeValue(pVal, getFilterValue(jtInputColType[i])));
 
-      SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+      SOperatorNode* pOp = NULL;
+      code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
       assert(pOp);
       pOp->opType = OP_TYPE_GREATER_THAN;
       pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -810,13 +830,15 @@ void updateColRowInfo() {
 }
 
 void createBlockDescNode(SDataBlockDescNode** ppNode) {
-  SDataBlockDescNode* pDesc = (SDataBlockDescNode*)nodesMakeNode(QUERY_NODE_DATABLOCK_DESC);
+  SDataBlockDescNode* pDesc = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc);
   assert(pDesc);
   pDesc->dataBlockId = RES_BLK_ID;
   pDesc->totalRowSize = jtCtx.resColSize - MAX_SLOT_NUM * 2 * sizeof(bool);
   pDesc->outputRowSize = pDesc->totalRowSize;
   for (int32_t i = 0; i < jtCtx.resColNum; ++i) {
-    SSlotDescNode* pSlot = (SSlotDescNode*)nodesMakeNode(QUERY_NODE_SLOT_DESC);
+    SSlotDescNode* pSlot = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot);
     assert(pSlot);
     pSlot->slotId = i;
     int32_t slotIdx = jtCtx.resColInSlot[i] >= MAX_SLOT_NUM ? jtCtx.resColInSlot[i] - MAX_SLOT_NUM : jtCtx.resColInSlot[i];
@@ -830,14 +852,16 @@ void createBlockDescNode(SDataBlockDescNode** ppNode) {
 }
 
 SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param) {
-  SSortMergeJoinPhysiNode* p = (SSortMergeJoinPhysiNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN);
+  SSortMergeJoinPhysiNode* p = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, (SNode**)&p);
   assert(p);
   p->joinType = param->joinType;
   p->subType = param->subType;
   p->asofOpType = param->asofOp;
   p->grpJoin = param->grpJoin;
   if (p->subType == JOIN_STYPE_WIN || param->jLimit > 1 || taosRand() % 2) {
-    SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
+    SLimitNode* limitNode = NULL;
+    code = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limitNode);
     assert(limitNode);
     limitNode->limit = param->jLimit;
     p->pJLimit = (SNode*)limitNode;
@@ -847,11 +871,14 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
   p->rightPrimSlotId = JT_PRIM_TS_SLOT_ID;
   p->node.inputTsOrder = param->asc ? ORDER_ASC : ORDER_DESC;
   if (JOIN_STYPE_WIN == p->subType) {
-    SWindowOffsetNode* pOffset = (SWindowOffsetNode*)nodesMakeNode(QUERY_NODE_WINDOW_OFFSET);
+    SWindowOffsetNode* pOffset = NULL;
+    code = nodesMakeNode(QUERY_NODE_WINDOW_OFFSET, (SNode**)&pOffset);
     assert(pOffset);
-    SValueNode* pStart = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* pStart = NULL;
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pStart);
     assert(pStart);
-    SValueNode* pEnd = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    SValueNode* pEnd = NULL;
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pEnd);
     assert(pEnd);
     pStart->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     pStart->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
@@ -2826,7 +2853,7 @@ void resetForJoinRerun(int32_t dsNum, SSortMergeJoinPhysiNode* pNode, SExecTaskI
   SOperatorInfo* pDownstreams[2];
   createDummyDownstreamOperators(2, pDownstreams);  
   SOperatorInfo* ppDownstreams[] = {pDownstreams[0], pDownstreams[1]};
-  jtCtx.pJoinOp = createMergeJoinOperatorInfo(ppDownstreams, 2, pNode, pTask);
+  int32_t code = createMergeJoinOperatorInfo(ppDownstreams, 2, pNode, pTask, &jtCtx.pJoinOp);
   ASSERT_TRUE(NULL != jtCtx.pJoinOp);
 }
 

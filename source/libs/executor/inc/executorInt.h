@@ -24,7 +24,6 @@ extern "C" {
 #include "theap.h"
 #include "tlosertree.h"
 #include "tsort.h"
-#include "ttszip.h"
 #include "tvariant.h"
 
 #include "dataSinkMgt.h"
@@ -365,6 +364,7 @@ typedef struct STagScanFilterContext {
   SHashObj* colHash;
   int32_t   index;
   SArray*   cInfoList;
+  int32_t   code;
 } STagScanFilterContext;
 
 typedef struct STagScanInfo {
@@ -861,7 +861,7 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 
-void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
+int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId,
                          const char* name);
 int32_t setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int32_t vgId);
@@ -903,8 +903,8 @@ int32_t appendDataToSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pE
 
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
-int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
-                           SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
+void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
+                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 bool    groupbyTbname(SNodeList* pGroupList);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
@@ -922,7 +922,6 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
 void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
-uint64_t calcGroupId(char* pData, int32_t len);
 void     streamOpReleaseState(struct SOperatorInfo* pOperator);
 void     streamOpReloadState(struct SOperatorInfo* pOperator);
 void     destroyStreamAggSupporter(SStreamAggSupporter* pSup);
@@ -979,13 +978,14 @@ void*   decodeSResultWindowInfo(void* buf, SResultWindowInfo* key, int32_t outLe
 int32_t encodeSTimeWindowAggSupp(void** buf, STimeWindowAggSupp* pTwAggSup);
 void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 
-void         destroyOperatorParamValue(void* pValues);
-int32_t      mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
-int32_t      buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
-void         freeExchangeGetBasicOperatorParam(void* pParam);
-void         freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
-void         freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
-SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam);
+void    destroyOperatorParamValue(void* pValues);
+int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
+int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
+void    freeExchangeGetBasicOperatorParam(void* pParam);
+void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
+void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
+int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
+                                       SSDataBlock** pResBlock);
 void getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, EStreamType mode, SSessionKey* pDelRange);
 void doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
 

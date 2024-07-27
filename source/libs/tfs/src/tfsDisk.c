@@ -16,25 +16,34 @@
 #define _DEFAULT_SOURCE
 #include "tfsInt.h"
 
-STfsDisk *tfsNewDisk(int32_t level, int32_t id, int8_t disable, const char *path) {
-  STfsDisk *pDisk = taosMemoryCalloc(1, sizeof(STfsDisk));
-  if (pDisk == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+int32_t tfsNewDisk(int32_t level, int32_t id, int8_t disable, const char *path, STfsDisk **ppDisk) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  STfsDisk *pDisk = NULL;
+
+  if ((pDisk = taosMemoryCalloc(1, sizeof(STfsDisk))) == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
   }
 
-  pDisk->path = taosStrdup(path);
-  if (pDisk->path == NULL) {
-    taosMemoryFree(pDisk);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+  if ((pDisk->path = taosStrdup(path)) == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
   }
 
   pDisk->level = level;
   pDisk->id = id;
   pDisk->disable = disable;
-  taosGetDiskSize(pDisk->path, &pDisk->size);
-  return pDisk;
+  if (taosGetDiskSize(pDisk->path, &pDisk->size) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);  // TODO: refactor this line
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+_exit:
+  if (code != 0) {
+    pDisk = tfsFreeDisk(pDisk);
+    fError("%s failed at line %d since %s, disk:%s level:%d id:%d ", __func__, lino, tstrerror(code), path, level, id);
+  }
+  *ppDisk = pDisk;
+
+  TAOS_RETURN(code);
 }
 
 STfsDisk *tfsFreeDisk(STfsDisk *pDisk) {
@@ -48,9 +57,10 @@ STfsDisk *tfsFreeDisk(STfsDisk *pDisk) {
 
 int32_t tfsUpdateDiskSize(STfsDisk *pDisk) {
   if (taosGetDiskSize(pDisk->path, &pDisk->size) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    fError("failed to get disk:%s size, level:%d id:%d since %s", pDisk->path, pDisk->level, pDisk->id, terrstr());
-    return -1;
+    int32_t code = TAOS_SYSTEM_ERROR(errno);  // TODO: refactor this line
+    fError("failed to get disk:%s size, level:%d id:%d since %s", pDisk->path, pDisk->level, pDisk->id,
+           tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   return 0;

@@ -99,9 +99,14 @@ void syncEntryDestroy(SSyncRaftEntry* pEntry) {
   }
 }
 
-void syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
+int32_t syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
   pRpcMsg->msgType = pEntry->originalRpcType;
   pRpcMsg->contLen = (int32_t)(pEntry->dataLen);
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  if (pRpcMsg->pCont == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
+
+  return 0;
 }

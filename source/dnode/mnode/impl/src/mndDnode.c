@@ -152,10 +152,11 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   dnodeObj.port = tsServerPort;
   tstrncpy(dnodeObj.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   dnodeObj.fqdn[TSDB_FQDN_LEN - 1] = 0;
-  snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", tsLocalFqdn, tsServerPort);
-  char *machineId = tGetMachineId();
+  (void)snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", tsLocalFqdn, tsServerPort);
+  char *machineId = NULL;
+  code = tGetMachineId(&machineId);
   if (machineId) {
-    memcpy(dnodeObj.machineId, machineId, TSDB_MACHINE_ID_LEN);
+    (void)memcpy(dnodeObj.machineId, machineId, TSDB_MACHINE_ID_LEN);
     taosMemoryFreeClear(machineId);
   } else {
 #if defined(TD_ENTERPRISE) && !defined(GRANTS_CFG)
@@ -184,7 +185,8 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
+                             1);  // TODO: check the return value
 
 _OVER:
   mndTransDrop(pTrans);
@@ -193,6 +195,8 @@ _OVER:
 }
 
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_DNODE, TSDB_DNODE_VER_NUMBER, sizeof(SDnodeObj) + TSDB_DNODE_RESERVE_SIZE);
@@ -224,6 +228,8 @@ _OVER:
 }
 
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow   *pRow = NULL;
   SDnodeObj *pDnode = NULL;
@@ -278,7 +284,7 @@ static int32_t mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode) {
   pDnode->offlineReason = DND_REASON_STATUS_NOT_RECEIVED;
 
   char ep[TSDB_EP_LEN] = {0};
-  snprintf(ep, TSDB_EP_LEN - 1, "%s:%u", pDnode->fqdn, pDnode->port);
+  (void)snprintf(ep, TSDB_EP_LEN - 1, "%s:%u", pDnode->fqdn, pDnode->port);
   tstrncpy(pDnode->ep, ep, TSDB_EP_LEN);
   return 0;
 }
@@ -323,7 +329,7 @@ void mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode) {
 
 SEpSet mndGetDnodeEpset(SDnodeObj *pDnode) {
   SEpSet epSet = {0};
-  addEpIntoEpSet(&epSet, pDnode->fqdn, pDnode->port);
+  terrno = addEpIntoEpSet(&epSet, pDnode->fqdn, pDnode->port);
   return epSet;
 }
 
@@ -422,12 +428,13 @@ static void mndGetDnodeEps(SMnode *pMnode, SArray *pDnodeEps) {
     if (mndIsMnode(pMnode, pDnode->id)) {
       dnodeEp.isMnode = 1;
     }
-    taosArrayPush(pDnodeEps, &dnodeEp);
+    (void)taosArrayPush(pDnodeEps, &dnodeEp);
   }
 }
 
-void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
-  SSdb *pSdb = pMnode->pSdb;
+int32_t mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t code = 0;
 
   int32_t numOfEps = 0;
   void   *pIter = NULL;
@@ -449,8 +456,13 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
       dInfo.isMnode = 0;
     }
 
-    taosArrayPush(pDnodeInfo, &dInfo);
+    if(taosArrayPush(pDnodeInfo, &dInfo) == NULL){
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
   }
+  TAOS_RETURN(code);
 }
 
 #define CHECK_MONITOR_PARA(para,err) \
@@ -736,7 +748,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (statusReq.mload.roleTimeMs == 0) {
       statusReq.mload.roleTimeMs = statusReq.rebootTime;
     }
-    mndUpdateMnodeState(pObj, &statusReq.mload);
+    (void)mndUpdateMnodeState(pObj, &statusReq.mload);
     mndReleaseMnode(pMnode, pObj);
   }
 
@@ -796,7 +808,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->encryptionKeyChksum = statusReq.clusterCfg.encryptionKeyChksum;
     if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
       tstrncpy(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN + 1);
-      mndUpdateDnodeObj(pMnode, pDnode);
+      if ((terrno = mndUpdateDnodeObj(pMnode, pDnode)) != 0) {
+        goto _OVER;
+      }
     }
 
     SStatusRsp statusRsp = {0};
@@ -815,7 +829,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
-    tSerializeSStatusRsp(pHead, contLen, &statusRsp);
+    (void)tSerializeSStatusRsp(pHead, contLen, &statusRsp);
     taosArrayDestroy(statusRsp.pDnodeEps);
 
     pReq->info.rspLen = contLen;
@@ -829,7 +843,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
-  mndUpdClusterInfo(pReq);
+  (void)mndUpdClusterInfo(pReq);
   return code;
 }
 
@@ -861,7 +875,7 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
       mndReleaseVgroup(pMnode, pVgroup);
     }
   }
-  mndUpdClusterInfo(pReq);
+  code = mndUpdClusterInfo(pReq);
 _OVER:
   tFreeSNotifyReq(&notifyReq);
   return code;
@@ -878,7 +892,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   dnodeObj.updateTime = dnodeObj.createdTime;
   dnodeObj.port = pCreate->port;
   tstrncpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
-  snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", pCreate->fqdn, pCreate->port);
+  (void)snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", pCreate->fqdn, pCreate->port);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq, "create-dnode");
   if (pTrans == NULL) {
@@ -902,7 +916,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1); // TODO: check the return value
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
@@ -945,7 +959,7 @@ static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  tSerializeSDnodeListRsp(pRsp, rspLen, &rsp);
+  (void)tSerializeSDnodeListRsp(pRsp, rspLen, &rsp);
 
   pReq->info.rspLen = rspLen;
   pReq->info.rsp = pRsp;
@@ -964,26 +978,26 @@ _OVER:
 
 static void getSlowLogScopeString(int32_t scope, char* result){
   if(scope == SLOW_LOG_TYPE_NULL) {
-    strcat(result, "NONE");
+    (void)strcat(result, "NONE");
     return;
   }
   while(scope > 0){
     if(scope & SLOW_LOG_TYPE_QUERY) {
-      strcat(result, "QUERY");
+      (void)strcat(result, "QUERY");
       scope &= ~SLOW_LOG_TYPE_QUERY;
     } else if(scope & SLOW_LOG_TYPE_INSERT) {
-      strcat(result, "INSERT");
+      (void)strcat(result, "INSERT");
       scope &= ~SLOW_LOG_TYPE_INSERT;
     } else if(scope & SLOW_LOG_TYPE_OTHERS) {
-      strcat(result, "OTHERS");
+      (void)strcat(result, "OTHERS");
       scope &= ~SLOW_LOG_TYPE_OTHERS;
     } else{
-      printf("invalid slow log scope:%d", scope);
+      (void)printf("invalid slow log scope:%d", scope);
       return;
     }
 
     if(scope > 0) {
-      strcat(result, "|");
+      (void)strcat(result, "|");
     }
   }
 }
@@ -1005,52 +1019,79 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
 
   SVariablesInfo info = {0};
 
-  strcpy(info.name, "statusInterval");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
-  strcpy(info.scope, "server");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "statusInterval");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
+  (void)strcpy(info.scope, "server");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
-  strcpy(info.name, "timezone");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
-  strcpy(info.scope, "both");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "timezone");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
+  (void)strcpy(info.scope, "both");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
-  strcpy(info.name, "locale");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
-  strcpy(info.scope, "both");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "locale");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
+  (void)strcpy(info.scope, "both");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
-  strcpy(info.name, "charset");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
-  strcpy(info.scope, "both");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "charset");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  (void)strcpy(info.scope, "both");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
-  strcpy(info.name, "monitor");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
-  strcpy(info.scope, "server");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "monitor");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
+  (void)strcpy(info.scope, "server");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
-  strcpy(info.name, "monitorInterval");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
-  strcpy(info.scope, "server");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "monitorInterval");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
+  (void)strcpy(info.scope, "server");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
-  strcpy(info.name, "slowLogThreshold");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
-  strcpy(info.scope, "server");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "slowLogThreshold");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
+  (void)strcpy(info.scope, "server");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
-  strcpy(info.name, "slowLogMaxLen");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
-  strcpy(info.scope, "server");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "slowLogMaxLen");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
+  (void)strcpy(info.scope, "server");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
   char scopeStr[64] = {0};
   getSlowLogScopeString(tsSlowLogScope, scopeStr);
-  strcpy(info.name, "slowLogScope");
-  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
-  strcpy(info.scope, "server");
-  taosArrayPush(rsp.variables, &info);
+  (void)strcpy(info.name, "slowLogScope");
+  (void)snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
+  (void)strcpy(info.scope, "server");
+  if (taosArrayPush(rsp.variables, &info) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
 
   int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
   void   *pRsp = rpcMallocCont(rspLen);
@@ -1059,7 +1100,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp);
+  (void)tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp);
 
   pReq->info.rspLen = rspLen;
   pReq->info.rsp = pRsp;
@@ -1096,7 +1137,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   }
 
   char ep[TSDB_EP_LEN];
-  snprintf(ep, TSDB_EP_LEN, "%s:%d", createReq.fqdn, createReq.port);
+  (void)snprintf(ep, TSDB_EP_LEN, "%s:%d", createReq.fqdn, createReq.port);
   pDnode = mndAcquireDnodeByEp(pMnode, ep);
   if (pDnode != NULL) {
     code = TSDB_CODE_MND_DNODE_ALREADY_EXIST;
@@ -1110,7 +1151,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   }
 
   char obj[200] = {0};
-  sprintf(obj, "%s:%d", createReq.fqdn, createReq.port);
+  (void)sprintf(obj, "%s:%d", createReq.fqdn, createReq.port);
 
   auditRecord(pReq, pMnode->clusterId, "createDnode", "", obj, createReq.sql, createReq.sqlLen);
 
@@ -1190,7 +1231,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
-  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1); // TODO: check the return value
   code = 0;
 
 _OVER:
@@ -1249,7 +1290,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   if (pDnode == NULL) {
     int32_t err = terrno;
     char    ep[TSDB_EP_LEN + 1] = {0};
-    snprintf(ep, sizeof(ep), dropReq.fqdn, dropReq.port);
+    (void)snprintf(ep, sizeof(ep), dropReq.fqdn, dropReq.port);
     pDnode = mndAcquireDnodeByEp(pMnode, ep);
     if (pDnode == NULL) {
       code = err;
@@ -1293,7 +1334,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj1[30] = {0};
-  sprintf(obj1, "%d", dropReq.dnodeId);
+  (void)sprintf(obj1, "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropDnode", "", obj1, dropReq.sql, dropReq.sqlLen);
 
@@ -1321,17 +1362,17 @@ static int32_t mndMCfg2DCfg(SMCfgDnodeReq *pMCfgReq, SDCfgDnodeReq *pDCfgReq) {
   }
 
   size_t optLen = p - pMCfgReq->config;
-  strncpy(pDCfgReq->config, pMCfgReq->config, optLen);
+  (void)strncpy(pDCfgReq->config, pMCfgReq->config, optLen);
   pDCfgReq->config[optLen] = 0;
 
   if (' ' == pMCfgReq->config[optLen]) {
     // 'key value'
     if (strlen(pMCfgReq->value) != 0) goto _err;
-    strcpy(pDCfgReq->value, p + 1);
+    (void)strcpy(pDCfgReq->value, p + 1);
   } else {
     // 'key' 'value'
     if (strlen(pMCfgReq->value) == 0) goto _err;
-    strcpy(pDCfgReq->value, pMCfgReq->value);
+    (void)strcpy(pDCfgReq->value, pMCfgReq->value);
   }
 
   TAOS_RETURN(code);
@@ -1357,11 +1398,10 @@ static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq
       void   *pBuf = rpcMallocCont(bufLen);
 
       if (pBuf != NULL) {
-        tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        (void)tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
         mInfo("dnode:%d, send config req to dnode, config:%s value:%s", dnodeId, pDcfgReq->config, pDcfgReq->value);
         SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
-        tmsgSendReq(&epSet, &rpcMsg);
-        code = 0;
+        code = tmsgSendReq(&epSet, &rpcMsg);
       }
     }
 
@@ -1388,7 +1428,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   SDCfgDnodeReq dcfgReq = {0};
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
-    strcpy(dcfgReq.config, "resetlog");
+    (void)strcpy(dcfgReq.config, "resetlog");
 #ifdef TD_ENTERPRISE
   } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
     int32_t optLen = strlen("s3blocksize");
@@ -1423,7 +1463,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   {  // audit
     char obj[50] = {0};
-    sprintf(obj, "%d", cfgReq.dnodeId);
+    (void)sprintf(obj, "%d", cfgReq.dnodeId);
 
     auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
   }
@@ -1498,10 +1538,10 @@ static int32_t mndProcessCreateEncryptKeyReqImpl(SRpcMsg *pReq, int32_t dnodeId,
       void   *pBuf = rpcMallocCont(bufLen);
 
       if (pBuf != NULL) {
-        tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
+        (void)tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq);
         SRpcMsg rpcMsg = {.msgType = TDMT_DND_CREATE_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
         if (0 == tmsgSendReq(&epSet, &rpcMsg)) {
-          atomic_add_fetch_16(&pMnode->encryptMgmt.nEncrypt, 1);
+          (void)atomic_add_fetch_16(&pMnode->encryptMgmt.nEncrypt, 1);
         }
       }
     }
@@ -1585,41 +1625,41 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   int32_t cols = 0;
 
   cfgOpts[totalRows] = "statusInterval";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
   totalRows++;
 
   cfgOpts[totalRows] = "timezone";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
   totalRows++;
 
   cfgOpts[totalRows] = "locale";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
   totalRows++;
 
   cfgOpts[totalRows] = "charset";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
   totalRows++;
 
   cfgOpts[totalRows] = "monitor";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsEnableMonitor);
   totalRows++;
 
   cfgOpts[totalRows] = "monitorInterval";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsMonitorInterval);
   totalRows++;
 
   cfgOpts[totalRows] = "slowLogThreshold";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogThreshold);
   totalRows++;
 
   cfgOpts[totalRows] = "slowLogMaxLen";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsSlowLogMaxLen);
   totalRows++;
 
   char scopeStr[64] = {0};
   getSlowLogScopeString(tsSlowLogScope, scopeStr);
   cfgOpts[totalRows] = "slowLogScope";
-  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", scopeStr);
   totalRows++;
 
   char buf[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1630,11 +1670,11 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, cfgOpts[i], TSDB_CONFIG_OPTION_LEN);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
 
     STR_WITH_MAXSIZE_TO_VARSTR(bufVal, cfgVals[i], TSDB_CONFIG_VALUE_LEN);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)bufVal, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)bufVal, false);
 
     numOfRows++;
   }
@@ -1663,19 +1703,19 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->id, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->id, false);
 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, buf, false);
+    (void)colDataSetVal(pColInfo, numOfRows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t id = mndGetVnodesNum(pMnode, pDnode->id);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&id, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&id, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->numOfSupportVnodes, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->numOfSupportVnodes, false);
 
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
@@ -1691,19 +1731,19 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     STR_TO_VARSTR(buf, status);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, buf, false);
+    (void)colDataSetVal(pColInfo, numOfRows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->rebootTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->rebootTime, false);
 
     char *b = taosMemoryCalloc(VARSTR_HEADER_SIZE + strlen(offlineReason[pDnode->offlineReason]) + 1, 1);
     STR_TO_VARSTR(b, online ? "" : offlineReason[pDnode->offlineReason]);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, b, false);
+    (void)colDataSetVal(pColInfo, numOfRows, b, false);
     taosMemoryFreeClear(b);
 
 #ifdef TD_ENTERPRISE
@@ -1760,7 +1800,7 @@ SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
     if (pIter == NULL) break;
 
     char *fqdn = taosStrdup(pObj->fqdn);
-    taosArrayPush(fqdns, &fqdn);
+    (void)taosArrayPush(fqdns, &fqdn);
     sdbRelease(pSdb, pObj);
   }
   return fqdns;

@@ -32,7 +32,7 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
   // alloc
   pReader = (SMetaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   pReader->pMeta = pMeta;
   pReader->sver = sver;
@@ -219,49 +219,92 @@ static void destroySTableInfoForChildTable(void* data) {
   tDeleteSchemaWrapper(pData->tagRow);
 }
 
-static void MoveToSnapShotVersion(SSnapContext* ctx) {
-  tdbTbcClose((TBC*)ctx->pCur);
-  tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
+static int32_t MoveToSnapShotVersion(SSnapContext* ctx) {
+  int32_t code = 0;
+  (void)tdbTbcClose((TBC*)ctx->pCur);
+  code = tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
+  if (code != 0){
+    return TAOS_GET_TERRNO(code);
+  }
   STbDbKey key = {.version = ctx->snapVersion, .uid = INT64_MAX};
   int      c = 0;
-  tdbTbcMoveTo((TBC*)ctx->pCur, &key, sizeof(key), &c);
+  code = tdbTbcMoveTo((TBC*)ctx->pCur, &key, sizeof(key), &c);
+  if (code != 0){
+    return TAOS_GET_TERRNO(code);
+  }
   if (c < 0) {
     tdbTbcMoveToPrev((TBC*)ctx->pCur);
   }
+  return 0;
 }
 
 static int32_t MoveToPosition(SSnapContext* ctx, int64_t ver, int64_t uid) {
-  tdbTbcClose((TBC*)ctx->pCur);
-  tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
+  (void)tdbTbcClose((TBC*)ctx->pCur);
+  int32_t code = tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
+  if (code != 0){
+    return TAOS_GET_TERRNO(code);
+  }
   STbDbKey key = {.version = ver, .uid = uid};
   int      c = 0;
-  tdbTbcMoveTo((TBC*)ctx->pCur, &key, sizeof(key), &c);
+  code = tdbTbcMoveTo((TBC*)ctx->pCur, &key, sizeof(key), &c);
+  if (code != 0){
+    return TAOS_GET_TERRNO(code);
+  }
   return c;
 }
 
-static void MoveToFirst(SSnapContext* ctx) {
-  tdbTbcClose((TBC*)ctx->pCur);
-  tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
-  tdbTbcMoveToFirst((TBC*)ctx->pCur);
+static int32_t MoveToFirst(SSnapContext* ctx) {
+  (void)tdbTbcClose((TBC*)ctx->pCur);
+  int32_t code = tdbTbcOpen(ctx->pMeta->pTbDb, (TBC**)&ctx->pCur, NULL);
+  if (code != 0){
+    return TAOS_GET_TERRNO(code);
+  }
+  code = tdbTbcMoveToFirst((TBC*)ctx->pCur);
+  if (code != 0){
+    return TAOS_GET_TERRNO(code);
+  }
+  return 0;
 }
 
-static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) {
+static int32_t saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) {
   STableInfoForChildTable* data = (STableInfoForChildTable*)taosHashGet(suidInfo, &me->uid, sizeof(tb_uid_t));
   if (data) {
-    return;
+    return 0;
   }
+  int32_t code = 0;
   STableInfoForChildTable dataTmp = {0};
   dataTmp.tableName = taosStrdup(me->name);
-
+  if (dataTmp.tableName == NULL){
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
   dataTmp.schemaRow = tCloneSSchemaWrapper(&me->stbEntry.schemaRow);
+  if (dataTmp.schemaRow == NULL){
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
   dataTmp.tagRow = tCloneSSchemaWrapper(&me->stbEntry.schemaTag);
-  taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
+  if (dataTmp.tagRow == NULL){
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
+  code = taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
+  if (code != 0){
+    goto END;
+  }
+  return 0;
+
+END:
+  destroySTableInfoForChildTable(&dataTmp);
+  return TAOS_GET_TERRNO(code);;
 }
 
 int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
                          SSnapContext** ctxRet) {
   SSnapContext* ctx = taosMemoryCalloc(1, sizeof(SSnapContext));
-  if (ctx == NULL) return -1;
+  if (ctx == NULL){
+    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+  }
   *ctxRet = ctx;
   ctx->pMeta = pVnode->pMeta;
   ctx->snapVersion = snapVersion;
@@ -271,23 +314,29 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   ctx->withMeta = withMeta;
   ctx->idVersion = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->idVersion == NULL) {
-    return -1;
+    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   ctx->suidInfo = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->suidInfo == NULL) {
-    return -1;
+    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);;
   }
   taosHashSetFreeFp(ctx->suidInfo, destroySTableInfoForChildTable);
 
   ctx->index = 0;
   ctx->idList = taosArrayInit(100, sizeof(int64_t));
+  if (ctx->idList == NULL){
+    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);;
+  }
   void* pKey = NULL;
   void* pVal = NULL;
   int   vLen = 0, kLen = 0;
 
   metaDebug("tmqsnap init snapVersion:%" PRIi64, ctx->snapVersion);
-  MoveToFirst(ctx);
+  int32_t code = MoveToFirst(ctx);
+  if (code != 0){
+    return code;
+  }
   while (1) {
     int32_t ret = tdbTbcNext((TBC*)ctx->pCur, &pKey, &kLen, &pVal, &vLen);
     if (ret < 0) break;
@@ -299,15 +348,18 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
       continue;
     }
 
-    if (tdbTbGet(ctx->pMeta->pUidIdx, &tmp->uid, sizeof(tb_uid_t), NULL, NULL) <
-        0) {  // check if table exist for now, need optimize later
+    if (tdbTbGet(ctx->pMeta->pUidIdx, &tmp->uid, sizeof(tb_uid_t), NULL, NULL) < 0) {  // check if table exist for now, need optimize later
       continue;
     }
 
     SDecoder   dc = {0};
     SMetaEntry me = {0};
     tDecoderInit(&dc, pVal, vLen);
-    metaDecodeEntry(&dc, &me);
+    ret = metaDecodeEntry(&dc, &me);
+    if (ret < 0){
+      tDecoderClear(&dc);
+      return TAOS_GET_TERRNO(ret);
+    }
     if (ctx->subType == TOPIC_SUB_TYPE__TABLE) {
       if ((me.uid != ctx->suid && me.type == TSDB_SUPER_TABLE) ||
           (me.ctbEntry.suid != ctx->suid && me.type == TSDB_CHILD_TABLE)) {
@@ -316,16 +368,24 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
       }
     }
 
-    taosArrayPush(ctx->idList, &tmp->uid);
+    if (taosArrayPush(ctx->idList, &tmp->uid) == NULL){
+      tDecoderClear(&dc);
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    }
     metaDebug("tmqsnap init idlist name:%s, uid:%" PRIi64, me.name, tmp->uid);
-    SIdInfo info = {0};
-    taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
-
     tDecoderClear(&dc);
+
+    SIdInfo info = {0};
+    if (taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo)) != 0) {
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    }
   }
   taosHashClear(ctx->idVersion);
 
-  MoveToSnapShotVersion(ctx);
+  code = MoveToSnapShotVersion(ctx);
+  if (code != 0){
+    return code;
+  }
   while (1) {
     int32_t ret = tdbTbcPrev((TBC*)ctx->pCur, &pKey, &kLen, &pVal, &vLen);
     if (ret < 0) break;
@@ -336,12 +396,20 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
       continue;
     }
     SIdInfo info = {.version = tmp->version, .index = 0};
-    taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
+    ret = taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
+    if (ret != 0) {
+      return TAOS_GET_TERRNO(ret);
+    }
 
     SDecoder   dc = {0};
     SMetaEntry me = {0};
     tDecoderInit(&dc, pVal, vLen);
-    metaDecodeEntry(&dc, &me);
+    ret = metaDecodeEntry(&dc, &me);
+    if (ret < 0){
+      tDecoderClear(&dc);
+      return TAOS_GET_TERRNO(ret);
+    }
+
     if (ctx->subType == TOPIC_SUB_TYPE__TABLE) {
       if ((me.uid != ctx->suid && me.type == TSDB_SUPER_TABLE) ||
           (me.ctbEntry.suid != ctx->suid && me.type == TSDB_CHILD_TABLE)) {
@@ -352,17 +420,24 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
 
     if ((ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_SUPER_TABLE) ||
         (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.uid == ctx->suid)) {
-      saveSuperTableInfoForChildTable(&me, ctx->suidInfo);
+      ret = saveSuperTableInfoForChildTable(&me, ctx->suidInfo);
+      if (ret != 0){
+        tDecoderClear(&dc);
+        return ret;
+      }
     }
     tDecoderClear(&dc);
   }
 
   for (int i = 0; i < taosArrayGetSize(ctx->idList); i++) {
     int64_t* uid = taosArrayGet(ctx->idList, i);
+    if (uid == NULL){
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    }
     SIdInfo* idData = (SIdInfo*)taosHashGet(ctx->idVersion, uid, sizeof(int64_t));
     if (!idData) {
       metaError("meta/snap: null idData");
-      return TSDB_CODE_FAILED;
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     idData->index = i;
@@ -375,13 +450,12 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
   return TDB_CODE_SUCCESS;
 }
 
-int32_t destroySnapContext(SSnapContext* ctx) {
-  tdbTbcClose((TBC*)ctx->pCur);
+void destroySnapContext(SSnapContext* ctx) {
+  (void)tdbTbcClose((TBC*)ctx->pCur);
   taosArrayDestroy(ctx->idList);
   taosHashCleanup(ctx->idVersion);
   taosHashCleanup(ctx->suidInfo);
   taosMemoryFree(ctx);
-  return 0;
 }
 
 static int32_t buildNormalChildTableInfo(SVCreateTbReq* req, void** pBuf, int32_t* contLen) {
@@ -390,32 +464,36 @@ static int32_t buildNormalChildTableInfo(SVCreateTbReq* req, void** pBuf, int32_
 
   reqs.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == reqs.pArray) {
-    ret = -1;
+    ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
     goto end;
   }
-  taosArrayPush(reqs.pArray, req);
+  if (taosArrayPush(reqs.pArray, req) == NULL){
+    ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    goto end;
+  }
   reqs.nReqs = 1;
 
   tEncodeSize(tEncodeSVCreateTbBatchReq, &reqs, *contLen, ret);
   if (ret < 0) {
-    ret = -1;
+    ret = TAOS_GET_TERRNO(ret);
     goto end;
   }
   *contLen += sizeof(SMsgHead);
   *pBuf = taosMemoryMalloc(*contLen);
   if (NULL == *pBuf) {
-    ret = -1;
+    ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
     goto end;
   }
   SEncoder coder = {0};
   tEncoderInit(&coder, POINTER_SHIFT(*pBuf, sizeof(SMsgHead)), *contLen);
-  if (tEncodeSVCreateTbBatchReq(&coder, &reqs) < 0) {
+  ret = tEncodeSVCreateTbBatchReq(&coder, &reqs);
+  tEncoderClear(&coder);
+
+  if (ret < 0) {
     taosMemoryFreeClear(*pBuf);
-    tEncoderClear(&coder);
-    ret = -1;
+    ret = TAOS_GET_TERRNO(ret);
     goto end;
   }
-  tEncoderClear(&coder);
 
 end:
   taosArrayDestroy(reqs.pArray);
@@ -426,48 +504,46 @@ static int32_t buildSuperTableInfo(SVCreateStbReq* req, void** pBuf, int32_t* co
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, req, *contLen, ret);
   if (ret < 0) {
-    return -1;
+    return TAOS_GET_TERRNO(ret);
   }
 
   *contLen += sizeof(SMsgHead);
   *pBuf = taosMemoryMalloc(*contLen);
   if (NULL == *pBuf) {
-    return -1;
+    return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, POINTER_SHIFT(*pBuf, sizeof(SMsgHead)), *contLen);
-  if (tEncodeSVCreateStbReq(&encoder, req) < 0) {
-    taosMemoryFreeClear(*pBuf);
-    tEncoderClear(&encoder);
-    return -1;
-  }
+  ret = tEncodeSVCreateStbReq(&encoder, req);
   tEncoderClear(&encoder);
+  if (ret < 0) {
+    taosMemoryFreeClear(*pBuf);
+    return TAOS_GET_TERRNO(ret);
+  }
   return 0;
 }
 
 int32_t setForSnapShot(SSnapContext* ctx, int64_t uid) {
-  int c = 0;
-
   if (uid == 0) {
     ctx->index = 0;
-    return c;
+    return 0;
   }
 
   SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, &uid, sizeof(tb_uid_t));
-  if (!idInfo) {
-    return -1;
+  if (idInfo == NULL) {
+    return terrno;
   }
 
   ctx->index = idInfo->index;
 
-  return c;
+  return 0;
 }
 
-void taosXSetTablePrimaryKey(SSnapContext* ctx, int64_t uid) {
-  bool            ret = false;
-  SSchemaWrapper* schema = metaGetTableSchema(ctx->pMeta, uid, -1, 1);
-  if (schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
+void taosXSetTablePrimaryKey(SSnapContext* ctx, int64_t uid){
+  bool ret = false;
+  SSchemaWrapper *schema = metaGetTableSchema(ctx->pMeta, uid, -1, 1);
+  if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY){
     ret = true;
   }
   tDeleteSchemaWrapper(schema);
@@ -491,11 +567,15 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     }
 
     int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
+    if (uidTmp == NULL) {
+      metaError("tmqsnap get meta null uid");
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    }
     ctx->index++;
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
     if (!idInfo) {
       metaError("meta/snap: null idInfo");
-      return TSDB_CODE_FAILED;
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     *uid = *uidTmp;
@@ -506,11 +586,18 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     metaDebug("tmqsnap get meta not exist uid:%" PRIi64 " version:%" PRIi64, *uid, idInfo->version);
   }
 
-  tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
+  ret = tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
+  if (ret < 0) {
+    return TAOS_GET_TERRNO(ret);
+  }
   SDecoder   dc = {0};
   SMetaEntry me = {0};
   tDecoderInit(&dc, pVal, vLen);
-  metaDecodeEntry(&dc, &me);
+  ret = metaDecodeEntry(&dc, &me);
+  if (ret < 0) {
+    ret = TAOS_GET_TERRNO(ret);
+    goto END;
+  }
   metaDebug("tmqsnap get meta uid:%" PRIi64 " name:%s index:%d", *uid, me.name, ctx->index - 1);
 
   if ((ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_SUPER_TABLE) ||
@@ -526,14 +613,14 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
 
     ret = buildSuperTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_STB;
-
   } else if ((ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_CHILD_TABLE) ||
              (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.type == TSDB_CHILD_TABLE && me.ctbEntry.suid == ctx->suid)) {
     STableInfoForChildTable* data =
         (STableInfoForChildTable*)taosHashGet(ctx->suidInfo, &me.ctbEntry.suid, sizeof(tb_uid_t));
     if (!data) {
       metaError("meta/snap: null data");
-      return TSDB_CODE_FAILED;
+      ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      goto END;
     }
 
     SVCreateTbReq req = {0};
@@ -547,46 +634,48 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.ctb.stbName = data->tableName;
 
     SArray* tagName = taosArrayInit(req.ctb.tagNum, TSDB_COL_NAME_LEN);
+    if (tagName == NULL) {
+      metaError("meta/snap: init tag name failed.");
+      ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      goto END;
+    }
     STag*   p = (STag*)me.ctbEntry.pTags;
     if (tTagIsJson(p)) {
       if (p->nTag != 0) {
         SSchema* schema = &data->tagRow->pSchema[0];
-        taosArrayPush(tagName, schema->name);
+        if (taosArrayPush(tagName, schema->name) == NULL) {
+          ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+          taosArrayDestroy(tagName);
+          goto END;
+        }
       }
     } else {
       SArray* pTagVals = NULL;
-      if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
+      ret  = tTagToValArray((const STag*)p, &pTagVals);
+      if (ret != 0) {
         metaError("meta/snap: tag to val array failed.");
-        return TSDB_CODE_FAILED;
+        taosArrayDestroy(pTagVals);
+        taosArrayDestroy(tagName);
+        goto END;
       }
       int16_t nCols = taosArrayGetSize(pTagVals);
       for (int j = 0; j < nCols; ++j) {
         STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
-        for (int i = 0; i < data->tagRow->nCols; i++) {
+        for (int i = 0; pTagVal && i < data->tagRow->nCols; i++) {
           SSchema* schema = &data->tagRow->pSchema[i];
           if (schema->colId == pTagVal->cid) {
-            taosArrayPush(tagName, schema->name);
+            if (taosArrayPush(tagName, schema->name) == NULL) {
+              ret = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+              taosArrayDestroy(pTagVals);
+              taosArrayDestroy(tagName);
+              goto END;
+            }
           }
         }
       }
       taosArrayDestroy(pTagVals);
     }
-    //    SIdInfo* sidInfo = (SIdInfo*)taosHashGet(ctx->idVersion, &me.ctbEntry.suid, sizeof(tb_uid_t));
-    //    if(sidInfo->version >= idInfo->version){
-    //      // need parse tag
-    //      STag* p = (STag*)me.ctbEntry.pTags;
-    //      SArray* pTagVals = NULL;
-    //      if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
-    //      }
-    //
-    //      int16_t nCols = taosArrayGetSize(pTagVals);
-    //      for (int j = 0; j < nCols; ++j) {
-    //        STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
-    //      }
-    //    }else{
     req.ctb.pTag = me.ctbEntry.pTags;
-    //    }
-
     req.ctb.tagName = tagName;
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
@@ -603,15 +692,15 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     *type = TDMT_VND_CREATE_TABLE;
   } else {
     metaError("meta/snap: invalid topic sub type: %" PRId8 " get meta from snap failed.", ctx->subType);
-    ret = -1;
+    ret = TSDB_CODE_SDB_INVALID_TABLE_TYPE;
   }
-  tDecoderClear(&dc);
 
+END:
+  tDecoderClear(&dc);
   return ret;
 }
 
-SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext* ctx) {
-  SMetaTableInfo result = {0};
+int32_t getMetaTableInfoFromSnapshot(SSnapContext* ctx, SMetaTableInfo* result) {
   void*          pKey = NULL;
   void*          pVal = NULL;
   int            vLen, kLen;
@@ -619,14 +708,17 @@ SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext* ctx) {
   while (1) {
     if (ctx->index >= taosArrayGetSize(ctx->idList)) {
       metaDebug("tmqsnap get uid info end");
-      return result;
+      return 0;
     }
     int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
+    if (uidTmp == NULL){
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    }
     ctx->index++;
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
     if (!idInfo) {
       metaError("meta/snap: null idInfo");
-      return result;
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     int32_t ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
@@ -635,44 +727,46 @@ SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext* ctx) {
                 idInfo->version);
       continue;
     }
-    tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
+    ret = tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);
+    if (ret != 0){
+      return TAOS_GET_TERRNO(ret);
+    }
     SDecoder   dc = {0};
     SMetaEntry me = {0};
     tDecoderInit(&dc, pVal, vLen);
-    metaDecodeEntry(&dc, &me);
+    ret = metaDecodeEntry(&dc, &me);
+    if (ret != 0){
+      tDecoderClear(&dc);
+      return TAOS_GET_TERRNO(ret);
+    }
     metaDebug("tmqsnap get uid info uid:%" PRIi64 " name:%s index:%d", me.uid, me.name, ctx->index - 1);
 
-    if (ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_CHILD_TABLE) {
+    if ((ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_CHILD_TABLE) ||
+        (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.type == TSDB_CHILD_TABLE && me.ctbEntry.suid == ctx->suid)){
       STableInfoForChildTable* data =
           (STableInfoForChildTable*)taosHashGet(ctx->suidInfo, &me.ctbEntry.suid, sizeof(tb_uid_t));
-      result.uid = me.uid;
-      result.suid = me.ctbEntry.suid;
-      result.schema = tCloneSSchemaWrapper(data->schemaRow);
-      strcpy(result.tbName, me.name);
-      tDecoderClear(&dc);
-      break;
+      if (data == NULL) {
+        tDecoderClear(&dc);
+        metaError("meta/snap: null data");
+        return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      result->suid = me.ctbEntry.suid;
+      result->schema = tCloneSSchemaWrapper(data->schemaRow);
     } else if (ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_NORMAL_TABLE) {
-      result.uid = me.uid;
-      result.suid = 0;
-      strcpy(result.tbName, me.name);
-      result.schema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
-      tDecoderClear(&dc);
-      break;
-    } else if (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.type == TSDB_CHILD_TABLE && me.ctbEntry.suid == ctx->suid) {
-      STableInfoForChildTable* data =
-          (STableInfoForChildTable*)taosHashGet(ctx->suidInfo, &me.ctbEntry.suid, sizeof(tb_uid_t));
-      result.uid = me.uid;
-      result.suid = me.ctbEntry.suid;
-      strcpy(result.tbName, me.name);
-      result.schema = tCloneSSchemaWrapper(data->schemaRow);
-      tDecoderClear(&dc);
-      break;
+      result->suid = 0;
+      result->schema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
     } else {
       metaDebug("tmqsnap get uid continue");
       tDecoderClear(&dc);
       continue;
     }
+    result->uid = me.uid;
+    tstrncpy(result->tbName, me.name, TSDB_TABLE_NAME_LEN);
+    tDecoderClear(&dc);
+    if(result->schema == NULL){
+      return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    break;
   }
-
-  return result;
+  return 0;
 }

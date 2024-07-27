@@ -58,13 +58,16 @@ static void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
   pRowSup->groupId = groupId;
 }
 
-SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
-                                             SExecTaskInfo* pTaskInfo) {
+int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
+                                             SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SEventWindowOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SEventWindowOperatorInfo));
   SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -100,7 +103,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   QUERY_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pEventWindowNode->window.node.pOutputDataBlockDesc);
-  QUERY_CHECK_NULL(pResBlock, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
 
   code = blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -128,7 +131,8 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
     goto _error;
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -137,7 +141,7 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void destroyEWindowOperatorInfo(void* param) {
@@ -168,7 +172,7 @@ void destroyEWindowOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
+static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SEventWindowOperatorInfo* pInfo = pOperator->info;
@@ -197,26 +201,37 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
-      pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                              pInfo->scalarSup.numOfExprs, NULL);
-      if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-      }
+      code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
+                                   pInfo->scalarSup.numOfExprs, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    eventWindowAggImpl(pOperator, pInfo, pBlock);
-    doFilter(pRes, pSup->pFilterInfo, NULL);
+    code = eventWindowAggImpl(pOperator, pInfo, pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = doFilter(pRes, pSup->pFilterInfo, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
-      return pRes;
+      (*ppRes) = pRes;
+      return code;
     }
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  return pRes->info.rows == 0 ? NULL : pRes;
+  (*ppRes) =  pRes->info.rows == 0 ? NULL : pRes;
+  return code;
+}
+
+static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = eventWindowAggregateNext(pOperator, &pRes);
+  return pRes;
 }
 
 static int32_t setSingleOutputTupleBufv1(SResultRowInfo* pResultRowInfo, STimeWindow* win, SResultRow** pResult,
@@ -253,6 +268,8 @@ static void doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* pSu
 }
 
 int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*       pSup = &pOperator->exprSupp;
   SSDataBlock*     pRes = pInfo->binfo.pRes;
@@ -274,22 +291,20 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
 
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
 
-  int32_t code = filterSetDataFromSlotId(pInfo->pStartCondInfo, &param1);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  code = filterSetDataFromSlotId(pInfo->pStartCondInfo, &param1);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   int32_t status1 = 0;
-  filterExecute(pInfo->pStartCondInfo, pBlock, &ps, NULL, param1.numOfCols, &status1);
+  code = filterExecute(pInfo->pStartCondInfo, pBlock, &ps, NULL, param1.numOfCols, &status1);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   SFilterColumnParam param2 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(pInfo->pEndCondInfo, &param2);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _return;
-  }
+  QUERY_CHECK_CODE(code, lino, _return);
 
   int32_t status2 = 0;
-  filterExecute(pInfo->pEndCondInfo, pBlock, &pe, NULL, param2.numOfCols, &status2);
+  code = filterExecute(pInfo->pEndCondInfo, pBlock, &pe, NULL, param2.numOfCols, &status2);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   int32_t startIndex = pInfo->inWindow ? 0 : -1;
   while (rowIndex < pBlock->info.rows) {
@@ -307,7 +322,8 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         // check buffer size
         if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
           int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
-          blockDataEnsureCapacity(pRes, newSize);
+          code = blockDataEnsureCapacity(pRes, newSize);
+          QUERY_CHECK_CODE(code, lino, _return);
         }
 
         copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
@@ -344,6 +360,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
 
 _return:
 
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   colDataDestroy(ps);
   taosMemoryFree(ps);
   colDataDestroy(pe);

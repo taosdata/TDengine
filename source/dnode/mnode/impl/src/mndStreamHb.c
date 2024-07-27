@@ -57,7 +57,10 @@ void addIntoCheckpointList(SArray *pList, const SFailedCheckpointInfo *pInfo) {
     }
   }
 
-  taosArrayPush(pList, pInfo);
+  void* p = taosArrayPush(pList, pInfo);
+  if (p == NULL) {
+    mError("failed to push failed checkpoint info checkpointId:%" PRId64 " in list", pInfo->checkpointId);
+  }
 }
 
 int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
@@ -208,6 +211,8 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info) {
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
+  int32_t     code = 0;
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
@@ -219,7 +224,17 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info) {
 
       int32_t contLen = tSerializeSMPauseStreamReq(NULL, 0, &reqPause);
       void   *pHead = rpcMallocCont(contLen);
-      tSerializeSMPauseStreamReq(pHead, contLen, &reqPause);
+      if (pHead == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        sdbRelease(pSdb, pStream);
+        continue;
+      }
+
+      code = tSerializeSMPauseStreamReq(pHead, contLen, &reqPause);
+      if (code) {
+        sdbRelease(pSdb, pStream);
+        continue;
+      }
 
       SRpcMsg rpcMsg = {
           .msgType = TDMT_MND_PAUSE_STREAM,
@@ -228,14 +243,14 @@ int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info) {
           .info = *info,
       };
 
-      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-      mInfo("receive pause stream:%s, %s, %" PRId64 ", because grant expired", pStream->name, reqPause.name,
-            pStream->uid);
+      code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+      mInfo("receive pause stream:%s, %s, %" PRId64 ", because grant expired, code:%s", pStream->name, reqPause.name,
+            pStream->uid, tstrerror(code));
     }
 
     sdbRelease(pSdb, pStream);
   }
-  return 0;
+  return code;
 }
 
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
@@ -267,7 +282,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   pFailedChkpt = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   pOrphanTasks = taosArrayInit(4, sizeof(SOrphanTask));
 
-  taosThreadMutexLock(&execInfo.lock);
+  streamMutexLock(&execInfo.lock);
 
   mndInitStreamExecInfo(pMnode, &execInfo);
   if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
@@ -276,7 +291,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     code = terrno = TSDB_CODE_INVALID_MSG;
     doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
 
-    taosThreadMutexUnlock(&execInfo.lock);
+    streamMutexUnlock(&execInfo.lock);
     cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
     return code;
   }
@@ -284,7 +299,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
   if (numOfUpdated > 0) {
     mDebug("%d stream node(s) need updated from hbMsg(vgId:%d)", numOfUpdated, req.vgId);
-    setNodeEpsetExpiredFlag(req.pUpdateNodes);
+    (void) setNodeEpsetExpiredFlag(req.pUpdateNodes);
   }
 
   bool snodeChanged = false;
@@ -296,7 +311,10 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       mError("s-task:0x%" PRIx64 " not found in mnode task list", p->id.taskId);
 
       SOrphanTask oTask = {.streamId = p->id.streamId, .taskId = p->id.taskId, .nodeId = p->nodeId};
-      taosArrayPush(pOrphanTasks, &oTask);
+      void* px = taosArrayPush(pOrphanTasks, &oTask);
+      if (px == NULL) {
+        mError("Failed to put task into list, taskId:0x%" PRIx64, p->id.taskId);
+      }
       continue;
     }
 
@@ -346,7 +364,10 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         addIntoCheckpointList(pFailedChkpt, &info);
 
         // remove failed trans from pChkptStreams
-        taosHashRemove(execInfo.pChkptStreams, &p->id.streamId, sizeof(p->id.streamId));
+        code = taosHashRemove(execInfo.pChkptStreams, &p->id.streamId, sizeof(p->id.streamId));
+        if (code) {
+          mError("failed to remove stream:0x%"PRIx64" in checkpoint stream list", p->id.streamId);
+        }
       }
     }
 
@@ -386,7 +407,10 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         mInfo("checkpointId:%" PRId64 " transId:%d failed, issue task-reset trans to reset all tasks status",
               pInfo->checkpointId, pInfo->transId);
 
-        mndResetStatusFromCheckpoint(pMnode, pInfo->streamUid, pInfo->transId);
+        code = mndResetStatusFromCheckpoint(pMnode, pInfo->streamUid, pInfo->transId);
+        if (code) {
+          mError("failed to create reset task trans, code:%s", tstrerror(code));
+        }
       }
     } else {
       mInfo("not all vgroups are ready, wait for next HB from stream tasks to reset the task status");
@@ -395,20 +419,19 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // handle the orphan tasks that are invalid but not removed in some vnodes or snode due to some unknown errors.
   if (taosArrayGetSize(pOrphanTasks) > 0) {
-    mndDropOrphanTasks(pMnode, pOrphanTasks);
+    code = mndDropOrphanTasks(pMnode, pOrphanTasks);
   }
 
   if (pMnode != NULL) {  // make sure that the unit test case can work
     mndStreamStartUpdateCheckpointInfo(pMnode);
   }
 
-  taosThreadMutexUnlock(&execInfo.lock);
+  streamMutexUnlock(&execInfo.lock);
 
-  terrno = TSDB_CODE_SUCCESS;
-  doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
+  doSendHbMsgRsp(TSDB_CODE_SUCCESS, &pReq->info, req.vgId, req.msgId);
 
   cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
-  return terrno;
+  return code;
 }
 
 void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode) {  // here reuse the doCheckpointmsg
@@ -416,7 +439,10 @@ void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode) {  // here reuse the doC
   if (pMsg != NULL) {
     int32_t size = sizeof(SMStreamDoCheckpointMsg);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_UPDATE_CHKPT_EVT, .pCont = pMsg, .contLen = size};
-    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    int32_t code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    if (code) {
+      mError("failed to put into write Queue, code:%s", tstrerror(code));
+    }
   }
 }
 
