@@ -58,12 +58,13 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     pHandle->execHandle.execDb.pFilterOutTbUid =
         taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    if (pHandle->execHandle.execDb.pFilterOutTbUid == NULL) return -1;
     int32_t size = 0;
     if (tDecodeI32(pDecoder, &size) < 0) return -1;
     for (int32_t i = 0; i < size; i++) {
       int64_t tbUid = 0;
       if (tDecodeI64(pDecoder, &tbUid) < 0) return -1;
-      taosHashPut(pHandle->execHandle.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0);
+      if (taosHashPut(pHandle->execHandle.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0) != 0) return -1;
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     if (tDecodeI64(pDecoder, &pHandle->execHandle.execTb.suid) < 0) return -1;
@@ -79,11 +80,12 @@ int32_t tqMetaDecodeCheckInfo(STqCheckInfo* info, void* pVal, int32_t vLen) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
   int32_t code = tDecodeSTqCheckInfo(&decoder, info);
+  tDecoderClear(&decoder);
+
   if (code != 0) {
     tDeleteSTqCheckInfo(info);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tDecoderClear(&decoder);
   return code;
 }
 
@@ -91,11 +93,12 @@ int32_t tqMetaDecodeOffsetInfo(STqOffset* info, void* pVal, int32_t vLen) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
   int32_t code = tDecodeSTqOffset(&decoder, info);
+  tDecoderClear(&decoder);
+
   if (code != 0) {
     tDeleteSTqOffset(info);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tDecoderClear(&decoder);
   return code;
 }
 
@@ -131,32 +134,36 @@ END:
   return code;
 }
 
-void* tqMetaGetOffset(STQ* pTq, const char* subkey) {
+int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset){
   void* data = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
   if (data == NULL) {
     int vLen = 0;
     if (tdbTbGet(pTq->pOffsetStore, subkey, strlen(subkey), &data, &vLen) < 0) {
       tdbFree(data);
-      return NULL;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     STqOffset offset = {0};
     if (tqMetaDecodeOffsetInfo(&offset, data, vLen) != TDB_CODE_SUCCESS) {
       tdbFree(data);
-      return NULL;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     if (taosHashPut(pTq->pOffset, subkey, strlen(subkey), &offset, sizeof(STqOffset)) != 0) {
       tDeleteSTqOffset(&offset);
       tdbFree(data);
-      return NULL;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
     tdbFree(data);
 
-    return taosHashGet(pTq->pOffset, subkey, strlen(subkey));
+    *pOffset = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
+    if(*pOffset == NULL){
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   } else {
-    return data;
+    *pOffset = data;
   }
+  return 0;
 }
 
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
@@ -199,10 +206,9 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
   int32_t vgId = TD_VID(pVnode);
 
   handle->pRef = walOpenRef(pVnode->pWal);
-  if (handle->pRef == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  TQ_ERR_RETURN(walSetRefVer(handle->pRef, handle->snapshotVer));
+
+  TQ_NULL_GO_TO_END(handle->pRef);
+  TQ_ERR_GO_TO_END(walSetRefVer(handle->pRef, handle->snapshotVer));
 
   SReadHandle reader = {
       .vnode = pVnode,
@@ -214,43 +220,36 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
   initStorageAPI(&reader.api);
 
   if (handle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-    handle->execHandle.task = qCreateQueueExecTaskInfo(handle->execHandle.execCol.qmsg, &reader, vgId,
-                                                       &handle->execHandle.numOfCols, handle->consumerId);
-    if (handle->execHandle.task == NULL) {
-      tqError("cannot create exec task for %s", handle->subKey);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+    handle->execHandle.task =
+        qCreateQueueExecTaskInfo(handle->execHandle.execCol.qmsg, &reader, vgId, &handle->execHandle.numOfCols, handle->consumerId);
+    TQ_NULL_GO_TO_END(handle->execHandle.task);
     void* scanner = NULL;
-    (void)qExtractStreamScanner(handle->execHandle.task, &scanner);
-    if (scanner == NULL) {
-      tqError("cannot extract stream scanner for %s", handle->subKey);
-      return TSDB_CODE_SCH_INTERNAL_ERROR;
-    }
+    qExtractStreamScanner(handle->execHandle.task, &scanner);
+    TQ_NULL_GO_TO_END(scanner);
     handle->execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
-    if (handle->execHandle.pTqReader == NULL) {
-      tqError("cannot extract exec reader for %s", handle->subKey);
-      return TSDB_CODE_SCH_INTERNAL_ERROR;
-    }
+    TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
+    TQ_NULL_GO_TO_END(handle->pWalReader);
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
-
-    buildSnapContext(reader.vnode, reader.version, 0, handle->execHandle.subType, handle->fetchMeta,
-                     (SSnapContext**)(&reader.sContext));
+    TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
+    TQ_ERR_GO_TO_END(buildSnapContext(reader.vnode, reader.version, 0, handle->execHandle.subType, handle->fetchMeta,
+                     (SSnapContext**)(&reader.sContext)));
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, handle->consumerId);
+    TQ_NULL_GO_TO_END(handle->execHandle.task);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
-
-    if (handle->execHandle.execTb.qmsg != NULL && strcmp(handle->execHandle.execTb.qmsg, "") != 0) {
+    TQ_NULL_GO_TO_END(handle->pWalReader);
+    if(handle->execHandle.execTb.qmsg != NULL && strcmp(handle->execHandle.execTb.qmsg, "") != 0) {
       if (nodesStringToNode(handle->execHandle.execTb.qmsg, &handle->execHandle.execTb.node) != 0) {
         tqError("nodesStringToNode error in sub stable, since %s", terrstr());
         return TSDB_CODE_SCH_INTERNAL_ERROR;
       }
     }
-    buildSnapContext(reader.vnode, reader.version, handle->execHandle.execTb.suid, handle->execHandle.subType,
-                     handle->fetchMeta, (SSnapContext**)(&reader.sContext));
+    TQ_ERR_GO_TO_END(buildSnapContext(reader.vnode, reader.version, handle->execHandle.execTb.suid, handle->execHandle.subType,
+                     handle->fetchMeta, (SSnapContext**)(&reader.sContext)));
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, handle->consumerId);
-
+    TQ_NULL_GO_TO_END(handle->execHandle.task);
     SArray* tbUidList = NULL;
     int     ret = qGetTableList(handle->execHandle.execTb.suid, pVnode, handle->execHandle.execTb.node, &tbUidList,
                                 handle->execHandle.task);
@@ -262,10 +261,13 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
     tqInfo("vgId:%d, tq try to get ctb for stb subscribe, suid:%" PRId64, pVnode->config.vgId,
            handle->execHandle.execTb.suid);
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
+    TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
     tqReaderSetTbUidList(handle->execHandle.pTqReader, tbUidList, NULL);
     taosArrayDestroy(tbUidList);
   }
-  return 0;
+
+END:
+  return code;
 }
 
 static int32_t tqMetaRestoreHandle(STQ* pTq, void* pVal, int vLen, STqHandle* handle) {
@@ -287,7 +289,7 @@ END:
 int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
-  memcpy(handle->subKey, req->subKey, TSDB_SUBSCRIBE_KEY_LEN);
+  (void)memcpy(handle->subKey, req->subKey, TSDB_SUBSCRIBE_KEY_LEN);
   handle->consumerId = req->newConsumerId;
 
   handle->execHandle.subType = req->subType;
@@ -297,15 +299,19 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
   } else if (req->subType == TOPIC_SUB_TYPE__DB) {
     handle->execHandle.execDb.pFilterOutTbUid =
         taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  } else if (req->subType == TOPIC_SUB_TYPE__TABLE) {
+    if(handle->execHandle.execDb.pFilterOutTbUid == NULL){
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }else if(req->subType == TOPIC_SUB_TYPE__TABLE){
     handle->execHandle.execTb.suid = req->suid;
     handle->execHandle.execTb.qmsg = taosStrdup(req->qmsg);
   }
 
   handle->snapshotVer = walGetCommittedVer(pTq->pVnode->pWal);
 
-  if (tqMetaInitHandle(pTq, handle) < 0) {
-    return -1;
+  int32_t code = tqMetaInitHandle(pTq, handle);
+  if (code != 0){
+    return code;
   }
   tqInfo("tqMetaCreateHandle %s consumer 0x%" PRIx64 " vgId:%d, snapshotVer:%" PRId64, handle->subKey,
          handle->consumerId, vgId, handle->snapshotVer);
@@ -377,10 +383,12 @@ END:
   return code;
 }
 
-static int32_t replaceTqPath(char** path) {
-  char*   tpath = NULL;
-  int32_t code = TDB_CODE_SUCCESS;
-  TQ_ERR_RETURN(tqBuildFName(&tpath, *path, TQ_SUBSCRIBE_NAME));
+static int32_t replaceTqPath(char** path){
+  char*  tpath = NULL;
+  int32_t code = tqBuildFName(&tpath, *path, TQ_SUBSCRIBE_NAME);
+  if (code != 0){
+    return code;
+  }
   taosMemoryFree(*path);
   *path = tpath;
   return TDB_CODE_SUCCESS;
@@ -407,7 +415,7 @@ static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
 END:
   tdbFree(pKey);
   tdbFree(pVal);
-  tdbTbcClose(pCur);
+  (void)tdbTbcClose(pCur);
   tDeleteSTqCheckInfo(&info);
   return code;
 }
@@ -480,7 +488,7 @@ END:
   return code;
 }
 
-int32_t tqMetaClose(STQ* pTq) {
+void tqMetaClose(STQ* pTq) {
   if (pTq->pExecStore) {
     (void)tdbTbClose(pTq->pExecStore);
   }
@@ -491,5 +499,4 @@ int32_t tqMetaClose(STQ* pTq) {
     (void)tdbTbClose(pTq->pOffsetStore);
   }
   (void)tdbClose(pTq->pMetaDB);
-  return 0;
 }
