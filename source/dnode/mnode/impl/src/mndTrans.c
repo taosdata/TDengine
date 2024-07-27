@@ -1146,13 +1146,13 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_STB) {
         void   *pCont = NULL;
         int32_t contLen = 0;
-        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
+        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_INDEX) {
         void   *pCont = NULL;
         int32_t contLen = 0;
-        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
+        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       }

@@ -376,10 +376,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SMCreateStbRsp createRsp = {0};
     SDecoder       coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
-    code = tDecodeSMCreateStbRsp(&coder, &createRsp);
-    if (code != 0){
-      setErrno(pRequest, TAOS_GET_TERRNO(code));
-    }
+    (void)tDecodeSMCreateStbRsp(&coder, &createRsp);  // pMsg->len == 0
     tDecoderClear(&coder);
 
     pRequest->body.resInfo.execRes.msgType = TDMT_MND_CREATE_STB;
@@ -472,10 +469,7 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SMAlterStbRsp alterRsp = {0};
     SDecoder      coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
-    code = tDecodeSMAlterStbRsp(&coder, &alterRsp);
-    if (code != 0){
-      setErrno(pRequest, TAOS_GET_TERRNO(code));
-    }
+    (void)tDecodeSMAlterStbRsp(&coder, &alterRsp);  // pMsg->len = 0
     tDecoderClear(&coder);
 
     pRequest->body.resInfo.execRes.msgType = TDMT_MND_ALTER_STB;
