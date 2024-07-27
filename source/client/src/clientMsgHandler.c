@@ -245,7 +245,12 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
       TSDB_CODE_MND_DB_IN_DROPPING == code) {
     SUseDbRsp usedbRsp = {0};
-    (void)tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+    code = tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+    if(code != 0){
+      tscError("0x%" PRIx64 " failed to deserialize SUseDbRsp", pRequest->requestId);
+      tFreeSUsedbRsp(&usedbRsp);
+      return TAOS_GET_TERRNO(code);
+    }
     struct SCatalog* pCatalog = NULL;
 
     if (usedbRsp.vgVersion >= 0) {  // cached in local
@@ -255,7 +260,13 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
         tscWarn("0x%" PRIx64 "catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->requestId, clusterId,
                 tstrerror(code1));
       } else {
-        (void)catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
+        code = catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("0x%" PRIx64 "catalogRemoveDB failed, db:%s, uid:%" PRId64 ", error:%s", pRequest->requestId,
+                   usedbRsp.db, usedbRsp.uid, tstrerror(code));
+          tFreeSUsedbRsp(&usedbRsp);
+          return TAOS_GET_TERRNO(code);
+        }
       }
     }
     tFreeSUsedbRsp(&usedbRsp);
@@ -270,14 +281,19 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       doRequestCallback(pRequest, pRequest->code);
 
     } else {
-      tsem_post(&pRequest->body.rspSem);
+      (void)tsem_post(&pRequest->body.rspSem);
     }
 
     return code;
   }
 
   SUseDbRsp usedbRsp = {0};
-  (void)tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+  code = tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+  if (code != 0){
+    tscError("0x%" PRIx64 " failed to deserialize SUseDbRsp", pRequest->requestId);
+    tFreeSUsedbRsp(&usedbRsp);
+    return TAOS_GET_TERRNO(code);
+  }
 
   if (strlen(usedbRsp.db) == 0) {
     if (usedbRsp.errCode != 0) {
@@ -300,7 +316,9 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   SName name = {0};
-  (void)tNameFromString(&name, usedbRsp.db, T_NAME_ACCT | T_NAME_DB);
+  if(tNameFromString(&name, usedbRsp.db, T_NAME_ACCT | T_NAME_DB) != TSDB_CODE_SUCCESS) {
+    tscError("0x%" PRIx64 " failed to parse db name:%s", pRequest->requestId, usedbRsp.db);
+  }
 
   SUseDbOutput output = {0};
   code = queryBuildUseDbOutput(&output, &usedbRsp);
@@ -317,7 +335,10 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
               tstrerror(code1));
     } else {
-      (void)catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
+      code = catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
+      if(code != 0){
+        tscError("0x%" PRIx64 " failed to update db vgroup info since %s", pRequest->requestId, tstrerror(code));
+      }
       output.dbVgroup = NULL;
     }
   }
@@ -326,7 +347,9 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   tFreeSUsedbRsp(&usedbRsp);
 
   char db[TSDB_DB_NAME_LEN] = {0};
-  (void)tNameGetDbName(&name, db);
+  if(tNameGetDbName(&name, db) != TSDB_CODE_SUCCESS) {
+    tscError("0x%" PRIx64 " failed to get db name since %s", pRequest->requestId, tstrerror(code));
+  }
 
   setConnectionDB(pRequest->pTscObj, db);
 
