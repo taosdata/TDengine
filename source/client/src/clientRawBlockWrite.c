@@ -484,7 +484,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
 
 end:
   RAW_FALSE_CHECK(cJSON_AddItemToObject(json, "tags", tags));
-  (void)taosArrayDestroy(pTagVals);
+  taosArrayDestroy(pTagVals);
 }
 
 static void buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs, cJSON** pJson) {
@@ -588,7 +588,7 @@ end:
     tDecoderClear(&decoder[i]);
     taosMemoryFreeClear(pCreateReq[i].comment);
     if (pCreateReq[i].type == TSDB_CHILD_TABLE) {
-      (void)taosArrayDestroy(pCreateReq[i].ctb.tagName);
+      taosArrayDestroy(pCreateReq[i].ctb.tagName);
     }
   }
   taosMemoryFree(decoder);
@@ -1097,7 +1097,7 @@ typedef struct SVgroupCreateTableBatch {
 
 static void destroyCreateTbReqBatch(void* data) {
   SVgroupCreateTableBatch* pTbBatch = (SVgroupCreateTableBatch*)data;
-  (void)taosArrayDestroy(pTbBatch->req.pArray);
+  taosArrayDestroy(pTbBatch->req.pArray);
 }
 
 static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
@@ -1252,7 +1252,7 @@ typedef struct SVgroupDropTableBatch {
 
 static void destroyDropTbReqBatch(void* data) {
   SVgroupDropTableBatch* pTbBatch = (SVgroupDropTableBatch*)data;
-  (void)taosArrayDestroy(pTbBatch->req.pArray);
+  taosArrayDestroy(pTbBatch->req.pArray);
 }
 
 static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
@@ -1518,7 +1518,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   }
 end:
   uDebug(LOG_ID_TAG " alter table return, meta:%p, len:%d, msg:%s", LOG_ID_VALUE, meta, metaLen, tstrerror(code));
-  (void)taosArrayDestroy(pArray);
+  taosArrayDestroy(pArray);
   if (pVgData) taosMemoryFreeClear(pVgData->pData);
   taosMemoryFreeClear(pVgData);
   destroyRequest(pRequest);
