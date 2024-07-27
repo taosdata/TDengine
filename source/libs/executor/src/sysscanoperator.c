@@ -1874,7 +1874,6 @@ static void getDBNameFromCondition(SNode* pCondition, const char* dbName) {
 
 static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   // build message and send to mnode to fetch the content of system tables.
-  int32_t            code = TSDB_CODE_SUCCESS;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
@@ -1883,7 +1882,7 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     if (isTaskKilled(pOperator->pTaskInfo)) {
       setOperatorCompleted(pOperator);
       (*ppRes) = NULL;
-      return code;
+      return pTaskInfo->code;
     }
 
     blockDataCleanup(pInfo->pRes);
@@ -1926,10 +1925,10 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         continue;
       }
       (*ppRes) = pBlock;
-      return code;
+      return pTaskInfo->code;
     } else {
       (*ppRes) = NULL;
-      return code;
+      return pTaskInfo->code;
     }
   }
 }
@@ -1937,6 +1936,9 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
 static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
   int32_t      code = doSysTableScanNext(pOperator, &pRes);
+  if (code) {
+    terrno = code;
+  }
   return pRes;
 }
 

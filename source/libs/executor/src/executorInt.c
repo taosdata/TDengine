@@ -1244,7 +1244,11 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
   }
 
   *pResBlock = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
-  return code;
+  if (*pResBlock == NULL && terrno != 0) {
+    return terrno;
+  } else {
+    return code;
+  }
 }
 
 bool compareVal(const char* v, const SStateKeys* pKey) {

@@ -430,7 +430,11 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
 SSDataBlock* doProjectOperation1(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  pOperator->pTaskInfo->code = doProjectOperation(pOperator, &pRes);
+  int32_t code = doProjectOperation(pOperator, &pRes);
+  if (code && pOperator->pTaskInfo->code == 0) {
+    pOperator->pTaskInfo->code = code;
+  }
+
   return pRes;
 }
 
