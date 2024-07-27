@@ -546,10 +546,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
   int32_t kvNum = taosHashGetSize(pHbReq->info);
   if (NULL == pHbReq->info || kvNum <= 0) {
-    if (taosArrayPush(pBatchRsp->rsps, &hbRsp) == NULL) {
-      if (terrno != 0) code = terrno;
-      TAOS_RETURN(code);
-    }
+    // TODO return value
+    (void)taosArrayPush(pBatchRsp->rsps, &hbRsp);
+    return TSDB_CODE_SUCCESS;
   }
 
   hbRsp.info = taosArrayInit(kvNum, sizeof(SKv));
