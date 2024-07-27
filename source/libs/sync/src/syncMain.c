@@ -1403,11 +1403,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
   sInfo("vgId:%d, restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
-  if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE) {
-    return TSDB_CODE_SYN_WRONG_FSM_STATE;
-  }
-
-  if ((code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex)) < 0) {
+  if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE && (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex)) < 0) {
     TAOS_RETURN(code);
   }
 
