@@ -223,9 +223,9 @@ bool tqGetTablePrimaryKey(STqReader *pReader);
 void tqSetTablePrimaryKey(STqReader *pReader, int64_t uid);
 
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
-int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
-int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
-int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
+void    tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
+void    tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
+void    tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 bool tqReaderIsQueriedTable(STqReader *pReader, uint64_t uid);
 bool tqCurrentBlockConsumed(const STqReader *pReader);
@@ -261,9 +261,9 @@ void           taosXSetTablePrimaryKey(SSnapContext *ctx, int64_t uid);
 int32_t        buildSnapContext(SVnode *pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
                                 SSnapContext **ctxRet);
 int32_t        getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
-SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext *ctx);
+int32_t        getMetaTableInfoFromSnapshot(SSnapContext *ctx, SMetaTableInfo* info);
 int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
-int32_t        destroySnapContext(SSnapContext *ctx);
+void           destroySnapContext(SSnapContext *ctx);
 
 // structs
 struct STsdbCfg {

@@ -153,8 +153,8 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
   return pRow;
 }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
-void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+int32_t initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
+void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 bool hasRemainResults(SGroupResInfo* pGroupResInfo);

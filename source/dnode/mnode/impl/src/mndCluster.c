@@ -243,7 +243,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   int32_t code = taosGetSystemUUID(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
-    strcpy(clusterObj.name, "tdengine3.0");
+    (void)strcpy(clusterObj.name, "tdengine3.0");
     mError("failed to get name from system, set to default val %s", clusterObj.name);
   }
 
@@ -355,7 +355,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
-    memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+    (void)memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
     clusterObj.upTime += tsUptimeInterval;
     mndReleaseCluster(pMnode, pCluster, pIter);
   }
@@ -420,7 +420,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
     if (pCluster) mndReleaseCluster(pMnode, pCluster, pIter);
     goto _exit;
   }
-  memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+  (void)memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
   mndReleaseCluster(pMnode, pCluster, pIter);
 
   if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, TSDB_DNODE_CONFIG_LEN) == 0) {

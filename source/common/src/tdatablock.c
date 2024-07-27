@@ -1510,6 +1510,9 @@ int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
 }
 
 void blockDataFreeRes(SSDataBlock* pBlock) {
+  if (pBlock == NULL){
+    return;
+  }
   int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);

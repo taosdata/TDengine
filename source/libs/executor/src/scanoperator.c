@@ -3480,7 +3480,13 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
     }
 
-    SMetaTableInfo mtInfo = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pInfo->sContext);
+    SMetaTableInfo mtInfo = {0};
+    code = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pInfo->sContext, &mtInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (code != 0) {
+      tDeleteSchemaWrapper(mtInfo.schema);
+      goto _end;
+    }
     STqOffsetVal   offset = {0};
     if (mtInfo.uid == 0 || pInfo->sContext->withMeta == ONLY_META) {  // read snapshot done, change to get data from wal
       qDebug("tmqsnap read snapshot done, change to get data from wal");
@@ -3490,9 +3496,9 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN, val);
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
     }
+    tDeleteSchemaWrapper(mtInfo.schema);
     code = qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
     QUERY_CHECK_CODE(code, lino, _end);
-    tDeleteSchemaWrapper(mtInfo.schema);
     (*ppRes) = NULL;
     return code;
   } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
@@ -3583,7 +3589,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 static void destroyRawScanOperatorInfo(void* param) {
   SStreamRawScanInfo* pRawScan = (SStreamRawScanInfo*)param;
   pRawScan->pAPI->tsdReader.tsdReaderClose(pRawScan->dataReader);
-  (void)pRawScan->pAPI->snapshotFn.destroySnapshot(pRawScan->sContext);
+  pRawScan->pAPI->snapshotFn.destroySnapshot(pRawScan->sContext);
   tableListDestroy(pRawScan->pTableListInfo);
   taosMemoryFree(pRawScan);
 }
@@ -3919,13 +3925,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     SArray* tableIdList = NULL;
     code = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo, &tableIdList);
     QUERY_CHECK_CODE(code, lino, _error);
-
-    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
-    if (code != 0) {
-      taosArrayDestroy(tableIdList);
-      goto _error;
-    }
-
+    pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
     taosArrayDestroy(tableIdList);
     memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->base.cond, sizeof(SQueryTableDataCond));
   } else {
@@ -5434,7 +5434,12 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
         break;
       }
 
-      tsortAppendTupleToBlock(pInfo->pSortHandle, pResBlock, pTupleHandle);
+      code = tsortAppendTupleToBlock(pInfo->pSortHandle, pResBlock, pTupleHandle);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        T_LONG_JMP(pOperator->pTaskInfo->env, terrno);
+      }
+
       if (pResBlock->info.rows >= capacity) {
         break;
       }
