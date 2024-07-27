@@ -277,7 +277,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   SUseDbRsp usedbRsp = {0};
-  tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+  (void)tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
 
   if (strlen(usedbRsp.db) == 0) {
     if (usedbRsp.errCode != 0) {
@@ -318,6 +318,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
               tstrerror(code1));
     } else {
       (void)catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
+      output.dbVgroup = NULL;
     }
   }
 
