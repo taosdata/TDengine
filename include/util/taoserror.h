@@ -678,6 +678,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_SYN_WRONG_ROLE                TAOS_DEF_ERROR_CODE(0, 0x091F)
 #define TSDB_CODE_SYN_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x09FF)
 
+
 // tq
 #define TSDB_CODE_TQ_INVALID_CONFIG             TAOS_DEF_ERROR_CODE(0, 0x0A00)
 #define TSDB_CODE_TQ_INIT_FAILED                TAOS_DEF_ERROR_CODE(0, 0x0A01)

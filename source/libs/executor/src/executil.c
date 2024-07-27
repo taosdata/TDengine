@@ -128,7 +128,9 @@ int32_t resultrowComparAsc(const void* p1, const void* p2) {
 
 static int32_t resultrowComparDesc(const void* p1, const void* p2) { return resultrowComparAsc(p2, p1); }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order) {
+int32_t initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
@@ -154,6 +156,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
   }
 
   pGroupResInfo->pBuf = taosMemoryMalloc(bufLen);
+  QUERY_CHECK_NULL(pGroupResInfo->pBuf, code, lino, _end, terrno);
 
   iter = 0;
   while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
@@ -164,7 +167,8 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
     p->groupId = *(uint64_t*)key;
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
-    taosArrayPush(pGroupResInfo->pRows, &p);
+    void* tmp = taosArrayPush(pGroupResInfo->pRows, &p);
+    QUERY_CHECK_NULL(pGroupResInfo->pBuf, code, lino, _end, terrno);
 
     offset += keyLen + sizeof(struct SResultRowPosition);
   }
@@ -176,6 +180,12 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
   }
 
   pGroupResInfo->index = 0;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {

@@ -5399,7 +5399,12 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
         break;
       }
 
-      tsortAppendTupleToBlock(pInfo->pSortHandle, pResBlock, pTupleHandle);
+      code = tsortAppendTupleToBlock(pInfo->pSortHandle, pResBlock, pTupleHandle);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        T_LONG_JMP(pOperator->pTaskInfo->env, terrno);
+      }
+
       if (pResBlock->info.rows >= capacity) {
         break;
       }
