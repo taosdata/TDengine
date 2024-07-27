@@ -337,7 +337,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     (void)tsem_post(&pRequest->body.rspSem);
   }
-  return code;
+  return 0;
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
