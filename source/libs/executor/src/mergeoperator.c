@@ -207,7 +207,6 @@ int32_t doSortMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   if (pSortMergeInfo->pIntermediateBlock == NULL) {
     pSortMergeInfo->pIntermediateBlock = NULL;
-
     code = tsortGetSortedDataBlock(pHandle, &pSortMergeInfo->pIntermediateBlock);
     if (pSortMergeInfo->pIntermediateBlock == NULL || code != 0) {
       return code;

@@ -236,7 +236,9 @@ TEST(testCase, toInteger_test) {
 }
 
 TEST(testCase, Datablock_test) {
-  SSDataBlock* b = createDataBlock();
+  SSDataBlock* b = NULL;
+  int32_t code = createDataBlock(&b);
+  ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   taosArrayPush(b->pDataBlock, &infoData);
@@ -361,7 +363,9 @@ TEST(testCase, non_var_dataBlock_split_test) {
 TEST(testCase, var_dataBlock_split_test) {
   int32_t numOfRows = 1000000;
 
-  SSDataBlock* b = createDataBlock();
+  SSDataBlock* b = NULL;
+  int32_t code = createDataBlock(&b);
+  ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   blockDataAppendColInfo(b, &infoData);

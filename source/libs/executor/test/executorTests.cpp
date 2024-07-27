@@ -71,7 +71,9 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
   }
 
   if (pInfo->pBlock == NULL) {
-    pInfo->pBlock = createDataBlock();
+    pInfo->pBlock = NULL;
+    int32_t code = createDataBlock(&pInfo->pBlock);
+    ASSERT(code == 0);
 
     SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
     blockDataAppendColInfo(pInfo->pBlock, &colInfo);
@@ -129,7 +131,10 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
   }
 
   if (pInfo->pBlock == NULL) {
-    pInfo->pBlock = createDataBlock();
+    pInfo->pBlock = NULL;
+
+    int32_t code = createDataBlock(&pInfo->pBlock);
+    ASSERT(code == 0);
 
     SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
     blockDataAppendColInfo(pInfo->pBlock, &colInfo);

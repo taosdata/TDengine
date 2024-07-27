@@ -613,7 +613,10 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
     return NULL;
   }
 
-  SSDataBlock* pDstBlock = createDataBlock();
+  SSDataBlock* pDstBlock = NULL;
+  code = createDataBlock(&pDstBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   pDstBlock->info = pDataBlock->info;
   pDstBlock->info.id.blockId = pOperator->resultDataBlockId;
   pDstBlock->info.capacity = 0;
@@ -1319,7 +1322,10 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (winCode != TSDB_CODE_SUCCESS) {
-    SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
+    SSDataBlock* pTmpBlock = NULL;
+    code = blockCopyOneRow(pSrcBlock, rowId, &pTmpBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     memset(pTmpBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
     pTmpBlock->info.id.groupId = groupId;
     char* tbName = pSrcBlock->info.parTbName;
@@ -1708,8 +1714,9 @@ int32_t createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPart
   pInfo->pPartitions = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   taosHashSetFreeFp(pInfo->pPartitions, freePartItem);
   pInfo->tsColIndex = 0;
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
-  QUERY_CHECK_NULL(pInfo->pDelRes, code, lino, _error, terrno);
+
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pPartNode->part.pTargets, NULL, &numOfCols);

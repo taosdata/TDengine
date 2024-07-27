@@ -576,8 +576,10 @@ int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void*
     goto END;
   }
 
-  SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
-  TSDB_CHECK_NULL(pDelBlock, code, line, END, terrno)
+  SSDataBlock* pDelBlock = NULL;
+  code = createSpecialDataBlock(STREAM_DELETE_DATA, &pDelBlock);
+  TSDB_CHECK_CODE(code, line, END);
+
   code = blockDataEnsureCapacity(pDelBlock, numOfTables);
   TSDB_CHECK_CODE(code, line, END);
 

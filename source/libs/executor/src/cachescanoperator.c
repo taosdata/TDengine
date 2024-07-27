@@ -181,7 +181,10 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
 
     capacity = TMIN(totalTables, 4096);
 
-    pInfo->pBufferedRes = createOneDataBlock(pInfo->pRes, false);
+    pInfo->pBufferedRes = NULL;
+    code = createOneDataBlock(pInfo->pRes, false, &pInfo->pBufferedRes);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     setColIdForCacheReadBlock(pInfo->pBufferedRes, pScanNode);
     code = blockDataEnsureCapacity(pInfo->pBufferedRes, capacity);
     QUERY_CHECK_CODE(code, lino, _error);
