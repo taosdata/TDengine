@@ -602,9 +602,11 @@ int32_t streamTaskStop(SStreamTask* pTask) {
     stError("failed to handle STOP event, s-task:%s", id);
   }
 
-  code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
-  if (code) {
-    stError("s-task:%s failed to kill task related query handle", id);
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+    if (code) {
+      stError("s-task:%s failed to kill task related query handle", id);
+    }
   }
 
   while (!streamTaskIsIdle(pTask)) {
