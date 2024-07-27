@@ -18,9 +18,6 @@ from util.cases import tdCases
 from util.sql import tdSql
 
 class TDTestCase:
-    clientCfgDict = {'debugFlag': 135}
-    updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
-    updatecfgDict["clientCfg"] = clientCfgDict
     def caseDescription(self):
         '''
         ttl/comment test

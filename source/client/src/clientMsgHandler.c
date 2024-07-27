@@ -40,10 +40,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   setErrno(pRequest, code);
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    code = removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
-    if (code != 0){
-      setErrno(pRequest, code);
-    }
+    (void)removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
   }
 
   taosMemoryFree(pMsg->pEpSet);
@@ -114,13 +111,8 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SEpSet srcEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
     SEpSet dstEpSet = connectRsp.epSet;
     if (srcEpSet.numOfEps == 1) {
-      code = rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
+      (void)rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
                         dstEpSet.eps[dstEpSet.inUse].fqdn);
-      if (code != 0){
-        setErrno(pRequest, code);
-        (void)tsem_post(&pRequest->body.rspSem);
-        goto End;
-      }
       updateEpSet = 0;
     }
   }
@@ -175,12 +167,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   taosThreadMutexLock(&clientHbMgr.lock);
   SAppHbMgr* pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
   if (pAppHbMgr) {
-    code = hbRegisterConn(pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
-    if (code != 0){
-      setErrno(pRequest, code);
-      (void)tsem_post(&pRequest->body.rspSem);
-      goto End;
-    }
+    (void)hbRegisterConn(pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
   } else {
     taosThreadMutexUnlock(&clientHbMgr.lock);
     code = TSDB_CODE_TSC_DISCONNECTED;
@@ -239,17 +226,9 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
                                .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
       char             dbFName[TSDB_DB_FNAME_LEN];
       (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
-      code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
-      if (code != TSDB_CODE_SUCCESS) {
-        setErrno(pRequest, code);
-      }
-      if (code == TSDB_CODE_SUCCESS) {
-        (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
-        code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
-      }
-      if (code != TSDB_CODE_SUCCESS) {
-        setErrno(pRequest, code);
-      }
+      (void)catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
+      (void)catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
     }
   }
 
@@ -264,10 +243,7 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   SUseDbRsp usedbRsp = {0};
-  code = tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
-  if (code != 0){
-    goto END;
-  }
+  (void)tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
 
   if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
       TSDB_CODE_MND_DB_IN_DROPPING == code) {
@@ -280,10 +256,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
         tscWarn("0x%" PRIx64 "catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->requestId, clusterId,
                 tstrerror(code1));
       } else {
-        code = catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
-        if (code != 0){
-          goto END;
-        }
+        (void)catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
       }
     }
 
@@ -316,10 +289,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   SName name = {0};
-  code = tNameFromString(&name, usedbRsp.db, T_NAME_ACCT | T_NAME_DB);
-  if (code != 0){
-    goto END;
-  }
+  (void)tNameFromString(&name, usedbRsp.db, T_NAME_ACCT | T_NAME_DB);
 
   SUseDbOutput output = {0};
   code = queryBuildUseDbOutput(&output, &usedbRsp);
@@ -336,10 +306,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
               tstrerror(code1));
     } else {
-      code = catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
-      if (code == 0){
-        output.dbVgroup = NULL;
-      }
+      (void)catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
     }
   }
 
@@ -414,19 +381,11 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     setErrno(pRequest, code);
   } else {
     SDropDbRsp dropdbRsp = {0};
-    code = tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp);
-    if (code != 0){
-      setErrno(pRequest, TAOS_GET_TERRNO(code));
-      goto END;
-    }
+    (void)tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp);
     struct SCatalog* pCatalog = NULL;
     code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (TSDB_CODE_SUCCESS == code) {
-      code = catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
-      if (code != 0){
-        setErrno(pRequest, TAOS_GET_TERRNO(code));
-        goto END;
-      }
+      (void)catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
       STscObj* pTscObj = pRequest->pTscObj;
 
       SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
@@ -435,17 +394,9 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
                                .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
       char             dbFName[TSDB_DB_FNAME_LEN] = {0};
       (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
-      code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
-      if (code != 0){
-        setErrno(pRequest, TAOS_GET_TERRNO(code));
-        goto END;
-      }
+      (void)catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
       (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
-      code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
-      if (code != 0){
-        setErrno(pRequest, TAOS_GET_TERRNO(code));
-        goto END;
-      }
+      (void)catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
     }
   }
 
