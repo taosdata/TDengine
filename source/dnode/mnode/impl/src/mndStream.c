@@ -852,7 +852,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  code = tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  code = tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_TABLE);
   if (code) {
     goto _OVER;
   }
