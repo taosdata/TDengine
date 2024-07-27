@@ -334,7 +334,8 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           int32_t     srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
           SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, srcSlot);
           if (pkey->isNull == false) {
-            colDataSetVal(pDst, rows, pkey->pData, false);
+            code = colDataSetVal(pDst, rows, pkey->pData, false);
+            QUERY_CHECK_CODE(code, lino, _end);
           } else {
             colDataSetNULL(pDst, rows);
           }
@@ -1108,12 +1109,16 @@ static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo) {
-  int32_t                 code = TSDB_CODE_SUCCESS;
-  int32_t                 lino = 0;
+int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
+  int32_t code = 0;
+  int32_t lino = 0;
   STimeSliceOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STimeSliceOperatorInfo));
   SOperatorInfo*          pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+
   if (pOperator == NULL || pInfo == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -1183,8 +1188,9 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   //  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
 
   code = appendDownstream(pOperator, &downstream, 1);
-  QUERY_CHECK_CODE(code, lino, _error);
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1192,8 +1198,8 @@ _error:
   }
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  return NULL;
+  pTaskInfo->code = code;
+  return code;
 }
 
 void destroyTimeSliceOperatorInfo(void* param) {

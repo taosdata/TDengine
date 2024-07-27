@@ -135,7 +135,7 @@ static FORCE_INLINE int32_t sifGetOperParamNum(EOperatorType ty) {
 static FORCE_INLINE int32_t sifValidOp(EOperatorType ty) {
   if ((ty >= OP_TYPE_ADD && ty <= OP_TYPE_BIT_OR) || (ty == OP_TYPE_IN || ty == OP_TYPE_NOT_IN) ||
       (ty == OP_TYPE_LIKE || ty == OP_TYPE_NOT_LIKE || ty == OP_TYPE_MATCH || ty == OP_TYPE_NMATCH)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -209,7 +209,7 @@ static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
 static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   SOperatorNode *nd = (SOperatorNode *)node;
   if (nodeType(node) != QUERY_NODE_OPERATOR) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   SColumnNode *l = (SColumnNode *)nd->pLeft;
   SValueNode  *r = (SValueNode *)nd->pRight;
@@ -390,15 +390,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
 
     if (nParam > 1) {
-      // if (sifNeedConvertCond(node->pLeft, node->pRight)) {
-      // SIF_ERR_JRET(sifInitParamValByCol(node->pLeft, node->pRight, &paramList[1], ctx));
-      // } else {
       SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
-      // }
-      // if (paramList[0].colValType == TSDB_DATA_TYPE_JSON &&
-      //    ((SOperatorNode *)(node))->opType == OP_TYPE_JSON_CONTAINS) {
-      //  return TSDB_CODE_OUT_OF_MEMORY;
-      //}
     }
     *params = paramList;
     return TSDB_CODE_SUCCESS;
@@ -485,7 +477,7 @@ int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
     int64_t v = 0;
     if (0 != toInteger(buf, len, 10, &v)) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
     if (type == TSDB_DATA_TYPE_BIGINT) {
       *(int64_t *)val = v;
@@ -505,7 +497,7 @@ int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
     uint64_t v = 0;
     if (0 != toUInteger(buf, len, 10, &v)) {
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
     if (type == TSDB_DATA_TYPE_UBIGINT) {
       *(uint64_t *)val = v;
@@ -517,7 +509,7 @@ int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
       *(uint16_t *)val = v;
     }
   } else {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
@@ -526,7 +518,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
   int32_t code = 0;
   int8_t  ltype = left->colValType, rtype = right->colValType;
   if (!IS_NUMERIC_TYPE(ltype) || !((IS_NUMERIC_TYPE(rtype)) || rtype == TSDB_DATA_TYPE_VARCHAR)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   if (ltype == TSDB_DATA_TYPE_FLOAT) {
     float f = 0;
@@ -661,7 +653,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     int8_t useIndex = sifShouldUseIndexBasedOnType(left, right);
     if (!useIndex) {
       output->status = SFLT_NOT_INDEX;
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     bool       reverse = false, equal = false;
@@ -682,7 +674,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
 
     if (sifSetFltParam(left, right, &typedata, &param) != 0) {
       output->status = SFLT_NOT_INDEX;
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     ret = left->api.metaFilterTableIds(arg->metaEx, &param, output->result);
@@ -823,7 +815,7 @@ static FORCE_INLINE int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxF
 }
 
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
-  int32_t code = -1;
+  int32_t code = TSDB_CODE_INVALID_PARA;
   if (sifValidOp(node->opType) < 0) {
     code = TSDB_CODE_QRY_INVALID_INPUT;
     ctx->code = code;

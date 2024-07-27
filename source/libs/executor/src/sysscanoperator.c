@@ -1874,7 +1874,6 @@ static void getDBNameFromCondition(SNode* pCondition, const char* dbName) {
 
 static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   // build message and send to mnode to fetch the content of system tables.
-  int32_t            code = TSDB_CODE_SUCCESS;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
@@ -1883,7 +1882,7 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     if (isTaskKilled(pOperator->pTaskInfo)) {
       setOperatorCompleted(pOperator);
       (*ppRes) = NULL;
-      return code;
+      return pTaskInfo->code;
     }
 
     blockDataCleanup(pInfo->pRes);
@@ -1926,10 +1925,10 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         continue;
       }
       (*ppRes) = pBlock;
-      return code;
+      return pTaskInfo->code;
     } else {
       (*ppRes) = NULL;
-      return code;
+      return pTaskInfo->code;
     }
   }
 }
@@ -1937,6 +1936,9 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
 static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
   int32_t      code = doSysTableScanNext(pOperator, &pRes);
+  if (code) {
+    terrno = code;
+  }
   return pRes;
 }
 
@@ -2065,13 +2067,16 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
   }
 }
 
-SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
-                                              const char* pUser, SExecTaskInfo* pTaskInfo) {
+int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
+                                              const char* pUser, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SSysTableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -2122,7 +2127,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -2133,7 +2139,7 @@ _error:
   }
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNode) {
@@ -2667,14 +2673,16 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
-                                               STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  int32_t         lino = 0;
+int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
+                                               STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
+  int32_t code = 0;
+  int32_t lino = 0;
   SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+    pTaskInfo->code = code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -2709,10 +2717,11 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
                   OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
-  return NULL;
+  return code;
 }

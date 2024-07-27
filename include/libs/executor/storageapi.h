@@ -218,10 +218,10 @@ typedef struct SStoreTqReader {
   int32_t (*tqGetStreamExecProgress)();
 
   void (*tqReaderSetColIdList)();
-  int32_t (*tqReaderSetQueryTableList)();
+  void (*tqReaderSetQueryTableList)();
 
-  int32_t (*tqReaderAddTables)();
-  int32_t (*tqReaderRemoveTables)();
+  void (*tqReaderAddTables)();
+  void (*tqReaderRemoveTables)();
 
   void (*tqSetTablePrimaryKey)();
   bool (*tqGetTablePrimaryKey)();
@@ -239,8 +239,8 @@ typedef struct SStoreSnapshotFn {
   bool (*taosXGetTablePrimaryKey)(SSnapContext* ctx);
   void (*taosXSetTablePrimaryKey)(SSnapContext* ctx, int64_t uid);
   int32_t (*setForSnapShot)(SSnapContext* ctx, int64_t uid);
-  int32_t (*destroySnapshot)(SSnapContext* ctx);
-  SMetaTableInfo (*getMetaTableInfoFromSnapshot)(SSnapContext* ctx);
+  void (*destroySnapshot)(SSnapContext* ctx);
+  int32_t (*getMetaTableInfoFromSnapshot)(SSnapContext* ctx, SMetaTableInfo* info);
   int32_t (*getTableInfoFromSnapshot)(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid);
 } SStoreSnapshotFn;
 
