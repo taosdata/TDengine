@@ -2837,11 +2837,12 @@ static int32_t mWinJoinCloneCacheBlk(SMJoinWindowCtx* pCtx) {
 
   if (!pGrp->clonedBlk) {
     if (0 == pGrp->beginIdx) {
-      pGrp->blk = NULL;
-      int32_t code = createOneDataBlock(pGrp->blk, true, &pGrp->blk);
+      SSDataBlock* p = NULL;
+      int32_t code = createOneDataBlock(pGrp->blk, true, &p);
       if (code) {
         MJ_ERR_RET(code);
       }
+      pGrp->blk = p;
     } else {
       pGrp->blk = blockDataExtractBlock(pGrp->blk, pGrp->beginIdx, pGrp->blk->info.rows - pGrp->beginIdx);
       pGrp->endIdx -= pGrp->beginIdx;
