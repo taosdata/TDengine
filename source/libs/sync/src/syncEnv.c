@@ -48,14 +48,14 @@ int32_t syncInit() {
   if (gNodeRefId < 0) {
     sError("failed to init node ref");
     syncCleanUp();
-    return -1;
+    return TSDB_CODE_SYN_WRONG_REF;
   }
 
   gHbDataRefId = taosOpenRef(200, (RefFp)syncHbTimerDataFree);
   if (gHbDataRefId < 0) {
     sError("failed to init hb-data ref");
     syncCleanUp();
-    return -1;
+    return TSDB_CODE_SYN_WRONG_REF;
   }
 
   sDebug("sync rsetId:%d is open", gNodeRefId);
@@ -106,7 +106,7 @@ void syncNodeRelease(SSyncNode *pNode) {
 
 int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
   pData->rid = taosAddRef(gHbDataRefId, pData);
-  if (pData->rid < 0) return -1;
+  if (pData->rid < 0) return TSDB_CODE_SYN_WRONG_REF;
   return pData->rid;
 }
 
