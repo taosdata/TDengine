@@ -8972,9 +8972,6 @@ _exit:
 }
 
 int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
-  int32_t code = 0;
-  int32_t lino;
-  int32_t tlen;
   int32_t headLen = sizeof(SMsgHead);
   if (buf != NULL) {
     buf = (char *)buf + headLen;
@@ -8983,38 +8980,32 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
-  TMSG_CHECK_GOTO(tStartEncode(&encoder));
+  if (tStartEncode(&encoder) < 0) return -1;
 
-  TMSG_CHECK_GOTO(tEncodeCStr(&encoder, pReq->subKey));
-  TMSG_CHECK_GOTO(tEncodeI8(&encoder, pReq->withTbName));
-  TMSG_CHECK_GOTO(tEncodeI8(&encoder, pReq->useSnapshot));
-  TMSG_CHECK_GOTO(tEncodeI32(&encoder, pReq->epoch));
-  TMSG_CHECK_GOTO(tEncodeU64(&encoder, pReq->reqId));
-  TMSG_CHECK_GOTO(tEncodeI64(&encoder, pReq->consumerId));
-  TMSG_CHECK_GOTO(tEncodeI64(&encoder, pReq->timeout));
-  TMSG_CHECK_GOTO(tEncodeSTqOffsetVal(&encoder, &pReq->reqOffset));
-  TMSG_CHECK_GOTO(tEncodeI8(&encoder, pReq->enableReplay));
-  TMSG_CHECK_GOTO(tEncodeI8(&encoder, pReq->sourceExcluded));
+  if (tEncodeCStr(&encoder, pReq->subKey) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withTbName) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->useSnapshot) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->epoch) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->reqId) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->consumerId) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->timeout) < 0) return -1;
+  if (tEncodeSTqOffsetVal(&encoder, &pReq->reqOffset) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->enableReplay) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->sourceExcluded) < 0) return -1;
 
   tEndEncode(&encoder);
 
-  tlen = encoder.pos;
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
 
   if (buf != NULL) {
     SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
     pHead->vgId = htonl(pReq->head.vgId);
     pHead->contLen = htonl(tlen + headLen);
   }
-  TMSG_CHECK_GOTO(tEncodeI8(&encoder, pReq->enableBatchMeta));
+  if (tEncodeI8(&encoder, pReq->enableBatchMeta) < 0) return -1;
 
-_exit:
-  if (code) {
-    tlen = code;
-  } else {
-    tlen += headLen;
-  }
-  tEncoderClear(&encoder);
-  return tlen;
+  return tlen + headLen;
 }
 
 int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
