@@ -333,14 +333,11 @@ void mndReleaseIdx(SMnode *pMnode, SIdxObj *pIdx) {
 
 SDbObj *mndAcquireDbByIdx(SMnode *pMnode, const char *idxName) {
   SName name = {0};
-  if ((terrno = tNameFromString(&name, idxName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
-    return NULL;
-  }
+  // TODO check return value
+  (void)tNameFromString(&name, idxName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   char db[TSDB_TABLE_FNAME_LEN] = {0};
-  if ((terrno = tNameGetFullDbName(&name, db)) != 0) {
-    return NULL;
-  }
+  (void)tNameGetFullDbName(&name, db);
 
   return mndAcquireDb(pMnode, db);
 }
