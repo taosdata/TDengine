@@ -103,7 +103,7 @@ void smaCleanUp() {
   }
 
   if (old == 1) {
-    taosCloseRef(smaMgmt.rsetId);
+    (void)taosCloseRef(smaMgmt.rsetId);
     taosHashCleanup(smaMgmt.refHash);
     smaMgmt.refHash = NULL;
     taosTmrCleanUp(smaMgmt.tmrHandle);
@@ -174,10 +174,10 @@ static void tRSmaInfoHashFreeNode(void *data) {
 
   if ((pRSmaInfo = *(SRSmaInfo **)data)) {
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 0)) && pItem->level) {
-      taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
     }
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
-      taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+      (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
     }
     tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo);
   }
@@ -378,16 +378,16 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
   }
 
   // init sma env
-  tdLockSma(pSma);
+  (void)tdLockSma(pSma);
   pEnv = (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_load_ptr(&SMA_TSMA_ENV(pSma))
                                                : atomic_load_ptr(&SMA_RSMA_ENV(pSma));
   if (!pEnv) {
     if ((code = tdInitSmaEnv(pSma, smaType, &pEnv)) < 0) {
-      tdUnLockSma(pSma);
+      (void)tdUnLockSma(pSma);
       TAOS_RETURN(code);
     }
   }
-  tdUnLockSma(pSma);
+  (void)tdUnLockSma(pSma);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -395,15 +395,15 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 void *tdRSmaExecutorFunc(void *param) {
   setThreadName("vnode-rsma");
 
-  tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW);
+  (void)tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW);
   return NULL;
 }
 
 static int32_t tdRsmaStartExecutor(const SSma *pSma) {
   int32_t      code = 0;
   TdThreadAttr thAttr = {0};
-  taosThreadAttrInit(&thAttr);
-  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   SSmaEnv  *pEnv = SMA_RSMA_ENV(pSma);
   SSmaStat *pStat = SMA_ENV_STAT(pEnv);
@@ -418,7 +418,7 @@ static int32_t tdRsmaStartExecutor(const SSma *pSma) {
     smaDebug("vgId:%d, success to create pthread for rsma", SMA_VID(pSma));
   }
 
-  taosThreadAttrDestroy(&thAttr);
+  (void)taosThreadAttrDestroy(&thAttr);
   TAOS_RETURN(code);
 }
 
@@ -444,7 +444,7 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
       if (taosCheckPthreadValid(pthread[i])) {
         smaDebug("vgId:%d, start to join pthread for rsma:%" PRId64 "", SMA_VID(pSma), taosGetPthreadId(pthread[i]));
-        taosThreadJoin(pthread[i], NULL);
+        (void)taosThreadJoin(pthread[i], NULL);
       }
     }
 

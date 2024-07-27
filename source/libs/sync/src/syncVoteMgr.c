@@ -19,7 +19,7 @@
 #include "syncUtil.h"
 
 static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {
-  memset(pVotesGranted->isGranted, 0, sizeof(pVotesGranted->isGranted));
+  (void)memset(pVotesGranted->isGranted, 0, sizeof(pVotesGranted->isGranted));
   pVotesGranted->votes = 0;
 }
 
@@ -165,5 +165,5 @@ void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *p
 
 void votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term) {
   pVotesRespond->term = term;
-  memset(pVotesRespond->isRespond, 0, sizeof(pVotesRespond->isRespond));
+  (void)memset(pVotesRespond->isRespond, 0, sizeof(pVotesRespond->isRespond));
 }

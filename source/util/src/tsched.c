@@ -27,8 +27,10 @@ static void *taosProcessSchedQueue(void *param);
 static void  taosDumpSchedulerStatus(void *qhandle, void *tmrId);
 
 void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *label, SSchedQueue *pSched) {
-  bool schedMalloced = false;
-  
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  bool    schedMalloced = false;
+
   if (NULL == pSched) {
     pSched = (SSchedQueue *)taosMemoryCalloc(sizeof(SSchedQueue), 1);
     if (pSched == NULL) {
@@ -95,22 +97,31 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   atomic_store_8(&pSched->stop, 0);
   for (int32_t i = 0; i < numOfThreads; ++i) {
     TdThreadAttr attr;
-    taosThreadAttrInit(&attr);
-    taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_JOINABLE);
-    int32_t code = taosThreadCreate(pSched->qthread + i, &attr, taosProcessSchedQueue, (void *)pSched);
-    taosThreadAttrDestroy(&attr);
-    if (code != 0) {
-      uError("%s: failed to create rpc thread(%s)", label, strerror(errno));
-      taosCleanUpScheduler(pSched);
-      if (schedMalloced) {
-        taosMemoryFree(pSched);
-      }
-      return NULL;
-    }
+    code = taosThreadAttrInit(&attr);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_JOINABLE);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = taosThreadCreate(pSched->qthread + i, &attr, taosProcessSchedQueue, (void *)pSched);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    (void)taosThreadAttrDestroy(&attr);
     ++pSched->numOfThreads;
   }
 
   uDebug("%s scheduler is initialized, numOfThreads:%d", label, pSched->numOfThreads);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosCleanUpScheduler(pSched);
+    if (schedMalloced) {
+      taosMemoryFree(pSched);
+    }
+    terrno = code;
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    return NULL;
+  }
 
   return (void *)pSched;
 }
@@ -220,22 +231,22 @@ void taosCleanUpScheduler(void *param) {
 
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
     if (taosCheckPthreadValid(pSched->qthread[i])) {
-      tsem_post(&pSched->fullSem);
+      (void)tsem_post(&pSched->fullSem);
     }
   }
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
     if (taosCheckPthreadValid(pSched->qthread[i])) {
-      taosThreadJoin(pSched->qthread[i], NULL);
+      (void)taosThreadJoin(pSched->qthread[i], NULL);
       taosThreadClear(&pSched->qthread[i]);
     }
   }
 
-  tsem_destroy(&pSched->emptySem);
-  tsem_destroy(&pSched->fullSem);
-  taosThreadMutexDestroy(&pSched->queueMutex);
+  (void)tsem_destroy(&pSched->emptySem);
+  (void)tsem_destroy(&pSched->fullSem);
+  (void)taosThreadMutexDestroy(&pSched->queueMutex);
 
   if (pSched->pTimer) {
-    taosTmrStop(pSched->pTimer);
+    (void)taosTmrStop(pSched->pTimer);
     pSched->pTimer = NULL;
   }
 

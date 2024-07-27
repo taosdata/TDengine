@@ -63,31 +63,31 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
       for (int32_t i = 0; i < numOfBlocks; i++) {
         SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
         void*        tmp = taosArrayPush(pInfo->pBlockLists, pReq);
-        QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
       void* tmp = taosArrayPush(pInfo->pBlockLists, &input);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
         SPackedData  tmp = {.pDataBlock = pDataBlock};
         void*        tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
-        QUERY_CHECK_NULL(tmpItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else if (type == STREAM_INPUT__CHECKPOINT) {
       SPackedData tmp = {.pDataBlock = input};
       void*       tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
-      QUERY_CHECK_NULL(tmpItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
       pInfo->blockType = STREAM_INPUT__CHECKPOINT;
     } else if (type == STREAM_INPUT__REF_DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
         void*        tmp = taosArrayPush(pInfo->pBlockLists, pReq);
-        QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     }
@@ -164,13 +164,13 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       for (int32_t i = 0; i < numOfBlocks; i++) {
         SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
         void*        tmp = taosArrayPush(pInfo->pBlockLists, pReq);
-        QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
       void* tmp = taosArrayPush(pInfo->pBlockLists, input);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
@@ -178,14 +178,14 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
         SPackedData  tmp = {.pDataBlock = pDataBlock};
         void*        tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
-        QUERY_CHECK_NULL(tmpItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
       SPackedData tmp = {.pDataBlock = input};
       void*       tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
-      QUERY_CHECK_NULL(tmpItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
 
       pInfo->blockType = STREAM_INPUT__CHECKPOINT;
     } else {
@@ -435,7 +435,7 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
     // handle multiple partition
     void* tmp = taosArrayPush(qa, id);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
   pAPI->metaReaderFn.clearReader(&mr);
@@ -698,7 +698,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
       SSDataBlock* p1 = createOneDataBlock(pRes, true);
       void*        tmp = taosArrayPush(pTaskInfo->pResultBlockList, &p1);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       p = p1;
     } else {
       p = *(SSDataBlock**)taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
@@ -711,7 +711,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     current += p->info.rows;
     ASSERT(p->info.rows > 0 || p->info.type == STREAM_CHECKPOINT);
     void* tmp = taosArrayPush(pResList, &p);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
     if (current >= rowsThreshold) {
       break;
@@ -1464,13 +1464,13 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
   STableListInfo* pTableListInfo = taosArrayGetP(plist, 0);
 
   SArray* pUidList = taosArrayInit(10, sizeof(uint64_t));
-  QUERY_CHECK_NULL(pUidList, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pUidList, code, lino, _end, terrno);
 
   int32_t numOfTables = tableListGetSize(pTableListInfo);
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableKeyInfo* pKeyInfo = tableListGetInfo(pTableListInfo, i);
     void*          tmp = taosArrayPush(pUidList, &pKeyInfo->uid);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
   taosArrayDestroy(plist);
@@ -1492,11 +1492,11 @@ static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
     SStreamScanInfo* pScanInfo = pOperator->info;
     STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
     void*            tmp = taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pScanInfo = pOperator->info;
     void*           tmp = taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   } else {
     if (pOperator->pDownstream != NULL && pOperator->pDownstream[0] != NULL) {
       extractTableList(pList, pOperator->pDownstream[0]);

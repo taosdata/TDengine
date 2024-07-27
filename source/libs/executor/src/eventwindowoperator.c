@@ -100,7 +100,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   QUERY_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pEventWindowNode->window.node.pOutputDataBlockDesc);
-  QUERY_CHECK_NULL(pResBlock, code, lino, _error, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
 
   code = blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -168,7 +168,7 @@ void destroyEWindowOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
+static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SEventWindowOperatorInfo* pInfo = pOperator->info;
@@ -197,11 +197,9 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
-      pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                              pInfo->scalarSup.numOfExprs, NULL);
-      if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-      }
+      code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
+                                   pInfo->scalarSup.numOfExprs, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     code = eventWindowAggImpl(pOperator, pInfo, pBlock);
@@ -211,16 +209,25 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
-      return pRes;
+      (*ppRes) = pRes;
+      return code;
     }
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  return pRes->info.rows == 0 ? NULL : pRes;
+  (*ppRes) =  pRes->info.rows == 0 ? NULL : pRes;
+  return code;
+}
+
+static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = eventWindowAggregateNext(pOperator, &pRes);
+  return pRes;
 }
 
 static int32_t setSingleOutputTupleBufv1(SResultRowInfo* pResultRowInfo, STimeWindow* win, SResultRow** pResult,

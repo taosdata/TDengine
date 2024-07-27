@@ -35,8 +35,7 @@ namespace ParserTest {
 class ParserEnv : public testing::Environment {
  public:
   virtual void SetUp() {
-    // TODO(smj) : How to handle return value of fmFuncMgtInit
-    (void)fmFuncMgtInit();
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
     initMetaDataEnv();
     generateMetaData();
     initLog(TD_TMP_DIR_PATH "td");
@@ -71,7 +70,7 @@ class ParserEnv : public testing::Environment {
     tsAsyncLog = 0;
 
     taosRemoveDir(path);
-    taosMkDir(path);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, taosMkDir(path));
     tstrncpy(tsLogDir, path, PATH_MAX);
     if (taosInitLog("taoslog", 1) != 0) {
       std::cout << "failed to init log file" << std::endl;
@@ -118,7 +117,7 @@ static void parseArg(int argc, char* argv[]) {
 }  // namespace ParserTest
 
 int main(int argc, char* argv[]) {
-  testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
+  (void)testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
   testing::InitGoogleTest(&argc, argv);
   ParserTest::parseArg(argc, argv);
   return RUN_ALL_TESTS();
