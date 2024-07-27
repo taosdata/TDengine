@@ -1252,13 +1252,13 @@ static bool isSeperatorChar(char c) {
   return (c > 0x20 && c < 0x7F && !(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9'));
 }
 
-static void parseTsFormat(const char* formatStr, SArray* formats) {
+static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
   TSFormatNode* lastOtherFormat = NULL;
   while (*formatStr) {
     const TSFormatKeyWord* key = keywordSearch(formatStr);
     if (key) {
       TSFormatNode format = {.key = key, .type = TS_FORMAT_NODE_TYPE_KEYWORD};
-      taosArrayPush(formats, &format);
+      if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
       formatStr += key->len;
       lastOtherFormat = NULL;
     } else {
@@ -1286,7 +1286,7 @@ static void parseTsFormat(const char* formatStr, SArray* formats) {
             TSFormatNode format = {.type = TS_FORMAT_NODE_TYPE_CHAR, .key = NULL};
             format.c = formatStr;
             format.len = 1;
-            taosArrayPush(formats, &format);
+            if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
             formatStr++;
             last = taosArrayGetLast(formats);
           }
@@ -1314,13 +1314,14 @@ static void parseTsFormat(const char* formatStr, SArray* formats) {
               .key = NULL};
           format.c = formatStr;
           format.len = 1;
-          taosArrayPush(formats, &format);
+          if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
           formatStr++;
           if (format.type == TS_FORMAT_NODE_TYPE_CHAR) lastOtherFormat = taosArrayGetLast(formats);
         }
       }
     }
   }
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
@@ -1488,7 +1489,7 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         s += 6;
         break;
       case TSFKW_NS:
-        sprintf(s, "%09" PRId64, tm->fsec);
+        (void)sprintf(s, "%09" PRId64, tm->fsec);
         s += 9;
         break;
       case TSFKW_TZH:
@@ -1925,7 +1926,7 @@ int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t pr
     if (!*formats){
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    parseTsFormat(format, *formats);
+    TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
   }
   struct STm tm;
   TAOS_CHECK_RETURN(taosTs2Tm(ts, precision, &tm));
@@ -1941,7 +1942,7 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
     if (!*formats) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    parseTsFormat(format, *formats);
+    TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
   }
   int32_t code = char2ts(tsStr, *formats, ts, precision, &sErrPos, &fErrIdx);
   if (code == -1) {
@@ -1966,7 +1967,7 @@ int32_t TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* ou
   if (!formats) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  parseTsFormat(format, formats);
+  TAOS_CHECK_RETURN(parseTsFormat(format, formats));
   struct STm tm;
   TAOS_CHECK_GOTO(taosTs2Tm(ts, precision, &tm), NULL, _exit);
   TAOS_CHECK_GOTO(tm2char(formats, &tm, out, outLen), NULL, _exit);
@@ -1980,11 +1981,11 @@ int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const c
   const char* sErrPos;
   int32_t     fErrIdx;
   SArray*     formats = taosArrayInit(4, sizeof(TSFormatNode));
-  parseTsFormat(format, formats);
+  TAOS_CHECK_RETURN(parseTsFormat(format, formats));
   int32_t code = char2ts(tsStr, formats, ts, precision, &sErrPos, &fErrIdx);
   if (code == -1) {
-    printf("failed position: %s\n", sErrPos);
-    printf("failed format: %s\n", ((TSFormatNode*)taosArrayGet(formats, fErrIdx))->key->name);
+    (void)printf("failed position: %s\n", sErrPos);
+    (void)printf("failed format: %s\n", ((TSFormatNode*)taosArrayGet(formats, fErrIdx))->key->name);
   }
   taosArrayDestroy(formats);
   return code;
