@@ -242,11 +242,10 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
 int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
-  SUseDbRsp usedbRsp = {0};
-  (void)tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
-
   if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
       TSDB_CODE_MND_DB_IN_DROPPING == code) {
+    SUseDbRsp usedbRsp = {0};
+    (void)tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
     struct SCatalog* pCatalog = NULL;
 
     if (usedbRsp.vgVersion >= 0) {  // cached in local
@@ -263,24 +262,36 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    goto END;
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    setErrno(pRequest, code);
+
+    if (pRequest->body.queryFp != NULL) {
+      doRequestCallback(pRequest, pRequest->code);
+
+    } else {
+      tsem_post(&pRequest->body.rspSem);
+    }
+
+    return code;
   }
+
+  SUseDbRsp usedbRsp = {0};
+  tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
 
   if (strlen(usedbRsp.db) == 0) {
     if (usedbRsp.errCode != 0) {
-      code = usedbRsp.errCode;
+      return usedbRsp.errCode;
     } else {
-      code = TSDB_CODE_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
     }
-    goto END;
   }
 
   tscTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
   for (int32_t i = 0; i < usedbRsp.vgNum; ++i) {
     SVgroupInfo* pInfo = taosArrayGet(usedbRsp.pVgroupInfos, i);
     if (pInfo == NULL){
-      code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
-      goto END;
+      continue;
     }
     tscTrace("vgId:%d, numOfEps:%d inUse:%d ", pInfo->vgId, pInfo->epSet.numOfEps, pInfo->epSet.inUse);
     for (int32_t j = 0; j < pInfo->epSet.numOfEps; ++j) {
@@ -311,15 +322,13 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFreeClear(output.dbVgroup);
+  tFreeSUsedbRsp(&usedbRsp);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   (void)tNameGetDbName(&name, db);
 
   setConnectionDB(pRequest->pTscObj, db);
 
-END:
-  setErrno(pRequest, code);
-  tFreeSUsedbRsp(&usedbRsp);
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
