@@ -248,7 +248,7 @@ void monitorCreateClient(int64_t clusterId) {
       goto fail;
     }
 
-    taos_collector_registry_register_collector(pMonitor->registry, pMonitor->colector);
+    (void)taos_collector_registry_register_collector(pMonitor->registry, pMonitor->colector);
     pMonitor->counters =
         (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
     if (pMonitor->counters == NULL) {
@@ -772,7 +772,7 @@ static int32_t tscMonitortInit() {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  taosThreadAttrDestroy(&thAttr);
+  (void)taosThreadAttrDestroy(&thAttr);
   return 0;
 }
 

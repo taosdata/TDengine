@@ -450,7 +450,7 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
       }
 
       qDestroyStmtDataBlock(pBlocks);
-      taosHashRemove(pStmt->exec.pBlockHash, key, keyLen);
+      STMT_ERR_RET(taosHashRemove(pStmt->exec.pBlockHash, key, keyLen));
 
       pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
     }
@@ -640,7 +640,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     tscDebug("tb %s not exist", pStmt->bInfo.tbFName);
-    stmtCleanBindInfo(pStmt);
+    STMT_ERR_RET(stmtCleanBindInfo(pStmt));
 
     STMT_ERR_RET(code);
   }
@@ -991,7 +991,7 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTBNAME));
 
   int32_t insert = 0;
-  stmtIsInsert(stmt, &insert);
+  STMT_ERR_RET(stmtIsInsert(stmt, &insert));
   if (0 == insert) {
     tscError("set tb name not available for none insert statement");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
@@ -1161,7 +1161,7 @@ int32_t stmtAppendTablePostHandle(STscStmt* pStmt, SStmtQNode* param) {
   }
 
   if (0 == pStmt->sql.siInfo.firstName[0]) {
-    strcpy(pStmt->sql.siInfo.firstName, pStmt->bInfo.tbName);
+    (void)strcpy(pStmt->sql.siInfo.firstName, pStmt->bInfo.tbName);
   }
 
   param->tblData.getFromHash = pStmt->sql.siInfo.tbFromHash;
@@ -1248,8 +1248,8 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     STMT_ERR_RET(qStmtParseQuerySql(&ctx, pStmt->sql.pQuery));
 
     if (pStmt->sql.pQuery->haveResultSet) {
-      setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,
-                       pStmt->sql.pQuery->numOfResCols);
+      STMT_ERR_RET(setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,
+                       pStmt->sql.pQuery->numOfResCols));
       taosMemoryFreeClear(pStmt->sql.pQuery->pResSchema);
       setResPrecision(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->precision);
     }
@@ -1301,7 +1301,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     // param->tblData.aCol = taosArrayInit(20, POINTER_BYTES);
 
     param->restoreTbCols = false;
-    strcpy(param->tblData.tbName, pStmt->bInfo.tbName);
+    (void)strcpy(param->tblData.tbName, pStmt->bInfo.tbName);
   }
 
   int64_t startUs3 = taosGetTimestampUs();

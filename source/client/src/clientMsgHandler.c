@@ -164,18 +164,18 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  taosThreadMutexLock(&clientHbMgr.lock);
+  (void)taosThreadMutexLock(&clientHbMgr.lock);
   SAppHbMgr* pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
   if (pAppHbMgr) {
     (void)hbRegisterConn(pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
   } else {
-    taosThreadMutexUnlock(&clientHbMgr.lock);
+    (void)taosThreadMutexUnlock(&clientHbMgr.lock);
     code = TSDB_CODE_TSC_DISCONNECTED;
     setErrno(pRequest, code);
     (void)tsem_post(&pRequest->body.rspSem);
     goto End;
   }
-  taosThreadMutexUnlock(&clientHbMgr.lock);
+  (void)taosThreadMutexUnlock(&clientHbMgr.lock);
 
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
@@ -184,7 +184,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 End:
 
   if (pRequest) {
-    releaseRequest(pRequest->self);
+    (void)releaseRequest(pRequest->self);
   }
 
   taosMemoryFree(param);

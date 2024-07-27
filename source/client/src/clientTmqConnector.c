@@ -493,7 +493,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(
     (*env)->SetIntField(env, metadataObj, g_metadataColindexField, i);
     jstring metadataObjColname = (*env)->NewStringUTF(env, fields[i].name);
     (*env)->SetObjectField(env, metadataObj, g_metadataColnameField, metadataObjColname);
-    (*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
+    (void)(*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
   }
 
   (*env)->CallVoidMethod(env, rowobj, g_blockdataSetNumOfRowsFp, (jint)numOfRows);
@@ -567,7 +567,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTopicAssign
     (*env)->CallVoidMethod(env, jassignment, g_assignmentSetCurrentOffset, assignment.currentOffset);
     (*env)->CallVoidMethod(env, jassignment, g_assignmentSetBegin, assignment.begin);
     (*env)->CallVoidMethod(env, jassignment, g_assignmentSetEnd, assignment.end);
-    (*env)->CallBooleanMethod(env, jarrayList, g_arrayListAddFp, jassignment);
+    (void)(*env)->CallBooleanMethod(env, jarrayList, g_arrayListAddFp, jassignment);
   }
   tmq_free_assignment(pAssign);
   return JNI_SUCCESS;
