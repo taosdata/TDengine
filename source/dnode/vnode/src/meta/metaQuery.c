@@ -1070,13 +1070,15 @@ int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
     int32_t cmp = (*param->filterFunc)((void *)&p->btime, (void *)&pBtimeKey->btime, param->type);
     if (cmp == 0)
-      taosArrayPush(pUids, &p->uid);
-    else {
-      if (param->equal == true) {
-        if (count > TRY_ERROR_LIMIT) break;
-        count++;
+      if (taosArrayPush(pUids, &p->uid) == NULL) {
+        ret = terrno;
+        break;
+      } else {
+        if (param->equal == true) {
+          if (count > TRY_ERROR_LIMIT) break;
+          count++;
+        }
       }
-    }
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) break;
   } while (1);
@@ -1132,7 +1134,10 @@ int32_t metaFilterTableName(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
     cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
     if (cmp == 0) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
-      taosArrayPush(pUids, &tuid);
+      if (taosArrayPush(pUids, &tuid) == NULL) {
+        ret = terrno;
+        goto END;
+      }
     } else {
       if (param->equal == true) {
         if (count > TRY_ERROR_LIMIT) break;
@@ -1328,7 +1333,10 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
       } else {
         tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
       }
-      taosArrayPush(pUids, &tuid);
+      if (taosArrayPush(pUids, &tuid) == NULL) {
+        ret = terrno;
+        break;
+      }
       found = true;
     } else {
       if (param->equal == true) {
@@ -1432,7 +1440,11 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
-      taosArrayPush(pUidTagInfo, &info);
+      if (taosArrayPush(pUidTagInfo, &info) == NULL) {
+        metaCloseCtbCursor(pCur);
+        taosHashCleanup(pSepecifiedUidMap);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
   } else {  // only the specified tables need to be added
     while (1) {
