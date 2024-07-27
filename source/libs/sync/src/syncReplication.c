@@ -48,19 +48,19 @@
 
 int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
   syncLogReplReset(pMgr);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   int32_t ret = syncNodeReplicateWithoutLock(pNode);
-  taosThreadMutexUnlock(&pBuf->mutex);
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
 
   TAOS_RETURN(ret);
 }
