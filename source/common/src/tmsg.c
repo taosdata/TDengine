@@ -9975,9 +9975,9 @@ void tFreeMDropStreamReq(SMDropStreamReq *pReq) { FREESQL(); }
 //   SEncoder encoder = {0};
 //   tEncoderInit(&encoder, buf, bufLen);
 
-//   TMSG_CHECK_GOTO(tStartEncode(&encoder));
-//   TMSG_CHECK_GOTO(tEncodeCStr(&encoder, pReq->name));
-//   TMSG_CHECK_GOTO(tEncodeI8(&encoder, pReq->igNotExists));
+//   if (tStartEncode(&encoder) < 0) return -1;
+//   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+//   if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
 
 //   tEndEncode(&encoder);
 
@@ -9987,14 +9987,12 @@ void tFreeMDropStreamReq(SMDropStreamReq *pReq) { FREESQL(); }
 // }
 
 // int32_t tDeserializeSMRecoverStreamReq(void *buf, int32_t bufLen, SMRecoverStreamReq *pReq) {
-int32_t code = 0;
-int32_t lino;
 //   SDecoder decoder = {0};
 //   tDecoderInit(&decoder, buf, bufLen);
 
-//   TMSG_CHECK_GOTO(tStartDecode(&decoder));
-//   TMSG_CHECK_GOTO(tDecodeCStrTo(&decoder, pReq->name));
-//   TMSG_CHECK_GOTO(tDecodeI8(&decoder, &pReq->igNotExists));
+//   if (tStartDecode(&decoder) < 0) return -1;
+//   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+//   if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
 
 //   tEndDecode(&decoder);
 
@@ -10189,6 +10187,9 @@ _exit:
 }
 
 int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
   TMSG_CHECK_GOTO(tStartDecode(pCoder));
 
   TMSG_CHECK_GOTO(tDecodeI32v(pCoder, &pReq->flags));
@@ -12301,6 +12302,9 @@ _exit:
 }
 
 static int32_t tEncodeSViewMetaRsp(SEncoder *pEncoder, const SViewMetaRsp *pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
   TMSG_CHECK_GOTO(tEncodeCStr(pEncoder, pRsp->name));
   TMSG_CHECK_GOTO(tEncodeCStr(pEncoder, pRsp->dbFName));
   TMSG_CHECK_GOTO(tEncodeCStr(pEncoder, pRsp->user));
@@ -12343,6 +12347,9 @@ _exit:
 }
 
 static int32_t tDecodeSViewMetaRsp(SDecoder *pDecoder, SViewMetaRsp *pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
   TMSG_CHECK_GOTO(tDecodeCStrTo(pDecoder, pRsp->name));
   TMSG_CHECK_GOTO(tDecodeCStrTo(pDecoder, pRsp->dbFName));
   TMSG_CHECK_GOTO(tDecodeCStrAlloc(pDecoder, &pRsp->user));
