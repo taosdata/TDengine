@@ -1069,16 +1069,17 @@ int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
     if (count > TRY_ERROR_LIMIT) break;
 
     int32_t cmp = (*param->filterFunc)((void *)&p->btime, (void *)&pBtimeKey->btime, param->type);
-    if (cmp == 0)
+    if (cmp == 0) {
       if (taosArrayPush(pUids, &p->uid) == NULL) {
         ret = terrno;
         break;
-      } else {
-        if (param->equal == true) {
-          if (count > TRY_ERROR_LIMIT) break;
-          count++;
-        }
       }
+    } else {
+      if (param->equal == true) {
+        if (count > TRY_ERROR_LIMIT) break;
+        count++;
+      }
+    }
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) break;
   } while (1);
