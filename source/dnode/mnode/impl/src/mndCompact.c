@@ -334,11 +334,7 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  contLen = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req);
-  if (contLen < 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  (void)tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req);
   *pContLen = contLen;
   return pReq;
 }
@@ -591,11 +587,7 @@ void mndCompactSendProgressReq(SMnode *pMnode, SCompactObj *pCompact) {
       pHead->contLen = htonl(contLen);
       pHead->vgId = htonl(pDetail->vgId);
 
-      contLen = tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req);
-      if (contLen < 0) {
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
+      (void)tSerializeSQueryCompactProgressReq((char *)pHead + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req);
 
       SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, .contLen = contLen};
 
