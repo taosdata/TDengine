@@ -9180,7 +9180,7 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   return 0;
 }
 
-void tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
+int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   if (pVal->type == TMQ_OFFSET__RESET_NONE) {
     (void)snprintf(buf, maxLen, "none");
   } else if (pVal->type == TMQ_OFFSET__RESET_EARLIEST) {
@@ -9202,6 +9202,8 @@ void tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
                      pVal->primaryKey.type, pVal->primaryKey.val);
     }
   }
+
+  return 0;
 }
 
 bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
