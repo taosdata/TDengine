@@ -677,20 +677,24 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
 }
 
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
+  int32_t code = 0;
   int32_t capacity = pDest->info.capacity;
-
-  size_t numOfCols = taosArrayGetSize(pDest->pDataBlock);
+  size_t  numOfCols = taosArrayGetSize(pDest->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, i);
 
     capacity = pDest->info.capacity;
-    colDataMergeCol(pCol2, pDest->info.rows, &capacity, pCol1, pSrc->info.rows);
+    int32_t ret = colDataMergeCol(pCol2, pDest->info.rows, &capacity, pCol1, pSrc->info.rows);
+    if (ret < 0) {  // error occurs
+      code = ret;
+      return code;
+    }
   }
 
   pDest->info.capacity = capacity;
   pDest->info.rows += pSrc->info.rows;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows) {
