@@ -144,6 +144,8 @@ int64_t mndGetClusterUpTime(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, CLUSTER_VER_NUMBE, sizeof(SClusterObj) + CLUSTER_RESERVE_SIZE);
@@ -172,6 +174,8 @@ _OVER:
 }
 
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SClusterObj *pCluster = NULL;
   SSdbRow     *pRow = NULL;
@@ -239,7 +243,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   int32_t code = taosGetSystemUUID(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
-    strcpy(clusterObj.name, "tdengine3.0");
+    (void)strcpy(clusterObj.name, "tdengine3.0");
     mError("failed to get name from system, set to default val %s", clusterObj.name);
   }
 
@@ -287,6 +291,7 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
   SMnode      *pMnode = pMsg->info.node;
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      code = 0;
+  int32_t      lino = 0;
   int32_t      numOfRows = 0;
   int32_t      cols = 0;
   SClusterObj *pCluster = NULL;
@@ -297,31 +302,32 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET((const char *)&pCluster->id, false, pCluster);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->id, false, pCluster, _OVER);
 
     char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET(buf, false, pCluster);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, _OVER);
 
     int32_t upTime = mndGetClusterUpTimeImp(pCluster);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET((const char *)&upTime, false, pCluster);
+    COL_DATA_SET_VAL_GOTO((const char *)&upTime, false, pCluster, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET((const char *)&pCluster->createdTime, false, pCluster);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->createdTime, false, pCluster, _OVER);
+
 
     char ver[12] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_RET((const char *)ver, false, pCluster);
+    COL_DATA_SET_VAL_GOTO((const char *)ver, false, pCluster, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (tsExpireTime <= 0) {
       colDataSetNULL(pColInfo, numOfRows);
     } else {
-      COL_DATA_SET_VAL_RET((const char *)&tsExpireTime, false, pCluster);
+      COL_DATA_SET_VAL_GOTO((const char *)&tsExpireTime, false, pCluster, _OVER);
     }
 
     sdbRelease(pSdb, pCluster);
@@ -329,6 +335,12 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
   }
 
   pShow->numOfRows += numOfRows;
+
+_OVER:
+  if (code != 0) {
+    mError("failed to retrieve cluster info at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   return numOfRows;
 }
 
@@ -343,7 +355,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
-    memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+    (void)memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
     clusterObj.upTime += tsUptimeInterval;
     mndReleaseCluster(pMnode, pCluster, pIter);
   }
@@ -408,7 +420,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
     if (pCluster) mndReleaseCluster(pMnode, pCluster, pIter);
     goto _exit;
   }
-  memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+  (void)memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
   mndReleaseCluster(pMnode, pCluster, pIter);
 
   if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, TSDB_DNODE_CONFIG_LEN) == 0) {

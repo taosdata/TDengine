@@ -175,7 +175,8 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
   int32_t prefixLen = strlen(tsdbFilePrefix);
 
-  STfsDir *tsdbDir = tfsOpendir(pTfs, tsdbPath);
+  STfsDir *tsdbDir = NULL;
+  (void)tfsOpendir(pTfs, tsdbPath, &tsdbDir);
   if (tsdbDir == NULL) return 0;
 
   while (1) {
@@ -280,12 +281,13 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
                              int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
+  int32_t    code = 0;
 
   vnodeGetPrimaryDir(dstPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
   if (vnodeLoadInfo(dir, &info) == 0) {
     if (info.config.vgId != dstVgId) {
       vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
-      return -1;
+      return TSDB_CODE_FAILED;
     }
     return dstVgId;
   }
@@ -301,13 +303,13 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
     return srcVgId;
   } else if (info.config.vgId != dstVgId) {
     vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
   vInfo("vgId:%d, rename %s to %s", dstVgId, srcPath, dstPath);
   if (vnodeRenameVgroupId(srcPath, dstPath, srcVgId, dstVgId, diskPrimary, pTfs) < 0) {
     vError("vgId:%d, failed to rename vnode from %s to %s since %s", dstVgId, srcPath, dstPath, tstrerror(terrno));
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
   return dstVgId;
@@ -332,8 +334,7 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
   }
   if (diskPrimary < 0 || diskPrimary >= ndisk) {
     vError("disk:%d is unavailable from the %d disks mounted at level 0", diskPrimary, ndisk);
-    terrno = TSDB_CODE_FS_INVLD_CFG;
-    return -1;
+    return terrno = TSDB_CODE_FS_INVLD_CFG;
   }
   return 0;
 }
@@ -458,8 +459,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // sma required the tq is initialized before the vnode open
-  pVnode->pTq = tqOpen(tdir, pVnode);
-  if (pVnode->pTq == NULL) {
+  if (tqOpen(tdir, pVnode)) {
     vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }

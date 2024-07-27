@@ -1659,8 +1659,8 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, u
   size_t    len = strlen(fqdn);
   uint32_t* v = taosHashGet(cache, fqdn, len);
   if (v == NULL) {
-    addr = taosGetIpv4FromFqdn(fqdn);
-    if (addr == 0xffffffff) {
+    code = taosGetIpv4FromFqdn(fqdn, &addr);
+    if (code != 0) {
       code = TSDB_CODE_RPC_FQDN_ERROR;
       tError("failed to get ip from fqdn:%s since %s", fqdn, tstrerror(code));
       return code;
@@ -1677,9 +1677,9 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, u
 }
 static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   // impl later
-  int32_t  code = 0;
-  uint32_t addr = taosGetIpv4FromFqdn(fqdn);
-  if (addr != 0xffffffff) {
+  uint32_t addr = 0;
+  int32_t  code = taosGetIpv4FromFqdn(fqdn, &addr);
+  if (code == 0) {
     size_t    len = strlen(fqdn);
     uint32_t* v = taosHashGet(cache, fqdn, len);
     if (addr != *v) {

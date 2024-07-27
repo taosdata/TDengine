@@ -72,9 +72,10 @@ static bool isCondition(const SNode* pNode) {
 }
 
 static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
-  SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+  SOperatorNode* pOp = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
   if (NULL == pOp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   pOp->opType = OP_TYPE_IS_TRUE;
   pOp->pLeft = pSrc;
@@ -179,9 +180,9 @@ static EDealRes doFindAndReplaceNode(SNode** pNode, void* pContext) {
     char aliasName[TSDB_COL_NAME_LEN] = {0};
     strcpy(aliasName, ((SExprNode*)*pNode)->aliasName);
     nodesDestroyNode(*pNode);
-    *pNode = nodesCloneNode(pCxt->replaceCxt.pNew);
+    *pNode = NULL;
+    pCxt->code = nodesCloneNode(pCxt->replaceCxt.pNew, pNode);
     if (NULL == *pNode) {
-      pCxt->code = TSDB_CODE_OUT_OF_MEMORY;
       return DEAL_RES_ERROR;
     }
     strcpy(((SExprNode*)*pNode)->aliasName, aliasName);
@@ -231,12 +232,14 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
           SArray* pOrigAss = NULL;
           TSWAP(((SExprNode*)*pCol)->pAssociation, pOrigAss);
           nodesDestroyNode(*pCol);
-          *pCol = nodesCloneNode(*pNew);
-          TSWAP(pOrigAss, ((SExprNode*)*pCol)->pAssociation);
+          *pCol = NULL;
+          code = nodesCloneNode(*pNew, pCol);
+          if (TSDB_CODE_SUCCESS == code) {
+            strcpy(((SExprNode*)*pCol)->aliasName, aliasName);
+            TSWAP(pOrigAss, ((SExprNode*)*pCol)->pAssociation);
+          }
           taosArrayDestroy(pOrigAss);
-          strcpy(((SExprNode*)*pCol)->aliasName, aliasName);
-          if (NULL == *pCol) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
+          if (TSDB_CODE_SUCCESS != code) {
             break;
           }
         } else {
@@ -276,17 +279,23 @@ static bool isUselessCol(SExprNode* pProj) {
   return NULL == ((SExprNode*)pProj)->pAssociation;
 }
 
-static SNode* createConstantValue() {
-  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+static int32_t createConstantValue(SValueNode** ppNode) {
+  SValueNode* pVal = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (NULL == pVal) {
-    return NULL;
+    return code;
   }
   pVal->node.resType.type = TSDB_DATA_TYPE_INT;
   pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
   const int32_t val = 1;
-  nodesSetValueNodeValue(pVal, (void*)&val);
-  pVal->translate = true;
-  return (SNode*)pVal;
+  code = nodesSetValueNodeValue(pVal, (void*)&val);
+  if (TSDB_CODE_SUCCESS == code) {
+    pVal->translate = true;
+    *ppNode = pVal;
+  } else {
+    nodesDestroyNode((SNode*)pVal);
+  }
+  return code;
 }
 
 static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
@@ -306,7 +315,11 @@ static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelec
     WHERE_NEXT;
   }
   if (0 == LIST_LENGTH(pSelect->pProjectionList)) {
-    return nodesListStrictAppend(pSelect->pProjectionList, createConstantValue());
+    SValueNode* pVal = NULL;
+    int32_t code = createConstantValue(&pVal);
+    if (TSDB_CODE_SUCCESS == code) {
+      return nodesListStrictAppend(pSelect->pProjectionList, (SNode*)pVal);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -412,12 +425,12 @@ static SNodeList* getChildProjection(SNode* pStmt) {
 
 static void eraseSetOpChildProjection(SSetOperator* pSetOp, int32_t index) {
   SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
-  nodesListErase(pLeftProjs, nodesListGetCell(pLeftProjs, index));
+  (void)nodesListErase(pLeftProjs, nodesListGetCell(pLeftProjs, index));
   if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pLeft)) {
     eraseSetOpChildProjection((SSetOperator*)pSetOp->pLeft, index);
   }
   SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
-  nodesListErase(pRightProjs, nodesListGetCell(pRightProjs, index));
+  (void)nodesListErase(pRightProjs, nodesListGetCell(pRightProjs, index));
   if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pRight)) {
     eraseSetOpChildProjection((SSetOperator*)pSetOp->pRight, index);
   }
@@ -495,7 +508,11 @@ static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* 
     WHERE_NEXT;
   }
   if (0 == LIST_LENGTH(pSetOp->pProjectionList)) {
-    return nodesListStrictAppend(pSetOp->pProjectionList, createConstantValue());
+    SValueNode* pVal = NULL;
+    int32_t code = createConstantValue(&pVal);
+    if (TSDB_CODE_SUCCESS == code) {
+      return nodesListStrictAppend(pSetOp->pProjectionList, (SNode*)pVal);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }

@@ -190,8 +190,9 @@ _OVER:
 }
 
 static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
-  uint32_t ip = taosGetIpv4FromFqdn(server);
-  if (ip == 0xffffffff) {
+  uint32_t ip = 0;
+  int32_t code = taosGetIpv4FromFqdn(server, &ip);
+  if (code) {
     tError("http-report failed to resolving domain names: %s", server);
     return TSDB_CODE_RPC_FQDN_ERROR;
   }

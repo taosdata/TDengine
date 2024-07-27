@@ -456,9 +456,9 @@ static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* 
 static int32_t jsonToNodeListImpl(const SJson* pJsonArray, SNodeList** pList) {
   int32_t size = (NULL == pJsonArray ? 0 : tjsonGetArraySize(pJsonArray));
   if (size > 0) {
-    *pList = nodesMakeList();
+    int32_t code = nodesMakeList(pList);
     if (NULL == *pList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return code;
     }
   }
 
@@ -1338,7 +1338,7 @@ static int32_t jsonToLogicDynQueryCtrlNode(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, jkDynQueryCtrlLogicPlanQueryType, pNode->qType, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonGetBoolValue(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchFetch, &pNode->stbJoin.batchFetch);
+    code = tjsonGetBoolValue(pJson, jkDynQueryCtrlLogicPlanStbJoinBatchFetch, &pNode->stbJoin.batchFetch);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkDynQueryCtrlLogicPlanStbJoinVgList, &pNode->stbJoin.pVgList);
@@ -3031,10 +3031,10 @@ static int32_t physiPartitionNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkPartitionPhysiPlanTargets, pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonAddBoolToObject(pJson, jkPartitionPhysiPlanNeedBlockOutputTsOrder, pNode->needBlockOutputTsOrder);
+    code = tjsonAddBoolToObject(pJson, jkPartitionPhysiPlanNeedBlockOutputTsOrder, pNode->needBlockOutputTsOrder);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonAddIntegerToObject(pJson, jkPartitionPhysiPlanTsSlotId, pNode->tsSlotId);
+    code = tjsonAddIntegerToObject(pJson, jkPartitionPhysiPlanTsSlotId, pNode->tsSlotId);
   }
 
   return code;
@@ -7390,7 +7390,7 @@ static int32_t jsonToTSMAOption(const SJson* pJson, void* pObj) {
     code = jsonToNodeObject(pJson, jkTSMAOptionInterval, &pNode->pInterval);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonGetUTinyIntValue(pJson, jkTSMAOptionTsPrecision, &pNode->tsPrecision);
+    code = tjsonGetUTinyIntValue(pJson, jkTSMAOptionTsPrecision, &pNode->tsPrecision);
   }
   return code;
 }
@@ -8212,9 +8212,9 @@ static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode) {
   int32_t val = 0;
   int32_t code = tjsonGetIntValue(pJson, jkNodeType, &val);
   if (TSDB_CODE_SUCCESS == code) {
-    *pNode = nodesMakeNode(val);
+    code = nodesMakeNode(val, pNode);
     if (NULL == *pNode) {
-      return TSDB_CODE_FAILED;
+      return code;
     }
     code = jsonToNode(pJson, *pNode);
   }

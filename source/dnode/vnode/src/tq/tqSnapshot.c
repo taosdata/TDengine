@@ -76,14 +76,10 @@ _err:
   return code;
 }
 
-int32_t tqSnapReaderClose(STqSnapReader** ppReader) {
-  int32_t code = 0;
-
-  tdbTbcClose((*ppReader)->pCur);
+void tqSnapReaderClose(STqSnapReader** ppReader) {
+  (void)tdbTbcClose((*ppReader)->pCur);
   taosMemoryFree(*ppReader);
   *ppReader = NULL;
-
-  return code;
 }
 
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
@@ -99,14 +95,14 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
     goto _err;
   }
 
   SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
   pHdr->type = pReader->type;
   pHdr->size = vLen;
-  memcpy(pHdr->data, pVal, vLen);
+  (void)memcpy(pHdr->data, pVal, vLen);
 
 _exit:
   tdbFree(pKey);
@@ -131,20 +127,20 @@ struct STqSnapWriter {
 
 int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter) {
   int32_t        code = 0;
-  STqSnapWriter* pWriter;
+  STqSnapWriter* pWriter = NULL;
 
   // alloc
   pWriter = (STqSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);;
     goto _err;
   }
   pWriter->pTq = pTq;
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  if (tdbBegin(pTq->pMetaDB, &pWriter->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
-    code = -1;
+  code = tdbBegin(pTq->pMetaDB, &pWriter->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
+  if (code < 0) {
     taosMemoryFree(pWriter);
     goto _err;
   }
@@ -164,7 +160,7 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
   STQ*           pTq = pWriter->pTq;
 
   if (rollback) {
-    tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
+    (void)tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
   } else {
     code = tdbCommit(pWriter->pTq->pMetaDB, pWriter->txn);
     if (code) goto _err;
@@ -207,7 +203,8 @@ int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nD
   int32_t   code = 0;
   STQ*      pTq = pWriter->pTq;
   STqCheckInfo info = {0};
-  if(tqMetaDecodeCheckInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr)) != 0){
+  code = tqMetaDecodeCheckInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  if(code != 0){
     goto _err;
   }
 
@@ -217,7 +214,7 @@ int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nD
 
   return code;
 
-  _err:
+_err:
   tqError("vgId:%d, vnode check info tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }
@@ -227,7 +224,8 @@ int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData
   STQ*      pTq = pWriter->pTq;
 
   STqOffset info = {0};
-  if(tqMetaDecodeOffsetInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr)) != 0){
+  code = tqMetaDecodeOffsetInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
+  if(code != 0){
     goto _err;
   }
 

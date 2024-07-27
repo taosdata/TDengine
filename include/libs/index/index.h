@@ -83,7 +83,7 @@ void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery);
  * @param type (input, single query type)
  * @return error code
  */
-int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EIndexQueryType type);
+int32_t indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EIndexQueryType type);
 /*
  * open index
  * @param opt (input, index opt)
@@ -91,7 +91,7 @@ int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EInde
  * @param index (output, index object)
  * @return error code
  */
-int indexOpen(SIndexOpts* opt, const char* path, SIndex** index);
+int32_t indexOpen(SIndexOpts* opt, const char* path, SIndex** index);
 /*
  * close index
  * @param index (input, index to be closed)
@@ -106,7 +106,7 @@ void indexClose(SIndex* index);
  * @param uid  (input, uid of terms)
  * @return error code
  */
-int indexPut(SIndex* index, SIndexMultiTerm* terms, uint64_t uid);
+int32_t indexPut(SIndex* index, SIndexMultiTerm* terms, uint64_t uid);
 /*
  * delete terms that meet query condition
  * @param index (input, index object)
@@ -114,7 +114,7 @@ int indexPut(SIndex* index, SIndexMultiTerm* terms, uint64_t uid);
  * @return error code
  */
 
-int indexDelete(SIndex* index, SIndexMultiTermQuery* query);
+int32_t indexDelete(SIndex* index, SIndexMultiTermQuery* query);
 /*
  * search index
  * @param index (input, index object)
@@ -122,7 +122,7 @@ int indexDelete(SIndex* index, SIndexMultiTermQuery* query);
  * @param result(output, query result)
  * @return error code
  */
-int indexSearch(SIndex* index, SIndexMultiTermQuery* query, SArray* result);
+int32_t indexSearch(SIndex* index, SIndexMultiTermQuery* query, SArray* result);
 /*
  * rebuild index
  * @param index (input, index object)
@@ -138,7 +138,7 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* query, SArray* result);
  * @param index (output, index json object)
  * @return error code
  */
-int indexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
+int32_t indexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
 /*
  * close index
  * @param index (input, index to be closed)
@@ -154,7 +154,7 @@ void indexJsonClose(SIndexJson* index);
  * @param uid  (input, uid of terms)
  * @return error code
  */
-int indexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
+int32_t indexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
 /*
  * search index
  * @param index (input, index object)
@@ -163,7 +163,7 @@ int indexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
  * @return error code
  */
 
-int indexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
+int32_t indexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
 /*
  * @param
  * @param

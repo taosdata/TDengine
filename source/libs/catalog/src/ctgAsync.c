@@ -2079,7 +2079,8 @@ int32_t ctgHandleGetTbTagRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    char* pJson = parseTagDatatoJson(pTag);
+    char* pJson = NULL;
+    parseTagDatatoJson(pTag, &pJson);
     STagVal tagVal;
     tagVal.cid = 0;
     tagVal.type = TSDB_DATA_TYPE_JSON;
@@ -2671,7 +2672,7 @@ _return:
     ctgReleaseVgInfoToCache(pCtg, pDbCache);
   }
   if (pTsma) {
-    tFreeTableTSMAInfo(pTsma);
+    tFreeAndClearTableTSMAInfo(pTsma);
     pTsma = NULL;
   }
   if (pVgHash) {

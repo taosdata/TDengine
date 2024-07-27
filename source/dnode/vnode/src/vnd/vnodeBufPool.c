@@ -140,8 +140,9 @@ void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
     // allocate a new node
     pNode = taosMemoryMalloc(sizeof(*pNode) + size);
     if (pNode == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
+      if (pPool->lock) {
+        taosThreadSpinUnlock(pPool->lock);
+      }
       return NULL;
     }
 
@@ -173,7 +174,6 @@ void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
     // allocate a new node
     pNode = taosMemoryMalloc(sizeof(*pNode) + size);
     if (pNode == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
       return NULL;
     }

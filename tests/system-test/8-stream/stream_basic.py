@@ -93,9 +93,8 @@ class TDTestCase:
         tdSql.execute("create stream stream2 fill_history 1 into stb subtable(concat('new-', tname)) AS SELECT "
                       "_wstart, count(*), avg(i) FROM st PARTITION BY tbname tname INTERVAL(1m)", show=True)
 
-        time.sleep(2)
-        tdSql.query("select * from sta")
-        tdSql.checkRows(3)
+        sql= "select * from sta"
+        tdSql.check_rows_loop(3, sql, loopCount=100, waitTime=0.5)
         tdSql.query("select tbname from sta order by tbname")
         if not tdSql.getData(0, 0).startswith('nee_w-t1_sta_'):
             tdLog.exit("error1")
@@ -106,8 +105,8 @@ class TDTestCase:
         if not tdSql.getData(2, 0).startswith('nee_w-t3_sta_'):
             tdLog.exit("error3")
 
-        tdSql.query("select * from stb")
-        tdSql.checkRows(3)
+        sql= "select * from stb"
+        tdSql.check_rows_loop(3, sql, loopCount=100, waitTime=0.5)
         tdSql.query("select tbname from stb order by tbname")
         if not tdSql.getData(0, 0).startswith('new-t1_stb_'):
             tdLog.exit("error4")

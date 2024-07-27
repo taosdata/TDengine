@@ -65,7 +65,7 @@ TEST(testCase, smlParseInfluxString_Test) {
 
   ASSERT_EQ(elements.timestamp, sql + elements.measureTagsLen + 1 + elements.colsLen + 1);
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
-  (void)taosArrayDestroy(elements.colArray);
+  taosArrayDestroy(elements.colArray);
   elements.colArray = nullptr;
 
   // case 2  false
@@ -74,7 +74,7 @@ TEST(testCase, smlParseInfluxString_Test) {
   (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_NE(ret, 0);
-  (void)taosArrayDestroy(elements.colArray);
+  taosArrayDestroy(elements.colArray);
   elements.colArray = nullptr;
 
   // case 4  tag is null
@@ -95,7 +95,7 @@ TEST(testCase, smlParseInfluxString_Test) {
 
   ASSERT_EQ(elements.timestamp, sql + elements.measureTagsLen + 1 + elements.colsLen + 1);
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
-  (void)taosArrayDestroy(elements.colArray);
+  taosArrayDestroy(elements.colArray);
   elements.colArray = nullptr;
 
   // case 5 tag is null
@@ -115,7 +115,7 @@ TEST(testCase, smlParseInfluxString_Test) {
 
   ASSERT_EQ(elements.timestamp, sql + 1 + elements.measureTagsLen + 3 + elements.colsLen + 2);
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
-  (void)taosArrayDestroy(elements.colArray);
+  taosArrayDestroy(elements.colArray);
   elements.colArray = nullptr;
 
   // case 6
@@ -124,7 +124,7 @@ TEST(testCase, smlParseInfluxString_Test) {
   (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_EQ(ret, 0);
-  (void)taosArrayDestroy(elements.colArray);
+  taosArrayDestroy(elements.colArray);
   elements.colArray = nullptr;
   ASSERT_EQ(smlClearForRerun(info), 0);
 
@@ -134,7 +134,7 @@ TEST(testCase, smlParseInfluxString_Test) {
   (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_NE(ret, 0);
-  (void)taosArrayDestroy(elements.colArray);
+  taosArrayDestroy(elements.colArray);
   elements.colArray = nullptr;
 
   // case 8 false
@@ -143,7 +143,7 @@ TEST(testCase, smlParseInfluxString_Test) {
   (void)memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(info, sql, sql + strlen(sql), &elements);
   ASSERT_NE(ret, 0);
-  (void)taosArrayDestroy(elements.colArray);
+  taosArrayDestroy(elements.colArray);
   elements.colArray = nullptr;
 
   taosMemoryFree(sql);
@@ -250,7 +250,7 @@ TEST(testCase, smlParseCols_Error_Test) {
 //    printf("i:%d\n", i);
     ASSERT_NE(ret, TSDB_CODE_SUCCESS);
     taosMemoryFree(sql);
-    (void)taosArrayDestroy(elements.colArray);
+    taosArrayDestroy(elements.colArray);
   }
   smlDestroyInfo(info);
 }
@@ -458,7 +458,7 @@ TEST(testCase, smlParseCols_Test) {
   ASSERT_EQ(kv->length, 4);
   ASSERT_EQ(strncasecmp(kv->value, "iuwq", 4), 0);
 
-  (void)taosArrayDestroy(elements.colArray);
+  taosArrayDestroy(elements.colArray);
   taosMemoryFree(sql);
   smlDestroyInfo(info);
 }

@@ -150,7 +150,6 @@ int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t cap) {
   cap -= nwrite;
 
   for (int _i = 0; (_i < pEpSet->numOfEps) && (cap > 0); _i++) {
-    int32_t ret = 0;
     if (_i == pEpSet->numOfEps - 1) {
       ret = snprintf(pBuf + nwrite, cap, "%d. %s:%d", _i, pEpSet->eps[_i].fqdn, pEpSet->eps[_i].port);
     } else {
@@ -271,11 +270,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
   TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, cfgGetSize(pConf)), NULL, _exit);
 
-  pIter = cfgCreateIter(pConf);
-  if (pIter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(code, NULL, _exit);
-  }
+  TAOS_CHECK_GOTO(cfgCreateIter(pConf, &pIter), NULL, _exit);
 
   cfgLock(pConf);
   locked = 1;
@@ -297,7 +292,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
-    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
+    TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen), NULL, _exit);
     varDataSetLen(value, valueLen);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
@@ -309,7 +304,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, value, false), NULL, _exit);
 
     char scope[TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen);
+    TAOS_CHECK_GOTO(cfgDumpItemScope(pItem, &scope[VARSTR_HEADER_SIZE], TSDB_CONFIG_SCOPE_LEN, &valueLen), NULL, _exit);
     varDataSetLen(scope, valueLen);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, col++);

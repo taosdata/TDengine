@@ -43,12 +43,12 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
 
   item = cJSON_GetObjectItem(json, "md5");
   if (cJSON_IsString(item)) {
-    memcpy(cp->md5, item->valuestring, strlen(item->valuestring));
+    (void)memcpy(cp->md5, item->valuestring, strlen(item->valuestring));
   }
 
   item = cJSON_GetObjectItem(json, "upload_id");
   if (cJSON_IsString(item)) {
-    strncpy(cp->upload_id, item->valuestring, 128);
+    (void)strncpy(cp->upload_id, item->valuestring, 128);
   }
 
   item2 = cJSON_GetObjectItem(json, "file");
@@ -65,12 +65,12 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
 
     item = cJSON_GetObjectItem(item2, "path");
     if (cJSON_IsString(item)) {
-      strncpy(cp->file_path, item->valuestring, TSDB_FILENAME_LEN);
+      (void)strncpy(cp->file_path, item->valuestring, TSDB_FILENAME_LEN);
     }
 
     item = cJSON_GetObjectItem(item2, "file_md5");
     if (cJSON_IsString(item)) {
-      strncpy(cp->file_md5, item->valuestring, 64);
+      (void)strncpy(cp->file_md5, item->valuestring, 64);
     }
   }
 
@@ -83,17 +83,17 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
 
     item = cJSON_GetObjectItem(item2, "object_name");
     if (cJSON_IsString(item)) {
-      strncpy(cp->object_name, item->valuestring, 128);
+      (void)strncpy(cp->object_name, item->valuestring, 128);
     }
 
     item = cJSON_GetObjectItem(item2, "object_last_modified");
     if (cJSON_IsString(item)) {
-      strncpy(cp->object_last_modified, item->valuestring, 64);
+      (void)strncpy(cp->object_last_modified, item->valuestring, 64);
     }
 
     item = cJSON_GetObjectItem(item2, "object_etag");
     if (cJSON_IsString(item)) {
-      strncpy(cp->object_etag, item->valuestring, 128);
+      (void)strncpy(cp->object_etag, item->valuestring, 128);
     }
   }
 
@@ -141,7 +141,7 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
 
         item3 = cJSON_GetObjectItem(item, "etag");
         if (cJSON_IsString(item3)) {
-          strncpy(cp->parts[index].etag, item3->valuestring, 128);
+          (void)strncpy(cp->parts[index].etag, item3->valuestring, 128);
         }
       }
     }
@@ -179,7 +179,7 @@ int32_t cos_cp_load(char const* filepath, SCheckpoint* checkpoint) {
   } else if (n != size) {
     TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit);
   }
-  taosCloseFile(&fd);
+  (void)taosCloseFile(&fd);
   cp_body[size] = '\0';
 
   return cos_cp_parse_body(cp_body, checkpoint);
@@ -189,7 +189,7 @@ _exit:
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   if (fd) {
-    taosCloseFile(&fd);
+    (void)taosCloseFile(&fd);
   }
   if (cp_body) {
     taosMemoryFree(cp_body);
@@ -309,7 +309,7 @@ int32_t cos_cp_dump(SCheckpoint* cp) {
     if (!item) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
     }
-    cJSON_AddItemToArray(ajson, item);
+    (void)cJSON_AddItemToArray(ajson, item);
 
     if (NULL == cJSON_AddNumberToObject(item, "index", cp->parts[i].index)) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
@@ -346,7 +346,7 @@ void cos_cp_get_undo_parts(SCheckpoint* checkpoint, int* part_num, SCheckpointPa
 
 void cos_cp_update(SCheckpoint* checkpoint, int32_t part_index, char const* etag, uint64_t crc64) {
   checkpoint->parts[part_index].completed = 1;
-  strncpy(checkpoint->parts[part_index].etag, etag, 127);
+  (void)strncpy(checkpoint->parts[part_index].etag, etag, 127);
   checkpoint->parts[part_index].crc64 = crc64;
 }
 
@@ -355,12 +355,12 @@ void cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t 
   int i = 0;
 
   checkpoint->cp_type = COS_CP_TYPE_UPLOAD;
-  memset(checkpoint->file_path, 0, TSDB_FILENAME_LEN);
-  strncpy(checkpoint->file_path, filepath, TSDB_FILENAME_LEN - 1);
+  (void)memset(checkpoint->file_path, 0, TSDB_FILENAME_LEN);
+  (void)strncpy(checkpoint->file_path, filepath, TSDB_FILENAME_LEN - 1);
 
   checkpoint->file_size = size;
   checkpoint->file_last_modified = mtime;
-  strncpy(checkpoint->upload_id, upload_id, 127);
+  (void)strncpy(checkpoint->upload_id, upload_id, 127);
 
   checkpoint->part_size = part_size;
   for (; i * part_size < size; i++) {

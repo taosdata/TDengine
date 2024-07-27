@@ -125,10 +125,10 @@ void tMergeTreeRebuild(SMultiwayMergeTreeInfo* pTree) {
  * display whole loser tree on screen for debug purpose only.
  */
 void tMergeTreePrint(const SMultiwayMergeTreeInfo* pTree) {
-  printf("the value of loser tree:\t");
+  (void)printf("the value of loser tree:\t");
   for (int32_t i = 0; i < pTree->totalSources; ++i) {
-    printf("%d\t", pTree->pNode[i].index);
+    (void)printf("%d\t", pTree->pNode[i].index);
   }
 
-  printf("\n");
+  (void)printf("\n");
 }
