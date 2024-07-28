@@ -1286,11 +1286,11 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
         }
 
         cfgLineBuf = px;
+        (void)memset(cfgLineBuf, 0, itemNameLen + itemValueStringLen + 3);
 
         (void)memcpy(cfgLineBuf, itemName, itemNameLen);
         cfgLineBuf[itemNameLen] = ' ';
-        memcpy(&cfgLineBuf[itemNameLen + 1], itemValueString, itemValueStringLen);
-        cfgLineBuf[itemNameLen + itemValueStringLen + 2] = 0;
+        (void)memcpy(&cfgLineBuf[itemNameLen + 1], itemValueString, itemValueStringLen);
 
         (void)paGetToken(cfgLineBuf, &name, &olen);
         if (olen == 0) continue;
