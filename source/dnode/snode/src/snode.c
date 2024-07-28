@@ -36,7 +36,7 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   streamTaskOpenAllUpstreamInput(pTask);
 
   streamTaskResetUpstreamStageInfo(pTask);
-  streamSetupScheduleTrigger(pTask);
+  (void) streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
