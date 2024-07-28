@@ -213,7 +213,7 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   const char* pDbName = "test_db_name";
   int32_t     len = strlen(pDbName);
 
-  int32_t code = taosHashPut(info.pDBMap, pDbName, len, NULL, 0);
+  code = taosHashPut(info.pDBMap, pDbName, len, NULL, 0);
   ASSERT(code == 0);
 
   killAllCheckpointTrans(pMnode, &info);
@@ -236,7 +236,7 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   pTask->id.streamId = defStreamId;
   pTask->id.taskId = 1;
   pTask->exec.qmsg = (char*)taosMemoryCalloc(1,1);
-  int32_t code = taosThreadMutexInit(&pTask->lock, NULL);
+  code = taosThreadMutexInit(&pTask->lock, NULL);
   ASSERT(code == 0);
 
   void* px = taosArrayPush(pLevel, &pTask);
@@ -245,7 +245,7 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   px = taosArrayPush(pStream->tasks, &pLevel);
   ASSERT(px != NULL);
 
-  int32_t code = mndCreateStreamResetStatusTrans(pMnode, pStream);
+  code = mndCreateStreamResetStatusTrans(pMnode, pStream);
   ASSERT(code == 0);
 
   tFreeStreamObj(pStream);
