@@ -709,11 +709,12 @@ const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
 const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
 
 // exclude stbs of taoskeeper log
-static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
-  int32_t      tbSize = 0;
+static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode, int32_t *tbSize) {
+  int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      tbNum = 0;
   const char **pTbArr = NULL;
   const char  *dbName = NULL;
+  *tbSize = 0;
 
   if (!(dbName = strchr(pVnode->config.dbname, '.'))) return 0;
   if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
@@ -724,19 +725,22 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
     pTbArr = (const char **)&tkAuditStb;
   }
   if (tbNum && pTbArr) {
-    tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
-    if (tbSize < tbNum) {
+    *tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
+    if (*tbSize < tbNum) {
       for (int32_t i = 0; i < tbNum; ++i) {
         tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, pTbArr[i]);
         if (suid != 0) {
-          metaPutTbToFilterCache(pVnode->pMeta, &suid, 0);
+          code = metaPutTbToFilterCache(pVnode->pMeta, &suid, 0);
+          if (TSDB_CODE_SUCCESS != code) {
+            return code;
+          }
         }
       }
-      tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
+      *tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
     }
   }
 
-  return tbSize;
+  return code;
 }
 #endif
 
@@ -758,8 +762,12 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   }
 
   int32_t tbFilterSize = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 #ifdef TD_ENTERPRISE
-  tbFilterSize = vnodeGetTimeSeriesBlackList(pVnode);
+  code = vnodeGetTimeSeriesBlackList(pVnode, &tbFilterSize);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
 #endif
 
   if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
@@ -771,7 +779,6 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
 
   *num = 0;
   int64_t arrSize = taosArrayGetSize(suidList);
-  int32_t code = TSDB_CODE_SUCCESS;
   for (int64_t i = 0; i < arrSize; ++i) {
     tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
 

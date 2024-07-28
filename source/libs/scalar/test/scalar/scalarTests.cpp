@@ -49,7 +49,7 @@
 #define _DEBUG_PRINT_ 0
 
 #if _DEBUG_PRINT_
-#define PRINTF(...) printf(__VA_ARGS__)
+#define PRINTF(...) (void)printf(__VA_ARGS__)
 #else
 #define PRINTF(...)
 #endif
@@ -84,7 +84,7 @@ void scltInitLogFile() {
   (void)strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
+    (void)printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
 
@@ -1450,7 +1450,7 @@ TEST(columnTest, json_column_arith_op) {
                            OP_TYPE_REM, OP_TYPE_MINUS, OP_TYPE_BIT_AND, OP_TYPE_BIT_OR};
   int32_t       input[len] = {1, 8, 2, 2, 3, 0, -4, 9};
 
-  printf("--------------------json int-4 op {1, 8, 2, 2, 3, 0, -4, 9}--------------------\n");
+  (void)printf("--------------------json int-4 op {1, 8, 2, 2, 3, 0, -4, 9}--------------------\n");
   char  *key = "k1";
   double eRes00[len] = {5.0, -4, 8.0, 2.0, 1.0, -4, 4 & -4, 4 | 9};
   double eRes01[len] = {5.0, 4, 8.0, 0.5, 3, 0, 4 & -4, 4 | 9};
@@ -1463,7 +1463,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("--------------------json string- 0 op {1, 8, 2, 2, 3, 0, -4, 9}--------------------\n");
+  (void)printf("--------------------json string- 0 op {1, 8, 2, 2, 3, 0, -4, 9}--------------------\n");
 
   key = "k2";
   double eRes10[len] = {1.0, -8, 0, 0, 0, 0, 0, 9};
@@ -1477,7 +1477,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("---------------------json null- null op {1, 8, 2, 2, 3, 0, -4, 9}-------------------\n");
+  (void)printf("---------------------json null- null op {1, 8, 2, 2, 3, 0, -4, 9}-------------------\n");
 
   key = "k3";
   double eRes20[len] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
@@ -1491,7 +1491,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("---------------------json bool- true op {1, 8, 2, 2, 3, 0, -4, 9}-------------------\n");
+  (void)printf("---------------------json bool- true op {1, 8, 2, 2, 3, 0, -4, 9}-------------------\n");
 
   key = "k4";
   double eRes30[len] = {2.0, -7, 2, 0.5, 1, -1, 1 & -4, 1 | 9};
@@ -1505,7 +1505,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("----------------------json double-- 5.44 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
+  (void)printf("----------------------json double-- 5.44 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k5";
   double eRes40[len] = {6.44, -2.56, 10.88, 2.72, 2.44, -5.44, 5 & -4, 5 | 9};
@@ -1519,7 +1519,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("----------------------json int-- -10 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
+  (void)printf("----------------------json int-- -10 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k6";
   double eRes50[len] = {-9, -18, -20, -5, -10 % 3, 10, -10 & -4, -10 | 9};
@@ -1533,7 +1533,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("----------------------json double-- -9.8 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
+  (void)printf("----------------------json double-- -9.8 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k7";
   double eRes60[len] = {-8.8, -17.8, -19.6, -4.9, -0.8, 9.8, -9 & -4, -9 | 9};
@@ -1547,7 +1547,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("----------------------json bool-- 0 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
+  (void)printf("----------------------json bool-- 0 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k8";
   double eRes70[len] = {1.0, -8, 0, 0, 0, 0, 0, 9};
@@ -1561,7 +1561,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("----------------------json string-- 8 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
+  (void)printf("----------------------json string-- 8 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k9";
   double eRes80[len] = {9, 0, 16, 4, 8 % 3, -8, 8 & -4, 8 | 9};
@@ -1575,7 +1575,7 @@ TEST(columnTest, json_column_arith_op) {
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
-  printf("---------------------json not exist-- NULL op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
+  (void)printf("---------------------json not exist-- NULL op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k10";
   double eRes90[len] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
@@ -1628,7 +1628,7 @@ TEST(columnTest, json_column_logic_op) {
 
   int32_t input[len] = {1, 8, 2, 2, 3, 0, 0, 0, 0};
   char   *inputNchar[len1] = {"hell_", "hel%", "hell", "llll"};
-  printf("--------------------json int---4 {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
+  (void)printf("--------------------json int---4 {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
   char *key = "k1";
   bool  eRes[len + len1] = {true, false, false, false, false, true, false, true, true, false, false, false, false};
   for (int i = 0; i < len; i++) {
@@ -1647,7 +1647,7 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json string--0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+  (void)printf("--------------------json string--0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k2";
   bool eRes1[len + len1] = {false, false, false, false, false, false, false, true, false, true, false, true, true};
@@ -1668,7 +1668,7 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json null---null {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
+  (void)printf("--------------------json null---null {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k3";  // (null is true) return NULL, so use DBL_MAX represent NULL
   bool eRes2[len + len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
@@ -1689,7 +1689,7 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json bool--1 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+  (void)printf("--------------------json bool--1 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k4";
   bool eRes3[len + len1] = {false, false, false, false, false, false, false, true, true, false, false, false, false};
@@ -1710,7 +1710,7 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json double--5.44 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+  (void)printf("--------------------json double--5.44 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k5";
   bool eRes4[len + len1] = {true, false, false, false, false, true, false, true, true, false, false, false, false};
@@ -1731,7 +1731,7 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json int--  -10 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+  (void)printf("--------------------json int--  -10 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k6";
   bool eRes5[len + len1] = {false, false, true, true, false, true, false, true, true, false, false, false, false};
@@ -1752,7 +1752,7 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json double--  -9.8 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+  (void)printf("--------------------json double--  -9.8 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k7";
   bool eRes6[len + len1] = {false, false, true, true, false, true, false, true, true, false, false, false, false};
@@ -1773,7 +1773,7 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json bool--  0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+  (void)printf("--------------------json bool--  0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k8";
   bool eRes7[len + len1] = {false, false, false, false, false, false, false, true, false, false, false, false, false};
@@ -1794,7 +1794,7 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json string--  6.6hello {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+  (void)printf("--------------------json string--  6.6hello {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k9";
   bool eRes8[len + len1] = {false, false, false, false, false, false, false, true, true, false, true, true, true};
@@ -1811,14 +1811,14 @@ TEST(columnTest, json_column_logic_op) {
   for (int i = len; i < len + len1; i++) {
     void *rightData = prepareNchar(inputNchar[i - len]);
     if (i == 11) {
-      printf("abc\n");
+      (void)printf("abc\n");
     }
     code = makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes8[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     taosMemoryFree(rightData);
   }
 
-  printf("---------------------json not exist-- NULL {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
+  (void)printf("---------------------json not exist-- NULL {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k10";  // (NULL is true) return NULL, so use DBL_MAX represent NULL
   bool eRes9[len + len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};

@@ -1330,6 +1330,10 @@ static void *hbThreadFunc(void *param) {
         continue;
       }
       int   tlen = tSerializeSClientHbBatchReq(NULL, 0, pReq);
+      if (tlen == -1) {
+        tFreeClientHbBatchReq(pReq);
+        break;
+      }
       void *buf = taosMemoryMalloc(tlen);
       if (buf == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1338,7 +1342,11 @@ static void *hbThreadFunc(void *param) {
         break;
       }
 
-      tSerializeSClientHbBatchReq(buf, tlen, pReq);
+      if (tSerializeSClientHbBatchReq(buf, tlen, pReq) == -1) {
+        tFreeClientHbBatchReq(pReq);
+        taosMemoryFree(buf);
+        break;
+      }
       SMsgSendInfo *pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
 
       if (pInfo == NULL) {
@@ -1361,10 +1369,12 @@ static void *hbThreadFunc(void *param) {
       SAppInstInfo *pAppInstInfo = pAppHbMgr->pAppInstInfo;
       int64_t       transporterId = 0;
       SEpSet        epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
-      asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo);
+      if (TSDB_CODE_SUCCESS != asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo)) {
+        tscWarn("failed to async send msg to server");
+      }
       tFreeClientHbBatchReq(pReq);
       // hbClearReqInfo(pAppHbMgr);
-      atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
+      (void)atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
     }
 
     if (TSDB_CODE_SUCCESS != taosThreadMutexUnlock(&clientHbMgr.lock)) {
@@ -1629,7 +1639,7 @@ void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
     SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
     if (pReq) {
       tFreeClientHbReq(pReq);
-      taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+      (void)taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
       taosHashRelease(pAppHbMgr->activeInfo, pReq);
       (void)atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
     }

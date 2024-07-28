@@ -1840,8 +1840,8 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         if (unit->compare.optr2) {
           (void)strcat(str, " && ");
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
-                    operatorTypeStr(unit->compare.optr2));
+            (void)sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
+                          operatorTypeStr(unit->compare.optr2));
           }
 
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
