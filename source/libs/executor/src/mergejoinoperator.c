@@ -1862,8 +1862,10 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                           SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
+int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                           SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   bool newDownstreams = false;
   int32_t code = TSDB_CODE_SUCCESS;
   SMJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMJoinOperatorInfo));
@@ -1872,7 +1874,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     goto _return;
   }
 
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
     code = terrno;
     goto _return;
@@ -1903,8 +1905,9 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   } else {
     pOperator->numOfRealDownstream = 2;
   }
-  
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _return:
 
@@ -1918,6 +1921,6 @@ _return:
   taosMemoryFree(pOperator);
   pTaskInfo->code = code;
   
-  return NULL;
+  return code;
 }
 
