@@ -1124,7 +1124,11 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
       cRsp.code = TSDB_CODE_VND_HASH_MISMATCH;
-      taosArrayPush(rsp.pArray, &cRsp);
+      if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        rcode = -1;
+        goto _exit;
+      }
       vError("vgId:%d create-table:%s failed due to hash value mismatch", TD_VID(pVnode), tbName);
       continue;
     }
@@ -1139,11 +1143,19 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
       tdFetchTbUidList(pVnode->pSma, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
-      taosArrayPush(tbUids, &pCreateReq->uid);
+      if (taosArrayPush(tbUids, &pCreateReq->uid) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        rcode = -1;
+        goto _exit;
+      }
       vnodeUpdateMetaRsp(pVnode, cRsp.pMeta);
     }
 
-    taosArrayPush(rsp.pArray, &cRsp);
+    if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      rcode = -1;
+      goto _exit;
+    }
   }
 
   vDebug("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
@@ -1375,12 +1387,20 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
       if (tbUid > 0) tdFetchTbUidList(pVnode->pSma, &pStore, pDropTbReq->suid, tbUid);
     }
 
-    taosArrayPush(rsp.pArray, &dropTbRsp);
+    if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      pRsp->code = terrno;
+      goto _exit;
+    }
 
     if (tsEnableAuditCreateTable) {
       char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       strcpy(str, pDropTbReq->name);
-      taosArrayPush(tbNames, &str);
+      if (taosArrayPush(tbNames, &str) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        pRsp->code = terrno;
+        goto _exit;
+      }
     }
   }
 
@@ -1499,11 +1519,13 @@ static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   taosArrayDestroy(pCxt->pColValues);
   pCxt->pColValues = taosArrayInit(pCxt->pTbSchema->numOfCols, sizeof(SColVal));
   if (NULL == pCxt->pColValues) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   for (int32_t i = 0; i < pCxt->pTbSchema->numOfCols; ++i) {
     SColVal val = COL_VAL_NONE(pCxt->pTbSchema->columns[i].colId, pCxt->pTbSchema->columns[i].type);
-    taosArrayPush(pCxt->pColValues, &val);
+    if (taosArrayPush(pCxt->pColValues, &val) == NULL) {
+      return terrno;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1819,7 +1841,10 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
           goto _exit;
         }
 
-        taosArrayPush(newTbUids, &pSubmitTbData->uid);
+        if (taosArrayPush(newTbUids, &pSubmitTbData->uid) == NULL) {
+          code = terrno;
+          goto _exit;
+        }
 
         if (pCreateTbRsp->pMeta) {
           vnodeUpdateMetaRsp(pVnode, pCreateTbRsp->pMeta);

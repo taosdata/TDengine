@@ -1747,8 +1747,9 @@ static int32_t doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t ts
     }
 
     if (pInfo->partitionSup.needCalc) {
-      SSDataBlock* tmpBlock = createOneDataBlock(pResult, true);
-      QUERY_CHECK_NULL(tmpBlock, code, lino, _end, terrno);
+      SSDataBlock* tmpBlock = NULL;
+      code = createOneDataBlock(pResult, true, &tmpBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       blockDataCleanup(pResult);
       for (int32_t i = 0; i < tmpBlock->info.rows; i++) {
@@ -3141,7 +3142,9 @@ FETCH_NEXT_BLOCK:
         printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "delete recv", GET_TASKID(pTaskInfo));
         SSDataBlock* pDelBlock = NULL;
         if (pInfo->tqReader) {
-          pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+          code = createSpecialDataBlock(STREAM_DELETE_DATA, &pDelBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
+
           code = filterDelBlockByUid(pDelBlock, pBlock, pInfo);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
@@ -3782,7 +3785,8 @@ _end:
 }
 
 int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
-                                            STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
+                                     SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
   int32_t          code = TSDB_CODE_SUCCESS;
@@ -3945,15 +3949,21 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   }
 
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
-  pInfo->pUpdateRes = createSpecialDataBlock(STREAM_CLEAR);
+  code = createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->windowSup = (SWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
   pInfo->groupId = 0;
   pInfo->pStreamScanOp = pOperator;
   pInfo->deleteDataIndex = 0;
-  pInfo->pDeleteDataRes = createSpecialDataBlock(STREAM_DELETE_DATA);
+  code = createSpecialDataBlock(STREAM_DELETE_DATA, &pInfo->pDeleteDataRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->updateWin = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MAX};
-  pInfo->pUpdateDataRes = createSpecialDataBlock(STREAM_CLEAR);
+  createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateDataRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   if (hasPrimaryKeyCol(pInfo)) {
     code = addPrimaryKeyCol(pInfo->pUpdateDataRes, pkType.type, pkType.bytes);
     QUERY_CHECK_CODE(code, lino, _error);
@@ -3961,6 +3971,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     pInfo->pkColType = pkType.type;
     pInfo->pkColLen = pkType.bytes;
   }
+
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->partitionSup.needCalc = false;
   pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
@@ -3969,7 +3980,9 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->pState = pTaskInfo->streamInfo.pState;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
-  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
+
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   // for stream
   if (pTaskInfo->streamInfo.pState) {
@@ -4770,10 +4783,16 @@ static int32_t initSubTableInputs(SOperatorInfo* pOperator, STableMergeScanInfo*
   for (int32_t i = 0; i < pSubTblsInfo->numSubTables; ++i) {
     STmsSubTableInput* pInput = pSubTblsInfo->aInputs + i;
     pInput->type = SUB_TABLE_MEM_BLOCK;
+
     code = dumpQueryTableCond(&pInfo->base.cond, &pInput->tblCond);
     QUERY_CHECK_CODE(code, lino, _end);
-    pInput->pReaderBlock = createOneDataBlock(pInfo->pResBlock, false);
-    pInput->pPageBlock = createOneDataBlock(pInfo->pResBlock, false);
+
+    code = createOneDataBlock(pInfo->pResBlock, false, &pInput->pReaderBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = createOneDataBlock(pInfo->pResBlock, false, &pInput->pPageBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     STableKeyInfo* keyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i + pInfo->tableStartIndex);
     pInput->pKeyInfo = keyInfo;
 
@@ -5183,7 +5202,12 @@ static SSDataBlock* getBlockForTableMergeScan(void* param) {
 
       if (pInfo->bNextDurationBlockEvent || pInfo->bNewFilesetEvent) {
         if (!bSkipped) {
-          pInfo->nextDurationBlocks[pInfo->numNextDurationBlocks] = createOneDataBlock(pBlock, true);
+          int32_t code = createOneDataBlock(pBlock, true, &pInfo->nextDurationBlocks[pInfo->numNextDurationBlocks]);
+          if (code) {
+            terrno = code;
+            return NULL;
+          }
+
           ++pInfo->numNextDurationBlocks;
           if (pInfo->numNextDurationBlocks > 2) {
             qError("%s table merge scan prefetch %d next duration blocks. end early.", GET_TASKID(pTaskInfo),
@@ -5685,8 +5709,9 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
 
   code = generateSortByTsPkInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order, &pInfo->pSortInfo);
   QUERY_CHECK_CODE(code, lino, _error);
-  pInfo->pReaderBlock = createOneDataBlock(pInfo->pResBlock, false);
-  QUERY_CHECK_NULL(pInfo->pReaderBlock, code, lino, _error, terrno);
+
+  code = createOneDataBlock(pInfo->pResBlock, false, &pInfo->pReaderBlock);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->needCountEmptyTable = tsCountAlwaysReturnValue && pTableScanNode->needCountEmptyTable;
 
@@ -5696,7 +5721,8 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   pInfo->bufPageSize = getProperSortPageSize(rowSize, nCols);
 
   // start one reader variable
-  pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
+  code = createOneDataBlock(pInfo->pResBlock, false, &pInfo->pSortInputBlock);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   if (!tsExperimental) {
     pInfo->filesetDelimited = false;

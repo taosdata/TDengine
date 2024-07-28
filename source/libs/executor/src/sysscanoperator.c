@@ -1176,11 +1176,17 @@ static SSDataBlock* buildInfoSchemaTableMetaBlock(char* tableName) {
     }
   }
 
-  SSDataBlock* pBlock = createDataBlock();
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    terrno = code;
+    return NULL;
+  }
+
   for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
     SColumnInfoData colInfoData =
         createColumnInfoData(pMeta[index].schema[i].type, pMeta[index].schema[i].bytes, i + 1);
-    int32_t code = blockDataAppendColInfo(pBlock, &colInfoData);
+    code = blockDataAppendColInfo(pBlock, &colInfoData);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       blockDataDestroy(pBlock);

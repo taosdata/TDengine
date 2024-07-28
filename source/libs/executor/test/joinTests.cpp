@@ -928,8 +928,9 @@ SExecTaskInfo* createDummyTaskInfo(char* taskId) {
 }
 
 SSDataBlock* createDummyBlock(int32_t blkId) {
-  SSDataBlock* p = createDataBlock();
-  assert(p);
+  SSDataBlock* p = NULL;
+  int32_t code = createDataBlock(&p);
+  assert(code == 0);
 
   p->info.id.blockId = blkId;
   p->info.type = STREAM_INVALID;

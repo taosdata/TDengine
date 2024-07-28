@@ -254,14 +254,23 @@ void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
-SSDataBlock* createDataBlock();
-void         blockDataDestroy(SSDataBlock* pBlock);
-void         blockDataFreeRes(SSDataBlock* pBlock);
-SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
-SSDataBlock* createSpecialDataBlock(EStreamType type);
+#define QRY_OPTR_CHECK(_o)           \
+  do {                               \
+    if ((_o) == NULL) {              \
+      return TSDB_CODE_INVALID_PARA; \
+    } else {                         \
+      *(_o) = NULL;                  \
+    }                                \
+  } while(0)
 
-SSDataBlock* blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx);
-int32_t      blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);
+int32_t createDataBlock(SSDataBlock** pResBlock);
+void    blockDataDestroy(SSDataBlock* pBlock);
+void    blockDataFreeRes(SSDataBlock* pBlock);
+int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
+int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock);
+
+int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock);
+int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);
 
 SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId);
 SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index);
