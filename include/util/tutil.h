@@ -160,12 +160,12 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     return (terrno = (CODE)); \
   } while (0)
 
-#define TAOS_CHECK_RETURN(CMD)       \
-  do {                               \
-    int32_t code = (CMD);            \
-    if (code != TSDB_CODE_SUCCESS) { \
-      TAOS_RETURN(code);             \
-    }                                \
+#define TAOS_CHECK_RETURN(CMD)      \
+  do {                              \
+    int32_t __c = (CMD);            \
+    if (__c != TSDB_CODE_SUCCESS) { \
+      TAOS_RETURN(__c);             \
+    }                               \
   } while (0)
 
 #define TAOS_CHECK_GOTO(CMD, LINO, LABEL) \

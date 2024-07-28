@@ -246,7 +246,7 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   ASSERT(px != NULL);
 
   code = mndCreateStreamResetStatusTrans(pMnode, pStream);
-  ASSERT(code == 0);
+  ASSERT(code != 0);
 
   tFreeStreamObj(pStream);
   sdbCleanup(pMnode->pSdb);

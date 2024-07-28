@@ -1960,7 +1960,7 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
   if (pHandle->bSortPk) {
     pOrigBlockPkOrder =
         (!pHandle->bSortByRowId) ? taosArrayGet(pHandle->pSortInfo, 1) : taosArrayGet(pHandle->aExtRowsOrders, 1);
-    if (pOrigBlockPkOrder) {
+    if (pOrigBlockPkOrder == NULL) {
       return terrno;
     }
   }
@@ -2234,11 +2234,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       void* ppBlk = tSimpleHashGet(mUidBlk, &pBlk->info.id.uid, sizeof(pBlk->info.id.uid));
       if (ppBlk != NULL) {
         SSDataBlock* tBlk = *(SSDataBlock**)(ppBlk);
-
-        code = blockDataMerge(tBlk, pBlk);
-        if (code) {
-          return code;
-        }
+        TAOS_CHECK_RETURN(blockDataMerge(tBlk, pBlk));
 
         if (bExtractedBlock) {
           blockDataDestroy(pBlk);
@@ -2248,10 +2244,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
         if (bExtractedBlock) {
           tBlk = pBlk;
         } else {
-          code = createOneDataBlock(pBlk, true, &tBlk);
-          if (code) {
-            return code;
-          }
+          TAOS_CHECK_RETURN(createOneDataBlock(pBlk, true, &tBlk));
         }
 
         code = tSimpleHashPut(mUidBlk, &pBlk->info.id.uid, sizeof(pBlk->info.id.uid), &tBlk, POINTER_BYTES);
@@ -2271,10 +2264,7 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
 
       int64_t p = taosGetTimestampUs();
       if (pHandle->bSortByRowId) {
-        code = tsortOpenRegion(pHandle);
-        if (code) {
-          return code;
-        }
+        TAOS_CHECK_RETURN(tsortOpenRegion(pHandle));
       }
 
       code = sortBlocksToExtSource(pHandle, aBlkSort, aExtSrc);
@@ -2759,18 +2749,12 @@ static int32_t tsortPQSortNextTuple(SSortHandle* pHandle, STupleHandle **pTupleH
       void* pData = tupleGetField(pTuple, i, colNum);
 
       SColumnInfoData* p = NULL;
-      code = bdGetColumnInfoData(pHandle->pDataBlock, i, &p);
-      if (code) {
-        return code;
-      }
+      TAOS_CHECK_RETURN(bdGetColumnInfoData(pHandle->pDataBlock, i, &p));
 
       if (!pData) {
         colDataSetNULL(p, 0);
       } else {
-        code = colDataSetVal(p, 0, pData, false);
-        if (code) {
-          return code;
-        }
+        TAOS_CHECK_RETURN(colDataSetVal(p, 0, pData, false));
       }
     }
     pHandle->pDataBlock->info.rows++;
