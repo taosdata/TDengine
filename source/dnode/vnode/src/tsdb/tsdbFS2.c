@@ -770,7 +770,11 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSet *fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     if (fset->channelOpened) {
-      taosArrayPush(channelArray, &fset->channel);
+      if (taosArrayPush(channelArray, &fset->channel) == NULL) {
+        taosArrayDestroy(channelArray);
+        taosThreadMutexUnlock(&pTsdb->mutex);
+        return terrno;
+      }
       fset->channel = (SVAChannelID){0};
       fset->mergeScheduled = false;
       tsdbFSSetBlockCommit(fset, false);

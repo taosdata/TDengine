@@ -326,7 +326,7 @@ static void taosLRUCacheShardEvictLRU(SLRUCacheShard *shard, size_t charge, SArr
     ASSERT(shard->usage >= old->totalCharge);
     shard->usage -= old->totalCharge;
 
-    taosArrayPush(deleted, &old);
+    (void)taosArrayPush(deleted, &old);
   }
 }
 
@@ -392,7 +392,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
   if (shard->usage + e->totalCharge > shard->capacity && (shard->strictCapacity || handle == NULL)) {
     TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     if (handle == NULL) {
-      taosArrayPush(lastReferenceList, &e);
+      (void)taosArrayPush(lastReferenceList, &e);
     } else {
       if (freeOnFail) {
         taosMemoryFree(e);
@@ -415,7 +415,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
         ASSERT(shard->usage >= old->totalCharge);
         shard->usage -= old->totalCharge;
 
-        taosArrayPush(lastReferenceList, &old);
+        (void)taosArrayPush(lastReferenceList, &old);
       }
     }
     if (handle == NULL) {
@@ -536,7 +536,7 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
     ASSERT(shard->usage >= old->totalCharge);
     shard->usage -= old->totalCharge;
 
-    taosArrayPush(lastReferenceList, &old);
+    (void)taosArrayPush(lastReferenceList, &old);
   }
 
   (void)taosThreadMutexUnlock(&shard->mutex);
