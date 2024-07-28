@@ -1001,7 +1001,9 @@ static int32_t mndTransCheckCommitActions(SMnode *pMnode, STrans *pTrans) {
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
-  if (pTrans == NULL) return -1;
+  if (pTrans == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+  }
 
   TAOS_CHECK_RETURN(mndTransCheckConflict(pMnode, pTrans));
 
@@ -1583,6 +1585,7 @@ _OVER:
 static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   bool    continueExec = true;
   int32_t code = 0;
+  terrno = 0;
 
   if (pTrans->exec == TRN_EXEC_SERIAL) {
     code = mndTransExecuteRedoActionsSerial(pMnode, pTrans, topHalf);
