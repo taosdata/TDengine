@@ -862,7 +862,12 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   blockDataAppendColInfo(block, &colInfoData);
   blockDataEnsureCapacity(block, udfCol->colData.numOfRows);
 
-  SColumnInfoData *col = bdGetColumnInfoData(block, 0);
+  SColumnInfoData *col = NULL;
+  int32_t code = bdGetColumnInfoData(block, 0, &col);
+  if (code) {
+    return code;
+  }
+
   for (int i = 0; i < udfCol->colData.numOfRows; ++i) {
     if (udfColDataIsNull(udfCol, i)) {
       colDataSetNULL(col, i);
@@ -1264,10 +1269,17 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   pTempBlock->info.rows = pInput->totalRows;
   pTempBlock->info.id.uid = pInput->uid;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    blockDataAppendColInfo(pTempBlock, pInput->pData[i]);
+    code = blockDataAppendColInfo(pTempBlock, pInput->pData[i]);
+    if (code) {
+      return code;
+    }
   }
 
-  SSDataBlock *inputBlock = blockDataExtractBlock(pTempBlock, start, numOfRows);
+  SSDataBlock *inputBlock = NULL;
+  code = blockDataExtractBlock(pTempBlock, start, numOfRows, &inputBlock);
+  if (code) {
+    return code;
+  }
 
   SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
   SUdfInterBuf newState = {0};

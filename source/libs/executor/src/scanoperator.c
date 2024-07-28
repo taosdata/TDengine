@@ -2584,7 +2584,10 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
     bool colExists = false;
     for (int32_t j = 0; j < blockDataGetNumOfCols(pBlock); ++j) {
-      SColumnInfoData* pResCol = bdGetColumnInfoData(pBlock, j);
+      SColumnInfoData* pResCol = NULL;
+      code = bdGetColumnInfoData(pBlock, j, &pResCol);
+      QUERY_CHECK_CODE(code, lino, _end);
+
       if (pResCol->info.colId == pColMatchInfo->colId) {
         SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->dstSlotId);
         code = colDataAssign(pDst, pResCol, pBlock->info.rows, &pInfo->pRes->info);

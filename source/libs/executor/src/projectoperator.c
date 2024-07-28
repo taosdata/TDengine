@@ -370,8 +370,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         pFinalRes->info.version = pRes->info.version;
 
         // continue merge data, ignore the group id
-        code = blockDataMerge(pFinalRes, pRes);
-        if (code) {
+        int32_t ret = blockDataMerge(pFinalRes, pRes);
+        if (ret < 0) {
           pTaskInfo->code = code;
           return code;
         }

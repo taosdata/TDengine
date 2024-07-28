@@ -48,7 +48,9 @@ int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRo
 }
 
 int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowIdx) {
-  if (colDataIsNull_s(pColumnInfoData, rowIdx)) return 0;
+  if (colDataIsNull_s(pColumnInfoData, rowIdx)) {
+    return 0;
+  }
 
   if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) return pColumnInfoData->info.bytes;
   if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON)
@@ -493,7 +495,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
 int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx,
                            int32_t numOfRows) {
   if (pDst->info.type != pSrc->info.type || pDst->info.bytes != pSrc->info.bytes || pSrc->reassigned) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (numOfRows <= 0) {
@@ -698,9 +700,9 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
 }
 
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows) {
+  int32_t code = 0;
   if (pDest->info.rows + numOfRows > pDest->info.capacity) {
-    ASSERT(0);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   size_t numOfCols = taosArrayGetSize(pDest->pDataBlock);
@@ -708,11 +710,14 @@ int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, i);
 
-    colDataAssignNRows(pCol2, pDest->info.rows, pCol1, srcIdx, numOfRows);
+    code = colDataAssignNRows(pCol2, pDest->info.rows, pCol1, srcIdx, numOfRows);
+    if (code) {
+      return code;
+    }
   }
 
   pDest->info.rows += numOfRows;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows) {
@@ -824,20 +829,24 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
   return TSDB_CODE_SUCCESS;
 }
 
-SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount) {
+int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount, SSDataBlock** pResBlock) {
   int32_t code = 0;
+  QRY_OPTR_CHECK(pResBlock);
+
   if (pBlock == NULL || startIndex < 0 || rowCount > pBlock->info.rows || rowCount + startIndex > pBlock->info.rows) {
-    return NULL;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   SSDataBlock* pDst = NULL;
   code = createOneDataBlock(pBlock, false, &pDst);
   if (code) {
-    terrno = code;
-    return NULL;
+    return code;
   }
 
-  blockDataEnsureCapacity(pDst, rowCount);
+  code = blockDataEnsureCapacity(pDst, rowCount);
+  if (code) {
+    return code;
+  }
 
   /* may have disorder varchar data, TODO
     for (int32_t i = 0; i < numOfCols; ++i) {
@@ -865,12 +874,16 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
       } else {
         char* p = colDataGetData(pColData, j);
         code = colDataSetVal(pDstCol, j - startIndex, p, false);
+        if (code) {
+          break;
+        }
       }
     }
   }
 
   pDst->info.rows = rowCount;
-  return pDst;
+  *pResBlock = pDst;
+  return code;
 }
 
 /**
@@ -934,7 +947,10 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
 
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
   int32_t numOfRows = *(int32_t*)buf;
-  blockDataEnsureCapacity(pBlock, numOfRows);
+  int32_t code = blockDataEnsureCapacity(pBlock, numOfRows);
+  if (code) {
+    return code;
+  }
 
   pBlock->info.rows = numOfRows;
   size_t      numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -1217,12 +1233,18 @@ static SColumnInfoData* createHelpColInfoData(const SSDataBlock* pDataBlock) {
     if (IS_VAR_DATA_TYPE(pCols[i].info.type)) {
       pCols[i].varmeta.offset = taosMemoryCalloc(rows, sizeof(int32_t));
       pCols[i].pData = taosMemoryCalloc(1, pColInfoData->varmeta.length);
+      if (pCols[i].varmeta.offset == NULL) {
+        return NULL;
+      }
 
       pCols[i].varmeta.length = pColInfoData->varmeta.length;
       pCols[i].varmeta.allocLen = pCols[i].varmeta.length;
     } else {
       pCols[i].nullbitmap = taosMemoryCalloc(1, BitmapLen(rows));
       pCols[i].pData = taosMemoryCalloc(rows, pCols[i].info.bytes);
+      if (pCols[i].nullbitmap == NULL || pCols[i].pData == NULL) {
+        return NULL;
+      }
     }
   }
 
@@ -1343,10 +1365,12 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
 
   int64_t p2 = taosGetTimestampUs();
 
-  blockDataAssign(pCols, pDataBlock, index);
+  int32_t code = blockDataAssign(pCols, pDataBlock, index);
+  if (code) {
+    return code;
+  }
 
   int64_t p3 = taosGetTimestampUs();
-
   copyBackToBlock(pDataBlock, pCols);
   int64_t p4 = taosGetTimestampUs();
 
@@ -1354,7 +1378,6 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
          ", rows:%d\n",
          p1 - p0, p2 - p1, p3 - p2, p4 - p3, rows);
   destroyTupleIndex(index);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1416,7 +1439,7 @@ void blockDataReset(SSDataBlock* pDataBlock) {
  */
 int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows,
                          bool clearPayload) {
-  if (numOfRows <= 0 || pBlockInfo && numOfRows <= pBlockInfo->capacity) {
+  if ((numOfRows <= 0)|| (pBlockInfo && numOfRows <= pBlockInfo->capacity)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1441,7 +1464,7 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
     pColumn->nullbitmap = tmp;
     memset(&pColumn->nullbitmap[oldLen], 0, BitmapLen(numOfRows) - oldLen);
     if (pColumn->info.bytes == 0) {
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     // here we employ the aligned malloc function, to make sure that the address of allocated memory is aligned
@@ -1547,6 +1570,8 @@ void blockDataDestroy(SSDataBlock* pBlock) {
 
 // todo remove it
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
+  int32_t code = 0;
+
   dst->info = src->info;
   dst->info.rows = 0;
   dst->info.capacity = 0;
@@ -1555,13 +1580,15 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(src->pDataBlock, i);
     SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
-    blockDataAppendColInfo(dst, &colInfo);
+    code = blockDataAppendColInfo(dst, &colInfo);
+    if (code) {
+      return code;
+    }
   }
 
-  int32_t code = blockDataEnsureCapacity(dst, src->info.rows);
+  code = blockDataEnsureCapacity(dst, src->info.rows);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    return -1;
+    return code;
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -1571,13 +1598,16 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
       continue;
     }
 
-    colDataAssign(pDst, pSrc, src->info.rows, &src->info);
+    int32_t ret = colDataAssign(pDst, pSrc, src->info.rows, &src->info);
+    if (ret < 0) {
+      return ret;
+    }
   }
 
   uint32_t cap = dst->info.capacity;
   dst->info = src->info;
   dst->info.capacity = cap;
-  return 0;
+  return code;
 }
 
 int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
@@ -1585,7 +1615,6 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
 
   int32_t code = blockDataEnsureCapacity(pDst, pSrc->info.rows);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
     return code;
   }
 
@@ -1593,7 +1622,11 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
     SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, i);
-    colDataAssign(pDstCol, pSrcCol, pSrc->info.rows, &pSrc->info);
+    int32_t ret = colDataAssign(pDstCol, pSrcCol, pSrc->info.rows, &pSrc->info);
+    if (ret < 0) {
+      code = ret;
+      return code;
+    }
   }
 
   uint32_t cap = pDst->info.capacity;
@@ -1602,7 +1635,7 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   copyPkVal(&pDst->info, &pSrc->info);
 
   pDst->info.capacity = cap;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
@@ -1718,8 +1751,17 @@ int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlo
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    if (p == NULL) {
+      blockDataDestroy(pBlock);
+      return terrno;
+    }
+
     SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
-    blockDataAppendColInfo(pBlock, &colInfo);
+    code = blockDataAppendColInfo(pBlock, &colInfo);
+    if (code) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
   }
 
   code = blockDataEnsureCapacity(pBlock, 1);
@@ -1731,13 +1773,22 @@ int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlo
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
     SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
-    bool             isNull = colDataIsNull(pSrc, pDataBlock->info.rows, rowIdx, NULL);
-    void*            pData = NULL;
+    if (pDst == NULL || pSrc == NULL) {
+      blockDataDestroy(pBlock);
+      return terrno;
+    }
+
+    bool  isNull = colDataIsNull(pSrc, pDataBlock->info.rows, rowIdx, NULL);
+    void* pData = NULL;
     if (!isNull) {
       pData = colDataGetData(pSrc, rowIdx);
     }
 
     code = colDataSetVal(pDst, 0, pData, isNull);
+    if (code) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
   }
 
   pBlock->info.rows = 1;
@@ -1789,8 +1840,17 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    if (p == NULL) {
+      blockDataDestroy(pDstBlock);
+      return terrno;
+    }
+
     SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
-    blockDataAppendColInfo(pDstBlock, &colInfo);
+    code = blockDataAppendColInfo(pDstBlock, &colInfo);
+    if (code) {
+      blockDataDestroy(pDstBlock);
+      return code;
+    }
   }
 
   copyPkVal(&pDstBlock->info, &pDataBlock->info);
@@ -1805,7 +1865,20 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
-      colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
+      if (pDst == NULL) {
+        return terrno;
+      }
+
+      if (pSrc == NULL) {
+        return terrno;
+      }
+
+      int32_t ret = colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
+      if (ret < 0) {
+        code = ret;
+        blockDataDestroy(pDstBlock);
+        return code;
+      }
     }
 
     pDstBlock->info.rows = pDataBlock->info.rows;
@@ -1838,7 +1911,6 @@ int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
   if (pBlock->pDataBlock == NULL) {
     pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
     if (pBlock->pDataBlock == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return terrno;
     }
   }
@@ -1867,12 +1939,20 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
   return col;
 }
 
-SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index) {
+int32_t bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index, SColumnInfoData** pColInfoData) {
+  int32_t code = 0;
+  QRY_OPTR_CHECK(pColInfoData);
+
   if (index >= taosArrayGetSize(pBlock->pDataBlock)) {
-    return NULL;
+    return TSDB_CODE_INVALID_PARA;
   }
 
-  return taosArrayGet(pBlock->pDataBlock, index);
+  *pColInfoData = taosArrayGet(pBlock->pDataBlock, index);
+  if (*pColInfoData == NULL) {
+    code = terrno;
+  }
+
+  return code;
 }
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize) {
@@ -1887,6 +1967,10 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int
   int32_t numFixCols = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol == NULL) {
+      return terrno;
+    }
+
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       ++numVarCols;
     } else {
@@ -2029,6 +2113,10 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        return terrno;
+      }
+
       colDataTrimFirstNRows(pColInfoData, n, pBlock->info.rows);
     }
 
@@ -2078,12 +2166,15 @@ void blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n) {
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        continue;
+      }
+
       colDataKeepFirstNRows(pColInfoData, n, pBlock->info.rows);
     }
 
     pBlock->info.rows = n;
   }
-  return ;
 }
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
@@ -2101,6 +2192,10 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
     SColumnInfoData* pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    if (pColData == NULL) {
+      return terrno;
+    }
+
     tlen += taosEncodeFixedI16(buf, pColData->info.colId);
     tlen += taosEncodeFixedI8(buf, pColData->info.type);
     tlen += taosEncodeFixedI32(buf, pColData->info.bytes);
@@ -2134,8 +2229,7 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
 }
 
 void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
-  int32_t sz;
-
+  int32_t sz = 0;
   int16_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
   buf = taosDecodeFixedU64(buf, &pBlock->info.id.uid);
@@ -2143,7 +2237,12 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
   buf = taosDecodeFixedI16(buf, &pBlock->info.hasVarCol);
   buf = taosDecodeFixedI64(buf, &pBlock->info.rows);
   buf = taosDecodeFixedI32(buf, &sz);
+
   pBlock->pDataBlock = taosArrayInit(sz, sizeof(SColumnInfoData));
+  if (pBlock->pDataBlock == NULL) {
+    return NULL;
+  }
+
   for (int32_t i = 0; i < sz; i++) {
     SColumnInfoData data = {0};
     buf = taosDecodeFixedI16(buf, &data.info.colId);
@@ -2164,8 +2263,13 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
       data.varmeta.length = len;
       data.varmeta.allocLen = len;
     }
-    taosArrayPush(pBlock->pDataBlock, &data);
+
+    void* px = taosArrayPush(pBlock->pDataBlock, &data);
+    if (px == NULL) {
+      return NULL;
+    }
   }
+
   return (void*)buf;
 }
 
@@ -2205,8 +2309,8 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   if (taosLocalTime(&tt, &ptm, buf) == NULL) {
     return buf;
   }
-  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
+  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
   if (precision == TSDB_TIME_PRECISION_NANO) {
     sprintf(buf + pos, ".%09d", ms);
   } else if (precision == TSDB_TIME_PRECISION_MICRO) {
@@ -2219,31 +2323,45 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 }
 
 // for debug
-char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
+int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
   int32_t size = 2048 * 1024;
-  *pDataBuf = taosMemoryCalloc(size, 1);
+  int32_t code = 0;
   char*   dumpBuf = *pDataBuf;
   char    pBuf[128] = {0};
-  int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
+
+  *pDataBuf = taosMemoryCalloc(size, 1);
+  if (*pDataBuf == NULL) {
+    return terrno;
+  }
+
+  int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   len += snprintf(dumpBuf + len, size - len,
                   "%s===stream===%s|block type %d|child id %d|group id:%" PRIu64 "|uid:%" PRId64 "|rows:%" PRId64
                   "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
                   taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
                   pDataBlock->info.id.groupId, pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
                   pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey, pDataBlock->info.parTbName);
-  if (len >= size - 1) return dumpBuf;
+  if (len >= size - 1) {
+    return code;
+  }
 
   for (int32_t j = 0; j < rows; j++) {
     len += snprintf(dumpBuf + len, size - len, "%s|", flag);
-    if (len >= size - 1) return dumpBuf;
+    if (len >= size - 1) {
+      return code;
+    }
 
     for (int32_t k = 0; k < colNum; k++) {
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
+      if (pColInfoData == NULL) {
+        return terrno;
+      }
+
       if (colDataIsNull(pColInfoData, rows, j, NULL) || !pColInfoData->pData) {
         len += snprintf(dumpBuf + len, size - len, " %15s |", "NULL");
-        if (len >= size - 1) return dumpBuf;
+        if (len >= size - 1) return 0;
         continue;
       }
 
@@ -2251,53 +2369,53 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, 
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
-          formatTimestamp(pBuf, *(uint64_t*)var, pColInfoData->info.precision);
+          (void) formatTimestamp(pBuf, *(uint64_t*)var, pColInfoData->info.precision);
           len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_TINYINT:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(int8_t*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_UTINYINT:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint8_t*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_SMALLINT:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(int16_t*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_USMALLINT:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint16_t*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_INT:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_UINT:
           len += snprintf(dumpBuf + len, size - len, " %15u |", *(uint32_t*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_BIGINT:
           len += snprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_UBIGINT:
           len += snprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_FLOAT:
           len += snprintf(dumpBuf + len, size - len, " %15f |", *(float*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_DOUBLE:
           len += snprintf(dumpBuf + len, size - len, " %15f |", *(double*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_BOOL:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
           break;
         case TSDB_DATA_TYPE_VARCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
@@ -2308,7 +2426,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, 
           dataSize = TMIN(dataSize, 50);
           memcpy(pBuf, varDataVal(pData), dataSize);
           len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
         } break;
         case TSDB_DATA_TYPE_NCHAR: {
           char*   pData = colDataGetVarData(pColInfoData, j);
@@ -2316,15 +2434,15 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, 
           memset(pBuf, 0, sizeof(pBuf));
           (void)taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
           len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
-          if (len >= size - 1) return dumpBuf;
+          if (len >= size - 1) return 0;
         } break;
       }
     }
     len += snprintf(dumpBuf + len, size - len, "%d\n", j);
-    if (len >= size - 1) return dumpBuf;
+    if (len >= size - 1) return code;
   }
   len += snprintf(dumpBuf + len, size - len, "%s |end\n", flag);
-  return dumpBuf;
+  return code;
 }
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, const STSchema* pTSchema,
@@ -2362,13 +2480,16 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
     SSubmitTbData tbData = {0};
 
     if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow*)))) {
+      code = terrno;
       goto _end;
     }
+
     tbData.suid = suid;
     tbData.uid = uid;
     tbData.sver = pTSchema->version;
 
     if (!pVals && !(pVals = taosArrayInit(colNum, sizeof(SColVal)))) {
+      code = terrno;
       taosArrayDestroy(tbData.aRowP);
       goto _end;
     }
@@ -2381,6 +2502,10 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       int32_t offset = 0;
       for (int32_t k = 0; k < colNum; ++k) {  // iterate by column
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
+        if (pColInfoData == NULL) {
+          return terrno;
+        }
+
         const STColumn*  pCol = &pTSchema->columns[k];
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
 
@@ -2416,13 +2541,20 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             ASSERT(pColInfoData->info.type == pCol->type);
             if (colDataIsNull_s(pColInfoData, j)) {
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
-              taosArrayPush(pVals, &cv);
+              void* px = taosArrayPush(pVals, &cv);
+              if (px == NULL) {
+                goto _end;
+              }
             } else {
               void*  data = colDataGetVarData(pColInfoData, j);
               SValue sv = (SValue){
-                  .type = pCol->type, .nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
+                  .type = pCol->type, .nData = varDataLen(data), .pData = (uint8_t*) varDataVal(data)};  // address copy, no value
               SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
-              taosArrayPush(pVals, &cv);
+              void* px = taosArrayPush(pVals, &cv);
+              if (px == NULL) {
+                code = terrno;
+                goto _end;
+              }
             }
             break;
           }
@@ -2437,7 +2569,10 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
               if (colDataIsNull_s(pColInfoData, j)) {
                 SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
-                taosArrayPush(pVals, &cv);
+                void* px = taosArrayPush(pVals, &cv);
+                if (px == NULL) {
+                  goto _end;
+                }
               } else {
                 SValue sv = {.type = pCol->type};
                 if (pCol->type == pColInfoData->info.type) {
@@ -2468,7 +2603,11 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                   memcpy(&sv.val, tv, tDataTypes[pCol->type].bytes);
                 }
                 SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
-                taosArrayPush(pVals, &cv);
+                void* px = taosArrayPush(pVals, &cv);
+                if (px == NULL) {
+                  code = terrno;
+                  goto _end;
+                }
               }
             } else {
               uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
@@ -2525,8 +2664,9 @@ void buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId
     }
     snprintf(tmp, TSDB_TABLE_NAME_LEN, "_%s_%"PRIu64, stbName + i + 1, groupId);
   }
+
   ctbName[TSDB_TABLE_NAME_LEN - strlen(tmp) - 1] = 0;  // put stbname + groupId to the end
-  strcat(ctbName, tmp);
+  (void)strcat(ctbName, tmp);
   for(int i = 0; i < strlen(ctbName); i++){
     if(ctbName[i] == '.'){
       ctbName[i] = '_';
@@ -2547,18 +2687,19 @@ bool alreadyAddGroupId(char* ctbName, int64_t groupId) {
   return memcmp(ctbName + len1 - len2, tmp, len2) == 0;
 }
 
-char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
+int32_t buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId, char** pName) {
+  QRY_OPTR_CHECK(pName);
+
   char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (!pBuf) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    return terrno;
   }
+
   int32_t code = buildCtbNameByGroupIdImpl(stbFullName, groupId, pBuf);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBuf);
-    return NULL;
   }
-  return pBuf;
+  return code;
 }
 
 int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, char* cname) {
@@ -2568,20 +2709,23 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
 
   SArray* tags = taosArrayInit(0, sizeof(SSmlKv));
   if (tags == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (cname == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
     taosArrayDestroy(tags);
-    return terrno;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   int8_t      type = TSDB_DATA_TYPE_UBIGINT;
   const char* name = "group_id";
   int32_t     len = strlen(name);
-  SSmlKv      pTag = {.key = name, .keyLen = len, .type = type, .u = groupId, .length = sizeof(uint64_t)};
-  taosArrayPush(tags, &pTag);
+
+  SSmlKv pTag = {.key = name, .keyLen = len, .type = type, .u = groupId, .length = sizeof(uint64_t)};
+  void*  px = taosArrayPush(tags, &pTag);
+  if (px == NULL) {
+    return terrno;
+  }
 
   RandTableName rname = {
       .tags = tags, .stbFullName = stbFullName, .stbFullNameLen = strlen(stbFullName), .ctbShortName = cname};
@@ -2590,12 +2734,13 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  taosArrayDestroy(tags);
 
+  taosArrayDestroy(tags);
   if ((rname.ctbShortName && rname.ctbShortName[0]) == 0) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
-  return TSDB_CODE_SUCCESS;
+
+  return code;
 }
 
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
@@ -2630,6 +2775,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    if (pColInfoData == NULL) {
+      return terrno;
+    }
 
     *((int8_t*)data) = pColInfoData->info.type;
     data += sizeof(int8_t);
@@ -2646,6 +2794,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   int32_t numOfRows = pBlock->info.rows;
   for (int32_t col = 0; col < numOfCols; ++col) {
     SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, col);
+    if (pColRes == NULL) {
+      return terrno;
+    }
 
     // copy the null bitmap
     size_t metaSize = 0;
@@ -2699,7 +2850,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   return dataLen;
 }
 
-const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
+int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
   const char* pStart = pData;
 
   int32_t version = *(int32_t*)pStart;
@@ -2728,10 +2879,17 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
 
   if (pBlock->pDataBlock == NULL) {
     pBlock->pDataBlock = taosArrayInit_s(sizeof(SColumnInfoData), numOfCols);
+    if (pBlock->pDataBlock == NULL) {
+      return terrno;
+    }
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    if (pColInfoData == NULL) {
+      return terrno;
+    }
+
     pColInfoData->info.type = *(int8_t*)pStart;
     pStart += sizeof(int8_t);
 
@@ -2743,7 +2901,10 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
     }
   }
 
-  blockDataEnsureCapacity(pBlock, numOfRows);
+  int32_t code = blockDataEnsureCapacity(pBlock, numOfRows);
+  if (code) {
+    return code;
+  }
 
   int32_t* colLen = (int32_t*)pStart;
   pStart += sizeof(int32_t) * numOfCols;
@@ -2753,6 +2914,10 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
     ASSERT(colLen[i] >= 0);
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    if (pColInfoData == NULL) {
+      return terrno;
+    }
+
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
       memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
       pStart += sizeof(int32_t) * numOfRows;
@@ -2760,7 +2925,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
       if (colLen[i] > 0 && pColInfoData->varmeta.allocLen < colLen[i]) {
         char* tmp = taosMemoryRealloc(pColInfoData->pData, colLen[i]);
         if (tmp == NULL) {
-          return NULL;
+          return terrno;
         }
 
         pColInfoData->pData = tmp;
@@ -2791,11 +2956,14 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   pBlock->info.rows = numOfRows;
   pBlock->info.blankFill = blankFill;
   ASSERT(pStart - pData == dataLen);
-  return pStart;
+
+  *pEndPos = pStart;
+  return code;
 }
 
-void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
+int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
   //  int32_t totalRows = pBlock->info.rows;
+  int32_t code = 0;
   int32_t bmLen = BitmapLen(totalRows);
   char*   pBitmap = NULL;
   int32_t maxRows = 0;
@@ -2816,7 +2984,7 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
         memset(pDst->nullbitmap, 0, bmLen);
       }
     }
-    return;
+    return code;
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -2849,10 +3017,18 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
           } else {
             len = varDataTLen(p1);
           }
+
           char* p2 = taosMemoryMalloc(len);
+          if (p2 == NULL) {
+            return terrno;
+          }
+
           memcpy(p2, p1, len);
-          colDataSetVal(pDst, numOfRows, p2, false);
+          code = colDataSetVal(pDst, numOfRows, p2, false);
           taosMemoryFree(p2);
+          if (code) {
+            return code;
+          }
         }
         numOfRows += 1;
         j += 1;
@@ -2864,6 +3040,9 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
     } else {
       if (pBitmap == NULL) {
         pBitmap = taosMemoryCalloc(1, bmLen);
+        if (pBitmap == NULL) {
+          return terrno;
+        }
       }
 
       memcpy(pBitmap, pDst->nullbitmap, bmLen);
@@ -2953,6 +3132,8 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
   if (pBitmap != NULL) {
     taosMemoryFree(pBitmap);
   }
+
+  return code;
 }
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {

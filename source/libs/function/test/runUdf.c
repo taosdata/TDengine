@@ -89,7 +89,6 @@ int aggregateFuncTest() {
   }
 
   SSDataBlock *pBlock = NULL;
-
   int32_t code = createDataBlock(&pBlock);
   if (code) {
     return code;
@@ -103,7 +102,12 @@ int aggregateFuncTest() {
   blockDataEnsureCapacity(pBlock, 1024);
   pBlock->info.rows = 1024;
 
-  SColumnInfoData *pColInfo = bdGetColumnInfoData(pBlock, 0);
+  SColumnInfoData *pColInfo = NULL;
+  code = bdGetColumnInfoData(pBlock, 0, &pColInfo);
+  if (code) {
+    return code;
+  }
+
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     colDataSetInt32(pColInfo, j, &j);
   }

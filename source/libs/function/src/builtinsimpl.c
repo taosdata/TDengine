@@ -469,8 +469,12 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
   }
   if (pIter->hasPrev) {
     if (pIter->prevBlockTsEnd == pIter->tsList[pIter->inputEndIndex]) {
-      (void)blockDataDestroy(pIter->pPrevRowBlock);
-      pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
+      blockDataDestroy(pIter->pPrevRowBlock);
+      int32_t code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
+      if (code) {
+        return code;
+      }
+
       pIter->prevIsDataNull = colDataIsNull_f(pIter->pDataCol->nullbitmap, pIter->inputEndIndex);
 
       pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
@@ -490,11 +494,10 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       char* pkData = colDataGetData(pIter->pPkCol, pIter->inputEndIndex);
       (void)memcpy(pIter->pPrevPk, pkData, pIter->pPkCol->info.bytes);
 
-      pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
-
+      code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
       pIter->hasPrev = true;
       *res = false;
-      return TSDB_CODE_SUCCESS;
+      return code;
     } else {
       int32_t idx = pIter->rowIndex;
       while (pIter->tsList[idx] == pIter->prevBlockTsEnd) {
@@ -553,9 +556,9 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       }
       (void)memcpy(pIter->pPrevPk, colDataGetData(pIter->pPkCol, pIter->inputEndIndex), pIter->pPkCol->info.bytes);
 
-      pIter->pPrevRowBlock = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1);
+      int32_t code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
       *res = false;
-      return TSDB_CODE_SUCCESS;
+      return code;
     }
   }
 }
