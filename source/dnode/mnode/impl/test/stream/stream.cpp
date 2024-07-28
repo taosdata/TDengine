@@ -192,7 +192,8 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
     opt.pWal = pMnode->pWal;
 
     pMnode->pSdb = sdbInit(&opt);
-    taosThreadMutexInit(&pMnode->syncMgmt.lock, NULL);
+    int32_t code = taosThreadMutexInit(&pMnode->syncMgmt.lock, NULL);
+    ASSERT(code == 0);
   }
 
   SVgroupChangeInfo info;
@@ -248,7 +249,7 @@ TEST_F(StreamTest, plan_Test) {
 
   if (taosCreateLog("taoslog", 10, "/etc/taos", NULL, NULL, NULL, NULL, 1) != 0) {
     // ignore create log failed, only print
-    printf(" WARING: Create failed:%s. configDir\n", strerror(errno));
+    (void) printf(" WARING: Create failed:%s. configDir\n", strerror(errno));
   }
 
   if (nodesStringToNode(ast, &pAst) < 0) {

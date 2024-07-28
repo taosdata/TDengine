@@ -2326,13 +2326,13 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr) {
   int32_t size = 2048 * 1024;
   int32_t code = 0;
-  char*   dumpBuf = *pDataBuf;
+  char*   dumpBuf = NULL;
   char    pBuf[128] = {0};
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
 
-  *pDataBuf = taosMemoryCalloc(size, 1);
-  if (*pDataBuf == NULL) {
+  dumpBuf = taosMemoryCalloc(size, 1);
+  if (dumpBuf == NULL) {
     return terrno;
   }
 
@@ -2442,6 +2442,8 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
     if (len >= size - 1) return code;
   }
   len += snprintf(dumpBuf + len, size - len, "%s |end\n", flag);
+
+  *pDataBuf = dumpBuf;
   return code;
 }
 
@@ -2698,7 +2700,10 @@ int32_t buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId, char** 
   int32_t code = buildCtbNameByGroupIdImpl(stbFullName, groupId, pBuf);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBuf);
+  } else {
+    *pName = pBuf;
   }
+
   return code;
 }
 
