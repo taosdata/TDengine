@@ -818,7 +818,7 @@ int32_t taosThreadSpinTrylock(TdThreadSpinlock *lock) {
   int32_t code = pthread_spin_trylock((pthread_spinlock_t *)lock);
   if (code) {
     terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return code;
   }
   return code;
 #endif

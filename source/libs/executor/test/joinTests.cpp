@@ -2853,7 +2853,7 @@ void resetForJoinRerun(int32_t dsNum, SSortMergeJoinPhysiNode* pNode, SExecTaskI
   SOperatorInfo* pDownstreams[2];
   createDummyDownstreamOperators(2, pDownstreams);  
   SOperatorInfo* ppDownstreams[] = {pDownstreams[0], pDownstreams[1]};
-  jtCtx.pJoinOp = createMergeJoinOperatorInfo(ppDownstreams, 2, pNode, pTask);
+  int32_t code = createMergeJoinOperatorInfo(ppDownstreams, 2, pNode, pTask, &jtCtx.pJoinOp);
   ASSERT_TRUE(NULL != jtCtx.pJoinOp);
 }
 

@@ -699,7 +699,7 @@ static FORCE_INLINE int32_t getBlkFromDownstreamOperator(struct SOperatorInfo* p
   }
 
   if (pDownstreamParam) {
-    pBlock = pOperator->pDownstream[downstreamIdx]->fpSet.getNextExtFn(pOperator->pDownstream[downstreamIdx], pDownstreamParam);
+    code = pOperator->pDownstream[downstreamIdx]->fpSet.getNextExtFn(pOperator->pDownstream[downstreamIdx], pDownstreamParam, &pBlock);
   } else {
     pBlock = pOperator->pDownstream[downstreamIdx]->fpSet.getNextFn(pOperator->pDownstream[downstreamIdx]);
   }
@@ -1388,15 +1388,18 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SSDataBlock* groupCacheGetNext(struct SOperatorInfo* pOperator, SOperatorParam* pParam) {
+static int32_t groupCacheGetNext(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
+  *pRes = NULL;
+
   SSDataBlock* pBlock = NULL;
-  int64_t st = 0;
+  int64_t      st = 0;
+  int32_t      code = 0;
 
   if (pOperator->cost.openCost == 0) {
     st = taosGetTimestampUs();
   }
 
-  int32_t code = getBlkFromGroupCache(pOperator, &pBlock, pParam);
+  code = getBlkFromGroupCache(pOperator, &pBlock, pParam);
   if (TSDB_CODE_SUCCESS != code) {
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
@@ -1406,7 +1409,8 @@ static SSDataBlock* groupCacheGetNext(struct SOperatorInfo* pOperator, SOperator
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
-  return pBlock;
+  *pRes = pBlock;
+  return code;
 }
 
 static int32_t groupCacheTableCacheEnd(SOperatorInfo* pOperator, SOperatorParam* pParam) {
@@ -1424,12 +1428,14 @@ static int32_t groupCacheTableCacheEnd(SOperatorInfo* pOperator, SOperatorParam*
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                           SGroupCachePhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo) {
-  SGroupCacheOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupCacheOperatorInfo));
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-
+int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                     SGroupCachePhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
+                                     SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
   int32_t code = TSDB_CODE_SUCCESS;
+
+  SGroupCacheOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupCacheOperatorInfo));
+  SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
@@ -1490,7 +1496,8 @@ SOperatorInfo* createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   qTrace("new group cache operator, maxCacheSize:%" PRId64 ", globalGrp:%d, batchFetch:%d", pInfo->maxCacheSize, pInfo->globalGrp, pInfo->batchFetch);
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -1499,7 +1506,5 @@ _error:
 
   taosMemoryFree(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
-
-
