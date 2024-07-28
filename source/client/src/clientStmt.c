@@ -951,7 +951,7 @@ int32_t stmtInitStbInterlaceTableInfo(STscStmt* pStmt) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols)) {
+    if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
