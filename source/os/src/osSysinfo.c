@@ -582,22 +582,22 @@ _end:
 #endif
 }
 
-int32_t taosGetCpuCores(float *numOfCores, bool physical) {
+void taosGetCpuCores(float *numOfCores, bool physical) {
 #ifdef WINDOWS
   SYSTEM_INFO info;
   GetSystemInfo(&info);
   *numOfCores = info.dwNumberOfProcessors;
-  return 0;
+  return;
 #elif defined(_TD_DARWIN_64)
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
-  return 0;
+  return;
 #else
   if (physical) {
     *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   } else {
     (void)taosCntrGetCpuCores(numOfCores);
   }
-  return 0;
+  return;
 #endif
 }
 

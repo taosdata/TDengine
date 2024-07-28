@@ -15,18 +15,25 @@ DLL_EXPORT int32_t udf1_dup_init() { return 0; }
 DLL_EXPORT int32_t udf1_dup_destroy() { return 0; }
 
 DLL_EXPORT int32_t udf1_dup(SUdfDataBlock *block, SUdfColumn *resultCol) {
+  int32_t code = 0;
   SUdfColumnData *resultData = &resultCol->colData;
   for (int32_t i = 0; i < block->numOfRows; ++i) {
     int j = 0;
     for (; j < block->numOfCols; ++j) {
       if (udfColDataIsNull(block->udfCols[j], i)) {
-        udfColDataSetNull(resultCol, i);
+        code = udfColDataSetNull(resultCol, i);
+        if (code != 0) {
+          return code;
+        }
         break;
       }
     }
     if (j == block->numOfCols) {
       int32_t luckyNum = 2;
-      udfColDataSet(resultCol, i, (char *)&luckyNum, false);
+      code = udfColDataSet(resultCol, i, (char *)&luckyNum, false);
+      if (code != 0) {
+        return code;
+      }
     }
   }
   // to simulate actual processing delay by udf

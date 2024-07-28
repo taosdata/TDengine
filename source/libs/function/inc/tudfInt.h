@@ -109,7 +109,7 @@ void freeUdfDataDataBlock(SUdfDataBlock *block);
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock);
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block);
 
-int32_t getUdfdPipeName(char *pipeName, int32_t size);
+void getUdfdPipeName(char *pipeName, int32_t size);
 #ifdef __cplusplus
 }
 #endif
