@@ -364,7 +364,12 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     return TSDB_CODE_SUCCESS;
   }
 
-  SSDataBlock* pBlock = createDataBlock();
+  SSDataBlock* pBlock = NULL;
+  code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
+  }
+
   pBlock->info.rows = 1;
   pBlock->info.capacity = 0;
 

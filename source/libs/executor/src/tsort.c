@@ -168,22 +168,11 @@ static void* tupleGetField(char* t, uint32_t colIdx, uint32_t colNum) {
 }
 
 int32_t tsortGetSortedDataBlock(const SSortHandle* pSortHandle, SSDataBlock** pBlock) {
-  if (pBlock == NULL) {
-    *pBlock = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-
   if (pSortHandle->pDataBlock == NULL) {
     *pBlock = NULL;
     return TSDB_CODE_SUCCESS;
   }
-
-  *pBlock = createOneDataBlock(pSortHandle->pDataBlock, false);
-  if (*pBlock == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    return TSDB_CODE_SUCCESS;
-  }
+  return createOneDataBlock(pSortHandle->pDataBlock, false, pBlock);
 }
 
 #define AllocatedTupleType 0
@@ -271,9 +260,8 @@ int32_t tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize,
 
   pSortHandle->forceUsePQSort = false;
   if (pBlock != NULL) {
-    pSortHandle->pDataBlock = createOneDataBlock(pBlock, false);
-    if (pSortHandle->pDataBlock == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+    code = createOneDataBlock(pBlock, false, &pSortHandle->pDataBlock);
+    if (code) {
       goto _err;
     }
   }
@@ -500,7 +488,12 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
   blockDataCleanup(pDataBlock);
 
-  SSDataBlock* pBlock = createOneDataBlock(pDataBlock, false);
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createOneDataBlock(pDataBlock, false, &pBlock);
+  if (code) {
+    return code;
+  }
+
   return doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId, pPageIdList);
 }
 
@@ -994,7 +987,14 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       tMergeTreeDestroy(&pHandle->pMergeTree);
       pHandle->numOfCompletedSources = 0;
 
-      SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock, false);
+      SSDataBlock* pBlock = NULL;
+
+      code = createOneDataBlock(pHandle->pDataBlock, false, &pBlock);
+      if (code) {
+        taosArrayDestroy(pResList);
+        return code;
+      }
+
       code = doAddNewExternalMemSource(pHandle->pBuf, pResList, pBlock, &pHandle->sourceId, pPageIdList);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroy(pResList);
@@ -1481,12 +1481,19 @@ static int32_t appendToRowIndexDataBlock(SSortHandle* pHandle, SSDataBlock* pSou
 
 static int32_t initRowIdSort(SSortHandle* pHandle) {
   SBlockOrderInfo* pkOrder = (pHandle->bSortPk) ? taosArrayGet(pHandle->aExtRowsOrders, 1) : NULL;
-  SColumnInfoData* extPkCol = (pHandle->bSortPk) ? taosArrayGet(pHandle->pDataBlock->pDataBlock, pkOrder->slotId) : NULL;
+  SColumnInfoData* extPkCol =
+      (pHandle->bSortPk) ? taosArrayGet(pHandle->pDataBlock->pDataBlock, pkOrder->slotId) : NULL;
   SColumnInfoData pkCol = {0};
 
-  SSDataBlock* pSortInput = createDataBlock();
+  SSDataBlock* pSortInput = NULL;
+  int32_t      code = createDataBlock(&pSortInput);
+  if (code) {
+    return code;
+  }
+
   SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
-  int32_t code = blockDataAppendColInfo(pSortInput, &tsCol);
+
+  code = blockDataAppendColInfo(pSortInput, &tsCol);
   if (code) {
     blockDataDestroy(pSortInput);
     return code;
@@ -1499,14 +1506,14 @@ static int32_t initRowIdSort(SSortHandle* pHandle) {
     return code;
   }
 
-  SColumnInfoData  offsetCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 3);
+  SColumnInfoData offsetCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 3);
   code = blockDataAppendColInfo(pSortInput, &offsetCol);
   if (code) {
     blockDataDestroy(pSortInput);
     return code;
   }
 
-  SColumnInfoData  lengthCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 4);
+  SColumnInfoData lengthCol = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 4);
   code = blockDataAppendColInfo(pSortInput, &lengthCol);
   if (code) {
     blockDataDestroy(pSortInput);
@@ -1525,9 +1532,9 @@ static int32_t initRowIdSort(SSortHandle* pHandle) {
   blockDataDestroy(pHandle->pDataBlock);
   pHandle->pDataBlock = pSortInput;
 
-//  int32_t  rowSize = blockDataGetRowSize(pHandle->pDataBlock);
-//  size_t nCols = taosArrayGetSize(pHandle->pDataBlock->pDataBlock);
-  pHandle->pageSize = 256 * 1024; // 256k
+  //  int32_t  rowSize = blockDataGetRowSize(pHandle->pDataBlock);
+  //  size_t nCols = taosArrayGetSize(pHandle->pDataBlock->pDataBlock);
+  pHandle->pageSize = 256 * 1024;  // 256k
   pHandle->numOfPages = 256;
 
   SArray* pOrderInfoList = taosArrayInit(1, sizeof(SBlockOrderInfo));
@@ -1928,7 +1935,14 @@ static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray*
     blockDataCleanup(pHandle->pDataBlock);
   }
 
-  SSDataBlock* pMemSrcBlk = createOneDataBlock(pHandle->pDataBlock, false);
+  SSDataBlock* pMemSrcBlk = NULL;
+  code = createOneDataBlock(pHandle->pDataBlock, false, &pMemSrcBlk);
+  if (code) {
+    cleanupMergeSup(&sup);
+    tMergeTreeDestroy(&pTree);
+    return code;
+  }
+
   code = doAddNewExternalMemSource(pHandle->pBuf, aExtSrc, pMemSrcBlk, &pHandle->sourceId, aPgId);
 
   cleanupMergeSup(&sup);
@@ -2054,7 +2068,16 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
           blockDataDestroy(pBlk);
         }
       } else {
-        SSDataBlock* tBlk = (bExtractedBlock) ? pBlk : createOneDataBlock(pBlk, true);
+        SSDataBlock* tBlk = NULL;
+        if (bExtractedBlock) {
+          tBlk = pBlk;
+        } else {
+          code = createOneDataBlock(pBlk, true, &tBlk);
+          if (code) {
+            return code;
+          }
+        }
+
         code = tSimpleHashPut(mUidBlk, &pBlk->info.id.uid, sizeof(pBlk->info.id.uid), &tBlk, POINTER_BYTES);
         if (code) {
           return code;
@@ -2175,7 +2198,11 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
       // todo, number of pages are set according to the total available sort buffer
       pHandle->numOfPages = 1024;
       sortBufSize = pHandle->numOfPages * pHandle->pageSize;
-      pHandle->pDataBlock = createOneDataBlock(pBlock, false);
+      code = createOneDataBlock(pBlock, false, &pHandle->pDataBlock);
+      if (code) {
+        freeSSortSource(source);
+        return code;
+      }
     }
 
     if (pHandle->beforeFp != NULL) {
@@ -2453,11 +2480,10 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
     }
 
     if (pHandle->pDataBlock == NULL) {
-      pHandle->pDataBlock = createOneDataBlock(pBlock, false);
-    }
-
-    if (pHandle->pDataBlock == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      int32_t code = createOneDataBlock(pBlock, false, &pHandle->pDataBlock);
+      if (code) {
+        return code;
+      }
     }
 
     size_t colNum = blockDataGetNumOfCols(pBlock);

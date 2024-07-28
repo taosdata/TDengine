@@ -1941,7 +1941,8 @@ _return:
 }
 
 int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
-  int32_t          code = 0;
+  int32_t      code = 0;
+  SSDataBlock *pBlock = NULL;
   SExplainCtx *pCtx = (SExplainCtx *)ctx;
   int32_t      rowNum = taosArrayGetSize(pCtx->rows);
   if (rowNum <= 0) {
@@ -1949,7 +1950,9 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
     QRY_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
-  SSDataBlock    *pBlock = createDataBlock();
+  code = createDataBlock(&pBlock);
+  QRY_ERR_JRET(code);
+
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_EXPLAIN_RESULT_ROW_SIZE, 1);
   QRY_ERR_JRET(blockDataAppendColInfo(pBlock, &infoData));
   QRY_ERR_JRET(blockDataEnsureCapacity(pBlock, rowNum));

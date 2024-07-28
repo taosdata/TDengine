@@ -1017,15 +1017,13 @@ void returnToUser(SRequestObj* pRequest) {
 }
 
 static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock**pBlock) {
-  int64_t lastTs = 0;
-
-  int32_t     code = TSDB_CODE_SUCCESS;
+  int64_t     lastTs = 0;
   TAOS_FIELD* pResFields = taos_fetch_fields(pRes);
-  int32_t numOfFields = taos_num_fields(pRes);
+  int32_t     numOfFields = taos_num_fields(pRes);
 
-  *pBlock = createDataBlock();
-  if (NULL == *pBlock) {
-    return terrno;
+  int32_t code = createDataBlock(pBlock);
+  if (code) {
+    return code;
   }
 
   for(int32_t i = 0; i < numOfFields; ++i) {

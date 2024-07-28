@@ -60,7 +60,12 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
     return NULL;
   }
 
-  SSDataBlock* pBlock = createDataBlock();
+  SSDataBlock* pBlock = NULL;
+
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return NULL;
+  }
 
   SColumnInfoData colInfo = {0};
   colInfo.info.type = pInfo->type;
@@ -348,7 +353,10 @@ TEST(testCase, ordered_merge_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSDataBlock* pBlock = createDataBlock();
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  ASSERT(code == 0);
+
   for (int32_t i = 0; i < 1; ++i) {
     SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
     blockDataAppendColInfo(pBlock, &colInfo);

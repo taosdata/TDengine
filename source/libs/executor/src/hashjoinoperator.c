@@ -1157,22 +1157,23 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
 
   int32_t code = blockDataEnsureCapacity(pJoin->finBlk, hJoinGetFinBlkCapacity(pJoin, pJoinNode));
   if (TSDB_CODE_SUCCESS != code) {
-    QRY_ERR_RET(terrno);
+    QRY_ERR_RET(code);
   }
   
   if (NULL != pJoin->pPreFilter) {
-    pJoin->midBlk = createOneDataBlock(pJoin->finBlk, false);
-    if (NULL == pJoin->finBlk) {
-      QRY_ERR_RET(terrno);
+    pJoin->midBlk = NULL;
+    code = createOneDataBlock(pJoin->finBlk, false, &pJoin->midBlk);
+    if (code) {
+      QRY_ERR_RET(code);
     }
+
     code = blockDataEnsureCapacity(pJoin->midBlk, pJoin->finBlk->info.capacity);
     if (TSDB_CODE_SUCCESS != code) {
-      QRY_ERR_RET(terrno);
+      QRY_ERR_RET(code);
     }
   }
 
   pJoin->blkThreshold = pJoin->finBlk->info.capacity * HJOIN_BLK_THRESHOLD_RATIO;
-  
   return TSDB_CODE_SUCCESS;
 }
 

@@ -169,7 +169,7 @@ TdThread doRegisterCacheObj(SCacheObj *pCacheObj) {
   taosThreadOnce(&cacheThreadInit, doInitRefreshThread);
 
   taosThreadMutexLock(&guard);
-  taosArrayPush(pCacheArrayList, &pCacheObj);
+  (void)taosArrayPush(pCacheArrayList, &pCacheObj);
   taosThreadMutexUnlock(&guard);
 
   return cacheRefreshWorker;

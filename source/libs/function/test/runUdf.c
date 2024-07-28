@@ -88,7 +88,13 @@ int aggregateFuncTest() {
     return -1;
   }
 
-  SSDataBlock *pBlock = createDataBlock();
+  SSDataBlock *pBlock = NULL;
+
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
+  }
+
   for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
     SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
     blockDataAppendColInfo(pBlock, &colInfo);

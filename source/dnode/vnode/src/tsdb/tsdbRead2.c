@@ -402,28 +402,30 @@ static void initReaderStatus(SReaderStatus* pStatus) {
 }
 
 static int32_t createResBlock(SQueryTableDataCond* pCond, int32_t capacity, SSDataBlock** pResBlock) {
-  *pResBlock = createDataBlock();
-  if (*pResBlock == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  QRY_OPTR_CHECK(pResBlock);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code != 0) {
+    return code;
   }
 
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
     SColumnInfoData colInfo = {0};
     colInfo.info = pCond->colList[i];
-    int32_t code = blockDataAppendColInfo(*pResBlock, &colInfo);
+    code = blockDataAppendColInfo(pBlock, &colInfo);
     if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFree(*pResBlock);
-      *pResBlock = NULL;
+      taosMemoryFree(pBlock);
       return code;
     }
   }
 
-  int32_t code = blockDataEnsureCapacity(*pResBlock, capacity);
+  code = blockDataEnsureCapacity(pBlock, capacity);
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(*pResBlock);
-    *pResBlock = NULL;
+    taosMemoryFree(pBlock);
   }
 
+  *pResBlock = pBlock;
   return code;
 }
 

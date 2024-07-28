@@ -900,7 +900,9 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pSeDeleted = tSimpleHashInit(64, hashFn);
   pInfo->pDelIterator = NULL;
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->pChildren = NULL;
   pInfo->ignoreExpiredData = pEventNode->window.igExpired;
   pInfo->ignoreExpiredDataSaved = false;
@@ -922,8 +924,8 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     pInfo->pAllUpdated = NULL;
   }
 
-  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
-  QUERY_CHECK_NULL(pInfo->pCheckpointRes, code, lino, _error, terrno);
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->reCkBlock = false;
   pInfo->recvGetAll = false;
