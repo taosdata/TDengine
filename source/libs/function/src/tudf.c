@@ -53,6 +53,8 @@ SUdfdData udfdGlobal = {0};
 int32_t udfStartUdfd(int32_t startDnodeId);
 int32_t udfStopUdfd();
 
+extern char **environ;
+
 static int32_t udfSpawnUdfd(SUdfdData *pData);
 void           udfUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal);
 static int32_t udfSpawnUdfd(SUdfdData *pData);
@@ -150,23 +152,34 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   char ldLibPathEnvItem[1024 + 32] = {0};
   snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", "LD_LIBRARY_PATH", udfdPathLdLib);
 
-  char *taosFqdnEnvItem = NULL;
-  char *taosFqdn = getenv("TAOS_FQDN");
-  if (taosFqdn != NULL) {
-    taosFqdnEnvItem = taosMemoryMalloc(strlen("TAOS_FQDN=") + strlen(taosFqdn) + 1);
-    if (taosFqdnEnvItem != NULL) {
-      strcpy(taosFqdnEnvItem, "TAOS_FQDN=");
-      strcat(taosFqdnEnvItem, taosFqdn);
-      fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
-    } else {
-      fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");
-      return TSDB_CODE_OUT_OF_MEMORY;
+  char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, ldLibPathEnvItem, NULL};
+  char **envUdfdWithPEnv = NULL;
+  if (environ != NULL) {
+    int numEnviron = 0;
+    while (environ[numEnviron] != NULL) {
+      numEnviron++;
     }
+    int lenEnvUdfd = ARRAY_SIZE(envUdfd);
+
+    envUdfdWithPEnv = (char**) taosMemoryMalloc((numEnviron + lenEnvUdfd) * sizeof(char*));
+
+    int i;
+    for (i = 0; i < numEnviron; i++) {
+      envUdfdWithPEnv[i] = (char*) taosMemoryMalloc(strlen(environ[i]) + 1);
+      strcpy(envUdfdWithPEnv[i], environ[i]);
+    }
+    for (i = 0; i < lenEnvUdfd; i++) {
+      if (envUdfd[i] != NULL) {
+        envUdfdWithPEnv[numEnviron + i] = (char*) taosMemoryMalloc(strlen(envUdfd[i]) + 1);
+        strcpy(envUdfdWithPEnv[numEnviron + i], envUdfd[i]);
+      }
+    }
+    envUdfdWithPEnv[numEnviron + lenEnvUdfd - 1] = NULL;
+
+    options.env = envUdfdWithPEnv;
+  } else {
+    options.env = envUdfd;
   }
-
-  char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, ldLibPathEnvItem,taosFqdnEnvItem, NULL};
-
-  options.env = envUdfd;
 
   int err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
@@ -195,7 +208,16 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   } else {
     fnInfo("udfd is initialized");
   }
-  if(taosFqdnEnvItem) taosMemoryFree(taosFqdnEnvItem);
+
+  if (envUdfdWithPEnv != NULL) {
+    int i = 0;
+    while (envUdfdWithPEnv[i] != NULL) {
+      taosMemoryFree(envUdfdWithPEnv[i]);
+      i++;
+    }
+    taosMemoryFree(envUdfdWithPEnv);
+  }
+
   return err;
 }
 
@@ -1969,7 +1991,7 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
     convertDataBlockToScalarParm(&resultBlock, output);
     taosArrayDestroy(resultBlock.pDataBlock);
   }
-  
+
   blockDataFreeRes(&inputBlock);
   return err;
 }
