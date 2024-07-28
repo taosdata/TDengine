@@ -63,12 +63,12 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pData->pWal = pSyncNode->pWal;
   ASSERT(pData->pWal != NULL);
 
-  taosThreadMutexInit(&(pData->mutex), NULL);
+  (void)taosThreadMutexInit(&(pData->mutex), NULL);
   pData->pWalHandle = walOpenReader(pData->pWal, NULL, 0);
   if (!pData->pWalHandle) {
     taosMemoryFree(pLogStore);
     taosLRUCacheCleanup(pLogStore->pCache);
-    taosThreadMutexDestroy(&(pData->mutex));
+    (void)taosThreadMutexDestroy(&(pData->mutex));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -96,13 +96,13 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
   if (pLogStore != NULL) {
     SSyncLogStoreData* pData = pLogStore->data;
 
-    taosThreadMutexLock(&(pData->mutex));
+    (void)taosThreadMutexLock(&(pData->mutex));
     if (pData->pWalHandle != NULL) {
       walCloseReader(pData->pWalHandle);
       pData->pWalHandle = NULL;
     }
-    taosThreadMutexUnlock(&(pData->mutex));
-    taosThreadMutexDestroy(&(pData->mutex));
+    (void)taosThreadMutexUnlock(&(pData->mutex));
+    (void)taosThreadMutexDestroy(&(pData->mutex));
 
     taosMemoryFree(pLogStore->data);
 
@@ -261,12 +261,12 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   *ppEntry = NULL;
 
   int64_t ts1 = taosGetTimestampNs();
-  taosThreadMutexLock(&(pData->mutex));
+  (void)taosThreadMutexLock(&(pData->mutex));
 
   SWalReader* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
     sError("vgId:%d, wal handle is NULL", pData->pSyncNode->vgId);
-    taosThreadMutexUnlock(&(pData->mutex));
+    (void)taosThreadMutexUnlock(&(pData->mutex));
 
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
   }
@@ -297,7 +297,7 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
         terrno = saveErr;
     */
 
-    taosThreadMutexUnlock(&(pData->mutex));
+    (void)taosThreadMutexUnlock(&(pData->mutex));
 
     TAOS_RETURN(code);
   }
@@ -311,7 +311,7 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   (*ppEntry)->term = pWalHandle->pHead->head.syncMeta.term;
   (*ppEntry)->index = index;
   ASSERT((*ppEntry)->dataLen == pWalHandle->pHead->head.bodyLen);
-  memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
+  (void)memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
   /*
     int32_t saveErr = terrno;
@@ -319,7 +319,7 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     terrno = saveErr;
   */
 
-  taosThreadMutexUnlock(&(pData->mutex));
+  (void)taosThreadMutexUnlock(&(pData->mutex));
   int64_t ts4 = taosGetTimestampNs();
 
   int64_t tsElapsed = ts4 - ts1;

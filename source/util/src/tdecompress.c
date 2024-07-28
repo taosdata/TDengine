@@ -34,7 +34,7 @@ int32_t getWordLength(char type) {
       break;
     default:
       uError("Invalid decompress integer type:%d", type);
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
   }
 
   return wordLength;
@@ -156,7 +156,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
               // 13		6		9		4		5		2		1
               // 0 D7,D6		D6		D5,D4		D4		D3,D2		D2
               // D1,D0		D0 +D5,D4	D5,D4,		0		0		D1,D0		D1,D0
-              //0		0 D7~D4		D6~D4		D5~D4		D4		D3~D0		D2~D0
+              // 0		0 D7~D4		D6~D4		D5~D4		D4		D3~D0		D2~D0
               // D1~D0		D0 22		15		9		4		6		3
               // 1		0
               //

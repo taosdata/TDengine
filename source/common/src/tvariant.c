@@ -426,7 +426,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
       size_t lenInwchar = len / TSDB_NCHAR_SIZE;
 
       pVar->ucs4 = taosMemoryCalloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
-      memcpy(pVar->ucs4, pz, lenInwchar * TSDB_NCHAR_SIZE);
+      (void)memcpy(pVar->ucs4, pz, lenInwchar * TSDB_NCHAR_SIZE);
       pVar->nLen = (int32_t)len;
 
       break;
@@ -435,7 +435,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {  // todo refactor, extract a method
       pVar->pz = taosMemoryCalloc(len + 1, sizeof(char));
-      memcpy(pVar->pz, pz, len);
+      (void)memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
       break;
     }
@@ -470,10 +470,10 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
     char   *p = taosMemoryRealloc(pDst->pz, len);
     ASSERT(p);
 
-    memset(p, 0, len);
+    (void)memset(p, 0, len);
     pDst->pz = p;
 
-    memcpy(pDst->pz, pSrc->pz, pSrc->nLen);
+    (void)memcpy(pDst->pz, pSrc->pz, pSrc->nLen);
     pDst->nLen = pSrc->nLen;
     return;
   }
