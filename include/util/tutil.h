@@ -16,12 +16,10 @@
 #ifndef _TD_UTIL_UTIL_H_
 #define _TD_UTIL_UTIL_H_
 
-#include "os.h"
 #include "tcrc32c.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tmd5.h"
-#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
