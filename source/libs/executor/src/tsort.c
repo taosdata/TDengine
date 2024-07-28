@@ -677,7 +677,7 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         }
 
         int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
-        if (pPgId) {
+        if (pPgId == NULL) {
           return terrno;
         }
 
