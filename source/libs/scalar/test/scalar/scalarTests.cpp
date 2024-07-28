@@ -91,14 +91,16 @@ void scltInitLogFile() {
 int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *slotId, bool newBlock, int32_t rows,
                                SColumnInfo *colInfo) {
   if (newBlock) {
-    SSDataBlock *res = createDataBlock();
-    if (NULL == res || NULL == res->pDataBlock) {
+    SSDataBlock *res = NULL;
+    int32_t      code = createDataBlock(&res);
+    if (code != 0 || NULL == res->pDataBlock) {
       SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
     SColumnInfoData idata = {0};
     idata.info = *colInfo;
-    int32_t code = colInfoDataEnsureCapacity(&idata, rows, true);
+
+    code = colInfoDataEnsureCapacity(&idata, rows, true);
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(&idata);
       SCL_ERR_RET(code);
@@ -185,7 +187,11 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
   }
 
   if (NULL == *block) {
-    SSDataBlock *res = createDataBlock();
+    SSDataBlock *res = NULL;
+
+    int32_t code = createDataBlock(&res);
+    ASSERT(code == 0);
+
     for (int32_t i = 0; i < 2; ++i) {
       SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_INT, 10, i + 1);
       code = colInfoDataEnsureCapacity(&idata, rowNum, true);

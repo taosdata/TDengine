@@ -20,15 +20,6 @@
 extern "C" {
 #endif
 
-#define QRY_OPTR_CHECK(_o)           \
-  do {                               \
-    if ((_o) == NULL) {              \
-      return TSDB_CODE_INVALID_PARA; \
-    } else {                         \
-      *(_o) = NULL;                  \
-    }                                \
-  } while(0)
-
 typedef struct SOperatorCostInfo {
   double openCost;
   double totalCost;

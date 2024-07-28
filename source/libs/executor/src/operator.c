@@ -27,6 +27,8 @@
 #include "querytask.h"
 
 #include "storageapi.h"
+#include "tdatablock.h"
+
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,

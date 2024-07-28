@@ -289,7 +289,12 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   int32_t numOfCols = pShow->pMeta->numOfColumns;
 
-  SSDataBlock *pBlock = createDataBlock();
+  SSDataBlock *pBlock = NULL;
+  code = createDataBlock(&pBlock);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
 

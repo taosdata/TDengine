@@ -1254,8 +1254,13 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   int32_t               numOfCols = pInput->numOfInputCols;
   int32_t               start = pInput->startRowIndex;
   int32_t               numOfRows = pInput->numOfRows;
+  SSDataBlock          *pTempBlock = NULL;
+  int32_t               code = createDataBlock(&pTempBlock);
 
-  SSDataBlock *pTempBlock = createDataBlock();
+  if (code) {
+    return code;
+  }
+
   pTempBlock->info.rows = pInput->totalRows;
   pTempBlock->info.id.uid = pInput->uid;
   for (int32_t i = 0; i < numOfCols; ++i) {

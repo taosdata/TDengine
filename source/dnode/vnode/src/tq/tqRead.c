@@ -289,7 +289,13 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
   pReader->cachedSchemaSuid = 0;
   pReader->pSchemaWrapper = NULL;
   pReader->tbIdHash = NULL;
-  pReader->pResBlock = createDataBlock();
+  pReader->pResBlock = NULL;
+
+  int32_t code = createDataBlock(&pReader->pResBlock);
+  if (code) {
+    terrno = code;
+  }
+
   return pReader;
 }
 
