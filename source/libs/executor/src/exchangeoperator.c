@@ -655,7 +655,10 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
   int32_t lino = 0;
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
-    *pNextStart = (char*)blockDecode(pRes, pData);
+    code = blockDecode(pRes, pData, (const char**) pNextStart);
+    if (code) {
+      return code;
+    }
   } else {  // extract data according to pColList
     char* pStart = pData;
 
@@ -682,7 +685,10 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    (void)blockDecode(pBlock, pStart);
+    const char* pDummy = NULL;
+    code = blockDecode(pBlock, pStart, &pDummy);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     code = blockDataEnsureCapacity(pRes, pBlock->info.rows);
     QUERY_CHECK_CODE(code, lino, _end);
 

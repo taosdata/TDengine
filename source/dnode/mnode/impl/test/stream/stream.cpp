@@ -49,7 +49,9 @@ SRpcMsg buildHbReq() {
       entry.stage = 4;
     }
 
-    taosArrayPush(msg.pTaskStatus, &entry);
+    void* px = taosArrayPush(msg.pTaskStatus, &entry);
+    ASSERT(px != NULL);
+
   }
 
   // (p->checkpointId != 0) && p->checkpointFailed
@@ -65,7 +67,8 @@ SRpcMsg buildHbReq() {
     entry.checkpointInfo.activeId = 1;
     entry.checkpointInfo.failed = true;
 
-    taosArrayPush(msg.pTaskStatus, &entry);
+    void* px = taosArrayPush(msg.pTaskStatus, &entry);
+    ASSERT(px != NULL);
   }
 
   int32_t  tlen = 0;
@@ -122,8 +125,11 @@ void setTask(SStreamTask* pTask, int32_t nodeId, int64_t streamId, int32_t taskI
   entry.stage = 1;
   entry.status = TASK_STATUS__READY;
 
-  taosHashPut(pExecNode->pTaskMap, &id, sizeof(id), &entry, sizeof(entry));
-  taosArrayPush(pExecNode->pTaskList, &id);
+  int32_t code = taosHashPut(pExecNode->pTaskMap, &id, sizeof(id), &entry, sizeof(entry));
+  ASSERT(code == 0);
+
+  void* px = taosArrayPush(pExecNode->pTaskList, &id);
+  ASSERT(px != NULL);
 }
 
 void initStreamExecInfo() {
@@ -141,7 +147,8 @@ void initNodeInfo() {
   SNodeEntry entry = {0};
   entry.nodeId = 2;
   entry.stageUpdated = true;
-  taosArrayPush(execInfo.pNodeList, &entry);
+  void* px = taosArrayPush(execInfo.pNodeList, &entry);
+  ASSERT(px != NULL);
 }
 }  // namespace
 
@@ -149,15 +156,17 @@ class StreamTest : public testing::Test { // 继承了 testing::Test
  protected:
 
   static void SetUpTestSuite() {
-    mndInitExecInfo();
+    int32_t code = mndInitExecInfo();
+    ASSERT(code == 0);
+
     initStreamExecInfo();
     initNodeInfo();
 
-    std::cout<<"setup env for streamTest suite"<<std::endl;
+    (void) printf("setup env for streamTest suite");
   }
 
   static void TearDownTestSuite() {
-    std::cout<<"tearDown env for streamTest suite"<<std::endl;
+    (void) printf("tearDown env for streamTest suite");
   }
 
   virtual void SetUp() override {
@@ -182,7 +191,8 @@ TEST_F(StreamTest, handle_error_in_hb) {
 TEST_F(StreamTest, kill_checkpoint_trans) {
   STrans trans;
   trans.id = 100;
-  mndStreamRegisterTrans(&trans, MND_STREAM_CHECKPOINT_NAME, defStreamId);
+  int32_t code = mndStreamRegisterTrans(&trans, MND_STREAM_CHECKPOINT_NAME, defStreamId);
+  ASSERT(code == 0);
 
   SMnode* pMnode = static_cast<SMnode*>(taosMemoryCalloc(1, sizeof(SMnode)));
   {// init sdb
@@ -192,7 +202,8 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
     opt.pWal = pMnode->pWal;
 
     pMnode->pSdb = sdbInit(&opt);
-    taosThreadMutexInit(&pMnode->syncMgmt.lock, NULL);
+    int32_t code = taosThreadMutexInit(&pMnode->syncMgmt.lock, NULL);
+    ASSERT(code == 0);
   }
 
   SVgroupChangeInfo info;
@@ -202,7 +213,8 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   const char* pDbName = "test_db_name";
   int32_t     len = strlen(pDbName);
 
-  taosHashPut(info.pDBMap, pDbName, len, NULL, 0);
+  code = taosHashPut(info.pDBMap, pDbName, len, NULL, 0);
+  ASSERT(code == 0);
 
   killAllCheckpointTrans(pMnode, &info);
 
@@ -224,12 +236,17 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
   pTask->id.streamId = defStreamId;
   pTask->id.taskId = 1;
   pTask->exec.qmsg = (char*)taosMemoryCalloc(1,1);
-  taosThreadMutexInit(&pTask->lock, NULL);
+  code = taosThreadMutexInit(&pTask->lock, NULL);
+  ASSERT(code == 0);
 
-  taosArrayPush(pLevel, &pTask);
+  void* px = taosArrayPush(pLevel, &pTask);
+  ASSERT(px != NULL);
 
-  taosArrayPush(pStream->tasks, &pLevel);
-  mndCreateStreamResetStatusTrans(pMnode, pStream);
+  px = taosArrayPush(pStream->tasks, &pLevel);
+  ASSERT(px != NULL);
+
+  code = mndCreateStreamResetStatusTrans(pMnode, pStream);
+  ASSERT(code != 0);
 
   tFreeStreamObj(pStream);
   sdbCleanup(pMnode->pSdb);
@@ -248,7 +265,7 @@ TEST_F(StreamTest, plan_Test) {
 
   if (taosCreateLog("taoslog", 10, "/etc/taos", NULL, NULL, NULL, NULL, 1) != 0) {
     // ignore create log failed, only print
-    printf(" WARING: Create failed:%s. configDir\n", strerror(errno));
+    (void) printf(" WARING: Create failed:%s. configDir\n", strerror(errno));
   }
 
   if (nodesStringToNode(ast, &pAst) < 0) {

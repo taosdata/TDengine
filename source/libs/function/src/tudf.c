@@ -24,7 +24,6 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tudf.h"
-#include <stdint.h>
 #include "tudfInt.h"
 
 #ifdef _TD_DARWIN_64
@@ -236,7 +235,7 @@ _exit:
     (void)uv_barrier_wait(&pData->barrier);
     atomic_store_32(&pData->spawnErr, terrno);
     if(uv_loop_close(&pData->loop) != 0) {
-      fnError("udfd loop close failed, lino:%d", __LINE__); 
+      fnError("udfd loop close failed, lino:%d", __LINE__);
     }
     fnError("udfd thread exit with code:%d lino:%d", terrno, terrln);
     terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE;
@@ -299,7 +298,7 @@ void udfStopUdfd() {
   }
   if(uv_thread_join(&pData->thread) != 0) {
     fnError("stop udfd: failed to join udfd thread");
-  }  
+  }
 
 #ifdef WINDOWS
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
@@ -903,10 +902,14 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   SColumnInfoData colInfoData = createColumnInfoData(meta->type, meta->bytes, 1);
   code = blockDataAppendColInfo(block, &colInfoData);
   TAOS_CHECK_GOTO(code, &lino, _exit);
+
   code =  blockDataEnsureCapacity(block, udfCol->colData.numOfRows);
   TAOS_CHECK_GOTO(code, &lino, _exit);
 
-  SColumnInfoData *col = bdGetColumnInfoData(block, 0);
+  SColumnInfoData *col = NULL;
+  code = bdGetColumnInfoData(block, 0, &col);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
+
   for (int i = 0; i < udfCol->colData.numOfRows; ++i) {
     if (udfColDataIsNull(udfCol, i)) {
       colDataSetNULL(col, i);
@@ -917,7 +920,8 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
     }
   }
   block->info.rows = udfCol->colData.numOfRows;
-_exit:  
+
+_exit:
   if (code != 0) {
     fnError("failed to convert udf column to data block, code:%d, line:%d", code, lino);
   }
@@ -1312,7 +1316,11 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
     }
   }
 
-  SSDataBlock *inputBlock = blockDataExtractBlock(pTempBlock, start, numOfRows);
+  SSDataBlock *inputBlock = NULL;
+  code = blockDataExtractBlock(pTempBlock, start, numOfRows, &inputBlock);
+  if (code) {
+    return code;
+  }
 
   SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
   SUdfInterBuf newState = {0};
@@ -1656,13 +1664,13 @@ int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvT
       taosMemoryFree(bufBegin);
       return TSDB_CODE_UDF_UV_EXEC_FAILURE;
     }
-    
+
     uvTask->reqBuf = uv_buf_init(bufBegin, bufLen);
     uvTask->seqNum = request.seqNum;
   } else if (uvTaskType == UV_TASK_DISCONNECT) {
     uvTask->pipe = task->session->udfUvPipe;
   }
-  if (uv_sem_init(&uvTask->taskSem, 0) != 0) 
+  if (uv_sem_init(&uvTask->taskSem, 0) != 0)
   {
     if (uvTaskType == UV_TASK_REQ_RSP)  {
       taosMemoryFree(uvTask->reqBuf.base);

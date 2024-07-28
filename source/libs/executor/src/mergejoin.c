@@ -2836,24 +2836,24 @@ static int32_t mWinJoinCloneCacheBlk(SMJoinWindowCtx* pCtx) {
   }
 
   if (!pGrp->clonedBlk) {
+    int32_t code = 0;
     if (0 == pGrp->beginIdx) {
       SSDataBlock* p = NULL;
-      int32_t code = createOneDataBlock(pGrp->blk, true, &p);
+      code = createOneDataBlock(pGrp->blk, true, &p);
       if (code) {
         MJ_ERR_RET(code);
       }
       pGrp->blk = p;
     } else {
-      pGrp->blk = blockDataExtractBlock(pGrp->blk, pGrp->beginIdx, pGrp->blk->info.rows - pGrp->beginIdx);
+      code = blockDataExtractBlock(pGrp->blk, pGrp->beginIdx, pGrp->blk->info.rows - pGrp->beginIdx, &pGrp->blk);
       pGrp->endIdx -= pGrp->beginIdx;
       pGrp->beginIdx = 0;
       pGrp->readIdx = 0;
     }
-
-    if (NULL == pGrp->blk) {
-      MJ_ERR_RET(terrno);
+    if (code) {
+      MJ_ERR_RET(code);
     }
-    
+
     pGrp->clonedBlk = true;
   }
 

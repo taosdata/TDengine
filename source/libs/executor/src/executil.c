@@ -2628,9 +2628,12 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     qDebug("%s===stream===%s: Block is Null or Empty", taskIdStr, flag);
     return;
   }
-  char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf, taskIdStr));
-  taosMemoryFree(pBuf);
+  char*   pBuf = NULL;
+  int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
+  if (code == 0) {
+    qDebug("%s", pBuf);
+    taosMemoryFree(pBuf);
+  }
 }
 
 void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr) {
@@ -2645,8 +2648,11 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     char* pBuf = NULL;
     char  flagBuf[64];
     snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
-    qDebug("%s", dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr));
-    taosMemoryFree(pBuf);
+    int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr);
+    if (code == 0) {
+      qDebug("%s", pBuf);
+      taosMemoryFree(pBuf);
+    }
   }
 }
 

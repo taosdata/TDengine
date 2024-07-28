@@ -1360,10 +1360,9 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
 
       if (keepGrp && rowNum > 0) {
         pTable->eqRowNum += rowNum;
-
-        pGrp->blk = blockDataExtractBlock(pTable->blk, pGrp->beginIdx, rowNum);
-        if (NULL == pGrp->blk) {
-          MJ_ERR_RET(terrno);
+        code = blockDataExtractBlock(pTable->blk, pGrp->beginIdx, rowNum, &pGrp->blk);
+        if (code) {
+          MJ_ERR_RET(code);
         }
 
         pGrp->endIdx -= pGrp->beginIdx;
