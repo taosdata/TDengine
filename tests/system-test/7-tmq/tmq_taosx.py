@@ -292,18 +292,6 @@ class TDTestCase:
 
         return
 
-    def checkVgroupTable(self):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -t'%(buildPath, cfgPath)
-        tdLog.info(cmdStr)
-        os.system(cmdStr)
-
-        self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
-        self.checkDataTable()
-
-        return
-
     def checkSnapshot1VgroupTable(self):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()

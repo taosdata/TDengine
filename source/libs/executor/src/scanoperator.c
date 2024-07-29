@@ -2556,13 +2556,9 @@ static int32_t rebuildDeleteBlockData(SSDataBlock* pBlock, STimeWindow* pWindow,
 
   if (hasUnqualified) {
     code = trimDataBlock(pBlock, pBlock->info.rows, p);
-    QUERY_CHECK_CODE(code, lino, _end);
     qDebug("%s re-build delete datablock, start key revised to:%" PRId64 ", rows:%" PRId64, id, skey,
            pBlock->info.rows);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     qDebug("%s not update the delete block", id);
   }
@@ -2752,7 +2748,7 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   if (isTaskKilled(pTaskInfo)) {
     (*ppRes) = NULL;
-    return code;
+    return pTaskInfo->code;
   }
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
@@ -2762,8 +2758,8 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       if (pResult && pResult->info.rows > 0) {
         bool hasPrimaryKey = pAPI->tqReaderFn.tqGetTablePrimaryKey(pInfo->tqReader);
         code = processPrimaryKey(pResult, hasPrimaryKey, &pTaskInfo->streamInfo.currentOffset);
-        qDebug("tmqsnap doQueueScan get data uid:%" PRId64 "", pResult->info.id.uid);
-        if (pResult->info.rows > 0) {
+        qDebug("tmqsnap doQueueScan get data utid:%" PRId64 "", pResult->info.id.uid);
+        if (pResult->info.rows > 0 || code != TSDB_CODE_SUCCESS) {
           (*ppRes) = pResult;
           return code;
         }
