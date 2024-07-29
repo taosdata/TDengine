@@ -213,7 +213,7 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
 
 _OVER:
   (void)taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  taosArrayDestroyP(fqdns, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(fqdns, NULL);
   if (code < 0) {
     mError("failed to update ip white list for user: %s at line %d since %s", user, lino, tstrerror(code));
   }
@@ -633,8 +633,8 @@ int32_t mndFetchAllIpWhite(SMnode *pMnode, SHashObj **ppIpWhiteTab) {
   }
 
 _OVER:
-  taosArrayDestroyP(fqdns, taosMemoryFree);
-  taosArrayDestroyP(pUserNames, taosMemoryFree);
+  taosArrayDestroyP(fqdns, NULL);
+  taosArrayDestroyP(pUserNames, NULL);
 
   if (code < 0) {
     mError("failed to fetch all ip white list at line %d since %s", lino, tstrerror(code));

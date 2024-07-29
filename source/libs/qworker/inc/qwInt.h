@@ -233,9 +233,9 @@ typedef struct SQWorkerMgmt {
 } SQWorkerMgmt;
 
 typedef struct SQWQueryInfo {
-  bool      retired;
-  void*     pCollection;
-  SHashObj* pSessions;
+  int8_t              retired;
+  SMemPoolCollection* pCollection;
+  SHashObj*           pSessions;
 } SQWQueryInfo;
 
 typedef struct SQWRetireLowCtx {
@@ -483,7 +483,7 @@ void    qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped);
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwInitQueryPool(void);
 void    qwDestroyQueryInfo(SQWQueryInfo* pQuery);
-int32_t qwInitSession(uint64_t qId, void** ppSession);
+int32_t qwInitSession(QW_FPARAMS_DEF, void** ppSession);
 
 #ifdef __cplusplus
 }

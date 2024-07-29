@@ -1947,7 +1947,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   sendInfo->requestId = req.reqId;
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
-  sendInfo->paramFreeFp = taosMemoryFree;
+  sendInfo->paramFreeFp = taosMemFree;
   sendInfo->fp = tmqPollCb;
   sendInfo->msgType = TDMT_VND_TMQ_CONSUME;
 
@@ -2885,7 +2885,7 @@ int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
-  sendInfo->paramFreeFp = taosMemoryFree;
+  sendInfo->paramFreeFp = taosMemFree;
   sendInfo->fp = askEpCb;
   sendInfo->msgType = TDMT_MND_TMQ_ASK_EP;
 

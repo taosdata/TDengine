@@ -74,7 +74,7 @@ extern int32_t tsQueryMaxConcurrentTaskNum;
 extern int32_t tsQueryConcurrentTaskNum;
 extern int32_t tsSingleQueryMaxMemorySize;
 extern int8_t  tsQueryUseMemoryPool;
-extern int32   tsQueryBufferPoolSize;
+extern int32_t tsQueryBufferPoolSize;
 extern int32_t tsNumOfQueryThreads;
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;

@@ -194,10 +194,7 @@ typedef struct SMPStatInfo {
 
 
 typedef struct SMPCollection {
-  uint64_t           collectionId;
-  int64_t            allocMemSize;
-  int64_t            maxAllocMemSize;
-
+  SMemPoolCollection collection; // KEEP IT FIRST
   SMPStatInfo        stat;
 } SMPCollection;
 
@@ -292,8 +289,8 @@ typedef enum EMPMemStrategy {
 
 typedef struct SMPMsgQueue {
   SMemPool* pPool;
-  bool      lowLevelRetire;
-  bool      midLevelRetire;
+  int8_t    lowLevelRetire;
+  int8_t    midLevelRetire;
 } SMPMsgQueue;
 
 typedef struct SMemPoolMgmt {

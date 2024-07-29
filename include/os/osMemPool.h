@@ -44,7 +44,7 @@ typedef void (*mpIncConcSessionNum)(void);
 typedef void (*mpSetConcSessionNum)(int32_t);
 typedef void (*mpRetireCollections)(int64_t, bool);
 typedef void (*mpRetireCollection)(uint64_t);
-typedef void (*mpCfgUpdate)(void*, SMemPoolCfg*);
+typedef void (*mpCfgUpdate)(void*, void*);
 
 typedef struct SMemPoolCallBack {
   mpDecConcSessionNum  decSessFp;
@@ -54,6 +54,7 @@ typedef struct SMemPoolCallBack {
   mpRetireCollection   retireFp;
   mpCfgUpdate          cfgUpdateFp;
 } SMemPoolCallBack;
+
 
 typedef struct SMemPoolCfg {
   bool               autoMaxSize;
@@ -66,6 +67,14 @@ typedef struct SMemPoolCfg {
   MemPoolEvictPolicy evicPolicy;
   SMemPoolCallBack   cb;
 } SMemPoolCfg;
+
+typedef struct SMemPoolCollection {
+  uint64_t           collectionId;
+  int64_t            allocMemSize;
+  int64_t            maxAllocMemSize;
+} SMemPoolCollection;
+
+
 
 void    taosMemPoolModInit(void);
 int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle);
@@ -83,6 +92,7 @@ void    taosAutoMemoryFree(void *ptr);
 int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pCollection);
 void    taosMemPoolDestroySession(void* poolHandle, void* session);
 int32_t taosMemPoolCallocCollection(uint64_t collectionId, void** ppCollection);
+void    taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg);
 
 #define taosMemPoolFreeClear(ptr)   \
   do {                             \

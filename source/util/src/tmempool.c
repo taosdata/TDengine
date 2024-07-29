@@ -312,15 +312,15 @@ void memPoolUpdateAllocMemSize(SMemPool* pPool, SMPSession* pSession, int64_t si
   int64_t allocMemSize = atomic_add_fetch_64(&pSession->allocMemSize, size);
   memPoolUpdateMaxAllocMemSize(&pSession->maxAllocMemSize, allocMemSize);
 
-  allocMemSize = atomic_load_64(&pSession->pMpCollection->allocMemSize);
-  memPoolUpdateMaxAllocMemSize(&pSession->pMpCollection->maxAllocMemSize, allocMemSize);
+  allocMemSize = atomic_load_64(&pSession->pMpCollection->collection.allocMemSize);
+  memPoolUpdateMaxAllocMemSize(&pSession->pMpCollection->collection.maxAllocMemSize, allocMemSize);
 
   allocMemSize = atomic_load_64(&pPool->allocMemSize);
   memPoolUpdateMaxAllocMemSize(&pPool->maxAllocMemSize, allocMemSize);
 }
 
 
-void* memPoolAllocFromChunk(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment) {
+int32_t memPoolAllocFromChunk(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMPChunk* pChunk = NULL, *preSrcChunk = NULL;
   void* pRes = NULL;
@@ -361,10 +361,12 @@ void* memPoolAllocFromChunk(SMemPool* pPool, SMPSession* pSession, int64_t size,
   
 _return:
 
-  return pRes;
+  *ppRes = pRes;
+
+  return code;
 }
 
-void* memPoolAllocFromNSChunk(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment) {
+int32_t memPoolAllocFromNSChunk(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMPNSChunk* pChunk = NULL;
   void* pRes = NULL;
@@ -389,7 +391,9 @@ void* memPoolAllocFromNSChunk(SMemPool* pPool, SMPSession* pSession, int64_t siz
   
 _return:
 
-  return pRes;
+  *ppRes = pRes;
+  
+  return code;
 }
 
 int32_t memPoolPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
@@ -413,34 +417,34 @@ int32_t memPoolPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
 
 int32_t memPoolMemQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) {
   SMPCollection* pCollection = pSession->pMpCollection;
-  int64_t cAllocSize = atomic_add_fetch_64(&pCollection->allocMemSize, size);
+  int64_t cAllocSize = atomic_add_fetch_64(&pCollection->collection.allocMemSize, size);
   int64_t quota = atomic_load_64(&pPool->cfg.collectionQuota);
   if (quota > 0 && cAllocSize > quota) {
-    uWarn("collection %" PRIx64 " allocSize " PRId64 " is over than quota %" PRId64, pCollection->collectionId, cAllocSize, quota);
-    pPool->cfg.cb.retireFp(pCollection->collectionId);
-    atomic_sub_fetch_64(&pCollection->allocMemSize, size);
+    uWarn("collection %" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, pCollection->collection.collectionId, cAllocSize, quota);
+    pPool->cfg.cb.retireFp(pCollection->collection.collectionId);
+    atomic_sub_fetch_64(&pCollection->collection.allocMemSize, size);
     MP_RET(TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);
   }
 
   int64_t pAllocSize = atomic_add_fetch_64(&pPool->allocMemSize, size);
   quota = atomic_load_64(&pPool->memRetireThreshold[2]);
   if (pAllocSize >= quota) {
-    uWarn("pool allocSize " PRId64 " reaches the high quota %" PRId64, pAllocSize, quota);
-    pPool->cfg.cb.retireFp(pCollection->collectionId);
-    atomic_sub_fetch_64(&pCollection->allocMemSize, size);
+    uWarn("pool allocSize %" PRId64 " reaches the high quota %" PRId64, pAllocSize, quota);
+    pPool->cfg.cb.retireFp(pCollection->collection.collectionId);
+    atomic_sub_fetch_64(&pCollection->collection.allocMemSize, size);
     atomic_sub_fetch_64(&pPool->allocMemSize, size);
     MP_RET(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
   }
 
   quota = atomic_load_64(&pPool->memRetireThreshold[1]);  
   if (pAllocSize >= quota) {
-    uInfo("pool allocSize " PRId64 " reaches the middle quota %" PRId64, pAllocSize, quota);
+    uInfo("pool allocSize %" PRId64 " reaches the middle quota %" PRId64, pAllocSize, quota);
     if (cAllocSize >= atomic_load_64(&pPool->memRetireUnit) / 2) {
       uWarn("session retired in middle quota retire choise, sessionAllocSize: %" PRId64 ", collectionSize: %" PRId64, 
         atomic_load_64(&pSession->allocMemSize), cAllocSize);
 
-      pPool->cfg.cb.retireFp(pCollection->collectionId);
-      atomic_sub_fetch_64(&pCollection->allocMemSize, size);
+      pPool->cfg.cb.retireFp(pCollection->collection.collectionId);
+      atomic_sub_fetch_64(&pCollection->collection.allocMemSize, size);
       atomic_sub_fetch_64(&pPool->allocMemSize, size);
 
       MP_ERR_RET(memPoolPutRetireMsgToQueue(pPool, false));
@@ -452,12 +456,12 @@ int32_t memPoolMemQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t s
 
   quota = atomic_load_64(&pPool->memRetireThreshold[0]);    
   if (pAllocSize >= quota) {
-    uInfo("pool allocSize " PRId64 " reaches the low quota %" PRId64, pAllocSize, quota);
+    uInfo("pool allocSize %" PRId64 " reaches the low quota %" PRId64, pAllocSize, quota);
     if (cAllocSize >= atomic_load_64(&pPool->memRetireUnit)) {
       uWarn("session retired in low quota retire choise, sessionAllocSize: %" PRId64, atomic_load_64(&pSession->allocMemSize));
 
-      pPool->cfg.cb.retireFp(pCollection->collectionId);
-      atomic_sub_fetch_64(&pCollection->allocMemSize, size);
+      pPool->cfg.cb.retireFp(pCollection->collection.collectionId);
+      atomic_sub_fetch_64(&pCollection->collection.allocMemSize, size);
       atomic_sub_fetch_64(&pPool->allocMemSize, size);
 
       MP_ERR_RET(memPoolPutRetireMsgToQueue(pPool, true));
@@ -476,7 +480,7 @@ int32_t memPoolAllocDirect(SMemPool* pPool, SMPSession* pSession, int64_t size, 
   if (NULL != res) {
     memPoolUpdateAllocMemSize(pPool, pSession, size);
   } else {
-    atomic_sub_fetch_64(&pSession->pMpCollection->allocMemSize, size);
+    atomic_sub_fetch_64(&pSession->pMpCollection->collection.allocMemSize, size);
     atomic_sub_fetch_64(&pPool->allocMemSize, size);
     uError("malloc %" PRId64 " alighment %d failed", size, alignment);
 
@@ -518,10 +522,12 @@ int32_t memPoolMallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t size, u
   return code;
 }
 
-void *memPoolCallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t num, int64_t size) {
+int32_t memPoolCallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t num, int64_t size, void** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t totalSize = num * size;
-  void *res = memPoolMallocImpl(pPool, pSession, totalSize, 0);
+  void *res = NULL;
+
+  MP_ERR_RET(memPoolMallocImpl(pPool, pSession, totalSize, 0, &res));
 
   if (NULL != res) {
     memset(res, 0, totalSize);
@@ -529,7 +535,9 @@ void *memPoolCallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t num, int6
 
 _return:
 
-  return res;
+  *ppRes = res;
+
+  return code;
 }
 
 
@@ -571,7 +579,7 @@ int32_t memPoolReallocImpl(SMemPool* pPool, SMPSession* pSession, void **pPtr, i
 
   if (NULL == *pPtr) {
     *origSize = 0;
-    MP_RET(memPoolMallocImpl(pPool, pSession, size, 0));
+    MP_RET(memPoolMallocImpl(pPool, pSession, size, 0, pPtr));
   }
 
   if (0 == size) {
@@ -851,9 +859,9 @@ void* memPoolMgmtThreadFunc(void* param) {
       continue;
     }
 
-    if (gMPMgmt.msgQueue.midLevelRetire) {
+    if (atomic_load_8(&gMPMgmt.msgQueue.midLevelRetire)) {
       (*gMPMgmt.msgQueue.pPool->cfg.cb.retiresFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->memRetireUnit), false);
-    } else if (gMPMgmt.msgQueue.lowLevelRetire) {
+    } else if (atomic_load_8(&gMPMgmt.msgQueue.lowLevelRetire)) {
       (*gMPMgmt.msgQueue.pPool->cfg.cb.retiresFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->memRetireUnit), true);
     }
     
@@ -876,8 +884,7 @@ void taosMemPoolModInit(void) {
 
   gMPMgmt.code = tsem2_init(&gMPMgmt.threadSem, 0, 0);
   if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
-    gMPMgmt.code = TAOS_SYSTEM_ERROR(errno);
-    qError("failed to init sem2, error: %x", gMPMgmt.code);
+    uError("failed to init sem2, error: %x", gMPMgmt.code);
     return;
   }
 
@@ -935,7 +942,7 @@ _return:
 void taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg) {
   SMemPool* pPool = (SMemPool*)poolHandle;
 
-  MP_ERR_RET(memPoolApplyCfgUpdate(pPool));
+  (void)memPoolApplyCfgUpdate(pPool);
 }
 
 void taosMemPoolDestroySession(void* poolHandle, void* session) {
@@ -1022,11 +1029,7 @@ void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t 
   int64_t totalSize = num * size;
   SMPStatInput input = {.size = totalSize, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  res = memPoolMallocImpl(pPool, pSession, totalSize, 0);
-
-  if (NULL != res) {
-    memset(res, 0, totalSize);
-  }
+  MP_ERR_JRET(memPoolCallocImpl(pPool, pSession, num, size, &res));
 
   MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
   memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_CALLOC, &input);
@@ -1075,7 +1078,7 @@ char   *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char
   int64_t size = strlen(ptr) + 1;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  res = memPoolMallocImpl(pPool, pSession, size, 0);
+  MP_ERR_JRET(memPoolMallocImpl(pPool, pSession, size, 0, &res));
   if (NULL != res) {
     strcpy(res, ptr);
   }
@@ -1145,7 +1148,7 @@ void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment
   SMPSession* pSession = (SMPSession*)session;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  res = memPoolMallocImpl(pPool, pSession, size, alignment);
+  MP_ERR_JRET(memPoolMallocImpl(pPool, pSession, size, alignment, &res));
 
   MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
   memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_MALLOC, &input);
@@ -1183,7 +1186,7 @@ int32_t taosMemPoolCallocCollection(uint64_t collectionId, void** ppCollection) 
   }
 
   SMPCollection* pCollection = (SMPCollection*)*ppCollection;
-  pCollection->collectionId = collectionId;
+  pCollection->collection.collectionId = collectionId;
   
   return TSDB_CODE_SUCCESS;
 }

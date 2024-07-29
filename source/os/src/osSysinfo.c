@@ -757,11 +757,11 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
 #else
   TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
-    return -1;
+    return terrno;
   }
 
   ssize_t bytes = 0;
-  char    line[1024] = {0};
+  char    line[128] = {0};
   int32_t expectedSize = 13; //"MemAvailable:"
   while (!taosEOFFile(pFile)) {
     bytes = taosGetsFile(pFile, sizeof(line), line);
@@ -769,8 +769,8 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
       break;
     }
     if (line[0] != 'M' && line[3] != 'A') {
-      continue;
       line[0] = 0;
+      continue;
     }
     if (0 == strncmp(line, "MemAvailable:", expectedSize)) {
       break;
@@ -778,15 +778,15 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
   }
 
   if (0 == line[0]) {
-    return -1;
+    return TSDB_CODE_SYSTEM_ERROR;
   }
   
   char tmp[32];
-  sscanf(line, "%s %" PRId64, tmp, availSize);
+  (void)sscanf(line, "%s %" PRId64, tmp, availSize);
 
   *availSize *= 1024;
   
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   return 0;
 #endif
 }

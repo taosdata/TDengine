@@ -52,7 +52,7 @@ void   *taosMemMallocAlign(uint32_t alignment, int64_t size);
 #define TAOS_MEMCPY(_d, _s, _n) ((void)memcpy(_d, _s, _n))
 #define TAOS_MEMMOVE(_d, _s, _n) ((void)memmove(_d, _s, _n))
 
-#define taosMemoryFreeClear(ptr)   \
+#define taosMemFreeClear(ptr)      \
   do {                             \
     if (ptr) {                     \
       taosMemFree((void *)ptr);    \

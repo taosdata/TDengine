@@ -60,7 +60,7 @@ int32_t qwInitQueryInfo(uint64_t qId, SQWQueryInfo* pQuery) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = taosMemPoolCallocCollection(qId, &pQuery->pCollection);
+  int32_t code = taosMemPoolCallocCollection(qId, (void**)&pQuery->pCollection);
   if (TSDB_CODE_SUCCESS != code) {
     taosHashCleanup(pQuery->pSessions);
     return code;
@@ -118,17 +118,22 @@ void qwRetireCollectionCb(uint64_t collectionId) {
 }
 
 void qwLowLevelRetire(int64_t retireSize) {
-  void* pIter = taosHashIterate(gQueryMgmt.pQueryInfo, NULL);
-  while (pIter) {
-    vgInfo = pIter;
+  SQWQueryInfo* pQuery = (SQWQueryInfo*)taosHashIterate(gQueryMgmt.pQueryInfo, NULL);
+  while (pQuery) {
+    int64_t aSize = atomic_load_64(&pQuery->pCollection->allocMemSize);
+    if (aSize >= retireSize) {
+      atomic_store_8(&pQuery->retired, 1);
+      
+      //TODO RETIRE JOB/TASKS DIRECTLY
 
-    pInfo->vgHash[i].vgId = vgInfo->vgId;
-    pInfo->vgHash[i].hashBegin = vgInfo->hashBegin;
-    pInfo->vgHash[i].hashEnd = vgInfo->hashEnd;
+      qDebug("QID:0x%" PRIx64 " job retired cause of low level memory retire, usedSize:%" PRId64 ", retireSize:%" PRId64, 
+          pQuery->pCollection->collectionId, aSize, retireSize);
+          
+      taosHashCancelIterate(gQueryMgmt.pQueryInfo, pQuery);
+      break;
+    }
     
-    pIter = taosHashIterate(gQueryMgmt.pQueryInfo, pIter);
-    vgInfo = NULL;
-    ++i;
+    pQuery = (SQWQueryInfo*)taosHashIterate(gQueryMgmt.pQueryInfo, pQuery);
   }
 }
 
@@ -170,7 +175,8 @@ int32_t qwGetQueryMemPoolMaxSize(int64_t* pMaxSize, bool* autoMaxSize) {
   return code;
 }
 
-void qwCheckUpateCfgCb(void* pHandle, SMemPoolCfg* pCfg) {
+void qwCheckUpateCfgCb(void* pHandle, void* cfg) {
+  SMemPoolCfg* pCfg = (SMemPoolCfg*)cfg;
   int64_t newCollectionQuota = tsSingleQueryMaxMemorySize * 1048576UL;
   if (pCfg->collectionQuota != newCollectionQuota) {
     atomic_store_64(&pCfg->collectionQuota, newCollectionQuota);
