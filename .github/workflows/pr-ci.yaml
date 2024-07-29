@@ -1,5 +1,4 @@
 name: PR-CI-workflow
-# run-name: ${{ github.actor }}, your PR is under test. 🚀
 
 on:
   # workflow_dispatch:
@@ -12,7 +11,7 @@ env:
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
   # DIR_PATH: ${{ github.event.number }}
-  DIR_PATH: test_pr_ci
+  DIR_PATH: ${{ github.sha }}
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
 
 concurrency:
@@ -30,7 +29,7 @@ jobs:
 
   build_rust:
     needs: remove_artifacts
-    runs-on: [self-hosted, linux, x64, qa, rust]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -56,7 +55,7 @@ jobs:
               echo "run taosx unit test"
               # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
               # cargo test --target-dir ./target/debug/taosx-build/
-              cargo llvm-cov nextest --workspace --ignore-run-fail
+              cargo llvm-cov nextest --workspace --slow-timeout 60 
               cargo llvm-cov report --lcov --output-path $ARTIFACT_BASE_DIR/$DIR_PATH/taosx-unit-test-lcov.info
               ls $ARTIFACT_BASE_DIR/$DIR_PATH/
           fi
@@ -189,6 +188,7 @@ jobs:
     needs: [build_rust, build_go, build_java]
     outputs: 
       CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
+      RPC_PORT: ${{ steps.run_container.outputs.first_port }}
       WINDOWS_AGENT_PROCESS_ID: ${{ steps.deploy_windows_agent.outputs.windows_agent_process_id }}
     steps:
       - name: run container
@@ -201,19 +201,25 @@ jobs:
         run: |
           for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { first_port=$port; break; }; done && for port in $(seq $((first_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { second_port=$port; break; }; done && echo "First available port: $first_port, Second available port: $second_port"
 
-          run_container_id=$(docker run -d -v /data/github/TestNG_taosX/:/data/github/TestNG_taosX/ -v /data/artifacts/3.0_temp/:/data/artifacts/3.0_temp/ -v /data/coverage/:/data/coverage/ -p $first_port:6055 -p $second_port:6060 6830ee2fbee7)
+          run_container_id=$(docker run -d -v /data/github/TestNG_taosX/:/data/github/TestNG_taosX/ -v /data/artifacts/3.0_temp/:/data/artifacts/3.0_temp/ -v /data/coverage/:/data/coverage/ -p $first_port:6055 -p $second_port:6060 taosxci:0.6)
           echo "container_id: $run_container_id"
-          echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
+          echo "first_port: $first_port"
+          echo "CONTAINER_ID=$run_container_id" >> "$GITHUB_OUTPUT"
+          echo "RPC_PORT=$first_port" >> "$GITHUB_OUTPUT"
+
       - name: run taosx & taosx-agent in container
         run: |
           echo "container_id: $run_container_id"
-          docker exec $CONTAINER_ID -it bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
-          docker exec $CONTAINER_ID -it bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
+          # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
+          docker exec ${{ steps.run_container.outputs.CONTAINER_ID }} -it bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
+          docker exec ${{ steps.run_container.outputs.CONTAINER_ID }} -it bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
 
       - name: Deploy windows agent taosx-agent
         id: deploy_windows_agent
         run: |
-          # TODO
+          echo "RPC_PORT: ${{ steps.run_container.outputs.RPC_PORT }}"
+          # 调用 windows 远程服务拉起 windows-agent
+          cd /data/github/TestNG_taosX && poetry shell && python3 ci_util.py ${{ steps.run_container.outputs.RPC_PORT }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
 
   run_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
@@ -232,7 +238,7 @@ jobs:
           docker exec -it ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity'
 
   cleanup_and_generate_report:
-    runs-on: [self-hosted, linux, x64, qa, rust]
+    runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test]
     env:
       REPORT_BASE_URL: http://192.168.1.45:8787
@@ -247,6 +253,7 @@ jobs:
         # shell: bash {0}
         run: |
           docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+          docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
   
 
   feishu_report:
