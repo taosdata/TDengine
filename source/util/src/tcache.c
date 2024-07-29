@@ -112,7 +112,7 @@ static FORCE_INLINE void __trashcan_wr_lock(SCacheObj *pCacheObj) {
 #if defined(LINUX)
   taosThreadRwlockWrlock(&pCacheObj->lock);
 #else
-  taosThreadMutexLock(&pCacheObj->lock);
+  (void)taosThreadMutexLock(&pCacheObj->lock);
 #endif
 }
 
@@ -120,7 +120,7 @@ static FORCE_INLINE void __trashcan_unlock(SCacheObj *pCacheObj) {
 #if defined(LINUX)
   taosThreadRwlockUnlock(&pCacheObj->lock);
 #else
-  taosThreadMutexUnlock(&pCacheObj->lock);
+  (void)taosThreadMutexUnlock(&pCacheObj->lock);
 #endif
 }
 
@@ -168,9 +168,9 @@ static void doInitRefreshThread(void) {
 TdThread doRegisterCacheObj(SCacheObj *pCacheObj) {
   taosThreadOnce(&cacheThreadInit, doInitRefreshThread);
 
-  taosThreadMutexLock(&guard);
+  (void)taosThreadMutexLock(&guard);
   (void)taosArrayPush(pCacheArrayList, &pCacheObj);
-  taosThreadMutexUnlock(&guard);
+  (void)taosThreadMutexUnlock(&guard);
 
   return cacheRefreshWorker;
 }
@@ -840,19 +840,19 @@ void *taosCacheTimedRefresh(void *handle) {
       goto _end;
     }
 
-    taosThreadMutexLock(&guard);
+    (void)taosThreadMutexLock(&guard);
     size_t size = taosArrayGetSize(pCacheArrayList);
-    taosThreadMutexUnlock(&guard);
+    (void)taosThreadMutexUnlock(&guard);
 
     count += 1;
 
     for (int32_t i = 0; i < size; ++i) {
-      taosThreadMutexLock(&guard);
+      (void)taosThreadMutexLock(&guard);
       SCacheObj *pCacheObj = taosArrayGetP(pCacheArrayList, i);
 
       if (pCacheObj == NULL) {
         uError("object is destroyed. ignore and try next");
-        taosThreadMutexUnlock(&guard);
+        (void)taosThreadMutexUnlock(&guard);
         continue;
       }
 
@@ -864,11 +864,11 @@ void *taosCacheTimedRefresh(void *handle) {
         uDebug("%s is destroying, remove it from refresh list, remain cache obj:%" PRIzu, pCacheObj->name, size);
         pCacheObj->deleting = 0;  // reset the deleting flag to enable pCacheObj to continue releasing resources.
 
-        taosThreadMutexUnlock(&guard);
+        (void)taosThreadMutexUnlock(&guard);
         continue;
       }
 
-      taosThreadMutexUnlock(&guard);
+      (void)taosThreadMutexUnlock(&guard);
 
       if ((count % pCacheObj->checkTick) != 0) {
         continue;

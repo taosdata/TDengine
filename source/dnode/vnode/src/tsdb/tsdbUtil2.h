@@ -65,9 +65,9 @@ typedef TARRAY2(STombBlk) TTombBlkArray;
 
 #define TOMB_BLOCK_SIZE(db) ((db)->numOfRecords)
 
-int32_t tTombBlockInit(STombBlock *tombBlock);
-int32_t tTombBlockDestroy(STombBlock *tombBlock);
-int32_t tTombBlockClear(STombBlock *tombBlock);
+void    tTombBlockInit(STombBlock *tombBlock);
+void    tTombBlockDestroy(STombBlock *tombBlock);
+void    tTombBlockClear(STombBlock *tombBlock);
 int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record);
 int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record);
 int32_t tTombRecordCompare(const STombRecord *record1, const STombRecord *record2);

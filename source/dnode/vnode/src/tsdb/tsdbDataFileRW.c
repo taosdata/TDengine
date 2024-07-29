@@ -230,7 +230,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
   // decode brin block
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer);
-  tBrinBlockClear(brinBlock);
+  (void)tBrinBlockClear(brinBlock);
   brinBlock->numOfPKs = brinBlk->numOfPKs;
   brinBlock->numOfRecords = brinBlk->numRec;
   for (int32_t i = 0; i < 10; i++) {  // int64_t
@@ -673,12 +673,12 @@ static int32_t tsdbDataFileWriterDoClose(SDataFileWriter *writer) {
   tTombBlockDestroy(writer->tombBlock);
   TARRAY2_DESTROY(writer->tombBlkArray, NULL);
   tBlockDataDestroy(writer->blockData);
-  tBrinBlockDestroy(writer->brinBlock);
+  (void)tBrinBlockDestroy(writer->brinBlock);
   TARRAY2_DESTROY(writer->brinBlkArray, NULL);
 
   tTombBlockDestroy(writer->ctx->tombBlock);
   tBlockDataDestroy(writer->ctx->blockData);
-  tBrinBlockDestroy(writer->ctx->brinBlock);
+  (void)tBrinBlockDestroy(writer->ctx->brinBlock);
 
   for (int32_t i = 0; i < ARRAY_SIZE(writer->local); ++i) {
     tBufferDestroy(writer->local + i);
@@ -838,7 +838,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
   for (int i = 0; i < brinBlock->numOfRecords; i++) {
     SBrinRecord record;
 
-    tBrinBlockGet(brinBlock, i, &record);
+    (void)tBrinBlockGet(brinBlock, i, &record);
     if (i == 0) {
       brinBlk.minTbid.suid = record.suid;
       brinBlk.minTbid.uid = record.uid;
@@ -918,7 +918,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
   // append to brinBlkArray
   TAOS_CHECK_RETURN(TARRAY2_APPEND_PTR(brinBlkArray, &brinBlk));
 
-  tBrinBlockClear(brinBlock);
+  (void)tBrinBlockClear(brinBlock);
 
   return 0;
 }
@@ -1147,7 +1147,7 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const ST
 
       for (; writer->ctx->brinBlockIdx < writer->ctx->brinBlock->numOfRecords; writer->ctx->brinBlockIdx++) {
         SBrinRecord record;
-        tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, &record);
+        (void)tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, &record);
         if (record.uid != writer->ctx->tbid->uid) {
           writer->ctx->tbHasOldData = false;
           goto _exit;
@@ -1157,7 +1157,7 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const ST
           goto _exit;
         } else {
           SBrinRecord record[1];
-          tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, record);
+          (void)tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, record);
           if (tsdbRowKeyCmprNullAsLargest(key, &record->lastKey) > 0) {  // key > record->lastKey
             if (writer->blockData->nRow > 0) {
               TAOS_CHECK_GOTO(tsdbDataFileDoWriteBlockData(writer, writer->blockData), &lino, _exit);
@@ -1351,7 +1351,7 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
   };
   for (int i = 0; i < TOMB_BLOCK_SIZE(tombBlock); i++) {
     STombRecord record;
-    tTombBlockGet(tombBlock, i, &record);
+    TAOS_UNUSED(tTombBlockGet(tombBlock, i, &record));
 
     if (i == 0) {
       tombBlk.minTbid.suid = record.suid;
@@ -1506,7 +1506,7 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
   while (writer->ctx->hasOldTomb) {
     for (; writer->ctx->tombBlockIdx < TOMB_BLOCK_SIZE(writer->ctx->tombBlock); writer->ctx->tombBlockIdx++) {
       STombRecord record1[1];
-      tTombBlockGet(writer->ctx->tombBlock, writer->ctx->tombBlockIdx, record1);
+      TAOS_UNUSED(tTombBlockGet(writer->ctx->tombBlock, writer->ctx->tombBlockIdx, record1));
 
       int32_t c = tTombRecordCompare(record, record1);
       if (c < 0) {

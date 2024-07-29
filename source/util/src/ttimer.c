@@ -230,7 +230,7 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
   timer->prev = NULL;
   timer->expireAt = taosGetMonotonicMs() + delay;
 
-  taosThreadMutexLock(&wheel->mutex);
+  (void)taosThreadMutexLock(&wheel->mutex);
 
   uint32_t idx = 0;
   if (timer->expireAt > wheel->nextScanAt) {
@@ -248,7 +248,7 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
     p->prev = timer;
   }
 
-  taosThreadMutexUnlock(&wheel->mutex);
+  (void)taosThreadMutexUnlock(&wheel->mutex);
 }
 
 static bool removeFromWheel(tmr_obj_t* timer) {
@@ -259,7 +259,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
   time_wheel_t* wheel = wheels + wheelIdx;
 
   bool removed = false;
-  taosThreadMutexLock(&wheel->mutex);
+  (void)taosThreadMutexLock(&wheel->mutex);
   // other thread may modify timer->wheel, check again.
   if (timer->wheel < tListLen(wheels)) {
     if (timer->prev != NULL) {
@@ -277,7 +277,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
     timerDecRef(timer);
     removed = true;
   }
-  taosThreadMutexUnlock(&wheel->mutex);
+  (void)taosThreadMutexUnlock(&wheel->mutex);
 
   return removed;
 }
@@ -372,7 +372,7 @@ static void taosTimerLoopFunc(int32_t signo) {
 
     time_wheel_t* wheel = wheels + i;
     while (now >= wheel->nextScanAt) {
-      taosThreadMutexLock(&wheel->mutex);
+      (void)taosThreadMutexLock(&wheel->mutex);
       wheel->index = (wheel->index + 1) % wheel->size;
       tmr_obj_t* timer = wheel->slots[wheel->index];
       while (timer != NULL) {
@@ -407,7 +407,7 @@ static void taosTimerLoopFunc(int32_t signo) {
         timer = next;
       }
       wheel->nextScanAt += wheel->resolution;
-      taosThreadMutexUnlock(&wheel->mutex);
+      (void)taosThreadMutexUnlock(&wheel->mutex);
     }
 
     addToExpired(expired);
@@ -594,13 +594,13 @@ void* taosTmrInit(int32_t maxNumOfTmrs, int32_t resolution, int32_t longest, con
     return NULL;
   }
 
-  taosThreadMutexLock(&tmrCtrlMutex);
+  (void)taosThreadMutexLock(&tmrCtrlMutex);
   tmr_ctrl_t* ctrl = unusedTmrCtrl;
   if (ctrl != NULL) {
     unusedTmrCtrl = ctrl->next;
     numOfTmrCtrl++;
   }
-  taosThreadMutexUnlock(&tmrCtrlMutex);
+  (void)taosThreadMutexUnlock(&tmrCtrlMutex);
 
   if (ctrl == NULL) {
     tmrError("%s too many timer controllers, failed to create timer controller.", label);
@@ -623,11 +623,11 @@ void taosTmrCleanUp(void* handle) {
   tmrDebug("%s timer controller is cleaned up.", ctrl->label);
   ctrl->label[0] = 0;
 
-  taosThreadMutexLock(&tmrCtrlMutex);
+  (void)taosThreadMutexLock(&tmrCtrlMutex);
   ctrl->next = unusedTmrCtrl;
   numOfTmrCtrl--;
   unusedTmrCtrl = ctrl;
-  taosThreadMutexUnlock(&tmrCtrlMutex);
+  (void)taosThreadMutexUnlock(&tmrCtrlMutex);
 
   tmrDebug("time controller's tmr ctrl size:  %d", numOfTmrCtrl);
   if (numOfTmrCtrl <= 0) {

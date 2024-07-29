@@ -332,7 +332,6 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   int64_t transporterId = 0;
   TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg));
-
   (void)tsem_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
 }
@@ -1083,7 +1082,7 @@ void postSubQueryFetchCb(void* param, TAOS_RES* res, int32_t rowNum) {
   SRequestObj* pNextReq = acquireRequest(pRequest->relation.nextRefId);
   if (pNextReq) {
     continuePostSubQuery(pNextReq, pBlock);
-    releaseRequest(pRequest->relation.nextRefId);
+    (void)releaseRequest(pRequest->relation.nextRefId);
   } else {
     tscError("0x%" PRIx64 ", next req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pRequest->self,
              pRequest->relation.nextRefId, pRequest->requestId);
@@ -2545,7 +2544,7 @@ int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2,
   }
 
   char dbFName[TSDB_DB_FNAME_LEN];
-  sprintf(dbFName, "%d.%.*s", acctId, dbLen, dbName);
+  (void)sprintf(dbFName, "%d.%.*s", acctId, dbLen, dbName);
 
   STablesReq* pDb = taosHashGet(pHash, dbFName, strlen(dbFName));
   if (pDb) {

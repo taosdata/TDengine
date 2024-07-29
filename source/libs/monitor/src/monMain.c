@@ -28,7 +28,7 @@ char    *tsMonSlowLogUri = "/slow-sql-detail-batch";
 char    *tsMonFwBasicUri = "/taosd-cluster-basic";
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   int32_t size = taosArrayGetSize(tsMonitor.logs);
   if (size < tsMonitor.cfg.maxLogs) {
     SMonLogItem  item = {.ts = ts, .level = level};
@@ -37,11 +37,11 @@ void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
       tstrncpy(pItem->content, content, MON_LOG_LEN);
     }
   }
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
 }
 
 int32_t monGetLogs(SMonLogs *logs) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   logs->logs = taosArrayDup(tsMonitor.logs, NULL);
   logs->numOfInfoLogs = tsNumOfInfoLogs;
   logs->numOfErrorLogs = tsNumOfErrorLogs;
@@ -52,7 +52,7 @@ int32_t monGetLogs(SMonLogs *logs) {
   tsNumOfDebugLogs = 0;
   tsNumOfTraceLogs = 0;
   taosArrayClear(tsMonitor.logs);
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   if (logs->logs == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
@@ -60,44 +60,44 @@ int32_t monGetLogs(SMonLogs *logs) {
 }
 
 void monSetDmInfo(SMonDmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.dmInfo, pInfo, sizeof(SMonDmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonDmInfo));
 }
 
 void monSetMmInfo(SMonMmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.mmInfo, pInfo, sizeof(SMonMmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonMmInfo));
 }
 
 void monSetVmInfo(SMonVmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.vmInfo, pInfo, sizeof(SMonVmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonVmInfo));
 }
 
 void monSetQmInfo(SMonQmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.qmInfo, pInfo, sizeof(SMonQmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonQmInfo));
 }
 
 void monSetSmInfo(SMonSmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.smInfo, pInfo, sizeof(SMonSmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonSmInfo));
 }
 
 void monSetBmInfo(SMonBmInfo *pInfo) {
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&tsMonitor.bmInfo, pInfo, sizeof(SMonBmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
   memset(pInfo, 0, sizeof(SMonBmInfo));
 }
 
@@ -153,7 +153,7 @@ static SMonInfo *monCreateMonitorInfo() {
 
   monGetLogs(&pMonitor->log);
 
-  taosThreadMutexLock(&tsMonitor.lock);
+  (void)taosThreadMutexLock(&tsMonitor.lock);
   memcpy(&pMonitor->dmInfo, &tsMonitor.dmInfo, sizeof(SMonDmInfo));
   memcpy(&pMonitor->mmInfo, &tsMonitor.mmInfo, sizeof(SMonMmInfo));
   memcpy(&pMonitor->vmInfo, &tsMonitor.vmInfo, sizeof(SMonVmInfo));
@@ -166,7 +166,7 @@ static SMonInfo *monCreateMonitorInfo() {
   memset(&tsMonitor.smInfo, 0, sizeof(SMonSmInfo));
   memset(&tsMonitor.qmInfo, 0, sizeof(SMonQmInfo));
   memset(&tsMonitor.bmInfo, 0, sizeof(SMonBmInfo));
-  taosThreadMutexUnlock(&tsMonitor.lock);
+  (void)taosThreadMutexUnlock(&tsMonitor.lock);
 
   pMonitor->pJson = tjsonCreateObject();
   if (pMonitor->pJson == NULL || pMonitor->log.logs == NULL) {

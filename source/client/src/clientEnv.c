@@ -555,7 +555,6 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->pDb = getDbOfConnection(pTscObj);
   (*pRequest)->pTscObj = pTscObj;
   (*pRequest)->inCallback = false;
-
   (*pRequest)->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   if (NULL == (*pRequest)->msgBuf) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -917,17 +916,17 @@ void taos_init_imp(void) {
   if (tscDbg.memEnable) {
     int32_t code = taosMemoryDbgInit();
     if (code) {
-      printf("failed to init memory dbg, error:%s\n", tstrerror(code));
+      (void)printf("failed to init memory dbg, error:%s\n", tstrerror(code));
     } else {
       tsAsyncLog = false;
-      printf("memory dbg enabled\n");
+      (void)printf("memory dbg enabled\n");
     }
   }
 #endif
 
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
-  atexit(taos_cleanup);
+  (void)atexit(taos_cleanup);
   errno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
 
@@ -950,7 +949,7 @@ void taos_init_imp(void) {
   (void)snprintf(logDirName, 64, "taoslog");
 #endif
   if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
+    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
     tscInitRes = -1;
     return;
   }
@@ -994,7 +993,7 @@ void taos_init_imp(void) {
 }
 
 int taos_init() {
-  taosThreadOnce(&tscinit, taos_init_imp);
+  (void)taosThreadOnce(&tscinit, taos_init_imp);
   return tscInitRes;
 }
 

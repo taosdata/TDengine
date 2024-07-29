@@ -530,12 +530,12 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
   uint64_t key[4];
   initCacheKey(key, pTableMap, suid, (const char*)pKey, keyLen);
 
-  taosThreadMutexLock(pLock);
+  (void)taosThreadMutexLock(pLock);
   pMeta->pCache->sTagFilterResCache.accTimes += 1;
 
   LRUHandle* pHandle = taosLRUCacheLookup(pCache, key, TAG_FILTER_RES_KEY_LEN);
   if (pHandle == NULL) {
-    taosThreadMutexUnlock(pLock);
+    (void)taosThreadMutexUnlock(pLock);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -565,7 +565,7 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
   taosLRUCacheRelease(pCache, pHandle, false);
 
   // unlock meta
-  taosThreadMutexUnlock(pLock);
+  (void)taosThreadMutexUnlock(pLock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -652,7 +652,7 @@ int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int
   uint64_t key[4] = {0};
   initCacheKey(key, pTableEntry, suid, pKey, keyLen);
 
-  taosThreadMutexLock(pLock);
+  (void)taosThreadMutexLock(pLock);
   STagFilterResEntry** pEntry = taosHashGet(pTableEntry, &suid, sizeof(uint64_t));
   if (pEntry == NULL) {
     code = addNewEntry(pTableEntry, pKey, keyLen, suid);
@@ -668,7 +668,7 @@ int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int
       uint64_t*  p = (uint64_t*)pNode->data;
       if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
         // we have already found the existed items, no need to added to cache anymore.
-        taosThreadMutexUnlock(pLock);
+        (void)taosThreadMutexUnlock(pLock);
         return TSDB_CODE_SUCCESS;
       } else {  // not equal, append it
         tdListAppend(&(*pEntry)->list, pKey);
@@ -680,7 +680,7 @@ int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int
   (void)taosLRUCacheInsert(pCache, key, TAG_FILTER_RES_KEY_LEN, pPayload, payloadLen, freeUidCachePayload, NULL,
                            TAOS_LRU_PRIORITY_LOW, NULL);
 _end:
-  taosThreadMutexUnlock(pLock);
+  (void)taosThreadMutexUnlock(pLock);
   metaDebug("vgId:%d, suid:%" PRIu64 " list cache added into cache, total:%d, tables:%d", vgId, suid,
             (int32_t)taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry));
 
@@ -697,11 +697,11 @@ int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
   initCacheKey(p, pEntryHashMap, suid, (char*)&dummy[0], 16);
 
   TdThreadMutex* pLock = &pMeta->pCache->sTagFilterResCache.lock;
-  taosThreadMutexLock(pLock);
+  (void)taosThreadMutexLock(pLock);
 
   STagFilterResEntry** pEntry = taosHashGet(pEntryHashMap, &suid, sizeof(uint64_t));
   if (pEntry == NULL || listNEles(&(*pEntry)->list) == 0) {
-    taosThreadMutexUnlock(pLock);
+    (void)taosThreadMutexUnlock(pLock);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -717,7 +717,7 @@ int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
   }
 
   tdListEmpty(&(*pEntry)->list);
-  taosThreadMutexUnlock(pLock);
+  (void)taosThreadMutexUnlock(pLock);
 
   metaDebug("vgId:%d suid:%" PRId64 " cached related tag filter uid list cleared", vgId, suid);
   return TSDB_CODE_SUCCESS;
@@ -736,12 +736,12 @@ int32_t metaGetCachedTbGroup(void* pVnode, tb_uid_t suid, const uint8_t* pKey, i
   uint64_t key[4];
   initCacheKey(key, pTableMap, suid, (const char*)pKey, keyLen);
 
-  taosThreadMutexLock(pLock);
+  (void)taosThreadMutexLock(pLock);
   pMeta->pCache->STbGroupResCache.accTimes += 1;
 
   LRUHandle* pHandle = taosLRUCacheLookup(pCache, key, TAG_FILTER_RES_KEY_LEN);
   if (pHandle == NULL) {
-    taosThreadMutexUnlock(pLock);
+    (void)taosThreadMutexUnlock(pLock);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -764,7 +764,7 @@ int32_t metaGetCachedTbGroup(void* pVnode, tb_uid_t suid, const uint8_t* pKey, i
   taosLRUCacheRelease(pCache, pHandle, false);
 
   // unlock meta
-  taosThreadMutexUnlock(pLock);
+  (void)taosThreadMutexUnlock(pLock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -829,7 +829,7 @@ int32_t metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void* pKey, int
   uint64_t key[4] = {0};
   initCacheKey(key, pTableEntry, suid, pKey, keyLen);
 
-  taosThreadMutexLock(pLock);
+  (void)taosThreadMutexLock(pLock);
   STagFilterResEntry** pEntry = taosHashGet(pTableEntry, &suid, sizeof(uint64_t));
   if (pEntry == NULL) {
     code = addNewEntry(pTableEntry, pKey, keyLen, suid);
@@ -845,7 +845,7 @@ int32_t metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void* pKey, int
       uint64_t*  p = (uint64_t*)pNode->data;
       if (p[1] == ((uint64_t*)pKey)[1] && p[0] == ((uint64_t*)pKey)[0]) {
         // we have already found the existed items, no need to added to cache anymore.
-        taosThreadMutexUnlock(pLock);
+        (void)taosThreadMutexUnlock(pLock);
         return TSDB_CODE_SUCCESS;
       } else {  // not equal, append it
         tdListAppend(&(*pEntry)->list, pKey);
@@ -857,7 +857,7 @@ int32_t metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void* pKey, int
   taosLRUCacheInsert(pCache, key, TAG_FILTER_RES_KEY_LEN, pPayload, payloadLen, freeTbGroupCachePayload, NULL,
                      TAOS_LRU_PRIORITY_LOW, NULL);
 _end:
-  taosThreadMutexUnlock(pLock);
+  (void)taosThreadMutexUnlock(pLock);
   metaDebug("vgId:%d, suid:%" PRIu64 " tb group added into cache, total:%d, tables:%d", vgId, suid,
             (int32_t)taosLRUCacheGetUsage(pCache), taosHashGetSize(pTableEntry));
 
@@ -874,11 +874,11 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
   initCacheKey(p, pEntryHashMap, suid, (char*)&dummy[0], 16);
 
   TdThreadMutex* pLock = &pMeta->pCache->STbGroupResCache.lock;
-  taosThreadMutexLock(pLock);
+  (void)taosThreadMutexLock(pLock);
 
   STagFilterResEntry** pEntry = taosHashGet(pEntryHashMap, &suid, sizeof(uint64_t));
   if (pEntry == NULL || listNEles(&(*pEntry)->list) == 0) {
-    taosThreadMutexUnlock(pLock);
+    (void)taosThreadMutexUnlock(pLock);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -894,7 +894,7 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
   }
 
   tdListEmpty(&(*pEntry)->list);
-  taosThreadMutexUnlock(pLock);
+  (void)taosThreadMutexUnlock(pLock);
 
   metaDebug("vgId:%d suid:%" PRId64 " cached related tb group cleared", vgId, suid);
   return TSDB_CODE_SUCCESS;

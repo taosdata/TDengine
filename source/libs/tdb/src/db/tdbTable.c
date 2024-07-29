@@ -112,7 +112,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       return ret;
     }
   } else {
-    tdbPagerRollback(pPager);
+    (void)tdbPagerRollback(pPager);
   }
 
   // pTb->pBt
@@ -128,7 +128,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
 int tdbTbClose(TTB *pTb) {
   if (pTb) {
-    tdbBtreeClose(pTb->pBt);
+    (void)tdbBtreeClose(pTb->pBt);
     tdbOsFree(pTb);
   }
   return 0;
@@ -202,7 +202,7 @@ int tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int va
 int tdbTbDelete(TTB *pTb, const void *pKey, int kLen, TXN *pTxn) { return tdbBtreeDelete(pTb->pBt, pKey, kLen, pTxn); }
 
 int tdbTbUpsert(TTB *pTb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
-  tdbTbDelete(pTb, pKey, kLen, pTxn);
+  (void)tdbTbDelete(pTb, pKey, kLen, pTxn);
   return tdbTbInsert(pTb, pKey, kLen, pVal, vLen, pTxn);
 }
 
@@ -224,7 +224,7 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
     return -1;
   }
 
-  tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn);
+  (void)tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn);
 
   *ppTbc = pTbc;
   return 0;
@@ -238,7 +238,7 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
     return ret;
   }
 
-  tdbTbcMoveToFirst(pCur);
+  (void)tdbTbcMoveToFirst(pCur);
 
   void *pKey = NULL;
   int   kLen = 0;
@@ -257,7 +257,7 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
   }
   tdbFree(pKey);
   tdbFree(pValue);
-  tdbTbcClose(pCur);
+  (void)tdbTbcClose(pCur);
 
   return 0;
 }
@@ -292,7 +292,7 @@ int tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int n
 
 int tdbTbcClose(TBC *pTbc) {
   if (pTbc) {
-    tdbBtcClose(&pTbc->btc);
+    (void)tdbBtcClose(&pTbc->btc);
     tdbOsFree(pTbc);
   }
 
