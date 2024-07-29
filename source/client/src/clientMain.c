@@ -42,7 +42,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
     if (i % 1000 == 0) {
       tscInfo("haven't acquire lock after spin %d times.", i);
-      sched_yield();
+      (void)sched_yield();
     }
   }
 
@@ -754,7 +754,7 @@ bool taos_is_update_query(TAOS_RES *res) { return taos_num_fields(res) == 0; }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   int32_t numOfRows = 0;
-  /*int32_t code = */ taos_fetch_block_s(res, &numOfRows, rows);
+  /*int32_t code = */ terrno = taos_fetch_block_s(res, &numOfRows, rows);
   return numOfRows;
 }
 

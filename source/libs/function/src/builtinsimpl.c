@@ -2229,7 +2229,10 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
       double  v = 0;  // value
       int64_t w = 1;  // weigth
       GET_TYPED_DATA(v, double, type, data);
-      tdigestAdd(pInfo->pTDigest, v, w);
+      int32_t code = tdigestAdd(pInfo->pTDigest, v, w);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   } else {
     // might be a race condition here that pHisto can be overwritten or setup function
@@ -2285,7 +2288,10 @@ static int32_t apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInf
       (void)memcpy(pTDigest, pInput->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
       tdigestAutoFill(pTDigest, COMPRESSION);
     } else {
-      tdigestMerge(pTDigest, pInput->pTDigest);
+      int32_t code = tdigestMerge(pTDigest, pInput->pTDigest);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
     }
   } else {
     buildHistogramInfo(pInput);

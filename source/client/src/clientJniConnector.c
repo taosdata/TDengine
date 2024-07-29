@@ -484,7 +484,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
       (*env)->SetIntField(env, metadataObj, g_metadataColindexField, i);
       jstring metadataObjColname = (*env)->NewStringUTF(env, fields[i].name);
       (*env)->SetObjectField(env, metadataObj, g_metadataColnameField, metadataObjColname);
-      (*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
+      (void)(*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
     }
   }
 
