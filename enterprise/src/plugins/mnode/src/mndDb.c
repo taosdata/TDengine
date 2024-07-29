@@ -190,7 +190,7 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
-  TAOS_CHECK_GOTO(tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB), NULL, _OVER);
+  (void)tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB);
 
   auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", compactReq.sql, compactReq.sqlLen);
 
