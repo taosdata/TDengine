@@ -396,9 +396,9 @@ struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
+  int32_t code = 0;
   char    cfgDir[PATH_MAX] = {0};
   char    cfgFile[PATH_MAX + 100] = {0};
-  int32_t code = 0;
 
   TAOS_CHECK_RETURN(taosExpandDir(inputCfgDir, cfgDir, PATH_MAX));
   char  lastC = cfgDir[strlen(cfgDir) - 1];
