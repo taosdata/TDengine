@@ -67,7 +67,7 @@ pub async fn influxdb_to_taos(
         .ok_or(anyhow::anyhow!("No available port for InfluxDB connection"))?;
 
     // generate config
-    let config = InfluxdbConfig::from(&from, ipc_port)?;
+    let config = InfluxdbConfig::from(&from, ipc_port.get())?;
     // transform to toml
     let toml = toml::to_string(&config)?;
     // write to a temporary file
@@ -176,14 +176,12 @@ pub async fn influxdb_to_taos(
             .stderr(std::process::Stdio::piped());
     }
 
-    let port_pool = port_pool.clone();
-
     let mut child = child.spawn().context("Start InfluxDB collector error")?;
     send_sub_process_info(child.id(), task_id, "influxdb");
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
-    let stderr = child.stderr.take().expect("Failed to capture stderr");
+    let stderr = child.stderr.take().context("Failed to capture stderr")?;
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
@@ -213,7 +211,6 @@ pub async fn influxdb_to_taos(
                 let _ = child.terminate_timeout(Duration::from_secs(2)).await;
                 let _ = ipc.close().await;
                 temp_path.close().unwrap();
-                port_pool.put(ipc_port).await;
             };
         }
         tokio::select! {

@@ -259,9 +259,8 @@ pub async fn kafka_to_taos(
 
     let aborted = Arc::new(AtomicBool::new(false));
     let aborted_cloned = aborted.clone();
-    let mut join_set = execute(from, ipc_port, aborted_cloned, notify.clone()).await?;
+    let mut join_set = execute(from, ipc_port.get(), aborted_cloned, notify.clone()).await?;
 
-    let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
             // application exit with error code
@@ -320,8 +319,6 @@ pub async fn kafka_to_taos(
         // stop the connector
         tracing::info!("Kafka task Done");
         ipc.close().await?;
-        // put ipc port back to port pool.
-        port_pool.put(ipc_port).await;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())

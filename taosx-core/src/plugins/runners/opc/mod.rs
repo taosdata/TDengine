@@ -96,7 +96,7 @@ pub async fn opc_to_taos(
     let auth_certificate = get_temp_file(&from, "auth_certificate");
     let auth_private_key = get_temp_file(&from, "auth_private_key");
 
-    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, task_id).await?;
+    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port.get(), task_id).await?;
 
     config.set_temp_filepath("certificate", certificate.as_ref())?;
     config.set_temp_filepath("private_key", private_key.as_ref())?;
@@ -124,7 +124,6 @@ pub async fn opc_to_taos(
         notify,
     )
     .await?;
-    let port_pool = port_pool.clone();
 
     // create log file: opc.log
     let mut log_path = super::get_log_dir("");
@@ -226,7 +225,6 @@ pub async fn opc_to_taos(
                 auth_private_key.map(|f| f.close());
 
                 tracing::info!("Release IPC port");
-                port_pool.put(ipc_port).await;
 
                 // cancel points updater task
                 pu_cancel_token.cancel();

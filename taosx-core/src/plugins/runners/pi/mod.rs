@@ -83,8 +83,8 @@ pub async fn pi_to_taos(
     let config = PiConfig::new(
         from.clone(),
         td_database.unwrap(),
-        ipc_port,
-        sql_port,
+        ipc_port.get(),
+        sql_port.get(),
         task_id,
     )
     .await?;
@@ -173,7 +173,11 @@ pub async fn pi_to_taos(
     let server_cancellation_token = CancellationToken::new();
     let server_cancellation_token_cloned = server_cancellation_token.clone();
     let server = std::thread::spawn(move || {
-        spawn_rest_service(target_pool, sql_port, server_cancellation_token_cloned)
+        spawn_rest_service(
+            target_pool,
+            sql_port.get(),
+            server_cancellation_token_cloned,
+        )
     });
 
     let mut ipc = build_ipc(
@@ -272,14 +276,12 @@ pub async fn pi_to_taos(
                         tracing::info!("All IPC handlers have been finished");
                     });
                     temp_path.close().unwrap();
-                    port_pool.put(ipc_port).await;
                     tokio::spawn(async move {
                         tracing::info!("Wait for rest api server finished");
                         server_cancellation_token.cancel();
                         let _ = server.join();
                         tracing::info!("REST api server has been finished");
                     });
-                    port_pool.put(sql_port).await;
                 });
             };
             (wait) => {
@@ -301,15 +303,12 @@ pub async fn pi_to_taos(
                         let _ = ipc.close().await;
                         tracing::info!("All IPC handlers have been finished");
                     });
-                    port_pool.put(ipc_port).await;
                     let _ = temp_path.close();
                     tokio::spawn(async move {
                         tracing::info!("Wait for rest api server finished");
-                        port_pool.put(ipc_port).await;
                         server_cancellation_token.cancel();
                         let _ = server.join();
                         tracing::info!("REST api server has been finished");
-                        port_pool.put(sql_port).await;
                     });
                     exit
                 })
