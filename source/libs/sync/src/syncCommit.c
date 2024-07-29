@@ -76,10 +76,8 @@ int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   commitIndex = TMAX(commitIndex, ths->commitIndex);
   ths->commitIndex = TMIN(commitIndex, lastVer);
-  if ((code = ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex)) != 0) {
-    // TODO add return when error
-    sError("failed to update commit index since %s", tstrerror(code));
-  }
+  // TODO add return when error
+  (void)ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex);
   return ths->commitIndex;
 }
 
@@ -87,10 +85,8 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
   int32_t code = 0;
   if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
     SyncIndex commitIndex = indexLikely;
-    if ((code = syncNodeUpdateCommitIndex(ths, commitIndex)) != 0) {
-      // TODO add return when error
-      sError("failed to update commit index since %s", tstrerror(code));
-    }
+    // TODO add return when error
+    (void)syncNodeUpdateCommitIndex(ths, commitIndex);
     sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index:%" PRId64 "", ths->vgId, ths->state,
            raftStoreGetTerm(ths), commitIndex);
   }
@@ -102,9 +98,7 @@ int64_t syncNodeUpdateAssignedCommitIndex(SSyncNode* ths, SyncIndex assignedComm
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   assignedCommitIndex = TMAX(assignedCommitIndex, ths->assignedCommitIndex);
   ths->assignedCommitIndex = TMIN(assignedCommitIndex, lastVer);
-  if ((code = ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->assignedCommitIndex)) != 0) {
-    // TODO add return when error
-    sError("failed to update commit index since %s", tstrerror(code));
-  }
+  // TODO add return when error
+  (void)ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->assignedCommitIndex);
   return ths->commitIndex;
 }
