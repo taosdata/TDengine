@@ -91,7 +91,7 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
 
         struct timeval  tv;
         struct timespec ts;
-        taosGetTimeOfDay(&tv);
+        (void)taosGetTimeOfDay(&tv);
         ts.tv_nsec = tv.tv_usec * 1000 + WAIT_TIME_MILI_SEC * 1000000;
         if (ts.tv_nsec > 999999999l) {
           ts.tv_sec = tv.tv_sec + 1;
@@ -199,7 +199,7 @@ _exit:
     vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
           pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
   }
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   taosMemoryFree(data);
   return code;
 }
@@ -259,7 +259,7 @@ _exit:
     vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
   }
   taosMemoryFree(pData);
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   return code;
 }
 
@@ -270,7 +270,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int64_t lastCommitted = pInfo->info.state.committed;
 
   // wait last commit task
-  vnodeAWait(&pVnode->commitTask);
+  (void)vnodeAWait(&pVnode->commitTask);
 
   code = syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -285,7 +285,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   code = vnodeSaveInfo(dir, &pInfo->info);
@@ -395,8 +395,8 @@ _exit:
 }
 
 int vnodeSyncCommit(SVnode *pVnode) {
-  vnodeAsyncCommit(pVnode);
-  vnodeAWait(&pVnode->commitTask);
+  (void)vnodeAsyncCommit(pVnode);
+  (void)vnodeAWait(&pVnode->commitTask);
   return 0;
 }
 
@@ -416,9 +416,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
-  syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
+  (void)syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
   code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -455,7 +455,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  syncEndSnapshot(pVnode->sync);
+  (void)syncEndSnapshot(pVnode->sync);
 
 _exit:
   if (code) {
@@ -470,7 +470,7 @@ bool vnodeShouldRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
@@ -481,7 +481,7 @@ void vnodeRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
