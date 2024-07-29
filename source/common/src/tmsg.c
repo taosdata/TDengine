@@ -9180,7 +9180,7 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   return 0;
 }
 
-int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
+void tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   if (pVal->type == TMQ_OFFSET__RESET_NONE) {
     (void)snprintf(buf, maxLen, "none");
   } else if (pVal->type == TMQ_OFFSET__RESET_EARLIEST) {
@@ -9192,7 +9192,7 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (IS_VAR_DATA_TYPE(pVal->primaryKey.type)) {
       char *tmp = taosMemoryCalloc(1, pVal->primaryKey.nData + 1);
-      if (tmp == NULL) return terrno;
+      if (tmp == NULL) return;
       (void)memcpy(tmp, pVal->primaryKey.pData, pVal->primaryKey.nData);
       (void)snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%s", pVal->uid, pVal->ts,
                      pVal->primaryKey.type, tmp);
@@ -9202,8 +9202,6 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
                      pVal->primaryKey.type, pVal->primaryKey.val);
     }
   }
-
-  return 0;
 }
 
 bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
@@ -9226,16 +9224,17 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   return false;
 }
 
-int32_t tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
+void tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   tOffsetDestroy(pLeft);
   *pLeft = *pRight;
   if (IS_VAR_DATA_TYPE(pRight->primaryKey.type)) {
-    if ((pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData)) == NULL) {
-      return terrno;
+    pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData);
+    if (pLeft->primaryKey.pData == NULL) {
+      uError("failed to allocate memory for offset");
+      return;
     }
     (void)memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
   }
-  return 0;
 }
 
 void tOffsetDestroy(void *param) {
