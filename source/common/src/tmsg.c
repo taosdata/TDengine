@@ -1764,23 +1764,33 @@ int32_t tDeserializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pR
   return 0;
 }
 void tFreeSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
-  for (int i = 0; i < pReq->numOfUser; i++) {
-    SUpdateUserIpWhite *pUserWhite = &pReq->pUserIpWhite[i];
-    taosMemoryFree(pUserWhite->pIpRanges);
+  if (pReq == NULL) return;
+
+  if (pReq->pUserIpWhite) {
+    for (int i = 0; i < pReq->numOfUser; i++) {
+      SUpdateUserIpWhite *pUserWhite = &pReq->pUserIpWhite[i];
+      taosMemoryFree(pUserWhite->pIpRanges);
+    }
   }
   taosMemoryFree(pReq->pUserIpWhite);
-  // impl later
   return;
 }
-SUpdateIpWhite *cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
+int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg) {
+  int32_t code = 0;
+  if (pReq == NULL) {
+    return 0;
+  }
   SUpdateIpWhite *pClone = taosMemoryCalloc(1, sizeof(SUpdateIpWhite));
-  if (pClone == NULL) return NULL;
+  if (pClone == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   pClone->numOfUser = pReq->numOfUser;
   pClone->ver = pReq->ver;
-  if ((pClone->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser)) == NULL) {
+  pClone->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser);
+  if (pClone->pUserIpWhite == NULL) {
     taosMemoryFree(pClone);
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   for (int i = 0; i < pReq->numOfUser; i++) {
@@ -1792,17 +1802,21 @@ SUpdateIpWhite *cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
     pNew->numOfRange = pOld->numOfRange;
 
     int32_t sz = pOld->numOfRange * sizeof(SIpV4Range);
-    if ((pNew->pIpRanges = taosMemoryCalloc(1, sz)) == NULL) {
-      for (int j = 0; j < i; j++) {
-        taosMemoryFree(pClone->pUserIpWhite[j].pIpRanges);
-      }
-      taosMemoryFree(pClone->pUserIpWhite);
-      taosMemoryFree(pClone);
-      return NULL;
+    pNew->pIpRanges = taosMemoryCalloc(1, sz);
+    if (pNew->pIpRanges == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
     }
     memcpy(pNew->pIpRanges, pOld->pIpRanges, sz);
   }
-  return pClone;
+_return:
+  if (code < 0) {
+    tFreeSUpdateIpWhiteReq(pClone);
+    taosMemoryFree(pClone);
+  } else {
+    *pUpdateMsg = pClone;
+  }
+  return code;
 }
 int32_t tSerializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteReq *pReq) {
   SEncoder encoder = {0};
@@ -7342,6 +7356,7 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tEncodeSTqOffsetVal(&encoder, &pReq->reqOffset) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->enableReplay) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->sourceExcluded) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->enableBatchMeta) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -7353,7 +7368,6 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
     pHead->vgId = htonl(pReq->head.vgId);
     pHead->contLen = htonl(tlen + headLen);
   }
-  if (tEncodeI8(&encoder, pReq->enableBatchMeta) < 0) return -1;
 
   return tlen + headLen;
 }
@@ -9180,7 +9194,7 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   return 0;
 }
 
-int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
+void tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   if (pVal->type == TMQ_OFFSET__RESET_NONE) {
     (void)snprintf(buf, maxLen, "none");
   } else if (pVal->type == TMQ_OFFSET__RESET_EARLIEST) {
@@ -9192,7 +9206,7 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (IS_VAR_DATA_TYPE(pVal->primaryKey.type)) {
       char *tmp = taosMemoryCalloc(1, pVal->primaryKey.nData + 1);
-      if (tmp == NULL) return terrno;
+      if (tmp == NULL) return;
       (void)memcpy(tmp, pVal->primaryKey.pData, pVal->primaryKey.nData);
       (void)snprintf(buf, maxLen, "tsdb:%" PRId64 "|%" PRId64 ",pk type:%d,val:%s", pVal->uid, pVal->ts,
                      pVal->primaryKey.type, tmp);
@@ -9202,8 +9216,6 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
                      pVal->primaryKey.type, pVal->primaryKey.val);
     }
   }
-
-  return 0;
 }
 
 bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
@@ -9226,16 +9238,17 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   return false;
 }
 
-int32_t tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
+void tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   tOffsetDestroy(pLeft);
   *pLeft = *pRight;
   if (IS_VAR_DATA_TYPE(pRight->primaryKey.type)) {
-    if ((pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData)) == NULL) {
-      return terrno;
+    pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData);
+    if (pLeft->primaryKey.pData == NULL) {
+      uError("failed to allocate memory for offset");
+      return;
     }
     (void)memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
   }
-  return 0;
 }
 
 void tOffsetDestroy(void *param) {

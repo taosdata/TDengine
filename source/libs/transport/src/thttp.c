@@ -719,9 +719,8 @@ int64_t transInitHttpChanImpl() {
     goto _ERROR;
   }
 
-  http->asyncPool = transAsyncPoolCreate(http->loop, 1, http, httpAsyncCb);
-  if (http->asyncPool == NULL) {
-    code = terrno;
+  code = transAsyncPoolCreate(http->loop, 1, http, httpAsyncCb, &http->asyncPool);
+  if (code != 0) {
     goto _ERROR;
   }
 
