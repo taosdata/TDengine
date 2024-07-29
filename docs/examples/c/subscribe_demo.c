@@ -59,7 +59,7 @@ int main() {
 
   printf("total rows consumed: %d\n", nTotalRows);
   int keep = 0;  // whether to keep subscribe process
-  taos_unsubscribe(tsub, keep);
+  (void)taos_unsubscribe(tsub, keep);
 
   taos_close(taos);
   taos_cleanup();
