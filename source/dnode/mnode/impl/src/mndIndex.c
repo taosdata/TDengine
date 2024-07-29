@@ -333,7 +333,7 @@ void mndReleaseIdx(SMnode *pMnode, SIdxObj *pIdx) {
 
 SDbObj *mndAcquireDbByIdx(SMnode *pMnode, const char *idxName) {
   SName name = {0};
-  TAOS_CHECK_RETURN(tNameFromString(&name, idxName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+  (void)tNameFromString(&name, idxName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   char db[TSDB_TABLE_FNAME_LEN] = {0};
   (void)tNameGetFullDbName(&name, db);
