@@ -2886,7 +2886,7 @@ static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeR
   buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
   buf = taosDecodeFixedI8(buf, &pReq->enableReplay);
   buf = taosDecodeFixedI8(buf, &pReq->enableBatchMeta);
-  if (buf - start < len) {
+  if ((char*)buf - (char*)start < len) {
     buf = taosDecodeFixedI32(buf, &pReq->sessionTimeoutMs);
     buf = taosDecodeFixedI32(buf, &pReq->maxPollIntervalMs);
   } else {
