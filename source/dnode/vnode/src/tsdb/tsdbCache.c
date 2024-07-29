@@ -3274,7 +3274,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-void tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h) { taosLRUCacheRelease(pCache, h, false); }
+void tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h) { (void)taosLRUCacheRelease(pCache, h, false); }
 
 void tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity) {
   taosLRUCacheSetCapacity(pVnode->pTsdb->lruCache, capacity);
