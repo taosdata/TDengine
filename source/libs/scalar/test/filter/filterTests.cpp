@@ -63,9 +63,10 @@ void flttInitLogFile() {
 }
 
 int32_t flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
-  SNode      *node = (SNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  SNode      *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &node);
   if (NULL == node) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(code);
   }
   SValueNode *vnode = (SValueNode *)node;
   vnode->node.resType.type = dataType;
@@ -90,9 +91,10 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
                         void *value) {
   static uint64_t dbidx = 0;
 
-  SNode       *node = (SNode *)nodesMakeNode(QUERY_NODE_COLUMN);
+  SNode       *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, &node);
   if (NULL == node) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(code);
   }
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
@@ -110,7 +112,10 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
   }
 
   if (NULL == *block) {
-    SSDataBlock *res = createDataBlock();
+    SSDataBlock *res = NULL;
+    int32_t code = createDataBlock(&res);
+    ASSERT(code == 0);
+
     for (int32_t i = 0; i < 2; ++i) {
       SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, 10, 1 + i);
       FLT_ERR_RET(blockDataAppendColInfo(res, &idata));
@@ -170,9 +175,10 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
 }
 
 int32_t flttMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight) {
-  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_OPERATOR);
+  SNode         *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_OPERATOR, &node);
   if (NULL == node) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(code);
   }
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
@@ -187,16 +193,18 @@ int32_t flttMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNo
 }
 
 int32_t flttMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeList, int32_t nodeNum) {
-  SNode               *node = (SNode *)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SNode               *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &node);
   if (NULL == node) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(code);
   }
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
   onode->node.resType.bytes = sizeof(bool);
 
-  onode->pParameterList = nodesMakeList();
+  onode->pParameterList = NULL;
+  code = nodesMakeList(&onode->pParameterList);
   for (int32_t i = 0; i < nodeNum; ++i) {
     FLT_ERR_RET(nodesListAppend(onode->pParameterList, nodeList[i]));
   }
@@ -206,9 +214,10 @@ int32_t flttMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nod
 }
 
 int32_t flttMakeLogicNodeFromList(SNode **pNode, ELogicConditionType opType, SNodeList *nodeList) {
-  SNode               *node = (SNode *)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SNode               *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &node);
   if (NULL == node) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(code);
   }
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
@@ -222,9 +231,10 @@ int32_t flttMakeLogicNodeFromList(SNode **pNode, ELogicConditionType opType, SNo
 }
 
 int32_t flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
-  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNode         *node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_NODE_LIST, &node);
   if (NULL == node) {
-    FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    FLT_ERR_RET(code);
   }
   SNodeListNode *lnode = (SNodeListNode *)node;
   lnode->node.resType.type = resType;

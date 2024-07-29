@@ -279,11 +279,11 @@ int32_t taosCfgDynamicOptions(SConfig *pCfg, const char *name, bool forServer);
 
 struct SConfig *taosGetCfg();
 
-void   taosSetGlobalDebugFlag(int32_t flag);
-void   taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
-void   taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
-int8_t taosGranted(int8_t type);
-int32_t taosSetSlowLogScope(char *pScope);
+int32_t taosSetGlobalDebugFlag(int32_t flag);
+int32_t taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
+void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
+int8_t  taosGranted(int8_t type);
+int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope);
 
 #ifdef __cplusplus
 }

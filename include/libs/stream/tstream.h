@@ -686,7 +686,7 @@ int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration);
 bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
 
 // checkpoint related
-int32_t streamTaskGetActiveCheckpointInfo(const SStreamTask* pTask, int32_t* pTransId, int64_t* pCheckpointId);
+void    streamTaskGetActiveCheckpointInfo(const SStreamTask* pTask, int32_t* pTransId, int64_t* pCheckpointId);
 int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeCheckpointId);
 int32_t streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId);
 bool    streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId);
@@ -770,9 +770,9 @@ bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
 int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask);
 
 // timer
-tmr_h streamTimerGetInstance();
-void streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
-                    const char* pMsg);
+int32_t streamTimerGetInstance(tmr_h* pTmr);
+void    streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId, int32_t vgId,
+                       const char* pMsg);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
@@ -809,6 +809,9 @@ void    streamTaskSendRetrieveRsp(SStreamRetrieveReq* pReq, SRpcMsg* pRsp);
 int32_t streamProcessHeartbeatRsp(SStreamMeta* pMeta, SMStreamHbRspMsg* pRsp);
 int32_t streamTaskSendCheckpointsourceRsp(SStreamTask* pTask);
 
+void streamMutexLock(TdThreadMutex *pMutex);
+void streamMutexUnlock(TdThreadMutex *pMutex);
+void streamMutexDestroy(TdThreadMutex *pMutex);
 
 #ifdef __cplusplus
 }

@@ -74,7 +74,7 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 
 static int32_t setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
 
-static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
+static int32_t initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
@@ -267,7 +267,7 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
   SColumnInfoData* pColInfo = NULL;
   if (pInput->pData[paramIndex] == NULL) {
     pColInfo = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-    QUERY_CHECK_NULL(pColInfo, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(pColInfo, code, lino, _end, terrno);
 
     // Set the correct column info (data type and bytes)
     pColInfo->info.type = pFuncParam->param.nType;
@@ -521,8 +521,8 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
 
     if (!pResInfo->initialized) {
       if (pCtx[i].functionId != -1) {
-        bool ini = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
-        if (!ini && fmIsUserDefinedFunc(pCtx[i].functionId)) {
+        int32_t code = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+        if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)){
           pResInfo->initialized = false;
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
         }
@@ -638,7 +638,8 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
 
     pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (pCtx[j].fpSet.finalize) {
-      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
+      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0 ||
+      strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_const_value") == 0) {
         // for groupkey along with functions that output multiple lines(e.g. Histogram)
         // need to match groupkey result for each output row of that function.
         if (pCtx[j].resultInfo->numOfRes != 0) {
@@ -676,7 +677,7 @@ _end:
 }
 
 // todo refactor. SResultRow has direct pointer in miainfo
-int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
+void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   SFilePage* page = getBufPage(pBuf, resultRowPosition->pageId);
   if (page == NULL) {
@@ -693,7 +694,7 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
   doUpdateNumOfRows(pCtx, pRow, pSup->numOfExprs, rowEntryOffset);
   if (pRow->numOfRows == 0) {
     releaseBufPage(pBuf, page);
-    return 0;
+    return ;
   }
 
   int32_t size = pBlock->info.capacity;
@@ -712,7 +713,6 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
 
   releaseBufPage(pBuf, page);
   pBlock->info.rows += pRow->numOfRows;
-  return 0;
 }
 
 void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
@@ -1067,7 +1067,12 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
-      SArray*         pInfoList = getTableListInfo(pTask);
+      SArray* pInfoList = NULL;
+      int32_t code = getTableListInfo(pTask, &pInfoList);
+      if (code || pInfoList == NULL) {
+        return code;
+      }
+
       STableListInfo* pTableListInfo = taosArrayGetP(pInfoList, 0);
       taosArrayDestroy(pInfoList);
 
@@ -1222,20 +1227,28 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   }
 }
 
-FORCE_INLINE SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx,
-                                                         bool clearParam) {
+FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
+                                                    SSDataBlock** pResBlock) {
+  QRY_OPTR_CHECK(pResBlock);
+
+  int32_t code = 0;
   if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
     qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
-    SSDataBlock* pBlock = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx],
-                                                                          pOperator->pDownstreamGetParams[idx]);
-    if (clearParam) {
+    code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx],
+                                                           pOperator->pDownstreamGetParams[idx], pResBlock);
+    if (clearParam && (code == 0)) {
       freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
       pOperator->pDownstreamGetParams[idx] = NULL;
     }
-    return pBlock;
+    return code;
   }
 
-  return pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+  *pResBlock = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx]);
+  if (*pResBlock == NULL && terrno != 0) {
+    return terrno;
+  } else {
+    return code;
+  }
 }
 
 bool compareVal(const char* v, const SStateKeys* pKey) {

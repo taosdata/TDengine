@@ -68,22 +68,22 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->compactId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->compactId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->vgId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->vgId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->dnodeId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->dnodeId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->numberFileset, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->numberFileset, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->finished, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->finished, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pCompactDetail);
@@ -144,6 +144,8 @@ int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailO
 }
 
 SSdbRaw *mndCompactDetailActionEncode(SCompactDetailObj *pCompact) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_SUCCESS;
 
   void *buf = NULL;
@@ -193,9 +195,11 @@ OVER:
 }
 
 SSdbRow *mndCompactDetailActionDecode(SSdbRaw *pRaw) {
-  SSdbRow       *pRow = NULL;
-  SCompactDetailObj   *pCompact = NULL;
-  void          *buf = NULL;
+  int32_t            code = 0;
+  int32_t            lino = 0;
+  SSdbRow           *pRow = NULL;
+  SCompactDetailObj *pCompact = NULL;
+  void              *buf = NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   int8_t sver = 0;

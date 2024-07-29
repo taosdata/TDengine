@@ -63,8 +63,8 @@ int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t num
   return code;
 }
 
-static void freeItem(void* pValue) {
-  SValue* p = (SValue*) pValue;
+static void freeItem(void *pValue) {
+  SValue *p = (SValue *)pValue;
   if (IS_VAR_DATA_TYPE(p->type)) {
     taosMemoryFree(p->pData);
   }
@@ -120,7 +120,7 @@ void destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoad
         continue;
       }
 
-      SSttBlockLoadCostInfo* pCost = &pIter->pBlockLoadInfo->cost;
+      SSttBlockLoadCostInfo *pCost = &pIter->pBlockLoadInfo->cost;
       if (pLoadCost != NULL) {
         pLoadCost->loadBlocks += pCost->loadBlocks;
         pLoadCost->loadStatisBlocks += pCost->loadStatisBlocks;
@@ -380,7 +380,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
   pBlockLoadInfo->cost.loadStatisBlocks += num;
 
   STbStatisBlock block;
-  tStatisBlockInit(&block);
+  TAOS_UNUSED(tStatisBlockInit(&block));
 
   int64_t st = taosGetTimestampUs();
 
@@ -436,7 +436,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           }
         } else {
           SValue vFirst = {0};
-          for(int32_t j = 0; j < size; ++j) {
+          for (int32_t j = 0; j < size; ++j) {
             taosArrayPush(pBlockLoadInfo->info.pFirstKey, &vFirst);
             taosArrayPush(pBlockLoadInfo->info.pLastKey, &vFirst);
           }
@@ -445,7 +445,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
         STbStatisRecord record = {0};
 
         while (i < rows) {
-          tStatisBlockGet(&block, i, &record);
+          (void)tStatisBlockGet(&block, i, &record);
           if (record.suid != suid) {
             break;
           }
@@ -476,7 +476,7 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
     }
   }
 
-  tStatisBlockDestroy(&block);
+  (void)tStatisBlockDestroy(&block);
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   pBlockLoadInfo->cost.statisElapsedTime += el;
@@ -712,7 +712,7 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
     }
 
     int64_t ts = pData->aTSKEY[i];
-    if (!pIter->backward) {              // asc
+    if (!pIter->backward) {               // asc
       if (ts > pIter->timeWindow.ekey) {  // no more data
         break;
       } else {

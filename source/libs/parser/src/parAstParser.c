@@ -30,9 +30,10 @@ extern void  ParseFree(void*, FFree);
 extern void  ParseTrace(FILE*, char*);
 
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray** pPlaceholderValues) {
-  *pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  *pQuery = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_QUERY, (SNode**)pQuery);
   if (NULL == *pQuery) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   (*pQuery)->pRoot = pRootNode;
   (*pQuery)->placeholderNum = placeholderNo;
@@ -424,7 +425,7 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
     char dbFName[TSDB_DB_FNAME_LEN];
-    tNameGetFullDbName(&name, dbFName);
+    (void)tNameGetFullDbName(&name, dbFName);
     code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->tableName, 0);
   }
 #endif
@@ -439,9 +440,9 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
       reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pSubtable && NULL != pStmt->pQuery) {
     SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    pSelect->pSubtable = nodesCloneNode(pStmt->pSubtable);
+    int32_t code = nodesCloneNode(pStmt->pSubtable, &pSelect->pSubtable);
     if (NULL == pSelect->pSubtable) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return code;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -724,7 +725,7 @@ static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowC
   strcpy(name.dbname, pStmt->dbName);
   strcpy(name.tname, pStmt->viewName);
   char dbFName[TSDB_DB_FNAME_LEN];
-  tNameGetFullDbName(&name, dbFName);
+  (void)tNameGetFullDbName(&name, dbFName);
   int32_t code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->viewName, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->viewName,

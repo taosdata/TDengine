@@ -48,8 +48,8 @@ static int32_t qmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
 }
 
 int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  qndPreprocessQueryMsg(pMgmt->pQnode, pMsg);
-
+  int32_t code = qndPreprocessQueryMsg(pMgmt->pQnode, pMsg);
+  if (code) return code;
   return qmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 

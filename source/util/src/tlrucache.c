@@ -20,6 +20,7 @@
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "tutil.h"
 
 typedef struct SLRUEntry      SLRUEntry;
 typedef struct SLRUEntryTable SLRUEntryTable;
@@ -114,13 +115,13 @@ static int taosLRUEntryTableInit(SLRUEntryTable *table, int maxUpperHashBits) {
   table->lengthBits = 4;
   table->list = taosMemoryCalloc(1 << table->lengthBits, sizeof(SLRUEntry *));
   if (!table->list) {
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   table->elems = 0;
   table->maxLengthBits = maxUpperHashBits;
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static void taosLRUEntryTableApply(SLRUEntryTable *table, _taos_lru_table_func_t func, uint32_t begin, uint32_t end) {
@@ -325,20 +326,20 @@ static void taosLRUCacheShardEvictLRU(SLRUCacheShard *shard, size_t charge, SArr
     ASSERT(shard->usage >= old->totalCharge);
     shard->usage -= old->totalCharge;
 
-    taosArrayPush(deleted, &old);
+    (void)taosArrayPush(deleted, &old);
   }
 }
 
 static void taosLRUCacheShardSetCapacity(SLRUCacheShard *shard, size_t capacity) {
   SArray *lastReferenceList = taosArrayInit(16, POINTER_BYTES);
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   shard->capacity = capacity;
   shard->highPriPoolCapacity = capacity * shard->highPriPoolRatio;
   taosLRUCacheShardEvictLRU(shard, 0, lastReferenceList);
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   for (int i = 0; i < taosArrayGetSize(lastReferenceList); ++i) {
     SLRUEntry *entry = taosArrayGetP(lastReferenceList, i);
@@ -349,13 +350,11 @@ static void taosLRUCacheShardSetCapacity(SLRUCacheShard *shard, size_t capacity)
 
 static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool strict, double highPriPoolRatio,
                                  int maxUpperHashBits) {
-  if (taosLRUEntryTableInit(&shard->table, maxUpperHashBits) < 0) {
-    return -1;
-  }
+  TAOS_CHECK_RETURN(taosLRUEntryTableInit(&shard->table, maxUpperHashBits));
 
-  taosThreadMutexInit(&shard->mutex, NULL);
+  (void)taosThreadMutexInit(&shard->mutex, NULL);
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
   shard->capacity = 0;
   shard->highPriPoolUsage = 0;
   shard->strictCapacity = strict;
@@ -368,15 +367,15 @@ static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool st
   shard->lru.next = &shard->lru;
   shard->lru.prev = &shard->lru;
   shard->lruLowPri = &shard->lru;
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   taosLRUCacheShardSetCapacity(shard, capacity);
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static void taosLRUCacheShardCleanup(SLRUCacheShard *shard) {
-  taosThreadMutexDestroy(&shard->mutex);
+  (void)taosThreadMutexDestroy(&shard->mutex);
 
   taosLRUEntryTableCleanup(&shard->table);
 }
@@ -386,14 +385,14 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
   LRUStatus status = TAOS_LRU_STATUS_OK;
   SArray   *lastReferenceList = taosArrayInit(16, POINTER_BYTES);
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   taosLRUCacheShardEvictLRU(shard, e->totalCharge, lastReferenceList);
 
   if (shard->usage + e->totalCharge > shard->capacity && (shard->strictCapacity || handle == NULL)) {
     TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     if (handle == NULL) {
-      taosArrayPush(lastReferenceList, &e);
+      (void)taosArrayPush(lastReferenceList, &e);
     } else {
       if (freeOnFail) {
         taosMemoryFree(e);
@@ -416,7 +415,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
         ASSERT(shard->usage >= old->totalCharge);
         shard->usage -= old->totalCharge;
 
-        taosArrayPush(lastReferenceList, &old);
+        (void)taosArrayPush(lastReferenceList, &old);
       }
     }
     if (handle == NULL) {
@@ -430,7 +429,7 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
     }
   }
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   for (int i = 0; i < taosArrayGetSize(lastReferenceList); ++i) {
     SLRUEntry *entry = taosArrayGetP(lastReferenceList, i);
@@ -471,7 +470,7 @@ static LRUStatus taosLRUCacheShardInsert(SLRUCacheShard *shard, const void *key,
 static LRUHandle *taosLRUCacheShardLookup(SLRUCacheShard *shard, const void *key, size_t keyLen, uint32_t hash) {
   SLRUEntry *e = NULL;
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
   e = taosLRUEntryTableLookup(&shard->table, key, keyLen, hash);
   if (e != NULL) {
     ASSERT(TAOS_LRU_ENTRY_IN_CACHE(e));
@@ -482,14 +481,14 @@ static LRUHandle *taosLRUCacheShardLookup(SLRUCacheShard *shard, const void *key
     TAOS_LRU_ENTRY_SET_HIT(e);
   }
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   return (LRUHandle *)e;
 }
 
 static void taosLRUCacheShardErase(SLRUCacheShard *shard, const void *key, size_t keyLen, uint32_t hash) {
   bool lastReference = false;
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   SLRUEntry *e = taosLRUEntryTableRemove(&shard->table, key, keyLen, hash);
   if (e != NULL) {
@@ -504,7 +503,7 @@ static void taosLRUCacheShardErase(SLRUCacheShard *shard, const void *key, size_
     }
   }
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   if (lastReference) {
     taosLRUEntryFree(e);
@@ -514,11 +513,11 @@ static void taosLRUCacheShardErase(SLRUCacheShard *shard, const void *key, size_
 static int taosLRUCacheShardApply(SLRUCacheShard *shard, _taos_lru_functor_t functor, void *ud) {
   int ret;
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   ret = taosLRUEntryTableApplyF(&shard->table, functor, ud);
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   return ret;
 }
@@ -526,7 +525,7 @@ static int taosLRUCacheShardApply(SLRUCacheShard *shard, _taos_lru_functor_t fun
 static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
   SArray *lastReferenceList = taosArrayInit(16, POINTER_BYTES);
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   while (shard->lru.next != &shard->lru) {
     SLRUEntry *old = shard->lru.next;
@@ -537,10 +536,10 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
     ASSERT(shard->usage >= old->totalCharge);
     shard->usage -= old->totalCharge;
 
-    taosArrayPush(lastReferenceList, &old);
+    (void)taosArrayPush(lastReferenceList, &old);
   }
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   for (int i = 0; i < taosArrayGetSize(lastReferenceList); ++i) {
     SLRUEntry *entry = taosArrayGetP(lastReferenceList, i);
@@ -553,12 +552,12 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
 
 static bool taosLRUCacheShardRef(SLRUCacheShard *shard, LRUHandle *handle) {
   SLRUEntry *e = (SLRUEntry *)handle;
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   ASSERT(TAOS_LRU_ENTRY_HAS_REFS(e));
   TAOS_LRU_ENTRY_REF(e);
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   return true;
 }
@@ -571,7 +570,7 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
   SLRUEntry *e = (SLRUEntry *)handle;
   bool       lastReference = false;
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   lastReference = taosLRUEntryUnref(e);
   if (lastReference && TAOS_LRU_ENTRY_IN_CACHE(e)) {
@@ -592,7 +591,7 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
     shard->usage -= e->totalCharge;
   }
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   if (lastReference) {
     taosLRUEntryFree(e);
@@ -604,9 +603,9 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
 static size_t taosLRUCacheShardGetUsage(SLRUCacheShard *shard) {
   size_t usage = 0;
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
   usage = shard->usage;
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   return usage;
 }
@@ -614,9 +613,9 @@ static size_t taosLRUCacheShardGetUsage(SLRUCacheShard *shard) {
 static int32_t taosLRUCacheShardGetElems(SLRUCacheShard *shard) {
   int32_t elems = 0;
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
   elems = shard->table.elems;
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   return elems;
 }
@@ -624,22 +623,22 @@ static int32_t taosLRUCacheShardGetElems(SLRUCacheShard *shard) {
 static size_t taosLRUCacheShardGetPinnedUsage(SLRUCacheShard *shard) {
   size_t usage = 0;
 
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   ASSERT(shard->usage >= shard->lruUsage);
   usage = shard->usage - shard->lruUsage;
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 
   return usage;
 }
 
 static void taosLRUCacheShardSetStrictCapacity(SLRUCacheShard *shard, bool strict) {
-  taosThreadMutexLock(&shard->mutex);
+  (void)taosThreadMutexLock(&shard->mutex);
 
   shard->strictCapacity = strict;
 
-  taosThreadMutexUnlock(&shard->mutex);
+  (void)taosThreadMutexUnlock(&shard->mutex);
 }
 
 struct SShardedCache {
@@ -671,16 +670,13 @@ static int getDefaultCacheShardBits(size_t capacity) {
 
 SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoolRatio) {
   if (numShardBits >= 20) {
-    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
   if (highPriPoolRatio < 0.0 || highPriPoolRatio > 1.0) {
-    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
   SLRUCache *cache = taosMemoryCalloc(1, sizeof(SLRUCache));
   if (!cache) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -692,14 +688,15 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
   cache->shards = taosMemoryCalloc(numShards, sizeof(SLRUCacheShard));
   if (!cache->shards) {
     taosMemoryFree(cache);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   bool   strictCapacity = 1;
   size_t perShard = (capacity + (numShards - 1)) / numShards;
   for (int i = 0; i < numShards; ++i) {
-    taosLRUCacheShardInit(&cache->shards[i], perShard, strictCapacity, highPriPoolRatio, 32 - numShardBits);
+    if (TSDB_CODE_SUCCESS !=
+        taosLRUCacheShardInit(&cache->shards[i], perShard, strictCapacity, highPriPoolRatio, 32 - numShardBits))
+      return NULL;
   }
 
   cache->numShards = numShards;
@@ -709,7 +706,7 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
   cache->shardedCache.capacity = capacity;
   cache->shardedCache.lastId = 1;
 
-  taosThreadMutexInit(&cache->shardedCache.capacityMutex, NULL);
+  (void)taosThreadMutexInit(&cache->shardedCache.capacityMutex, NULL);
 
   return cache;
 }
@@ -726,7 +723,7 @@ void taosLRUCacheCleanup(SLRUCache *cache) {
       cache->shards = 0;
     }
 
-    taosThreadMutexDestroy(&cache->shardedCache.capacityMutex);
+    (void)taosThreadMutexDestroy(&cache->shardedCache.capacityMutex);
 
     taosMemoryFree(cache);
   }
@@ -829,7 +826,7 @@ void taosLRUCacheSetCapacity(SLRUCache *cache, size_t capacity) {
   uint32_t numShards = cache->numShards;
   size_t   perShard = (capacity + (numShards - 1)) / numShards;
 
-  taosThreadMutexLock(&cache->shardedCache.capacityMutex);
+  (void)taosThreadMutexLock(&cache->shardedCache.capacityMutex);
 
   for (int i = 0; i < numShards; ++i) {
     taosLRUCacheShardSetCapacity(&cache->shards[i], perShard);
@@ -837,17 +834,17 @@ void taosLRUCacheSetCapacity(SLRUCache *cache, size_t capacity) {
 
   cache->shardedCache.capacity = capacity;
 
-  taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
+  (void)taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
 }
 
 size_t taosLRUCacheGetCapacity(SLRUCache *cache) {
   size_t capacity = 0;
 
-  taosThreadMutexLock(&cache->shardedCache.capacityMutex);
+  (void)taosThreadMutexLock(&cache->shardedCache.capacityMutex);
 
   capacity = cache->shardedCache.capacity;
 
-  taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
+  (void)taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
 
   return capacity;
 }
@@ -855,7 +852,7 @@ size_t taosLRUCacheGetCapacity(SLRUCache *cache) {
 void taosLRUCacheSetStrictCapacity(SLRUCache *cache, bool strict) {
   uint32_t numShards = cache->numShards;
 
-  taosThreadMutexLock(&cache->shardedCache.capacityMutex);
+  (void)taosThreadMutexLock(&cache->shardedCache.capacityMutex);
 
   for (int i = 0; i < numShards; ++i) {
     taosLRUCacheShardSetStrictCapacity(&cache->shards[i], strict);
@@ -863,17 +860,17 @@ void taosLRUCacheSetStrictCapacity(SLRUCache *cache, bool strict) {
 
   cache->shardedCache.strictCapacity = strict;
 
-  taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
+  (void)taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
 }
 
 bool taosLRUCacheIsStrictCapacity(SLRUCache *cache) {
   bool strict = false;
 
-  taosThreadMutexLock(&cache->shardedCache.capacityMutex);
+  (void)taosThreadMutexLock(&cache->shardedCache.capacityMutex);
 
   strict = cache->shardedCache.strictCapacity;
 
-  taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
+  (void)taosThreadMutexUnlock(&cache->shardedCache.capacityMutex);
 
   return strict;
 }

@@ -152,7 +152,8 @@ static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
 
   if (pLast->num <= sizeof(SFilePage)) {
     // this is empty
-    dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
+    // TODO check ret
+    (void)dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
     releaseBufPage(pHashObj->pBuf, pFirst);
     taosArrayRemove(pBucket->pPageIdList, numOfPages - 1);
     return;
@@ -178,7 +179,8 @@ static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
       pStart += nodeSize;
       if (pLast->num <= sizeof(SFilePage)) {
         // this is empty
-        dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
+        // TODO check ret
+        (void)dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
         releaseBufPage(pHashObj->pBuf, pFirst);
         taosArrayRemove(pBucket->pPageIdList, numOfPages - 1);
         break;

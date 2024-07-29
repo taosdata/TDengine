@@ -76,9 +76,9 @@ static void    httpHandleReq(SHttpMsg* msg);
 static void    httpHandleQuit(SHttpMsg* msg);
 static int32_t httpSendQuit(SHttpModule* http, int64_t chanId);
 
-static int32_t   httpCreateMsg(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
-                               EHttpCompFlag flag, int64_t chanId, SHttpMsg** httpMsg);
-static void      httpDestroyMsg(SHttpMsg* msg);
+static int32_t httpCreateMsg(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                             EHttpCompFlag flag, int64_t chanId, SHttpMsg** httpMsg);
+static void    httpDestroyMsg(SHttpMsg* msg);
 
 static bool    httpFailFastShoudIgnoreMsg(SHashObj* pTable, char* server, int16_t port);
 static void    httpFailFastMayUpdate(SHashObj* pTable, char* server, int16_t port, int8_t succ);
@@ -91,27 +91,27 @@ static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri,
 
 static int32_t taosBuildHttpHeader(const char* server, const char* uri, int32_t contLen, char* pHead, int32_t headLen,
 
-                                     EHttpCompFlag flag) {
-  int32_t code = 0;    
+                                   EHttpCompFlag flag) {
+  int32_t code = 0;
   int32_t len = 0;
   if (flag == HTTP_FLAT) {
     len = snprintf(pHead, headLen,
-                    "POST %s HTTP/1.1\n"
-                    "Host: %s\n"
-                    "Content-Type: application/json\n"
-                    "Content-Length: %d\n\n",
-                    uri, server, contLen);
+                   "POST %s HTTP/1.1\n"
+                   "Host: %s\n"
+                   "Content-Type: application/json\n"
+                   "Content-Length: %d\n\n",
+                   uri, server, contLen);
     if (len < 0 || len >= headLen) {
       code = TSDB_CODE_OUT_OF_RANGE;
     }
   } else if (flag == HTTP_GZIP) {
     len = snprintf(pHead, headLen,
-                    "POST %s HTTP/1.1\n"
-                    "Host: %s\n"
-                    "Content-Type: application/json\n"
-                    "Content-Encoding: gzip\n"
-                    "Content-Length: %d\n\n",
-                    uri, server, contLen);
+                   "POST %s HTTP/1.1\n"
+                   "Host: %s\n"
+                   "Content-Type: application/json\n"
+                   "Content-Encoding: gzip\n"
+                   "Content-Length: %d\n\n",
+                   uri, server, contLen);
     if (len < 0 || len >= headLen) {
       code = TSDB_CODE_OUT_OF_RANGE;
     }
@@ -127,7 +127,7 @@ static int32_t taosCompressHttpRport(char* pSrc, int32_t srcLen) {
   void*   pDest = taosMemoryMalloc(destLen);
 
   if (pDest == NULL) {
-    code= TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
 
@@ -184,14 +184,15 @@ _OVER:
   if (code == 0) {
     memcpy(pSrc, pDest, gzipStream.total_out);
     code = gzipStream.total_out;
-  } 
+  }
   taosMemoryFree(pDest);
   return code;
 }
 
 static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
-  uint32_t ip = taosGetIpv4FromFqdn(server);
-  if (ip == 0xffffffff) {
+  uint32_t ip = 0;
+  int32_t  code = taosGetIpv4FromFqdn(server, &ip);
+  if (code) {
     tError("http-report failed to resolving domain names: %s", server);
     return TSDB_CODE_RPC_FQDN_ERROR;
   }
@@ -292,7 +293,7 @@ static void httpAsyncCb(uv_async_t* handle) {
   static int32_t BATCH_SIZE = 5;
   int32_t        count = 0;
 
-  taosThreadMutexLock(&item->mtx);
+  (void)taosThreadMutexLock(&item->mtx);
   httpMayDiscardMsg(http, item);
 
   while (!QUEUE_IS_EMPTY(&item->qmsg) && count++ < BATCH_SIZE) {
@@ -300,7 +301,7 @@ static void httpAsyncCb(uv_async_t* handle) {
     QUEUE_REMOVE(h);
     QUEUE_PUSH(&wq, h);
   }
-  taosThreadMutexUnlock(&item->mtx);
+  (void)taosThreadMutexUnlock(&item->mtx);
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* h = QUEUE_HEAD(&wq);
@@ -635,8 +636,8 @@ void httpModuleDestroy2(SHttpModule* http) {
 static int32_t taosSendHttpReportImplByChan(const char* server, const char* uri, uint16_t port, char* pCont,
                                             int32_t contLen, EHttpCompFlag flag, int64_t chanId) {
   SHttpModule* load = NULL;
-  SHttpMsg *msg = NULL;
-  int32_t code = httpCreateMsg(server, uri, port, pCont, contLen, flag, chanId,&msg);
+  SHttpMsg*    msg = NULL;
+  int32_t      code = httpCreateMsg(server, uri, port, pCont, contLen, flag, chanId, &msg);
   if (code != 0) {
     goto _ERROR;
   }

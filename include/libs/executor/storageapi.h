@@ -195,7 +195,7 @@ typedef struct SStoreCacheReader {
   int32_t  (*openReader)(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                          SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
                          SArray *pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks);
-  void    *(*closeReader)(void *pReader);
+  void     (*closeReader)(void *pReader);
   int32_t  (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                            SArray *pTableUidList);
   int32_t  (*reuseReader)(void *pReader, void *pTableIdList, int32_t numOfTables);
@@ -218,10 +218,10 @@ typedef struct SStoreTqReader {
   int32_t (*tqGetStreamExecProgress)();
 
   void (*tqReaderSetColIdList)();
-  int32_t (*tqReaderSetQueryTableList)();
+  void (*tqReaderSetQueryTableList)();
 
-  int32_t (*tqReaderAddTables)();
-  int32_t (*tqReaderRemoveTables)();
+  void (*tqReaderAddTables)();
+  void (*tqReaderRemoveTables)();
 
   void (*tqSetTablePrimaryKey)();
   bool (*tqGetTablePrimaryKey)();
@@ -239,8 +239,8 @@ typedef struct SStoreSnapshotFn {
   bool (*taosXGetTablePrimaryKey)(SSnapContext* ctx);
   void (*taosXSetTablePrimaryKey)(SSnapContext* ctx, int64_t uid);
   int32_t (*setForSnapShot)(SSnapContext* ctx, int64_t uid);
-  int32_t (*destroySnapshot)(SSnapContext* ctx);
-  SMetaTableInfo (*getMetaTableInfoFromSnapshot)(SSnapContext* ctx);
+  void (*destroySnapshot)(SSnapContext* ctx);
+  int32_t (*getMetaTableInfoFromSnapshot)(SSnapContext* ctx, SMetaTableInfo* info);
   int32_t (*getTableInfoFromSnapshot)(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid);
 } SStoreSnapshotFn;
 

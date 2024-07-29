@@ -757,10 +757,9 @@ int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *m
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
-  int64_t n = tGetMapData(pReader->aBuf[0], mDataBlk);
-  if (n < 0) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
-  }
+  int32_t n;
+  code = tGetMapData(pReader->aBuf[0], mDataBlk, &n);
+  if (code) goto _exit;
   ASSERT(n == size);
 
 _exit:

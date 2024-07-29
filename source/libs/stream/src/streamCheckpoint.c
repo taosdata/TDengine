@@ -176,6 +176,10 @@ int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStream
 
 int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   SSDataBlock* pDataBlock = taosArrayGet(pBlock->blocks, 0);
+  if (pDataBlock == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   int64_t      checkpointId = pDataBlock->info.version;
   int32_t      transId = pDataBlock->info.window.skey;
   const char*  id = pTask->id.idStr;
@@ -248,6 +252,10 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
         //  check if already recv or not, and duplicated checkpoint-trigger msg recv, discard it
         for (int32_t i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); ++i) {
           STaskCheckpointReadyInfo* p = taosArrayGet(pActiveInfo->pReadyMsgList, i);
+          if (p == NULL) {
+            return TSDB_CODE_INVALID_PARA;
+          }
+
           if (p->upstreamTaskId == pBlock->srcTaskId) {
             ASSERT(p->checkpointId == checkpointId);
             stWarn("s-task:%s repeatly recv checkpoint-source msg from task:0x%x vgId:%d, checkpointId:%" PRId64
@@ -381,6 +389,10 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId
   int32_t size = taosArrayGetSize(pInfo->pCheckpointReadyRecvList);
   for (int32_t i = 0; i < size; ++i) {
     STaskDownstreamReadyInfo* p = taosArrayGet(pInfo->pCheckpointReadyRecvList, i);
+    if (p == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
     if (p->downstreamTaskId == downstreamTaskId) {
       received = true;
       break;
@@ -420,6 +432,10 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
   streamMutexLock(&pInfo->lock);
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pReadyMsgList); ++i) {
     STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pInfo->pReadyMsgList, i);
+    if (pReadyInfo == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
     if (pReadyInfo->upstreamTaskId == upstreamTaskId && pReadyInfo->checkpointId == checkpointId) {
       pReadyInfo->sendCompleted = 1;
       stDebug("s-task:%s send checkpoint-ready msg to upstream:0x%x confirmed, checkpointId:%" PRId64 " ts:%" PRId64,
@@ -430,6 +446,10 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pReadyMsgList); ++i) {
     STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pInfo->pReadyMsgList, i);
+    if (pReadyInfo == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
     if (pReadyInfo->sendCompleted == 1) {
       numOfConfirmed += 1;
     }
@@ -819,6 +839,10 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
     bool recved = false;
     for (int32_t j = 0; j < taosArrayGetSize(pActiveInfo->pReadyMsgList); ++j) {
       STaskCheckpointReadyInfo* pReady = taosArrayGet(pActiveInfo->pReadyMsgList, j);
+      if (pReady == NULL) {
+        continue;
+      }
+
       if (pInfo->nodeId == pReady->upstreamNodeId) {
         recved = true;
         break;
@@ -867,6 +891,9 @@ int32_t doSendRetrieveTriggerMsg(SStreamTask* pTask, SArray* pNotSendList) {
 
   for (int32_t i = 0; i < size; i++) {
     SStreamUpstreamEpInfo* pUpstreamTask = taosArrayGet(pNotSendList, i);
+    if (pUpstreamTask == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
 
     SRetrieveChkptTriggerReq* pReq = rpcMallocCont(sizeof(SRetrieveChkptTriggerReq));
     if (pReq == NULL) {
@@ -917,6 +944,10 @@ bool streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId) 
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
     STaskTriggerSendInfo* pSendInfo = taosArrayGet(pInfo->pDispatchTriggerList, i);
+    if (pSendInfo == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
     if (pSendInfo->nodeId != downstreamNodeId) {
       continue;
     }
@@ -974,6 +1005,9 @@ void streamTaskInitTriggerDispatchInfo(SStreamTask* pTask) {
   } else {
     for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
       SVgroupInfo* pVgInfo = taosArrayGet(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos, i);
+      if (pVgInfo == NULL) {
+        continue;
+      }
 
       STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pVgInfo->vgId, .taskId = pVgInfo->taskId};
       void* px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
@@ -993,6 +1027,10 @@ int32_t streamTaskGetNumOfConfirmed(SStreamTask* pTask) {
   streamMutexLock(&pInfo->lock);
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
     STaskTriggerSendInfo* p = taosArrayGet(pInfo->pDispatchTriggerList, i);
+    if (p == NULL) {
+      return num;
+    }
+
     if (p->recved) {
       num++;
     }
@@ -1009,6 +1047,10 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
     STaskTriggerSendInfo* p = taosArrayGet(pInfo->pDispatchTriggerList, i);
+    if (p == NULL) {
+      continue;
+    }
+
     if (p->nodeId == vgId) {
       ASSERT(p->recved == false);
 

@@ -16,35 +16,26 @@
 #include "tsdbUtil2.h"
 
 // SDelBlock ----------
-int32_t tTombBlockInit(STombBlock *tombBlock) {
-  int32_t code;
-
+void tTombBlockInit(STombBlock *tombBlock) {
   tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    TAOS_CHECK_GOTO(tBufferInit(&tombBlock->buffers[i]), NULL, _exit);
+    tBufferInit(&tombBlock->buffers[i]);
   }
-
-_exit:
-  if (code) {
-    TAOS_UNUSED(tTombBlockDestroy(tombBlock));
-  }
-  return code;
+  return;
 }
 
-int32_t tTombBlockDestroy(STombBlock *tombBlock) {
+void tTombBlockDestroy(STombBlock *tombBlock) {
   tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    TAOS_UNUSED(tBufferDestroy(&tombBlock->buffers[i]));
+    tBufferDestroy(&tombBlock->buffers[i]);
   }
-  return 0;
 }
 
-int32_t tTombBlockClear(STombBlock *tombBlock) {
+void tTombBlockClear(STombBlock *tombBlock) {
   tombBlock->numOfRecords = 0;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    TAOS_UNUSED(tBufferClear(&tombBlock->buffers[i]));
+    tBufferClear(&tombBlock->buffers[i]);
   }
-  return 0;
 }
 
 int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record) {
@@ -79,12 +70,12 @@ int32_t tTombRecordCompare(const STombRecord *r1, const STombRecord *r2) {
 
 // STbStatisBlock ----------
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
-  int32_t code;
+  int32_t code = 0;
 
   statisBlock->numOfPKs = 0;
   statisBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->buffers); ++i) {
-    TAOS_CHECK_GOTO(tBufferInit(&statisBlock->buffers[i]), NULL, _exit);
+    tBufferInit(&statisBlock->buffers[i]);
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
     TAOS_CHECK_GOTO(tValueColumnInit(&statisBlock->firstKeyPKs[i]), NULL, _exit);
@@ -244,7 +235,7 @@ int32_t tBrinBlockInit(SBrinBlock *brinBlock) {
   brinBlock->numOfPKs = 0;
   brinBlock->numOfRecords = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->buffers); ++i) {
-    TAOS_CHECK_GOTO(tBufferInit(&brinBlock->buffers[i]), NULL, _exit);
+    tBufferInit(&brinBlock->buffers[i]);
   }
   for (int32_t i = 0; i < TD_MAX_PK_COLS; ++i) {
     TAOS_CHECK_GOTO(tValueColumnInit(&brinBlock->firstKeyPKs[i]), NULL, _exit);
@@ -253,7 +244,7 @@ int32_t tBrinBlockInit(SBrinBlock *brinBlock) {
 
 _exit:
   if (code) {
-    TAOS_UNUSED(tBrinBlockDestroy(brinBlock));
+    (void)tBrinBlockDestroy(brinBlock);
   }
   return code;
 }
