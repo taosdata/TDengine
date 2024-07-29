@@ -276,7 +276,6 @@ class DbConnRest(DbConn):
             "[SQL-REST] Execution Result, nRows = {}, SQL = {}".format(nRows, sql))
         return nRows
 
-    
 
     def query(self, sql):  # return rows affected
         return self.execute(sql)
