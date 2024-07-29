@@ -187,7 +187,10 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
   int32_t code = 0;
   int32_t lino = 0;
   TAOS_CHECK_GOTO(taosThreadMutexLock(&tsAudit.lock), &lino, _exit);
-  taosArrayPush(tsAudit.records, &record);
+  if (taosArrayPush(tsAudit.records, &record) == NULL) {
+    TAOS_CHECK_GOTO(taosThreadMutexUnlock(&tsAudit.lock), &lino, _exit);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+  }
   TAOS_CHECK_GOTO(taosThreadMutexUnlock(&tsAudit.lock), &lino, _exit);
 
   return;
@@ -204,14 +207,14 @@ void auditSendRecordsInBatchImp(){
 
   int setSize = taosArrayGetSize(tsAudit.records);
   if(setSize == 0){
-    taosThreadMutexUnlock(&tsAudit.lock);
+    (void)taosThreadMutexUnlock(&tsAudit.lock);
     return;
   }
 
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
     uError("failed to send audit in batch since failed to create json object");
-    taosThreadMutexUnlock(&tsAudit.lock);
+    (void)taosThreadMutexUnlock(&tsAudit.lock);
     return;
   }
 
@@ -249,7 +252,7 @@ void auditSendRecordsInBatchImp(){
     taosMemoryFree(pRecord);
   }
 
-  taosThreadMutexUnlock(&tsAudit.lock);
+  (void)taosThreadMutexUnlock(&tsAudit.lock);
 
   char *pCont = tjsonToString(pJson);
   if (pCont != NULL) {
@@ -268,7 +271,7 @@ void auditSendRecordsInBatchImp(){
 
 _error:
   uError("failed to aduit, %s at %s:%d since %s", __func__, __FILE__, lino, tstrerror(code));
-  taosThreadMutexUnlock(&tsAudit.lock);
+  (void)taosThreadMutexUnlock(&tsAudit.lock);
   
 _exit:
   tjsonDelete(pJson);

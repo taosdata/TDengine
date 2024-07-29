@@ -21,7 +21,7 @@ int32_t CBC_DecryptImpl(SCryptOpts *opts){
     int32_t count = 0;
     while(count < opts->len)
     {
-        SM4_CBC_Decrypt(opts->key, 16, opts->key, 16, opts->source + count, opts->unitLen, opts->result + count, &NewLen);
+        (void)SM4_CBC_Decrypt(opts->key, 16, opts->key, 16, opts->source + count, opts->unitLen, opts->result + count, &NewLen);
         count += NewLen;
     }
     return count;
@@ -33,7 +33,7 @@ int32_t CBC_EncryptImpl(SCryptOpts *opts){
     int32_t count = 0;
     while(count < opts->len)
     {
-        SM4_CBC_Encrypt(opts->key, 16, opts->key, 16, opts->source + count, opts->unitLen, opts->result + count, &NewLen);
+        (void)SM4_CBC_Encrypt(opts->key, 16, opts->key, 16, opts->source + count, opts->unitLen, opts->result + count, &NewLen);
         count += NewLen;
     }
     return count;

@@ -296,7 +296,7 @@ _exit:
     dError("failed to read vars at line %d since %s", lino, tstrerror(code));
   }
   taosMemoryFreeClear(buffer);
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   return code;
 }
 

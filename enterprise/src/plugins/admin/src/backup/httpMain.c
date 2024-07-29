@@ -16,22 +16,22 @@
 #include "tlog.h"
 
 void sigintHandler(int signum, void *sigInfo, void *context) {
-  httpStopSystem();
-  httpCleanUpSystem();
+  (void)httpStopSystem();
+  (void)httpCleanUpSystem();
   exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char *argv[]) {
   // Set global configuration file
-  taosSetSignal(SIGTERM, sigintHandler);
-  taosSetSignal(SIGHUP, sigintHandler);
-  taosSetSignal(SIGINT, sigintHandler);
-  taosSetSignal(SIGABRT, sigintHandler);
+  (void)taosSetSignal(SIGTERM, sigintHandler);
+  (void)taosSetSignal(SIGHUP, sigintHandler);
+  (void)taosSetSignal(SIGINT, sigintHandler);
+  (void)taosSetSignal(SIGABRT, sigintHandler);
 
-  taosInitGlobalCfg();
-  taosReadGlobalLogCfg();
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
+  (void)taosInitGlobalCfg();
+  (void)taosReadGlobalLogCfg();
+  (void)taosIgnSIGPIPE();
+  (void)taosBlockSIGPIPE();
 
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/httplog", tsLogDir);
@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (!taosReadGlobalCfg()) {
-    taosPrintGlobalCfg();
+    (void)taosPrintGlobalCfg();
     printf("TDengine read global config failed");
     return -1;
   }
