@@ -291,7 +291,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   code = vnodeSaveInfo(dir, &pInfo->info);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tsdbPreCommit(pVnode->pTsdb);
+  (void)tsdbPreCommit(pVnode->pTsdb);
 
   code = metaPrepareAsyncCommit(pVnode->pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
