@@ -35,7 +35,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
       int32_t     vid = 0;
       const char *object_name = taosDirEntryBaseName((char *)path);
-      sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
+      (void)sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
 
       char *dot = strrchr(lc_path, '.');
       if (!dot) {
@@ -124,7 +124,7 @@ void tsdbCloseFile(STsdbFD **ppFD) {
   if (pFD) {
     taosMemoryFree(pFD->pBuf);
     // if (!pFD->s3File) {
-    taosCloseFile(&pFD->pFD);
+    (void)taosCloseFile(&pFD->pFD);
     //}
     taosMemoryFree(pFD);
     *ppFD = NULL;
@@ -156,7 +156,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
       TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
     }
 
-    taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
+    (void)taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
 
     if (encryptAlgorithm == DND_CA_SM4) {
       // if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
@@ -430,7 +430,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
       code = tsdbCacheGetPageS3(pFD->pTsdb->pgCache, pFD, pgno, &handle);
       if (code != TSDB_CODE_SUCCESS) {
         if (handle) {
-          tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
+          (void)tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
         }
         TSDB_CHECK_CODE(code, lino, _exit);
       }
@@ -441,7 +441,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
 
       uint8_t *pPage = (uint8_t *)taosLRUCacheValue(pFD->pTsdb->pgCache, handle);
       memcpy(pFD->pBuf, pPage, pFD->szPage);
-      tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
+      (void)tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
 
       // check
       if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
@@ -477,7 +477,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     int nPage = pgnoEnd - pgno + 1;
     for (int i = 0; i < nPage; ++i) {
       if (pFD->szFile != pgno) {  // DONOT cache last volatile page
-        tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
+        (void)tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
       }
 
       if (szHint > 0 && n >= size) {
