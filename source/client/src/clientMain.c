@@ -85,13 +85,14 @@ void taos_cleanup(void) {
     tscWarn("failed to close clientReqRefPool");
   }
 
-  DestroyRegexCache();
   rpcCleanup();
   tscDebug("rpc cleanup");
 
   taosConvDestroy();
 
   tmqMgmtClose();
+
+  DestroyRegexCache();
 
   tscInfo("all local resources released");
   taosCleanupCfg();
