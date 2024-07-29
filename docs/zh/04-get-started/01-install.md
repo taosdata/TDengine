@@ -1,21 +1,10 @@
 ---
-sidebar_label: 安装与启动
-title: TDengine 安装与启动
-description: 使用安装包和 Docker 快速体验 TDengine
+sidebar_label: Linux
+title: 在 Linux 系统上安装和启动 TDengine
 toc_max_heading_level: 4
 ---
 
-TDengine 的安装包含括服务端（taosd）、应用驱动（taosc）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、命令行程序（CLI，taos）和一些工具软件。
-
-为了适应不同用户的操作系统偏好，TDengine 在 Linux 系统上提供 tar.gz 、 Deb 和 RPM 格式安装包。此外，还支持 apt-get 方式安装，这种方式简便快捷，适合熟悉 Linux 包管理的用户。
-
-除了 Linux 平台以外，TDengine 还支持在 Windows X64 平台和 macOS X64/M1 平台上安装，扩大了其适用性，满足了跨平台的需求。
-
-对于希望进行虚拟化安装的用户，TDengine 同样提供了 Docker 镜像，使得用户可以快速搭建和体验 TDengine 环境，不需要烦琐的手动配置过程。
-
-本节将详细指导如何在 Linux 操作系统中高效地安装和启动 TDengine 3.3.0.0 版本。同时，为了迎合不同用户的多样化需求，本节还将介绍 TDengine 在 Docker 容器中的安装和启动步骤，为用户提供更多灵活性和便利性选项。
-
-##  Linux 系统
+本节简介在 Linux 系统上安装和启动 TDengine 的快速步骤。
 
 ## 安装步骤
 
@@ -66,7 +55,7 @@ Active: inactive (dead)
 - 如果操作系统不支持 systemctl，可以通过手动运行 /usr/local/taos/bin/taosd 命令来启动 TDengine 服务。
 
 
-### 目录结构
+## 目录结构
 
 安装 TDengine 后，默认会在操作系统中生成下列目录或文件：
 
@@ -80,7 +69,7 @@ Active: inactive (dead)
 | /var/lib/taos             | TDengine 默认数据文件目录。可通过[配置文件]修改位置。                |
 | /var/log/taos             | TDengine 默认日志文件目录。可通过[配置文件]修改位置。                |
 
-### 可执行程序
+## 可执行程序
 
 TDengine 的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下。其中包括：
 
@@ -94,43 +83,3 @@ TDengine 的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下
 - _set_core.sh_：用于方便调试设置系统生成 core dump 文件的脚本
 - _taosd-dump-cfg.gdb_：用于方便调试 taosd 的 gdb 执行脚本。
 
-## Docker
-
-1. 测试机器如果已经安装了 Docker，首先拉取最新的 TDengine 容器镜像：
-```shell
-docker pull tdengine/tdengine:latest
-
-或者指定版本的容器镜像：
-```shell
-docker pull tdengine/tdengine:3.3.0.0
-```
-
-2. 然后只需执行下面的命令：
-```shell
-docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
-```
-
-**注意**：TDengine 3.0 服务端仅使用 6030 TCP 端口。6041 为 taosAdapter 所使用提供 REST 服务端口。6043-6049 为 taosAdapter 提供第三方应用接入所使用端口，可根据需要选择是否打开。
-
-如果需要将数据持久化到本机的某一个文件夹，则执行下边的命令：
-```shell
-docker run -d -v ~/data/taos/dnode/data:/var/lib/taos \
-  -v ~/data/taos/dnode/log:/var/log/taos \
-  -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
-```
-
-3. 确定该容器已经启动并且在正常运行。
-```shell
-docker ps
-```
-
-4. 进入该容器并执行 bash
-```shell
-docker exec -it <container name bash
-```
-
-然后就可以执行相关的 Linux 命令操作和访问 TDengine。
-
-## 故障排查
-
-如果启动 TDengine 服务时出现异常，请查看数据库日志以获取更多信息。你也可以参考 TDengine 的官方文档中的故障排除部分，或者在 TDengine 开源社区中寻求帮助。
