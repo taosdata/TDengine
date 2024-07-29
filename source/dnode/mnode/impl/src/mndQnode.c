@@ -224,7 +224,7 @@ int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeOb
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -252,7 +252,7 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_RETURN(code);
   }
-  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -330,7 +330,7 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[33] = {0};
-  sprintf(obj, "%d", createReq.dnodeId);
+  (void)sprintf(obj, "%d", createReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "createQnode", "", obj, createReq.sql, createReq.sqlLen);
 _OVER:
@@ -383,7 +383,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_RETURN(code);
   }
-  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -459,7 +459,7 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[33] = {0};
-  sprintf(obj, "%d", dropReq.dnodeId);
+  (void)sprintf(obj, "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropQnode", "", obj, dropReq.sql, dropReq.sqlLen);
 
@@ -531,7 +531,7 @@ static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  tSerializeSQnodeListRsp(pRsp, rspLen, &qlistRsp);
+  (void)tSerializeSQnodeListRsp(pRsp, rspLen, &qlistRsp);
 
   pReq->info.rspLen = rspLen;
   pReq->info.rsp = pRsp;
@@ -556,15 +556,15 @@ static int32_t mndRetrieveQnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)ep, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)ep, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
