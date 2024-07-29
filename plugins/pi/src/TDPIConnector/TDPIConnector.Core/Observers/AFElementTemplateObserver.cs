@@ -113,7 +113,7 @@ namespace TDPIConnector.Core
                 }
                 else if (e.Action == AFChangeAction.SubObjectRemove)
                 {
-                    if (!SyncDeleteDelement)
+                    if (!SyncDeleteElement)
                     {
                         log.Info($"AFChangedEvent:{e.ID},Ignore delete element {element.Name}");
                         return;
