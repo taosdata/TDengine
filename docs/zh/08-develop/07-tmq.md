@@ -9,11 +9,12 @@ import TabItem from "@theme/TabItem";
 
 TDengine提供了类似Kafka的数据订阅功能。本章以 WebSocket 连接方式为例，介绍数据订阅的相关API以及使用方法。
 
+
 ## 创建主题
 
 创建主题的示例代码如下。
-
-<Tabs defaultValue="java" groupId="createTopic">
+### Websocket 
+<Tabs defaultValue="java" groupId="websocketCreateTopic">
 <TabItem value="java" label="Java">
 
 ```java
@@ -22,7 +23,85 @@ Statement statement = connection.createStatement();
 statement.executeUpdate("CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters");
 ```
 </TabItem>
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="Node.js" value="node">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+
 </Tabs>
+
+### 原生
+<Tabs defaultValue="java" groupId="nativeCreateTopic">
+<TabItem value="java" label="Java">
+
+```java
+Connection connection = DriverManager.getConnection(url, properties);
+Statement statement = connection.createStatement();
+statement.executeUpdate("CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters");
+```
+</TabItem>
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+
+</Tabs> 
 
 上述代码将使用SQL“select ts, current, voltage, phase, groupId, location from meters”创建一个名为topic_meters的订阅。使用该订阅所获取的消息中的每条记录都由该查询语句所选择的列组成。
 
@@ -33,8 +112,8 @@ statement.executeUpdate("CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, c
 - 时间顺序限制：订阅查询只能按照时间正序查询数据。
 
 ## 创建消费者
-
-<Tabs defaultValue="java" groupId="createConsumer">
+### Websocket 
+<Tabs defaultValue="java" groupId="websocketCreateConsumer">
 <TabItem value="java" label="Java">
 
 ```java
@@ -53,6 +132,95 @@ config.setProperty("value.deserializer.encoding", "UTF-8");
 this.consumer = new TaosConsumer<(config);
 ```
 </TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="Node.js" value="node">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+</Tabs>
+
+
+### 原生 
+<Tabs defaultValue="java" groupId="NativeCreateConsumer">
+<TabItem value="java" label="Java">
+
+```java
+Properties config = new Properties();
+config.setProperty("td.connect.type", "ws");
+config.setProperty("bootstrap.servers", "localhost:6041");
+config.setProperty("auto.offset.reset", "latest");
+config.setProperty("msg.with.table.name", "true");
+config.setProperty("enable.auto.commit", "true");
+config.setProperty("auto.commit.interval.ms", "1000");
+config.setProperty("group.id", "group1");
+config.setProperty("client.id", "1");
+config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoop$ResultDeserializer");
+config.setProperty("value.deserializer.encoding", "UTF-8");
+
+this.consumer = new TaosConsumer<(config);
+```
+</TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
 </Tabs>
 
 相关参数说明如下：
@@ -66,8 +234,8 @@ this.consumer = new TaosConsumer<(config);
 ## 订阅消费数据
 
 订阅消费数据的示例代码如下
-
-<Tabs defaultValue="java" groupId="poll">
+### Websocket 
+<Tabs defaultValue="java" groupId="websocketPoll">
 <TabItem value="java" label="Java">
 
 ```java
@@ -80,13 +248,95 @@ while (!shutdown.get()) {
 }
 ```
 </TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="Node.js" value="node">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+</Tabs>
+
+### 原生 
+<Tabs defaultValue="java" groupId="nativePoll">
+<TabItem value="java" label="Java">
+
+```java
+while (!shutdown.get()) {
+    ConsumerRecords<ResultBean records = consumer.poll(Duration.ofMillis(100));
+    for (ConsumerRecord<ResultBean record : records) {
+        ResultBean bean = record.value();
+        process(bean);
+    }
+}
+```
+</TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
 </Tabs>
 
 poll 每次调用获取一个消息，一个消息中可能有多个记录，需要循环处理。
 
 ## 指定订阅的 Offset
-
-<Tabs defaultValue="java" groupId="seek">
+### Websocket 
+<Tabs defaultValue="java" groupId="websocketSeek">
 <TabItem value="java" label="Java">
 
 ```java
@@ -106,13 +356,103 @@ void seekToBeginning(Collection<TopicPartition partitions) throws SQLException;
 void seekToEnd(Collection<TopicPartition partitions) throws SQLException;
 ```
 </TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="Node.js" value="node">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
 </Tabs>
+
+### 原生 
+<Tabs defaultValue="java" groupId="nativeSeek">
+<TabItem value="java" label="Java">
+
+```java
+// 获取订阅的 topicPartition
+Set<TopicPartition assignment() throws SQLException;
+
+// 获取 offset
+long position(TopicPartition partition) throws SQLException;
+Map<TopicPartition, Long position(String topic) throws SQLException;
+Map<TopicPartition, Long beginningOffsets(String topic) throws SQLException;
+Map<TopicPartition, Long endOffsets(String topic) throws SQLException;
+Map<TopicPartition, OffsetAndMetadata committed(Set<TopicPartition partitions) throws SQLException;
+
+// 指定下一次 poll 中使用的 offset
+void seek(TopicPartition partition, long offset) throws SQLException;
+void seekToBeginning(Collection<TopicPartition partitions) throws SQLException;
+void seekToEnd(Collection<TopicPartition partitions) throws SQLException;
+```
+</TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+</Tabs>
+
 
 ## 提交 Offset
 
 当 `enable.auto.commit` 为 false 时，可以手动提交 offset。
-
-<Tabs defaultValue="java" groupId="commit">
+### Websocket 
+<Tabs defaultValue="java" groupId="websocketCommit">
 <TabItem value="java" label="Java">
 
 ```java
@@ -123,11 +463,98 @@ void commitAsync(OffsetCommitCallback<V callback) throws SQLException;
 void commitAsync(Map<TopicPartition, OffsetAndMetadata offsets, OffsetCommitCallback<V callback) throws SQLException;
 ```
 </TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="Node.js" value="node">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+
 </Tabs>
 
-## 取消订阅和关闭消费
+### 原生 
+<Tabs defaultValue="java" groupId="nativeCommit">
+<TabItem value="java" label="Java">
 
-<Tabs defaultValue="java" groupId="close">
+```java
+void commitSync() throws SQLException;
+void commitSync(Map<TopicPartition, OffsetAndMetadata offsets) throws SQLException;
+// 异步提交仅在 native 连接下有效
+void commitAsync(OffsetCommitCallback<V callback) throws SQLException;
+void commitAsync(Map<TopicPartition, OffsetAndMetadata offsets, OffsetCommitCallback<V callback) throws SQLException;
+```
+</TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="Node.js" value="node">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+
+</Tabs>
+
+
+## 取消订阅和关闭消费
+### Websocket 
+<Tabs defaultValue="java" groupId="websocketClose">
 <TabItem value="java" label="Java">
 
 ```java
@@ -137,4 +564,88 @@ consumer.unsubscribe();
 consumer.close()
 ```
 </TabItem>
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="Node.js" value="node">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+
+</Tabs>
+
+### 原生 
+<Tabs defaultValue="java" groupId="nativeClose">
+<TabItem value="java" label="Java">
+
+```java
+// 取消订阅
+consumer.unsubscribe();
+// 关闭消费
+consumer.close()
+```
+</TabItem>
+
+<TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+</TabItem>
+
+<TabItem label="Go" value="go">
+   
+</TabItem>
+
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+
+<TabItem label="Node.js" value="node">
+
+</TabItem>
+
+<TabItem label="C#" value="csharp">
+    
+</TabItem>
+
+<TabItem label="R" value="r">
+    
+</TabItem>
+
+<TabItem label="C" value="c">
+    
+</TabItem>
+
+<TabItem label="PHP" value="php">
+
+</TabItem>
+
 </Tabs>

@@ -9,7 +9,8 @@ import TabItem from "@theme/TabItem";
 
 通过参数绑定方式写入数据时，能避免SQL语法解析的资源消耗，从而显著提升写入性能。示例代码如下。
 
-<Tabs defaultValue="java" groupId="stmt">
+## Websocket 
+<Tabs defaultValue="java" groupId="websocket">
 <TabItem value="java" label="Java">
 
 ```java
@@ -65,4 +66,63 @@ public class WSParameterBindingBasicDemo {
 }
 ```
 </TabItem>
+<TabItem label="Python" value="python">
+
+    ```python
+    {{#include docs/examples/python/connect_websocket_examples.py:connect}}
+    ```
+</TabItem>
+<TabItem label="Go" value="go">
+
+</TabItem>
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+<TabItem label="Node.js" value="node">
+
+    ```js
+        {{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
+    ```
+</TabItem>
+<TabItem label="C#" value="csharp">
+
+</TabItem>
+<TabItem label="R" value="r">
+
+</TabItem>
+<TabItem label="C" value="c">
+
+</TabItem>
+<TabItem label="PHP" value="php">
+
+</TabItem>
+</Tabs>
+
+## 原生
+<Tabs  defaultValue="java"  groupId="native">
+<TabItem label="Java" value="java">
+
+</TabItem>
+<TabItem label="Python" value="python">
+
+</TabItem>
+<TabItem label="Go" value="go">
+
+</TabItem>
+<TabItem label="Rust" value="rust">
+
+</TabItem>
+<TabItem label="C#" value="csharp">
+
+</TabItem>
+<TabItem label="R" value="r">
+
+</TabItem>
+<TabItem label="C" value="c">
+
+</TabItem>
+<TabItem label="PHP" value="php">
+
+</TabItem>
+
 </Tabs>
