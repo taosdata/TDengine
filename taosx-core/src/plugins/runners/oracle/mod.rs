@@ -163,7 +163,7 @@ pub async fn oracle_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
     let socket = format!("127.0.0.1:{}", port);
-    config.ipc_port = Some(port);
+    config.ipc_port = Some(port.get());
 
     // create ipc handler
     let mut ipc = build_ipc(
@@ -186,7 +186,6 @@ pub async fn oracle_to_taos(
     let worker = tokio::spawn(migrate_history(config, cancel.clone()));
 
     // execute worker
-    let port_pool = port_pool.clone();
     let abort_handle = worker.abort_handle();
     tokio::spawn(async move {
         tokio::select! {
@@ -231,8 +230,6 @@ pub async fn oracle_to_taos(
         // stop the connector
         tracing::info!("{ORACLE_NAME} task done, id: {}", task_id.unwrap_or(-1));
         ipc.close().await?;
-        // put ipc port back to port pool.
-        port_pool.put(port).await;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())

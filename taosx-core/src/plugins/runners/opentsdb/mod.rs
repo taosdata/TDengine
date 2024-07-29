@@ -70,7 +70,7 @@ pub async fn opentsdb_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for OpenTSDB connection"))?;
     // generate config
-    let config = OpentsdbConfig::from(&from, ipc_port)?;
+    let config = OpentsdbConfig::from(&from, ipc_port.get())?;
     // transform to toml
     let toml = toml::to_string(&config)?;
     // write to a temporary file
@@ -182,7 +182,6 @@ pub async fn opentsdb_to_taos(
             .stderr(std::process::Stdio::piped());
     }
 
-    let port_pool = port_pool.clone();
     {
         let mut child = child.spawn().context("Start OpenTSDB collector error")?;
         send_sub_process_info(child.id(), task_id, "opentsdb");
@@ -220,7 +219,6 @@ pub async fn opentsdb_to_taos(
                     let _ = child.terminate_timeout(Duration::from_secs(2)).await;
                     let _ = ipc_handler.close().await;
                     temp_path.close().unwrap();
-                    port_pool.put(ipc_port).await;
                 };
             }
             tokio::select! {
