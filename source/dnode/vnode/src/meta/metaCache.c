@@ -156,7 +156,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   }
 
   taosHashSetFreeFp(pMeta->pCache->sTagFilterResCache.pTableEntry, freeCacheEntryFp);
-  taosThreadMutexInit(&pMeta->pCache->sTagFilterResCache.lock, NULL);
+  (void)taosThreadMutexInit(&pMeta->pCache->sTagFilterResCache.lock, NULL);
 
   pMeta->pCache->STbGroupResCache.pResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
   if (pMeta->pCache->STbGroupResCache.pResCache == NULL) {
@@ -171,7 +171,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   }
 
   taosHashSetFreeFp(pMeta->pCache->STbGroupResCache.pTableEntry, freeCacheEntryFp);
-  taosThreadMutexInit(&pMeta->pCache->STbGroupResCache.lock, NULL);
+  (void)taosThreadMutexInit(&pMeta->pCache->STbGroupResCache.lock, NULL);
 
   pMeta->pCache->STbFilterCache.pStb =
       taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -201,11 +201,11 @@ void metaCacheClose(SMeta* pMeta) {
     statsCacheClose(pMeta);
 
     taosLRUCacheCleanup(pMeta->pCache->sTagFilterResCache.pUidResCache);
-    taosThreadMutexDestroy(&pMeta->pCache->sTagFilterResCache.lock);
+    (void)taosThreadMutexDestroy(&pMeta->pCache->sTagFilterResCache.lock);
     taosHashCleanup(pMeta->pCache->sTagFilterResCache.pTableEntry);
 
     taosLRUCacheCleanup(pMeta->pCache->STbGroupResCache.pResCache);
-    taosThreadMutexDestroy(&pMeta->pCache->STbGroupResCache.lock);
+    (void)taosThreadMutexDestroy(&pMeta->pCache->STbGroupResCache.lock);
     taosHashCleanup(pMeta->pCache->STbGroupResCache.pTableEntry);
 
     taosHashCleanup(pMeta->pCache->STbFilterCache.pStb);
@@ -495,7 +495,7 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     } else {
-      taosLRUCacheRelease(pCache, pRes, false);
+      (void)taosLRUCacheRelease(pCache, pRes, false);
     }
   }
 
@@ -552,7 +552,11 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
   int32_t     size = *(int32_t*)p;
 
   // set the result into the buffer
-  taosArrayAddBatch(pList1, p + sizeof(int32_t), size);
+  if (taosArrayAddBatch(pList1, p + sizeof(int32_t), size) == NULL) {
+    (void)taosLRUCacheRelease(pCache, pHandle, false);
+    (void)taosThreadMutexUnlock(pLock);
+    return terrno;
+  }
 
   (*pEntry)->hitTimes += 1;
 
@@ -562,7 +566,7 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
              ((double)(*pEntry)->hitTimes) / acc);
   }
 
-  taosLRUCacheRelease(pCache, pHandle, false);
+  (void)taosLRUCacheRelease(pCache, pHandle, false);
 
   // unlock meta
   (void)taosThreadMutexUnlock(pLock);
@@ -618,7 +622,7 @@ static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyL
   p->hitTimes = 0;
   tdListInit(&p->list, keyLen);
   TAOS_CHECK_RETURN(taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES));
-  tdListAppend(&p->list, pKey);
+  (void)tdListAppend(&p->list, pKey);
   return 0;
 }
 
@@ -662,7 +666,7 @@ int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int
   } else {  // check if it exists or not
     size_t size = listNEles(&(*pEntry)->list);
     if (size == 0) {
-      tdListAppend(&(*pEntry)->list, pKey);
+      (void)tdListAppend(&(*pEntry)->list, pKey);
     } else {
       SListNode* pNode = listHead(&(*pEntry)->list);
       uint64_t*  p = (uint64_t*)pNode->data;
@@ -671,7 +675,7 @@ int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int
         (void)taosThreadMutexUnlock(pLock);
         return TSDB_CODE_SUCCESS;
       } else {  // not equal, append it
-        tdListAppend(&(*pEntry)->list, pKey);
+        (void)tdListAppend(&(*pEntry)->list, pKey);
       }
     }
   }
@@ -761,7 +765,7 @@ int32_t metaGetCachedTbGroup(void* pVnode, tb_uid_t suid, const uint8_t* pKey, i
              ((double)(*pEntry)->hitTimes) / acc);
   }
 
-  taosLRUCacheRelease(pCache, pHandle, false);
+  (void)taosLRUCacheRelease(pCache, pHandle, false);
 
   // unlock meta
   (void)taosThreadMutexUnlock(pLock);
@@ -839,7 +843,7 @@ int32_t metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void* pKey, int
   } else {  // check if it exists or not
     size_t size = listNEles(&(*pEntry)->list);
     if (size == 0) {
-      tdListAppend(&(*pEntry)->list, pKey);
+      (void)tdListAppend(&(*pEntry)->list, pKey);
     } else {
       SListNode* pNode = listHead(&(*pEntry)->list);
       uint64_t*  p = (uint64_t*)pNode->data;
@@ -848,14 +852,14 @@ int32_t metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void* pKey, int
         (void)taosThreadMutexUnlock(pLock);
         return TSDB_CODE_SUCCESS;
       } else {  // not equal, append it
-        tdListAppend(&(*pEntry)->list, pKey);
+        (void)tdListAppend(&(*pEntry)->list, pKey);
       }
     }
   }
 
   // add to cache.
-  taosLRUCacheInsert(pCache, key, TAG_FILTER_RES_KEY_LEN, pPayload, payloadLen, freeTbGroupCachePayload, NULL,
-                     TAOS_LRU_PRIORITY_LOW, NULL);
+  (void)taosLRUCacheInsert(pCache, key, TAG_FILTER_RES_KEY_LEN, pPayload, payloadLen, freeTbGroupCachePayload, NULL,
+                           TAOS_LRU_PRIORITY_LOW, NULL);
 _end:
   (void)taosThreadMutexUnlock(pLock);
   metaDebug("vgId:%d, suid:%" PRIu64 " tb group added into cache, total:%d, tables:%d", vgId, suid,
