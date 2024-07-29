@@ -699,13 +699,17 @@ fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> 
     // Action to take when there is no initial offset in offset store or the desired offset is out of range.
     // smallest, earliest, beginning, largest, latest, end, error
     client.set("auto.offset.reset", config.fallback_offset);
-    // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages.
-    if config.fetch_max_wait_time.is_some() {
-        client.set(
-            "fetch.wait.max.ms",
-            config.fetch_max_wait_time.unwrap().as_millis().to_string(),
-        );
-    }
+
+    // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages, default 5 seconds.
+    client.set(
+        "fetch.wait.max.ms",
+        config
+            .fetch_max_wait_time
+            .map(|v| v.as_millis())
+            .unwrap_or(5000)
+            .to_string(),
+    );
+
     // Minimum number of bytes the broker responds with.
     if config.fetch_min_bytes.is_some() {
         client.set(
