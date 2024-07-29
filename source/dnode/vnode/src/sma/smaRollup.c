@@ -412,7 +412,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
 
 _exit:
   if (code != 0) {
-    tdFreeRSmaInfo(pSma, pRSmaInfo);
+    (void)tdFreeRSmaInfo(pSma, pRSmaInfo);
   } else {
     smaDebug("vgId:%d, register rsma info succeed for table %" PRIi64, SMA_VID(pSma), suid);
   }
@@ -1264,7 +1264,7 @@ _checkpoint:
         if (pItem && pItem->pStreamTask) {
           SStreamTask *pTask = pItem->pStreamTask;
           // atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);
-          streamTaskSetActiveCheckpointInfo(pTask, checkpointId);
+          (void)streamTaskSetActiveCheckpointInfo(pTask, checkpointId);
 
           pTask->chkInfo.checkpointId = checkpointId;  // 1pTask->checkpointingId;
           pTask->chkInfo.checkpointVer = pItem->submitReqVer;
@@ -1373,7 +1373,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
                ", rsetId:%d refId:%" PRIi64,
                SMA_VID(pSma), pItem->level, rsmaTriggerStat, smaMgmt.rsetId, pRSmaRef->refId);
       if (rsmaTriggerStat == TASK_TRIGGER_STAT_PAUSED) {
-        taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
+        (void)taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
       }
       tdReleaseRSmaInfo(pSma, pRSmaInfo);
       (void)tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
@@ -1629,7 +1629,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
               batchMax = TMAX(batchMax, 4);
             }
             while (occupied || (++batchCnt < batchMax)) {    // greedy mode
-              taosReadAllQitems(pInfo->queue, pInfo->qall);  // queue has mutex lock
+              (void)taosReadAllQitems(pInfo->queue, pInfo->qall);  // queue has mutex lock
               int32_t qallItemSize = taosQallItemSize(pInfo->qall);
               if (qallItemSize > 0) {
                 if ((code = tdRSmaBatchExec(pSma, pInfo, pInfo->qall, pSubmitArr, type)) != 0) {
@@ -1663,7 +1663,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
               }
 
               if (qallItemSize > 0) {
-                atomic_fetch_sub_64(&pRSmaStat->nBufItems, qallItemSize);
+                (void)atomic_fetch_sub_64(&pRSmaStat->nBufItems, qallItemSize);
                 continue;
               }
               if (RSMA_NEED_FETCH(pInfo)) {
@@ -1673,7 +1673,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
               break;
             }
           }
-          atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0);
+          (void)atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0);
         }
       }
     } else {

@@ -84,7 +84,7 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   pMsg->destId = *destRaftId;
-  syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
+  (void)syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -113,7 +113,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
 
     // send msg
     syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
-    syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+    (void)syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);

@@ -53,7 +53,7 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   void *p = NULL;
   // SBackendWrapper *p = streamBackendInit(streamPath, -1, 2);
   // p = taskDbOpen((char *)streamPath, (char *)"test", -1);
-  p = bkdMgtCreate((char *)streamPath);
+  int32_t code = bkdMgtCreate((char *)streamPath, (SBkdMgt **)&p);
 
   // const int64_t interval = 20 * 1000;
   // const int64_t watermark = 10 * 60 * 1000;
