@@ -567,7 +567,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
-  extractQualifiedTupleByFilterResult(pBlock, p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
+  QUERY_CHECK_CODE(code, lino, _err);
 
   if (pColMatchInfo != NULL) {
     size_t size = taosArrayGetSize(pColMatchInfo->pList);
@@ -591,18 +592,21 @@ _err:
   return code;
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status) {
+int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status) {
+  int32_t code = 0;
   int8_t* pIndicator = (int8_t*)p->pData;
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
     // here nothing needs to be done
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
-    trimDataBlock(pBlock, pBlock->info.rows, NULL);
+    code = trimDataBlock(pBlock, pBlock->info.rows, NULL);
     pBlock->info.rows = 0;
   } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
-    trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);
+    code = trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);
   } else {
     qError("unknown filter result type: %d", status);
   }
+
+  return code;
 }
 
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset) {
