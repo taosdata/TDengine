@@ -264,35 +264,104 @@ phpize && ./configure --enable-swoole && make -j && make install
 
 在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine，而且服务端的 FQDN 配置正确。以下示例代码，都假设 TDengine 安装在本机，且 FQDN（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
 
-<Tabs groupId="lang" defaultValue="java">
-  <TabItem label="Java" value="java">
-    <ConnJava />
-  </TabItem>
-  <TabItem label="Python" value="python">
-    <ConnPythonNative />
-  </TabItem>
-  <TabItem label="Go" value="go">
-      <ConnGo />
-  </TabItem>
-  <TabItem label="Rust" value="rust">
-    <ConnRust />
-  </TabItem>
-  <TabItem label="Node.js" value="node">
-    <ConnNode />
-  </TabItem>
-  <TabItem label="C#" value="csharp">
-    <ConnCSNative />
-  </TabItem>
-  <TabItem label="R" value="r">
-    <ConnR/>
-  </TabItem>
-  <TabItem label="C" value="c">
-    <ConnC />
-  </TabItem>
-  <TabItem label="PHP" value="php">
-    <ConnPHP />
-  </TabItem>
+### Websocket 连接
+
+<Tabs groupId="websocket">
+    <TabItem label="Java" value="java">
+
+        ```java
+        {{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
+        ```
+    </TabItem>
+    <TabItem label="Python" value="python">
+
+        ```python
+        {{#include docs/examples/python/connect_websocket_examples.py:connect}}
+        ```
+    </TabItem>
+    <TabItem label="Go" value="go">
+        <ConnGo />
+    </TabItem>
+    <TabItem label="Rust" value="rust">
+        <ConnRust />
+    </TabItem>
+    <TabItem label="Node.js" value="node">
+        ```js
+            {{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
+        ```
+    </TabItem>
+    <TabItem label="C#" value="csharp">
+        <ConnCSNative />
+    </TabItem>
+    <TabItem label="R" value="r">
+        <ConnR/>
+    </TabItem>
+    <TabItem label="C" value="c">
+        <ConnC />
+    </TabItem>
+    <TabItem label="PHP" value="php">
+        <ConnPHP />
+    </TabItem>
 </Tabs>
+
+### 原生连接
+<Tabs groupId="native">
+    <TabItem label="Java" value="java">
+        <ConnJava />
+    </TabItem>
+    <TabItem label="Python" value="python">
+        <ConnPythonNative />
+    </TabItem>
+    <TabItem label="Go" value="go">
+        <ConnGo />
+    </TabItem>
+    <TabItem label="Rust" value="rust">
+        <ConnRust />
+    </TabItem>
+    <TabItem label="C#" value="csharp">
+        <ConnCSNative />
+    </TabItem>
+    <TabItem label="R" value="r">
+        <ConnR/>
+    </TabItem>
+    <TabItem label="C" value="c">
+        <ConnC />
+    </TabItem>
+    <TabItem label="PHP" value="php">
+        <ConnPHP />
+    </TabItem>
+
+</Tabs>
+
+### REST 连接
+<Tabs groupId="rest">
+    <TabItem label="Java" value="java">
+        <ConnJava />
+    </TabItem>
+    <TabItem label="Python" value="python">
+        <ConnPythonNative />
+    </TabItem>
+    <TabItem label="Go" value="go">
+        <ConnGo />
+    </TabItem>
+    <TabItem label="Rust" value="rust">
+        <ConnRust />
+    </TabItem>
+    <TabItem label="C#" value="csharp">
+        <ConnCSNative />
+    </TabItem>
+    <TabItem label="R" value="r">
+        <ConnR/>
+    </TabItem>
+    <TabItem label="C" value="c">
+        <ConnC />
+    </TabItem>
+    <TabItem label="PHP" value="php">
+        <ConnPHP />
+    </TabItem>
+
+</Tabs>
+
 
 :::tip
 如果建立连接失败，大部分情况下是 FQDN 或防火墙的配置不正确，详细的排查方法请看[《常见问题及反馈》](https://docs.taosdata.com/train-faq/faq)中的“遇到错误 Unable to establish connection, 我怎么办？”
