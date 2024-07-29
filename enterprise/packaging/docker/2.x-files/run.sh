@@ -312,7 +312,30 @@ function initDnodeAndMnode {
         else
             DNODE_CREATED=1
             logger "INFO" "Dnode $ENDPOINT already created "
-        fi    
+        fi
+        if [ $DNODE_CREATED -eq 1 ] && [ "$FQDN" == "$FIRST_EP_HOST" ]; then
+            #check snode created
+            SNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show snodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+            if [[ "$SNODETmp" == "" ]]; then
+                DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
+                if [[ "$DNODEID" != "" ]]; then
+                    taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create snode on dnode $DNODEID;"
+                    SNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show snodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+                    if [[ "$SNODETmp" != "" ]]; then
+                        SNODE_CREATED=1
+                        logger "INFO" "Created the snode for dnode $DNODEID"
+                    else 
+                        logger "ERROR" "failed to create snode for dnode $ENDPOINT through taos"
+                    fi
+                fi
+            else 
+                SNODE_CREATED=1
+                logger "INFO" "Snode $SNODETmp already created"
+            fi
+        else
+            #snode can only be create once;
+            SNODE_CREATED=1
+        fi
         if [[ "$FQDN" != "$FIRST_EP_HOST" ]]; then
             # second check mnode created
             MNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show mnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
