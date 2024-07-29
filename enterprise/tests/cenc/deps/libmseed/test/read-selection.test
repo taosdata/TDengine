@@ -1,8 +1,0 @@
-#!/bin/sh
-LD_LIBRARY_PATH=.. \
-DYLD_LIBRARY_PATH=.. \
-./lm_read_selection ../example/test.mseed - <<INPUT
-IU COLA * LHZ
-IU COLA * LH1 ? 2010,058,06:50:00 2010,058,06:55:00
-IU COLA * LH2 ? 2010-2-27T07:20:00 2010-2-27T07:30:00
-INPUT

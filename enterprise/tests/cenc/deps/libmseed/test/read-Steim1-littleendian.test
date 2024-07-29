@@ -1,4 +1,0 @@
-#!/bin/sh
-LD_LIBRARY_PATH=.. \
-DYLD_LIBRARY_PATH=.. \
-./lm_parse data/Steim1-AllDifferences-LE.mseed -D
