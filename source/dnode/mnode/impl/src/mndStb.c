@@ -482,7 +482,7 @@ SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
   if ((terrno = tNameFromString(&name, stbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) return NULL;
 
   char db[TSDB_TABLE_FNAME_LEN] = {0};
-  if ((terrno = tNameGetFullDbName(&name, db)) != 0) return NULL;
+  (void)tNameGetFullDbName(&name, db);
 
   return mndAcquireDb(pMnode, db);
 }
@@ -507,9 +507,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
     goto _err;
   }
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  if ((terrno = tNameGetFullDbName(&name, dbFName)) != 0) {
-    goto _err;
-  }
+  (void)tNameGetFullDbName(&name, dbFName);
 
   req.name = (char *)tNameGetTableName(&name);
   req.suid = pStb->uid;
