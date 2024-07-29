@@ -224,7 +224,7 @@ static int32_t tsdbMemTableIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
       iter->row->row = row[0];
 
-      tsdbTbDataIterNext(iter->memtData->tbIter);
+      (void)tsdbTbDataIterNext(iter->memtData->tbIter);
       goto _exit;
     }
 
