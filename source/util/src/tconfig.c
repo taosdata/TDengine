@@ -18,12 +18,12 @@
 #include "cJSON.h"
 #include "taoserror.h"
 #include "tenv.h"
+#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
 #include "tunit.h"
 #include "tutil.h"
-#include "tglobal.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
@@ -1214,8 +1214,9 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   char   *cfgLineBuf = NULL, *name, *value, *value2, *value3, *value4;
+  SJson  *pJson = NULL;
   int32_t olen, vlen, vlen2, vlen3, vlen4;
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   if (url == NULL || strlen(url) == 0) {
     uInfo("apoll url not load");
     TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1228,7 +1229,6 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   }
   p++;
 
-  SJson *pJson = NULL;
   if (strncmp(url, "jsonFile", 8) == 0) {
     char *filepath = p;
     if (!taosCheckExistFile(filepath)) {
@@ -1238,7 +1238,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
 
     TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
     if (pFile == NULL) {
-      TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
     }
     size_t fileSize = taosLSeekFile(pFile, 0, SEEK_END);
     char  *buf = taosMemoryMalloc(fileSize + 1);
@@ -1264,7 +1264,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
         uError("load json file parse error: %s", jsonParseError);
       }
       taosMemoryFreeClear(buf);
-      TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_DATA_FMT);
     }
     taosMemoryFreeClear(buf);
 
@@ -1273,16 +1273,19 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       cJSON *item = tjsonGetArrayItem(pJson, i);
       if (item == NULL) break;
       char *itemName = NULL, *itemValueString = NULL;
-      TAOS_CHECK_GOTO(tjsonGetObjectName(item, &itemName), NULL, _err_json);
-      TAOS_CHECK_GOTO(tjsonGetObjectValueString(item, &itemValueString), NULL, _err_json);
+      if (tjsonGetObjectName(item, &itemName) != 0) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_DATA_FMT);
+      }
+      if (tjsonGetObjectValueString(item, &itemValueString) != 0) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_DATA_FMT);
+      }
 
       if (itemValueString != NULL && itemName != NULL) {
         size_t itemNameLen = strlen(itemName);
         size_t itemValueStringLen = strlen(itemValueString);
-        void* px = taosMemoryRealloc(cfgLineBuf, itemNameLen + itemValueStringLen + 3);
+        void  *px = taosMemoryRealloc(cfgLineBuf, itemNameLen + itemValueStringLen + 3);
         if (NULL == px) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _err_json;
+          TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
         }
 
         cfgLineBuf = px;
@@ -1321,6 +1324,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       }
     }
     tjsonDelete(pJson);
+    pJson = NULL;
 
     // } else if (strncmp(url, "jsonUrl", 7) == 0) {
     // } else if (strncmp(url, "etcdUrl", 7) == 0) {
@@ -1333,8 +1337,12 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   uInfo("load from apoll url not implemented yet");
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 
-_err_json:
+_exit:
+  taosMemoryFree(cfgLineBuf);
   tjsonDelete(pJson);
+  if (code != 0) {
+    uError("failed to load from apollo url:%s at line %d since %s", url, lino, tstrerror(code));
+  }
   TAOS_RETURN(code);
 }
 
