@@ -4,7 +4,7 @@ title: Telegraf 写入
 description: 使用 Telegraf 向 TDengine 写入数据
 ---
 
-import Telegraf from "../14-reference/_telegraf.mdx"
+import Telegraf from "../../14-reference/_telegraf.mdx"
 
 Telegraf 是一款十分流行的指标采集开源软件。在数据采集和平台监控系统中，Telegraf 可以采集多种组件的运行信息，而不需要自己手写脚本定时采集，降低数据获取的难度。
 
