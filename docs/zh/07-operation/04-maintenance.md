@@ -94,3 +94,48 @@ split vgroup <vgroup_id>
 但在线更新 `supportVnodes` 不会产生持久化，当系统重启后，允许的最大 vnode 数量仍然由 taos.cfg 中配置的 `supportVnodes` 决定。
 
 如果通过在线更新或配置文件方式设置的 `supportVnodes` 小于 dnode 当前已经实际存在的 vnode 数量，已经存在的 vnode 不会受影响。但当尝试创建新的 database 时，是否能够创建成功则仍然受实际生效的 `supportVnodes` 参数决定。
+
+## 双副本
+
+双副本是一种特殊的数据库高可用配置，本节对它的使用和维护操作进行特别说明。
+
+### 查看 Vgroups 的状态
+
+通过以下 SQL 命令参看双副本数据库中各 Vgroup 的状态：
+
+```sql
+show arbgroups;
+
+select * from information_schema.ins_arbgroups;
+            db_name             |  vgroup_id  | v1_dnode | v2_dnode | is_sync | assigned_dnode |         assigned_token         |
+=================================================================================================================================
+ db                             |           2 |        2 |        3 |       0 | NULL           | NULL                           |
+ db                             |           3 |        1 |        2 |       0 |              1 | d1#g3#1714119404630#663        |
+ db                             |           4 |        1 |        3 |       1 | NULL           | NULL                           |
+
+```
+is_sync 有以下两种取值：
+- 0: Vgroup 数据未达成同步。在此状态下，如果 Vgroup 中的某一 Vnode 不可访问，另一个 Vnode 无法被指定为 `AssignedLeader` role，该 Vgroup 将无法提供服务。
+- 1: Vgroup 数据达成同步。在此状态下，如果 Vgroup 中的某一 Vnode 不可访问，另一个 Vnode 可以被指定为 `AssignedLeader` role，该 Vgroup 可以继续提供服务。
+
+assigned_dnode：
+- 标识被指定为 AssignedLeader 的 Vnode 的 DnodeId
+- 未指定 AssignedLeader时，该列显示 NULL
+
+assigned_token：
+- 标识被指定为 AssignedLeader 的 Vnode 的 Token
+- 未指定 AssignedLeader时，该列显示 NULL
+
+### 最佳实践
+
+1. 全新部署
+
+双副本的主要价值在于节省存储成本的同时能够有一定的高可用和高可靠能力。在实践中，推荐配置为：
+- N 节点集群 （其中 N>=3）
+- 其中 N-1 个 dnode 负责存储时序数据
+- 第 N 个 dnode 不参与时序数据的存储和读取，即其上不保存副本；可以通过 `supportVnodes` 这个参数为 0 来实现这个目标
+- 不存储数据副本的 dnode 对 CPU/Memory 资源的占用也较低，可以使用较低配置服务器
+
+2. 从单副本升级
+
+假定已经有一个单副本集群，其结点数为 N (N>=1)，欲将其升级为双副本集群，升级后需要保证 N>=3，且新加入的某个节点的 `supportVnodes` 参数配置为 0。在集群升级完成后使用  `alter database replica 2` 的命令修改某个特定数据库的副本数。
