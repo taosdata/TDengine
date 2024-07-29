@@ -134,7 +134,7 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
 
   if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   if (taosRenameFile(file, realfile) != 0) TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _OVER);
 
   code = 0;

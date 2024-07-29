@@ -320,7 +320,7 @@ static void taosLRUCacheShardEvictLRU(SLRUCacheShard *shard, size_t charge, SArr
     ASSERT(TAOS_LRU_ENTRY_IN_CACHE(old) && !TAOS_LRU_ENTRY_HAS_REFS(old));
 
     taosLRUCacheShardLRURemove(shard, old);
-    taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
+    (void)taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
 
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     ASSERT(shard->usage >= old->totalCharge);
@@ -531,7 +531,7 @@ static void taosLRUCacheShardEraseUnrefEntries(SLRUCacheShard *shard) {
     SLRUEntry *old = shard->lru.next;
     ASSERT(TAOS_LRU_ENTRY_IN_CACHE(old) && !TAOS_LRU_ENTRY_HAS_REFS(old));
     taosLRUCacheShardLRURemove(shard, old);
-    taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
+    (void)taosLRUEntryTableRemove(&shard->table, old->keyData, old->keyLength, old->hash);
     TAOS_LRU_ENTRY_SET_IN_CACHE(old, false);
     ASSERT(shard->usage >= old->totalCharge);
     shard->usage -= old->totalCharge;
@@ -577,7 +577,7 @@ static bool taosLRUCacheShardRelease(SLRUCacheShard *shard, LRUHandle *handle, b
     if (shard->usage > shard->capacity || eraseIfLastRef) {
       ASSERT(shard->lru.next == &shard->lru || eraseIfLastRef);
 
-      taosLRUEntryTableRemove(&shard->table, e->keyData, e->keyLength, e->hash);
+      (void)taosLRUEntryTableRemove(&shard->table, e->keyData, e->keyLength, e->hash);
       TAOS_LRU_ENTRY_SET_IN_CACHE(e, false);
     } else {
       taosLRUCacheShardLRUInsert(shard, e);
