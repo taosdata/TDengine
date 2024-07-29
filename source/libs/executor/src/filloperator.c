@@ -513,7 +513,13 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
     goto _error;
   }
 
-  pInfo->pFinalRes = createOneDataBlock(pInfo->pRes, false);
+  pInfo->pFinalRes = NULL;
+
+  code = createOneDataBlock(pInfo->pRes, false, &pInfo->pFinalRes);
+  if (code) {
+    goto _error;
+  }
+
   code = blockDataEnsureCapacity(pInfo->pFinalRes, pOperator->resultInfo.capacity);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

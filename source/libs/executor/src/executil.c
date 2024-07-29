@@ -251,9 +251,13 @@ SArray* createSortInfo(SNodeList* pNodeList) {
 }
 
 SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
-  int32_t numOfCols = LIST_LENGTH(pNode->pSlots);
-
-  SSDataBlock* pBlock = createDataBlock();
+  int32_t      numOfCols = LIST_LENGTH(pNode->pSlots);
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = createDataBlock(&pBlock);
+  if (code) {
+    terrno = code;
+    return NULL;
+  }
 
   pBlock->info.id.blockId = pNode->dataBlockId;
   pBlock->info.type = STREAM_INVALID;
@@ -267,7 +271,7 @@ SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
     idata.info.scale = pDescNode->dataType.scale;
     idata.info.precision = pDescNode->dataType.precision;
 
-    int32_t code = blockDataAppendColInfo(pBlock, &idata);
+    code = blockDataAppendColInfo(pBlock, &idata);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       blockDataDestroy(pBlock);
@@ -1029,11 +1033,9 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
                                         SStorageAPI* pStorageAPI) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
-  SSDataBlock* pResBlock = createDataBlock();
-  if (pResBlock == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+  SSDataBlock* pResBlock = NULL;
+  code = createDataBlock(&pResBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   for (int32_t i = 0; i < taosArrayGetSize(pColList); ++i) {
     SColumnInfoData colInfo = {0};
@@ -2626,9 +2628,12 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     qDebug("%s===stream===%s: Block is Null or Empty", taskIdStr, flag);
     return;
   }
-  char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf, taskIdStr));
-  taosMemoryFree(pBuf);
+  char*   pBuf = NULL;
+  int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
+  if (code == 0) {
+    qDebug("%s", pBuf);
+    taosMemoryFree(pBuf);
+  }
 }
 
 void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr) {
@@ -2643,8 +2648,11 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     char* pBuf = NULL;
     char  flagBuf[64];
     snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
-    qDebug("%s", dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr));
-    taosMemoryFree(pBuf);
+    int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr);
+    if (code == 0) {
+      qDebug("%s", pBuf);
+      taosMemoryFree(pBuf);
+    }
   }
 }
 

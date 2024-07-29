@@ -230,11 +230,11 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
     return terrno;
   }
 
-  taosThreadMutexInit(&fobj[0]->mutex, NULL);
+  (void)taosThreadMutexInit(&fobj[0]->mutex, NULL);
   fobj[0]->f[0] = f[0];
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
-  tsdbTFileName(pTsdb, f, fobj[0]->fname);
+  (void)tsdbTFileName(pTsdb, f, fobj[0]->fname);
   // fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
   fobj[0]->nlevel = vnodeNodeId(pTsdb->pVnode);
   return 0;
@@ -242,18 +242,18 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
 
 int32_t tsdbTFileObjRef(STFileObj *fobj) {
   int32_t nRef;
-  taosThreadMutexLock(&fobj->mutex);
+  (void)(void)taosThreadMutexLock(&fobj->mutex);
   ASSERT(fobj->ref > 0 && fobj->state == TSDB_FSTATE_LIVE);
   nRef = ++fobj->ref;
-  taosThreadMutexUnlock(&fobj->mutex);
+  (void)(void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   return 0;
 }
 
 int32_t tsdbTFileObjUnref(STFileObj *fobj) {
-  taosThreadMutexLock(&fobj->mutex);
+  (void)(void)taosThreadMutexLock(&fobj->mutex);
   int32_t nRef = --fobj->ref;
-  taosThreadMutexUnlock(&fobj->mutex);
+  (void)(void)taosThreadMutexUnlock(&fobj->mutex);
   ASSERT(nRef >= 0);
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
@@ -318,11 +318,11 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
 }
 
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {
-  taosThreadMutexLock(&fobj->mutex);
+  (void)taosThreadMutexLock(&fobj->mutex);
   ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
-  taosThreadMutexUnlock(&fobj->mutex);
+  (void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     tsdbTFileObjRemoveLC(fobj, true);
@@ -332,11 +332,11 @@ int32_t tsdbTFileObjRemove(STFileObj *fobj) {
 }
 
 int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
-  taosThreadMutexLock(&fobj->mutex);
+  (void)taosThreadMutexLock(&fobj->mutex);
   ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
-  taosThreadMutexUnlock(&fobj->mutex);
+  (void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     tsdbTFileObjRemoveLC(fobj, false);

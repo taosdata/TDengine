@@ -117,8 +117,13 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         }
         STqOffsetVal offset = {0};
         qStreamExtractOffset(task, &offset);
-        pHandle->block = createOneDataBlock(pDataBlock, true);
-        TSDB_CHECK_NULL(pDataBlock, code, line, END, terrno);
+        pHandle->block = NULL;
+
+        code = createOneDataBlock(pDataBlock, true, &pHandle->block);
+        if (code) {
+          return code;
+        }
+
         pHandle->blockTime = offset.ts;
         tOffsetDestroy(&offset);
         code = getDataBlock(task, pHandle, vgId, &pDataBlock);

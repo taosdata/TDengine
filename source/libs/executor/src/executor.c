@@ -695,9 +695,12 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   while (pRes != NULL) {
     SSDataBlock* p = NULL;
     if (blockIndex >= taosArrayGetSize(pTaskInfo->pResultBlockList)) {
-      SSDataBlock* p1 = createOneDataBlock(pRes, true);
-      void*        tmp = taosArrayPush(pTaskInfo->pResultBlockList, &p1);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+      SSDataBlock* p1 = NULL;
+      code = createOneDataBlock(pRes, true, &p1);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      void* tmp = taosArrayPush(pTaskInfo->pResultBlockList, &p1);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       p = p1;
     } else {
       p = *(SSDataBlock**)taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);

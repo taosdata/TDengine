@@ -1366,11 +1366,6 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
         if (ret < 0) {
           return ret;
         }
-        /*
-        if (pDecoder->ofps) {
-          taosArrayPush(pDecoder->ofps, &ofp);
-        }
-        */
         ofpCell = tdbPageGetCell(ofp, 0);
 
         if (nLeft <= ofp->maxLocal - sizeof(SPgno)) {
@@ -1411,11 +1406,6 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
         if (ret < 0) {
           return ret;
         }
-        /*
-        if (pDecoder->ofps) {
-          taosArrayPush(pDecoder->ofps, &ofp);
-        }
-        */
         ofpCell = tdbPageGetCell(ofp, 0);
 
         int lastKeyPage = 0;
@@ -1642,7 +1632,10 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
 
         SArray *ofps = pPage->pPager->ofps;
         if (ofps) {
-          taosArrayPush(ofps, &ofp);
+          if (taosArrayPush(ofps, &ofp) == NULL) {
+            ASSERT(0);
+            return terrno;
+          }
         }
 
         tdbPagerReturnPage(pPage->pPager, ofp, pTxn);

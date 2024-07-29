@@ -655,7 +655,10 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
   int32_t lino = 0;
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
-    *pNextStart = (char*)blockDecode(pRes, pData);
+    code = blockDecode(pRes, pData, (const char**) pNextStart);
+    if (code) {
+      return code;
+    }
   } else {  // extract data according to pColList
     char* pStart = pData;
 
@@ -672,14 +675,20 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       pStart += sizeof(SSysTableSchema);
     }
 
-    SSDataBlock* pBlock = createDataBlock();
+    SSDataBlock* pBlock = NULL;
+    code = createDataBlock(&pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData idata = createColumnInfoData(pSchema[i].type, pSchema[i].bytes, pSchema[i].colId);
       code = blockDataAppendColInfo(pBlock, &idata);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    (void)blockDecode(pBlock, pStart);
+    const char* pDummy = NULL;
+    code = blockDecode(pBlock, pStart, &pDummy);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     code = blockDataEnsureCapacity(pRes, pBlock->info.rows);
     QUERY_CHECK_CODE(code, lino, _end);
 
@@ -791,8 +800,8 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       pb = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
       blockDataCleanup(pb);
     } else {
-      pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
-      QUERY_CHECK_NULL(pb, code, lino, _end, terrno);
+      code = createOneDataBlock(pExchangeInfo->pDummyBlock, false, &pb);
+      QUERY_CHECK_NULL(pb, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
     }
 
     int32_t compLen = *(int32_t*)pStart;

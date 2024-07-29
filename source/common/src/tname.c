@@ -298,6 +298,7 @@ int32_t buildChildTableName(RandTableName* rName) {
   if (sb.buf == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     taosStringBuilderAppendChar(&sb, ',');
@@ -305,6 +306,7 @@ int32_t buildChildTableName(RandTableName* rName) {
     if (tagKv == NULL) {
       return TSDB_CODE_SML_INVALID_DATA;
     }
+
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
     taosStringBuilderAppendChar(&sb, '=');
     if (IS_VAR_DATA_TYPE(tagKv->type)) {
@@ -313,6 +315,7 @@ int32_t buildChildTableName(RandTableName* rName) {
       taosStringBuilderAppendStringLen(&sb, (char*)(&(tagKv->value)), tagKv->length);
     }
   }
+
   size_t    len = 0;
   char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
   T_MD5_CTX context;

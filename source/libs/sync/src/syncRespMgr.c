@@ -142,7 +142,9 @@ static int32_t syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 
     int64_t nowMS = taosGetTimestampMs();
     if (nowMS - pStub->createTime > ttl || -1 == ttl) {
-      taosArrayPush(delIndexArray, pSeqNum);
+      if (taosArrayPush(delIndexArray, pSeqNum) == NULL) {
+        return terrno;
+      }
       cnt++;
 
       SFsmCbMeta cbMeta = {

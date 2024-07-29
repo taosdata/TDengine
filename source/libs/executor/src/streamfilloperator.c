@@ -1394,11 +1394,8 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
     }
   }
 
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
-  if (!pInfo->pDelRes) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    QUERY_CHECK_CODE(code, lino, _error);
-  }
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   code = blockDataEnsureCapacity(pInfo->pDelRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);

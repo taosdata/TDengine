@@ -37,19 +37,30 @@ int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t
   for (int32_t i = 0; i < blockNum; i++) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pReq->data, i);
     SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
+    if (pDataBlock == NULL) {
+      return terrno;
+    }
 
     int32_t compLen = *(int32_t*)pRetrieve->data;
     int32_t fullLen = *(int32_t*)(pRetrieve->data + sizeof(int32_t));
 
     char* pInput = pRetrieve->data + PAYLOAD_PREFIX_LEN;
     if (pRetrieve->compressed && compLen < fullLen) {
-      char*   p = taosMemoryMalloc(fullLen);
+      char* p = taosMemoryMalloc(fullLen);
+      if (p == NULL) {
+        return terrno;
+      }
+
       int32_t len = tsDecompressString(pInput, compLen, 1, p, fullLen, ONE_STAGE_COMP, NULL, 0);
       ASSERT(len == fullLen);
       pInput = p;
     }
 
-    (void) blockDecode(pDataBlock, pInput);
+    const char* pDummy = NULL;
+    code = blockDecode(pDataBlock, pInput, &pDummy);
+    if (code) {
+      return code;
+    }
 
     if (pRetrieve->compressed && compLen < fullLen) {
       taosMemoryFree(pInput);
@@ -109,18 +120,31 @@ void destroyStreamDataBlock(SStreamDataBlock* pBlock) {
 }
 
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData, const char* id) {
-  SArray* pArray = taosArrayInit(1, sizeof(SSDataBlock));
+  const char*        pDummy = NULL;
+  SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
+  SArray*            pArray = taosArrayInit(1, sizeof(SSDataBlock));
   if (pArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     stError("failed to prepare retrieve block, %s", id);
     return terrno;
   }
 
-  (void) taosArrayPush(pArray, &(SSDataBlock){0});
-  SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
-  SSDataBlock*       pDataBlock = taosArrayGet(pArray, 0);
+  void* px = taosArrayPush(pArray, &(SSDataBlock){0});
+  if (px == NULL) {
+    taosArrayDestroy(pArray);
+    return terrno;
+  }
 
-  (void) blockDecode(pDataBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN);
+  SSDataBlock* pDataBlock = taosArrayGet(pArray, 0);
+  if (pDataBlock == NULL) {
+    taosArrayDestroy(pArray);
+    return terrno;
+  }
+
+  int32_t code = blockDecode(pDataBlock, pRetrieve->data + PAYLOAD_PREFIX_LEN, &pDummy);
+  if (code) {
+    taosArrayDestroy(pArray);
+    return code;
+  }
 
   // TODO: refactor
   pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
@@ -132,7 +156,7 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   pData->reqId = pReq->reqId;
   pData->blocks = pArray;
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t streamDataSubmitNew(SPackedData* pData, int32_t type, SStreamDataSubmit** pSubmit) {
@@ -178,7 +202,7 @@ int32_t streamMergedSubmitNew(SStreamMergedSubmit** pSubmit) {
 int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubmit) {
   void* p = taosArrayPush(pMerged->submits, &pSubmit->submit);
   if (p == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (pSubmit->ver > pMerged->ver) {
@@ -260,8 +284,12 @@ void streamFreeQitem(SStreamQueueItem* data) {
     int32_t sz = taosArrayGetSize(pMerge->submits);
     for (int32_t i = 0; i < sz; i++) {
       SPackedData* pSubmit = (SPackedData*)taosArrayGet(pMerge->submits, i);
+      if (pSubmit == NULL) {
+        continue;
+      }
       taosMemoryFree(pSubmit->msgStr);
     }
+
     taosArrayDestroy(pMerge->submits);
     taosFreeQitem(pMerge);
   } else if (type == STREAM_INPUT__REF_DATA_BLOCK) {

@@ -1275,18 +1275,23 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       char *itemName = NULL, *itemValueString = NULL;
       TAOS_CHECK_GOTO(tjsonGetObjectName(item, &itemName), NULL, _err_json);
       TAOS_CHECK_GOTO(tjsonGetObjectValueString(item, &itemValueString), NULL, _err_json);
+
       if (itemValueString != NULL && itemName != NULL) {
         size_t itemNameLen = strlen(itemName);
         size_t itemValueStringLen = strlen(itemValueString);
-        cfgLineBuf = taosMemoryRealloc(cfgLineBuf, itemNameLen + itemValueStringLen + 3);
-        if (NULL == cfgLineBuf) {
+        void* px = taosMemoryRealloc(cfgLineBuf, itemNameLen + itemValueStringLen + 3);
+        if (NULL == px) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _err_json;
         }
 
+        cfgLineBuf = px;
+        (void)memset(cfgLineBuf, 0, itemNameLen + itemValueStringLen + 3);
+
         (void)memcpy(cfgLineBuf, itemName, itemNameLen);
         cfgLineBuf[itemNameLen] = ' ';
         (void)memcpy(&cfgLineBuf[itemNameLen + 1], itemValueString, itemValueStringLen);
+
         (void)paGetToken(cfgLineBuf, &name, &olen);
         if (olen == 0) continue;
         name[olen] = 0;

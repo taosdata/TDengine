@@ -114,7 +114,11 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   initLimitInfo(pProjPhyNode->node.pLimit, pProjPhyNode->node.pSlimit, &pInfo->limitInfo);
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
+  pInfo->pFinalRes = NULL;
+
+  code = createOneDataBlock(pResBlock, false, &pInfo->pFinalRes);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
@@ -366,8 +370,8 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         pFinalRes->info.version = pRes->info.version;
 
         // continue merge data, ignore the group id
-        code = blockDataMerge(pFinalRes, pRes);
-        if (code) {
+        int32_t ret = blockDataMerge(pFinalRes, pRes);
+        if (ret < 0) {
           pTaskInfo->code = code;
           return code;
         }

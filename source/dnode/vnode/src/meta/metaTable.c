@@ -341,7 +341,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
       break;
     }
 
-    taosArrayPush(tbUidList, &(((SCtbIdxKey *)pKey)->uid));
+    (void)taosArrayPush(tbUidList, &(((SCtbIdxKey *)pKey)->uid));
   }
 
   tdbTbcClose(pCtbIdxc);
@@ -405,7 +405,7 @@ static void metaGetSubtables(SMeta *pMeta, int64_t suid, SArray *uids) {
       break;
     }
 
-    taosArrayPush(uids, &(((SCtbIdxKey *)pKey)->uid));
+    (void)taosArrayPush(uids, &(((SCtbIdxKey *)pKey)->uid));
   }
 
   tdbFree(pKey);
@@ -1033,7 +1033,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
   }
 
   if ((type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE) && tbUids) {
-    taosArrayPush(tbUids, &uid);
+    (void)taosArrayPush(tbUids, &uid);
 
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
       tsdbCacheDropTable(pMeta->pVnode->pTsdb, uid, suid, NULL);
@@ -1135,7 +1135,7 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
       tbFName[TSDB_TABLE_FNAME_LEN] = '\0';
       int32_t ret = vnodeValidateTableHash(pMeta->pVnode, tbFName);
       if (ret < 0 && terrno == TSDB_CODE_VND_HASH_MISMATCH) {
-        taosArrayPush(uidList, &me.uid);
+        (void)taosArrayPush(uidList, &me.uid);
       }
     }
     tDecoderClear(&dc);
@@ -1783,11 +1783,11 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
         } else {
           memcpy(&val.i64, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
         }
-        taosArrayPush(pTagArray, &val);
+        (void)taosArrayPush(pTagArray, &val);
       } else {
         STagVal val = {.cid = pCol->colId};
         if (tTagGet(pOldTag, &val)) {
-          taosArrayPush(pTagArray, &val);
+          (void)taosArrayPush(pTagArray, &val);
         }
       }
     }
@@ -2171,7 +2171,7 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
     }
 
     SMetaPair pair = {.key = pKey, nKey = nKey};
-    taosArrayPush(tagIdxList, &pair);
+    (void)taosArrayPush(tagIdxList, &pair);
   }
   tdbTbcClose(pTagIdxc);
 

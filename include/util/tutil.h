@@ -16,12 +16,10 @@
 #ifndef _TD_UTIL_UTIL_H_
 #define _TD_UTIL_UTIL_H_
 
-#include "os.h"
 #include "tcrc32c.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tmd5.h"
-#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -160,12 +158,12 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     return (terrno = (CODE)); \
   } while (0)
 
-#define TAOS_CHECK_RETURN(CMD)       \
-  do {                               \
-    int32_t code = (CMD);            \
-    if (code != TSDB_CODE_SUCCESS) { \
-      TAOS_RETURN(code);             \
-    }                                \
+#define TAOS_CHECK_RETURN(CMD)      \
+  do {                              \
+    int32_t __c = (CMD);            \
+    if (__c != TSDB_CODE_SUCCESS) { \
+      TAOS_RETURN(__c);             \
+    }                               \
   } while (0)
 
 #define TAOS_CHECK_GOTO(CMD, LINO, LABEL) \
