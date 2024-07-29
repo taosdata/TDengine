@@ -248,7 +248,11 @@ static int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t downst
     taosMemoryFree(pExc);
     return terrno;
   }
-  taosArrayPush(pExc->basic.uidList, pUid);
+  if (NULL == taosArrayPush(pExc->basic.uidList, pUid)) {
+    taosArrayDestroy(pExc->basic.uidList);
+    taosMemoryFree(pExc);
+    return terrno;
+  }
 
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
   (*ppRes)->downstreamIdx = downstreamIdx;
