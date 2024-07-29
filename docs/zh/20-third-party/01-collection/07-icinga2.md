@@ -4,7 +4,7 @@ title: icinga2 写入
 description: 使用 icinga2 写入 TDengine
 ---
 
-import Icinga2 from "../14-reference/_icinga2.mdx"
+import Icinga2 from "../../14-reference/_icinga2.mdx"
 
 icinga2 是一款开源主机、网络监控软件，最初由 Nagios 网络监控应用发展而来。目前，icinga2 遵从 GNU GPL v2 许可协议发行。
 

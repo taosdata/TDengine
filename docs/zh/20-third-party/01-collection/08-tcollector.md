@@ -4,7 +4,7 @@ title: TCollector 写入
 description: 使用 TCollector 写入 TDengine
 ---
 
-import TCollector from "../14-reference/_tcollector.mdx"
+import TCollector from "../../14-reference/_tcollector.mdx"
 
 TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给数据库。
 
