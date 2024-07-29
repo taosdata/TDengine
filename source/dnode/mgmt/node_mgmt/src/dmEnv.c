@@ -47,8 +47,8 @@ static int32_t dmCheckRepeatInit(SDnode *pDnode) {
 }
 
 static int32_t dmInitSystem() {
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
+  (void)taosIgnSIGPIPE();
+  (void)taosBlockSIGPIPE();
   taosResolveCRC();
   return 0;
 }
@@ -200,10 +200,10 @@ void dmCleanup() {
   auditCleanup();
   syncCleanUp();
   walCleanUp();
-  udfcClose();
+  (void)udfcClose();
   udfStopUdfd();
   taosStopCacheRefreshWorker();
-  dmDiskClose();
+  (void)dmDiskClose();
   DestroyRegexCache();
 
 #if defined(USE_S3)
