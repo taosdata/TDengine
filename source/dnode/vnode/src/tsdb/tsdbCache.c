@@ -2419,7 +2419,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
     if (!state->pBrinBlock) {
       state->pBrinBlock = &state->brinBlock;
     } else {
-      tBrinBlockClear(&state->brinBlock);
+      (void)tBrinBlockClear(&state->brinBlock);
     }
 
     TAOS_CHECK_GOTO(tsdbDataFileReadBrinBlock(state->pr->pFileReader, pBrinBlk, &state->brinBlock), &lino, _err);
@@ -2431,7 +2431,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
   if (SFSNEXTROW_BRINBLOCK == state->state) {
   _next_brinrecord:
     if (state->iBrinRecord < 0) {  // empty brin block, goto _next_brinindex
-      tBrinBlockClear(&state->brinBlock);
+      (void)tBrinBlockClear(&state->brinBlock);
       goto _next_brinindex;
     }
 
@@ -2691,7 +2691,7 @@ int32_t clearNextRowFromFS(void *iter) {
   }
 
   if (state->pBrinBlock) {
-    tBrinBlockDestroy(state->pBrinBlock);
+    (void)tBrinBlockDestroy(state->pBrinBlock);
     state->pBrinBlock = NULL;
   }
 

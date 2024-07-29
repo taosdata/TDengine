@@ -167,7 +167,7 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
   TARRAY2_DESTROY(ctx->brinBlkArray, NULL);
-  tBrinBlockDestroy(ctx->brinBlock);
+  (void)tBrinBlockDestroy(ctx->brinBlock);
   tBlockDataDestroy(ctx->blockData);
   tMapDataClear(ctx->mDataBlk);
   taosArrayDestroy(ctx->aBlockIdx);

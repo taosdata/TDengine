@@ -1022,7 +1022,8 @@ static int32_t tsdbSnapWriteTombData(STsdbSnapWriter* writer, SSnapDataHdr* hdr)
   code = tsdbSnapWriteDecmprTombBlock(hdr, tombBlock);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tTombBlockGet(tombBlock, 0, &record);
+  code = tTombBlockGet(tombBlock, 0, &record);
+  TSDB_CHECK_CODE(code, lino, _exit);
   int32_t fid = tsdbKeyFid(record.skey, writer->minutes, writer->precision);
   if (!writer->ctx->fsetWriteBegin || fid != writer->ctx->fid) {
     code = tsdbSnapWriteFileSetEnd(writer);
@@ -1045,7 +1046,8 @@ static int32_t tsdbSnapWriteTombData(STsdbSnapWriter* writer, SSnapDataHdr* hdr)
   ASSERT(writer->ctx->hasData == false);
 
   for (int32_t i = 0; i < TOMB_BLOCK_SIZE(tombBlock); ++i) {
-    tTombBlockGet(tombBlock, i, &record);
+    code = tTombBlockGet(tombBlock, i, &record);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     code = tsdbSnapWriteTombRecord(writer, &record);
     TSDB_CHECK_CODE(code, lino, _exit);
