@@ -35,6 +35,7 @@ const historianLiveTable = 'Runtime.dbo.Live'
 const historianSynchronizeMode = 'synchronize'
 const opcuaSecuritymodeValue = 'None'
 const opcGroupShowValue = 'csv_config_file'
+const piAdvancedShowValue = 'multi-column'
 const authenticationField = uuid();
 export const datasetsField = uuid();
 let currentType = '';
@@ -143,7 +144,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     handleGroups(groups, paramsConfig, false, id);
     handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
-    handleAdvanced(advanced, paramsConfig)
+    handleAdvanced(advanced, paramsConfig, id)
     // 先处理protocol
     if(id=='csv'){
       config.parser=parserValue
@@ -968,7 +969,7 @@ function handleParams(params, paramsConfig) {
     ]
   }
 */ 
-function handleAdvanced(advanced, paramsConfig) {
+function handleAdvanced(advanced, paramsConfig, id) {
   if (!advanced) return;
   const { params, collapsible, collapsed = true, name, description } = advanced
   const children = [];
@@ -992,9 +993,17 @@ function handleAdvanced(advanced, paramsConfig) {
       field: handleField(name), 
       description: d1 ?? d2, 
       defaultValue: value,
-      if: !hidden,
+      // if: !hidden,
       placeholder,
       required,
+      if: (currentData, originalData) => {
+        if (id == 'pi') {
+          const datasetsData = originalData[datasetsField];
+          if (piAdvancedShowValue == datasetsData[valueField]) return true
+          return ['batch_size', 'batch_timeout', 'log_level'].includes(name) 
+        }
+        return !hidden
+      }
     };
     handleHintType(config, hint, value);
     children.push(config);
