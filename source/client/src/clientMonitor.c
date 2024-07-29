@@ -489,6 +489,7 @@ static int32_t monitorReadSend(int64_t clusterId, TdFilePtr pFile, int64_t* offs
   SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
   if (pInst == NULL) {
     tscError("failed to get app instance by clusterId:%" PRId64, clusterId);
+    taosMemoryFree(fileName);
     return terrno;
   }
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
