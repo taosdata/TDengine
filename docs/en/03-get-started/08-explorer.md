@@ -33,6 +33,19 @@ cluster = "http://localhost:6041"
 
 # taosX gRPC address
 x_api = "http://localhost:6050"
+
+# GRPC endpoint for "Agent"s.
+grpc = "http://localhost:6055"
+
+# CORS configuration switch, it allows cross-origin access
+cors = false
+
+# Enable ssl: if the following two files exist, enable ssl protocol
+[ssl]
+# SSL certificate
+#certificate = "/path/to/ca.file"
+# SSL certificate key
+#certificate_key = "/path/to/key.file"
 ```
 
 Description:
@@ -43,7 +56,10 @@ Description:
 - `log_level`: Log level, optional values are "error", "warn", "info", "debug", "trace".
 - `cluster`: The address of the taosAdapter in the TDengine cluster.
 - `x_api`: The gRPC address of taosX.
+- `grpc`: GRPC endpoint for "Agent"s.
 - `cors`: CORS configuration switch, default is `false`. When set to `true`, it allows cross-origin access.
+- `ssl.certificate`: SSL certificate(If both the certificate and certificate_key are set, enable HTTPS service, otherwise, do not enable).
+- `ssl.certificate_key`: SSL certificate key.
 
 ## Start taosExplorer
 

@@ -7,7 +7,7 @@ sidebar_label: 部署 taosAdapter
 
 ## 安装
 
-taosAdapter 无需独立安装。在安装了 TDengine server 之后，系统中就已经具备了 taosAdapter。但如果想在不同的服务器上分别部署 TDengine 集群 (taosd 组件) 和 taosAdapter，则需要在这些服务器上都安装 TDengine server 安装包。具体请参数 [安装](../install)。关于 taosAdapter 的配置和使用细节，请参考 [taosAdapter](../../reference/taosAdapter)。
+taosAdapter 无需独立安装。在安装了 TDengine server 之后，系统中就已经具备了 taosAdapter。但如果想在不同的服务器上分别部署 TDengine 集群 (taosd 组件) 和 taosAdapter，则需要在这些服务器上都安装 TDengine server 安装包。具体请参数 [安装](../install)。关于 taosAdapter 的配置和使用细节，请参考 [taosAdapter](../../reference/taosadapter)。
 
 ## 单一实例部署
 

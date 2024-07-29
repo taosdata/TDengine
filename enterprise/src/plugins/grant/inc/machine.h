@@ -189,9 +189,10 @@ typedef enum {
   CONN_TYPE_POSTGRES = 11,
   CONN_TYPE_ORACLE = 12,
   CONN_TYPE_MSSQL = 13,
+  CONN_TYPE_MONGODB = 14,
   // add future data ins here
   // CONN_TYPE_FUTURE_DATA_IN = XX,
-  CONN_TYPE_DYN_MAX = 14,
+  CONN_TYPE_DYN_MAX = 15,
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
@@ -473,16 +474,16 @@ typedef struct {
   char   *key;
 } SActiveCodeInfo;
 
-char *grantGetMachineSerials();
-bool  grantGenActiveCode(SGrantObj *grant);
-bool  grantParseActiveCode(SGrantObj *grant, char **ppKey);
-bool  grantConnGenActiveCode(SGrantConnObj *grant);
-bool  grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
-bool  grantCheckMachineCode(SGrantObj *grant);
-bool  grantCheckClusterId(SGrantObj *grant);
-void  grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pConnObj);
-bool  grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
-bool  grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
+char   *grantGetMachineSerials();
+int32_t grantGenActiveCode(SGrantObj *grant);
+bool    grantParseActiveCode(SGrantObj *grant, char **ppKey);
+int32_t grantConnGenActiveCode(SGrantConnObj *grant);
+bool    grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
+bool    grantCheckMachineCode(SGrantObj *grant);
+bool    grantCheckClusterId(SGrantObj *grant);
+void    grantActiveSystem(const char *cfgFile, SGrantObj *pObj, SGrantConnObj *pConnObj);
+bool    grantExplainActiveCode(SGrantObj *grant, SActiveCodeInfo *info);
+bool    grantConnExplainActiveCode(SGrantConnObj *grant, SActiveCodeInfo *info);
 
 int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
 int32_t grantUniqGenMachinesChksum(SArray *pMachines, uint32_t *pChecksum);

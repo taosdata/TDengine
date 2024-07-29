@@ -1,6 +1,6 @@
 ---
-title: "Mqtt"
-sidebar_label: "Mqtt"
+title: "MQTT"
+sidebar_label: "MQTT"
 ---
 
 This section explains how to create a data migration task through the Explorer interface to migrate data from MQTT to
@@ -11,8 +11,7 @@ the current TDengine cluster.
 MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol that is easy to implement
 and use.
 
-TDengine can efficiently read the data from MQTT and write to TDengine to achieve historical data migration or real-time
-data streaming.
+TDengine can efficiently read the data from MQTT and write to TDengine to achieve real-time data streaming.
 
 ## Create Task
 
@@ -26,12 +25,12 @@ In the **Data In** page，click **+Add Source** button to enter the data source 
 
 In the **Name** field, enter the task name, such as "test_mqtt";
 
-In the **Type** drop-down list, select **MQTT**.
+In the **Type** dropdown list, select **MQTT**.
 
-**Agent** is not required, if necessary, you can select the specified agent from the drop-down box, you can also click
+**Agent** is not required, if necessary, you can select the specified agent from the dropdown box, you can also click
 the right **+ Create New Agent** button [Create New Agent](#Create New Agent).
 
-Select a target database from the **Target DB** drop-down list, or click the **+Create Database** button on the right
+Select a target database from the **Target DB** dropdown list, or click the **+Create Database** button on the right
 [Create Database](#Create Database).
 
 ![mqtt-02.png](./mqtt-02.png)
@@ -58,11 +57,11 @@ If the MQTT broker uses an SSL certificate, you need to upload the certificate f
 
 In the **Collect** area, fill in the configuration parameters related to the collection task.
 
-In the **MQTT Protocol** drop-down list, select the MQTT protocol version. There are three
+In the **MQTT Protocol** dropdown list, select the MQTT protocol version. There are three
 options: `3.1`, `3.1.1`, `5.0`.
 The default value is 3.1.
 
-In the **Client ID** field, fill in the client ID.
+In the **Client ID** field, fill in the client ID.When creating multiple tasks, the Client ID must be unique under the same MQTT Address.
 
 In the **Keep Alive** field, enter the keep alive interval. If the proxy does not receive any messages from the client
 within the keep alive interval, it will assume that the client has disconnected and close the connection.
@@ -79,61 +78,75 @@ In the **Subscribe Topic and QoS Configuration** field, fill in the Topic name t
 ### 6. Configure MQTT Payload
 
 In the **MQTT Payload Parser** area, fill in the configuration parameters related to the payload parsing.
-MQTT Souce will upload the following fields:
-
-* ts: timestamp of the collection.
-* topic: the topic name to subscribe.
-* qos: the topic qos.
-* payload: the data payload of the message.
 
 taosX can extract JSON-formatted data from value and then split it into new columns.
 
+#### 6.1 Parse
+There are three ways to get sample data:
+
+Click the **Retrieve From Server** button from the server to get the sample data from MQTT.
+
+Click the **Upload File** button to upload the CSV file and get the sample data.
+
 In the **Message Body** field, fill in the sample data in the Kafka message body, for example:
-`{"id": 1, "message": "hello""}`. This sample data will be used to configure the extraction and filtering conditions
+`{"id": 1, "message": "hello-word"}{"id": 2, "message": "hello-word"}`. This sample data will be used to configure the extraction and filtering conditions
 later.
 
 ![mqtt-06.png](./mqtt-06.png)
 
-In the **Extract or Split From A column** field, fill in the fields to be extracted or split from the message body, for
-example: split the value field into `id` and `message` fields, select the json extractor, and configure the expression
-as
-`id::int;message::binary`.
+Click the **Preview** button to preview parse results.
 
-Click the **Check** button to view the split result.
+![mqtt-07.png](./mqtt-07.png)
+
+#### 6.2 Extract or Split From A column
+
+In the **Extract or Split From A column** field, fill in the fields to be extracted or split from the message body, for example: split the `message` field into `message_0` and `message_1` fields, with `split` Extractor, separator filled as `-`, number filled as `2`.
+
+![mqtt-08.png](./mqtt-08.png)
 
 Click the **Delete** button to delete the current extraction rule.
 
 Click the **Add** button to add more extraction rules.
 
-![mqtt-07.png](./mqtt-07.png)
-
-In the **Filter** field, fill in the filter conditions, for example: fill in `id != 0`, then only the data with id not
-equal to 0 will be written to TDengine.
-
-Click the **Check** button to view the filter result.
-
-Click the **Delete** button to delete the current filter rule.
-
-Click the **Add** button to add more filter rules.
-
-![mqtt-08.png](./mqtt-08.png)
-
-In the **Target Super Table** drop-down list, select a target super table, or click the **+Create STable** button on the
-right to [Create Super Table](#Create STable).
-
-In the **Mapping** area, fill in the sub-table name in the target super table, for example: `t_{id}`.
-
-Click the **Calculate** button to view the mapping result.
+Click the **Preview** button to view the Extract or Split From A column result.
 
 ![mqtt-09.png](./mqtt-09.png)
 
+#### 6.3 Filter
+
+In the **Filter** field, enter the filter conditions. For example, input `id != 1`, then only the data with an id not equal to 1 will be written to TDengine.
+
+![mqtt-10.png](./mqtt-10.png)
+
+Click the **Delete** button to delete the current filter rule.
+
+Click the **Preview** button to view the filter result.
+
+![mqtt-11.png](./mqtt-11.png)
+
+#### 6.4 Mapping
+
+In the **Target Super Table** dropdown list, select a target super table, or click the **+Create STable** button on the right to [Create Super Table](#Create STable).
+
+In the **Mapping** area, fill in the sub-table name in the target super table, for example: `t_{id}`.Fill in the mapping rules according to the requirements, where mapping supports setting default values.
+
+![mqtt-12.png](./mqtt-12.png)
+
+Click the **Preview** button to view the mapping result.
+
+![mqtt-13.png](./mqtt-13.png)
+
 ### 7. Advanced Settings
 
-In the **Log Level** drop-down list, select the log level. There are five
-options: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`.
-The default value is INFO.
+In the **Log Level** dropdown list, choose the log level from the available options: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`. The default value is INFO.
 
-![mqtt-10](./mqtt-10.png)
+When the **Keep Raw Data**  is enabled, the following two parameters take effect.
+
+**Max Keep Days:** The number of days to keep the raw data. The default value is 1 day.
+
+**Raw Data Directory:**, The directory to store the raw data. The default value is $DATA_DIR/tasks/:id/rawdata/.
+
+![mqtt-14](./mqtt-14.png)
 
 ### 8. Finish
 
@@ -141,12 +154,4 @@ Click the **Add** button to complete the creation of the MQTT to TDengine data s
 
 ## View Task Status
 
-After submitting the task, you can go back to the data source page to view the task status. The task is first added to
-the execution queue and will start running later.
-
-![mqtt-11](./mqtt-11.png)
-
-After the task starts running, you can click the **View** button to monitor the dynamic statistics of the task.
-You can also click the **View** button on the right to view the task details.
-
-![mqtt-12](./mqtt-12.png)
+Click **Submit** button to complete the task of creating MQTT data synchronization to TDengine and return to [Data Source List](../../explorer/#data-in) page to view the task execution.

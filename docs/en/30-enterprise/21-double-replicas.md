@@ -58,3 +58,17 @@ DROP DATABASE db;
 1. Splite or Redistribute the Vgroup associated with a two-replication database is not supported, the command will be rejected
 2. The replica parameter of a database with 2 replicas can't be altered
 3. Database with single replica can be altered to 2 or 3 replicas
+
+## Recommendations
+
+1. New Deployment
+
+The key value of 2 replicas is to reduce storage cost while maintaining a certain level of high availability and high reliability. The recommended cluster deployment is as below:
+- N dnodes, while >=3
+- (N-1) dnodes are responsible for storing time series data
+- Only 1 dnode is not involved in storing and reading time series data, i.e. no data replica is stored on it. You can configure parameter `supportVnodes` as 0 in `taos.cfg` to achieve this purpose.
+- The dnode without storing any replica can be a low end server, because the usage of CPU/Memory is much lower than a normal dnode
+
+2. Upgrade From Single Replica
+
+Assuming you already have a cluster on which there are a few databases of single replica, the number of dnodes in this cluster is equal to or greater than 1. After upgrading, you need to make sure there are N (N>=3) dndoes in the cluster, while only one dnode is configured to have zero vnodes, i.e. `supportVnodes` is configured as 0. After that, you can use `alter database replica 2` to change one database to 2 replicas.

@@ -38,6 +38,7 @@ OutputDir={#MyAppOutputDir}
 OutputBaseFilename={#MyAppInstallName}
 SetupIconFile={#MyAppIco}
 Compression=lzma
+CloseApplications=force
 SolidCompression=yes
 DisableDirPage=yes
 Uninstallable=yes
@@ -54,6 +55,15 @@ Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: start-all.bat; DestDir: "{app}"; Flags: igNoreversion;
 Source: stop-all.bat; DestDir: "{app}"; Flags: igNoreversion;
+Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos.exe')
+Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; DestName: "{#CusPrompt}Benchmark.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosBenchmark.exe')
+Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosdump.exe')
+Source: {#MyAppSourceDir}\taosd.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosd.exe')
+Source: {#MyAppSourceDir}\taosadapter.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosadapter.exe')
+Source: {#MyAppSourceDir}\taoskeeper.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taoskeeper.exe')
+Source: {#MyAppSourceDir}\taosx.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosx.exe')
+Source: {#MyAppSourceDir}\taos-explorer.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos-explorer.exe')
+
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
@@ -66,9 +76,6 @@ Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExc
 Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\*.dll; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\*.xml; DestDir: "{app}"; Excludes: "taosx-agent-srv.xml"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; DestName: "{#CusPrompt}Benchmark.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
 
 [Components]
 Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en";
@@ -106,6 +113,38 @@ begin
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
 end;
 
+
+procedure TaskKill(FileName: String);
+var
+  ResultCode: Integer;
+begin
+  if (FileName = 'taosd.exe') or (FileName = 'taosadapter.exe') or (FileName = 'taos-explorer.exe')  or (FileName = 'taosx.exe')  or (FileName = 'taoskeeper.exe') then
+  begin
+    Exec('sc.exe', ' stop ' + FileName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode); 
+    Exec('sc.exe', ' delete ' + FileName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);  
+  end;
+
+  Exec('taskkill.exe', '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+
+function IsVC2015x64Installed(): Boolean;
+var
+  InstallKey: String;
+begin
+  InstallKey := 'SOFTWARE\Classes\Installer\Dependencies\VC,redist.x64,amd64,14.40,bundle';
+  Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey)
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result :=True
+  if not IsVC2015x64Installed() then  
+  begin
+    MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) before install TDengine', mbInformation, MB_OK);
+    Result :=False
+  end;
+end;
 
 var
   OutputMsgCheckJava: TOutputMsgMemoWizardPage;
@@ -369,7 +408,7 @@ begin
   CustomFinishedLabel3 := TLabel.Create(WizardForm);  
   CustomFinishedLabel3.Parent := WizardForm.FinishedPage;  
   CustomFinishedLabel3.Left := WizardForm.FinishedHeadingLabel.Left;
-  CustomFinishedLabel3.Top := CustomFinishedLabel1.Top + CustomFinishedLabel1.Height;
+  CustomFinishedLabel3.Top := CustomFinishedLabel1.Top + CustomFinishedLabel1.Height + ScaleY(8);
   CustomFinishedLabel3.Width := WizardForm.FinishedHeadingLabel.Width; 
   CustomFinishedLabel3.Caption := 'To use all TDengine services, please run start-all.bat under ' + InstallPath + ' directory';
 
@@ -479,6 +518,12 @@ RunOnceId: "deltaosx-agent"; Filename: "{app}\\taosx-agent-srv.exe"; Parameters:
 RunOnceId: "deltaos-explorer"; Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
 RunOnceId: "deltaosd"; Filename: {sys}\sc.exe; Parameters: "delete taosd" ; Flags: runhidden
+RunOnceId: "taskkilltaos"; Filename: "taskkill"; Parameters: "/im ""taos.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaosd"; Filename: "taskkill"; Parameters: "/im ""taosd.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaosadapter"; Filename: "taskkill"; Parameters: "/im ""taosadapter.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaoskeeper"; Filename: "taskkill"; Parameters: "/im ""taoskeeper.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaosx"; Filename: "taskkill"; Parameters: "/im ""taosx.exe"" /f"; Flags: runhidden
+RunOnceId: "taskkilltaos-explorer"; Filename: "taskkill"; Parameters: "/im ""taos-explorer.exe"" /f"; Flags: runhidden
 
 RunOnceId: "uninstall"; Filename: "{uninstallexe}"; Parameters: "/SILENT"; Check: fileexists('{uninstallexe}')
 RunOnceId: "removeopc1"; Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC

@@ -5,21 +5,38 @@ sidebar_label: 部署 taosX
 
 ## 简介
 
-本节讲述如何部署 taosX。在安装了 taosX 安装包后，系统中就具备了 taosX，细节请参考 [安装与配置](../install)。
+本节讲述如何部署 `taosX`。在安装了 `taosX` 安装包后，系统中就具备了 `taosX`，细节请参考 [安装与配置](../install)。
 
 ## 配置
 
-taosX 支持通过配置文件进行配置。在 Linux 上，默认配置文件路径是 `/etc/taos/taosx.toml`，在 Windows 上，默认配置文件路径为 `C:\\TDengine\\config\\taosx.toml`。一个完整的 taosX 配置文件示例如下：
+`taosX` 支持通过配置文件进行配置。在 Linux 上，默认配置文件路径是 `/etc/taos/taosx.toml`，在 Windows 上，默认配置文件路径是 `C:\\TDengine\\cfg\\taosx.toml`，包含以下配置项：
+
+- `plugins_home`：外部数据源连接器所在目录。
+- `data_dir`：数据文件存放目录。
+- `logs_home`：日志文件存放目录，`taosX` 日志文件的前缀为 `taosx.log`，外部数据源有自己的日志文件名前缀。
+- `log_level`：日志等级，可选级别包括 `error`、`warn`、`info`、`debug`、`trace`，默认值为 `info`。
+- `log_keep_days`：日志的最大存储天数，`taosX` 日志将按天划分为不同的文件。
+- `jobs`：每个运行时的最大线程数。在服务模式下，线程总数为 `jobs*2`，默认线程数为`当前服务器内核*2`。
+- `serve.listen`：是 `taosX` REST API 监听地址，默认值为 `0.0.0.0:6050`。
+- `serve.database_url`：`taosX` 数据库的地址，格式为 `sqlite:<path>`。
+- `monitor.fqdn`：`taosKeeper` 服务的 FQDN，没有默认值，置空则关闭监控功能。
+- `monitor.port`：`taosKeeper` 服务的端口，默认`6043`。
+- `monitor.interval`：向 `taosKeeper` 发送指标的频率，默认为每 10 秒一次，只有 1 到 10 之间的值才有效。
+
+如下所示：
 
 ```toml
 # plugins home
-#plugins_home = "/usr/local/taos/plugins"
+#plugins_home = "/usr/local/taos/plugins" # on linux/macOS
+#plugins_home = "C:\\TDengine\\plugins" # on windows
 
 # data dir
-#data_dir = "/var/lib/taos/taosx"
+#data_dir = "/var/lib/taos/taosx" # on linux/macOS
+#data_dir = "C:\\TDengine\\data\\taosx" # on windows
 
 # logs home
-#logs_home = "/var/log/taos"
+#logs_home = "/var/log/taos" # on linux/macOS
+#logs_home = "C:\\TDengine\\log" # on windows
 
 # log level: off/error/warn/info/debug/trace
 #log_level = "info"
@@ -27,51 +44,58 @@ taosX 支持通过配置文件进行配置。在 Linux 上，默认配置文件�
 # log keep days
 #log_keep_days = 30
 
-# number of threads
+# number of jobs, default to 0, will use `jobs` number of works for TMQ
 #jobs = 0
 
-# enable OpenTelemetry tracing and metrics exporter
-#otel = false
-
-#[serve]
+[serve]
 # listen to ip:port address
 #listen = "0.0.0.0:6050"
 
-# GRPC listen address
-#grpc = "0.0.0.0:6055"
-
 # database url
 #database_url = "sqlite:taosx.db"
+
+[monitor]
+# FQDN of taosKeeper service, no default value
+#fqdn = "localhost"
+# port of taosKeeper service, default 6043
+#port = 6043
+# how often to send metrics to taosKeeper, default every 10 seconds. Only value from 1 to 10 is valid.
+#interval = 10
 ```
 
-Where:
+## 启动
 
-- `plugins_home`: is the directory for taosX external data source SDK.
-- `data_dir`: is the directory for taosX data file storage.
-- `database_url`: is the address of the taosX database, in the form of `sqlite:<path>`.
-- `logs_home`: is the directory for taosX log file storage. The taosX service log file has the prefix `taosx.log`, and external data sources have their own log file name prefixes.
-- `log_level`: is a log level string, with optional levels including: `error`, `warn`, `info`, `debug`, `trace`. The default is `info`.
-- `log_keep_days`: is the maximum storage days for logs. taosX logs will be split into different files by day.
-- `jobs`: is the maximum number of threads for each runtime. In service mode, the total number of threads is `jobs * 2`, and the default number of threads is `current server cores * 2`.
-- `serve.listen`: is the taosX REST API listening address. The default is `0.0.0.0:6050`.
-- `serve.grpc`: is the taosX gRPC API listening address. The default is `0.0.0.0:6055`.
-
-## Start
-
-Start the taosX service using Systemd, and its Systemd configuration file is located at: `/etc/systemd/system/taosx.service`. The start command is as follows:
+Linux 系统上 `taosX` 可以通过 Systemd 命令启动：
 
 ```shell
 systemctl start taosx
 ```
 
-On Windows systems, please find the "taosX" service in the "Services" system management tool, then click "Start this service". Alternatively, in the Windows command line (cmd.exe or PowerShell), run: `sc.exe start taosx`.
+Windows 系统上通过系统管理工具 "Services" 找到 `taosX` 服务，然后启动它，或者在命令行工具（cmd.exe 或 PowerShell）中执行以下命令启动：
 
-## Troubleshooting
+```shell
+sc.exe start taosx
+```
 
-1. How to modify the log level of taosX?
+## 问题排查
 
-    Modify the `log_level` parameter in the configuration file, which defaults to `info`. It can be increased (`debug`, `trace`) or decreased (`warn`, `error`). After modification, restart the service.
+1. 修改 `taosX` 日志级别
 
-2. How to view the logs of taosX?
+`taosX` 的默认日志级别为 `info`，要指定不同的级别，请修改配置文件，或使用以下命令行参数：
+- `error`：`taosx serve -qq`
+- `debug`：`taosx serve -q`
+- `info`：`taosx serve -v`
+- `debug`：`taosx serve -vv`
+- `trace`：`taosx serve -vvv`
 
-    On Linux, taosX service logs are stored by default in the `/var/log/taos/taosx.log` file. On Windows, they are stored by default in the `C:\\TDengine\\log\\taosx.log` file.
+要在 `taosX` 作为服务运行时指定命令行参数，请参阅配置。
+
+2. 查看 `taosX` 日志
+
+您可以查看日志文件或使用 `journalctl` 命令来查看 `taosX` 的日志。
+
+Linux 下 `journalctl` 查看日志的命令如下：
+
+```bash
+journalctl -u taosx [-f]
+```

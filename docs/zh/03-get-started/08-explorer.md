@@ -33,6 +33,19 @@ cluster = "http://localhost:6041"
 
 # taosX gRPC address
 x_api = "http://localhost:6050"
+
+# GRPC endpoint for "Agent"s.
+grpc = "http://localhost:6055"
+
+# CORS configuration switch, it allows cross-origin access
+cors = false
+
+# Enable ssl: if the following two files exist, enable ssl protocol
+[ssl]
+# SSL certificate
+#certificate = "/path/to/ca.file"
+# SSL certificate key
+#certificate_key = "/path/to/key.file"
 ```
 
 说明：
@@ -42,8 +55,11 @@ x_api = "http://localhost:6050"
 - `ipv6`：Explorer 服务绑定的 IPv6 地址，默认不绑定 IPv6 地址。
 - `log_level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
 - `cluster`：TDengine 集群的 taosAdapter 地址。
-- `x_api`：taosX 的 gRPC 地址.
+- `x_api`：taosX 的 gRPC 地址。
+- `grpc`: taosX 代理向 taosX 建立连接的 gRPC 地址.
 - `cors`：CORS 配置开关，默认为 `false`。当为 `true` 时，允许跨域访问。
+- `ssl.certificate`: SSL 证书（如果同时设置了 certificate 与 certificate_key 两个参数，则启用 HTTPS 服务，否则不启用）。
+- `ssl.certificate_key`: SSL 证书密钥。
 
 ## 启动
 

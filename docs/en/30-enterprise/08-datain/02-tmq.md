@@ -1,6 +1,6 @@
 ---
-title: "TDengine Subscription"
-sidebar_label: "TDengine subscription"
+title: "TDengine3"
+sidebar_label: "TDengine3"
 ---
 
 This article describes how to use Explorer to subscribe data from another cluster to this cluster.
@@ -34,7 +34,7 @@ Click the "Create" button to return to the topic list and copy the ** DSN ** of 
 
 ### Step 2: Enter data source information
 1. Enter a task name
-2. Select task type "TDengine subscription"
+2. Select task type "TDengine3"
 3. Select target database
 4. Paste the DSN copied by the preparation steps into the field of **Topic DSN**. For example: `tmq+ws://root:taosdata@localhost:6041/topic`
 5. Complete the above steps and click the "Connectivity Check" button to test the connectivity with the source end.
@@ -42,9 +42,15 @@ Click the "Create" button to return to the topic list and copy the ** DSN ** of 
 
 ### Step 3: Fill in subscription settings and submit tasks
 
-1. Select the initial subscription location. You can configure to subscribe from the earliest or latest data, with the default being earliest.
-2. Set timeout time. Support units ms (milliseconds), s (seconds), m (minutes), h (hours), d (days), M (months), y (years).
-3. Click the "Add button" to submit a task
+1. Select the initial subscription location: You can configure to subscribe from the earliest or latest data, with the default being earliest.
+2. Set timeout time: Support units ms (milliseconds), s (seconds), m (minutes), h (hours), d (days), M (months), y (years).
+3. Set Group ID: Group ID is a random string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.
+4. Set Client ID: Client ID is a random string used to identify the client, with a maximum length of 192.
+5. TSDB Data: If enabled, the data that has been persisted in time series data storage files will be replicated too; otherwise, only the data still in WAL (write ahead log) will be replicated.
+6. Table Deletions: If enabled, the table deletion operations on the source side will be replayed on the sink side.
+7. Data Deletions: If enabled, the data deletion operations on the source side will be replayed on the sink side.
+8. Compression.Enable WebSocket compression to reduce network bandwidth consumption.
+9. Click the "Submit button" to submit a task
 ![Step 3](./tmq-step3.png)
 
 ## Monitor task running status

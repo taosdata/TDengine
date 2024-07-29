@@ -22,7 +22,7 @@ This article describes how to use taosX to ingest data into TDengine. For more i
 | certificate     | string | Path to the `cert.pem` file. This option takes effect when `security_policy` and `security_mode` are not `None`.        |
 | private_key     | string | Path to the `key.pem` file. This option takes effect when `security_policy` and `security_mode` are not `None`.
 | csv_config_file | string | File containing OPC-UA data point and table configurations. Mutually exclusive with `csv_config_file`. If both options are included, only `csv_config_file` takes effect.|
-| ua.nodes | string | Identifiers of OPC-UA nodes. This parameter must be used together with the `opc_table_config` parameter. Mutually exclusive with `csv_config_file`. If both options are included, only `csv_config_file` takes effect. Enter identifiers in the format <nodeid\>::<code\> where code is used to create subtables. |
+| ua.nodes | string | Identifiers of OPC-UA nodes. This parameter must be used together with the `opc_table_config` parameter. Mutually exclusive with `csv_config_file`. If both options are included, only `csv_config_file` takes effect. Enter identifiers in the format &lt;nodeid&gt;::&lt;code&gt; where code is used to create subtables. |
 | opc_table_config | string | Configuration for OPC-UA single-column mode. This parameter must be used together with the `ua.nodes` parameter. |
 | debug | bool | Enables debug logs on the OPC connector. Default false |
 | enable | bool | Enables raw data storage. Default false|

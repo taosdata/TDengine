@@ -19,7 +19,7 @@ For information about fault tolerance and disaster recovery, importing and expor
 
 For information about enterprise features including cluster management, tiered storage, permissions management, industrial data sources, backup and restore, data replication, edge-cloud orchestration, log auditing, and the GUI, see [Enterprise Features](./enterprise/).
 
-For information about the TDengine REST API, connectors, and other utilities, see [Reference](./reference/).
+For information about the TDengine REST API and other utilities, see [Reference](./reference/).
 
 If any parts of this documentation are unclear or incomplete, contact us at support@tdengine.com for assistance.
 

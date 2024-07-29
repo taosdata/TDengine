@@ -25,21 +25,16 @@ void mndCleanupPrivilege(SMnode *pMnode) {}
 
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) {
   int32_t   code = 0;
-  SUserObj *pUser = mndAcquireUser(pMnode, user);
+  SUserObj *pUser = NULL;
 
-  if (pUser == NULL) {
-    code = -1;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
   if (pUser->superUser) {
     goto _OVER;
   }
 
   if (!pUser->enable) {
-    terrno = TSDB_CODE_MND_USER_DISABLED;
-    code = -1;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
   }
 
   switch (operType) {
@@ -49,27 +44,24 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operTy
     case MND_OPER_SHOW_VARIBALES:
       break;
     default:
-      terrno = TSDB_CODE_MND_NO_RIGHTS;
-      code = -1;
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
   }
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
   if (pUser->superUser && pAlter->alterType != TSDB_ALTER_USER_PASSWD &&
       pAlter->alterType != TSDB_ALTER_USER_ADD_WHITE_LIST && pAlter->alterType != TSDB_ALTER_USER_DROP_WHITE_LIST) {
-    terrno = TSDB_CODE_MND_NO_RIGHTS;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
   }
 
   if (pOperUser->superUser) return 0;
 
   if (!pOperUser->enable) {
-    terrno = TSDB_CODE_MND_USER_DISABLED;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_MND_USER_DISABLED);
   }
 
   if (pAlter->alterType == TSDB_ALTER_USER_PASSWD) {
@@ -78,27 +70,21 @@ int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterU
     }
   }
 
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
+  TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
 }
 
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) {
   int32_t   code = 0;
-  SUserObj *pUser = mndAcquireUser(pMnode, user);
+  SUserObj *pUser = NULL;
 
-  if (pUser == NULL) {
-    code = -1;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
   if (pUser->superUser) {
     goto _OVER;
   }
 
   if (!pUser->enable) {
-    terrno = TSDB_CODE_MND_USER_DISABLED;
-    code = -1;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
   }
 
   if (pUser->sysInfo) {
@@ -119,12 +105,9 @@ int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showTy
     case TSDB_MGMT_TABLE_APPS:
     case TSDB_MGMT_TABLE_TRANS:
     case TSDB_MGMT_TABLE_COL:
-      code = 0;
       break;
     default:
-      terrno = TSDB_CODE_MND_NO_RIGHTS;
-      code = -1;
-      goto _OVER;
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
   }
 
   if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP || showType == TSDB_MGMT_TABLE_INDEX) {
@@ -133,24 +116,19 @@ int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showTy
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) {
   int32_t   code = 0;
-  SUserObj *pUser = mndAcquireUser(pMnode, user);
+  SUserObj *pUser = NULL;
 
-  if (pUser == NULL) {
-    code = -1;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
   if (pUser->superUser) goto _OVER;
 
   if (!pUser->enable) {
-    terrno = TSDB_CODE_MND_USER_DISABLED;
-    code = -1;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
   }
 
   if (operType == MND_OPER_CREATE_DB) {
@@ -163,10 +141,14 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
   }
 
   if (operType == MND_OPER_USE_DB || operType == MND_OPER_READ_OR_WRITE_DB) {
-    if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;
-    if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
-    if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
-    if (taosHashGet(pUser->useDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+    if (pDb != NULL) {
+      if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;
+      if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+      if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+      if (taosHashGet(pUser->useDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+    } else {
+      goto _OVER;
+    }
   }
 
   if (operType == MND_OPER_WRITE_DB) {
@@ -179,67 +161,60 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
     if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
   }
 
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  code = -1;
+  code = TSDB_CODE_MND_NO_RIGHTS;
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname) {
+  int32_t code = 0;
   SDbObj *pDb = mndAcquireDb(pMnode, dbname);
-  if (pDb == NULL) return -1;
 
-  int32_t code = mndCheckDbPrivilege(pMnode, user, operType, pDb);
+  if (pDb == NULL) {
+    code = terrno ? terrno : TSDB_CODE_MND_DB_NOT_EXIST; // TODO: remove this terrno if possible
+    TAOS_RETURN(code);
+  }
+
+  code = mndCheckDbPrivilege(pMnode, user, operType, pDb);
   mndReleaseDb(pMnode, pDb);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, EOperType operType, const char *pViewFName) {
   int32_t   code = 0;
-  SUserObj *pUser = mndAcquireUser(pMnode, user);
+  SUserObj *pUser = NULL;
 
-  if (pUser == NULL) {
-    code = -1;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
   if (pUser->superUser) goto _OVER;
 
   if (!pUser->enable) {
-    terrno = TSDB_CODE_MND_USER_DISABLED;
-    code = -1;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
   }
 
   if (operType == MND_OPER_CREATE_VIEW || operType == MND_OPER_DROP_VIEW) {
     if (taosHashGet(pUser->alterViews, pViewFName, strlen(pViewFName) + 1) != NULL) goto _OVER;
   }
 
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  code = -1;
+  code = TSDB_CODE_MND_NO_RIGHTS;
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) {
   int32_t   code = 0;
-  SUserObj *pUser = mndAcquireUser(pMnode, user);
+  SUserObj *pUser = NULL;
 
-  if (pUser == NULL) {
-    code = -1;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
   if (pUser->superUser) goto _OVER;
 
   if (!pUser->enable) {
-    terrno = TSDB_CODE_MND_USER_DISABLED;
-    code = -1;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
   }
 
   if (operType == MND_OPER_SUBSCRIBE) {
@@ -255,46 +230,27 @@ int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operT
     if (strcmp(pUser->user, pTopic->createUser) == 0) goto _OVER;
   }
 
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  code = -1;
+  code = TSDB_CODE_MND_NO_RIGHTS;
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
-  return code;
-}
-
-int32_t mndCheckTopicPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *topicName) {
-  SMqTopicObj *pTopic = mndAcquireTopic(pMnode, (char *)topicName);
-  if (pTopic == NULL) return -1;
-
-  int32_t code = mndCheckTopicPrivilege(pMnode, user, operType, pTopic);
-  mndReleaseTopic(pMnode, pTopic);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
-  memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
+  int32_t code = 0;
+
+  (void)memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
   pRsp->superAuth = pUser->superUser;
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
   pRsp->enable = pUser->enable;
   pRsp->sysInfo = pUser->sysInfo;
-  taosRLockLatch(&pUser->lock);
-  pRsp->readDbs = mndDupDbHash(pUser->readDbs);
-  pRsp->writeDbs = mndDupDbHash(pUser->writeDbs);
-  pRsp->readTbs = mndDupTableHash(pUser->readTbs);
-  pRsp->writeTbs = mndDupTableHash(pUser->writeTbs);
-  pRsp->alterTbs = mndDupTableHash(pUser->alterTbs);
-  pRsp->readViews = mndDupTableHash(pUser->readViews);
-  pRsp->writeViews = mndDupTableHash(pUser->writeViews);
-  pRsp->alterViews = mndDupTableHash(pUser->alterViews);
-  pRsp->useDbs = mndDupTableHash(pUser->useDbs);
-  taosRUnLockLatch(&pUser->lock);
+
   pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pRsp->createdDbs) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);  // TODO: remove this terrno after terrno is removed
   }
 
   SSdb *pSdb = pMnode->pSdb;
@@ -306,35 +262,53 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
 
     if (strcmp(pDb->createUser, pUser->user) == 0) {
       int32_t len = strlen(pDb->name) + 1;
-      taosHashPut(pRsp->createdDbs, pDb->name, len, pDb->name, len);
+      if ((code = taosHashPut(pRsp->createdDbs, pDb->name, len, pDb->name, len)) != 0) {
+        code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;  // TODO: remove this line after terrno is removed
+        sdbRelease(pSdb, pDb);
+        sdbCancelFetch(pSdb, pIter);
+        TAOS_RETURN(code);
+      }
     }
 
     sdbRelease(pSdb, pDb);
   }
 
-  return 0;
+  taosRLockLatch(&pUser->lock);
+  TAOS_CHECK_GOTO(mndDupDbHash(pUser->readDbs, &pRsp->readDbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupDbHash(pUser->writeDbs, &pRsp->writeDbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupTableHash(pUser->readTbs, &pRsp->readTbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupTableHash(pUser->writeTbs, &pRsp->writeTbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterTbs, &pRsp->alterTbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupTableHash(pUser->readViews, &pRsp->readViews), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupTableHash(pUser->writeViews, &pRsp->writeViews), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterViews, &pRsp->alterViews), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupTableHash(pUser->useDbs, &pRsp->useDbs), NULL, _OVER);
+
+_OVER:
+  taosRUnLockLatch(&pUser->lock);
+  TAOS_RETURN(code);
 }
 
 int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
   if (tsEnableWhiteList) {
-    memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+    (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
     pWhiteListRsp->numWhiteLists = pUser->pIpWhiteList->num;
     pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
     if (pWhiteListRsp->pWhiteLists == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    memcpy(pWhiteListRsp->pWhiteLists, pUser->pIpWhiteList->pIpRange,
+    (void)memcpy(pWhiteListRsp->pWhiteLists, pUser->pIpWhiteList->pIpRange,
            pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
   } else {
-    memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+    (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
     pWhiteListRsp->numWhiteLists = 1;
     pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
     if (pWhiteListRsp->pWhiteLists == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+    (void)memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
   }
-  return 0;
+  TAOS_RETURN(0);
 }
 
 int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 1; }
