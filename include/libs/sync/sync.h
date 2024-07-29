@@ -70,7 +70,6 @@ typedef int64_t  SyncIndex;
 typedef int64_t  SyncTerm;
 
 typedef struct SSyncNode      SSyncNode;
-typedef struct SWal           SWal;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 typedef enum {
@@ -238,7 +237,7 @@ typedef struct SSyncInfo {
   int32_t       batchSize;
   SSyncCfg      syncCfg;
   char          path[TSDB_FILENAME_LEN];
-  SWal*         pWal;
+  struct SWal*  pWal;
   SSyncFSM*     pFsm;
   SMsgCb*       msgcb;
   int32_t       pingMs;

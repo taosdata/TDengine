@@ -24,6 +24,8 @@ sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   in
 sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
 sql create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt5 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(linear);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791210000,0,0,0,0.0,'aaa');
 sql insert into t1 values(1648791213000,1,1,1,1.0,'bbb');
 sql insert into t1 values(1648791215000,5,5,5,5.0,'ccc');
@@ -227,6 +229,8 @@ sql create stream streams8 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   in
 sql create stream streams9 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt9 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
 sql create stream streams10 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt10 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(linear);
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791210000,1,1,1,1.0,'aaa');
 sql insert into t1 values(1648791215000,6,8,8,8.0,'bbb');
 sql insert into t1 values(1648791220000,11,10,10,10.0,'ccc');
@@ -359,6 +363,7 @@ sql create stream streams13 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   i
 sql create stream streams14 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt14 as select  _wstart as ts, avg(a), count(*), timezone(), to_iso8601(1) from t1 where ts >= 1648791210000 and ts < 1648791240000 interval(1s) fill(prev);
 sql create stream streams15 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt15 as select  _wstart as ts, avg(a), count(*), timezone(), to_iso8601(1) from t1 where ts >= 1648791210000 and ts < 1648791240000 interval(1s) fill(linear);
 
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791210000,1,1,1,1.0,'aaa');
 sql insert into t1 values(1648791210001,1,1,1,1.0,'aaa');

@@ -13,17 +13,29 @@ create_definition:
     col_name column_definition
  
 column_definition:
-    type_name
+    type_name [comment 'string_value'] [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
+
+table_options:
+    table_option ...
+
+table_option: {
+    COMMENT 'string_value'
+  | SMA(col_name [, col_name] ...)
+  | TTL value
+}
+
 ```
 
 **More explanations**
-- Each supertable can have a maximum of 4096 columns, including tags. The minimum number of columns is 3: a timestamp column used as the key, one tag column, and one data column.
-- The TAGS keyword defines the tag columns for the supertable. The following restrictions apply to tag columns:
+1. Each supertable can have a maximum of 4096 columns, including tags. The minimum number of columns is 3: a timestamp column used as the key, one tag column, and one data column.
+2. Since version 3.3.0.0, besides the timestamp, you can specify another column as primary key using `PRIMARY KEY` keyword, the column specified using `primary key` must be type of integer or varchar.
+2. The TAGS keyword defines the tag columns for the supertable. The following restrictions apply to tag columns:
     - A tag column can use the TIMESTAMP data type, but the values in the column must be fixed numbers. Timestamps including formulae, such as "now + 10s", cannot be stored in a tag column.
     - The name of a tag column cannot be the same as the name of any other column.
     - The name of a tag column cannot be a reserved keyword.
     - Each supertable must contain between 1 and 128 tags. The total length of the TAGS keyword cannot exceed 16 KB.
-- For more information about table parameters, see Create a Table.
+3. Regarding how to use `ENCODE` and `COMPRESS`, please refer to [Encode and Compress for Column](../compress).
+3. For more information about table parameters, see [Create a Table](../table).
 
 ## View a Supertable
 

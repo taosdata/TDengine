@@ -45,19 +45,22 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvRequestVoteReply(ths, pMsg, "not in my config");
-    return -1;
+
+    TAOS_RETURN(TSDB_CODE_FAILED);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   // drop stale response
   if (pMsg->term < currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response");
-    return -1;
+
+    TAOS_RETURN(TSDB_CODE_FAILED);
   }
 
   if (pMsg->term > currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "error term");
     syncNodeStepDown(ths, pMsg->term);
-    return -1;
+
+    TAOS_RETURN(TSDB_CODE_FAILED);
   }
 
   syncLogRecvRequestVoteReply(ths, pMsg, "");
@@ -69,7 +72,8 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (ths->pVotesRespond->term != pMsg->term) {
       sNError(ths, "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64 "",
               ths->pVotesRespond->term, pMsg->term);
-      return -1;
+
+      TAOS_RETURN(TSDB_CODE_FAILED);
     }
 
     votesRespondAdd(ths->pVotesRespond, pMsg);
@@ -93,5 +97,5 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
   }
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

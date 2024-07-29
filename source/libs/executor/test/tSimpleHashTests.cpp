@@ -43,7 +43,9 @@ TEST(testCase, tSimpleHashTest_intKey) {
   int64_t originKeySum = 0;
   for (int64_t i = 1; i <= 100; ++i) {
     originKeySum += i;
-    tSimpleHashPut(pHashObj, (const void *)&i, keyLen, (const void *)&i, dataLen);
+    code = tSimpleHashPut(pHashObj, (const void *)&i, keyLen, (const void *)&i, dataLen);
+ASSERT(code == 0);
+
     ASSERT_EQ(i, tSimpleHashGetSize(pHashObj));
   }
 
@@ -68,7 +70,9 @@ TEST(testCase, tSimpleHashTest_intKey) {
   ASSERT_EQ(keySum, originKeySum);
 
   for (int64_t i = 1; i <= 100; ++i) {
-    tSimpleHashRemove(pHashObj, (const void *)&i, keyLen);
+    code = tSimpleHashRemove(pHashObj, (const void *)&i, keyLen);
+    ASSERT(code == 0);
+
     ASSERT_EQ(100 - i, tSimpleHashGetSize(pHashObj));
   }
 
@@ -95,7 +99,9 @@ TEST(testCase, tSimpleHashTest_binaryKey) {
   for (int64_t i = 1; i <= 100; ++i) {
     combineKey.suid = i;
     combineKey.uid = i + 1;
-    tSimpleHashPut(pHashObj, (const void *)&combineKey, keyLen, (const void *)&i, dataLen);
+    code = tSimpleHashPut(pHashObj, (const void *)&combineKey, keyLen, (const void *)&i, dataLen);
+    ASSERT(code == 0);
+
     originDataSum += i;
     ASSERT_EQ(i, tSimpleHashGetSize(pHashObj));
   }
@@ -120,7 +126,8 @@ TEST(testCase, tSimpleHashTest_binaryKey) {
 
   ASSERT_EQ(originDataSum, dataSum);
 
-  tSimpleHashRemove(pHashObj, (const void *)&combineKey, keyLen);
+  code = tSimpleHashRemove(pHashObj, (const void *)&combineKey, keyLen);
+  ASSERT(code == 0);
 
   while ((data = tSimpleHashIterate(pHashObj, data, &iter))) {
     void *key = tSimpleHashGetKey(data, &kLen);
@@ -130,7 +137,9 @@ TEST(testCase, tSimpleHashTest_binaryKey) {
   for (int64_t i = 1; i <= 99; ++i) {
     combineKey.suid = i;
     combineKey.uid = i + 1;
-    tSimpleHashRemove(pHashObj, (const void *)&combineKey, keyLen);
+    code = tSimpleHashRemove(pHashObj, (const void *)&combineKey, keyLen);
+    ASSERT(code == 0);
+
     ASSERT_EQ(99 - i, tSimpleHashGetSize(pHashObj));
   }
 

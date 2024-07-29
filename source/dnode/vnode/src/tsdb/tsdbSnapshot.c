@@ -58,17 +58,9 @@ struct STsdbSnapReader {
 };
 
 static int32_t tsdbSnapReadFileSetCloseReader(STsdbSnapReader* reader) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
   TARRAY2_CLEAR(reader->sttReaderArr, tsdbSttFileReaderClose);
   tsdbDataFileReaderClose(&reader->dataReader);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
-  }
-  return code;
+  return 0;
 }
 
 static int32_t tsdbSnapReadFileSetOpenReader(STsdbSnapReader* reader) {
@@ -255,7 +247,6 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* reader, uint8_t** data) {
   SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = NO_COMPRESSION};
   code = tBlockDataCompress(reader->blockData, (void*)&cmprInfo, reader->buffers, reader->buffers + 4);
   TSDB_CHECK_CODE(code, lino, _exit);
-  // TSDB_CHECK_CODE(code, lino, _exit);
 
   int32_t size = 0;
   for (int i = 0; i < 4; i++) {
@@ -448,8 +439,8 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
-              __func__, lino, tstrerror(code), sver, ever, type);
+    tsdbError("vgId:%d %s failed at %s:%d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
+              __func__, __FILE__, lino, tstrerror(code), sver, ever, type);
     tsdbTFileSetRangeArrayDestroy(&reader[0]->fsrArr);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
@@ -461,10 +452,11 @@ _exit:
 }
 
 int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
-  if (reader[0] == NULL) return 0;
+  if (reader[0] == NULL) {
+    return 0;
+  }
 
   int32_t code = 0;
-  int32_t lino = 0;
 
   STsdb* tsdb = reader[0]->tsdb;
 
@@ -488,12 +480,6 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
 
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
-  } else {
-    tsdbDebug("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
-  }
   return code;
 }
 
@@ -1036,7 +1022,8 @@ static int32_t tsdbSnapWriteTombData(STsdbSnapWriter* writer, SSnapDataHdr* hdr)
   code = tsdbSnapWriteDecmprTombBlock(hdr, tombBlock);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tTombBlockGet(tombBlock, 0, &record);
+  code = tTombBlockGet(tombBlock, 0, &record);
+  TSDB_CHECK_CODE(code, lino, _exit);
   int32_t fid = tsdbKeyFid(record.skey, writer->minutes, writer->precision);
   if (!writer->ctx->fsetWriteBegin || fid != writer->ctx->fid) {
     code = tsdbSnapWriteFileSetEnd(writer);
@@ -1059,7 +1046,8 @@ static int32_t tsdbSnapWriteTombData(STsdbSnapWriter* writer, SSnapDataHdr* hdr)
   ASSERT(writer->ctx->hasData == false);
 
   for (int32_t i = 0; i < TOMB_BLOCK_SIZE(tombBlock); ++i) {
-    tTombBlockGet(tombBlock, i, &record);
+    code = tTombBlockGet(tombBlock, i, &record);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     code = tsdbSnapWriteTombRecord(writer, &record);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1139,17 +1127,17 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
     code = tsdbFSEditAbort(writer[0]->tsdb->pFS);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    taosThreadMutexLock(&writer[0]->tsdb->mutex);
+    (void)taosThreadMutexLock(&writer[0]->tsdb->mutex);
 
     code = tsdbFSEditCommit(writer[0]->tsdb->pFS);
     if (code) {
-      taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
+      (void)taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     writer[0]->tsdb->pFS->fsstate = TSDB_FS_STATE_NORMAL;
 
-    taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
+    (void)taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
   }
 
   tsdbIterMergerClose(&writer[0]->ctx->tombIterMerger);

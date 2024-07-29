@@ -18,7 +18,8 @@
 #include "types.h"
 
 typedef char (*_geosRelationFunc_t)(GEOSContextHandle_t handle, const GEOSGeometry *g1, const GEOSGeometry *g2);
-typedef char (*_geosPreparedRelationFunc_t)(GEOSContextHandle_t handle, const GEOSPreparedGeometry *pg1, const GEOSGeometry *g2);
+typedef char (*_geosPreparedRelationFunc_t)(GEOSContextHandle_t handle, const GEOSPreparedGeometry *pg1,
+                                            const GEOSGeometry *g2);
 
 void geosFreeBuffer(void *buffer) {
   if (buffer) {
@@ -27,13 +28,13 @@ void geosFreeBuffer(void *buffer) {
 }
 
 void geosErrMsgeHandler(const char *errMsg, void *userData) {
-  char* targetErrMsg = userData;
-  snprintf(targetErrMsg, 512, "%s", errMsg);
+  char *targetErrMsg = userData;
+  (void)snprintf(targetErrMsg, 512, "%s", errMsg);
 }
 
 int32_t initCtxMakePoint() {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -41,7 +42,7 @@ int32_t initCtxMakePoint() {
       return code;
     }
 
-    GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
   }
 
   if (geosCtx->WKBWriter == NULL) {
@@ -57,10 +58,10 @@ int32_t initCtxMakePoint() {
 // outputWKT is a zero ending string
 // need to call geosFreeBuffer(*outputGeom) later
 int32_t doMakePoint(double x, double y, unsigned char **outputGeom, size_t *size) {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  GEOSGeometry *geom = NULL;
+  GEOSGeometry  *geom = NULL;
   unsigned char *wkb = NULL;
 
   geom = GEOSGeom_createPointFromXY_r(geosCtx->handle, x, y);
@@ -86,10 +87,14 @@ _exit:
   return code;
 }
 
-static int initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData) {
-  int   ret = 0;
-  char *wktPatternWithSpace = taosMemoryCalloc(4, 1024);
-  sprintf(
+static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData) {
+  int32_t code = 0;
+  char   *wktPatternWithSpace = taosMemoryCalloc(4, 1024);
+  if (NULL == wktPatternWithSpace) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (void)sprintf(
       wktPatternWithSpace,
       "^( *)point( *)z?m?( *)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
       "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *)\\)))|linestring( *)z?m?( "
@@ -142,14 +147,14 @@ static int initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData) {
       "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))( *))*( *)\\)))( *))*( "
       "*)\\)))|(GEOCOLLECTION\\((?R)(( *)(,)( *)(?R))*( *)\\))( *)$");
 
-  ret = doRegComp(ppRegex, ppMatchData, wktPatternWithSpace);
+  code = doRegComp(ppRegex, ppMatchData, wktPatternWithSpace);
   taosMemoryFree(wktPatternWithSpace);
-  return ret;
+  return code;
 }
 
 int32_t initCtxGeomFromText() {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -157,7 +162,7 @@ int32_t initCtxGeomFromText() {
       return code;
     }
 
-    GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
   }
 
   if (geosCtx->WKTReader == NULL) {
@@ -184,15 +189,15 @@ int32_t initCtxGeomFromText() {
 // inputWKT is a zero ending string
 // need to call geosFreeBuffer(*outputGeom) later
 int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t *size) {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  GEOSGeometry *geom = NULL;
+  GEOSGeometry  *geom = NULL;
   unsigned char *wkb = NULL;
 
   if (doRegExec(inputWKT, geosCtx->WKTRegex, geosCtx->WKTMatchData) != 0) {
-     code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-     goto _exit;
+    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    goto _exit;
   }
 
   geom = GEOSWKTReader_read_r(geosCtx->handle, geosCtx->WKTReader, inputWKT);
@@ -219,8 +224,8 @@ _exit:
 }
 
 int32_t initCtxAsText() {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -228,7 +233,7 @@ int32_t initCtxAsText() {
       return code;
     }
 
-    GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
   }
 
   if (geosCtx->WKBReader == NULL) {
@@ -255,11 +260,11 @@ int32_t initCtxAsText() {
 // outputWKT is a zero ending string
 // need to call geosFreeBuffer(*outputWKT) later
 int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT) {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  GEOSGeometry *geom = NULL;
-  unsigned char *wkt = NULL;
+  GEOSGeometry  *geom = NULL;
+  char *wkt = NULL;
 
   geom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, inputGeom, size);
   if (geom == NULL) {
@@ -286,8 +291,8 @@ _exit:
 }
 
 int32_t initCtxRelationFunc() {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  int32_t       code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
   if (geosCtx->handle == NULL) {
     geosCtx->handle = GEOS_init_r();
@@ -295,7 +300,7 @@ int32_t initCtxRelationFunc() {
       return code;
     }
 
-    GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
   }
 
   if (geosCtx->WKBReader == NULL) {
@@ -309,88 +314,81 @@ int32_t initCtxRelationFunc() {
 }
 
 int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
-                       bool swapped, char *res,
-                       _geosRelationFunc_t relationFn,
-                       _geosRelationFunc_t swappedRelationFn,
+                       bool swapped, char *res, _geosRelationFunc_t relationFn, _geosRelationFunc_t swappedRelationFn,
                        _geosPreparedRelationFunc_t preparedRelationFn,
                        _geosPreparedRelationFunc_t swappedPreparedRelationFn) {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
   if (!preparedGeom1) {
     if (!swapped) {
       ASSERT(relationFn);
       *res = relationFn(geosCtx->handle, geom1, geom2);
-    }
-    else {
+    } else {
       ASSERT(swappedRelationFn);
       *res = swappedRelationFn(geosCtx->handle, geom1, geom2);
     }
-  }
-  else {
+  } else {
     if (!swapped) {
       ASSERT(preparedRelationFn);
       *res = preparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
-    }
-    else {
+    } else {
       ASSERT(swappedPreparedRelationFn);
       *res = swappedPreparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
     }
   }
 
-  code = TSDB_CODE_SUCCESS;
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t doIntersects(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                      bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
-                        GEOSIntersects_r, GEOSIntersects_r, GEOSPreparedIntersects_r, GEOSPreparedIntersects_r);
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res, GEOSIntersects_r, GEOSIntersects_r,
+                        GEOSPreparedIntersects_r, GEOSPreparedIntersects_r);
 }
 
 int32_t doEquals(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                  bool swapped, char *res) {
-  return doGeosRelation(geom1, NULL, geom2, swapped, res,
-                        GEOSEquals_r, GEOSEquals_r, NULL, NULL);  // no prepared version for eguals()
+  return doGeosRelation(geom1, NULL, geom2, swapped, res, GEOSEquals_r, GEOSEquals_r, NULL,
+                        NULL);  // no prepared version for eguals()
 }
 
 int32_t doTouches(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                   bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
-                        GEOSTouches_r, GEOSTouches_r, GEOSPreparedTouches_r, GEOSPreparedTouches_r);
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res, GEOSTouches_r, GEOSTouches_r, GEOSPreparedTouches_r,
+                        GEOSPreparedTouches_r);
 }
 
 int32_t doCovers(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                  bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
-                        GEOSCovers_r, GEOSCoveredBy_r, GEOSPreparedCovers_r, GEOSPreparedCoveredBy_r);
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res, GEOSCovers_r, GEOSCoveredBy_r, GEOSPreparedCovers_r,
+                        GEOSPreparedCoveredBy_r);
 }
 
 int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                    bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
-                        GEOSContains_r, GEOSWithin_r, GEOSPreparedContains_r, GEOSPreparedWithin_r);
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res, GEOSContains_r, GEOSWithin_r, GEOSPreparedContains_r,
+                        GEOSPreparedWithin_r);
 }
 
-int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
-                           bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
-                        NULL, NULL, GEOSPreparedContainsProperly_r, NULL);
+int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
+                           const GEOSGeometry *geom2, bool swapped, char *res) {
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res, NULL, NULL, GEOSPreparedContainsProperly_r, NULL);
 }
 
 // input is with VARSTR format
 // need to call destroyGeometry(outputGeom, outputPreparedGeom) later
-int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom) {
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
+                     const GEOSPreparedGeometry **outputPreparedGeom) {
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
-  ASSERT(outputGeom); //it is not allowed if outputGeom is NULL
+  ASSERT(outputGeom);  // it is not allowed if outputGeom is NULL
   *outputGeom = NULL;
 
-  if (outputPreparedGeom) {  //it means not to generate PreparedGeometry if outputPreparedGeom is NULL
+  if (outputPreparedGeom) {  // it means not to generate PreparedGeometry if outputPreparedGeom is NULL
     *outputPreparedGeom = NULL;
   }
 
-  if (varDataLen(input) == 0) { //empty value
+  if (varDataLen(input) == 0) {  // empty value
     return TSDB_CODE_SUCCESS;
   }
 
@@ -410,7 +408,7 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, cons
 }
 
 void destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom) {
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
+  SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
   if (preparedGeom && *preparedGeom) {
     GEOSPreparedGeom_destroy_r(geosCtx->handle, *preparedGeom);

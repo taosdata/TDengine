@@ -112,7 +112,7 @@ static FORCE_INLINE void __trashcan_wr_lock(SCacheObj *pCacheObj) {
 #if defined(LINUX)
   taosThreadRwlockWrlock(&pCacheObj->lock);
 #else
-  taosThreadMutexLock(&pCacheObj->lock);
+  (void)taosThreadMutexLock(&pCacheObj->lock);
 #endif
 }
 
@@ -120,7 +120,7 @@ static FORCE_INLINE void __trashcan_unlock(SCacheObj *pCacheObj) {
 #if defined(LINUX)
   taosThreadRwlockUnlock(&pCacheObj->lock);
 #else
-  taosThreadMutexUnlock(&pCacheObj->lock);
+  (void)taosThreadMutexUnlock(&pCacheObj->lock);
 #endif
 }
 
@@ -168,9 +168,9 @@ static void doInitRefreshThread(void) {
 TdThread doRegisterCacheObj(SCacheObj *pCacheObj) {
   taosThreadOnce(&cacheThreadInit, doInitRefreshThread);
 
-  taosThreadMutexLock(&guard);
-  taosArrayPush(pCacheArrayList, &pCacheObj);
-  taosThreadMutexUnlock(&guard);
+  (void)taosThreadMutexLock(&guard);
+  (void)taosArrayPush(pCacheArrayList, &pCacheObj);
+  (void)taosThreadMutexUnlock(&guard);
 
   return cacheRefreshWorker;
 }
@@ -230,6 +230,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheNode *
 static FORCE_INLINE STrashElem *doRemoveElemInTrashcan(SCacheObj *pCacheObj, STrashElem *pElem) {
   if (pElem->pData->signature != pElem->pData) {
     uWarn("key:sig:0x%" PRIx64 " %p data has been released, ignore", (int64_t)pElem->pData->signature, pElem->pData);
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -358,6 +359,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
   SCacheObj *pCacheObj = (SCacheObj *)taosMemoryCalloc(1, sizeof(SCacheObj));
   if (pCacheObj == NULL) {
     uError("failed to allocate memory, reason:%s", strerror(errno));
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -393,6 +395,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
 void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize,
                    int32_t durationMS) {
   if (pCacheObj == NULL || pCacheObj->pEntryList == NULL || pCacheObj->deleting == 1) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -501,11 +504,15 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
 }
 
 void *taosCacheTransferData(SCacheObj *pCacheObj, void **data) {
-  if (pCacheObj == NULL || data == NULL || (*data) == NULL) return NULL;
+  if (pCacheObj == NULL || data == NULL || (*data) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   SCacheNode *ptNode = (SCacheNode *)((char *)(*data) - sizeof(SCacheNode));
   if (ptNode->signature != ptNode) {
     uError("cache:%s, key: %p the data from cache is invalid", pCacheObj->name, ptNode);
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -702,8 +709,8 @@ SCacheNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pDat
 
   SCacheNode *pNewNode = taosMemoryCalloc(1, sizeInBytes);
   if (pNewNode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("failed to allocate memory, reason:%s", strerror(errno));
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -833,19 +840,19 @@ void *taosCacheTimedRefresh(void *handle) {
       goto _end;
     }
 
-    taosThreadMutexLock(&guard);
+    (void)taosThreadMutexLock(&guard);
     size_t size = taosArrayGetSize(pCacheArrayList);
-    taosThreadMutexUnlock(&guard);
+    (void)taosThreadMutexUnlock(&guard);
 
     count += 1;
 
     for (int32_t i = 0; i < size; ++i) {
-      taosThreadMutexLock(&guard);
+      (void)taosThreadMutexLock(&guard);
       SCacheObj *pCacheObj = taosArrayGetP(pCacheArrayList, i);
 
       if (pCacheObj == NULL) {
         uError("object is destroyed. ignore and try next");
-        taosThreadMutexUnlock(&guard);
+        (void)taosThreadMutexUnlock(&guard);
         continue;
       }
 
@@ -857,11 +864,11 @@ void *taosCacheTimedRefresh(void *handle) {
         uDebug("%s is destroying, remove it from refresh list, remain cache obj:%" PRIzu, pCacheObj->name, size);
         pCacheObj->deleting = 0;  // reset the deleting flag to enable pCacheObj to continue releasing resources.
 
-        taosThreadMutexUnlock(&guard);
+        (void)taosThreadMutexUnlock(&guard);
         continue;
       }
 
-      taosThreadMutexUnlock(&guard);
+      (void)taosThreadMutexUnlock(&guard);
 
       if ((count % pCacheObj->checkTick) != 0) {
         continue;

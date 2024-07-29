@@ -196,7 +196,7 @@ static FORCE_INLINE void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr);
 
 static FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* resp);
 
-static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn);
+static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, uint32_t* ip);
 static FORCE_INLINE void     cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
 
 static FORCE_INLINE void cliMayUpdateFqdnCache(SHashObj* cache, char* dst);
@@ -825,18 +825,19 @@ static int32_t allocConnRef(SCliConn* conn, bool update) {
     transRemoveExHandle(transGetRefMgt(), conn->refId);
     conn->refId = -1;
   }
-  SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
-  exh->handle = conn;
-  exh->pThrd = conn->hostThrd;
-  QUEUE_INIT(&exh->q);
-  taosInitRWLatch(&exh->latch);
 
+  SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
-  ASSERT(exh == self);
+  if (self != exh) {
+    taosMemoryFree(exh);
+    return TSDB_CODE_REF_INVALID_ID;
+  }
 
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
+  exh->handle = conn;
+  exh->pThrd = conn->hostThrd;
 
   conn->refId = exh->refId;
   if (conn->refId == -1) {
@@ -1252,8 +1253,9 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     conn->pBatch = pBatch;
     conn->dstAddr = taosStrdup(pList->dst);
 
-    uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, pList->ip);
-    if (ipaddr == 0xffffffff) {
+    uint32_t ipaddr = 0;
+    int32_t code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, pList->ip, &ipaddr);
+    if (code) {
       uv_timer_stop(conn->timer);
       conn->timer->data = NULL;
       taosArrayPush(pThrd->timerList, &conn->timer);
@@ -1560,28 +1562,28 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* pResp) {
 
   return 0;
 }
-static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) {
-  uint32_t  addr = 0;
+static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, uint32_t* ip) {
   size_t    len = strlen(fqdn);
   uint32_t* v = taosHashGet(cache, fqdn, len);
   if (v == NULL) {
-    addr = taosGetIpv4FromFqdn(fqdn);
-    if (addr == 0xffffffff) {
-      terrno = TSDB_CODE_RPC_FQDN_ERROR;
+    int32_t code = taosGetIpv4FromFqdn(fqdn, ip);
+    if (code) {
       tError("failed to get ip from fqdn:%s since %s", fqdn, terrstr());
-      return addr;
+      return code;
     }
 
-    taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
+    taosHashPut(cache, fqdn, len, ip, sizeof(*ip));
   } else {
-    addr = *v;
+    *ip = *v;
   }
-  return addr;
+  
+  return TSDB_CODE_SUCCESS;
 }
 static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
   // impl later
-  uint32_t addr = taosGetIpv4FromFqdn(fqdn);
-  if (addr != 0xffffffff) {
+  uint32_t addr = 0;
+  int32_t code = taosGetIpv4FromFqdn(fqdn, &addr);
+  if (TSDB_CODE_SUCCESS == code) {
     size_t    len = strlen(fqdn);
     uint32_t* v = taosHashGet(cache, fqdn, len);
     if (addr != *v) {
@@ -1670,8 +1672,9 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     conn->dstAddr = taosStrdup(addr);
 
-    uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn);
-    if (ipaddr == 0xffffffff) {
+    uint32_t ipaddr = 0;
+    int32_t code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn, &ipaddr);
+    if (code) {
       uv_timer_stop(conn->timer);
       conn->timer->data = NULL;
       taosArrayPush(pThrd->timerList, &conn->timer);
@@ -2836,6 +2839,10 @@ int64_t transAllocHandle() {
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   SExHandle* self = transAcquireExHandle(transGetRefMgt(), exh->refId);
   ASSERT(exh == self);
+  if (exh != self) {
+    taosMemoryFree(exh);
+    return TSDB_CODE_REF_INVALID_ID;
+  }
 
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);

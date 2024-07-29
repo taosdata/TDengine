@@ -112,6 +112,8 @@ void sdbCleanup(SSdb *pSdb) {
 }
 
 int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
+  int32_t code = 0;
+
   ESdbType sdbType = table.sdbType;
   EKeyType keyType = table.keyType;
   pSdb->keyTypes[sdbType] = table.keyType;
@@ -134,28 +136,28 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_ENTRY_LOCK);
   if (hash == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
   mInfo("sdb table:%s is initialized", sdbTableName(sdbType));
 
-  return 0;
+  TAOS_RETURN(0);
 }
 
 static int32_t sdbCreateDir(SSdb *pSdb) {
+  int32_t code = 0;
   if (taosMulMkDir(pSdb->currDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->currDir, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   if (taosMkDir(pSdb->tmpDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->tmpDir, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->tmpDir, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   return 0;

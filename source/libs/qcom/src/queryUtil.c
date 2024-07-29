@@ -158,7 +158,9 @@ int32_t cleanupTaskQueue() {
 }
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
-  SSchedMsg* pSchedMsg = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0);
+  SSchedMsg* pSchedMsg; 
+  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
+  if (rc) return rc;
   pSchedMsg->fp = NULL;
   pSchedMsg->ahandle = execFn;
   pSchedMsg->thandle = execParam;
@@ -415,7 +417,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-char* parseTagDatatoJson(void* p) {
+void parseTagDatatoJson(void* p, char** jsonStr) {
   char*   string = NULL;
   SArray* pTagVals = NULL;
   cJSON*  json = NULL;
@@ -434,6 +436,9 @@ char* parseTagDatatoJson(void* p) {
   }
   for (int j = 0; j < nCols; ++j) {
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+    if (pTagVal == NULL) {
+      continue;
+    }
     // json key  encode by binary
     tstrncpy(tagJsonKey, pTagVal->pKey, sizeof(tagJsonKey));
     // json value
@@ -443,11 +448,16 @@ char* parseTagDatatoJson(void* p) {
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
       if (pTagVal->nData > 0) {
         char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        if (tagJsonValue == NULL) {
+          goto end;
+        }
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
         if (length < 0) {
           qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
@@ -462,25 +472,34 @@ char* parseTagDatatoJson(void* p) {
         }
       } else if (pTagVal->nData == 0) {
         value = cJSON_CreateString("");
+        if (value == NULL) {
+          goto end;
+        }
       } else {
         goto end;
       }
 
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double jsonVd = *(double*)(&pTagVal->i64);
       cJSON* value = cJSON_CreateNumber(jsonVd);
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+        goto end;
+      }
     } else if (type == TSDB_DATA_TYPE_BOOL) {
       char   jsonVd = *(char*)(&pTagVal->i64);
       cJSON* value = cJSON_CreateBool(jsonVd);
       if (value == NULL) {
         goto end;
       }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+        goto end;
+      }
     } else {
       goto end;
     }
@@ -492,7 +511,7 @@ end:
   if (string == NULL) {
     string = taosStrdup(TSDB_DATA_NULL_STR_L);
   }
-  return string;
+  *jsonStr = string;
 }
 
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {

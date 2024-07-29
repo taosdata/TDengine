@@ -77,7 +77,7 @@ SSyncNode *createSyncNode() {
 
 void test1() {
   printf("------- test1 ---------\n");
-  pMgr = syncRespMgrCreate(createSyncNode(), 0);
+  (void)syncRespMgrCreate(createSyncNode(), 0, &pMgr);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -102,7 +102,7 @@ void test1() {
 
 void test2() {
   printf("------- test2 ---------\n");
-  pMgr = syncRespMgrCreate(createSyncNode(), 0);
+  (void)syncRespMgrCreate(createSyncNode(), 0, &pMgr);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -119,7 +119,7 @@ void test2() {
 
 void test3() {
   printf("------- test3 ---------\n");
-  pMgr = syncRespMgrCreate(createSyncNode(), 0);
+  (void)syncRespMgrCreate(createSyncNode(), 0, &pMgr);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(10);
@@ -136,7 +136,7 @@ void test3() {
 
 void test4() {
   printf("------- test4 ---------\n");
-  pMgr = syncRespMgrCreate(createSyncNode(), 2);
+  (void)syncRespMgrCreate(createSyncNode(), 2, &pMgr);
   assert(pMgr != NULL);
 
   syncRespMgrInsert(5);

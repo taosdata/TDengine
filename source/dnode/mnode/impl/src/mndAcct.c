@@ -54,6 +54,7 @@ int32_t mndInitAcct(SMnode *pMnode) {
 void mndCleanupAcct(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
+  int32_t  code = 0;
   SAcctObj acctObj = {0};
   tstrncpy(acctObj.acct, TSDB_DEFAULT_USER, TSDB_USER_LEN);
   acctObj.createdTime = taosGetTimestampMs();
@@ -76,7 +77,10 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   };
 
   SSdbRaw *pRaw = mndAcctActionEncode(&acctObj);
-  if (pRaw == NULL) return -1;
+  if (pRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
@@ -84,21 +88,24 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-acct");
   if (pTrans == NULL) {
     sdbFreeRaw(pRaw);
-    mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
-    return -1;
+    code = terrno;
+    mError("acct:%s, failed to create since %s", acctObj.acct, tstrerror(code));
+    TAOS_RETURN(code);
   }
   mInfo("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
 
-  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
-    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+  code = mndTransAppendCommitlog(pTrans, pRaw);
+  if (code != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, tstrerror(code));
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+  code = mndTransPrepare(pMnode, pTrans);
+  if (code != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     mndTransDrop(pTrans);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   mndTransDrop(pTrans);
@@ -106,6 +113,8 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, ACCT_VER_NUMBER, sizeof(SAcctObj) + ACCT_RESERVE_SIZE);
@@ -146,6 +155,8 @@ _OVER:
 }
 
 static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SAcctObj *pAcct = NULL;
   SSdbRow  *pRow = NULL;
@@ -216,31 +227,36 @@ static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
 }
 
 static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
-  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_CREATE_ACCT) != 0) {
-    return -1;
+  int32_t code = 0;
+  code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_CREATE_ACCT);
+  if (code != 0) {
+    TAOS_RETURN(code);
   }
 
-  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-  mError("failed to process create acct request since %s", terrstr());
-  return -1;
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+  mError("failed to process create acct request since %s", tstrerror(code));
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
-  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_ALTER_ACCT) != 0) {
-    return -1;
+  int32_t code = 0;
+  code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_ALTER_ACCT);
+  if (code != 0) {
+    TAOS_RETURN(code);
   }
 
-  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-  mError("failed to process create acct request since %s", terrstr());
-  return -1;
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+  mError("failed to process create acct request since %s", tstrerror(code));
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
-  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT) != 0) {
-    return -1;
+  int32_t code = 0;
+  if ((code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT)) != 0) {
+    TAOS_RETURN(code);
   }
 
-  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-  mError("failed to process create acct request since %s", terrstr());
-  return -1;
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+  mError("failed to process create acct request since %s", tstrerror(code));
+  TAOS_RETURN(code);
 }

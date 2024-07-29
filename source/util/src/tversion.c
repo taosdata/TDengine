@@ -19,8 +19,7 @@
 
 int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
   if (vstr == NULL) {
-    terrno = TSDB_CODE_INVALID_VERSION_STRING;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_VERSION_STRING;
   }
 
   int32_t vnum[4] = {0};
@@ -44,8 +43,7 @@ int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
   }
 
   if (vnum[0] <= 0) {
-    terrno = TSDB_CODE_INVALID_VERSION_STRING;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_VERSION_STRING;
   }
 
   *vint = vnum[0] * 1000000 + vnum[1] * 10000 + vnum[2] * 100 + vnum[3];
@@ -58,8 +56,7 @@ int32_t taosVersionIntToStr(int32_t vint, char *vstr, int32_t len) {
   int32_t s3 = (vint % 10000) / 100;
   int32_t s4 = vint % 100;
   if (s1 <= 0) {
-    terrno = TSDB_CODE_INVALID_VERSION_NUMBER;
-    return -1;
+    return terrno = TSDB_CODE_INVALID_VERSION_NUMBER;
   }
 
   snprintf(vstr, len, "%02d.%02d.%02d.%02d", s1, s2, s3, s4);
@@ -83,15 +80,13 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
       serverVer /= 1000000;
       break;
     default:
-      terrno = TSDB_CODE_INVALID_VERSION_NUMBER;
-      return -1;
+      return TSDB_CODE_INVALID_VERSION_NUMBER;
   }
 
   if (clientVer == serverVer) {
     return 0;
   } else {
-    terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-    return -1;
+    return TSDB_CODE_VERSION_NOT_COMPATIBLE;
   }
 }
 
@@ -105,9 +100,6 @@ int32_t taosCheckVersionCompatibleFromStr(const char *pClientVersion, const char
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = taosCheckVersionCompatible(clientVersion, serverVersion, comparedSegments);
-  }
-  if (TSDB_CODE_SUCCESS != code) {
-    code = terrno;
   }
   return code;
 }

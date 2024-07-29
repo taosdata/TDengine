@@ -28,8 +28,7 @@ typedef int32_t (*_equal_fn_t)(const void *, const void *, size_t len);
 typedef void (*_hash_before_fn_t)(void *);
 typedef void (*_hash_free_fn_t)(void *);
 
-#define HASH_KEY_ALREADY_EXISTS (-2)
-#define HASH_NODE_EXIST(code)   (code == HASH_KEY_ALREADY_EXISTS)
+#define HASH_NODE_EXIST(code)   (code == TSDB_CODE_DUP_KEY)
 
 /**
  * murmur hash algorithm

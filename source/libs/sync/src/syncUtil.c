@@ -43,17 +43,16 @@ void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
 
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = 0xFFFFFFFF;
-  sDebug("vgId:%d, start to resolve sync addr fqdn in %d seconds, "
-        "dnode:%d cluster:%" PRId64 " fqdn:%s port:%u ",
-        vgId, tsResolveFQDNRetryTime,
-        pInfo->nodeId, pInfo->clusterId, pInfo->nodeFqdn, pInfo->nodePort);
-  for(int i = 0; i < tsResolveFQDNRetryTime; i++){
-    ipv4 = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
-    if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
+  sDebug(
+      "vgId:%d, start to resolve sync addr fqdn in %d seconds, "
+      "dnode:%d cluster:%" PRId64 " fqdn:%s port:%u ",
+      vgId, tsResolveFQDNRetryTime, pInfo->nodeId, pInfo->clusterId, pInfo->nodeFqdn, pInfo->nodePort);
+  for (int i = 0; i < tsResolveFQDNRetryTime; i++) {
+    int32_t code = taosGetIpv4FromFqdn(pInfo->nodeFqdn, &ipv4);
+    if (code) {
       sError("failed to resolve ipv4 addr, fqdn:%s, wait one second", pInfo->nodeFqdn);
       taosSsleep(1);
-    }
-    else{
+    } else {
       break;
     }
   }
@@ -104,10 +103,10 @@ bool syncUtilUserPreCommit(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP &&
 bool syncUtilUserRollback(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
 
 void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf) {
-  memset(buf, 0, TSDB_ARB_TOKEN_SIZE);
+  (void)memset(buf, 0, TSDB_ARB_TOKEN_SIZE);
   int32_t randVal = taosSafeRand() % 1000;
   int64_t currentMs = taosGetTimestampMs();
-  snprintf(buf, TSDB_ARB_TOKEN_SIZE, "d%d#g%d#%" PRId64 "#%d", nodeId, groupId, currentMs, randVal);
+  (void)snprintf(buf, TSDB_ARB_TOKEN_SIZE, "d%d#g%d#%" PRId64 "#%d", nodeId, groupId, currentMs, randVal);
 }
 
 // for leader
@@ -501,8 +500,7 @@ void syncLogSendRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteRepl
 int32_t syncSnapInfoDataRealloc(SSnapshot* pSnap, int32_t size) {
   void* data = taosMemoryRealloc(pSnap->data, size);
   if (data == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   pSnap->data = data;
   return 0;
