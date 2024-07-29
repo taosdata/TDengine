@@ -533,6 +533,10 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
 
   for (int32_t i = 0; i < colNum; ++i) {
     SColData* pCol = (SColData*)taosArrayGet(pCols, i);
+    if (pCol == NULL){
+      qError("qResetStmtColumns column is NULL");
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     if (deepClear) {
       tColDataDeepClear(pCol);
     } else {
@@ -549,6 +553,10 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
 
   for (int32_t i = 0; i < colNum; ++i) {
     SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
+    if (pCol == NULL){
+      qError("qResetStmtDataBlock column is NULL");
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     if (deepClear) {
       tColDataDeepClear(pCol);
     } else {
