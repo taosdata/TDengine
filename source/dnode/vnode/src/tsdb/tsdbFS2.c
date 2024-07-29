@@ -174,8 +174,7 @@ int32_t save_fs(const TFileSetArray *arr, const char *fname) {
     if (!item) {
       TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
-    code = cJSON_AddItemToArray(ajson, item);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    (void)cJSON_AddItemToArray(ajson, item);
 
     code = tsdbTFileSetToJson(fset, item);
     TSDB_CHECK_CODE(code, lino, _exit);
