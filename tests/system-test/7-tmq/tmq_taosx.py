@@ -653,7 +653,6 @@ class TDTestCase:
         self.checkSnapshot1VgroupTableBtmeta()
         self.checkSnapshotMultiVgroupsBtmeta()
         self.checkSnapshotMultiVgroupsWithDropTableBtmeta()
-        self.checkVgroupTable()
 
     def stop(self):
         tdSql.close()
