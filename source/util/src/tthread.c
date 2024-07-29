@@ -24,10 +24,10 @@ TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param) {
   }
 
   TdThreadAttr thattr;
-  taosThreadAttrInit(&thattr);
-  taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
+  (void)taosThreadAttrInit(&thattr);
+  (void)taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
   int32_t ret = taosThreadCreate(pthread, &thattr, __start_routine, param);
-  taosThreadAttrDestroy(&thattr);
+  (void)taosThreadAttrDestroy(&thattr);
 
   if (ret != 0) {
     taosMemoryFree(pthread);
@@ -40,8 +40,8 @@ TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param) {
 bool taosDestroyThread(TdThread* pthread) {
   if (pthread == NULL) return false;
   if (taosThreadRunning(pthread)) {
-    taosThreadCancel(*pthread);
-    taosThreadJoin(*pthread, NULL);
+    (void)taosThreadCancel(*pthread);
+    (void)taosThreadJoin(*pthread, NULL);
   }
 
   taosMemoryFree(pthread);

@@ -32,9 +32,9 @@ static SSkipListNode *tSkipListNewNode(uint8_t level);
 static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
                                        bool hasDup);
 
-static FORCE_INLINE int32_t tSkipListWLock(SSkipList *pSkipList);
-static FORCE_INLINE int32_t tSkipListRLock(SSkipList *pSkipList);
-static FORCE_INLINE int32_t tSkipListUnlock(SSkipList *pSkipList);
+static FORCE_INLINE void    tSkipListWLock(SSkipList *pSkipList);
+static FORCE_INLINE void    tSkipListRLock(SSkipList *pSkipList);
+static FORCE_INLINE void    tSkipListUnlock(SSkipList *pSkipList);
 static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList);
 
 SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
@@ -115,7 +115,7 @@ void tSkipListDestroy(SSkipList *pSkipList) {
 
   tSkipListUnlock(pSkipList);
   if (pSkipList->lock != NULL) {
-    taosThreadRwlockDestroy(pSkipList->lock);
+    (void)taosThreadRwlockDestroy(pSkipList->lock);
     taosMemoryFreeClear(pSkipList->lock);
   }
 
@@ -458,25 +458,22 @@ static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t
   return iter;
 }
 
-static FORCE_INLINE int32_t tSkipListWLock(SSkipList *pSkipList) {
+static FORCE_INLINE void tSkipListWLock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
-    return taosThreadRwlockWrlock(pSkipList->lock);
+    (void)taosThreadRwlockWrlock(pSkipList->lock);
   }
-  return 0;
 }
 
-static FORCE_INLINE int32_t tSkipListRLock(SSkipList *pSkipList) {
+static FORCE_INLINE void tSkipListRLock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
-    return taosThreadRwlockRdlock(pSkipList->lock);
+    (void)taosThreadRwlockRdlock(pSkipList->lock);
   }
-  return 0;
 }
 
-static FORCE_INLINE int32_t tSkipListUnlock(SSkipList *pSkipList) {
+static FORCE_INLINE void tSkipListUnlock(SSkipList *pSkipList) {
   if (pSkipList->lock) {
-    return taosThreadRwlockUnlock(pSkipList->lock);
+    (void)taosThreadRwlockUnlock(pSkipList->lock);
   }
-  return 0;
 }
 
 static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward, void *pData) {
