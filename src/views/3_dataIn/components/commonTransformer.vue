@@ -154,13 +154,24 @@
                 :disabled="parseruleForm.type == 'json'"
               >
               </el-input>
-              <cusSelect
+              <div
+                class="josn-wrap"
                 v-else-if="parseruleForm.type == 'json'"
-                v-model="parseruleForm.expression"
-                :allProperties="allProperties"
-                :selectJson="selectJson"
-                @updateData="updateData"
-              />
+              >
+                <el-input
+                  v-model="parseruleForm.depth"
+                  style="width: 100px;margin-right: 5px"
+                  size="small"
+                >
+                  <template slot="prepend">depth</template>
+                </el-input>
+                <cusSelect
+                  v-model="parseruleForm.expression"
+                  :allProperties="allProperties"
+                  :selectJson="selectJson"
+                  @updateData="updateData"
+                />
+              </div>
               <div v-else style="display: inline-flex; align-items: start; width: 100%;">
                 <el-input 
                   size="small"
@@ -1120,6 +1131,7 @@ export default {
                           .split(",")
                           .map((item) => item.trim())
                       : this.parseruleForm.expression,
+                  "depth": this.parseruleForm.depth
                 },
               },
             },
@@ -1365,14 +1377,18 @@ export default {
             tagKey = "value";
             break;
         }
-        this.parseruleForm.type = Object.keys(
-          value.parser.parse[tagKey]
-        ).toString();
-        this.parseruleForm.expression =
-          this.parseruleForm.type == "regex"
-            ? Object.values(value.parser.parse[tagKey]).toString()
-            : Object.values(value.parser.parse[tagKey])
-                .toString()
+        let keys = Object.keys(value.parser.parse[tagKey])
+        this.parseruleForm.type = keys.filter(item => item != 'depth').toString(); 
+
+        if (this.parseruleForm.type == 'json') {
+          this.parseruleForm.depth = value.parser.parse[tagKey]['depth']
+        }
+        this.parseruleForm.expression = value.parser.parse[tagKey][this.parseruleForm.type].toString();
+        // this.parseruleForm.expression = 
+        //   this.parseruleForm.type == "regex"
+        //     ? Object.values(value.parser.parse[tagKey]).toString()
+        //     : Object.values(value.parser.parse[tagKey])
+        //         .toString()
                 // .replace(",", ";");
       }
 
@@ -2418,6 +2434,7 @@ export default {
     },
     handleTypeChange() {
       this.parseruleForm.expression = ""
+      this.parseruleForm.depth = ""
     }
   },
   watch: {
@@ -2778,5 +2795,10 @@ export default {
 }
 .udt {
   margin-bottom: 16px;
+}
+.josn-wrap {
+  display: inline-flex;
+  align-items: start; 
+  width: 100%;
 }
 </style>
