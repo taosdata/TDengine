@@ -1764,23 +1764,33 @@ int32_t tDeserializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pR
   return 0;
 }
 void tFreeSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
-  for (int i = 0; i < pReq->numOfUser; i++) {
-    SUpdateUserIpWhite *pUserWhite = &pReq->pUserIpWhite[i];
-    taosMemoryFree(pUserWhite->pIpRanges);
+  if (pReq == NULL) return;
+
+  if (pReq->pUserIpWhite) {
+    for (int i = 0; i < pReq->numOfUser; i++) {
+      SUpdateUserIpWhite *pUserWhite = &pReq->pUserIpWhite[i];
+      taosMemoryFree(pUserWhite->pIpRanges);
+    }
   }
   taosMemoryFree(pReq->pUserIpWhite);
-  // impl later
   return;
 }
-SUpdateIpWhite *cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
+int32_t cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq, SUpdateIpWhite **pUpdateMsg) {
+  int32_t code = 0;
+  if (pReq == NULL) {
+    return 0;
+  }
   SUpdateIpWhite *pClone = taosMemoryCalloc(1, sizeof(SUpdateIpWhite));
-  if (pClone == NULL) return NULL;
+  if (pClone == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   pClone->numOfUser = pReq->numOfUser;
   pClone->ver = pReq->ver;
-  if ((pClone->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser)) == NULL) {
+  pClone->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser);
+  if (pClone->pUserIpWhite == NULL) {
     taosMemoryFree(pClone);
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   for (int i = 0; i < pReq->numOfUser; i++) {
@@ -1792,17 +1802,21 @@ SUpdateIpWhite *cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
     pNew->numOfRange = pOld->numOfRange;
 
     int32_t sz = pOld->numOfRange * sizeof(SIpV4Range);
-    if ((pNew->pIpRanges = taosMemoryCalloc(1, sz)) == NULL) {
-      for (int j = 0; j < i; j++) {
-        taosMemoryFree(pClone->pUserIpWhite[j].pIpRanges);
-      }
-      taosMemoryFree(pClone->pUserIpWhite);
-      taosMemoryFree(pClone);
-      return NULL;
+    pNew->pIpRanges = taosMemoryCalloc(1, sz);
+    if (pNew->pIpRanges == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
     }
     memcpy(pNew->pIpRanges, pOld->pIpRanges, sz);
   }
-  return pClone;
+_return:
+  if (code < 0) {
+    tFreeSUpdateIpWhiteReq(pClone);
+    taosMemoryFree(pClone);
+  } else {
+    *pUpdateMsg = pClone;
+  }
+  return code;
 }
 int32_t tSerializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteReq *pReq) {
   SEncoder encoder = {0};

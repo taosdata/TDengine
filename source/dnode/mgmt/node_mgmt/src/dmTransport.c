@@ -65,10 +65,11 @@ static int32_t dmConvertErrCode(tmsg_t msgType, int32_t code) {
   return code;
 }
 static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  int32_t code = 0;
   SUpdateIpWhite ipWhite = {0};  // aosMemoryCalloc(1, sizeof(SUpdateIpWhite));
   tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
 
-  rpcSetIpWhite(pTrans, &ipWhite);
+  code = rpcSetIpWhite(pTrans, &ipWhite);
   pData->ipWhiteVer = ipWhite.ver;
 
   tFreeSUpdateIpWhiteReq(&ipWhite);
