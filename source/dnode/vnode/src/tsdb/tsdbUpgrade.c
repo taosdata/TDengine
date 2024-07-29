@@ -79,7 +79,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
 
     // open fd
     char fname[TSDB_FILENAME_LEN];
-    tsdbTFileName(tsdb, &file, fname);
+    (void)tsdbTFileName(tsdb, &file, fname);
 
     TAOS_CHECK_GOTO(tsdbOpenFile(fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd, 0), &lino, _exit);
 
@@ -321,7 +321,7 @@ static int32_t tsdbUpgradeStt(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *r
   if (TARRAY2_SIZE(lvl->fobjArr) > 0) {
     TAOS_CHECK_GOTO(TARRAY2_APPEND(fset->lvlArr, lvl), &lino, _exit);
   } else {
-    tsdbSttLvlClear(&lvl);
+    (void)tsdbSttLvlClear(&lvl);
   }
 
 _exit:
