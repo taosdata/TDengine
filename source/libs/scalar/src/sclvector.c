@@ -740,7 +740,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     return vectorConvertFromVarData(&cCtx, overflow);
   }
 
-  if (overflow) {
+  if (overflow && TSDB_DATA_TYPE_NULL != cCtx.inType) {
     if (1 != pIn->numOfRows) {
       sclError("invalid numOfRows %d", pIn->numOfRows);
       return TSDB_CODE_APP_ERROR;
