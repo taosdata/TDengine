@@ -7356,6 +7356,7 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tEncodeSTqOffsetVal(&encoder, &pReq->reqOffset) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->enableReplay) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->sourceExcluded) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->enableBatchMeta) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -7367,7 +7368,6 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
     pHead->vgId = htonl(pReq->head.vgId);
     pHead->contLen = htonl(tlen + headLen);
   }
-  if (tEncodeI8(&encoder, pReq->enableBatchMeta) < 0) return -1;
 
   return tlen + headLen;
 }
