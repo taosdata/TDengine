@@ -471,9 +471,7 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   return TSDB_CODE_FAILED;
 }
 
-int32_t qInitKeywordsTable() {
-  return taosInitKeywordsTable();
-}
+int32_t qInitKeywordsTable() { return taosInitKeywordsTable(); }
 
 void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }
 
@@ -523,9 +521,9 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
     nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = nodesCloneNode(pQuery->pPrepareRoot);
+    code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
     if (NULL == pQuery->pRoot) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = code;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
