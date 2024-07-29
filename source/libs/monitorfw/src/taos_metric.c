@@ -49,12 +49,12 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
   for (int i = 0; i < label_key_count; i++) {
     if (strcmp(label_keys[i], "le") == 0) {
       TAOS_LOG(TAOS_METRIC_INVALID_LABEL_NAME);
-      taos_metric_destroy(self);
+      (void)taos_metric_destroy(self);
       return NULL;
     }
     if (strcmp(label_keys[i], "quantile") == 0) {
       TAOS_LOG(TAOS_METRIC_INVALID_LABEL_NAME);
-      taos_metric_destroy(self);
+      (void)taos_metric_destroy(self);
       return NULL;
     }
     k[i] = taos_strdup(label_keys[i]);
@@ -68,14 +68,14 @@ taos_metric_t *taos_metric_new(taos_metric_type_t metric_type, const char *name,
   } else {
     r = taos_map_set_free_value_fn(self->samples, &taos_metric_sample_free_generic);
     if (r) {
-      taos_metric_destroy(self);
+      (void)taos_metric_destroy(self);
       return NULL;
     }
   }
 
   self->formatter = taos_metric_formatter_new();
   if (self->formatter == NULL) {
-    taos_metric_destroy(self);
+    (void)taos_metric_destroy(self);
     return NULL;
   }
   self->rwlock = (pthread_rwlock_t *)taos_malloc(sizeof(pthread_rwlock_t));
@@ -140,7 +140,7 @@ int taos_metric_destroy_generic(void *item) {
 
 void taos_metric_free_generic(void *item) {
   taos_metric_t *self = (taos_metric_t *)item;
-  taos_metric_destroy(self);
+  (void)taos_metric_destroy(self);
 }
 
 taos_metric_sample_t *taos_metric_sample_from_labels(taos_metric_t *self, const char **label_values) {
