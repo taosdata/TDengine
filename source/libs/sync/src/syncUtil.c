@@ -183,7 +183,7 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
-    pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
+    (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
   }
 
   SyncIndex logLastIndex = SYNC_INDEX_INVALID;
@@ -253,7 +253,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
-    pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
+    (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
   }
 
   SyncIndex logLastIndex = SYNC_INDEX_INVALID;
@@ -302,7 +302,7 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
-    pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
+    (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
   }
 
   SyncIndex logLastIndex = SYNC_INDEX_INVALID;
