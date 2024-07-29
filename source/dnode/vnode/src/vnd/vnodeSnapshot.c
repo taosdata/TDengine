@@ -610,7 +610,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   int64_t       ever = pParam->end;
 
   // cancel and disable all bg task
-  vnodeCancelAndDisableAllBgTask(pVnode);
+  (void)vnodeCancelAndDisableAllBgTask(pVnode);
 
   // alloc
   pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
@@ -749,7 +749,7 @@ _exit:
     vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
     taosMemoryFree(pWriter);
   }
-  vnodeEnableBgTask(pVnode);
+  (void)vnodeEnableBgTask(pVnode);
   return code;
 }
 

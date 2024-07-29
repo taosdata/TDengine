@@ -583,7 +583,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
         streamMetaWUnLock(pMeta);
 
         tqInfo("vgId:%d stream task already loaded, start them", vgId);
-        streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+        (void)streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
         return;
       }
     }
