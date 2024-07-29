@@ -134,7 +134,7 @@ int32_t syncLogReplGetPrevLogTerm(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncI
   }
 
   SSnapshot snapshot = {0};
-  (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);  // TODO: check the return code
+  (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
   if (prevIndex == snapshot.lastApplyIndex) {
     *pSyncTerm = snapshot.lastApplyTerm;
     return 0;
@@ -184,7 +184,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
 
   int32_t   code = 0, lino = 0;
   SSnapshot snapshot = {0};
-  pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
+  TAOS_CHECK_EXIT(pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot));
 
   SyncIndex commitIndex = snapshot.lastApplyIndex;
   SyncTerm  commitTerm = TMAX(snapshot.lastApplyTerm, 0);

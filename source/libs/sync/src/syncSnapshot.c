@@ -86,14 +86,17 @@ int32_t snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex, SSyncSn
   pSender->replicaIndex = replicaIndex;
   pSender->term = raftStoreGetTerm(pSyncNode);
   pSender->startTime = -1;
-  pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
   pSender->finish = false;
 
+  code = pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
+  if (code != 0) {
+    taosMemoryFreeClear(pSender);
+    TAOS_RETURN(code);
+  }
   SSyncSnapBuffer *pSndBuf = NULL;
   code = syncSnapBufferCreate(&pSndBuf);
   if (pSndBuf == NULL) {
-    taosMemoryFree(pSender);
-    pSender = NULL;
+    taosMemoryFreeClear(pSender);
     TAOS_RETURN(code);
   }
   pSndBuf->entryDeleteCb = syncSnapBlockDestroy;
@@ -472,7 +475,7 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
     syncSnapBufferDestroy(&pReceiver->pRcvBuf);
   }
 
-  snapshotReceiverClearInfoData(pReceiver);
+  (void)snapshotReceiverClearInfoData(pReceiver);
 
   // free receiver
   taosMemoryFree(pReceiver);
@@ -592,7 +595,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, true,
                                                            &pReceiver->snapshot);
     if (code != 0) {
-      sRError(pReceiver, "snapshot receiver apply failed  since %s", tstrerror(code));
+      sRError(pReceiver, "snapshot receiver apply failed since %s", tstrerror(code));
       TAOS_RETURN(code);
     }
     pReceiver->pWriter = NULL;
@@ -603,7 +606,11 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
 
     // get fsmState
     SSnapshot snapshot = {0};
-    pReceiver->pSyncNode->pFsm->FpGetSnapshotInfo(pReceiver->pSyncNode->pFsm, &snapshot);
+    code = pReceiver->pSyncNode->pFsm->FpGetSnapshotInfo(pReceiver->pSyncNode->pFsm, &snapshot);
+    if (code != 0) {
+      sRError(pReceiver, "snapshot receiver get snapshot info failed since %s", tstrerror(code));
+      TAOS_RETURN(code);
+    }
     pReceiver->pSyncNode->fsmState = snapshot.state;
 
     // reset wal
@@ -1276,13 +1283,13 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
     sSInfo(pSender, "process end rsp");
     snapshotSenderStop(pSender, true);
-    syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
+    (void)syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
   }
 
   return 0;
 
 _ERROR:
   snapshotSenderStop(pSender, false);
-  syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
+  (void)syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
   TAOS_RETURN(code);
 }
