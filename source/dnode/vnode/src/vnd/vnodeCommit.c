@@ -65,7 +65,7 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  taosThreadMutexLock(&pVnode->mutex);
+  (void)taosThreadMutexLock(&pVnode->mutex);
 
   int32_t nTry = 0;
   for (;;) {
@@ -110,7 +110,7 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
   }
 
 _exit:
-  taosThreadMutexUnlock(&pVnode->mutex);
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
   if (code) {
     vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
@@ -150,7 +150,7 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
   bool diskAvail = osDataSpaceAvailable();
   bool needCommit = false;
 
-  taosThreadMutexLock(&pVnode->mutex);
+  (void)taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->inUse && diskAvail) {
     needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) ||
                  (atExit && (pVnode->inUse->size > 0 || pVnode->pMeta->changed ||
@@ -162,7 +162,7 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
          TD_VID(pVnode), needCommit, diskAvail, pVnode->inUse ? pVnode->inUse->size : 0,
          pVnode->inUse ? pVnode->inUse->node.size : 0, pVnode->pMeta->changed, pVnode->state.applied,
          pVnode->state.committed);
-  taosThreadMutexUnlock(&pVnode->mutex);
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
 }
 
@@ -299,11 +299,11 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   code = smaPrepareAsyncCommit(pVnode->pSma);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  taosThreadMutexLock(&pVnode->mutex);
+  (void)taosThreadMutexLock(&pVnode->mutex);
   ASSERT(pVnode->onCommit == NULL);
   pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
-  taosThreadMutexUnlock(&pVnode->mutex);
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
 
 _exit:
   if (code) {
@@ -316,7 +316,7 @@ _exit:
   return code;
 }
 static void vnodeReturnBufPool(SVnode *pVnode) {
-  taosThreadMutexLock(&pVnode->mutex);
+  (void)taosThreadMutexLock(&pVnode->mutex);
 
   SVBufPool *pPool = pVnode->onCommit;
   int32_t    nRef = atomic_sub_fetch_32(&pPool->nRef, 1);
@@ -340,7 +340,7 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
     ASSERT(0);
   }
 
-  taosThreadMutexUnlock(&pVnode->mutex);
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
 }
 static int32_t vnodeCommit(void *arg) {
   int32_t code = 0;

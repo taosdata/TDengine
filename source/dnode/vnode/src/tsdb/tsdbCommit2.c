@@ -540,7 +540,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
     }
   }
 
-  taosThreadMutexLock(&tsdb->mutex);
+  (void)taosThreadMutexLock(&tsdb->mutex);
 
   // scan tomb data
   if (tsdb->imem->nDel > 0) {
@@ -572,7 +572,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
           } else {
             hasDataToCommit = true;
             if ((code = tsdbCommitInfoAdd(tsdb, fset->fid))) {
-              taosThreadMutexUnlock(&tsdb->mutex);
+              (void)taosThreadMutexUnlock(&tsdb->mutex);
               TSDB_CHECK_CODE(code, lino, _exit);
             }
             break;
@@ -593,13 +593,13 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
     if (fset) {
       code = tsdbTFileSetInitCopy(tsdb, fset, &info->fset);
       if (code) {
-        taosThreadMutexUnlock(&tsdb->mutex);
+        (void)taosThreadMutexUnlock(&tsdb->mutex);
         TAOS_CHECK_GOTO(code, &lino, _exit);
       }
     }
   }
 
-  taosThreadMutexUnlock(&tsdb->mutex);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 
 _exit:
   if (code) {
@@ -667,11 +667,11 @@ _exit:
 }
 
 int32_t tsdbPreCommit(STsdb *tsdb) {
-  taosThreadMutexLock(&tsdb->mutex);
+  (void)taosThreadMutexLock(&tsdb->mutex);
   ASSERT_CORE(tsdb->imem == NULL, "imem should be null to commit mem");
   tsdb->imem = tsdb->mem;
   tsdb->mem = NULL;
-  taosThreadMutexUnlock(&tsdb->mutex);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return 0;
 }
 
@@ -686,9 +686,9 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
   int64_t    nDel = imem->nDel;
 
   if (nRow == 0 && nDel == 0) {
-    taosThreadMutexLock(&tsdb->mutex);
+    (void)taosThreadMutexLock(&tsdb->mutex);
     tsdb->imem = NULL;
-    taosThreadMutexUnlock(&tsdb->mutex);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
     tsdbUnrefMemTable(imem, NULL, true);
   } else {
     SCommitter2 committer = {0};
@@ -719,10 +719,10 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
   if (tsdb->imem) {
     SMemTable *pMemTable = tsdb->imem;
 
-    taosThreadMutexLock(&tsdb->mutex);
+    (void)taosThreadMutexLock(&tsdb->mutex);
 
     if ((code = tsdbFSEditCommit(tsdb->pFS))) {
-      taosThreadMutexUnlock(&tsdb->mutex);
+      (void)taosThreadMutexUnlock(&tsdb->mutex);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     tsdb->imem = NULL;
@@ -734,7 +734,7 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
       }
     }
 
-    taosThreadMutexUnlock(&tsdb->mutex);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
 
     tsdbCommitInfoDestroy(tsdb);
     tsdbUnrefMemTable(pMemTable, NULL, true);
@@ -757,14 +757,14 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
 
   TAOS_CHECK_GOTO(tsdbFSEditAbort(pTsdb->pFS), &lino, _exit);
 
-  taosThreadMutexLock(&pTsdb->mutex);
+  (void)taosThreadMutexLock(&pTsdb->mutex);
   for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
     if (info->fset) {
       tsdbFinishTaskOnFileSet(pTsdb, info->fid);
     }
   }
-  taosThreadMutexUnlock(&pTsdb->mutex);
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
   tsdbCommitInfoDestroy(pTsdb);
 
 _exit:
