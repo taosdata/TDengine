@@ -1,7 +1,7 @@
 ---
 sidebar_label: DBeaver
-title: DBeaver
-description: 使用 DBeaver 存取 TDengine 数据的详细指南
+title: 与 DBeaver 的集成
+toc_max_heading_level: 4
 ---
 
 DBeaver 是一款流行的跨平台数据库管理工具，方便开发者、数据库管理员、数据分析师等用户管理数据。DBeaver 从 23.1.1 版本开始内嵌支持 TDengine。既支持独立部署的 TDengine 集群也支持 TDengine Cloud。

@@ -4,7 +4,7 @@ title: Prometheus
 description: 使用 Prometheus 访问 TDengine
 ---
 
-import Prometheus from "../14-reference/_prometheus.mdx"
+import Prometheus from "../../14-reference/_prometheus.mdx"
 
 Prometheus 是一款流行的开源监控告警系统。Prometheus 于2016年加入了 Cloud Native Computing Foundation （云原生云计算基金会，简称 CNCF），成为继 Kubernetes 之后的第二个托管项目，该项目拥有非常活跃的开发人员和用户社区。
 
