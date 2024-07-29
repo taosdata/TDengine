@@ -72,6 +72,16 @@ export function compHeadAndData(head, data) {
     Object.fromEntries(head.map((a, b) => [a[0], item[b] || ""]))
   );
 }
+function handlerData(data) {
+  return data.map(field => {
+    // 如果字段中包含逗号或双引号，则用双引号包裹，并且内部的双引号需要转义
+    if (field.includes(',') || field.includes('"')) {
+      return `"${field.replace(/"/g, '""')}"`;
+    } else {
+      return `"${field}"`;
+    }
+  }).join(',');
+}
 /**
  * 将table数据转成csv数据
  * @param {Array<Record<string, any>>} data 表格数据
@@ -79,11 +89,11 @@ export function compHeadAndData(head, data) {
  * @returns
  */
 export function convertToCsvData(data, head) {
-  let csv = head.join(",") + "\n";
-  data.forEach((item) => {
-    csv += item.join(",") + "\n";
+  const csvHeader = handlerData(head)
+  const csvRows = data.map(row => {
+    return handlerData(row)
   });
-  return csv;
+  return csvHeader + "\n" + csvRows.join('\n');
 }
 export function customizeTimeout(callback, time, once = 1) {
   let timer = null;
