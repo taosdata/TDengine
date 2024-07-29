@@ -33,7 +33,9 @@ void executeSQL(TAOS *taos, const char *sql) {
 void checkErrorCode(TAOS_STMT *stmt, int code, const char *msg) {
   if (code != 0) {
     printf("%s. error: %s\n", msg, taos_stmt_errstr(stmt));
-    taos_stmt_close(stmt);
+    if (taos_stmt_close(stmt) != 0) {
+      printf("stmt close failed\n");
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -123,7 +125,9 @@ void insertData(TAOS *taos) {
   int affectedRows = taos_stmt_affected_rows(stmt);
   printf("successfully inserted %d rows\n", affectedRows);
   // close
-  taos_stmt_close(stmt);
+  if(taos_stmt_close(stmt) !=  0){
+    printf("stmt close failed\n");
+  }
 }
 
 int main() {
