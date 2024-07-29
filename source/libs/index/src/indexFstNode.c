@@ -68,7 +68,7 @@ FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
 
   for (size_t i = 0; i < sz; i++) {
     FstTransition* tran = taosArrayGet(src->trans, i);
-    taosArrayPush(trans, tran);
+    (void)taosArrayPush(trans, tran);
   }
 
   node->trans = trans;
@@ -91,7 +91,7 @@ void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
   dst->trans = taosArrayInit(sz, sizeof(FstTransition));
   for (size_t i = 0; i < sz; i++) {
     FstTransition* trn = taosArrayGet(src->trans, i);
-    taosArrayPush(dst->trans, trn);
+    (void)taosArrayPush(dst->trans, trn);
   }
 }
 
