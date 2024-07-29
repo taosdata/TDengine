@@ -582,22 +582,22 @@ _end:
 #endif
 }
 
-int32_t taosGetCpuCores(float *numOfCores, bool physical) {
+void taosGetCpuCores(float *numOfCores, bool physical) {
 #ifdef WINDOWS
   SYSTEM_INFO info;
   GetSystemInfo(&info);
   *numOfCores = info.dwNumberOfProcessors;
-  return 0;
+  return;
 #elif defined(_TD_DARWIN_64)
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
-  return 0;
+  return;
 #else
   if (physical) {
     *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   } else {
     (void)taosCntrGetCpuCores(numOfCores);
   }
-  return 0;
+  return;
 #endif
 }
 
@@ -1009,10 +1009,6 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
   int n = snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
-  if (n >= uidlen) {
-    // target buffer is too small
-    return -1;
-  }
   return 0;
 #else
   int len = 0;

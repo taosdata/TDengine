@@ -158,10 +158,19 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
             taosArrayDestroy(pArray);
             TAOS_RETURN(code);
           }
-          taosArrayPush(pArray, &pTask);
+          if (taosArrayPush(pArray, &pTask) == NULL) {
+            taosMemoryFree(pTask);
+            taosArrayDestroy(pArray);
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            TAOS_RETURN(code);
+          }
         }
       }
-      taosArrayPush(pObj->tasks, &pArray);
+      if (taosArrayPush(pObj->tasks, &pArray) == NULL) {
+        taosArrayDestroy(pArray);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TAOS_RETURN(code);
+      }
     }
   }
 
@@ -436,10 +445,15 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   // current topics
   buf = taosDecodeFixedI32(buf, &sz);
   pConsumer->currentTopics = taosArrayInit(sz, sizeof(void *));
+  if (pConsumer->currentTopics == NULL) {
+    return NULL;
+  }
   for (int32_t i = 0; i < sz; i++) {
     char *topic;
     buf = taosDecodeString(buf, &topic);
-    taosArrayPush(pConsumer->currentTopics, &topic);
+    if (taosArrayPush(pConsumer->currentTopics, &topic) == NULL) {
+      return NULL;
+    }
   }
 
   // reb new topics
@@ -448,7 +462,9 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   for (int32_t i = 0; i < sz; i++) {
     char *topic;
     buf = taosDecodeString(buf, &topic);
-    taosArrayPush(pConsumer->rebNewTopics, &topic);
+    if (taosArrayPush(pConsumer->rebNewTopics, &topic) == NULL) {
+      return NULL;
+    }
   }
 
   // reb removed topics
@@ -457,7 +473,9 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   for (int32_t i = 0; i < sz; i++) {
     char *topic;
     buf = taosDecodeString(buf, &topic);
-    taosArrayPush(pConsumer->rebRemovedTopics, &topic);
+    if (taosArrayPush(pConsumer->rebRemovedTopics, &topic) == NULL) {
+      return NULL;
+    }
   }
 
   // reb removed topics
@@ -466,7 +484,9 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   for (int32_t i = 0; i < sz; i++) {
     char *topic;
     buf = taosDecodeString(buf, &topic);
-    taosArrayPush(pConsumer->assignedTopics, &topic);
+    if (taosArrayPush(pConsumer->assignedTopics, &topic) == NULL) {
+      return NULL;
+    }
   }
 
   if (sver > 1) {
@@ -597,7 +617,9 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
         .consumerId = pConsumerEp->consumerId,
         .vgs = taosArrayDup(pConsumerEp->vgs, (__array_item_dup_fn_t)tCloneSMqVgEp),
     };
-    taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp, sizeof(SMqConsumerEp));
+    if ((code = taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp,
+                            sizeof(SMqConsumerEp))) != 0)
+      goto END;
   }
   pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, (__array_item_dup_fn_t)tCloneSMqVgEp);
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
@@ -672,7 +694,9 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp consumerEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &consumerEp, sver);
-    taosHashPut(pSub->consumerHash, &consumerEp.consumerId, sizeof(int64_t), &consumerEp, sizeof(SMqConsumerEp));
+    if (taosHashPut(pSub->consumerHash, &consumerEp.consumerId, sizeof(int64_t), &consumerEp, sizeof(SMqConsumerEp)) !=
+        0)
+      return NULL;
   }
 
   buf = taosDecodeArray(buf, &pSub->unassignedVgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp), sver);

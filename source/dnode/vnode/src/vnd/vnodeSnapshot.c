@@ -370,8 +370,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       goto _exit;
     } else {
       pReader->tqHandleDone = 1;
-      code = tqSnapReaderClose(&pReader->pTqSnapReader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      tqSnapReaderClose(&pReader->pTqSnapReader);
     }
   }
   if (!pReader->tqCheckInfoDone) {
@@ -387,8 +386,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       goto _exit;
     } else {
       pReader->tqCheckInfoDone = 1;
-      code = tqSnapReaderClose(&pReader->pTqCheckInfoReader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      tqSnapReaderClose(&pReader->pTqCheckInfoReader);
     }
   }
   if (!pReader->tqOffsetDone) {
@@ -404,8 +402,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       goto _exit;
     } else {
       pReader->tqOffsetDone = 1;
-      code = tqSnapReaderClose(&pReader->pTqOffsetReader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      tqSnapReaderClose(&pReader->pTqOffsetReader);
     }
   }
 

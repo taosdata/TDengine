@@ -29,7 +29,7 @@ void geosFreeBuffer(void *buffer) {
 
 void geosErrMsgeHandler(const char *errMsg, void *userData) {
   char *targetErrMsg = userData;
-  snprintf(targetErrMsg, 512, "%s", errMsg);
+  (void)snprintf(targetErrMsg, 512, "%s", errMsg);
 }
 
 int32_t initCtxMakePoint() {
@@ -94,7 +94,7 @@ static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  sprintf(
+  (void)sprintf(
       wktPatternWithSpace,
       "^( *)point( *)z?m?( *)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
       "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *)\\)))|linestring( *)z?m?( "
@@ -264,7 +264,7 @@ int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT) 
   SGeosContext *geosCtx = getThreadLocalGeosCtx();
 
   GEOSGeometry  *geom = NULL;
-  unsigned char *wkt = NULL;
+  char *wkt = NULL;
 
   geom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, inputGeom, size);
   if (geom == NULL) {

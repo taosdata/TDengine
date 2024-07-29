@@ -1158,6 +1158,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     if (fd >= 0) (void)close(fd);
 #endif
     if (fp != NULL) (void)fclose(fp);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

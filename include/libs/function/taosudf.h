@@ -33,6 +33,15 @@ extern "C" {
 #else
 #define FORCE_INLINE
 #endif
+
+#define TAOS_UDF_CHECK_RETURN(CMD)   \
+  do {                               \
+    int32_t code = (CMD);            \
+    if (code != TSDB_CODE_SUCCESS) { \
+      return (CMD);                  \
+    }                                \
+  } while (0)
+
 typedef struct SUdfColumnMeta {
   int16_t type;
   int32_t bytes;
@@ -192,25 +201,28 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn *pColumn, int32_t ne
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE void udfColDataSetNull(SUdfColumn *pColumn, int32_t row) {
-  udfColEnsureCapacity(pColumn, row + 1);
+static FORCE_INLINE int32_t udfColDataSetNull(SUdfColumn *pColumn, int32_t row) {
+  int32_t code = udfColEnsureCapacity(pColumn, row + 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
     udfColDataSetNull_var(pColumn, row);
   } else {
     udfColDataSetNull_f(pColumn, row);
   }
   pColumn->hasNull = true;
-  pColumn->colData.numOfRows =
-      ((int32_t)(row + 1) > pColumn->colData.numOfRows) ? (int32_t)(row + 1) : pColumn->colData.numOfRows;
+  pColumn->colData.numOfRows = ((int32_t)(row + 1) > pColumn->colData.numOfRows) ? (int32_t)(row + 1) : pColumn->colData.numOfRows;
+  return 0;
 }
 
 static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentRow, const char *pData, bool isNull) {
   SUdfColumnMeta *meta = &pColumn->colMeta;
   SUdfColumnData *data = &pColumn->colData;
-  udfColEnsureCapacity(pColumn, currentRow + 1);
+  TAOS_UDF_CHECK_RETURN(udfColEnsureCapacity(pColumn, currentRow + 1));
   bool isVarCol = IS_VAR_DATA_TYPE(meta->type);
   if (isNull) {
-    udfColDataSetNull(pColumn, currentRow);
+    TAOS_UDF_CHECK_RETURN(udfColDataSetNull(pColumn, currentRow));
   } else {
     if (!isVarCol) {
       udfColDataSetNotNull_f(pColumn, currentRow);

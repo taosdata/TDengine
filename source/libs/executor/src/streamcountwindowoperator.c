@@ -754,7 +754,7 @@ void streamCountReleaseState(SOperatorInfo* pOperator) {
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   int32_t                      resSize = sizeof(TSKEY);
   char*                        pBuff = taosMemoryCalloc(1, resSize);
-  QUERY_CHECK_NULL(pBuff, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pBuff, code, lino, _end, terrno);
 
   memcpy(pBuff, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
   qDebug("===stream=== count window operator relase state. ");
@@ -803,8 +803,10 @@ _end:
   }
 }
 
-SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
+int32_t createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   SCountWinodwPhysiNode*       pCountNode = (SCountWinodwPhysiNode*)pPhyNode;
   int32_t                      numOfCols = 0;
   int32_t                      code = TSDB_CODE_SUCCESS;
@@ -856,7 +858,10 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pStDeleted = tSimpleHashInit(64, hashFn);
   pInfo->pDelIterator = NULL;
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
+
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->ignoreExpiredData = pCountNode->window.igExpired;
   pInfo->ignoreExpiredDataSaved = false;
   pInfo->pUpdated = NULL;
@@ -868,7 +873,9 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->recvGetAll = false;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
   pInfo->destHasPrimaryKey = pCountNode->window.destHasPrimaryKey;
@@ -899,7 +906,9 @@ SOperatorInfo* createStreamCountAggOperatorInfo(SOperatorInfo* downstream, SPhys
     code = appendDownstream(pOperator, &downstream, 1);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -908,6 +917,6 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
-  return NULL;
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
 }

@@ -110,17 +110,14 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 
   (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
-  (*pTaskInfo)->pRoot = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond,
-                                       pPlan->user, pPlan->dbFName);
+  code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
+                        pPlan->dbFName, &((*pTaskInfo)->pRoot));
 
-  if (NULL == (*pTaskInfo)->pRoot) {
-    int32_t code = (*pTaskInfo)->code;
+  if (NULL == (*pTaskInfo)->pRoot || code != 0) {
     doDestroyTask(*pTaskInfo);
     (*pTaskInfo) = NULL;
-    return code;
-  } else {
-    return TSDB_CODE_SUCCESS;
   }
+  return code;
 }
 
 void cleanupQueriedTableScanInfo(void* p) {

@@ -367,12 +367,16 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   return initDataSource(numOfSources, pInfo, id);
 }
 
-SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo) {
-  int32_t        code = TSDB_CODE_SUCCESS;
+int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo,
+                                   SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
+  int32_t code = 0;
   int32_t        lino = 0;
   SExchangeInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -403,7 +407,8 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (code != TSDB_CODE_SUCCESS) {
@@ -416,7 +421,7 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void destroyExchangeOperatorInfo(void* param) {
@@ -547,7 +552,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
   SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
-  QUERY_CHECK_NULL(pWrapper, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  QUERY_CHECK_NULL(pWrapper, code, lino, _end, terrno);
   pWrapper->exchangeId = pExchangeInfo->self;
   pWrapper->sourceIndex = sourceIndex;
 
@@ -650,7 +655,10 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
   int32_t lino = 0;
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
-    *pNextStart = (char*)blockDecode(pRes, pData);
+    code = blockDecode(pRes, pData, (const char**) pNextStart);
+    if (code) {
+      return code;
+    }
   } else {  // extract data according to pColList
     char* pStart = pData;
 
@@ -667,14 +675,20 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       pStart += sizeof(SSysTableSchema);
     }
 
-    SSDataBlock* pBlock = createDataBlock();
+    SSDataBlock* pBlock = NULL;
+    code = createDataBlock(&pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData idata = createColumnInfoData(pSchema[i].type, pSchema[i].bytes, pSchema[i].colId);
       code = blockDataAppendColInfo(pBlock, &idata);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    (void)blockDecode(pBlock, pStart);
+    const char* pDummy = NULL;
+    code = blockDecode(pBlock, pStart, &pDummy);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     code = blockDataEnsureCapacity(pRes, pBlock->info.rows);
     QUERY_CHECK_CODE(code, lino, _end);
 
@@ -764,12 +778,12 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   if (pRetrieveRsp->compressed) {  // decompress the data
     if (pDataInfo->decompBuf == NULL) {
       pDataInfo->decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
-      QUERY_CHECK_NULL(pDataInfo->decompBuf, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(pDataInfo->decompBuf, code, lino, _end, terrno);
       pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
     } else {
       if (pDataInfo->decompBufSize < pRetrieveRsp->payloadLen) {
         char* p = taosMemoryRealloc(pDataInfo->decompBuf, pRetrieveRsp->payloadLen);
-        QUERY_CHECK_NULL(p, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+        QUERY_CHECK_NULL(p, code, lino, _end, terrno);
         if (p != NULL) {
           pDataInfo->decompBuf = p;
           pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
@@ -786,7 +800,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       pb = *(SSDataBlock**)taosArrayPop(pExchangeInfo->pRecycledBlocks);
       blockDataCleanup(pb);
     } else {
-      pb = createOneDataBlock(pExchangeInfo->pDummyBlock, false);
+      code = createOneDataBlock(pExchangeInfo->pDummyBlock, false, &pb);
       QUERY_CHECK_NULL(pb, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
     }
 
@@ -811,7 +825,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     }
 
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
 _end:

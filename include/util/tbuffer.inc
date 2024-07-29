@@ -29,27 +29,22 @@ struct SBufferReader {
 };
 
 // SBuffer
-static FORCE_INLINE int32_t tBufferInit(SBuffer *buffer) {
+static FORCE_INLINE void tBufferInit(SBuffer *buffer) {
   buffer->size = 0;
   buffer->capacity = 0;
   buffer->data = NULL;
-  return 0;
 }
 
-static FORCE_INLINE int32_t tBufferDestroy(SBuffer *buffer) {
+static FORCE_INLINE void tBufferDestroy(SBuffer *buffer) {
   buffer->size = 0;
   buffer->capacity = 0;
   if (buffer->data) {
     taosMemoryFree(buffer->data);
     buffer->data = NULL;
   }
-  return 0;
 }
 
-static FORCE_INLINE int32_t tBufferClear(SBuffer *buffer) {
-  buffer->size = 0;
-  return 0;
-}
+static FORCE_INLINE void tBufferClear(SBuffer *buffer) { buffer->size = 0; }
 
 static FORCE_INLINE int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity) {
   if (buffer->capacity < capacity) {

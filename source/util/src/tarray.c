@@ -167,6 +167,7 @@ void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
   if (pInput) {
     return taosArrayAddBatch(pArray, pInput->pData, (int32_t)taosArrayGetSize(pInput));
   } else {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 }
@@ -197,11 +198,13 @@ void* taosArrayPop(SArray* pArray) {
 
 void* taosArrayGet(const SArray* pArray, size_t index) {
   if (NULL == pArray) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
   if (index >= pArray->size) {
     uError("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
+    terrno = TSDB_CODE_OUT_OF_RANGE;
     return NULL;
   }
 
@@ -218,6 +221,7 @@ void* taosArrayGetP(const SArray* pArray, size_t index) {
 
 void* taosArrayGetLast(const SArray* pArray) {
   if (pArray->size == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -244,6 +248,7 @@ void* taosArrayInsert(SArray* pArray, size_t index, const void* pData) {
   if (pArray->size >= pArray->capacity) {
     int32_t ret = taosArrayResize(pArray);
     if (ret < 0) {
+      terrno = ret;
       return NULL;
     }
   }
@@ -329,6 +334,7 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
 
 SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
   if (NULL == pSrc) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 

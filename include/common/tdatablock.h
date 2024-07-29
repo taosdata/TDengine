@@ -41,6 +41,15 @@ typedef struct SBlockOrderInfo {
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
 #define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
 
+#define QRY_OPTR_CHECK(_o)           \
+  do {                               \
+    if ((_o) == NULL) {              \
+      return TSDB_CODE_INVALID_PARA; \
+    } else {                         \
+      *(_o) = NULL;                  \
+    }                                \
+  } while(0)
+
 #define colDataSetNull_f(bm_, r_)                    \
   do {                                               \
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
@@ -222,8 +231,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
 int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity);
-
-SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount);
+int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount, SSDataBlock** pResBlock);
 
 size_t blockDataGetSize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(SSDataBlock* pBlock);
@@ -254,24 +262,24 @@ void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
-SSDataBlock* createDataBlock();
-void         blockDataDestroy(SSDataBlock* pBlock);
-void         blockDataFreeRes(SSDataBlock* pBlock);
-SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
-SSDataBlock* createSpecialDataBlock(EStreamType type);
+int32_t createDataBlock(SSDataBlock** pResBlock);
+void    blockDataDestroy(SSDataBlock* pBlock);
+void    blockDataFreeRes(SSDataBlock* pBlock);
+int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
+int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock);
 
-SSDataBlock* blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx);
-int32_t      blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);
+int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock);
+int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);
 
-SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId);
-SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index);
+SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId);
+int32_t         bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index, SColumnInfoData** pColInfoData);
 
-int32_t     blockGetEncodeSize(const SSDataBlock* pBlock);
-int32_t     blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
-const char* blockDecode(SSDataBlock* pBlock, const char* pData);
+int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols);
+int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 
 // for debug
-char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr);
+int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema,
                                     int64_t uid, int32_t vgId, tb_uid_t suid);
@@ -279,10 +287,10 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pData
 bool    alreadyAddGroupId(char* ctbName, int64_t groupId);
 bool    isAutoTableName(char* ctbName);
 void    buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId);
-char*   buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
+int32_t buildCtbNameByGroupId(const char* stbName, uint64_t groupId, char** pName);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
-void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
+int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
 
 void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 

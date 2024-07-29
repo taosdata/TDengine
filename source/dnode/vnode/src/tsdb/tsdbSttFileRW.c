@@ -401,7 +401,7 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
                   &lino, _exit);
 
   // decode data
-  tStatisBlockClear(statisBlock);
+  TAOS_UNUSED(tStatisBlockClear(statisBlock));
   statisBlock->numOfPKs = statisBlk->numOfPKs;
   statisBlock->numOfRecords = statisBlk->numRec;
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
@@ -574,11 +574,11 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
   statisBlk.cmprAlg = writer->config->cmprAlg;
   statisBlk.numOfPKs = statisBlock->numOfPKs;
 
-  tStatisBlockGet(statisBlock, 0, &record);
+  (void)tStatisBlockGet(statisBlock, 0, &record);
   statisBlk.minTbid.suid = record.suid;
   statisBlk.minTbid.uid = record.uid;
 
-  tStatisBlockGet(statisBlock, statisBlock->numOfRecords - 1, &record);
+  (void)tStatisBlockGet(statisBlock, statisBlock->numOfRecords - 1, &record);
   statisBlk.maxTbid.suid = record.suid;
   statisBlk.maxTbid.uid = record.uid;
 
@@ -636,7 +636,7 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
 
   TAOS_CHECK_GOTO(TARRAY2_APPEND_PTR(writer->statisBlkArray, &statisBlk), &lino, _exit);
 
-  tStatisBlockClear(writer->staticBlock);
+  TAOS_UNUSED(tStatisBlockClear(writer->staticBlock));
 
 _exit:
   if (code) {
@@ -822,7 +822,7 @@ static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
   tDestroyTSchema(writer->skmRow->pTSchema);
   tDestroyTSchema(writer->skmTb->pTSchema);
   tTombBlockDestroy(writer->tombBlock);
-  tStatisBlockDestroy(writer->staticBlock);
+  (void)tStatisBlockDestroy(writer->staticBlock);
   tBlockDataDestroy(writer->blockData);
   TARRAY2_DESTROY(writer->tombBlkArray, NULL);
   TARRAY2_DESTROY(writer->statisBlkArray, NULL);

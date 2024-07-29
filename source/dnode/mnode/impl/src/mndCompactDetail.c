@@ -68,22 +68,22 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->compactId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->compactId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->vgId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->vgId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->dnodeId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->dnodeId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->numberFileset, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->numberFileset, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->finished, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->finished, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pCompactDetail->startTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pCompactDetail);

@@ -1852,9 +1852,11 @@ _end:
   }
 }
 
-SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                      SExecTaskInfo* pTaskInfo, int32_t numOfChild,
-                                                     SReadHandle* pHandle) {
+                                                     SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   SIntervalPhysiNode*          pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
@@ -1917,17 +1919,26 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
   pInfo->numOfChild = numOfChild;
-  pInfo->pPhyNode = (SPhysiNode*)nodesCloneNode((SNode*)pPhyNode);
+  pInfo->pPhyNode = NULL;
+  code = nodesCloneNode((SNode*)pPhyNode, (SNode**)&pInfo->pPhyNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _error;
+  }
 
   pInfo->pPullWins = taosArrayInit(8, sizeof(SPullWindowInfo));
   pInfo->pullIndex = 0;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pPullDataMap = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
   pInfo->pFinalPullDataMap = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
-  pInfo->pPullDataRes = createSpecialDataBlock(STREAM_RETRIEVE);
+
+  code = createSpecialDataBlock(STREAM_RETRIEVE, &pInfo->pPullDataRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->ignoreExpiredData = pIntervalPhyNode->window.igExpired;
   pInfo->ignoreExpiredDataSaved = false;
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->delIndex = 0;
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinKey));
   pInfo->delKey.ts = INT64_MAX;
@@ -1942,11 +1953,16 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->dataVersion = 0;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->recvGetAll = false;
-  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
-  pInfo->recvRetrive = false;
-  pInfo->pMidRetriveRes = createSpecialDataBlock(STREAM_MID_RETRIEVE);
   pInfo->recvPullover = false;
-  pInfo->pMidPulloverRes = createSpecialDataBlock(STREAM_MID_RETRIEVE);
+  pInfo->recvRetrive = false;
+
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = createSpecialDataBlock(STREAM_MID_RETRIEVE, &pInfo->pMidRetriveRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = createSpecialDataBlock(STREAM_MID_RETRIEVE, &pInfo->pMidPulloverRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->clearState = false;
   pInfo->pMidPullDatas = taosArrayInit(4, sizeof(SWinKey));
   pInfo->pDeletedMap = tSimpleHashInit(4096, hashFn);
@@ -1987,13 +2003,14 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
     taosMemoryFree(buff);
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   destroyStreamFinalIntervalOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
@@ -2106,13 +2123,18 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
                                SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
                                SStorageAPI* pApi, int32_t tsIndex) {
   pSup->resultRowSize = keySize + getResultRowSize(pExpSup->pCtx, numOfOutput);
-  pSup->pScanBlock = createSpecialDataBlock(STREAM_CLEAR);
+
+  int32_t code = createSpecialDataBlock(STREAM_CLEAR, &pSup->pScanBlock);
+  if (code) {
+    return code;
+  }
+
   pSup->gap = gap;
   pSup->stateKeySize = keySize;
   pSup->stateKeyType = keyType;
   pSup->pDummyCtx = (SqlFunctionCtx*)taosMemoryCalloc(numOfOutput, sizeof(SqlFunctionCtx));
   if (pSup->pDummyCtx == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pSup->stateStore = *pStore;
@@ -2134,7 +2156,6 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   }
 
   pSup->pSessionAPI = pApi;
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3407,19 +3428,21 @@ static int32_t doStreamSessionAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
       int32_t size = taosArrayGetSize(pInfo->pChildren);
       // if chIndex + 1 - size > 0, add new child
       for (int32_t i = 0; i < chIndex + 1 - size; i++) {
-        SOperatorInfo* pChildOp =
-            createStreamFinalSessionAggOperatorInfo(NULL, pInfo->pPhyNode, pOperator->pTaskInfo, 0, NULL);
-        if (!pChildOp) {
+        SOperatorInfo* pChildOp = NULL;
+        code = createStreamFinalSessionAggOperatorInfo(NULL, pInfo->pPhyNode, pOperator->pTaskInfo, 0, NULL, &pChildOp);
+        if (pChildOp == NULL || code != 0) {
           qError("%s create stream child of final session error", GET_TASKID(pTaskInfo));
           code = TSDB_CODE_FAILED;
           QUERY_CHECK_CODE(code, lino, _end);
         }
+
         void* tmp = taosArrayPush(pInfo->pChildren, &pChildOp);
         if (!tmp) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
+          code = terrno;
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
+
       SOperatorInfo* pChildOp = taosArrayGetP(pInfo->pChildren, chIndex);
       code = setInputDataBlock(&pChildOp->exprSupp, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -3659,8 +3682,10 @@ _end:
   }
 }
 
-SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                  SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
+int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+                                                  SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   SSessionWinodwPhysiNode*       pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
   int32_t                        numOfCols = 0;
   int32_t                        code = TSDB_CODE_OUT_OF_MEMORY;
@@ -3668,6 +3693,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   SStreamSessionAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamSessionAggOperatorInfo));
   SOperatorInfo*                 pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -3718,7 +3744,9 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pStDeleted = tSimpleHashInit(64, hashFn);
   pInfo->pDelIterator = NULL;
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->pChildren = NULL;
   pInfo->pPhyNode = pPhyNode;
   pInfo->ignoreExpiredData = pSessionNode->window.igExpired;
@@ -3734,7 +3762,9 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
     pInfo->isHistoryOp = pHandle->fillHistory;
   }
 
-  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->clearState = false;
   pInfo->recvGetAll = false;
   pInfo->destHasPrimaryKey = pSessionNode->window.destHasPrimaryKey;
@@ -3768,7 +3798,9 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
     code = appendDownstream(pOperator, &downstream, 1);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -3777,8 +3809,8 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
-  return NULL;
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
 }
 
 static void clearStreamSessionOperator(SStreamSessionAggOperatorInfo* pInfo) {
@@ -3960,14 +3992,16 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   return pRes;
 }
 
-SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                        SExecTaskInfo* pTaskInfo, int32_t numOfChild,
-                                                       SReadHandle* pHandle) {
+                                                       SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
-  SOperatorInfo* pOperator = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle);
-  if (pOperator == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+  SOperatorInfo* pOperator = NULL;
+  code = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, &pOperator);
+  if (pOperator == NULL || code != 0) {
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
@@ -3987,11 +4021,12 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
   if (numOfChild > 0) {
     pInfo->pChildren = taosArrayInit(numOfChild, sizeof(void*));
     for (int32_t i = 0; i < numOfChild; i++) {
-      SOperatorInfo* pChildOp = createStreamFinalSessionAggOperatorInfo(NULL, pPhyNode, pTaskInfo, 0, pHandle);
-      if (pChildOp == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+      SOperatorInfo* pChildOp = NULL;
+      code = createStreamFinalSessionAggOperatorInfo(NULL, pPhyNode, pTaskInfo, 0, pHandle, &pChildOp);
+      if (pChildOp == NULL || code != 0) {
         QUERY_CHECK_CODE(code, lino, _error);
       }
+
       SStreamSessionAggOperatorInfo* pChInfo = pChildOp->info;
       pChInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
       pAPI->stateStore.streamStateSetNumber(pChInfo->streamAggSup.pState, i, pInfo->primaryTsIndex);
@@ -4018,7 +4053,8 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
     pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -4029,7 +4065,7 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
   }
-  return NULL;
+  return code;
 }
 
 void destroyStreamStateOperatorInfo(void* param) {
@@ -4787,14 +4823,15 @@ _end:
   }
 }
 
-SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
+int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                         SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+  int32_t code = 0;
+  int32_t lino = 0;
+
   SStreamStateWinodwPhysiNode* pStateNode = (SStreamStateWinodwPhysiNode*)pPhyNode;
   int32_t                      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
   SColumnNode*                 pColNode = (SColumnNode*)(pStateNode->pStateKey);
-  int32_t                      code = TSDB_CODE_SUCCESS;
-  int32_t                      lino = 0;
-
   SStreamStateAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamStateAggOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -4841,7 +4878,10 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pSeDeleted = tSimpleHashInit(64, hashFn);
   pInfo->pDelIterator = NULL;
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
+
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->pChildren = NULL;
   pInfo->ignoreExpiredData = pStateNode->window.igExpired;
   pInfo->ignoreExpiredDataSaved = false;
@@ -4850,14 +4890,17 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->dataVersion = 0;
   pInfo->historyWins = taosArrayInit(4, sizeof(SSessionKey));
   if (!pInfo->historyWins) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     QUERY_CHECK_CODE(code, lino, _error);
   }
+
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;
   }
 
-  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->recvGetAll = false;
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
   pInfo->destHasPrimaryKey = pStateNode->window.destHasPrimaryKey;
@@ -4886,14 +4929,15 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   destroyStreamStateOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
-  return NULL;
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
 }
 
 #ifdef BUILD_NO_CALL
@@ -5078,18 +5122,22 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   return pRes;
 }
 
-SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
-  int32_t                      code = TSDB_CODE_SUCCESS;
-  int32_t                      lino = 0;
+int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                         SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t numOfCols = 0;
+
   SStreamIntervalOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamIntervalOperatorInfo));
   SOperatorInfo*               pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     QUERY_CHECK_CODE(code, lino, _error);
   }
+
   SStreamIntervalPhysiNode* pIntervalPhyNode = (SStreamIntervalPhysiNode*)pPhyNode;
-  int32_t                   numOfCols = 0;
   SExprInfo*                pExprInfo = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &numOfCols);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
@@ -5146,7 +5194,10 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->invertible = false;
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinKey));
   pInfo->delIndex = 0;
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
+
+  createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
   pInfo->pPhyNode = NULL;  // create new child
@@ -5176,7 +5227,9 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
 
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->recvGetAll = false;
-  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
+
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+      QUERY_CHECK_CODE(code, lino, _error);
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pDeletedMap = tSimpleHashInit(4096, hashFn);
@@ -5198,13 +5251,14 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   destroyStreamFinalIntervalOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 static void doStreamMidIntervalAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBlock, SSHashObj* pUpdatedMap) {

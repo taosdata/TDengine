@@ -78,8 +78,8 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
  * @return
  */
 int32_t tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages,
-                                   SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
-                                   uint32_t pqSortBufSize, SSortHandle** pHandle);
+                              SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
+                              uint32_t pqSortBufSize, SSortHandle** pHandle);
 
 void tsortSetForceUsePQSort(SSortHandle* pHandle);
 
@@ -107,8 +107,8 @@ void tsortClose(SSortHandle* pHandle);
  *
  * @return
  */
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
-                               void* param);
+void tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
+                            void* param);
 
 /**
  *
@@ -213,10 +213,11 @@ int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* ke
 /**
  * @brief set the merge limit reached callback. it calls mergeLimitReached param with tableUid and param
 */
-void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
+void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param),
+                                 void*        param);
 
-int tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock, int32_t leftRowIndex, int32_t rightRowIndex,
-                         void* pOrder);
+int32_t tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock, int32_t leftRowIndex,
+                             int32_t rightRowIndex, void* pOrder);
 #ifdef __cplusplus
 }
 #endif

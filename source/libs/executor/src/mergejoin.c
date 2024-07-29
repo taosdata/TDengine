@@ -2248,10 +2248,12 @@ static int32_t mAsofBackwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInf
   } while (true);
 
   if (buildGot && NULL == pCtx->cache.outBlk) {
-    pCtx->cache.outBlk = createOneDataBlock(pJoin->build->blk, false);
-    if (NULL == pCtx->cache.outBlk) {
-      MJ_ERR_RET(terrno);
+    pCtx->cache.outBlk = NULL;
+    int32_t code = createOneDataBlock(pJoin->build->blk, false, &pCtx->cache.outBlk);
+    if (code) {
+      MJ_ERR_RET(code);
     }
+
     MJ_ERR_RET(blockDataEnsureCapacity(pCtx->cache.outBlk, pCtx->jLimit));
   }
 
@@ -2678,10 +2680,12 @@ static int32_t mAsofForwardRetrieve(SOperatorInfo* pOperator, SMJoinOperatorInfo
 
   if (buildGot && pJoin->build->newBlk) {
     if (NULL == pCtx->cache.outBlk) {
-      pCtx->cache.outBlk = createOneDataBlock(pJoin->build->blk, false);
-      if (NULL == pCtx->cache.outBlk) {
-        MJ_ERR_RET(terrno);
+      pCtx->cache.outBlk = NULL;
+      int32_t code = createOneDataBlock(pJoin->build->blk, false, &pCtx->cache.outBlk);
+      if (code) {
+        MJ_ERR_RET(code);
       }
+
       MJ_ERR_RET(blockDataEnsureCapacity(pCtx->cache.outBlk, pCtx->jLimit));
     }
     
@@ -2832,19 +2836,24 @@ static int32_t mWinJoinCloneCacheBlk(SMJoinWindowCtx* pCtx) {
   }
 
   if (!pGrp->clonedBlk) {
+    int32_t code = 0;
     if (0 == pGrp->beginIdx) {
-      pGrp->blk = createOneDataBlock(pGrp->blk, true);
+      SSDataBlock* p = NULL;
+      code = createOneDataBlock(pGrp->blk, true, &p);
+      if (code) {
+        MJ_ERR_RET(code);
+      }
+      pGrp->blk = p;
     } else {
-      pGrp->blk = blockDataExtractBlock(pGrp->blk, pGrp->beginIdx, pGrp->blk->info.rows - pGrp->beginIdx);
+      code = blockDataExtractBlock(pGrp->blk, pGrp->beginIdx, pGrp->blk->info.rows - pGrp->beginIdx, &pGrp->blk);
       pGrp->endIdx -= pGrp->beginIdx;
       pGrp->beginIdx = 0;
       pGrp->readIdx = 0;
     }
-
-    if (NULL == pGrp->blk) {
-      MJ_ERR_RET(terrno);
+    if (code) {
+      MJ_ERR_RET(code);
     }
-    
+
     pGrp->clonedBlk = true;
   }
 
@@ -3672,9 +3681,10 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
   MJ_ERR_RET(blockDataEnsureCapacity(pCtx->finBlk, mJoinGetFinBlkCapacity(pJoin, pJoinNode)));
   
   if (pJoin->pFPreFilter) {
-    pCtx->midBlk = createOneDataBlock(pCtx->finBlk, false);
-    if (NULL == pCtx->midBlk) {
-      MJ_ERR_RET(terrno);
+    pCtx->midBlk = NULL;
+    int32_t code = createOneDataBlock(pCtx->finBlk, false, &pCtx->midBlk);
+    if (code) {
+      MJ_ERR_RET(code);
     }
     MJ_ERR_RET(blockDataEnsureCapacity(pCtx->midBlk, pCtx->finBlk->info.capacity));
   }

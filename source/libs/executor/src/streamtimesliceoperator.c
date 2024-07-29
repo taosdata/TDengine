@@ -145,8 +145,7 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
   }
 }
 
-static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo,
-                              SSDataBlock* pRes) {
+static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pRes) {
   if (pFillInfo->needFill == false) {
     fillPointResult(pFillSup, &pFillSup->cur, pFillSup->cur.key, pRes);
     return;
@@ -248,9 +247,9 @@ static void getPointInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSuppo
     pFillSup->cur.pRowVal = NULL;
   }
 
-  SWinKey          preKey = {.ts = INT64_MIN, .groupId = groupId};
-  void*            preVal = NULL;
-  int32_t          preVLen = 0;
+  SWinKey preKey = {.ts = INT64_MIN, .groupId = groupId};
+  void*   preVal = NULL;
+  int32_t preVLen = 0;
   code = pAggSup->stateStore.streamStateFillGetPrev(pState, &key, &preKey, &preVal, &preVLen);
   if (code == TSDB_CODE_SUCCESS) {
     pFillSup->prev.key = preKey.ts;
@@ -668,8 +667,10 @@ static SStreamFillSupporter* initTimeSliceFillSup(SStreamInterpFuncPhysiNode* pP
   return pFillSup;
 }
 
-SOperatorInfo* createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                 SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
+int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                          SReadHandle* pHandle, SOperatorInfo** ppOptInfo) {
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       lino = 0;
   SStreamTimeSliceOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamTimeSliceOperatorInfo));
   SOperatorInfo*                pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
@@ -681,24 +682,18 @@ SOperatorInfo* createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhy
   SExprSupp* pExpSup = &pOperator->exprSupp;
   int32_t    numOfExprs = 0;
   SExprInfo* pExprInfo = createExprInfo(pInterpPhyNode->pFuncs, NULL, &numOfExprs);
-  int32_t    code = initExprSupp(pExpSup, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  code = initExprSupp(pExpSup, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   if (pInterpPhyNode->pExprs != NULL) {
     int32_t    num = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pInterpPhyNode->pExprs, NULL, &num);
     code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num, &pTaskInfo->storageAPI.functionStore);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _error;
-    }
+    QUERY_CHECK_CODE(code, lino, _error);
   }
 
   code = filterInitFromNode((SNode*)pInterpPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->twAggSup = (STimeWindowAggSupp){
       .waterMark = pInterpPhyNode->streamOption.watermark,
@@ -712,16 +707,17 @@ SOperatorInfo* createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhy
   code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfExprs, 0, pTaskInfo->streamInfo.pState,
                                 sizeof(COUNT_TYPE), 0, &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup,
                                 GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   pInfo->delIndex = 0;
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinKey));
-  pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
+  pInfo->pDelRes = NULL;
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pDeletedMap = tSimpleHashInit(4096, hashFn);
 
@@ -730,12 +726,13 @@ SOperatorInfo* createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhy
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
   pInfo->historyPoints = taosArrayInit(4, sizeof(SWinKey));
-  if (!pInfo->historyPoints) {
-    goto _error;
-  }
+  QUERY_CHECK_NULL(pInfo->historyPoints, code, lino, _error, terrno);
 
   pInfo->recvCkBlock = false;
-  pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);
+  pInfo->pCheckpointRes = NULL;
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->destHasPrimaryKey = pInterpPhyNode->streamOption.destHasPrimaryKey;
   pInfo->numOfDatapack = 0;
   pInfo->pFillSup = initTimeSliceFillSup(pInterpPhyNode, pExprInfo, numOfExprs);
@@ -758,7 +755,7 @@ SOperatorInfo* createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhy
   setOperatorStreamStateFn(pOperator, streamTimeSliceReleaseState, streamTimeSliceReloadState);
 
   if (downstream) {
-    if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN ) {
+    if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       SStreamScanInfo* pScanInfo = downstream->info;
       pScanInfo->igCheckUpdate = true;
     }
@@ -766,7 +763,8 @@ SOperatorInfo* createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhy
                    &pInfo->basic);
     code = appendDownstream(pOperator, &downstream, 1);
   }
-  return pOperator;
+  (*ppOptInfo) = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -774,5 +772,6 @@ _error:
   }
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  (*ppOptInfo) = NULL;
+  return code;
 }

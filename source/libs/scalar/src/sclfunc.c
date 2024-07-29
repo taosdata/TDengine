@@ -329,10 +329,10 @@ static void tltrim(char *input, char *output, int32_t type, int32_t charLen) {
   int32_t resLen;
   if (type == TSDB_DATA_TYPE_VARCHAR) {
     resLen = charLen - numOfSpaces;
-    memcpy(varDataVal(output), varDataVal(input) + numOfSpaces, resLen);
+    (void)memcpy(varDataVal(output), varDataVal(input) + numOfSpaces, resLen);
   } else {
     resLen = (charLen - numOfSpaces) * TSDB_NCHAR_SIZE;
-    memcpy(varDataVal(output), varDataVal(input) + numOfSpaces * TSDB_NCHAR_SIZE, resLen);
+    (void)memcpy(varDataVal(output), varDataVal(input) + numOfSpaces * TSDB_NCHAR_SIZE, resLen);
   }
 
   varDataSetLen(output, resLen);
@@ -362,7 +362,7 @@ static void trtrim(char *input, char *output, int32_t type, int32_t charLen) {
   } else {
     resLen = (charLen - numOfSpaces) * TSDB_NCHAR_SIZE;
   }
-  memcpy(varDataVal(output), varDataVal(input), resLen);
+  (void)memcpy(varDataVal(output), varDataVal(input), resLen);
 
   varDataSetLen(output, resLen);
 }
@@ -401,11 +401,11 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
       taosMemoryFree(newBuf);
       return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
-    memcpy(varDataVal(output) + *dataLen, newBuf, varDataLen(input) * TSDB_NCHAR_SIZE);
+    (void)memcpy(varDataVal(output) + *dataLen, newBuf, varDataLen(input) * TSDB_NCHAR_SIZE);
     *dataLen += varDataLen(input) * TSDB_NCHAR_SIZE;
     taosMemoryFree(newBuf);
   } else {
-    memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
+    (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
     *dataLen += varDataLen(input);
   }
   return TSDB_CODE_SUCCESS;
@@ -581,7 +581,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
     if (hasNull) {
       colDataSetNULL(pOutputData, k);
-      memset(output, 0, dataLen);
+      (void)memset(output, 0, dataLen);
     } else {
       varDataSetLen(output, dataLen);
       SCL_ERR_JRET(colDataSetVal(pOutputData, k, output, false));
@@ -725,7 +725,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     char   *output = outputBuf;
     int32_t resLen = TMIN(subLen, len - startPosBytes);
     if (resLen > 0) {
-      memcpy(varDataVal(output), varDataVal(input) + startPosBytes, resLen);
+      (void)memcpy(varDataVal(output), varDataVal(input) + startPosBytes, resLen);
       varDataSetLen(output, resLen);
     } else {
       varDataSetLen(output, 0);
@@ -768,7 +768,7 @@ int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutpu
       }
     }
     char *output = pOutputBuf;
-    memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
+    (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosCreateMD5Hash(varDataVal(output), varDataLen(input));
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -812,7 +812,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     switch (outputType) {
       case TSDB_DATA_TYPE_TINYINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(int8_t *)output = taosStr2Int8(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -831,7 +831,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_SMALLINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(int16_t *)output = taosStr2Int16(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -849,7 +849,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_INT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(int32_t *)output = taosStr2Int32(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -868,7 +868,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_BIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(int64_t *)output = taosStr2Int64(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -886,7 +886,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_UTINYINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(uint8_t *)output = taosStr2UInt8(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -904,7 +904,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_USMALLINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(uint16_t *)output = taosStr2UInt16(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -922,7 +922,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_UINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(uint32_t *)output = taosStr2UInt32(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -940,7 +940,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_UBIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(uint64_t *)output = taosStr2UInt64(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -959,7 +959,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_FLOAT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(float *)output = taosStr2Float(buf, NULL);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -977,7 +977,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_DOUBLE: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(double *)output = taosStr2Double(buf, NULL);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -995,7 +995,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_BOOL: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(buf, varDataVal(input), varDataLen(input));
+          (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(bool *)output = taosStr2Int8(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
@@ -1036,7 +1036,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
-          memcpy(varDataVal(output), varDataVal(input), len);
+          (void)memcpy(varDataVal(output), varDataVal(input), len);
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf);
@@ -1045,13 +1045,13 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
             goto _end;
           }
           len = TMIN(len, outputLen - VARSTR_HEADER_SIZE);
-          memcpy(varDataVal(output), convBuf, len);
+          (void)memcpy(varDataVal(output), convBuf, len);
           varDataSetLen(output, len);
         } else {
           NUM_TO_STRING(inputType, input, bufSize, buf);
           int32_t len = (int32_t)strlen(buf);
           len = (outputLen - VARSTR_HEADER_SIZE) > len ? len : (outputLen - VARSTR_HEADER_SIZE);
-          memcpy(varDataVal(output), buf, len);
+          (void)memcpy(varDataVal(output), buf, len);
           varDataSetLen(output, len);
         }
         break;
@@ -1059,7 +1059,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       case TSDB_DATA_TYPE_VARBINARY:{
         if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
-          memcpy(varDataVal(output), varDataVal(input), len);
+          (void)memcpy(varDataVal(output), varDataVal(input), len);
           varDataSetLen(output, len);
         }else{
           code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
@@ -1091,7 +1091,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           len = TMIN(outputLen - VARSTR_HEADER_SIZE, varDataLen(input));
-          memcpy(output, input, len + VARSTR_HEADER_SIZE);
+          (void)memcpy(output, input, len + VARSTR_HEADER_SIZE);
           varDataSetLen(output, len);
         } else {
           NUM_TO_STRING(inputType, input, bufSize, buf);
@@ -1141,7 +1141,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   int32_t tzLen = 0;
   if (tzPresent) {
     tzLen = varDataLen(pInput[1].columnData->pData);
-    memcpy(tz, varDataVal(pInput[1].columnData->pData), tzLen);
+    (void)memcpy(tz, varDataVal(pInput[1].columnData->pData), tzLen);
   }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
@@ -1218,7 +1218,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     // add timezone string
     if (tzLen > 0) {
-      snprintf(buf + len, tzLen + 1, "%s", tz);
+      (void)snprintf(buf + len, tzLen + 1, "%s", tz);
       len += tzLen;
     }
 
@@ -1286,7 +1286,7 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
         taosArrayDestroy(pTagVals);
         return TSDB_CODE_FAILED;
       }
-      memcpy(tmp, varDataVal(input), varDataLen(input));
+      (void)memcpy(tmp, varDataVal(input), varDataLen(input));
       tmp[varDataLen(input)] = 0;
       if (parseJsontoTagData(tmp, pTagVals, &pTag, NULL)) {
         code = tTagNew(pTagVals, 1, true, &pTag);
@@ -1402,7 +1402,7 @@ _return:
 int64_t offsetFromTz(char *timezone, int64_t factor) {
   char *minStr = &timezone[3];
   int64_t minutes = taosStr2Int64(minStr, NULL, 10);
-  memset(minStr, 0, strlen(minStr));
+  (void)memset(minStr, 0, strlen(minStr));
   int64_t hours = taosStr2Int64(timezone, NULL, 10);
   int64_t seconds = hours * 3600 + minutes * 60;
 

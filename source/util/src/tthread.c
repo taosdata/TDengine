@@ -17,7 +17,12 @@
 #include "tthread.h"
 
 TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param) {
-  TdThread*    pthread = (TdThread*)taosMemoryMalloc(sizeof(TdThread));
+  TdThread* pthread = (TdThread*)taosMemoryMalloc(sizeof(TdThread));
+  if (pthread == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -26,6 +31,7 @@ TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param) {
 
   if (ret != 0) {
     taosMemoryFree(pthread);
+    terrno = TAOS_SYSTEM_ERROR(ret);
     return NULL;
   }
   return pthread;

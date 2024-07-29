@@ -1331,10 +1331,12 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
     }
     
     if (0 == pGrp->beginIdx && pTable->multiEqGrpRows && 0 == pTable->eqRowLimit) {
-      pGrp->blk = createOneDataBlock(pTable->blk, true);
-      if (NULL == pGrp->blk) {
-        MJ_ERR_RET(terrno);
+      pGrp->blk = NULL;
+      code = createOneDataBlock(pTable->blk, true, &pGrp->blk);
+      if (code) {
+        MJ_ERR_RET(code);
       }
+
       if (NULL == taosArrayPush(pTable->createdBlks, &pGrp->blk)) {
         MJ_ERR_RET(terrno);
       }
@@ -1358,10 +1360,9 @@ int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* whol
 
       if (keepGrp && rowNum > 0) {
         pTable->eqRowNum += rowNum;
-
-        pGrp->blk = blockDataExtractBlock(pTable->blk, pGrp->beginIdx, rowNum);
-        if (NULL == pGrp->blk) {
-          MJ_ERR_RET(terrno);
+        code = blockDataExtractBlock(pTable->blk, pGrp->beginIdx, rowNum, &pGrp->blk);
+        if (code) {
+          MJ_ERR_RET(code);
         }
 
         pGrp->endIdx -= pGrp->beginIdx;
@@ -1862,8 +1863,10 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                           SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
+int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                           SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
   bool newDownstreams = false;
   int32_t code = TSDB_CODE_SUCCESS;
   SMJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMJoinOperatorInfo));
@@ -1872,7 +1875,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     goto _return;
   }
 
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
     code = terrno;
     goto _return;
@@ -1903,8 +1906,9 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   } else {
     pOperator->numOfRealDownstream = 2;
   }
-  
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _return:
 
@@ -1918,6 +1922,6 @@ _return:
   taosMemoryFree(pOperator);
   pTaskInfo->code = code;
   
-  return NULL;
+  return code;
 }
 
