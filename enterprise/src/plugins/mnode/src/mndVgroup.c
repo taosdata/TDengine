@@ -78,8 +78,15 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
     if (req.vgId != 0 && pVgroup->vgId != req.vgId) continue;
 
     SName name = {0};
-    tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
-    if (req.db != NULL && strlen(req.db) > 0 && strcmp(req.db, name.dbname) != 0) continue;
+    if ((code = tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB)) != 0) {
+      sdbRelease(pSdb, pVgroup);
+      sdbCancelFetch(pSdb, pIter);
+      goto _OVER;
+    }
+    if (req.db != NULL && strlen(req.db) > 0 && strcmp(req.db, name.dbname) != 0) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     if (mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0) {
       count++;

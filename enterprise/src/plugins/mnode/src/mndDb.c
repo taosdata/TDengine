@@ -101,7 +101,7 @@ static int32_t mndBuildCompactDbRsp(SCompactDbRsp *pCompactRsp, int32_t *pRspLen
     TAOS_RETURN(code);
   }
 
-  tSerializeSCompactDbRsp(pRsp, rspLen, pCompactRsp);
+  (void)tSerializeSCompactDbRsp(pRsp, rspLen, pCompactRsp);
   *pRspLen = rspLen;
   *ppRsp = pRsp;
   TAOS_RETURN(code);
@@ -190,7 +190,7 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
-  tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB);
+  TAOS_CHECK_GOTO(tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB), NULL, _OVER);
 
   auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", compactReq.sql, compactReq.sqlLen);
 
