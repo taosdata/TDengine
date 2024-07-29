@@ -682,7 +682,7 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
   struct in_addr addr;
   addr.s_addr = range->ip;
 
-  uv_inet_ntop(AF_INET, &addr, buf, 32);
+  (void)uv_inet_ntop(AF_INET, &addr, buf, 32);
   if (range->mask != 32) {
     (void)sprintf(buf + strlen(buf), "/%d", range->mask);
   }
@@ -2188,7 +2188,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
-      taosHashRemove(pNewUser->readDbs, pAlterReq->objname, len);
+      TAOS_CHECK_GOTO(taosHashRemove(pNewUser->readDbs, pAlterReq->objname, len), NULL, _OVER);
       mndReleaseDb(pMnode, pDb);
     } else {
       taosHashClear(pNewUser->readDbs);
@@ -2204,7 +2204,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
-      taosHashRemove(pNewUser->writeDbs, pAlterReq->objname, len);
+      TAOS_CHECK_GOTO(taosHashRemove(pNewUser->writeDbs, pAlterReq->objname, len), NULL, _OVER);
       mndReleaseDb(pMnode, pDb);
     } else {
       taosHashClear(pNewUser->writeDbs);
@@ -2311,7 +2311,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, alterReq.user, &pUser), &lino, _OVER);
 
-  mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), &lino, _OVER);
   if (pOperUser == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
   }
@@ -2517,7 +2517,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
-  ipWhiteMgtRemove(pUser->user);
+  TAOS_CHECK_RETURN(ipWhiteMgtRemove(pUser->user));
 
   mndTransDrop(pTrans);
   TAOS_RETURN(0);
@@ -2830,7 +2830,7 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
       }
 
       if (nodesStringToNode(value, &pAst) == 0) {
-        nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen);
+        TAOS_CHECK_GOTO(nodesNodeToSQL(pAst, *sql, bufSz, &sqlLen), NULL, _exit);
         nodesDestroyNode(pAst);
       } else {
         sqlLen = 5;
