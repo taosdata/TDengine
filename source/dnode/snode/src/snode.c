@@ -36,7 +36,7 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   streamTaskOpenAllUpstreamInput(pTask);
 
   streamTaskResetUpstreamStageInfo(pTask);
-  streamSetupScheduleTrigger(pTask);
+  (void)streamSetupScheduleTrigger(pTask);
 
   SCheckpointInfo *pChkInfo = &pTask->chkInfo;
   tqSetRestoreVersionInfo(pTask);
@@ -91,14 +91,14 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+  (void)streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
   return 0;
 }
 
 void sndClose(SSnode *pSnode) {
   stopRsync();
   streamMetaNotifyClose(pSnode->pMeta);
-  streamMetaCommit(pSnode->pMeta);
+  (void)streamMetaCommit(pSnode->pMeta);
   streamMetaClose(pSnode->pMeta);
   taosMemoryFree(pSnode);
 }

@@ -64,7 +64,7 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   memset(ptr, 0, size);
   pPage = (SPage *)(ptr + pageSize);
 
-  TDB_INIT_PAGE_LOCK(pPage);
+  (void)TDB_INIT_PAGE_LOCK(pPage);
   pPage->pageSize = pageSize;
   pPage->pData = ptr;
   if (pageSize < 65536) {
@@ -194,7 +194,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     iOvfl++;
   } else {
     // page must has enough space to hold the cell locally
-    tdbPageAllocate(pPage, szCell, &pNewCell);
+    (void)tdbPageAllocate(pPage, szCell, &pNewCell);
 
     memcpy(pNewCell, pCell, szCell);
 
@@ -220,7 +220,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
 }
 
 int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt) {
-  tdbPageDropCell(pPage, idx, pTxn, pBt);
+  (void)tdbPageDropCell(pPage, idx, pTxn, pBt);
   return tdbPageInsertCell(pPage, idx, pCell, szCell, 0);
 }
 
@@ -259,7 +259,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   lidx = idx - iOvfl;
   pCell = TDB_PAGE_CELL_AT(pPage, lidx);
   szCell = (*pPage->xCellSize)(pPage, pCell, 1, pTxn, pBt);
-  tdbPageFree(pPage, lidx, pCell, szCell);
+  (void)tdbPageFree(pPage, lidx, pCell, szCell);
   TDB_PAGE_NCELLS_SET(pPage, nCells - 1);
 
   for (; iOvfl < pPage->nOverflow; iOvfl++) {

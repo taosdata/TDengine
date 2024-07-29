@@ -101,10 +101,10 @@ int tdbClose(TDB *pDb) {
 
     for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {
       pDb->pgrList = pPager->pNext;
-      tdbPagerClose(pPager);
+      (void)tdbPagerClose(pPager);
     }
 
-    tdbPCacheClose(pDb->pCache);
+    (void)tdbPCacheClose(pDb->pCache);
     tdbOsFree(pDb->pgrHash);
     tdbOsFree(pDb);
   }
