@@ -708,7 +708,7 @@ static void mndProcessGrantStatusCheck() {
   } else {
     gStatus.expired = 1;
     char ts[GRANT_TS_SEC_LEN] = {0};
-    grantSecondsToString(expireSec, ts);
+    (void)grantSecondsToString(expireSec, ts);
     uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64 ", set to %s state", ts, (int64_t)expireSec,
           grantCurTime, gGrantState[gStatus.grantState]);
   }
@@ -873,7 +873,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     COMPARE_SET_VAL(gStatus.expired, 0, !=);
   } else {
     COMPARE_SET_VAL(gStatus.expired, 1, !=);
-    grantSecondsToString(expireSec, ts);
+    (void)grantSecondsToString(expireSec, ts);
     uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
   }
 
@@ -1295,7 +1295,7 @@ static int32_t grantSecondsToString(int64_t seconds, char *ts) {
   time_t    sec = seconds;
   struct tm ptm;
   if (taosLocalTime(&sec, &ptm, ts) != NULL) {
-    strftime(ts, GRANT_TS_SEC_LEN, "%Y-%m-%d %H:%M:%S", &ptm);
+    (void)strftime(ts, GRANT_TS_SEC_LEN, "%Y-%m-%d %H:%M:%S", &ptm);
     return 0;
   }
   ts[0] = 0;
