@@ -1,9 +1,9 @@
-use std::cmp;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use arrow::array::{
     ArrayBuilder, BinaryBuilder, Int32Builder, Int64Builder, StringBuilder,
     TimestampNanosecondBuilder,
@@ -459,35 +459,14 @@ impl SubTask {
             "kafka metadata"
         );
 
-        let mut topic_partitions: Vec<String> = Vec::new();
-
-        // filter topics
-        let topics_readable = metadata
+        // topic -> partition count
+        let topic_partitions: HashMap<&str, usize> = metadata
             .topics()
             .iter()
             .filter(|tp| !tp.name().starts_with("__"))
             .filter(|tp| config.topics.contains(&tp.name().to_string()))
-            .collect::<Vec<_>>();
-        if topics_readable.len() != config.topics.len() {
-            tracing::error!(
-                "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
-                config.topics.len(),
-                topics_readable.len());
-            anyhow::bail!(
-                    "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
-                    config.topics.len(),
-                    topics_readable.len());
-        }
-
-        topics_readable.into_iter().for_each(|tp| {
-            let topic_name = tp.name();
-            let partitions: Vec<String> = tp
-                .partitions()
-                .iter()
-                .map(|partition| format!("{}:{}", topic_name, partition.id()))
-                .collect();
-            topic_partitions.extend(partitions);
-        });
+            .map(|tp| (tp.name(), tp.partitions().len()))
+            .collect();
 
         if topic_partitions.is_empty() {
             tracing::error!(
@@ -500,39 +479,33 @@ impl SubTask {
             );
         }
 
-        let mut concurrency = config
-            .advanced_options
-            .read_concurrency
-            .unwrap_or(usize::MAX);
-        if concurrency == 0 {
-            concurrency = topic_partitions.len();
+        if topic_partitions.len() != config.topics.len() {
+            tracing::error!(
+                "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
+                config.topics.len(),
+                topic_partitions.len());
+            anyhow::bail!(
+                    "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
+                    config.topics.len(),
+                    topic_partitions.len());
         }
-        concurrency = cmp::min(concurrency, topic_partitions.len());
-
-        // let chunk_size = topic_partitions.len().div_ceil(concurrency);
-        let chunk_size = (topic_partitions.len() + concurrency - 1) / concurrency;
 
         let mut sub_tasks = Vec::new();
-        for (index, chunk) in topic_partitions.chunks(chunk_size).enumerate() {
-            // let mut topic_partitions: HashMap<String, Vec<i32>> = HashMap::new();
-            let mut topic_partition_list = TopicPartitionList::new();
-            for c in chunk {
-                let mut parts = c.split(":");
-                let topic = parts.next().unwrap().to_string();
-                let partition = parts.next().unwrap().parse::<i32>().unwrap();
+        let concurrency = match config.advanced_options.read_concurrency {
+            Some(n) if n > 0 => n,
+            _ => topic_partitions.values().sum(),
+        };
 
-                topic_partition_list.add_partition(topic.as_str(), partition);
-            }
-            tracing::info!(
-                "kafka consumer-{} assigned topic partitions: {:?}",
-                index,
-                topic_partitions
-            );
-
+        for _ in 0..concurrency {
             let consumer = consumer_builder(config.clone())?;
+            let topics = topic_partitions
+                .keys()
+                .into_iter()
+                .map(|k| *k)
+                .collect_vec();
             consumer
-                .assign(&topic_partition_list)
-                .expect("Can't assign to specified topics");
+                .subscribe(&topics)
+                .context("Kafka subscribe consumer error")?;
 
             let sub_task = SubTask {
                 consumer,
@@ -540,6 +513,7 @@ impl SubTask {
             };
             sub_tasks.push(sub_task);
         }
+
         Ok(sub_tasks)
     }
 }
@@ -669,25 +643,46 @@ fn build_schema() -> Schema {
     schema
 }
 
-/// A context can be used to change the behavior of producers and consumers by adding callbacks
-/// that will be executed by librdkafka.
-/// This particular context sets up custom callbacks to log rebalancing events.
+/// due to this issue: https://github.com/fede1024/rust-rdkafka/issues/681
+/// do not use `{:?}` for `TopicPartitionList` struct, or we will meet a panic
+/// we use a temporary workaround for now
 struct CustomContext;
 
 impl ClientContext for CustomContext {}
 
 impl ConsumerContext for CustomContext {
     fn pre_rebalance(&self, rebalance: &Rebalance) {
+        if is_rebalance_empty(rebalance) {
+            return;
+        }
         tracing::info!("Pre rebalance {:?}", rebalance);
     }
 
     fn post_rebalance(&self, rebalance: &Rebalance) {
+        if is_rebalance_empty(rebalance) {
+            return;
+        }
         tracing::info!("Post rebalance {:?}", rebalance);
     }
 
-    fn commit_callback(&self, result: KafkaResult<()>, _offsets: &TopicPartitionList) {
+    fn commit_callback(&self, result: KafkaResult<()>, tpl: &TopicPartitionList) {
+        if is_tplist_empty(tpl) {
+            return;
+        }
         tracing::info!("Committing offsets: {:?}", result);
     }
+}
+
+fn is_rebalance_empty(r: &Rebalance) -> bool {
+    match r {
+        Rebalance::Assign(tpl) => is_tplist_empty(tpl),
+        Rebalance::Revoke(tpl) => is_tplist_empty(tpl),
+        Rebalance::Error(_) => false,
+    }
+}
+
+fn is_tplist_empty(tpl: &TopicPartitionList) -> bool {
+    tpl.capacity() == 0
 }
 
 // A type alias with your custom consumer can be created for convenience.
@@ -696,8 +691,8 @@ type LoggingConsumer = StreamConsumer<CustomContext>;
 fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> {
     let mut client = build_client_config(config.connect.clone()).unwrap();
     // Client identifier, default "rdkafka".
-    if config.client_id.is_some() {
-        client.set("client.id", config.client_id.unwrap());
+    if let Some(client_id) = config.client_id {
+        client.set("client.id", client_id);
     }
     // All clients sharing the same group.id belong to the same group.
     client.set("group.id", config.group);
@@ -747,7 +742,7 @@ fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> 
     let consumer = client
         .set_log_level(RDKafkaLogLevel::Info)
         .create_with_context(CustomContext)
-        .expect("Consumer creation failed");
+        .context("Consumer creation failed")?;
     Ok(consumer)
 }
 
