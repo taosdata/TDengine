@@ -115,7 +115,7 @@ int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
   } else {
     pInfo->type = TASK_OUTPUT__TABLE;
     pInfo->tbSink.stbUid = pStream->targetStbUid;
-    memcpy(pInfo->tbSink.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
+    (void)memcpy(pInfo->tbSink.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
     pInfo->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
     if (pInfo->tbSink.pSchemaWrapper == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -145,7 +145,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
   int32_t numOfSinkNodes = taosArrayGetSize(pSinkNodeList);
 
   if (isShuffle) {
-    memcpy(pTask->outputInfo.shuffleDispatcher.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
+    (void)memcpy(pTask->outputInfo.shuffleDispatcher.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
     SArray* pVgs = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgroups = taosArrayGetSize(pVgs);
@@ -363,10 +363,14 @@ static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillh
 
 static void addNewTaskList(SStreamObj* pStream) {
   SArray* pTaskList = taosArrayInit(0, POINTER_BYTES);
-  taosArrayPush(pStream->tasks, &pTaskList);
+  if (taosArrayPush(pStream->tasks, &pTaskList) == NULL) {
+    mError("failed to put array");
+  }
   if (pStream->conf.fillHistory) {
     pTaskList = taosArrayInit(0, POINTER_BYTES);
-    taosArrayPush(pStream->pHTasksList, &pTaskList);
+    if (taosArrayPush(pStream->pHTasksList, &pTaskList) == NULL) {
+      mError("failed to put array");
+    }
   }
 }
 
@@ -584,10 +588,15 @@ static int32_t addSinkTask(SMnode* pMnode, SStreamObj* pStream, SEpSet* pEpset) 
 }
 
 static void bindTaskToSinkTask(SStreamObj* pStream, SMnode* pMnode, SArray* pSinkTaskList, SStreamTask* task) {
-  mndAddDispatcherForInternalTask(pMnode, pStream, pSinkTaskList, task);
+  int32_t code = 0;
+  if ((code = mndAddDispatcherForInternalTask(pMnode, pStream, pSinkTaskList, task)) != 0) {
+    mError("failed bind task to sink task since %s", tstrerror(code));
+  }
   for (int32_t k = 0; k < taosArrayGetSize(pSinkTaskList); k++) {
     SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, k);
-    streamTaskSetUpstreamInfo(pSinkTask, task);
+    if ((code = streamTaskSetUpstreamInfo(pSinkTask, task)) != 0) {
+      mError("failed bind task to sink task since %s", tstrerror(code));
+    }
   }
   mDebug("bindTaskToSinkTask taskId:%s to sink task list", task->id.idStr);
 }
@@ -604,6 +613,7 @@ static void bindAggSink(SStreamObj* pStream, SMnode* pMnode, SArray* tasks) {
 }
 
 static void bindSourceSink(SStreamObj* pStream, SMnode* pMnode, SArray* tasks, bool hasExtraSink) {
+  int32_t code = 0;
   SArray* pSinkTaskList = taosArrayGetP(tasks, SINK_NODE_LEVEL);
   SArray* pSourceTaskList = taosArrayGetP(tasks, hasExtraSink ? SINK_NODE_LEVEL + 1 : SINK_NODE_LEVEL);
 
@@ -614,12 +624,15 @@ static void bindSourceSink(SStreamObj* pStream, SMnode* pMnode, SArray* tasks, b
     if (hasExtraSink) {
       bindTaskToSinkTask(pStream, pMnode, pSinkTaskList, pSourceTask);
     } else {
-      mndSetSinkTaskInfo(pStream, pSourceTask);
+      if ((code = mndSetSinkTaskInfo(pStream, pSourceTask)) != 0) {
+        mError("failed bind task to sink task since %s", tstrerror(code));
+      }
     }
   }
 }
 
 static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
+  int32_t code = 0;
   size_t size = taosArrayGetSize(tasks);
   ASSERT(size >= 2);
   SArray* pDownTaskList = taosArrayGetP(tasks, size - 1);
@@ -631,7 +644,9 @@ static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
     SStreamTask* pUpTask = taosArrayGetP(pUpTaskList, i);
     pUpTask->info.selfChildId = i - begin;
     streamTaskSetFixedDownstreamInfo(pUpTask, *pDownTask);
-    streamTaskSetUpstreamInfo(*pDownTask, pUpTask);
+    if ((code = streamTaskSetUpstreamInfo(*pDownTask, pUpTask)) != 0) {
+      mError("failed bind task to sink task since %s", tstrerror(code));
+    }
   }
   mDebug("bindTwoLevel task list(%d-%d) to taskId:%s", begin, end - 1, (*(pDownTask))->id.idStr);
 }
