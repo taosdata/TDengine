@@ -142,10 +142,12 @@ static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
 }
 
 int32_t mndInitTelem(SMnode* pMnode) {
+  int32_t     code = 0;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
 
   (void)taosThreadMutexInit(&pMgmt->lock, NULL);
-  TAOS_CHECK_RETURN(taosGetEmail(pMgmt->email, sizeof(pMgmt->email)));
+  if ((code = taosGetEmail(pMgmt->email, sizeof(pMgmt->email))) != 0)
+    mWarn("failed to get email since %s", tstrerror(code));
   mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 
   return 0;
