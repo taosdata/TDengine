@@ -1282,7 +1282,7 @@ int32_t checkRegexPattern(const char *pPattern) {
   int32_t ret = regcomp(&regex, pPattern, cflags);
   if (ret != 0) {
     char msgbuf[256] = {0};
-    regerror(ret, &regex, msgbuf, tListLen(msgbuf));
+    (void)regerror(ret, &regex, msgbuf, tListLen(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
     return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
   }
@@ -1307,7 +1307,7 @@ static UsingRegex **getRegComp(const char *pPattern) {
   int32_t ret = regcomp(&pUsingRegex->pRegex, pPattern, cflags);
   if (ret != 0) {
     char msgbuf[256] = {0};
-    regerror(ret, &pUsingRegex->pRegex, msgbuf, tListLen(msgbuf));
+    (void)regerror(ret, &pUsingRegex->pRegex, msgbuf, tListLen(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
     taosMemoryFree(pUsingRegex);
     terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
@@ -1354,7 +1354,7 @@ static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
   releaseRegComp(pUsingRegex);
   if (ret != 0 && ret != REG_NOMATCH) {
     terrno =  TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR; 
-    regerror(ret, &(*pUsingRegex)->pRegex, msgbuf, sizeof(msgbuf));
+    (void)regerror(ret, &(*pUsingRegex)->pRegex, msgbuf, sizeof(msgbuf));
     uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
   }
 
