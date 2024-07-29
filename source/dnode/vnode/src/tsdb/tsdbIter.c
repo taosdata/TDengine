@@ -153,7 +153,7 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
       for (; iter->dataData->brinBlockIdx < iter->dataData->brinBlock->numOfRecords; iter->dataData->brinBlockIdx++) {
         SBrinRecord record[1];
-        tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
+        (void)tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
 
         if (iter->filterByVersion && (record->maxVer < iter->range[0] || record->minVer > iter->range[1])) {
           continue;
@@ -224,7 +224,7 @@ static int32_t tsdbMemTableIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
       iter->row->row = row[0];
 
-      tsdbTbDataIterNext(iter->memtData->tbIter);
+      (void)tsdbTbDataIterNext(iter->memtData->tbIter);
       goto _exit;
     }
 
@@ -254,7 +254,8 @@ _exit:
 static int32_t tsdbDataTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
   while (!iter->noMoreData) {
     for (; iter->dataTomb->tombBlockIdx < TOMB_BLOCK_SIZE(iter->dataTomb->tombBlock); iter->dataTomb->tombBlockIdx++) {
-      tTombBlockGet(iter->dataTomb->tombBlock, iter->dataTomb->tombBlockIdx, iter->record);
+      int32_t code = tTombBlockGet(iter->dataTomb->tombBlock, iter->dataTomb->tombBlockIdx, iter->record);
+      if (code) return code;
 
       if (iter->filterByVersion && (iter->record->version < iter->range[0] || iter->record->version > iter->range[1])) {
         continue;
@@ -372,7 +373,7 @@ static int32_t tsdbDataIterOpen(STsdbIter *iter) {
   iter->dataData->brinBlkArrayIdx = 0;
 
   // SBrinBlock
-  tBrinBlockInit(iter->dataData->brinBlock);
+  (void)tBrinBlockInit(iter->dataData->brinBlock);
   iter->dataData->brinBlockIdx = 0;
 
   // SBlockData
@@ -429,7 +430,7 @@ static int32_t tsdbMemTombIterOpen(STsdbIter *iter) {
 }
 
 static int32_t tsdbDataIterClose(STsdbIter *iter) {
-  tBrinBlockDestroy(iter->dataData->brinBlock);
+  (void)tBrinBlockDestroy(iter->dataData->brinBlock);
   tBlockDataDestroy(iter->dataData->blockData);
   return 0;
 }
@@ -439,7 +440,8 @@ static int32_t tsdbMemTableIterClose(STsdbIter *iter) { return 0; }
 static int32_t tsdbSttTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
   while (!iter->noMoreData) {
     for (; iter->sttTomb->tombBlockIdx < TOMB_BLOCK_SIZE(iter->sttTomb->tombBlock); iter->sttTomb->tombBlockIdx++) {
-      tTombBlockGet(iter->sttTomb->tombBlock, iter->sttTomb->tombBlockIdx, iter->record);
+      int32_t code = tTombBlockGet(iter->sttTomb->tombBlock, iter->sttTomb->tombBlockIdx, iter->record);
+      if (code) return code;
 
       if (iter->filterByVersion && (iter->record->version < iter->range[0] || iter->record->version > iter->range[1])) {
         continue;
@@ -507,7 +509,7 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
 
   iter[0] = taosMemoryCalloc(1, sizeof(*iter[0]));
   if (iter[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   iter[0]->type = config->type;
@@ -677,7 +679,7 @@ int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger
 
   merger[0] = taosMemoryCalloc(1, sizeof(*merger[0]));
   if (merger[0] == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   merger[0]->isTomb = isTomb;

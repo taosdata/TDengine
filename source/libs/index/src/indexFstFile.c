@@ -279,7 +279,9 @@ void idxFileDestroy(IdxFstFile* cw) {
   taosMemoryFree(cw);
 }
 
-int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
+int32_t idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
+  int32_t code = 0;
+
   if (write == NULL) {
     return 0;
   }
@@ -288,7 +290,8 @@ int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   int       nWrite = ctx->write(ctx, buf, len);
   ASSERTS(nWrite == len, "index write incomplete data");
   if (nWrite != len) {
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    return code;
   }
   write->count += len;
 
@@ -296,7 +299,7 @@ int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   return len;
 }
 
-int idxFileRead(IdxFstFile* write, uint8_t* buf, uint32_t len) {
+int32_t idxFileRead(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   if (write == NULL) {
     return 0;
   }

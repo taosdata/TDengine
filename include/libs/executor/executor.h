@@ -152,7 +152,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @return
  */
 int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                    int32_t* tversion, int32_t idx);
+                                    int32_t* tversion, int32_t idx, bool* tbGet);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -211,7 +211,7 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
 void* qExtractReaderFromStreamScanner(void* scanner);
 
-int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+void qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);

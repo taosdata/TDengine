@@ -353,6 +353,8 @@ end_opt(A) ::= END WITH TIMESTAMP NK_STRING(B).                                 
 cmd ::= CREATE TABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP tags_def_opt(D) table_options(E).                { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
 cmd ::= CREATE TABLE multi_create_clause(A).                                      { pCxt->pRootNode = createCreateMultiTableStmt(pCxt, A); }
+cmd ::= CREATE TABLE not_exists_opt(B) USING full_table_name(C)
+  NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { pCxt->pRootNode = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
 cmd ::= DROP TABLE multi_drop_clause(A).                                          { pCxt->pRootNode = createDropTableStmt(pCxt, A); }
@@ -385,14 +387,10 @@ alter_table_clause(A) ::=
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
 multi_create_clause(A) ::= create_subtable_clause(B).                             { A = createNodeList(pCxt, B); }
 multi_create_clause(A) ::= multi_create_clause(B) create_subtable_clause(C).      { A = addNodeToList(pCxt, B, C); }
-multi_create_clause(A) ::= create_from_file_clause(B).                            { A = createNodeList(pCxt, B); }
 
 create_subtable_clause(A) ::=
   not_exists_opt(B) full_table_name(C) USING full_table_name(D)
   specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP table_options(G).    { A = createCreateSubTableClause(pCxt, B, C, D, E, F, G); }
-
-create_from_file_clause(A) ::= not_exists_opt(B) USING full_table_name(C)
-  NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { A = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 
 %type multi_drop_clause                                                           { SNodeList* }
 %destructor multi_drop_clause                                                     { nodesDestroyList($$); }
@@ -511,7 +509,7 @@ cmd ::= SHOW USERS FULL.                                                        
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
 cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
                                                                                     pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);
-                                                                                    setShowKind(pCxt, pCxt->pRootNode, A);
+                                                                                    (void)setShowKind(pCxt, pCxt->pRootNode, A);
                                                                                   }
 cmd ::= SHOW table_kind_db_name_cond_opt(A) TABLES like_pattern_opt(B).           {
                                                                                     pCxt->pRootNode = createShowTablesStmt(pCxt, A, B, OP_TYPE_LIKE);
@@ -1109,7 +1107,7 @@ expr_or_subquery(A) ::= expression(B).                                          
 //expr_or_subquery(A) ::= subquery(B).                                              { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 
 expression(A) ::= literal(B).                                                     { A = B; }
-expression(A) ::= pseudo_column(B).                                               { A = B; setRawExprNodeIsPseudoColumn(pCxt, A, true); }
+expression(A) ::= pseudo_column(B).                                               { A = B; (void)setRawExprNodeIsPseudoColumn(pCxt, A, true); }
 expression(A) ::= column_reference(B).                                            { A = B; }
 expression(A) ::= function_expression(B).                                         { A = B; }
 expression(A) ::= case_when_expression(B).                                        { A = B; }

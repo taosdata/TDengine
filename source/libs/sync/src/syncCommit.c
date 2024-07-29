@@ -72,17 +72,25 @@ bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
 }
 
 int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
+  int32_t   code = 0;
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   commitIndex = TMAX(commitIndex, ths->commitIndex);
   ths->commitIndex = TMIN(commitIndex, lastVer);
-  ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex);
+  if ((code = ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex)) != 0) {
+    // TODO add return when error
+    sError("failed to update commit index since %s", tstrerror(code));
+  }
   return ths->commitIndex;
 }
 
 int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
+  int32_t code = 0;
   if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
     SyncIndex commitIndex = indexLikely;
-    syncNodeUpdateCommitIndex(ths, commitIndex);
+    if ((code = syncNodeUpdateCommitIndex(ths, commitIndex)) != 0) {
+      // TODO add return when error
+      sError("failed to update commit index since %s", tstrerror(code));
+    }
     sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index:%" PRId64 "", ths->vgId, ths->state,
            raftStoreGetTerm(ths), commitIndex);
   }
@@ -90,9 +98,13 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
 }
 
 int64_t syncNodeUpdateAssignedCommitIndex(SSyncNode* ths, SyncIndex assignedCommitIndex) {
+  int32_t   code = 0;
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   assignedCommitIndex = TMAX(assignedCommitIndex, ths->assignedCommitIndex);
   ths->assignedCommitIndex = TMIN(assignedCommitIndex, lastVer);
-  ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->assignedCommitIndex);
+  if ((code = ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->assignedCommitIndex)) != 0) {
+    // TODO add return when error
+    sError("failed to update commit index since %s", tstrerror(code));
+  }
   return ths->commitIndex;
 }

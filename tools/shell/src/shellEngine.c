@@ -1118,7 +1118,7 @@ void shellSourceFile(const char *file) {
   }
 
   char *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
-  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
+  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
     if ( cmd_len + read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
       printf("read command line too long over 1M, ignore this line. cmd_len = %d read_len=%d \n", (int32_t)cmd_len, read_len);
       cmd_len = 0;

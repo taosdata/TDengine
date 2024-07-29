@@ -15,8 +15,8 @@
 
 #include "tdbInt.h"
 
-int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, int8_t rollback, int32_t encryptAlgorithm,
-                char *encryptKey) {
+int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, int8_t rollback,
+                int32_t encryptAlgorithm, char *encryptKey) {
   TDB *pDb;
   int  dsize;
   int  zsize;
@@ -31,7 +31,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
 
   pPtr = (uint8_t *)tdbOsCalloc(1, zsize);
   if (pPtr == NULL) {
-    return -1;
+    return terrno;
   }
 
   pDb = (TDB *)pPtr;
@@ -51,38 +51,38 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   pDb->jfd = -1;
 
   pDb->encryptAlgorithm = encryptAlgorithm;
-  if(encryptKey != NULL){
-    strncpy(pDb->encryptKey, encryptKey, ENCRYPT_KEY_LEN); 
+  if (encryptKey != NULL) {
+    strncpy(pDb->encryptKey, encryptKey, ENCRYPT_KEY_LEN);
   }
 
   ret = tdbPCacheOpen(szPage, pages, &(pDb->pCache));
   if (ret < 0) {
-    return -1;
+    return ret;
   }
 
   pDb->nPgrHash = 8;
   tsize = sizeof(SPager *) * pDb->nPgrHash;
   pDb->pgrHash = tdbOsMalloc(tsize);
   if (pDb->pgrHash == NULL) {
-    return -1;
+    return terrno;
   }
   memset(pDb->pgrHash, 0, tsize);
 
   ret = taosMulModeMkDir(dbname, 0755, false);
   if (ret < 0) {
-    return -1;
+    return terrno;
   }
 
 #ifdef USE_MAINDB
   // open main db
   ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb, rollback);
   if (ret < 0) {
-    return -1;
+    return ret;
   }
 
   ret = tdbTbOpen(TDB_FREEDB_NAME, sizeof(SPgno), 0, NULL, pDb, &pDb->pFreeDb, rollback);
   if (ret < 0) {
-    return -1;
+    return ret;
   }
 #endif
 
@@ -101,10 +101,10 @@ int tdbClose(TDB *pDb) {
 
     for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {
       pDb->pgrList = pPager->pNext;
-      tdbPagerClose(pPager);
+      (void)tdbPagerClose(pPager);
     }
 
-    tdbPCacheClose(pDb->pCache);
+    (void)tdbPCacheClose(pDb->pCache);
     tdbOsFree(pDb->pgrHash);
     tdbOsFree(pDb);
   }
@@ -125,12 +125,13 @@ int32_t tdbBegin(TDB *pDb, TXN **ppTxn, void *(*xMalloc)(void *, size_t), void (
 
   TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
   if (!pTxn) {
-    return -1;
+    return terrno;
   }
 
-  if (tdbTxnOpen(pTxn, txnId, xMalloc, xFree, xArg, flags) < 0) {
+  ret = tdbTxnOpen(pTxn, txnId, xMalloc, xFree, xArg, flags);
+  if (ret < 0) {
     tdbOsFree(pTxn);
-    return -1;
+    return ret;
   }
 
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
@@ -139,7 +140,7 @@ int32_t tdbBegin(TDB *pDb, TXN **ppTxn, void *(*xMalloc)(void *, size_t), void (
       tdbError("failed to begin pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
       tdbTxnClose(pTxn);
-      return -1;
+      return ret;
     }
   }
 
@@ -157,7 +158,7 @@ int32_t tdbCommit(TDB *pDb, TXN *pTxn) {
     if (ret < 0) {
       tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
-      return -1;
+      return ret;
     }
   }
 
@@ -173,7 +174,7 @@ int32_t tdbPostCommit(TDB *pDb, TXN *pTxn) {
     if (ret < 0) {
       tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
-      return -1;
+      return ret;
     }
   }
 
@@ -191,7 +192,7 @@ int32_t tdbPrepareAsyncCommit(TDB *pDb, TXN *pTxn) {
     if (ret < 0) {
       tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
-      return -1;
+      return ret;
     }
   }
 
@@ -207,7 +208,7 @@ int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
     if (ret < 0) {
       tdbError("failed to abort pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
-      return -1;
+      return ret;
     }
   }
 

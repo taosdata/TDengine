@@ -16,20 +16,22 @@
 #define _DEFAULT_SOURCE
 #include "tworker.h"
 #include "taoserror.h"
+#include "tcompare.h"
 #include "tgeosctx.h"
 #include "tlog.h"
-#include "tcompare.h"
 
 #define QUEUE_THRESHOLD (1000 * 1000)
 
 typedef void *(*ThreadFp)(void *param);
 
 int32_t tQWorkerInit(SQWorkerPool *pool) {
-  pool->qset = taosOpenQset();
+  int32_t code = taosOpenQset(&pool->qset);
+  if (code) return code;
+
   pool->workers = taosMemoryCalloc(pool->max, sizeof(SQueueWorker));
   if (pool->workers == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    taosCloseQset(pool->qset);
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   (void)taosThreadMutexInit(&pool->mutex, NULL);
@@ -104,16 +106,21 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
   }
 
   destroyThreadLocalGeosCtx();
-  DestoryThreadLocalRegComp();
 
   return NULL;
 }
 
 STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
-  STaosQueue *queue = taosOpenQueue();
-  if (queue == NULL) return NULL;
+  int32_t     code;
+  STaosQueue *queue;
 
-  taosThreadMutexLock(&pool->mutex);
+  code = taosOpenQueue(&queue);
+  if (code) {
+    terrno = code;
+    return NULL;
+  }
+
+  (void)taosThreadMutexLock(&pool->mutex);
   taosSetQueueFp(queue, fp, NULL);
   taosAddIntoQset(pool->qset, queue, ahandle);
 
@@ -139,7 +146,7 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
     } while (pool->num < pool->min);
   }
 
-  taosThreadMutexUnlock(&pool->mutex);
+  (void)taosThreadMutexUnlock(&pool->mutex);
   uInfo("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
 
   return queue;
@@ -151,11 +158,17 @@ void tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue) {
 }
 
 int32_t tAutoQWorkerInit(SAutoQWorkerPool *pool) {
-  pool->qset = taosOpenQset();
+  int32_t code;
+
+  code = taosOpenQset(&pool->qset);
+  if (code) {
+    return terrno = code;
+  }
+
   pool->workers = taosArrayInit(2, sizeof(SQueueWorker *));
   if (pool->workers == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    taosCloseQset(pool->qset);
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   (void)taosThreadMutexInit(&pool->mutex, NULL);
@@ -224,16 +237,21 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
 
     taosUpdateItemSize(qinfo.queue, 1);
   }
-  DestoryThreadLocalRegComp();
 
   return NULL;
 }
 
 STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem fp) {
-  STaosQueue *queue = taosOpenQueue();
-  if (queue == NULL) return NULL;
+  int32_t     code;
+  STaosQueue *queue;
 
-  taosThreadMutexLock(&pool->mutex);
+  code = taosOpenQueue(&queue);
+  if (code) {
+    terrno = code;
+    return NULL;
+  }
+
+  (void)taosThreadMutexLock(&pool->mutex);
   taosSetQueueFp(queue, fp, NULL);
   taosAddIntoQset(pool->qset, queue, ahandle);
 
@@ -249,7 +267,7 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
       uError("worker:%s:%d failed to create", pool->name, curWorkerNum);
       taosMemoryFree(worker);
       taosCloseQueue(queue);
-      taosThreadMutexUnlock(&pool->mutex);
+      (void)taosThreadMutexUnlock(&pool->mutex);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
@@ -276,7 +294,7 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
     curWorkerNum++;
   }
 
-  taosThreadMutexUnlock(&pool->mutex);
+  (void)taosThreadMutexUnlock(&pool->mutex);
   uInfo("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
 
   return queue;
@@ -291,8 +309,7 @@ int32_t tWWorkerInit(SWWorkerPool *pool) {
   pool->nextId = 0;
   pool->workers = taosMemoryCalloc(pool->max, sizeof(SWWorker));
   if (pool->workers == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   (void)taosThreadMutexInit(&pool->mutex, NULL);
@@ -376,21 +393,22 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
 }
 
 STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
-  taosThreadMutexLock(&pool->mutex);
-  SWWorker *worker = pool->workers + pool->nextId;
-  int32_t   code = -1;
+  (void)taosThreadMutexLock(&pool->mutex);
+  SWWorker   *worker = pool->workers + pool->nextId;
+  int32_t     code = -1;
+  STaosQueue *queue;
 
-  STaosQueue *queue = taosOpenQueue();
-  if (queue == NULL) goto _OVER;
+  code = taosOpenQueue(&queue);
+  if (code) goto _OVER;
 
   taosSetQueueFp(queue, NULL, fp);
   if (worker->qset == NULL) {
-    worker->qset = taosOpenQset();
-    if (worker->qset == NULL) goto _OVER;
+    code = taosOpenQset(&worker->qset);
+    if (code) goto _OVER;
 
     taosAddIntoQset(worker->qset, queue, ahandle);
-    worker->qall = taosAllocateQall();
-    if (worker->qall == NULL) goto _OVER;
+    code = taosAllocateQall(&worker->qall);
+    if (code) goto _OVER;
 
     TdThreadAttr thAttr;
     taosThreadAttrInit(&thAttr);
@@ -408,15 +426,14 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     pool->nextId = (pool->nextId + 1) % pool->max;
   }
 
-  code = 0;
-
 _OVER:
-  taosThreadMutexUnlock(&pool->mutex);
+  (void)taosThreadMutexUnlock(&pool->mutex);
 
-  if (code == -1) {
+  if (code) {
     if (queue != NULL) taosCloseQueue(queue);
     if (worker->qset != NULL) taosCloseQset(worker->qset);
     if (worker->qall != NULL) taosFreeQall(worker->qall);
+    terrno = code;
     return NULL;
   } else {
     while (worker->pid <= 0) taosMsleep(10);
@@ -433,6 +450,7 @@ void tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue) {
 }
 
 int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) {
+  int32_t code;
   pWorker->poolType = pCfg->poolType;
   pWorker->name = pCfg->name;
 
@@ -440,32 +458,38 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
     case QWORKER_POOL: {
       SQWorkerPool *pPool = taosMemoryCalloc(1, sizeof(SQWorkerPool));
       if (!pPool) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
+        return terrno = TSDB_CODE_OUT_OF_MEMORY;
       }
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
       pWorker->pool = pPool;
-      if (tQWorkerInit(pPool) != 0) return -1;
+      if ((code = tQWorkerInit(pPool))) {
+        return (terrno = code);
+      }
 
       pWorker->queue = tQWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
-      if (pWorker->queue == NULL) return -1;
+      if (pWorker->queue == NULL) {
+        return terrno;
+      }
     } break;
     case QUERY_AUTO_QWORKER_POOL: {
       SQueryAutoQWorkerPool *pPool = taosMemoryCalloc(1, sizeof(SQueryAutoQWorkerPool));
       if (!pPool) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
+        return (terrno = TSDB_CODE_OUT_OF_MEMORY);
       }
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
       pWorker->pool = pPool;
-      if (tQueryAutoQWorkerInit(pPool) != 0) return -1;
+
+      code = tQueryAutoQWorkerInit(pPool);
+      if (code) return code;
 
       pWorker->queue = tQueryAutoQWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
-      if (!pWorker->queue) return -1;
+      if (!pWorker->queue) {
+        return terrno;
+      }
     } break;
     default:
       assert(0);
@@ -499,10 +523,14 @@ int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg) {
   SWWorkerPool *pPool = &pWorker->pool;
   pPool->name = pCfg->name;
   pPool->max = pCfg->max;
-  if (tWWorkerInit(pPool) != 0) return -1;
+
+  int32_t code = tWWorkerInit(pPool);
+  if (code) return code;
 
   pWorker->queue = tWWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
-  if (pWorker->queue == NULL) return -1;
+  if (pWorker->queue == NULL) {
+    return terrno;
+  }
 
   pWorker->name = pCfg->name;
   return 0;
@@ -519,13 +547,13 @@ void tMultiWorkerCleanup(SMultiWorker *pWorker) {
   tWWorkerFreeQueue(&pWorker->pool, pWorker->queue);
 }
 
-static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool* pool);
+static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool);
 static int32_t tQueryAutoQWorkerBeforeBlocking(void *p);
 static int32_t tQueryAutoQWorkerRecoverFromBlocking(void *p);
-static int32_t tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool* pPool);
-static bool    tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool* pPool, SQueryAutoQWorker* pWorker);
+static int32_t tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool);
+static bool    tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQWorker *pWorker);
 
-#define GET_ACTIVE_N(int64_val) (int32_t)((int64_val) >> 32)
+#define GET_ACTIVE_N(int64_val)  (int32_t)((int64_val) >> 32)
 #define GET_RUNNING_N(int64_val) (int32_t)(int64_val & 0xFFFFFFFF)
 
 static int32_t atomicFetchSubActive(int64_t *ptr, int32_t val) {
@@ -546,7 +574,7 @@ static int32_t atomicFetchAddActive(int64_t *ptr, int32_t val) {
 
 static int32_t atomicFetchAddRunning(int64_t *ptr, int32_t val) { return GET_RUNNING_N(atomic_fetch_add_64(ptr, val)); }
 
-static bool atomicCompareExchangeActive(int64_t* ptr, int32_t* expectedVal, int32_t newVal) {
+static bool atomicCompareExchangeActive(int64_t *ptr, int32_t *expectedVal, int32_t newVal) {
   int64_t oldVal64 = *expectedVal, newVal64 = newVal;
   int32_t running = GET_RUNNING_N(*ptr);
   oldVal64 <<= 32;
@@ -562,7 +590,7 @@ static bool atomicCompareExchangeActive(int64_t* ptr, int32_t* expectedVal, int3
   }
 }
 
-static int64_t atomicCompareExchangeRunning(int64_t* ptr, int32_t* expectedVal, int32_t newVal) {
+static int64_t atomicCompareExchangeRunning(int64_t *ptr, int32_t *expectedVal, int32_t newVal) {
   int64_t oldVal64 = *expectedVal, newVal64 = newVal;
   int64_t activeShifted = GET_ACTIVE_N(*ptr);
   activeShifted <<= 32;
@@ -578,7 +606,7 @@ static int64_t atomicCompareExchangeRunning(int64_t* ptr, int32_t* expectedVal, 
 }
 
 static int64_t atomicCompareExchangeActiveAndRunning(int64_t *ptr, int32_t *expectedActive, int32_t newActive,
-                                                        int32_t *expectedRunning, int32_t newRunning) {
+                                                     int32_t *expectedRunning, int32_t newRunning) {
   int64_t oldVal64 = *expectedActive, newVal64 = newActive;
   oldVal64 <<= 32;
   oldVal64 |= *expectedRunning;
@@ -636,7 +664,6 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
   }
 
   destroyThreadLocalGeosCtx();
-  DestoryThreadLocalRegComp();
 
   return NULL;
 }
@@ -644,13 +671,13 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
 static bool tQueryAutoQWorkerTrySignalWaitingAfterBlock(void *p) {
   SQueryAutoQWorkerPool *pPool = p;
   bool                   ret = false;
-  int32_t waiting = pPool->waitingAfterBlockN;
+  int32_t                waiting = pPool->waitingAfterBlockN;
   while (waiting > 0) {
     int32_t waitingNew = atomic_val_compare_exchange_32(&pPool->waitingAfterBlockN, waiting, waiting - 1);
     if (waitingNew == waiting) {
-      taosThreadMutexLock(&pPool->waitingAfterBlockLock);
+      (void)taosThreadMutexLock(&pPool->waitingAfterBlockLock);
       taosThreadCondSignal(&pPool->waitingAfterBlockCond);
-      taosThreadMutexUnlock(&pPool->waitingAfterBlockLock);
+      (void)taosThreadMutexUnlock(&pPool->waitingAfterBlockLock);
       ret = true;
       break;
     }
@@ -659,16 +686,16 @@ static bool tQueryAutoQWorkerTrySignalWaitingAfterBlock(void *p) {
   return ret;
 }
 
-static bool tQueryAutoQWorkerTrySignalWaitingBeforeProcess(void* p) {
+static bool tQueryAutoQWorkerTrySignalWaitingBeforeProcess(void *p) {
   SQueryAutoQWorkerPool *pPool = p;
   bool                   ret = false;
-  int32_t waiting = pPool->waitingBeforeProcessMsgN;
+  int32_t                waiting = pPool->waitingBeforeProcessMsgN;
   while (waiting > 0) {
     int32_t waitingNew = atomic_val_compare_exchange_32(&pPool->waitingBeforeProcessMsgN, waiting, waiting - 1);
     if (waitingNew == waiting) {
-      taosThreadMutexLock(&pPool->waitingBeforeProcessMsgLock);
+      (void)taosThreadMutexLock(&pPool->waitingBeforeProcessMsgLock);
       taosThreadCondSignal(&pPool->waitingBeforeProcessMsgCond);
-      taosThreadMutexUnlock(&pPool->waitingBeforeProcessMsgLock);
+      (void)taosThreadMutexUnlock(&pPool->waitingBeforeProcessMsgLock);
       ret = true;
       break;
     }
@@ -677,10 +704,10 @@ static bool tQueryAutoQWorkerTrySignalWaitingBeforeProcess(void* p) {
   return ret;
 }
 
-static bool tQueryAutoQWorkerTryDecActive(void* p, int32_t minActive) {
+static bool tQueryAutoQWorkerTryDecActive(void *p, int32_t minActive) {
   SQueryAutoQWorkerPool *pPool = p;
   bool                   ret = false;
-  int64_t val64 = pPool->activeRunningN;
+  int64_t                val64 = pPool->activeRunningN;
   int32_t                active = GET_ACTIVE_N(val64), running = GET_RUNNING_N(val64);
   while (active > minActive) {
     if (atomicCompareExchangeActiveAndRunning(&pPool->activeRunningN, &active, active - 1, &running, running - 1))
@@ -690,7 +717,7 @@ static bool tQueryAutoQWorkerTryDecActive(void* p, int32_t minActive) {
   return false;
 }
 
-static int32_t tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool* pPool) {
+static int32_t tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool) {
   while (1) {
     int64_t val64 = pPool->activeRunningN;
     int32_t running = GET_RUNNING_N(val64), active = GET_ACTIVE_N(val64);
@@ -704,25 +731,25 @@ static int32_t tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool* pPool) {
     }
   }
   // to wait for process
-  taosThreadMutexLock(&pPool->waitingBeforeProcessMsgLock);
+  (void)taosThreadMutexLock(&pPool->waitingBeforeProcessMsgLock);
   atomic_fetch_add_32(&pPool->waitingBeforeProcessMsgN, 1);
   if (!pPool->exit) taosThreadCondWait(&pPool->waitingBeforeProcessMsgCond, &pPool->waitingBeforeProcessMsgLock);
   // recovered from waiting
-  taosThreadMutexUnlock(&pPool->waitingBeforeProcessMsgLock);
+  (void)taosThreadMutexUnlock(&pPool->waitingBeforeProcessMsgLock);
   return TSDB_CODE_SUCCESS;
 }
 
-bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool* pPool, SQueryAutoQWorker* pWorker) {
+bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQWorker *pWorker) {
   if (tQueryAutoQWorkerTrySignalWaitingAfterBlock(pPool) || tQueryAutoQWorkerTrySignalWaitingBeforeProcess(pPool) ||
       tQueryAutoQWorkerTryDecActive(pPool, pPool->num)) {
-    taosThreadMutexLock(&pPool->poolLock);
-    SListNode* pNode = listNode(pWorker);
+    (void)taosThreadMutexLock(&pPool->poolLock);
+    SListNode *pNode = listNode(pWorker);
     tdListPopNode(pPool->workers, pNode);
     // reclaim some workers
     if (pWorker->id >= pPool->maxInUse) {
       while (listNEles(pPool->exitedWorkers) > pPool->maxInUse - pPool->num) {
-        SListNode* head = tdListPopHead(pPool->exitedWorkers);
-        SQueryAutoQWorker* pWorker = (SQueryAutoQWorker*)head->data;
+        SListNode         *head = tdListPopHead(pPool->exitedWorkers);
+        SQueryAutoQWorker *pWorker = (SQueryAutoQWorker *)head->data;
         if (pWorker && taosCheckPthreadValid(pWorker->thread)) {
           taosThreadJoin(pWorker->thread, NULL);
           taosThreadClear(&pWorker->thread);
@@ -730,29 +757,29 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool* pPool, SQueryAutoQ
         taosMemoryFree(head);
       }
       tdListAppendNode(pPool->exitedWorkers, pNode);
-      taosThreadMutexUnlock(&pPool->poolLock);
+      (void)taosThreadMutexUnlock(&pPool->poolLock);
       return false;
     }
 
     // put back to backup pool
     tdListAppendNode(pPool->backupWorkers, pNode);
-    taosThreadMutexUnlock(&pPool->poolLock);
+    (void)taosThreadMutexUnlock(&pPool->poolLock);
 
     // start to wait at backup cond
-    taosThreadMutexLock(&pPool->backupLock);
+    (void)taosThreadMutexLock(&pPool->backupLock);
     atomic_fetch_add_32(&pPool->backupNum, 1);
     if (!pPool->exit) taosThreadCondWait(&pPool->backupCond, &pPool->backupLock);
-    taosThreadMutexUnlock(&pPool->backupLock);
+    (void)taosThreadMutexUnlock(&pPool->backupLock);
 
     // recovered from backup
-    taosThreadMutexLock(&pPool->poolLock);
+    (void)taosThreadMutexLock(&pPool->poolLock);
     if (pPool->exit) {
-      taosThreadMutexUnlock(&pPool->poolLock);
+      (void)taosThreadMutexUnlock(&pPool->poolLock);
       return false;
     }
     tdListPopNode(pPool->backupWorkers, pNode);
     tdListAppendNode(pPool->workers, pNode);
-    taosThreadMutexUnlock(&pPool->poolLock);
+    (void)taosThreadMutexUnlock(&pPool->poolLock);
 
     return true;
   } else {
@@ -761,8 +788,9 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool* pPool, SQueryAutoQ
 }
 
 int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
-  pool->qset = taosOpenQset();
-  if (!pool->qset) return terrno;
+  int32_t code;
+  code = taosOpenQset(&pool->qset);
+  if (code) return terrno = code;
   pool->workers = tdListNew(sizeof(SQueryAutoQWorker));
   if (!pool->workers) return TSDB_CODE_OUT_OF_MEMORY;
   pool->backupWorkers = tdListNew(sizeof(SQueryAutoQWorker));
@@ -791,7 +819,7 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
 }
 
 void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
-  taosThreadMutexLock(&pPool->poolLock);
+  (void)taosThreadMutexLock(&pPool->poolLock);
   pPool->exit = true;
   int32_t size = listNEles(pPool->workers);
   for (int32_t i = 0; i < size; ++i) {
@@ -801,31 +829,31 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   for (int32_t i = 0; i < size; ++i) {
     taosQsetThreadResume(pPool->qset);
   }
-  taosThreadMutexUnlock(&pPool->poolLock);
+  (void)taosThreadMutexUnlock(&pPool->poolLock);
 
-  taosThreadMutexLock(&pPool->backupLock);
+  (void)taosThreadMutexLock(&pPool->backupLock);
   taosThreadCondBroadcast(&pPool->backupCond);
-  taosThreadMutexUnlock(&pPool->backupLock);
+  (void)taosThreadMutexUnlock(&pPool->backupLock);
 
-  taosThreadMutexLock(&pPool->waitingAfterBlockLock);
+  (void)taosThreadMutexLock(&pPool->waitingAfterBlockLock);
   taosThreadCondBroadcast(&pPool->waitingAfterBlockCond);
-  taosThreadMutexUnlock(&pPool->waitingAfterBlockLock);
+  (void)taosThreadMutexUnlock(&pPool->waitingAfterBlockLock);
 
-  taosThreadMutexLock(&pPool->waitingBeforeProcessMsgLock);
+  (void)taosThreadMutexLock(&pPool->waitingBeforeProcessMsgLock);
   taosThreadCondBroadcast(&pPool->waitingBeforeProcessMsgCond);
-  taosThreadMutexUnlock(&pPool->waitingBeforeProcessMsgLock);
+  (void)taosThreadMutexUnlock(&pPool->waitingBeforeProcessMsgLock);
 
-  int32_t idx = 0;
-  SQueryAutoQWorker* worker = NULL;
+  int32_t            idx = 0;
+  SQueryAutoQWorker *worker = NULL;
   while (true) {
-    taosThreadMutexLock(&pPool->poolLock);
+    (void)taosThreadMutexLock(&pPool->poolLock);
     if (listNEles(pPool->workers) == 0) {
-      taosThreadMutexUnlock(&pPool->poolLock);
+      (void)taosThreadMutexUnlock(&pPool->poolLock);
       break;
     }
-    SListNode* pNode = tdListPopHead(pPool->workers);
-    worker = (SQueryAutoQWorker*)pNode->data;
-    taosThreadMutexUnlock(&pPool->poolLock);
+    SListNode *pNode = tdListPopHead(pPool->workers);
+    worker = (SQueryAutoQWorker *)pNode->data;
+    (void)taosThreadMutexUnlock(&pPool->poolLock);
     if (worker && taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
       taosThreadClear(&worker->thread);
@@ -834,8 +862,8 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   }
 
   while (listNEles(pPool->backupWorkers) > 0) {
-    SListNode* pNode = tdListPopHead(pPool->backupWorkers);
-    worker = (SQueryAutoQWorker*)pNode->data;
+    SListNode *pNode = tdListPopHead(pPool->backupWorkers);
+    worker = (SQueryAutoQWorker *)pNode->data;
     if (worker && taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
       taosThreadClear(&worker->thread);
@@ -844,8 +872,8 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   }
 
   while (listNEles(pPool->exitedWorkers) > 0) {
-    SListNode* pNode = tdListPopHead(pPool->exitedWorkers);
-    worker = (SQueryAutoQWorker*)pNode->data;
+    SListNode *pNode = tdListPopHead(pPool->exitedWorkers);
+    worker = (SQueryAutoQWorker *)pNode->data;
     if (worker && taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
       taosThreadClear(&worker->thread);
@@ -870,14 +898,18 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
 }
 
 STaosQueue *tQueryAutoQWorkerAllocQueue(SQueryAutoQWorkerPool *pool, void *ahandle, FItem fp) {
-  STaosQueue *queue = taosOpenQueue();
-  if (queue == NULL) return NULL;
+  STaosQueue *queue;
+  int32_t     code = taosOpenQueue(&queue);
+  if (code) {
+    terrno = code;
+    return NULL;
+  }
 
-  taosThreadMutexLock(&pool->poolLock);
+  (void)taosThreadMutexLock(&pool->poolLock);
   taosSetQueueFp(queue, fp, NULL);
   taosAddIntoQset(pool->qset, queue, ahandle);
-  SQueryAutoQWorker worker = {0};
-  SQueryAutoQWorker* pWorker = NULL;
+  SQueryAutoQWorker  worker = {0};
+  SQueryAutoQWorker *pWorker = NULL;
 
   // spawn a thread to process queue
   if (pool->num < pool->max) {
@@ -885,14 +917,14 @@ STaosQueue *tQueryAutoQWorkerAllocQueue(SQueryAutoQWorkerPool *pool, void *ahand
       worker.id = listNEles(pool->workers);
       worker.backupIdx = -1;
       worker.pool = pool;
-      SListNode* pNode = tdListAdd(pool->workers, &worker);
+      SListNode *pNode = tdListAdd(pool->workers, &worker);
       if (!pNode) {
         taosCloseQueue(queue);
         queue = NULL;
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      pWorker = (SQueryAutoQWorker*)pNode->data;
+      pWorker = (SQueryAutoQWorker *)pNode->data;
 
       TdThreadAttr thAttr;
       taosThreadAttrInit(&thAttr);
@@ -912,17 +944,15 @@ STaosQueue *tQueryAutoQWorkerAllocQueue(SQueryAutoQWorkerPool *pool, void *ahand
     } while (pool->num < pool->min);
   }
 
-  taosThreadMutexUnlock(&pool->poolLock);
+  (void)taosThreadMutexUnlock(&pool->poolLock);
   uInfo("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
 
   return queue;
 }
 
-void tQueryAutoQWorkerFreeQueue(SQueryAutoQWorkerPool *pPool, STaosQueue *pQ) {
-  taosCloseQueue(pQ);
-}
+void tQueryAutoQWorkerFreeQueue(SQueryAutoQWorkerPool *pPool, STaosQueue *pQ) { taosCloseQueue(pQ); }
 
-static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool* pool) {
+static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool) {
   // try backup pool
   int32_t backup = pool->backupNum;
   while (backup > 0) {
@@ -934,20 +964,20 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool* pool) {
     backup = backupNew;
   }
   // backup pool is empty, create new
-  SQueryAutoQWorker* pWorker = NULL;
-  SQueryAutoQWorker worker = {0};
+  SQueryAutoQWorker *pWorker = NULL;
+  SQueryAutoQWorker  worker = {0};
   worker.pool = pool;
   worker.backupIdx = -1;
-  taosThreadMutexLock(&pool->poolLock);
+  (void)taosThreadMutexLock(&pool->poolLock);
   worker.id = listNEles(pool->workers);
-  SListNode* pNode = tdListAdd(pool->workers, &worker);
+  SListNode *pNode = tdListAdd(pool->workers, &worker);
   if (!pNode) {
-    taosThreadMutexUnlock(&pool->poolLock);
+    (void)taosThreadMutexUnlock(&pool->poolLock);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
-  taosThreadMutexUnlock(&pool->poolLock);
-  pWorker = (SQueryAutoQWorker*)pNode->data;
+  (void)taosThreadMutexUnlock(&pool->poolLock);
+  pWorker = (SQueryAutoQWorker *)pNode->data;
 
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
@@ -963,7 +993,7 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool* pool) {
 }
 
 static int32_t tQueryAutoQWorkerBeforeBlocking(void *p) {
-  SQueryAutoQWorkerPool* pPool = p;
+  SQueryAutoQWorkerPool *pPool = p;
   if (tQueryAutoQWorkerTrySignalWaitingAfterBlock(p) || tQueryAutoQWorkerTrySignalWaitingBeforeProcess(p) ||
       tQueryAutoQWorkerTryDecActive(p, 1)) {
   } else {
@@ -977,18 +1007,18 @@ static int32_t tQueryAutoQWorkerBeforeBlocking(void *p) {
 }
 
 static int32_t tQueryAutoQWorkerRecoverFromBlocking(void *p) {
-  SQueryAutoQWorkerPool* pPool = p;
-  int64_t val64 = pPool->activeRunningN;
-  int32_t running = GET_RUNNING_N(val64), active = GET_ACTIVE_N(val64);
+  SQueryAutoQWorkerPool *pPool = p;
+  int64_t                val64 = pPool->activeRunningN;
+  int32_t                running = GET_RUNNING_N(val64), active = GET_ACTIVE_N(val64);
   while (running < pPool->num) {
     if (atomicCompareExchangeActiveAndRunning(&pPool->activeRunningN, &active, active + 1, &running, running + 1)) {
       return TSDB_CODE_SUCCESS;
     }
   }
-  taosThreadMutexLock(&pPool->waitingAfterBlockLock);
+  (void)taosThreadMutexLock(&pPool->waitingAfterBlockLock);
   atomic_fetch_add_32(&pPool->waitingAfterBlockN, 1);
   if (!pPool->exit) taosThreadCondWait(&pPool->waitingAfterBlockCond, &pPool->waitingAfterBlockLock);
-  taosThreadMutexUnlock(&pPool->waitingAfterBlockLock);
+  (void)taosThreadMutexUnlock(&pPool->waitingAfterBlockLock);
   if (pPool->exit) return TSDB_CODE_QRY_QWORKER_QUIT;
   return TSDB_CODE_SUCCESS;
 }

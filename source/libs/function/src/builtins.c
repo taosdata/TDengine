@@ -25,7 +25,7 @@
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
   va_start(vArgList, pFormat);
-  vsnprintf(pErrBuf, len, pFormat, vArgList);
+  (void)vsnprintf(pErrBuf, len, pFormat, vArgList);
   va_end(vArgList);
   return errCode;
 }
@@ -42,27 +42,24 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
   return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, "Invalid parameter value : %s", pFuncName);
 }
 
-#define TIME_UNIT_INVALID   1
-#define TIME_UNIT_TOO_SMALL 2
-
 static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
   if (!IS_DURATION_VAL(pVal->flag)) {
-    return TIME_UNIT_INVALID;
+    return TSDB_CODE_FUNC_TIME_UNIT_INVALID;
   }
 
   if (TSDB_TIME_PRECISION_MILLI == dbPrec &&
       (0 == strcasecmp(pVal->literal, "1u") || 0 == strcasecmp(pVal->literal, "1b"))) {
-    return TIME_UNIT_TOO_SMALL;
+    return TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL;
   }
 
   if (TSDB_TIME_PRECISION_MICRO == dbPrec && 0 == strcasecmp(pVal->literal, "1b")) {
-    return TIME_UNIT_TOO_SMALL;
+    return TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL;
   }
 
   if (pVal->literal[0] != '1' ||
       (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' && pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
        pVal->literal[1] != 'h' && pVal->literal[1] != 'd' && pVal->literal[1] != 'w' && pVal->literal[1] != 'b')) {
-    return TIME_UNIT_INVALID;
+    return TSDB_CODE_FUNC_TIME_UNIT_INVALID;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -138,13 +135,13 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
           }
 
           if (i == 2) {
-            memcpy(buf, &tz[i - 1], 2);
+            (void)memcpy(buf, &tz[i - 1], 2);
             hour = taosStr2Int8(buf, NULL, 10);
             if (!validateHourRange(hour)) {
               return false;
             }
           } else if (i == 4) {
-            memcpy(buf, &tz[i - 1], 2);
+            (void)memcpy(buf, &tz[i - 1], 2);
             minute = taosStr2Int8(buf, NULL, 10);
             if (!validateMinuteRange(hour, minute, tz[0])) {
               return false;
@@ -167,13 +164,13 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
           }
 
           if (i == 2) {
-            memcpy(buf, &tz[i - 1], 2);
+            (void)memcpy(buf, &tz[i - 1], 2);
             hour = taosStr2Int8(buf, NULL, 10);
             if (!validateHourRange(hour)) {
               return false;
             }
           } else if (i == 5) {
-            memcpy(buf, &tz[i - 1], 2);
+            (void)memcpy(buf, &tz[i - 1], 2);
             minute = taosStr2Int8(buf, NULL, 10);
             if (!validateMinuteRange(hour, minute, tz[0])) {
               return false;
@@ -215,32 +212,46 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
   if (taosLocalTime(&t, &tmInfo, buf) != NULL) {
-    strftime(buf, sizeof(buf), "%z", &tmInfo);
+    (void)strftime(buf, sizeof(buf), "%z", &tmInfo);
   }
   int32_t len = (int32_t)strlen(buf);
 
-  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode* pVal = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pVal->literal = strndup(buf, len);
+  if (pVal->literal == NULL) {
+    nodesDestroyNode((SNode*)pVal);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
   pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
   pVal->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
+  if (pVal->datum.p == NULL) {
+    nodesDestroyNode((SNode*)pVal);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   varDataSetLen(pVal->datum.p, len);
-  strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+  (void)strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
 
-  nodesListAppend(pList, (SNode*)pVal);
+  code = nodesListAppend(pList, (SNode*)pVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pVal);
+    return code;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
-  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  SValueNode* pVal = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   pVal->literal = NULL;
@@ -252,7 +263,11 @@ static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   pVal->datum.i = (int64_t)precision;
   pVal->typeData = (int64_t)precision;
 
-  nodesListMakeAppend(pList, (SNode*)pVal);
+  code = nodesListMakeAppend(pList, (SNode*)pVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pVal);
+    return code;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -822,9 +837,13 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 static int32_t reserveFirstMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
   int32_t code = nodesListMakeAppend(pParameters, pPartialRes);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 1)));
+    SNode* pNew = NULL;
+    code = nodesCloneNode(nodesListGetNode(pRawParameters, 1), &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(*pParameters, pNew);
+    }
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t topBotCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
@@ -834,7 +853,11 @@ int32_t topBotCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SN
 int32_t apercentileCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
   int32_t code = reserveFirstMergeParam(pRawParameters, pPartialRes, pParameters);
   if (TSDB_CODE_SUCCESS == code && pRawParameters->length >= 3) {
-    code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 2)));
+    SNode* pNew = NULL;
+    code = nodesCloneNode(nodesListGetNode(pRawParameters, 2), &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(*pParameters, pNew);
+    }
   }
   return code;
 }
@@ -936,13 +959,13 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 
     uint8_t dbPrec = pFunc->node.resType.precision;
 
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
-    if (ret == TIME_UNIT_TOO_SMALL) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+    int32_t code = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
+    if (code == TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL) {
+      return buildFuncErrMsg(pErrBuf, len, code,
                              "ELAPSED function time unit parameter should be greater than db precision");
-    } else if (ret == TIME_UNIT_INVALID) {
+    } else if (code == TSDB_CODE_FUNC_TIME_UNIT_INVALID) {
       return buildFuncErrMsg(
-          pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+          pErrBuf, len, code,
           "ELAPSED function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
@@ -1062,7 +1085,7 @@ static int8_t validateHistogramBinType(char* binTypeStr) {
   return binType;
 }
 
-static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* errMsg, int32_t msgLen) {
+static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* errMsg, int32_t msgLen) {
   const char* msg1 = "HISTOGRAM function requires four parameters";
   const char* msg3 = "HISTOGRAM function invalid format for binDesc parameter";
   const char* msg4 = "HISTOGRAM function binDesc parameter \"count\" should be in range [1, 1000]";
@@ -1070,6 +1093,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
   const char* msg6 = "HISTOGRAM function binDesc parameter \"width\" cannot be 0";
   const char* msg7 = "HISTOGRAM function binDesc parameter \"start\" cannot be 0 with \"log_bin\" type";
   const char* msg8 = "HISTOGRAM function binDesc parameter \"factor\" cannot be negative or equal to 0/1";
+  const char* msg9 = "HISTOGRAM function out of memory";
 
   cJSON*  binDesc = cJSON_Parse(binDescStr);
   int32_t numOfBins;
@@ -1078,9 +1102,9 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     int32_t numOfParams = cJSON_GetArraySize(binDesc);
     int32_t startIndex;
     if (numOfParams != 4) {
-      snprintf(errMsg, msgLen, "%s", msg1);
+      (void)snprintf(errMsg, msgLen, "%s", msg1);
       cJSON_Delete(binDesc);
-      return false;
+      return TSDB_CODE_FAILED;
     }
 
     cJSON* start = cJSON_GetObjectItem(binDesc, "start");
@@ -1090,22 +1114,22 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     cJSON* infinity = cJSON_GetObjectItem(binDesc, "infinity");
 
     if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
-      snprintf(errMsg, msgLen, "%s", msg3);
+      (void)snprintf(errMsg, msgLen, "%s", msg3);
       cJSON_Delete(binDesc);
-      return false;
+      return TSDB_CODE_FAILED;
     }
 
     if (count->valueint <= 0 || count->valueint > 1000) {  // limit count to 1000
-      snprintf(errMsg, msgLen, "%s", msg4);
+      (void)snprintf(errMsg, msgLen, "%s", msg4);
       cJSON_Delete(binDesc);
-      return false;
+      return TSDB_CODE_FAILED;
     }
 
     if (isinf(start->valuedouble) || (width != NULL && isinf(width->valuedouble)) ||
         (factor != NULL && isinf(factor->valuedouble)) || (count != NULL && isinf(count->valuedouble))) {
-      snprintf(errMsg, msgLen, "%s", msg5);
+      (void)snprintf(errMsg, msgLen, "%s", msg5);
       cJSON_Delete(binDesc);
-      return false;
+      return TSDB_CODE_FAILED;
     }
 
     int32_t counter = (int32_t)count->valueint;
@@ -1118,53 +1142,58 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     }
 
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
+    if (intervals == NULL) {
+      (void)snprintf(errMsg, msgLen, "%s", msg9);
+      cJSON_Delete(binDesc);
+      return TSDB_CODE_FAILED;
+    }
     if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
       // linear bin process
       if (width->valuedouble == 0) {
-        snprintf(errMsg, msgLen, "%s", msg6);
+        (void)snprintf(errMsg, msgLen, "%s", msg6);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        return TSDB_CODE_FAILED;
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble + i * width->valuedouble;
         if (isinf(intervals[startIndex])) {
-          snprintf(errMsg, msgLen, "%s", msg5);
+          (void)snprintf(errMsg, msgLen, "%s", msg5);
           taosMemoryFree(intervals);
           cJSON_Delete(binDesc);
-          return false;
+          return TSDB_CODE_FAILED;
         }
         startIndex++;
       }
     } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
       // log bin process
       if (start->valuedouble == 0) {
-        snprintf(errMsg, msgLen, "%s", msg7);
+        (void)snprintf(errMsg, msgLen, "%s", msg7);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        return TSDB_CODE_FAILED;
       }
       if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
-        snprintf(errMsg, msgLen, "%s", msg8);
+        (void)snprintf(errMsg, msgLen, "%s", msg8);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        return TSDB_CODE_FAILED;
       }
       for (int i = 0; i < counter + 1; ++i) {
         intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
         if (isinf(intervals[startIndex])) {
-          snprintf(errMsg, msgLen, "%s", msg5);
+          (void)snprintf(errMsg, msgLen, "%s", msg5);
           taosMemoryFree(intervals);
           cJSON_Delete(binDesc);
-          return false;
+          return TSDB_CODE_FAILED;
         }
         startIndex++;
       }
     } else {
-      snprintf(errMsg, msgLen, "%s", msg3);
+      (void)snprintf(errMsg, msgLen, "%s", msg3);
       taosMemoryFree(intervals);
       cJSON_Delete(binDesc);
-      return false;
+      return TSDB_CODE_FAILED;
     }
 
     if (infinity->valueint == true) {
@@ -1172,7 +1201,7 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
       if (numOfBins < 4) {
-        return false;
+        return TSDB_CODE_FAILED;
       }
 
       if (intervals[1] > intervals[numOfBins - 2]) {
@@ -1181,46 +1210,51 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
     }
   } else if (cJSON_IsArray(binDesc)) { /* user input bins */
     if (binType != USER_INPUT_BIN) {
-      snprintf(errMsg, msgLen, "%s", msg3);
+      (void)snprintf(errMsg, msgLen, "%s", msg3);
       cJSON_Delete(binDesc);
-      return false;
+      return TSDB_CODE_FAILED;
     }
     numOfBins = cJSON_GetArraySize(binDesc);
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
+    if (intervals == NULL) {
+      (void)snprintf(errMsg, msgLen, "%s", msg9);
+      cJSON_Delete(binDesc);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     cJSON* bin = binDesc->child;
     if (bin == NULL) {
-      snprintf(errMsg, msgLen, "%s", msg3);
+      (void)snprintf(errMsg, msgLen, "%s", msg3);
       taosMemoryFree(intervals);
       cJSON_Delete(binDesc);
-      return false;
+      return TSDB_CODE_FAILED;
     }
     int i = 0;
     while (bin) {
       intervals[i] = bin->valuedouble;
       if (!cJSON_IsNumber(bin)) {
-        snprintf(errMsg, msgLen, "%s", msg3);
+        (void)snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        return TSDB_CODE_FAILED;
       }
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
-        snprintf(errMsg, msgLen, "%s", msg3);
+        (void)snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
-        return false;
+        return TSDB_CODE_FAILED;
       }
       bin = bin->next;
       i++;
     }
   } else {
-    snprintf(errMsg, msgLen, "%s", msg3);
+    (void)snprintf(errMsg, msgLen, "%s", msg3);
     cJSON_Delete(binDesc);
-    return false;
+    return TSDB_CODE_FAILED;
   }
 
   cJSON_Delete(binDesc);
   taosMemoryFree(intervals);
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1265,7 +1299,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     if (i == 2) {
       char errMsg[128] = {0};
       binDesc = varDataVal(pValue->datum.p);
-      if (!validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
+      if (TSDB_CODE_SUCCESS != validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
         return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, errMsg);
       }
     }
@@ -1323,7 +1357,7 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       if (i == 2) {
         char errMsg[128] = {0};
         binDesc = varDataVal(pValue->datum.p);
-        if (!validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
+        if (TSDB_CODE_SUCCESS != validateHistogramBinDesc(binDesc, binType, errMsg, (int32_t)sizeof(errMsg))) {
           return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, errMsg);
         }
       }
@@ -1507,12 +1541,12 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
   if (numOfParams == 4) {
     uint8_t dbPrec = pFunc->node.resType.precision;
 
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3));
-    if (ret == TIME_UNIT_TOO_SMALL) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+    int32_t code = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3));
+    if (code == TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL) {
+      return buildFuncErrMsg(pErrBuf, len, code,
                              "STATEDURATION function time unit parameter should be greater than db precision");
-    } else if (ret == TIME_UNIT_INVALID) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+    } else if (code == TSDB_CODE_FUNC_TIME_UNIT_INVALID) {
+      return buildFuncErrMsg(pErrBuf, len, code,
                              "STATEDURATION function time unit parameter should be one of the following: [1b, 1u, 1a, "
                              "1s, 1m, 1h, 1d, 1w]");
     }
@@ -2268,13 +2302,13 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
   }
 
   uint8_t dbPrec = pFunc->node.resType.precision;
-  int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
-  if (ret == TIME_UNIT_TOO_SMALL) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+  int32_t code = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1));
+  if (code == TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL) {
+    return buildFuncErrMsg(pErrBuf, len, code,
                            "TIMETRUNCATE function time unit parameter should be greater than db precision");
-  } else if (ret == TIME_UNIT_INVALID) {
+  } else if (code == TSDB_CODE_FUNC_TIME_UNIT_INVALID) {
     return buildFuncErrMsg(
-        pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+        pErrBuf, len, code,
         "TIMETRUNCATE function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
   }
 
@@ -2291,7 +2325,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   // add database precision as param
 
-  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2330,13 +2364,13 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   uint8_t dbPrec = pFunc->node.resType.precision;
 
   if (3 == numOfParams) {
-    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2));
-    if (ret == TIME_UNIT_TOO_SMALL) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+    int32_t code = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2));
+    if (code == TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL) {
+      return buildFuncErrMsg(pErrBuf, len, code,
                              "TIMEDIFF function time unit parameter should be greater than db precision");
-    } else if (ret == TIME_UNIT_INVALID) {
+    } else if (code == TSDB_CODE_FUNC_TIME_UNIT_INVALID) {
       return buildFuncErrMsg(
-          pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+          pErrBuf, len, code,
           "TIMEDIFF function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
     }
   }
@@ -4107,6 +4141,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc = NULL,
     .sprocessFunc = md5Function,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_group_const_value",
+    .type = FUNCTION_TYPE_GROUP_CONST_VALUE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateSelectValue,
+    .getEnvFunc   = getSelectivityFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = groupConstValueFunction,
+    .finalizeFunc = groupConstValueFinalize,
   },
 };
 // clang-format on

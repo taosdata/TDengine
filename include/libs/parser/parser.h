@@ -118,6 +118,7 @@ void qDestroyQuery(SQuery* pQueryNode);
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid);
+int32_t qInitKeywordsTable();
 void    qCleanupKeywordsTable();
 
 int32_t     qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx, SStbInterlaceInfo* pBuildInfo);
@@ -149,10 +150,10 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 
 void qDestroyBoundColInfo(void* pInfo);
 
-SQuery*        smlInitHandle();
+int32_t        smlInitHandle(SQuery** query);
 int32_t        smlBuildRow(STableDataCxt* pTableCxt);
 int32_t        smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* kv, int32_t index);
-STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta);
+int32_t        smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta, STableDataCxt** cxt);
 
 void    clearColValArraySml(SArray* pCols);
 int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols,
@@ -163,8 +164,8 @@ int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCr
                          int numFields, bool needChangeLength, char* errstr, int32_t errstrLen);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
-SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
-SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
+int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
+int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 void    destoryCatalogReq(SCatalogReq *pCatalogReq);
 bool    isPrimaryKeyImpl(SNode* pExpr);
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx, SStbInterlaceInfo* pBuildInfo);
