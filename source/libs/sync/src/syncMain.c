@@ -181,17 +181,18 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_RETURN(syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg));
+  syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg);
   syncNodeDoConfigChange(pSyncNode, pNewCfg, pNewCfg->lastIndex);
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER || pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-    TAOS_CHECK_RETURN(syncNodeStopHeartbeatTimer(pSyncNode));
+    // TODO check return value
+    (void)syncNodeStopHeartbeatTimer(pSyncNode);
 
     for (int32_t i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; ++i) {
-      TAOS_CHECK_RETURN(syncHbTimerInit(pSyncNode, &pSyncNode->peerHeartbeatTimerArr[i], pSyncNode->replicasId[i]));
+      (void)syncHbTimerInit(pSyncNode, &pSyncNode->peerHeartbeatTimerArr[i], pSyncNode->replicasId[i]);
     }
 
-    TAOS_CHECK_RETURN(syncNodeStartHeartbeatTimer(pSyncNode));
+    (void)syncNodeStartHeartbeatTimer(pSyncNode);
     // syncNodeReplicate(pSyncNode);
   }
 
@@ -394,7 +395,9 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
   syncNodeRelease(pNode);
   if (ret == 1) {
     sInfo("send timeout response, seq:%" PRId64 " handle:%p ahandle:%p", seq, rpcMsg.info.handle, rpcMsg.info.ahandle);
-    return rpcSendResponse(&rpcMsg);
+    // TODO check return value
+    (void)rpcSendResponse(&rpcMsg);
+    return 0;
   } else {
     sError("no message handle to send timeout response, seq:%" PRId64, seq);
     return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -982,7 +985,8 @@ int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
   ASSERTS(pNode->pFsm != NULL, "pFsm not registered");
   ASSERTS(pNode->pFsm->FpGetSnapshotInfo != NULL, "FpGetSnapshotInfo not registered");
   SSnapshot snapshot = {0};
-  TAOS_CHECK_RETURN(pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot));
+  // TODO check return value
+  (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
 
   SyncIndex commitIndex = snapshot.lastApplyIndex;
   SyncIndex firstVer = pNode->pLogStore->syncLogBeginIndex(pNode->pLogStore);
@@ -1219,7 +1223,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   SyncIndex commitIndex = SYNC_INDEX_INVALID;
   if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     SSnapshot snapshot = {0};
-    TAOS_CHECK_GOTO(pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot), NULL, _error);
+    // TODO check return value
+    (void)pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     if (snapshot.lastApplyIndex > commitIndex) {
       commitIndex = snapshot.lastApplyIndex;
       sNTrace(pSyncNode, "reset commit index by snapshot");
@@ -1438,7 +1443,8 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   pSyncNode->roleTimeMs = taosGetTimestampMs();
-  TAOS_CHECK_RETURN(syncNodeStopHeartbeatTimer(pSyncNode));
+  // TODO check return value
+  (void)syncNodeStopHeartbeatTimer(pSyncNode);
 
   // reset elect timer, long enough
   int32_t electMS = TIMER_MAX_MS;
@@ -1568,7 +1574,8 @@ int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   (void)atomic_add_fetch_64(&pSyncNode->pingTimerLogicClockUser, 1);
-  TAOS_CHECK_RETURN(taosTmrStop(pSyncNode->pPingTimer));
+  // TODO check return value
+  (void)taosTmrStop(pSyncNode->pPingTimer);
   pSyncNode->pPingTimer = NULL;
   return ret;
 }
@@ -1595,7 +1602,8 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   (void)atomic_add_fetch_64(&pSyncNode->electTimerLogicClock, 1);
-  TAOS_CHECK_RETURN(taosTmrStop(pSyncNode->pElectTimer));
+  // TODO check return value
+  (void)taosTmrStop(pSyncNode->pElectTimer);
   pSyncNode->pElectTimer = NULL;
 
   return ret;
@@ -1618,9 +1626,8 @@ void syncNodeResetElectTimer(SSyncNode* pSyncNode) {
     electMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
   }
 
-  if ((code = syncNodeRestartElectTimer(pSyncNode, electMS)) != 0) {
-    sError("failed to restart elect timer since %s", tstrerror(code));
-  }
+  // TODO check return value
+  (void)syncNodeRestartElectTimer(pSyncNode, electMS);
 
   sNTrace(pSyncNode, "reset elect timer, min:%d, max:%d, ms:%d", pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine,
           electMS);
@@ -1664,8 +1671,9 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
 
 #if 0
+  //TODO check return value
   (void)atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1);
-  TAOS_CHECK_RETURN(taosTmrStop(pSyncNode->pHeartbeatTimer));
+  (void)taosTmrStop(pSyncNode->pHeartbeatTimer);
   pSyncNode->pHeartbeatTimer = NULL;
 #endif
 
@@ -1681,8 +1689,9 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
 
 #ifdef BUILD_NO_CALL
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
-  TAOS_CHECK_RETURN(syncNodeStopHeartbeatTimer(pSyncNode));
-  TAOS_CHECK_RETURN(syncNodeStartHeartbeatTimer(pSyncNode));
+  // TODO check return value
+  (void)syncNodeStopHeartbeatTimer(pSyncNode);
+  (void)syncNodeStartHeartbeatTimer(pSyncNode);
   return 0;
 }
 #endif
@@ -2258,7 +2267,8 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
   bool      ret = false;
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-    if ((terrno = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot)) != 0) return false;
+    // TODO check return value
+    (void)pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     if (snapshot.lastApplyIndex >= SYNC_INDEX_BEGIN) {
       ret = true;
     }
@@ -2271,7 +2281,8 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
 SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode) {
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-    if ((terrno = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot)) != 0) return -1;
+    // TODO check return value
+    (void)pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
   SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
 
@@ -2287,7 +2298,8 @@ SyncTerm syncNodeGetLastTerm(SSyncNode* pSyncNode) {
     // has snapshot
     SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
     if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-      if ((terrno = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot)) != 0) return lastTerm;
+      // TODO check return value
+      (void)pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     }
 
     SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
@@ -2382,7 +2394,8 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     return preTerm;
   } else {
     if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-      if ((terrno = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot)) != 0) return SYNC_TERM_INVALID;
+      // TODO check return value
+      (void)pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
       if (snapshot.lastApplyIndex == preIndex) {
         return snapshot.lastApplyTerm;
       }
