@@ -242,6 +242,7 @@ export default {
     selectPlan: "选择方案",
   },
   dataIn: {
+    backfillEndTimeTip: 'Backfill 结束时间不能大于当前时间',
     basicsTitle: '基础信息',
     orgIdTip: '请输入十六进制字符',
     agentNameExist: "代理名称“{0}”已存在",

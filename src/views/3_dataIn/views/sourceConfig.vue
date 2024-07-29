@@ -528,6 +528,19 @@ export default {
               return
             }
           }
+          if (this.sourceForm.type == "pibackfill") {
+            const regex = /BackfillEndTime=([^&]+)/;
+            const match = dsn.match(regex);
+            if (match) {
+              const backfillEndTimeValue = new Date(decodeURIComponent(match[1])).getTime();
+              const currentTime = new Date().getTime() 
+              if (backfillEndTimeValue > currentTime) {
+                this.$error(this.$t('dataIn.backfillEndTimeTip'))
+                this.loading = false;
+                return
+              }
+            } 
+          }
           let id = localStorage.getItem("local_clusterID");
           // this.requestIng = true;
           const params = {

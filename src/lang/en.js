@@ -636,6 +636,7 @@ export default {
     backslashTip: 'If you need a case-sensitive name, add ` before and after the name, such as `testDB`.',
   },
   dataIn: {
+    backfillEndTimeTip: 'Backfill End Time cannot be later than the current time',
     basicsTitle: 'Basic Information',
     orgIdTip: 'Please enter hexadecimal characters',
     agentNameExist: 'Agent name "{0}" already exists',
