@@ -404,7 +404,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
 
-  tsem_init(&pVnode->syncSem, 0, 0);
+  (void)tsem_init(&pVnode->syncSem, 0, 0);
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
@@ -546,8 +546,8 @@ void vnodeClose(SVnode *pVnode) {
     (void)vnodeCloseBufPool(pVnode);
 
     // destroy handle
-    tsem_destroy(&pVnode->syncSem);
-    taosThreadCondDestroy(&pVnode->poolNotEmpty);
+    (void)tsem_destroy(&pVnode->syncSem);
+    (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);
     (void)taosThreadMutexDestroy(&pVnode->mutex);
     (void)taosThreadMutexDestroy(&pVnode->lock);
     taosMemoryFree(pVnode);

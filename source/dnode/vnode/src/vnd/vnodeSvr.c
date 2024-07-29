@@ -699,7 +699,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   vTrace("vgId:%d, process %s request, code:0x%x index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), pRsp->code,
          ver);
 
-  walApplyVer(pVnode->pWal, ver);
+  (void)walApplyVer(pVnode->pWal, ver);
 
   code = tqPushMsg(pVnode->pTq, pMsg->msgType);
   if (code) {
@@ -1405,7 +1405,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
   }
 
   (void)tqUpdateTbUidList(pVnode->pTq, tbUids, false);
-  tdUpdateTbUidList(pVnode->pSma, pStore, false);
+  (void)tdUpdateTbUidList(pVnode->pSma, pStore, false);
 
   if (tsEnableAuditCreateTable) {
     int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
@@ -1440,7 +1440,7 @@ _exit:
   tEncodeSize(tEncodeSVDropTbBatchRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
-  tEncodeSVDropTbBatchRsp(&encoder, &rsp);
+  (void)tEncodeSVDropTbBatchRsp(&encoder, &rsp);
   tEncoderClear(&encoder);
   taosArrayDestroy(rsp.pArray);
   taosArrayDestroy(tbNames);
@@ -2158,7 +2158,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
   SBatchDeleteReq deleteReq;
   SDecoder        decoder;
   tDecoderInit(&decoder, pReq, len);
-  tDecodeSBatchDeleteReq(&decoder, &deleteReq);
+  (void)tDecodeSBatchDeleteReq(&decoder, &deleteReq);
 
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);

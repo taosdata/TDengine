@@ -235,7 +235,7 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
   int  c;
   int  ret;
 
-  tdbBtcOpen(&btc, pBt, pTxn);
+  (void)tdbBtcOpen(&btc, pBt, pTxn);
   /*
   btc.coder.ofps = taosArrayInit(8, sizeof(SPage *));
   // btc.coder.ofps = taosArrayInit(8, sizeof(SPgno));
@@ -337,7 +337,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   void        *pTVal = NULL;
   SCellDecoder cd = {0};
 
-  tdbBtcOpen(&btc, pBt, NULL);
+  (void)tdbBtcOpen(&btc, pBt, NULL);
 
   tdbTrace("tdb pget, btc: %p", &btc);
 
@@ -799,7 +799,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
     iNew = 0;
     nNewCells = 0;
-    tdbBtreeInitPage(pNews[iNew], &iarg, 0);
+    (void)tdbBtreeInitPage(pNews[iNew], &iarg, 0);
 
     for (int iOld = 0; iOld < nOlds; iOld++) {
       SPage *pPage;
@@ -828,7 +828,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
             if (iNew == nNews - 1 && pIntHdr->pgno == 0) {
               pIntHdr->pgno = TDB_PAGE_PGNO(pNews[iNew]);
             } else {
-              tdbBtreeDecodeCell(pPage, pCell, &cd, pTxn, pBt);
+              (void)tdbBtreeDecodeCell(pPage, pCell, &cd, pTxn, pBt);
 
               // TODO: pCell here may be inserted as an overflow cell, handle it
               SCell *pNewCell = tdbOsMalloc(cd.kLen + 9);
@@ -850,7 +850,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
             iNew++;
             nNewCells = 0;
             if (iNew < nNews) {
-              tdbBtreeInitPage(pNews[iNew], &iarg, 0);
+              (void)tdbBtreeInitPage(pNews[iNew], &iarg, 0);
             }
           }
         } else {
@@ -875,7 +875,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           iNew++;
           nNewCells = 0;
           if (iNew < nNews) {
-            tdbBtreeInitPage(pNews[iNew], &iarg, 0);
+            (void)tdbBtreeInitPage(pNews[iNew], &iarg, 0);
           }
         }
       }
@@ -904,7 +904,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
   if (TDB_BTREE_PAGE_IS_ROOT(pParent) && TDB_PAGE_TOTAL_CELLS(pParent) == 0) {
     i8 flags = TDB_BTREE_ROOT | TDB_BTREE_PAGE_IS_LEAF(pNews[0]);
     // copy content to the parent page
-    tdbBtreeInitPage(pParent, &(SBtreeInitPageArg){.flags = flags, .pBt = pBt}, 0);
+    (void)tdbBtreeInitPage(pParent, &(SBtreeInitPageArg){.flags = flags, .pBt = pBt}, 0);
     (void)tdbPageCopy(pNews[0], pParent, 1);
 
     if (!TDB_BTREE_PAGE_IS_LEAF(pNews[0])) {

@@ -896,14 +896,14 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
 }
 
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
-  int32_t code = 0, lino = 0;
-  SUdfColumnMeta* meta = &udfCol->colMeta;
+  int32_t         code = 0, lino = 0;
+  SUdfColumnMeta *meta = &udfCol->colMeta;
 
   SColumnInfoData colInfoData = createColumnInfoData(meta->type, meta->bytes, 1);
   code = blockDataAppendColInfo(block, &colInfoData);
   TAOS_CHECK_GOTO(code, &lino, _exit);
 
-  code =  blockDataEnsureCapacity(block, udfCol->colData.numOfRows);
+  code = blockDataEnsureCapacity(block, udfCol->colData.numOfRows);
   TAOS_CHECK_GOTO(code, &lino, _exit);
 
   SColumnInfoData *col = NULL;

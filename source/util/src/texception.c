@@ -52,7 +52,7 @@ static void cleanupWrapper_void_ptr(SCleanupAction* ca) {
 
 static void cleanupWrapper_int_int(SCleanupAction* ca) {
   int32_t (*func)(int32_t) = ca->func;
-  func(ca->arg1.Int);
+  (void)func(ca->arg1.Int);
 }
 
 static void cleanupWrapper_void(SCleanupAction* ca) {
@@ -62,7 +62,7 @@ static void cleanupWrapper_void(SCleanupAction* ca) {
 
 static void cleanupWrapper_int_ptr(SCleanupAction* ca) {
   int32_t (*func)(void*) = ca->func;
-  func(ca->arg1.Ptr);
+  (void)func(ca->arg1.Ptr);
 }
 
 typedef void (*wrapper)(SCleanupAction*);
