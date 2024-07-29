@@ -332,7 +332,6 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   int64_t transporterId = 0;
   TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg));
-
   (void)tsem_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
 }
