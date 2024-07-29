@@ -358,9 +358,9 @@ TEST_F(ParserInitialATest, alterLocal) {
   };
 
   auto setAlterLocal = [&](const char* pConfig, const char* pValue = nullptr) {
-    expect.first.assign(pConfig);
+    (void)expect.first.assign(pConfig);
     if (nullptr != pValue) {
-      expect.second.assign(pValue);
+      (void)expect.second.assign(pValue);
     }
   };
 
@@ -429,9 +429,10 @@ TEST_F(ParserInitialATest, alterSTable) {
     expect.numOfFields = numOfFields;
     if (NULL == expect.pFields) {
       expect.pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+      ASSERT_TRUE(expect.pFields);
       TAOS_FIELD field = {0};
-      taosArrayPush(expect.pFields, &field);
-      taosArrayPush(expect.pFields, &field);
+      ASSERT_TRUE(nullptr != taosArrayPush(expect.pFields, &field));
+      ASSERT_TRUE(nullptr != taosArrayPush(expect.pFields, &field));
     }
 
     TAOS_FIELD* pField = (TAOS_FIELD*)taosArrayGet(expect.pFields, 0);
@@ -706,9 +707,10 @@ TEST_F(ParserInitialATest, alterTable) {
       expect.numOfFields = numOfFields;
       if (NULL == expect.pFields) {
         expect.pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+        ASSERT_TRUE(expect.pFields);
         TAOS_FIELD field = {0};
-        taosArrayPush(expect.pFields, &field);
-        taosArrayPush(expect.pFields, &field);
+        ASSERT_TRUE(nullptr != taosArrayPush(expect.pFields, &field));
+        ASSERT_TRUE(nullptr != taosArrayPush(expect.pFields, &field));
       }
 
       TAOS_FIELD* pField = (TAOS_FIELD*)taosArrayGet(expect.pFields, 0);

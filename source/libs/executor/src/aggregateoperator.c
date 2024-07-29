@@ -69,11 +69,15 @@ static void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutp
 static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode,
-                                           SExecTaskInfo* pTaskInfo) {
+int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
+                                    SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+
+  int32_t code = 0;
   SAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAggOperatorInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -87,7 +91,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
-  int32_t    code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
+  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
                                pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -132,7 +136,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
     goto _error;
   }
 
-  return pOperator;
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -145,7 +150,7 @@ _error:
 
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
-  return NULL;
+  return code;
 }
 
 void destroyAggOperatorInfo(void* param) {
@@ -241,7 +246,8 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
 
-  initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
+  code = initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
+  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -252,14 +258,15 @@ _end:
   return pBlock != NULL;
 }
 
-SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
+int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
   SAggOperatorInfo* pAggInfo = pOperator->info;
   SOptrBasicInfo*   pInfo = &pAggInfo->binfo;
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -291,10 +298,18 @@ SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  return (rows == 0) ? NULL : pInfo->pRes;
+  (*ppRes) = (rows == 0) ? NULL : pInfo->pRes;
+  return code;
+}
+
+static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t code = getAggregateResultNext(pOperator, &pRes);
+  return pRes;
 }
 
 int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
@@ -349,7 +364,12 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     return TSDB_CODE_SUCCESS;
   }
 
-  SSDataBlock* pBlock = createDataBlock();
+  SSDataBlock* pBlock = NULL;
+  code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
+  }
+
   pBlock->info.rows = 1;
   pBlock->info.capacity = 0;
 
@@ -371,7 +391,7 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
 
           for (int32_t k = numOfCols; k < slotId + 1; ++k) {
             void* tmp = taosArrayPush(pBlock->pDataBlock, &colInfo);
-            QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+            QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
           }
         }
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {

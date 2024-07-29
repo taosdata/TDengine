@@ -88,6 +88,8 @@ int32_t mndInitDb(SMnode *pMnode) {
 void mndCleanupDb(SMnode *pMnode) {}
 
 SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t  size = sizeof(SDbObj) + pDb->cfg.numOfRetensions * sizeof(SRetention) + DB_RESERVE_SIZE;
@@ -166,6 +168,8 @@ _OVER:
 }
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SDbObj  *pDb = NULL;
@@ -731,17 +735,18 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 
 static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
-  int32_t code = -1;
-  SDbObj dbObj = {0};
-  memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
-  memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
+  int32_t  code = 0;
+  SUserObj newUserObj = {0};
+  SDbObj   dbObj = {0};
+  (void)memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
+  (void)memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
   dbObj.createdTime = taosGetTimestampMs();
   dbObj.updateTime = dbObj.createdTime;
   dbObj.uid = mndGenerateUid(dbObj.name, TSDB_DB_FNAME_LEN);
   dbObj.cfgVersion = 1;
   dbObj.vgVersion = 1;
   dbObj.tsmaVersion = 1;
-  memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
+  (void)memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
   dbObj.cfg = (SDbCfg){
       .numOfVgroups = pCreate->numOfVgroups,
       .numOfStables = pCreate->numOfStables,
@@ -812,11 +817,13 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   // add database privileges for user
-  SUserObj newUserObj = {0}, *pNewUserDuped = NULL;
+  SUserObj *pNewUserDuped = NULL;
   if (!pUser->superUser) {
     TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
-    taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN);
-    taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN);
+    TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
+                    NULL, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
+                    NULL, _OVER);
     pNewUserDuped = &newUserObj;
   }
 
@@ -841,8 +848,6 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
-  code = 0;
-
 _OVER:
   taosMemoryFree(pVgroups);
   mndUserFreeObj(&newUserObj);
@@ -852,17 +857,17 @@ _OVER:
 
 static void mndBuildAuditDetailInt32(char *detail, char *tmp, char *format, int32_t para) {
   if (para > 0) {
-    if (strlen(detail) > 0) strcat(detail, ", ");
-    sprintf(tmp, format, para);
-    strcat(detail, tmp);
+    if (strlen(detail) > 0) (void)strcat(detail, ", ");
+    (void)sprintf(tmp, format, para);
+    (void)strcat(detail, tmp);
   }
 }
 
 static void mndBuildAuditDetailInt64(char *detail, char *tmp, char *format, int64_t para) {
   if (para > 0) {
-    if (strlen(detail) > 0) strcat(detail, ", ");
-    sprintf(tmp, format, para);
-    strcat(detail, tmp);
+    if (strlen(detail) > 0) (void)strcat(detail, ", ");
+    (void)sprintf(tmp, format, para);
+    (void)strcat(detail, tmp);
   }
 }
 
@@ -958,18 +963,13 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbEncryptKey(pMnode, &createReq), &lino, _OVER);
 
-  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _OVER;
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
   code = mndCreateDb(pMnode, pReq, &createReq, pUser);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
-  tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
+  (void)tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
 
   auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen);
 
@@ -1252,7 +1252,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  memcpy(&dbObj, pDb, sizeof(SDbObj));
+  (void)memcpy(&dbObj, pDb, sizeof(SDbObj));
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) goto _OVER;
@@ -1278,7 +1278,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
+  (void)tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
 
   auditRecord(pReq, pMnode->clusterId, "alterDB", name.dbname, "", alterReq.sql, alterReq.sqlLen);
 
@@ -1296,7 +1296,7 @@ _OVER:
 }
 
 static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
-  strcpy(cfgRsp->db, pDb->name);
+  (void)strcpy(cfgRsp->db, pDb->name);
   cfgRsp->dbId = pDb->uid;
   cfgRsp->cfgVersion = pDb->cfgVersion;
   cfgRsp->numOfVgroups = pDb->cfg.numOfVgroups;
@@ -1365,7 +1365,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp);
+  (void)tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp);
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -1539,7 +1539,7 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   int32_t    code = 0;
   SDropDbRsp dropRsp = {0};
   if (pDb != NULL) {
-    memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
+    (void)memcpy(dropRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
     dropRsp.uid = pDb->uid;
   }
 
@@ -1556,7 +1556,7 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
     TAOS_RETURN(code);
   }
 
-  tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
+  (void)tSerializeSDropDbRsp(pRsp, rspLen, &dropRsp);
   *pRspLen = rspLen;
   *ppRsp = pRsp;
   TAOS_RETURN(code);
@@ -1637,7 +1637,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB);
+  (void)tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB);
 
   auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen);
 
@@ -1696,7 +1696,7 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
         SEp       *pEp = &vgInfo.epSet.eps[gid];
         SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
         if (pDnode != NULL) {
-          memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+          (void)memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
           pEp->port = pDnode->port;
         }
         mndReleaseDnode(pMnode, pDnode);
@@ -1705,7 +1705,7 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
         }
       }
       vindex++;
-      taosArrayPush(pVgList, &vgInfo);
+      (void)taosArrayPush(pVgList, &vgInfo);
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -1732,7 +1732,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
     mndBuildDBVgroupInfo(pDb, pMnode, pRsp->pVgroupInfos);
   }
 
-  memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+  (void)memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
   pRsp->uid = pDb->uid;
   pRsp->vgVersion = pDb->vgVersion;
   pRsp->stateTs = pDb->stateTs;
@@ -1754,7 +1754,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
 
   char *p = strchr(usedbReq.db, '.');
   if (p && ((0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(p + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
-    memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+    (void)memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
     int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
     if (usedbReq.vgVersion < vgVersion) {
       usedbRsp.pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
@@ -1770,7 +1770,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   } else {
     pDb = mndAcquireDb(pMnode, usedbReq.db);
     if (pDb == NULL) {
-      memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+      (void)memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
       usedbRsp.uid = usedbReq.dbId;
       usedbRsp.vgVersion = usedbReq.vgVersion;
       usedbRsp.errCode = terrno;
@@ -1797,7 +1797,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp);
+  (void)tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp);
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;
@@ -1841,7 +1841,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       }
 
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
-      memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
+      (void)memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
 
       mndBuildDBVgroupInfo(NULL, pMnode, rsp.useDbRsp->pVgroupInfos);
@@ -1849,7 +1849,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
       rsp.useDbRsp->vgNum = taosArrayGetSize(rsp.useDbRsp->pVgroupInfos);
 
-      taosArrayPush(batchRsp.pArray, &rsp);
+      (void)taosArrayPush(batchRsp.pArray, &rsp);
 
       continue;
     }
@@ -1858,10 +1858,10 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     if (pDb == NULL) {
       mTrace("db:%s, no exist", pDbCacheInfo->dbFName);
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
-      memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
+      (void)memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->uid = pDbCacheInfo->dbId;
       rsp.useDbRsp->vgVersion = -1;
-      taosArrayPush(batchRsp.pArray, &rsp);
+      (void)taosArrayPush(batchRsp.pArray, &rsp);
       continue;
     }
 
@@ -1894,7 +1894,11 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       if (rsp.pTsmaRsp && rsp.pTsmaRsp->pTsmas) {
         rsp.dbTsmaVersion = pDb->tsmaVersion;
         bool exist = false;
-        mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist);
+        if (mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist) != 0) {
+          mndReleaseDb(pMnode, pDb);
+          mError("db:%s, failed to get db tsmas", pDb->name);
+          continue;
+        }
       }
     }
 
@@ -1909,7 +1913,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       }
 
       mndBuildDBVgroupInfo(pDb, pMnode, rsp.useDbRsp->pVgroupInfos);
-      memcpy(rsp.useDbRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+      (void)memcpy(rsp.useDbRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->uid = pDb->uid;
       rsp.useDbRsp->vgVersion = pDb->vgVersion;
       rsp.useDbRsp->stateTs = pDb->stateTs;
@@ -1919,7 +1923,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.useDbRsp->hashSuffix = pDb->cfg.hashSuffix;
     }
 
-    taosArrayPush(batchRsp.pArray, &rsp);
+    (void)taosArrayPush(batchRsp.pArray, &rsp);
     mndReleaseDb(pMnode, pDb);
   }
 
@@ -1930,7 +1934,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     tFreeSDbHbBatchRsp(&batchRsp);
     return -1;
   }
-  tSerializeSDbHbBatchRsp(pRsp, rspLen, &batchRsp);
+  (void)tSerializeSDbHbBatchRsp(pRsp, rspLen, &batchRsp);
 
   *ppRsp = pRsp;
   *pRspLen = rspLen;
@@ -1959,7 +1963,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-    tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq);
+    (void)tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq);
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -2027,7 +2031,7 @@ static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
-    tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq);
+    (void)tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq);
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_S3MIGRATE, .pCont = pHead, .contLen = contLen};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -2252,46 +2256,46 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
-        colDataSetVal(pColInfo, rows, buf, false);
+        (void)colDataSetVal(pColInfo, rows, buf, false);
       } else if (i == 1) {
-        colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
+        (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
       } else if (i == 3) {
-        colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
+        (void)colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 14) {
-        colDataSetVal(pColInfo, rows, precVstr, false);
+        (void)colDataSetVal(pColInfo, rows, precVstr, false);
       } else if (i == 15) {
-        colDataSetVal(pColInfo, rows, statusVstr, false);
+        (void)colDataSetVal(pColInfo, rows, statusVstr, false);
       } else {
         colDataSetNULL(pColInfo, rows);
       }
     }
   } else {
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, buf, false);
+    (void)colDataSetVal(pColInfo, rows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(strictVstr, strictStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
 
     char    durationVstr[128] = {0};
     int32_t len = sprintf(&durationVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
 
     char keepVstr[128] = {0};
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
@@ -2303,67 +2307,67 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)keepVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)keepVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)precVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)precVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)statusVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)statusVstr, false);
 
     char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (rentensionVstr == NULL) {
       colDataSetNULL(pColInfo, rows);
     } else {
-      colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false);
+      (void)colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false);
       taosMemoryFree(rentensionVstr);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
     char        cacheModelVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t hashPrefix = pDb->cfg.hashPrefix;
@@ -2372,37 +2376,37 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     } else if (hashPrefix < 0) {
       hashPrefix = pDb->cfg.hashPrefix + strlen(pDb->name) + 1;
     }
-    colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3ChunkSize, false);
 
     char keeplocalVstr[128] = {0};
     len = sprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.s3KeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.s3Compact, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false);
 
     const char *encryptAlgorithmStr = getEncryptAlgorithmStr(pDb->cfg.encryptAlgorithm);
     char        encryptAlgorithmVStr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(encryptAlgorithmVStr, encryptAlgorithmStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false);
+    (void)colDataSetVal(pColInfo, rows, (const char *)encryptAlgorithmVStr, false);
   }
 
   taosMemoryFree(buf);
@@ -2441,9 +2445,10 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   SDbObj    *pDb = NULL;
+  SUserObj  *pUser = NULL;
   ESdbStatus objStatus = 0;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
 

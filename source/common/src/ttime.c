@@ -96,8 +96,6 @@ char* forwardToTimeStringEnd(char* str) {
 }
 
 int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFraction) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   int32_t i = 0;
   int64_t fraction = 0;
 
@@ -147,8 +145,6 @@ int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFractio
 }
 
 int32_t parseTimezone(char* str, int64_t* tzOffset) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   int64_t hour = 0;
 
   int32_t i = 0;
@@ -224,8 +220,6 @@ int32_t offsetOfTimezone(char* tzStr, int64_t* offset) {
  * 2013-04-12T15:52:01.123+0800
  */
 int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
   int64_t tzOffset = 0;
 
@@ -315,8 +309,6 @@ static FORCE_INLINE bool validateTm(struct tm* pTm) {
 }
 
 int32_t parseLocaltime(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   *utime = 0;
   struct tm tm = {0};
 
@@ -358,8 +350,6 @@ int32_t parseLocaltime(char* timestr, int32_t len, int64_t* utime, int32_t timeP
 }
 
 int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   *utime = 0;
   struct tm tm = {0};
   tm.tm_isdst = -1;
@@ -484,8 +474,6 @@ int64_t convertTimePrecision(int64_t utime, int32_t fromPrecision, int32_t toPre
 // !!!!notice: double lose precison if time is too large, for example: 1626006833631000000*1.0 = double =
 // 1626006833631000064
 int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit, int64_t* pRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   if (fromPrecision != TSDB_TIME_PRECISION_MILLI && fromPrecision != TSDB_TIME_PRECISION_MICRO &&
       fromPrecision != TSDB_TIME_PRECISION_NANO) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
@@ -559,13 +547,14 @@ int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
 }
 
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   int32_t charLen = varDataLen(inputData);
   char*   newColData;
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
     newColData = taosMemoryCalloc(1, charLen + 1);
-    memcpy(newColData, varDataVal(inputData), charLen);
+    if (NULL == newColData) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    (void)memcpy(newColData, varDataVal(inputData), charLen);
     int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
@@ -574,6 +563,9 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
     taosMemoryFree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
     newColData = taosMemoryCalloc(1, charLen + TSDB_NCHAR_SIZE);
+    if (NULL == newColData) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
     int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData);
     if (len < 0) {
       taosMemoryFree(newColData);
@@ -593,8 +585,6 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
 }
 
 int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   switch (unit) {
     case 's':
       if (val > INT64_MAX / MILLISECOND_PER_SECOND) {
@@ -658,8 +648,6 @@ int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecisi
  */
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* duration, char* unit,
                               int32_t timePrecision) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   errno = 0;
   char* endPtr = NULL;
 
@@ -680,8 +668,6 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
 
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision,
                             bool negativeAllow) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   errno = 0;
 
   /* get the basic numeric value */
@@ -718,7 +704,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
 
   struct tm tm;
   time_t    tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
-  taosLocalTime(&tt, &tm, NULL);
+  (void)taosLocalTime(&tt, &tm, NULL);
   int32_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
@@ -779,11 +765,11 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
 
     struct tm tm;
     time_t    t = (time_t)skey;
-    taosLocalTime(&t, &tm, NULL);
+    (void)taosLocalTime(&t, &tm, NULL);
     int32_t smon = tm.tm_year * 12 + tm.tm_mon;
 
     t = (time_t)ekey;
-    taosLocalTime(&t, &tm, NULL);
+    (void)taosLocalTime(&t, &tm, NULL);
     int32_t emon = tm.tm_year * 12 + tm.tm_mon;
 
     if (unit == 'y') {
@@ -808,7 +794,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
     struct tm tm;
     time_t    tt = (time_t)start;
-    taosLocalTime(&tt, &tm, NULL);
+    (void)taosLocalTime(&tt, &tm, NULL);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -978,8 +964,6 @@ const char* fmtts(int64_t ts) {
 }
 
 int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   char      ts[40] = {0};
   struct tm ptm;
 
@@ -1018,7 +1002,7 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
       TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  if (taosLocalTime(&quot, &ptm, buf) == NULL) {
+  if (NULL == taosLocalTime(&quot, &ptm, buf)) {
     TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
   }
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
@@ -1032,7 +1016,9 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
 int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm) {
   tm->fsec = ts % TICK_PER_SECOND[precision] * (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
   time_t t = ts / TICK_PER_SECOND[precision];
-  taosLocalTime(&t, &tm->tm, NULL);
+  if (NULL == taosLocalTime(&t, &tm->tm, NULL)) {
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1266,13 +1252,13 @@ static bool isSeperatorChar(char c) {
   return (c > 0x20 && c < 0x7F && !(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9'));
 }
 
-static void parseTsFormat(const char* formatStr, SArray* formats) {
+static int32_t parseTsFormat(const char* formatStr, SArray* formats) {
   TSFormatNode* lastOtherFormat = NULL;
   while (*formatStr) {
     const TSFormatKeyWord* key = keywordSearch(formatStr);
     if (key) {
       TSFormatNode format = {.key = key, .type = TS_FORMAT_NODE_TYPE_KEYWORD};
-      taosArrayPush(formats, &format);
+      if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
       formatStr += key->len;
       lastOtherFormat = NULL;
     } else {
@@ -1300,7 +1286,7 @@ static void parseTsFormat(const char* formatStr, SArray* formats) {
             TSFormatNode format = {.type = TS_FORMAT_NODE_TYPE_CHAR, .key = NULL};
             format.c = formatStr;
             format.len = 1;
-            taosArrayPush(formats, &format);
+            if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
             formatStr++;
             last = taosArrayGetLast(formats);
           }
@@ -1328,13 +1314,14 @@ static void parseTsFormat(const char* formatStr, SArray* formats) {
               .key = NULL};
           format.c = formatStr;
           format.len = 1;
-          taosArrayPush(formats, &format);
+          if (NULL == taosArrayPush(formats, &format)) TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
           formatStr++;
           if (format.type == TS_FORMAT_NODE_TYPE_CHAR) lastOtherFormat = taosArrayGetLast(formats);
         }
       }
     }
   }
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
@@ -1344,7 +1331,7 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
     TSFormatNode* format = taosArrayGet(formats, i);
     if (format->type != TS_FORMAT_NODE_TYPE_KEYWORD) {
       if (s - start + format->len + 1 > outLen) break;
-      strncpy(s, format->c, format->len);
+      (void)strncpy(s, format->c, format->len);
       s += format->len;
       continue;
     }
@@ -1353,37 +1340,37 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
     switch (format->key->id) {
       case TSFKW_AM:
       case TSFKW_PM:
-        sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "PM" : "AM");
+        (void)sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "PM" : "AM");
         s += 2;
         break;
       case TSFKW_A_M:
       case TSFKW_P_M:
-        sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "P.M." : "A.M.");
+        (void)sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "P.M." : "A.M.");
         s += 4;
         break;
       case TSFKW_am:
       case TSFKW_pm:
-        sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "pm" : "am");
+        (void)sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "pm" : "am");
         s += 2;
         break;
       case TSFKW_a_m:
       case TSFKW_p_m:
-        sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "p.m." : "a.m.");
+        (void)sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "p.m." : "a.m.");
         s += 4;
         break;
       case TSFKW_DDD:
 #ifdef WINDOWS
         return TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED;
 #endif
-        sprintf(s, "%03d", tm->tm.tm_yday + 1);
+        (void)sprintf(s, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;
       case TSFKW_DD:
-        sprintf(s, "%02d", tm->tm.tm_mday);
+        (void)sprintf(s, "%02d", tm->tm.tm_mday);
         s += 2;
         break;
       case TSFKW_D:
-        sprintf(s, "%d", tm->tm.tm_wday + 1);
+        (void)sprintf(s, "%d", tm->tm.tm_wday + 1);
         s += 1;
         break;
       case TSFKW_DAY: {
@@ -1391,20 +1378,20 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         const char* wd = weekDays[tm->tm.tm_wday];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = toupper(wd[i]);
-        sprintf(s, "%-9s", buf);
+        (void)sprintf(s, "%-9s", buf);
         s += strlen(s);
         break;
       }
       case TSFKW_Day:
         // Monday, TuesDay...
-        sprintf(s, "%-9s", weekDays[tm->tm.tm_wday]);
+        (void)sprintf(s, "%-9s", weekDays[tm->tm.tm_wday]);
         s += strlen(s);
         break;
       case TSFKW_day: {
         const char* wd = weekDays[tm->tm.tm_wday];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = tolower(wd[i]);
-        sprintf(s, "%-9s", buf);
+        (void)sprintf(s, "%-9s", buf);
         s += strlen(s);
         break;
       }
@@ -1413,13 +1400,13 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         const char* wd = shortWeekDays[tm->tm.tm_wday];
         char        buf[8] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = toupper(wd[i]);
-        sprintf(s, "%3s", buf);
+        (void)sprintf(s, "%3s", buf);
         s += 3;
         break;
       }
       case TSFKW_Dy:
         // Mon, Tue
-        sprintf(s, "%3s", shortWeekDays[tm->tm.tm_wday]);
+        (void)sprintf(s, "%3s", shortWeekDays[tm->tm.tm_wday]);
         s += 3;
         break;
       case TSFKW_dy: {
@@ -1427,33 +1414,33 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         const char* wd = shortWeekDays[tm->tm.tm_wday];
         char        buf[8] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = tolower(wd[i]);
-        sprintf(s, "%3s", buf);
+        (void)sprintf(s, "%3s", buf);
         s += 3;
         break;
       }
       case TSFKW_HH24:
-        sprintf(s, "%02d", tm->tm.tm_hour);
+        (void)sprintf(s, "%02d", tm->tm.tm_hour);
         s += 2;
         break;
       case TSFKW_HH:
       case TSFKW_HH12:
         // 0 or 12 o'clock in 24H coresponds to 12 o'clock (AM/PM) in 12H
-        sprintf(s, "%02d", tm->tm.tm_hour % 12 == 0 ? 12 : tm->tm.tm_hour % 12);
+        (void)sprintf(s, "%02d", tm->tm.tm_hour % 12 == 0 ? 12 : tm->tm.tm_hour % 12);
         s += 2;
         break;
       case TSFKW_MI:
-        sprintf(s, "%02d", tm->tm.tm_min);
+        (void)sprintf(s, "%02d", tm->tm.tm_min);
         s += 2;
         break;
       case TSFKW_MM:
-        sprintf(s, "%02d", tm->tm.tm_mon + 1);
+        (void)sprintf(s, "%02d", tm->tm.tm_mon + 1);
         s += 2;
         break;
       case TSFKW_MONTH: {
         const char* mon = fullMonths[tm->tm.tm_mon];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(mon); ++i) buf[i] = toupper(mon[i]);
-        sprintf(s, "%-9s", buf);
+        (void)sprintf(s, "%-9s", buf);
         s += strlen(s);
         break;
       }
@@ -1461,68 +1448,68 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         const char* mon = months[tm->tm.tm_mon];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(mon); ++i) buf[i] = toupper(mon[i]);
-        sprintf(s, "%s", buf);
+        (void)sprintf(s, "%s", buf);
         s += strlen(s);
         break;
       }
       case TSFKW_Month:
-        sprintf(s, "%-9s", fullMonths[tm->tm.tm_mon]);
+        (void)sprintf(s, "%-9s", fullMonths[tm->tm.tm_mon]);
         s += strlen(s);
         break;
       case TSFKW_month: {
         const char* mon = fullMonths[tm->tm.tm_mon];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(mon); ++i) buf[i] = tolower(mon[i]);
-        sprintf(s, "%-9s", buf);
+        (void)sprintf(s, "%-9s", buf);
         s += strlen(s);
         break;
       }
       case TSFKW_Mon:
-        sprintf(s, "%s", months[tm->tm.tm_mon]);
+        (void)sprintf(s, "%s", months[tm->tm.tm_mon]);
         s += strlen(s);
         break;
       case TSFKW_mon: {
         const char* mon = months[tm->tm.tm_mon];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(mon); ++i) buf[i] = tolower(mon[i]);
-        sprintf(s, "%s", buf);
+        (void)sprintf(s, "%s", buf);
         s += strlen(s);
         break;
       }
       case TSFKW_SS:
-        sprintf(s, "%02d", tm->tm.tm_sec);
+        (void)sprintf(s, "%02d", tm->tm.tm_sec);
         s += 2;
         break;
       case TSFKW_MS:
-        sprintf(s, "%03" PRId64, tm->fsec / 1000000L);
+        (void)sprintf(s, "%03" PRId64, tm->fsec / 1000000L);
         s += 3;
         break;
       case TSFKW_US:
-        sprintf(s, "%06" PRId64, tm->fsec / 1000L);
+        (void)sprintf(s, "%06" PRId64, tm->fsec / 1000L);
         s += 6;
         break;
       case TSFKW_NS:
-        sprintf(s, "%09" PRId64, tm->fsec);
+        (void)sprintf(s, "%09" PRId64, tm->fsec);
         s += 9;
         break;
       case TSFKW_TZH:
-        sprintf(s, "%s%02d", tsTimezone < 0 ? "-" : "+", tsTimezone);
+        (void)sprintf(s, "%s%02d", tsTimezone < 0 ? "-" : "+", tsTimezone);
         s += strlen(s);
         break;
       case TSFKW_YYYY:
-        sprintf(s, "%04d", tm->tm.tm_year + 1900);
+        (void)sprintf(s, "%04d", tm->tm.tm_year + 1900);
         s += strlen(s);
         break;
       case TSFKW_YYY:
-        sprintf(s, "%03d", (tm->tm.tm_year + 1900) % 1000);
+        (void)sprintf(s, "%03d", (tm->tm.tm_year + 1900) % 1000);
         s += strlen(s);
         break;
       case TSFKW_YY:
-        sprintf(s, "%02d", (tm->tm.tm_year + 1900) % 100);
+        (void)sprintf(s, "%02d", (tm->tm.tm_year + 1900) % 100);
         s += strlen(s);
         break;
       case TSFKW_Y:
-        sprintf(s, "%01d", (tm->tm.tm_year + 1900) % 10);
+        (void)sprintf(s, "%01d", (tm->tm.tm_year + 1900) % 10);
         s += strlen(s);
         break;
       default:
@@ -1557,7 +1544,7 @@ static const char* tsFormatStr2Int32(int32_t* dest, const char* str, int32_t len
     s = last;
   } else {
     char buf[16] = {0};
-    strncpy(buf, s, len);
+    (void)strncpy(buf, s, len);
     int32_t copiedLen = strlen(buf);
     if (copiedLen < len) {
       if (!needMoreDigit) {
@@ -1936,10 +1923,13 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
 int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
   if (!*formats) {
     *formats = taosArrayInit(8, sizeof(TSFormatNode));
-    parseTsFormat(format, *formats);
+    if (!*formats){
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
   }
   struct STm tm;
-  taosTs2Tm(ts, precision, &tm);
+  TAOS_CHECK_RETURN(taosTs2Tm(ts, precision, &tm));
   return tm2char(*formats, &tm, out, outLen);
 }
 
@@ -1949,7 +1939,10 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
   int32_t     fErrIdx;
   if (!*formats) {
     *formats = taosArrayInit(4, sizeof(TSFormatNode));
-    parseTsFormat(format, *formats);
+    if (!*formats) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
   }
   int32_t code = char2ts(tsStr, *formats, ts, precision, &sErrPos, &fErrIdx);
   if (code == -1) {
@@ -1964,27 +1957,35 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
     snprintf(errMsg, errMsgLen, "timestamp format not supported");
     code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED;
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
-void TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen) {
+int32_t TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   SArray* formats = taosArrayInit(4, sizeof(TSFormatNode));
-  parseTsFormat(format, formats);
+  if (!formats) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  TAOS_CHECK_RETURN(parseTsFormat(format, formats));
   struct STm tm;
-  taosTs2Tm(ts, precision, &tm);
-  tm2char(formats, &tm, out, outLen);
+  TAOS_CHECK_GOTO(taosTs2Tm(ts, precision, &tm), NULL, _exit);
+  TAOS_CHECK_GOTO(tm2char(formats, &tm, out, outLen), NULL, _exit);
+
+_exit:
   taosArrayDestroy(formats);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const char* tsStr) {
   const char* sErrPos;
   int32_t     fErrIdx;
   SArray*     formats = taosArrayInit(4, sizeof(TSFormatNode));
-  parseTsFormat(format, formats);
+  TAOS_CHECK_RETURN(parseTsFormat(format, formats));
   int32_t code = char2ts(tsStr, formats, ts, precision, &sErrPos, &fErrIdx);
   if (code == -1) {
-    printf("failed position: %s\n", sErrPos);
-    printf("failed format: %s\n", ((TSFormatNode*)taosArrayGet(formats, fErrIdx))->key->name);
+    (void)printf("failed position: %s\n", sErrPos);
+    (void)printf("failed format: %s\n", ((TSFormatNode*)taosArrayGet(formats, fErrIdx))->key->name);
   }
   taosArrayDestroy(formats);
   return code;
@@ -1997,17 +1998,19 @@ static int8_t UNIT_INDEX[26] = {/*a*/ 2,  0,  -1, 6,  -1, -1, -1,
 
 #define GET_UNIT_INDEX(idx) UNIT_INDEX[(idx) - 97]
 
-static int64_t UNIT_MATRIX[10][11] = {/*  ns,   us,   ms,    s,   min,   h,   d,   w, month, y*/
-                                      /*ns*/ {1, 1000, 0},
-                                      /*us*/ {1000, 1, 1000, 0},
-                                      /*ms*/ {0, 1000, 1, 1000, 0},
-                                      /*s*/ {0, 0, 1000, 1, 60, 0},
-                                      /*min*/ {0, 0, 0, 60, 1, 60, 0},
-                                      /*h*/ {0, 0, 0, 0, 60, 1, 1, 0},
-                                      /*d*/ {0, 0, 0, 0, 0, 24, 1, 7, 1, 0},
-                                      /*w*/ {0, 0, 0, 0, 0, 0, 7, 1, -1, 0},
-                                      /*mon*/ {0, 0, 0, 0, 0, 0, 0, 0, 1, 12, 0},
-                                      /*y*/ {0, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0}};
+// clang-format off
+static int64_t UNIT_MATRIX[10][11] = {     /*  ns,   us,   ms,    s,   min,   h,   d,   w, month, y*/
+                                /*ns*/ {   1, 1000,    0},
+                                /*us*/ {1000,    1, 1000,    0},
+                                /*ms*/ {   0, 1000,    1, 1000,    0},
+                                 /*s*/ {   0,    0, 1000,    1,   60,    0},
+                               /*min*/ {   0,    0,    0,   60,    1,   60,   0},
+                                 /*h*/ {   0,    0,    0,    0,   60,    1,   1,   0},
+                                 /*d*/ {   0,    0,    0,    0,    0,   24,   1,   7,   1,   0},
+                                 /*w*/ {   0,    0,    0,    0,    0,    0,   7,   1,  -1,   0},
+                               /*mon*/ {   0,    0,    0,    0,    0,    0,   0,   0,   1,  12,  0},
+                                 /*y*/ {   0,    0,    0,    0,    0,    0,   0,   0,   12,   1,  0}};
+// clang-format on
 
 static bool recursiveTsmaCheckRecursive(int64_t baseInterval, int8_t baseIdx, int64_t interval, int8_t idx,
                                         bool checkEq) {

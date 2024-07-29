@@ -140,8 +140,9 @@ void *vnodeBufPoolMallocAligned(SVBufPool *pPool, int size) {
     // allocate a new node
     pNode = taosMemoryMalloc(sizeof(*pNode) + size);
     if (pNode == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
+      if (pPool->lock) {
+        taosThreadSpinUnlock(pPool->lock);
+      }
       return NULL;
     }
 
@@ -173,7 +174,6 @@ void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
     // allocate a new node
     pNode = taosMemoryMalloc(sizeof(*pNode) + size);
     if (pNode == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       if (pPool->lock) taosThreadSpinUnlock(pPool->lock);
       return NULL;
     }
@@ -242,7 +242,9 @@ void vnodeBufPoolUnRef(SVBufPool *pPool, bool proactive) {
 
   SVnode *pVnode = pPool->pVnode;
 
-  if (proactive) taosThreadMutexLock(&pVnode->mutex);
+  if (proactive) {
+    (void)taosThreadMutexLock(&pVnode->mutex);
+  }
 
   if (atomic_sub_fetch_32(&pPool->nRef, 1) > 0) goto _exit;
 
@@ -267,12 +269,14 @@ void vnodeBufPoolUnRef(SVBufPool *pPool, bool proactive) {
   vnodeBufPoolAddToFreeList(pPool);
 
 _exit:
-  if (proactive) taosThreadMutexUnlock(&pVnode->mutex);
+  if (proactive) {
+    (void)taosThreadMutexUnlock(&pVnode->mutex);
+  }
   return;
 }
 
 int32_t vnodeBufPoolRegisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
-  taosThreadMutexLock(&pPool->mutex);
+  (void)taosThreadMutexLock(&pPool->mutex);
 
   pQNode->pNext = pPool->qList.pNext;
   pQNode->ppNext = &pPool->qList.pNext;
@@ -280,20 +284,24 @@ int32_t vnodeBufPoolRegisterQuery(SVBufPool *pPool, SQueryNode *pQNode) {
   pPool->qList.pNext = pQNode;
   pPool->nQuery++;
 
-  taosThreadMutexUnlock(&pPool->mutex);
+  (void)taosThreadMutexUnlock(&pPool->mutex);
   return 0;
 }
 
 void vnodeBufPoolDeregisterQuery(SVBufPool *pPool, SQueryNode *pQNode, bool proactive) {
   int32_t code = 0;
 
-  if (proactive) taosThreadMutexLock(&pPool->mutex);
+  if (proactive) {
+    (void)taosThreadMutexLock(&pPool->mutex);
+  }
 
   pQNode->pNext->ppNext = pQNode->ppNext;
   *pQNode->ppNext = pQNode->pNext;
   pPool->nQuery--;
 
-  if (proactive) taosThreadMutexUnlock(&pPool->mutex);
+  if (proactive) {
+    (void)taosThreadMutexUnlock(&pPool->mutex);
+  }
 }
 
 int32_t vnodeBufPoolRecycle(SVBufPool *pPool) {
@@ -303,7 +311,7 @@ int32_t vnodeBufPoolRecycle(SVBufPool *pPool) {
 
   vDebug("vgId:%d, recycle buffer pool %p of id %d", TD_VID(pVnode), pPool, pPool->id);
 
-  taosThreadMutexLock(&pPool->mutex);
+  (void)taosThreadMutexLock(&pPool->mutex);
 
   SQueryNode *pNode = pPool->qList.pNext;
   while (pNode != &pPool->qList) {
@@ -319,6 +327,6 @@ int32_t vnodeBufPoolRecycle(SVBufPool *pPool) {
   }
 
 _exit:
-  taosThreadMutexUnlock(&pPool->mutex);
+  (void)taosThreadMutexUnlock(&pPool->mutex);
   return code;
 }

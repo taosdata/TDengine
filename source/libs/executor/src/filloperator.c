@@ -316,12 +316,14 @@ _end:
   return NULL;
 }
 
-static SSDataBlock* doFill(SOperatorInfo* pOperator) {
+static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t            code = TSDB_CODE_SUCCESS;
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
   if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
+    (*ppRes) = NULL;
+    return code;
   }
 
   SSDataBlock* fillResult = NULL;
@@ -332,9 +334,10 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    int32_t code = doFilter(fillResult, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
+    code = doFilter(fillResult, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
     if (fillResult->info.rows > 0) {
@@ -346,7 +349,14 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
     pOperator->resultInfo.totalRows += fillResult->info.rows;
   }
 
-  return fillResult;
+  (*ppRes) = fillResult;
+  return code;
+}
+
+static SSDataBlock* doFill(SOperatorInfo* pOperator) {
+  SSDataBlock* pRes = NULL;
+  int32_t      code = doFillNext(pOperator, &pRes);
+  return pRes;
 }
 
 void destroyFillOperatorInfo(void* param) {
@@ -374,8 +384,9 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
 
   //  STimeWindow w = {0};
   //  getInitialStartTimeWindow(pInterval, startKey, &w, order == TSDB_ORDER_ASC);
-  pInfo->pFillInfo = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
-                                        pInfo->primaryTsCol, order, id, pTaskInfo);
+  pInfo->pFillInfo = NULL;
+  taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
+                     pInfo->primaryTsCol, order, id, pTaskInfo, &pInfo->pFillInfo);
 
   if (order == TSDB_ORDER_ASC) {
     pInfo->win.skey = win.skey;
@@ -439,11 +450,15 @@ static int32_t createPrimaryTsExprIfNeeded(SFillOperatorInfo* pInfo, SFillPhysiN
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode,
-                                      SExecTaskInfo* pTaskInfo) {
+int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode,
+                                      SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
+  int32_t code = 0;
+
   SFillOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SFillOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -453,7 +468,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   SExprSupp* pNoFillSupp = &pInfo->noFillExprSupp;
   pNoFillSupp->pExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &pNoFillSupp->numOfExprs);
-  int32_t code = createPrimaryTsExprIfNeeded(pInfo, pPhyFillNode, pNoFillSupp, pTaskInfo->id.str);
+  code = createPrimaryTsExprIfNeeded(pInfo, pPhyFillNode, pNoFillSupp, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -498,7 +513,13 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  pInfo->pFinalRes = createOneDataBlock(pInfo->pRes, false);
+  pInfo->pFinalRes = NULL;
+
+  code = createOneDataBlock(pInfo->pRes, false, &pInfo->pFinalRes);
+  if (code) {
+    goto _error;
+  }
+
   code = blockDataEnsureCapacity(pInfo->pFinalRes, pOperator->resultInfo.capacity);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -515,7 +536,9 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
                                          optrDefaultGetNextExtFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
-  return pOperator;
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
   if (pInfo != NULL) {
@@ -524,5 +547,5 @@ _error:
 
   pTaskInfo->code = code;
   taosMemoryFreeClear(pOperator);
-  return NULL;
+  return code;
 }

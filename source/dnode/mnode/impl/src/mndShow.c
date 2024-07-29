@@ -158,7 +158,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.id = showId;
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
-  memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
+  (void)memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
@@ -270,9 +270,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
   if (retrieveReq.user[0] != 0) {
-    memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
+    (void)memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
   } else {
-    memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
+    (void)memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
   code = -1;
   if (retrieveReq.db[0] &&
@@ -289,7 +289,12 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   int32_t numOfCols = pShow->pMeta->numOfColumns;
 
-  SSDataBlock *pBlock = createDataBlock();
+  SSDataBlock *pBlock = NULL;
+  code = createDataBlock(&pBlock);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
 
@@ -298,10 +303,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     idata.info.bytes = p->bytes;
     idata.info.type = p->type;
     idata.info.colId = p->colId;
-    blockDataAppendColInfo(pBlock, &idata);
+    TAOS_CHECK_RETURN(blockDataAppendColInfo(pBlock, &idata));
   }
 
-  blockDataEnsureCapacity(pBlock, rowsToRead);
+  TAOS_CHECK_RETURN(blockDataEnsureCapacity(pBlock, rowsToRead));
 
   if (mndCheckRetrieveFinished(pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);

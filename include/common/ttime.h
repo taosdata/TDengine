@@ -64,7 +64,7 @@ static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
                                                                 : 1000000000;
   time_t    t = taosTime(NULL);
   struct tm tm;
-  taosLocalTime(&t, &tm, NULL);
+  (void) taosLocalTime(&t, &tm, NULL);
   tm.tm_hour = 0;
   tm.tm_min = 0;
   tm.tm_sec = 0;
@@ -117,7 +117,7 @@ int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t pr
 int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
                     int32_t errMsgLen);
 
-void    TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen);
+int32_t TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen);
 int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const char* tsStr);
 
 /// @brief get offset seconds from zero timezone to input timezone

@@ -239,12 +239,12 @@ int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
-STQ*    tqOpen(const char* path, SVnode* pVnode);
+int32_t tqOpen(const char* path, SVnode* pVnode);
 void    tqNotifyClose(STQ*);
 void    tqClose(STQ*);
 int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
-int     tqUnregisterPushHandle(STQ* pTq, void* pHandle);
+void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 int     tqScanWalAsync(STQ* pTq, bool ckPause);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
@@ -345,7 +345,7 @@ int32_t tsdbSnapRAWWriterPrepareClose(STsdbSnapRAWWriter* pWriter);
 int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** ppWriter, int8_t rollback);
 // STqSnapshotReader ==
 int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqSnapReader** ppReader);
-int32_t tqSnapReaderClose(STqSnapReader** ppReader);
+void    tqSnapReaderClose(STqSnapReader** ppReader);
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData);
 // STqSnapshotWriter ======================================
 int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter);

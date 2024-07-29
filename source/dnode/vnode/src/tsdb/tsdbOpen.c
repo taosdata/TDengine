@@ -105,10 +105,10 @@ int32_t tsdbClose(STsdb **pTsdb) {
     tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d, keepTimeOffset:%d", TD_VID(pdb->pVnode), pdb->path,
               pdb->keepCfg.days, pdb->keepCfg.keep0, pdb->keepCfg.keep1, pdb->keepCfg.keep2,
               pdb->keepCfg.keepTimeOffset);
-    taosThreadMutexLock(&(*pTsdb)->mutex);
+    (void)taosThreadMutexLock(&(*pTsdb)->mutex);
     tsdbMemTableDestroy((*pTsdb)->mem, true);
     (*pTsdb)->mem = NULL;
-    taosThreadMutexUnlock(&(*pTsdb)->mutex);
+    (void)taosThreadMutexUnlock(&(*pTsdb)->mutex);
 
     tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);

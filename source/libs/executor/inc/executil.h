@@ -26,15 +26,15 @@
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
-    ASSERT((_c) != -1);      \
+    ASSERT((_c) != 1);      \
     longjmp((_obj), (_c));   \
   } while (0)
 
-#define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
-  do {                                               \
-    assert(sizeof(_uid) == sizeof(uint64_t));        \
-    *(uint64_t*)(_k) = (_uid);                       \
-    memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
+#define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)           \
+  do {                                                     \
+    assert(sizeof(_uid) == sizeof(uint64_t));              \
+    *(uint64_t*)(_k) = (_uid);                             \
+    (void)memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
@@ -153,8 +153,8 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
   return pRow;
 }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
-void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+int32_t initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
+void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 bool hasRemainResults(SGroupResInfo* pGroupResInfo);
@@ -175,7 +175,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
                             int32_t type, SColMatchInfo* pMatchInfo);
 
 int32_t    createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
-int32_t       createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
+int32_t    createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset,

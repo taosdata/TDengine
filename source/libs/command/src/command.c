@@ -74,13 +74,16 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
 }
 
 static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
-  SSDataBlock* pBlock = createDataBlock();
-  if (NULL == pBlock) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  QRY_OPTR_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
   }
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_FIELD_LEN, 1);
-  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_TYPE_LEN, 2);
     code = blockDataAppendColInfo(pBlock, &infoData);
@@ -229,13 +232,16 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
 static int32_t execResetQueryCache() { return catalogClearCache(); }
 
 static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
-  SSDataBlock* pBlock = createDataBlock();
-  if (NULL == pBlock) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  QRY_OPTR_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
   }
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
-  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
     code = blockDataAppendColInfo(pBlock, &infoData);
@@ -418,13 +424,16 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
 }
 
 static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
-  SSDataBlock* pBlock = createDataBlock();
-  if (NULL == pBlock) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  QRY_OPTR_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
   }
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD1_LEN, 1);
-  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
     code = blockDataAppendColInfo(pBlock, &infoData);
@@ -439,13 +448,16 @@ static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
 }
 
 static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
-  SSDataBlock* pBlock = createDataBlock();
-  if (NULL == pBlock) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  QRY_OPTR_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
   }
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_VIEW_RESULT_FIELD1_LEN, 1);
-  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_VIEW_RESULT_FIELD2_LEN, 2);
     code = blockDataAppendColInfo(pBlock, &infoData);
@@ -827,9 +839,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     return terrno;
   }
 
-  if (taosCfgDynamicOptions(tsCfg, pStmt->config, false)) {
-    return terrno;
-  }
+  TAOS_CHECK_RETURN(taosCfgDynamicOptions(tsCfg, pStmt->config, false));
 
 _return:
 
@@ -894,9 +904,12 @@ static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
 }
 
 static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
-  SSDataBlock* pBlock = createDataBlock();
-  if (NULL == pBlock) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  QRY_OPTR_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
   }
 
   SNode* pProj = NULL;
@@ -912,8 +925,9 @@ static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** p
     }
     QRY_ERR_RET(blockDataAppendColInfo(pBlock, &infoData));
   }
+
   *pOutput = pBlock;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {

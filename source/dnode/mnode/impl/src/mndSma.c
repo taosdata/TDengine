@@ -112,6 +112,8 @@ int32_t mndInitSma(SMnode *pMnode) {
 void mndCleanupSma(SMnode *pMnode) {}
 
 static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size =
@@ -173,6 +175,8 @@ _OVER:
 }
 
 static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow *pRow = NULL;
   SSmaObj *pSma = NULL;
@@ -294,12 +298,7 @@ void mndReleaseSma(SMnode *pMnode, SSmaObj *pSma) {
   sdbRelease(pSdb, pSma);
 }
 
-SDbObj *mndAcquireDbBySma(SMnode *pMnode, const char *smaName) {
-  SName name = {0};
-  tNameFromString(&name, smaName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-
-  char db[TSDB_TABLE_FNAME_LEN] = {0};
-  tNameGetFullDbName(&name, db);
+SDbObj *mndAcquireDbBySma(SMnode *pMnode, const char *db) {
 
   return mndAcquireDb(pMnode, db);
 }
@@ -308,7 +307,10 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   SEncoder encoder = {0};
   int32_t  contLen = 0;
   SName    name = {0};
-  tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  int32_t code = tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    return NULL;
+  }
 
   SVCreateTSmaReq req = {0};
   req.version = 0;
@@ -366,7 +368,7 @@ static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma,
   SEncoder encoder = {0};
   int32_t  contLen;
   SName    name = {0};
-  tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  (void)tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   SVDropTSmaReq req = {0};
   req.indexUid = pSma->uid;
@@ -778,10 +780,14 @@ static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   TAOS_RETURN(code);
 }
 
-static void mndGetStreamNameFromSmaName(char *streamName, char *smaName) {
+static int32_t mndGetStreamNameFromSmaName(char *streamName, char *smaName) {
   SName n;
-  tNameFromString(&n, smaName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  int32_t code = tNameFromString(&n, smaName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   sprintf(streamName, "%d.%s", n.acctId, n.tname);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
@@ -813,7 +819,10 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   }
 
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};
-  mndGetStreamNameFromSmaName(streamName, createReq.name);
+  code = mndGetStreamNameFromSmaName(streamName, createReq.name);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
 
   code = mndAcquireStream(pMnode, streamName, &pStream);
   if (pStream != NULL || code == 0) {
@@ -839,7 +848,15 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     }
   }
 
-  pDb = mndAcquireDbBySma(pMnode, createReq.name);
+  SName name = {0};
+  code = tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)tNameGetFullDbName(&name, db);
+
+  pDb = mndAcquireDb(pMnode, db);
   if (pDb == NULL) {
     code = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto _OVER;
@@ -960,6 +977,7 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   SVgObj  *pVgroup = NULL;
   SStbObj *pStb = NULL;
   STrans  *pTrans = NULL;
+  SStreamObj *pStream = NULL;
 
   pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
   if (pVgroup == NULL) {
@@ -989,9 +1007,11 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   mndTransSetSerial(pTrans);
 
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};
-  mndGetStreamNameFromSmaName(streamName, pSma->name);
+  code = mndGetStreamNameFromSmaName(streamName, pSma->name);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
 
-  SStreamObj *pStream = NULL;
 
   code = mndAcquireStream(pMnode, streamName, &pStream);
   if (pStream == NULL || pStream->smaId != pSma->uid || code != 0) {
@@ -1050,7 +1070,10 @@ int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
       }
 
       char streamName[TSDB_TABLE_FNAME_LEN] = {0};
-      mndGetStreamNameFromSmaName(streamName, pSma->name);
+      code = mndGetStreamNameFromSmaName(streamName, pSma->name);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _OVER;
+      }
 
       SStreamObj *pStream = NULL;
       code = mndAcquireStream(pMnode, streamName, &pStream);
@@ -1140,7 +1163,15 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
     }
   }
 
-  pDb = mndAcquireDbBySma(pMnode, dropReq.name);
+  SName name = {0};
+  code = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)tNameGetFullDbName(&name, db);
+
+  pDb = mndAcquireDb(pMnode, db);
   if (pDb == NULL) {
     code = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto _OVER;
@@ -1299,7 +1330,11 @@ static int32_t mndProcessGetSmaReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    tSerializeSUserIndexRsp(pRsp, contLen, &rsp);
+    contLen = tSerializeSUserIndexRsp(pRsp, contLen, &rsp);
+    if (contLen < 0) {
+      code = terrno;
+      goto _OVER;
+    }
 
     pReq->info.rsp = pRsp;
     pReq->info.rspLen = contLen;
@@ -1345,7 +1380,11 @@ static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    tSerializeSTableIndexRsp(pRsp, contLen, &rsp);
+    contLen = tSerializeSTableIndexRsp(pRsp, contLen, &rsp);
+    if (contLen < 0) {
+      code = terrno;
+      goto _OVER;
+    }
 
     pReq->info.rsp = pRsp;
     pReq->info.rspLen = contLen;
@@ -1368,6 +1407,7 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   int32_t  numOfRows = 0;
   SSmaObj *pSma = NULL;
   int32_t  cols = 0;
+  int32_t  code = 0;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -1387,47 +1427,63 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     cols = 0;
 
     SName smaName = {0};
-    tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(n1, (char *)tNameGetTableName(&smaName));
-
-    char n2[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(n2, (char *)mndGetDbStr(pSma->db));
-
     SName stbName = {0};
-    tNameFromString(&stbName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    char n2[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     char n3[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(n3, (char *)tNameGetTableName(&stbName));
+    code = tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    if (TSDB_CODE_SUCCESS == code) {
+      STR_TO_VARSTR(n1, (char *)tNameGetTableName(&smaName));
+      STR_TO_VARSTR(n2, (char *)mndGetDbStr(pSma->db));
+      code = tNameFromString(&stbName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    }
+    SColumnInfoData* pColInfo = NULL;
+    if (TSDB_CODE_SUCCESS == code) {
+      STR_TO_VARSTR(n3, (char *)tNameGetTableName(&stbName));
 
-    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)n1, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)n2, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)n3, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)n1, false);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)n2, false);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)n3, false);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+    }
 
     char col[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(col, (char *)"");
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)col, false);
+    if (TSDB_CODE_SUCCESS == code) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)col, false);
+    }
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (TSDB_CODE_SUCCESS == code) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-    char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(tag, (char *)"sma_index");
-    colDataSetVal(pColInfo, numOfRows, (const char *)tag, false);
+      char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(tag, (char *)"sma_index");
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)tag, false);
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pSma);
+    if (TSDB_CODE_SUCCESS != code) {
+      sdbCancelFetch(pMnode->pSdb, pIter->pSmaIter);
+      numOfRows = -1;
+      break;
+    }
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -1516,7 +1572,7 @@ static void initStreamObj(SStreamObj *pStream, const char *streamName, const SMC
   pStream->ast = taosStrdup(pSma->ast);
 }
 
-static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
+static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   tstrncpy(pCxt->pCreateStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
   tstrncpy(pCxt->pCreateStreamReq->sourceDB, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
   tstrncpy(pCxt->pCreateStreamReq->targetStbFullName, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
@@ -1536,11 +1592,21 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
   pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
   pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
   pCxt->pCreateStreamReq->ast = taosStrdup(pCxt->pCreateSmaReq->ast);
+  if (!pCxt->pCreateStreamReq->ast) {
+    return terrno;
+  }
   pCxt->pCreateStreamReq->sql = taosStrdup(pCxt->pCreateSmaReq->sql);
+  if (!pCxt->pCreateStreamReq->sql) {
+    return terrno;
+  }
 
   // construct tags
   pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pCreateStreamReq->numOfTags, sizeof(SField));
+  if (!pCxt->pCreateStreamReq->pTags) {
+    return terrno;
+  }
   SField f = {0};
+  int32_t code = 0;
   if (pCxt->pSrcStb) {
     for (int32_t idx = 0; idx < pCxt->pCreateStreamReq->numOfTags - 1; ++idx) {
       SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
@@ -1548,25 +1614,39 @@ static void mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
       f.type = pSchema->type;
       f.flags = pSchema->flags;
       tstrncpy(f.name, pSchema->name, TSDB_COL_NAME_LEN);
-      taosArrayPush(pCxt->pCreateStreamReq->pTags, &f);
+      if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pTags, &f)) {
+        code = terrno;
+        break;
+      }
     }
   }
-  f.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
-  f.flags = COL_SMA_ON;
-  f.type = TSDB_DATA_TYPE_BINARY;
-  tstrncpy(f.name, "tbname", strlen("tbname") + 1);
-  taosArrayPush(pCxt->pCreateStreamReq->pTags, &f);
 
-  // construct output cols
-  SNode* pNode;
-  FOREACH(pNode, pCxt->pProjects) {
-    SExprNode* pExprNode = (SExprNode*)pNode;
-    f.bytes = pExprNode->resType.bytes;
-    f.type = pExprNode->resType.type;
+  if (TSDB_CODE_SUCCESS == code) {
+    f.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
     f.flags = COL_SMA_ON;
-    strcpy(f.name, pExprNode->userAlias);
-    taosArrayPush(pCxt->pCreateStreamReq->pCols, &f);
+    f.type = TSDB_DATA_TYPE_BINARY;
+    tstrncpy(f.name, "tbname", strlen("tbname") + 1);
+    if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pTags, &f)) {
+      code = terrno;
+    }
   }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    // construct output cols
+    SNode* pNode;
+    FOREACH(pNode, pCxt->pProjects) {
+      SExprNode* pExprNode = (SExprNode*)pNode;
+      f.bytes = pExprNode->resType.bytes;
+      f.type = pExprNode->resType.type;
+      f.flags = COL_SMA_ON;
+      strcpy(f.name, pExprNode->userAlias);
+      if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pCols, &f)) {
+        code = terrno;
+        break;
+      }
+    }
+  }
+  return code;
 }
 
 static void mndCreateTSMABuildDropStreamReq(SCreateTSMACxt* pCxt) {
@@ -1729,7 +1809,10 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
     }
   }
   pCxt->pDropStreamReq = &dropStreamReq;
-  mndCreateTSMABuildCreateStreamReq(pCxt);
+  code = mndCreateTSMABuildCreateStreamReq(pCxt);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
   mndCreateTSMABuildDropStreamReq(pCxt);
 
   if (TSDB_CODE_SUCCESS != (code = mndCreateTSMATxnPrepare(pCxt))) {
@@ -1749,11 +1832,15 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static void mndTSMAGenerateOutputName(const char* tsmaName, char* streamName, char* targetStbName) {
+static int32_t mndTSMAGenerateOutputName(const char* tsmaName, char* streamName, char* targetStbName) {
   SName smaName;
-  tNameFromString(&smaName, tsmaName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  int32_t code = tNameFromString(&smaName, tsmaName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   sprintf(streamName, "%d.%s", smaName.acctId, smaName.tname);
   snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s"TSMA_RES_STB_POSTFIX, tsmaName);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
@@ -1795,7 +1882,11 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
 
   char streamName[TSDB_TABLE_FNAME_LEN] = {0};
   char streamTargetStbFullName[TSDB_TABLE_FNAME_LEN] = {0};
-  mndTSMAGenerateOutputName(createReq.name, streamName, streamTargetStbFullName);
+  code = mndTSMAGenerateOutputName(createReq.name, streamName, streamTargetStbFullName);
+  if (TSDB_CODE_SUCCESS != code) {
+    mInfo("tsma:%s, faield to generate name", createReq.name);
+    goto _OVER;
+  }
 
   pSma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.name);
   if (pSma && createReq.igExists) {
@@ -1824,7 +1915,15 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg* pReq) {
     goto _OVER;
   }
 
-  pDb = mndAcquireDbBySma(pMnode, createReq.name);
+  SName name = {0};
+  code = tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)tNameGetFullDbName(&name, db);
+
+  pDb = mndAcquireDb(pMnode, db);
   if (pDb == NULL) {
     code = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto _OVER;
@@ -1974,7 +2073,10 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg* pReq) {
 
   char  streamName[TSDB_TABLE_FNAME_LEN] = {0};
   char  streamTargetStbFullName[TSDB_TABLE_FNAME_LEN] = {0};
-  mndTSMAGenerateOutputName(dropReq.name, streamName, streamTargetStbFullName);
+  code = mndTSMAGenerateOutputName(dropReq.name, streamName, streamTargetStbFullName);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
 
   SStbObj* pStb = mndAcquireStb(pMnode, streamTargetStbFullName);
 
@@ -1987,7 +2089,15 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg* pReq) {
     code = TSDB_CODE_MND_SMA_NOT_EXIST;
     goto _OVER;
   }
-  pDb = mndAcquireDbBySma(pMnode, dropReq.name);
+  SName name = {0};
+  code = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _OVER;
+  }
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)tNameGetFullDbName(&name, db);
+
+  pDb = mndAcquireDb(pMnode, db);
   if (!pDb) {
     code = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
@@ -2028,6 +2138,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   int32_t          numOfRows = 0;
   SSmaObj *        pSma = NULL;
   SMnode *         pMnode = pReq->info.node;
+  int32_t          code = 0;
   SColumnInfoData *pColInfo;
   if (pShow->db[0]) {
     pDb = mndAcquireDb(pMnode, pShow->db);
@@ -2050,65 +2161,90 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     int32_t cols = 0;
     SName   n = {0};
 
-    tNameFromString(&n, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    code = tNameFromString(&n, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     char smaName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(smaName, (char *)tNameGetTableName(&n));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)smaName, false);
+    if (TSDB_CODE_SUCCESS == code) {
+      STR_TO_VARSTR(smaName, (char *)tNameGetTableName(&n));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)smaName, false);
+    }
 
     char db[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(db, (char *)mndGetDbStr(pSma->db));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*)db, false);
+    if (TSDB_CODE_SUCCESS == code) {
+      STR_TO_VARSTR(db, (char *)mndGetDbStr(pSma->db));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char*)db, false);
+    }
 
-    tNameFromString(&n, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tNameFromString(&n, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    }
     char srcTb[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(srcTb, (char *)tNameGetTableName(&n));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*)srcTb, false);
+    if (TSDB_CODE_SUCCESS == code) {
+      STR_TO_VARSTR(srcTb, (char *)tNameGetTableName(&n));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char*)srcTb, false);
+    }
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*)db, false);
+    if (TSDB_CODE_SUCCESS == code) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char*)db, false);
+    }
 
-    tNameFromString(&n, pSma->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-    char targetTb[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(targetTb, (char*)tNameGetTableName(&n));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*)targetTb, false);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tNameFromString(&n, pSma->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    }
 
-    // stream name
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*)smaName, false);
+    if (TSDB_CODE_SUCCESS == code) {
+      char targetTb[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(targetTb, (char*)tNameGetTableName(&n));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char*)targetTb, false);
+    }
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*)(&pSma->createdTime), false);
+    if (TSDB_CODE_SUCCESS == code) {
+      // stream name
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char*)smaName, false);
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char*)(&pSma->createdTime), false);
+    }
 
     // interval
     char interval[64 + VARSTR_HEADER_SIZE] = {0};
     int32_t len = 0;
-    if (!IS_CALENDAR_TIME_DURATION(pSma->intervalUnit)) {
-      len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
-          getPrecisionUnit(pSrcDb->cfg.precision));
-    } else {
-      len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval, pSma->intervalUnit);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (!IS_CALENDAR_TIME_DURATION(pSma->intervalUnit)) {
+        len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval,
+            getPrecisionUnit(pSrcDb->cfg.precision));
+      } else {
+        len = snprintf(interval + VARSTR_HEADER_SIZE, 64, "%" PRId64 "%c", pSma->interval, pSma->intervalUnit);
+      }
+      varDataSetLen(interval, len);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, interval, false);
     }
-    varDataSetLen(interval, len);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, interval, false);
 
-    // create sql
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     char buf[TSDB_MAX_SAVED_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-    len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
-    varDataSetLen(buf, TMIN(len, TSDB_MAX_SAVED_SQL_LEN));
-    colDataSetVal(pColInfo, numOfRows, buf, false);
+    if (TSDB_CODE_SUCCESS == code) {
+      // create sql
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      len = snprintf(buf + VARSTR_HEADER_SIZE, TSDB_MAX_SAVED_SQL_LEN, "%s", pSma->sql);
+      varDataSetLen(buf, TMIN(len, TSDB_MAX_SAVED_SQL_LEN));
+      code = colDataSetVal(pColInfo, numOfRows, buf, false);
+    }
 
     // func list
     len = 0;
-    char * start = buf + VARSTR_HEADER_SIZE;
     SNode *pNode = NULL, *pFunc = NULL;
-    nodesStringToNode(pSma->ast, &pNode);
-    if (pNode) {
+    if (TSDB_CODE_SUCCESS  == code) {
+      code = nodesStringToNode(pSma->ast, &pNode);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      char * start = buf + VARSTR_HEADER_SIZE;
       FOREACH(pFunc, ((SSelectStmt *)pNode)->pProjectionList) {
         if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
           SFunctionNode *pFuncNode = (SFunctionNode *)pFunc;
@@ -2124,13 +2260,21 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
       }
       nodesDestroyNode(pNode);
     }
-    varDataSetLen(buf, len);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    if (TSDB_CODE_SUCCESS == code) {
+      varDataSetLen(buf, len);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, buf, false);
+    }
 
     numOfRows++;
     mndReleaseSma(pMnode, pSma);
     mndReleaseDb(pMnode, pSrcDb);
+    if (TSDB_CODE_SUCCESS != code) {
+      sdbCancelFetch(pMnode->pSdb, pIter->pSmaIter);
+      numOfRows = -1;
+      break;
+    }
   }
   mndReleaseDb(pMnode, pDb);
   pShow->numOfRows += numOfRows;
@@ -2159,13 +2303,22 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
   pInfo->tsmaId = pSma->uid;
   pInfo->destTbUid = pDestStb->uid;
   SName sName = {0};
-  tNameFromString(&sName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  code = tNameFromString(&sName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   tstrncpy(pInfo->name, sName.tname, TSDB_TABLE_NAME_LEN);
   tstrncpy(pInfo->targetDbFName, pSma->db, TSDB_DB_FNAME_LEN);
-  tNameFromString(&sName, pSma->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  code = tNameFromString(&sName, pSma->dstTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   tstrncpy(pInfo->targetTb, sName.tname, TSDB_TABLE_NAME_LEN);
   tstrncpy(pInfo->dbFName, pSma->db, TSDB_DB_FNAME_LEN);
-  tNameFromString(&sName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  code = tNameFromString(&sName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   tstrncpy(pInfo->tb, sName.tname, TSDB_TABLE_NAME_LEN);
   pInfo->pFuncs = taosArrayInit(8, sizeof(STableTSMAFuncInfo));
   if (!pInfo->pFuncs) return TSDB_CODE_OUT_OF_MEMORY;
@@ -2202,7 +2355,10 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
       for (int32_t i = 0; i < pDestStb->numOfTags; ++i) {
-        taosArrayPush(pInfo->pTags, &pDestStb->pTags[i]);
+        if (NULL == taosArrayPush(pInfo->pTags, &pDestStb->pTags[i])) {
+          code = terrno;
+          break;
+        }
       }
     }
   }
@@ -2213,7 +2369,10 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj* pSma, const SStbObj* pDestStb, STa
     else {
       // skip _wstart, _wend, _duration
       for (int32_t i = 1; i < pDestStb->numOfColumns - 2; ++i) {
-        taosArrayPush(pInfo->pUsedCols, &pDestStb->pColumns[i]);
+        if (NULL == taosArrayPush(pInfo->pUsedCols, &pDestStb->pColumns[i])) {
+          code = terrno;
+          break;
+        }
       }
     }
   }
@@ -2276,12 +2435,12 @@ static int32_t mndGetTSMA(SMnode *pMnode, char *tsmaFName, STableTSMAInfoRsp *rs
     sdbRelease(pMnode->pSdb, pSma);
     if (pBaseTsma) mndReleaseSma(pMnode, pBaseTsma);
     if (terrno) {
-      tFreeTableTSMAInfo(pTsma);
+      tFreeAndClearTableTSMAInfo(pTsma);
       TAOS_RETURN(code);
     }
     if (NULL == taosArrayPush(rsp->pTsmas, &pTsma)) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      tFreeTableTSMAInfo(pTsma);
+      tFreeAndClearTableTSMAInfo(pTsma);
     }
     *exist = true;
   }
@@ -2316,7 +2475,11 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
 
     SName smaName;
     char streamName[TSDB_TABLE_FNAME_LEN] = {0};
-    tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    code = tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (TSDB_CODE_SUCCESS != code) {
+      sdbRelease(pSdb, pSma);
+      TAOS_RETURN(code);
+    }
     sprintf(streamName, "%d.%s", smaName.acctId, smaName.tname);
     pStream = NULL;
 
@@ -2347,13 +2510,13 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
     sdbRelease(pSdb, pSma);
     if (pBaseTsma) mndReleaseSma(pMnode, pBaseTsma);
     if (terrno) {
-      tFreeTableTSMAInfo(pTsma);
+      tFreeAndClearTableTSMAInfo(pTsma);
       sdbCancelFetch(pSdb, pIter);
       TAOS_RETURN(code);
     }
     if (NULL == taosArrayPush(pRsp->pTsmas, &pTsma)) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      tFreeTableTSMAInfo(pTsma);
+      tFreeAndClearTableTSMAInfo(pTsma);
       sdbCancelFetch(pSdb, pIter);
       TAOS_RETURN(code);
     }
@@ -2414,7 +2577,11 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    tSerializeTableTSMAInfoRsp(pRsp, contLen, &rsp);
+    int32_t len = tSerializeTableTSMAInfoRsp(pRsp, contLen, &rsp);
+    if (len < 0) {
+      code = terrno;
+      goto _OVER;
+    }
 
     pReq->info.rsp = pRsp;
     pReq->info.rspLen = contLen;
@@ -2430,7 +2597,7 @@ _OVER:
 static int32_t mkNonExistTSMAInfo(const STSMAVersion *pTsmaVer, STableTSMAInfo **ppTsma) {
   STableTSMAInfo *pInfo = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
   if (!pInfo) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pInfo->pFuncs = NULL;
   pInfo->tsmaId = pTsmaVer->tsmaId;
@@ -2439,6 +2606,10 @@ static int32_t mkNonExistTSMAInfo(const STSMAVersion *pTsmaVer, STableTSMAInfo *
   tstrncpy(pInfo->name, pTsmaVer->name, TSDB_TABLE_NAME_LEN);
   pInfo->dbId = pTsmaVer->dbId;
   pInfo->ast = taosMemoryCalloc(1, 1);
+  if (!pInfo->ast) {
+    taosMemoryFree(pInfo);
+    return terrno;
+  }
   *ppTsma = pInfo;
   return TSDB_CODE_SUCCESS;
 }
@@ -2454,7 +2625,7 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
 
   hbRsp.pTsmas = taosArrayInit(numOfTsmas, POINTER_BYTES);
   if (!hbRsp.pTsmas) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     TAOS_RETURN(code);
   }
 
@@ -2469,7 +2640,11 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
     if (!pSma) {
       code = mkNonExistTSMAInfo(pTsmaVer, &pTsmaInfo);
       if (code) goto _OVER;
-      taosArrayPush(hbRsp.pTsmas, &pTsmaInfo);
+      if (NULL == taosArrayPush(hbRsp.pTsmas, &pTsmaInfo)) {
+        code = terrno;
+        tFreeAndClearTableTSMAInfo(pTsmaInfo);
+        goto _OVER;
+      }
       continue;
     }
 
@@ -2478,7 +2653,11 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
       code = mkNonExistTSMAInfo(pTsmaVer, &pTsmaInfo);
       mndReleaseSma(pMnode, pSma);
       if (code) goto _OVER;
-      taosArrayPush(hbRsp.pTsmas, &pTsmaInfo);
+      if (NULL == taosArrayPush(hbRsp.pTsmas, &pTsmaInfo)) {
+        code = terrno;
+        tFreeAndClearTableTSMAInfo(pTsmaInfo);
+        goto _OVER;
+      }
       continue;
     } else if (pSma->version == pTsmaVer->version) {
       mndReleaseSma(pMnode, pSma);
@@ -2491,7 +2670,11 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
       code = mkNonExistTSMAInfo(pTsmaVer, &pTsmaInfo);
       mndReleaseSma(pMnode, pSma);
       if (code) goto _OVER;
-      taosArrayPush(hbRsp.pTsmas, &pTsmaInfo);
+      if (NULL == taosArrayPush(hbRsp.pTsmas, &pTsmaInfo)) {
+        code = terrno;
+        tFreeAndClearTableTSMAInfo(pTsmaInfo);
+        goto _OVER;
+      }
       continue;
     }
 
@@ -2499,7 +2682,7 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
     STableTSMAInfo *   pInfo = NULL;
     pInfo = taosMemoryCalloc(1, sizeof(STableTSMAInfo));
     if (!pInfo) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       mndReleaseSma(pMnode, pSma);
       mndReleaseStb(pMnode, pDestStb);
       goto _OVER;
@@ -2513,27 +2696,35 @@ int32_t mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t
     mndReleaseSma(pMnode, pSma);
     if (pBaseSma) mndReleaseSma(pMnode, pBaseSma);
     if (terrno) {
-      tFreeTableTSMAInfo(pInfo);
+      tFreeAndClearTableTSMAInfo(pInfo);
       goto _OVER;
     }
 
-    taosArrayPush(hbRsp.pTsmas, pInfo);
+    if (NULL == taosArrayPush(hbRsp.pTsmas, pInfo)) {
+      code = terrno;
+      tFreeAndClearTableTSMAInfo(pInfo);
+      goto _OVER;
+    }
   }
 
   rspLen = tSerializeTSMAHbRsp(NULL, 0, &hbRsp);
   if (rspLen < 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = terrno;
     goto _OVER;
   }
 
   pRsp = taosMemoryMalloc(rspLen);
   if (!pRsp) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     rspLen = 0;
     goto _OVER;
   }
 
-  tSerializeTSMAHbRsp(pRsp, rspLen, &hbRsp);
+  rspLen = tSerializeTSMAHbRsp(pRsp, rspLen, &hbRsp);
+  if (rspLen < 0) {
+    code = terrno;
+    goto _OVER;
+  }
   code = 0;
 _OVER:
   tFreeTSMAHbRsp(&hbRsp);

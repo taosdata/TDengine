@@ -118,6 +118,7 @@ void qDestroyQuery(SQuery* pQueryNode);
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid);
+int32_t qInitKeywordsTable();
 void    qCleanupKeywordsTable();
 
 int32_t qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,

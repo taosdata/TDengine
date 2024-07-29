@@ -1099,6 +1099,8 @@ END:
 void mndCleanupSubscribe(SMnode *pMnode) {}
 
 static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   void   *buf = NULL;
   int32_t tlen = tEncodeSubscribeObj(NULL, pSub);
@@ -1137,6 +1139,8 @@ SUB_ENCODE_OVER:
 }
 
 static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow         *pRow = NULL;
   SMqSubscribeObj *pSub = NULL;
@@ -1371,7 +1375,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
     if (data) {
       // vg id
       char buf[TSDB_OFFSET_LEN * 2 + VARSTR_HEADER_SIZE] = {0};
-      MND_TMQ_RETURN_CHECK(tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &data->offset));
+      tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &data->offset);
       (void)sprintf(varDataVal(buf) + strlen(varDataVal(buf)), "/%" PRId64, data->ever);
       varDataSetLen(buf, strlen(varDataVal(buf)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

@@ -523,12 +523,8 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   }
 
   {  // clear unreferenced files
-    STfsDir *dir = tfsOpendir(fs->tsdb->pVnode->pTfs, fs->tsdb->path);
-    if (dir == NULL) {
-      code = TAOS_SYSTEM_ERROR(terrno);
-      lino = __LINE__;
-      goto _exit;
-    }
+    STfsDir *dir = NULL;
+    TAOS_CHECK_GOTO(tfsOpendir(fs->tsdb->pVnode->pTfs, fs->tsdb->path, &dir), &lino, _exit);
 
     STFileHash fobjHash = {0};
     code = tsdbFSCreateFileObjHash(fs, &fobjHash);
@@ -765,7 +761,7 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  taosThreadMutexLock(&pTsdb->mutex);
+  (void)taosThreadMutexLock(&pTsdb->mutex);
 
   // disable
   pTsdb->bgTaskDisabled = true;
@@ -774,7 +770,11 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSet *fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     if (fset->channelOpened) {
-      taosArrayPush(channelArray, &fset->channel);
+      if (taosArrayPush(channelArray, &fset->channel) == NULL) {
+        taosArrayDestroy(channelArray);
+        (void)taosThreadMutexUnlock(&pTsdb->mutex);
+        return terrno;
+      }
       fset->channel = (SVAChannelID){0};
       fset->mergeScheduled = false;
       tsdbFSSetBlockCommit(fset, false);
@@ -782,7 +782,7 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
     }
   }
 
-  taosThreadMutexUnlock(&pTsdb->mutex);
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
 
   // destroy all channels
   for (int32_t i = 0; i < taosArrayGetSize(channelArray); i++) {
@@ -798,9 +798,9 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
 }
 
 int32_t tsdbEnableBgTask(STsdb *pTsdb) {
-  taosThreadMutexLock(&pTsdb->mutex);
+  (void)taosThreadMutexLock(&pTsdb->mutex);
   pTsdb->bgTaskDisabled = false;
-  taosThreadMutexUnlock(&pTsdb->mutex);
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
   return 0;
 }
 
@@ -814,16 +814,16 @@ int32_t tsdbCloseFS(STFileSystem **fs) {
 }
 
 int64_t tsdbFSAllocEid(STFileSystem *fs) {
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   int64_t cid = ++fs->neid;
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
   return cid;
 }
 
 void tsdbFSUpdateEid(STFileSystem *fs, int64_t cid) {
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   fs->neid = TMAX(fs->neid, cid);
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 }
 
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {
@@ -871,7 +871,7 @@ static int32_t tsdbFSSetBlockCommit(STFileSet *fset, bool block) {
 }
 
 int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
-  taosThreadMutexLock(&tsdb->mutex);
+  (void)taosThreadMutexLock(&tsdb->mutex);
   STFileSet *fset;
   tsdbFSGetFSet(tsdb->pFS, fid, &fset);
   if (fset) {
@@ -881,7 +881,7 @@ int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
       fset->numWaitCommit--;
     }
   }
-  taosThreadMutexUnlock(&tsdb->mutex);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return 0;
 }
 
@@ -973,7 +973,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
 
   TARRAY2_INIT(fsetArr[0]);
 
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     code = tsdbTFileSetInitCopy(fs->tsdb, fset, &fset1);
     if (code) break;
@@ -981,7 +981,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
     code = TARRAY2_APPEND(fsetArr[0], fset1);
     if (code) break;
   }
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
@@ -1001,9 +1001,9 @@ int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr) {
 }
 
 int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   int32_t code = tsdbFSCreateRefSnapshotWithoutLock(fs, fsetArr);
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
   return code;
 }
 
@@ -1075,7 +1075,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRa
     }
   }
 
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     int64_t ever = VERSION_MAX;
     if (pHash) {
@@ -1092,7 +1092,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRa
     code = TARRAY2_APPEND(fsetArr[0], fset1);
     if (code) break;
   }
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
 _out:
   if (code) {
@@ -1131,7 +1131,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
     }
   }
 
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     int64_t sver1 = sver;
     int64_t ever1 = ever;
@@ -1160,7 +1160,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
 
     fsr1 = NULL;
   }
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
     tsdbTFileSetRangeClear(&fsr1);

@@ -346,7 +346,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
       code = parseQuerySyntax(pCxt, pQuery, pCatalogReq);
     }
   }
-  nodesReleaseAllocator(pCxt->allocatorId);
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
   terrno = code;
   return code;
 }
@@ -361,7 +361,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
   if (TSDB_CODE_SUCCESS == code) {
     code = analyseSemantic(pCxt, pQuery, &metaCache);
   }
-  nodesReleaseAllocator(pCxt->allocatorId);
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
   destoryParseMetaCache(&metaCache, false);
   terrno = code;
   return code;
@@ -471,6 +471,10 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   return TSDB_CODE_FAILED;
 }
 
+int32_t qInitKeywordsTable() {
+  return taosInitKeywordsTable();
+}
+
 void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
@@ -490,9 +494,10 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
     nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = nodesCloneNode(pQuery->pPrepareRoot);
+    pQuery->pRoot = NULL;
+    code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
     if (NULL == pQuery->pRoot) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = code;
     }
   }
   if (TSDB_CODE_SUCCESS == code) {

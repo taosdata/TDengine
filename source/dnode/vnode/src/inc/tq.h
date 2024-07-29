@@ -121,11 +121,11 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, void* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const void* pRsp,
                       int32_t type, int32_t vgId);
-int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
+void    tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);
-int32_t tqMetaClose(STQ* pTq);
+void    tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen);
 int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen);
@@ -133,7 +133,7 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
 int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, int32_t vLen);
 int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, int32_t vLen);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);
-void*   tqMetaGetOffset(STQ* pTq, const char* subkey);
+int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset);
 int32_t tqMetaTransform(STQ* pTq);
 // tqSink
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
@@ -166,12 +166,12 @@ int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t n
     }                                \
   } while (0)
 
-#define TQ_ERR_RETURN(c)             \
-  do {                               \
-    code = c;                        \
-    if (code != TSDB_CODE_SUCCESS) { \
-      return code;                   \
-    }                                \
+#define TQ_NULL_GO_TO_END(c)            \
+  do {                                  \
+    if (c == NULL) {                    \
+      code = (terrno == 0 ? TSDB_CODE_OUT_OF_MEMORY : terrno);                   \
+      goto END;                         \
+    }                                   \
   } while (0)
 
 #define TQ_SUBSCRIBE_NAME "subscribe"

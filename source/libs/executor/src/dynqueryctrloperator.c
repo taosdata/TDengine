@@ -248,7 +248,11 @@ static int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t downst
     taosMemoryFree(pExc);
     return terrno;
   }
-  taosArrayPush(pExc->basic.uidList, pUid);
+  if (NULL == taosArrayPush(pExc->basic.uidList, pUid)) {
+    taosArrayDestroy(pExc->basic.uidList);
+    taosMemoryFree(pExc);
+    return terrno;
+  }
 
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
   (*ppRes)->downstreamIdx = downstreamIdx;
@@ -527,8 +531,8 @@ static void seqJoinLaunchNewRetrieveImpl(SOperatorInfo* pOperator, SSDataBlock**
   }
 
   qDebug("%s dynamic post task begin", GET_TASKID(pOperator->pTaskInfo));
-  *ppRes = pOperator->pDownstream[1]->fpSet.getNextExtFn(pOperator->pDownstream[1], pParam);
-  if (*ppRes) {
+  code = pOperator->pDownstream[1]->fpSet.getNextExtFn(pOperator->pDownstream[1], pParam, ppRes);
+  if (*ppRes && (code == 0)) {
     pPost->isStarted = true;
     pStbJoin->execInfo.postBlkNum++;
     pStbJoin->execInfo.postBlkRows += (*ppRes)->info.rows;
@@ -955,17 +959,20 @@ int32_t initSeqStbJoinTableHash(SStbJoinPrevJoinCtx* pPrev, bool batchFetch) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                       SDynQueryCtrlPhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
+                                       SOperatorInfo** pOptrInfo) {
+  QRY_OPTR_CHECK(pOptrInfo);
 
-SOperatorInfo* createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                           SDynQueryCtrlPhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  __optr_fn_t        nextFp = NULL;
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  __optr_fn_t                nextFp = NULL;
   SDynQueryCtrlOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SDynQueryCtrlOperatorInfo));
   if (pInfo == NULL) {
     code = terrno;
     goto _error;
   }
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
     code = terrno;
     goto _error;
@@ -994,23 +1001,22 @@ SOperatorInfo* createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32
       code = TSDB_CODE_INVALID_PARA;
       goto _error;
   }
-  
-  setOperatorInfo(pOperator, "DynQueryCtrlOperator", QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, nextFp, NULL, destroyDynQueryCtrlOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorInfo(pOperator, "DynQueryCtrlOperator", QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL, false, OP_NOT_OPENED,
+                  pInfo, pTaskInfo);
 
-  return pOperator;
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, nextFp, NULL, destroyDynQueryCtrlOperator, optrDefaultBufFn,
+                                         NULL, optrDefaultGetNextExtFn, NULL);
+
+  *pOptrInfo = pOperator;
+  return code;
 
 _error:
-
   if (pInfo != NULL) {
     destroyDynQueryCtrlOperator(pInfo);
   }
 
   taosMemoryFree(pOperator);
   pTaskInfo->code = code;
-  
-  return NULL;
+  return code;
 }
-
-

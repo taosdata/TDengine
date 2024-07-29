@@ -42,7 +42,6 @@ static int32_t tsdbTFileSetRangeCmprFn(STFileSetRange* x, STFileSetRange* y) {
 STsdbFSetPartition* tsdbFSetPartitionCreate() {
   STsdbFSetPartition* pSP = taosMemoryCalloc(1, sizeof(STsdbFSetPartition));
   if (pSP == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   for (int32_t i = 0; i < TSDB_FSET_RANGE_TYP_MAX; i++) {
@@ -140,7 +139,6 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
 STsdbFSetPartList* tsdbFSetPartListCreate() {
   STsdbFSetPartList* pList = taosMemoryCalloc(1, sizeof(STsdbFSetPartList));
   if (pList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   TARRAY2_INIT(pList);
@@ -160,7 +158,7 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
 
   TFileSetRangeArray* pDiff = taosMemoryCalloc(1, sizeof(TFileSetRangeArray));
   if (pDiff == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   TARRAY2_INIT(pDiff);
@@ -169,7 +167,7 @@ int32_t tsdbFSetPartListToRangeDiff(STsdbFSetPartList* pList, TFileSetRangeArray
   TARRAY2_FOREACH(pList, part) {
     STFileSetRange* r = taosMemoryCalloc(1, sizeof(STFileSetRange));
     if (r == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _err;
     }
     int64_t maxVerValid = -1;
@@ -353,7 +351,7 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
   }
 
   int32_t code = 0;
-  taosThreadMutexLock(&fs->tsdb->mutex);
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
   STFileSet* fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     STsdbFSetPartition* pItem = NULL;
@@ -366,7 +364,7 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
     code = TARRAY2_SORT_INSERT(pList, pItem, tsdbFSetPartCmprFn);
     ASSERT(code == 0);
   }
-  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
     TARRAY2_DESTROY(pList, tsdbFSetPartitionClear);

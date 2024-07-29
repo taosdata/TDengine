@@ -244,7 +244,6 @@ void     tsdbMemTableDestroy(SMemTable *pMemTable, bool proactive);
 STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
 int32_t  tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode);
 int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive);
-SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
 int32_t tsdbTbDataIterCreate(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter **ppIter);
 void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
@@ -379,7 +378,7 @@ struct STsdb {
   struct {
     SVHashTable *ht;
     SArray      *arr;
-  } *commitInfo;
+  } * commitInfo;
 };
 
 struct TSDBKEY {
@@ -938,7 +937,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
 
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, TSDBROW *row, bool dup);
-int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
+void    tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHandle **handle);
 int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
@@ -946,7 +945,6 @@ int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
 int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
 int32_t tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
-int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);

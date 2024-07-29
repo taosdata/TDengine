@@ -41,7 +41,7 @@ static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
 
   pBuf = (uint8_t *)taosMemoryRealloc(pBuf, bsize + sizeof(int64_t));
   if (pBuf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
