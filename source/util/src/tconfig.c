@@ -1420,7 +1420,7 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
   }
 
   uInfo("fail get apollo url from cmd env file");
-  TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  TAOS_RETURN(TSDB_CODE_NOT_FOUND);
 }
 
 struct SConfigIter {
