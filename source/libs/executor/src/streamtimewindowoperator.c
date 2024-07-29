@@ -1769,7 +1769,7 @@ int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval) {
   return deleteMark;
 }
 
-int64_t getDeleteMarkFromOption(SStreamOption* pOption) {
+int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption) {
   if (pOption->deleteMark <= 0) {
     return DEAULT_DELETE_MARK;
   }

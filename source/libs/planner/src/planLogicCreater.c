@@ -918,7 +918,7 @@ static bool isInterpFunc(int32_t funcId) {
   return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId);
 }
 
-static void initStreamOption(SLogicPlanContext* pCxt, SStreamOption* pOption) {
+static void initStreamOption(SLogicPlanContext* pCxt, SStreamNodeOption* pOption) {
   pOption->triggerType = pCxt->pPlanCxt->triggerType;
   pOption->watermark = pCxt->pPlanCxt->watermark;
   pOption->deleteMark = pCxt->pPlanCxt->deleteMark;
@@ -969,7 +969,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    initStreamOption(pCxt, &pInterpFunc->streamOption);
+    initStreamOption(pCxt, &pInterpFunc->streamNodeOption);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

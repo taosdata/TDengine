@@ -47,21 +47,31 @@ void streamTimeSliceReloadState(SOperatorInfo* pOperator) {
 
 void destroyStreamTimeSliceOperatorInfo(void* param) {
   SStreamTimeSliceOperatorInfo* pInfo = (SStreamTimeSliceOperatorInfo*)param;
-  clearGroupResInfo(&pInfo->groupResInfo);
+  colDataDestroy(&pInfo->twAggSup.timeWindowData);
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
+  destroyStreamFillSupporter(pInfo->pFillSup);
+  destroyStreamFillInfo(pInfo->pFillInfo);
+  blockDataDestroy(pInfo->pRes);
+  blockDataDestroy(pInfo->pDelRes);
+  blockDataDestroy(pInfo->pCheckpointRes);
+
+  taosMemoryFreeClear(pInfo->leftRow.pRowVal);
+  taosMemoryFreeClear(pInfo->valueRow.pRowVal);
+  taosMemoryFreeClear(pInfo->rightRow.pRowVal);
+
+  cleanupExprSupp(&pInfo->scalarSup);
+  taosArrayDestroy(pInfo->historyPoints);
+
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;
 
-  taosArrayDestroy(pInfo->pDelWins);
-  blockDataDestroy(pInfo->pDelRes);
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
-
-  colDataDestroy(&pInfo->twAggSup.timeWindowData);
   tSimpleHashCleanup(pInfo->pUpdatedMap);
   pInfo->pUpdatedMap = NULL;
-  tSimpleHashCleanup(pInfo->pDeletedMap);
 
-  blockDataDestroy(pInfo->pCheckpointRes);
-  // todo(liuyao) 看是否有遗漏
+  taosArrayDestroy(pInfo->pDelWins);
+  tSimpleHashCleanup(pInfo->pDeletedMap);
+  clearGroupResInfo(&pInfo->groupResInfo);
+
   taosMemoryFreeClear(param);
 }
 
@@ -696,11 +706,11 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->twAggSup = (STimeWindowAggSupp){
-      .waterMark = pInterpPhyNode->streamOption.watermark,
-      .calTrigger = pInterpPhyNode->streamOption.triggerType,
+      .waterMark = pInterpPhyNode->streamNodeOption.watermark,
+      .calTrigger = pInterpPhyNode->streamNodeOption.triggerType,
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
-      .deleteMark = getDeleteMarkFromOption(&pInterpPhyNode->streamOption),
+      .deleteMark = getDeleteMarkFromOption(&pInterpPhyNode->streamNodeOption),
   };
 
   pInfo->primaryTsIndex = ((SColumnNode*)pInterpPhyNode->pTimeSeries)->slotId;
@@ -721,7 +731,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pDeletedMap = tSimpleHashInit(4096, hashFn);
 
-  pInfo->ignoreExpiredData = pInterpPhyNode->streamOption.igExpired;
+  pInfo->ignoreExpiredData = pInterpPhyNode->streamNodeOption.igExpired;
   pInfo->ignoreExpiredDataSaved = false;
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
@@ -733,7 +743,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pInfo->destHasPrimaryKey = pInterpPhyNode->streamOption.destHasPrimaryKey;
+  pInfo->destHasPrimaryKey = pInterpPhyNode->streamNodeOption.destHasPrimaryKey;
   pInfo->numOfDatapack = 0;
   pInfo->pFillSup = initTimeSliceFillSup(pInterpPhyNode, pExprInfo, numOfExprs);
 

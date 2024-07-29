@@ -1867,7 +1867,7 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   }
 
   if (pCxt->pPlanCxt->streamQuery) {
-    pInterpFunc->streamOption = pFuncLogicNode->streamOption;
+    pInterpFunc->streamNodeOption = pFuncLogicNode->streamNodeOption;
   }
 
   if (TSDB_CODE_SUCCESS == code) {

@@ -194,14 +194,14 @@ typedef struct SIndefRowsFuncLogicNode {
   bool       isTimeLineFunc;
 } SIndefRowsFuncLogicNode;
 
-typedef struct SStreamOption {
+typedef struct SStreamNodeOption {
   int8_t  triggerType;
   int64_t watermark;
   int64_t deleteMark;
   int8_t  igExpired;
   int8_t  igCheckUpdate;
   int8_t  destHasPrimaryKey;
-} SStreamOption;
+} SStreamNodeOption;
 
 typedef struct SInterpFuncLogicNode {
   SLogicNode    node;
@@ -211,8 +211,7 @@ typedef struct SInterpFuncLogicNode {
   EFillMode     fillMode;
   SNode*        pFillValues;  // SNodeListNode
   SNode*        pTimeSeries;  // SColumnNode
-  //todo(liuyao) 补充clone和json等
-  SStreamOption streamOption;
+  SStreamNodeOption streamNodeOption;
 } SInterpFuncLogicNode;
 
 typedef struct SGroupCacheLogicNode {
@@ -516,7 +515,7 @@ typedef struct SInterpFuncPhysiNode {
   EFillMode     fillMode;
   SNode*        pFillValues;  // SNodeListNode
   SNode*        pTimeSeries;  // SColumnNode
-  SStreamOption streamOption; //todo(liuyao) 补充clone和json等
+  SStreamNodeOption streamNodeOption;
 } SInterpFuncPhysiNode;
 
 typedef SInterpFuncPhysiNode SStreamInterpFuncPhysiNode;

@@ -31,7 +31,7 @@ void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
 
-int64_t getDeleteMarkFromOption(SStreamOption* pOption);
+int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption);
 void    removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins);
 int32_t copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins);
 bool    hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo);
@@ -55,6 +55,7 @@ void             setFillKeyInfo(TSKEY start, TSKEY end, SInterval* pInterval, SS
 int32_t          setRowCell(SColumnInfoData* pCol, int32_t rowId, const SResultCellData* pCell);
 bool             hasRemainCalc(SStreamFillInfo* pFillInfo);
 void             destroySPoint(void* ptr);
+void             destroyStreamFillInfo(SStreamFillInfo* pFillInfo);
 
 int winPosCmprImpl(const void* pKey1, const void* pKey2);
 
