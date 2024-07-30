@@ -435,6 +435,9 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .await
                 .context("Update task properties error")?;
         }
+        "logging" => {
+            // do nothing
+        }
         _ => {
             sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
                 .bind(activity.status.as_str())
@@ -2232,6 +2235,18 @@ impl TaskActivity {
             level: LevelFilter::Info,
             activity: message,
             status: "running".to_string(),
+            context: None,
+        }
+    }
+
+    /// Info-level activity under any state.
+    pub fn logging(id: i64, message: String) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: message,
+            status: "logging".to_string(),
             context: None,
         }
     }
