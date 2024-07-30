@@ -158,13 +158,15 @@
                 class="josn-wrap"
                 v-else-if="parseruleForm.type == 'json'"
               >
-                <el-input
+                <span>depth </span>
+                <el-input-number
                   v-model="parseruleForm.depth"
                   style="width: 100px;margin-right: 5px"
                   size="small"
+                  :controls="false"
+                  min="0"
                 >
-                  <template slot="prepend">depth</template>
-                </el-input>
+                </el-input-number>
                 <cusSelect
                   v-model="parseruleForm.expression"
                   :allProperties="allProperties"
@@ -1111,27 +1113,39 @@ export default {
         if (this.$store.state.app.supportSQL) {
           topparser = JSON.parse(this.msgForm.msgbody);
         } else {
+          let depthObj = {}
+          let expressionObj = {}
+          if (this.parseruleForm.type == 'json') {
+            depthObj = {
+              'depth': this.parseruleForm.depth || 0
+            }
+          }
+          if (this.parseruleForm.expression) {
+            expressionObj = {
+              [`${this.parseruleForm.type}`]:
+                this.parseruleForm.type == "regex"
+                  ? this.parseruleForm.expression
+                  : this.parseruleForm.type == "split"
+                  ? this.$store.state.app.splitExpresList
+                  : this.parseruleForm.type == "udt"
+                  ? this.parseruleForm.expression
+                  : this.parseruleForm.expression
+                  ? this.parseruleForm.expression
+                      .split(";")
+                      .toString()
+                      .split(",")
+                      .map((item) => item.trim())
+                  : this.parseruleForm.expression
+            }
+          }
           topparser = {
             parser: {
               parse: {
                 [this.$store.state.app.currentDBType == "mqtt"
                   ? "payload"
                   : "value"]: {
-                  [`${this.parseruleForm.type}`]:
-                    this.parseruleForm.type == "regex"
-                      ? this.parseruleForm.expression
-                      : this.parseruleForm.type == "split"
-                      ? this.$store.state.app.splitExpresList
-                      : this.parseruleForm.type == "udt"
-                      ? this.parseruleForm.expression
-                      : this.parseruleForm.expression
-                      ? this.parseruleForm.expression
-                          .split(";")
-                          .toString()
-                          .split(",")
-                          .map((item) => item.trim())
-                      : this.parseruleForm.expression,
-                  "depth": this.parseruleForm.depth
+                    ...expressionObj,
+                    ...depthObj
                 },
               },
             },
@@ -2800,5 +2814,16 @@ export default {
   display: inline-flex;
   align-items: start; 
   width: 100%;
+  > span {
+    line-height: 30px;
+    color: #909399;
+    background-color: #f5f7fa;
+    padding: 0 5px;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    border-right: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
 }
 </style>
