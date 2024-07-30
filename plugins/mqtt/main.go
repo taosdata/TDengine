@@ -18,8 +18,8 @@ func main() {
 	v = flag.Bool("version", false, "Print the version and exit")
 	check = flag.Bool("check", false, "Check connection to mqtt server and exit")
 	flag.Parse()
+	fmt.Fprintf(os.Stderr, "mqtt_plugin: %s\ncommit: %s\nbuild_time: %s\n", version.Version, version.Commit, version.BuildTime)
 	if v != nil && *v {
-		fmt.Fprintf(os.Stderr, "mqtt_plugin: %s\ncommit: %s\nbuild_time: %s\n", version.Version, version.Commit, version.BuildTime)
 		return
 	}
 	if check != nil && *check {
@@ -42,7 +42,6 @@ func main() {
 		}
 		return
 	}
-	fmt.Fprintf(os.Stderr, "mqtt_plugin: %s\ncommit: %s\nbuild_time: %s\n", version.Version, version.Commit, version.BuildTime)
 	s := system.NewService(*configFile)
 	system.Start(s)
 }

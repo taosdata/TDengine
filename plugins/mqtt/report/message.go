@@ -3,6 +3,8 @@ package report
 import (
 	"container/list"
 	"sync"
+
+	"github.com/taosdata/taosx/plugins/mqtt/log"
 )
 
 type Message struct {
@@ -13,21 +15,24 @@ type Message struct {
 }
 
 type MessageList struct {
-	list *list.List
-	lock sync.RWMutex
-	c    chan struct{}
-	sent bool
+	list      *list.List
+	lock      sync.RWMutex
+	c         chan struct{}
+	sent      bool
+	batchSize int
 }
 
-func NewMessageList() *MessageList {
-	return &MessageList{list: list.New(), c: make(chan struct{}, 1)}
+func NewMessageList(batchSize int) *MessageList {
+	m := &MessageList{list: list.New(), c: make(chan struct{}, 1), batchSize: batchSize}
+	return m
 }
 
 func (m *MessageList) Add(message *Message) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.list.PushBack(message)
-	if !m.sent {
+	if m.list.Len() >= m.batchSize && !m.sent {
+		log.GetLogger("message").WithField("cap", m.batchSize).WithField("len", m.list.Len()).Debugln("reaches batch size")
 		m.c <- struct{}{}
 		m.sent = true
 	}

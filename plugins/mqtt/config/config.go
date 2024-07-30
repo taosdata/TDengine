@@ -23,12 +23,19 @@ type Dump struct {
 	Keep   int64  `toml:"keep"`
 }
 
+type Batch struct {
+	/// Timeout in milliseconds
+	BatchTimeout int `toml:"timeout"`
+	BatchSize    int `toml:"size"`
+}
+
 type Config struct {
 	LogLevel string         `toml:"log_level"`
 	Remote   string         `toml:"remote"`
 	MQTT     *MQTT          `toml:"mqtt"`
 	Topics   map[string]int `toml:"topics"` // topic:QOS
 	Dump     *Dump          `toml:"dump"`
+	Batch    *Batch         `toml:"batch"`
 }
 
 func ParseConfig(path string) (*Config, error) {

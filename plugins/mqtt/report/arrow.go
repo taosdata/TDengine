@@ -20,13 +20,14 @@ type ArrowReporter struct {
 	conn      *net.TCPConn
 	schema    *arrow.Schema
 	writer    *ipc.Writer
+	reader    *ipc.Reader
 	address   *net.TCPAddr
 }
 
 var meta = arrow.MetadataFrom(map[string]string{
 	"version": "1.0",
 	"stream":  "flat",
-	"ack":     "none",
+	"ack":     "lush",
 })
 
 func NewArrowReporter(remote string) (*ArrowReporter, error) {
@@ -47,19 +48,29 @@ func NewArrowReporter(remote string) (*ArrowReporter, error) {
 		},
 		&meta,
 	)
+	logger := log.GetLogger("arrow").WithField("address", conn.LocalAddr().String()).WithField("remote", conn.RemoteAddr().String())
+	logger.Debugln("create ipc writer")
 	writer := ipc.NewWriter(conn, ipc.WithSchema(schema))
+
+	logger.Debugln("create ipc reader")
+	reader, err := ipc.NewReader(conn, ipc.WithDelayReadSchema(true))
+	if err != nil {
+		log.GetLogger("arrow").Errorf("create ipc reader error %s", err)
+		return nil, fmt.Errorf("create ipc reader error %s", err)
+	}
 	return &ArrowReporter{
 		allocator: memory.NewGoAllocator(),
 		writer:    writer,
+		reader:    reader,
 		conn:      conn,
 		schema:    schema,
 		address:   address,
-		logger:    log.GetLogger("arrow").WithField("address", conn.LocalAddr().String()),
+		logger:    logger,
 	}, nil
 }
 
 func (r *ArrowReporter) Report(list []*Message) error {
-	r.logger.Debugf("report count %d\n", len(list))
+	r.logger.Debugf("report count %d", len(list))
 	recordBuilder := array.NewRecordBuilder(r.allocator, r.schema)
 	defer recordBuilder.Release()
 	tsField := recordBuilder.Field(0).(*array.TimestampBuilder)
@@ -74,7 +85,7 @@ func (r *ArrowReporter) Report(list []*Message) error {
 	for i := 0; i < len(list); i++ {
 		if len(list[i].Payload) > math.MaxInt32 {
 			r.logger.Errorf("payload length %d larger than max Int32\n", len(list[i].Payload))
-			return fmt.Errorf("payload length %d larger than max Int32\n", len(list[i].Payload))
+			return fmt.Errorf("payload length %d larger than max Int32", len(list[i].Payload))
 		}
 		total += len(list[i].Payload)
 		if total >= math.MaxInt32 {
@@ -90,7 +101,22 @@ func (r *ArrowReporter) Report(list []*Message) error {
 		qosField.Append(list[i].Qos)
 		payloadField.BinaryBuilder.Append(list[i].Payload)
 	}
-	return r.Write(recordBuilder)
+	err := r.Write(recordBuilder)
+	if err != nil {
+		return err
+	}
+	ack, err := r.reader.Read()
+	if ack == nil {
+		return nil
+	}
+	defer ack.Release()
+	r.logger.Tracef("ack received (%d, %d)", ack.NumRows(), ack.NumCols())
+	if ack.Column(0).(*array.Int32).Value(0) != 0 {
+		msg := string(ack.Column(1).(*array.Binary).Value(0))
+		r.logger.Warnf("ack error %s", msg)
+		return fmt.Errorf("ack error %s", msg)
+	}
+	return err
 }
 
 func (r *ArrowReporter) Write(recordBuilder *array.RecordBuilder) error {
@@ -100,11 +126,11 @@ func (r *ArrowReporter) Write(recordBuilder *array.RecordBuilder) error {
 	defer func() {
 		end := time.Now()
 		if end.Sub(start) > time.Second {
-			r.logger.Warnf("write %d rows cost %s\n", record.NumRows(), end.Sub(start))
+			r.logger.Warnf("write %d rows cost %s", record.NumRows(), end.Sub(start))
 		}
 	}()
 	if record.NumRows() > 0 {
-		r.logger.Debugf("write %d rows\n", record.NumRows())
+		r.logger.Debugf("write %d rows", record.NumRows())
 		return r.writer.Write(record)
 	}
 	return nil
