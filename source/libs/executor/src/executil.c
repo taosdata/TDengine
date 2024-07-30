@@ -2026,6 +2026,12 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
   }
 
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
+  void* p = taosHashGet(pTableList->map, &uid, sizeof(uid));
+  if (p != NULL) {
+    qInfo("table:%" PRId64 " already in tableIdList, ignore it", uid);
+    return TSDB_CODE_SUCCESS;
+  }
+
   taosArrayPush(pTableList->pTableList, &keyInfo);
 
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
