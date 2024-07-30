@@ -94,7 +94,7 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   }
 
   code = mndTransPrepare(pMnode, pTrans);
-  if (code != 0) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare update stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -197,7 +197,8 @@ int32_t mndDropOrphanTasks(SMnode *pMnode, SArray *pList) {
     return code;
   }
 
-  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
+  code = mndTransPrepare(pMnode, pTrans);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return code;
