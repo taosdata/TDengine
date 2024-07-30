@@ -246,7 +246,7 @@ _OVER:
       if (pWrapper != NULL) {
         dmSendRsp(&rsp);
       } else {
-        rpcSendResponse(&rsp);
+        (void)rpcSendResponse(&rsp);
       }
     }
 

@@ -377,7 +377,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     // if (dVal) {
     //   dst->freeFunc(dVal->val);
     // }
-    taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
+    (void)taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
     iter = taosHashIterate(src->args, iter);
   }
   taosHashCleanup(src->args);

@@ -285,7 +285,7 @@ void fstStateCompileForAnyTrans(IdxFstFile* w, CompiledAddr addr, FstBuilderNode
   }
   for (int32_t i = sz - 1; i >= 0; i--) {
     FstTransition* t = taosArrayGet(node->trans, i);
-    idxFileWrite(w, (char*)&t->inp, 1);
+    (void)idxFileWrite(w, (char*)&t->inp, 1);
   }
   if (sz > TRANS_INDEX_THRESHOLD) {
     // A value of 255 indicates that no transition exists for the byte at that idx
@@ -1015,7 +1015,7 @@ void fstDestroy(Fst* fst) {
     taosMemoryFree(fst->meta);
     fstSliceDestroy(fst->data);
     taosMemoryFree(fst->data);
-    taosThreadMutexDestroy(&fst->mtx);
+    (void)taosThreadMutexDestroy(&fst->mtx);
   }
   taosMemoryFree(fst);
 }
