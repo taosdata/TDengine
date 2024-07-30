@@ -24,7 +24,7 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
 
-  const int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
   pMsg->pCont = rpcMallocCont(contLen);
   if (pMsg->pCont == NULL) {
     pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
