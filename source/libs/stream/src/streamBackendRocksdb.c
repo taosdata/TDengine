@@ -1126,7 +1126,7 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
   taosArrayDestroy(pBackend->chkpSaved);
   pBackend->chkpSaved = chkpDup;
 
-  taosThreadRwlockUnlock(&pBackend->chkpDirLock);
+  (void)taosThreadRwlockUnlock(&pBackend->chkpDirLock);
 
   for (int i = 0; i < taosArrayGetSize(chkpDel); i++) {
     int64_t id = *(int64_t*)taosArrayGet(chkpDel, i);
@@ -1438,7 +1438,7 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
-    taosArrayPush(pSnap, &snap);
+    (void)taosArrayPush(pSnap, &snap);
 
     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
   }
@@ -1505,7 +1505,7 @@ void* taskAcquireDb(int64_t refId) {
 }
 void taskReleaseDb(int64_t refId) {
   // release
-  taosReleaseRef(taskDbWrapperId, refId);
+  (void)taosReleaseRef(taskDbWrapperId, refId);
 }
 
 int64_t taskGetDBRef(void* arg) {
@@ -1566,7 +1566,7 @@ int32_t chkpLoadExtraInfo(char* pChkpIdDir, int64_t* chkpId, int64_t* processId)
   code = 0;
 _EXIT:
   taosMemoryFree(pDst);
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   return code;
 }
 int32_t chkpAddExtraInfo(char* pChkpIdDir, int64_t chkpId, int64_t processId) {
@@ -4094,7 +4094,7 @@ void streamStateSessionClear_rocksdb(SStreamState* pState) {
     if (code == 0 && size > 0) {
       memset(buf, 0, size);
       // refactor later
-      streamStateSessionPut_rocksdb(pState, &delKey, buf, size);
+      (void)streamStateSessionPut_rocksdb(pState, &delKey, buf, size);
     } else {
       taosMemoryFreeClear(buf);
       break;
@@ -4304,7 +4304,7 @@ void    streamStateDestroyBatch(void* pBatch) { rocksdb_writebatch_destroy((rock
 int32_t streamStatePutBatch(SStreamState* pState, const char* cfKeyName, rocksdb_writebatch_t* pBatch, void* key,
                             void* val, int32_t vlen, int64_t ttl) {
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
-  atomic_add_fetch_64(&wrapper->dataWritten, 1);
+  (void)atomic_add_fetch_64(&wrapper->dataWritten, 1);
 
   int i = streamStateGetCfIdx(pState, cfKeyName);
   if (i < 0) {
@@ -4350,7 +4350,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
 
   {
     char tbuf[256] = {0};
-    ginitDict[cfIdx].toStrFunc((void*)key, tbuf);
+    (void)(ginitDict[cfIdx].toStrFunc((void*)key, tbuf));
     stTrace("streamState str: %s succ to write to %s_%s", tbuf, wrapper->idstr, ginitDict[cfIdx].key);
   }
   return 0;
@@ -4358,7 +4358,7 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
 int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch) {
   char*           err = NULL;
   STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
-  atomic_add_fetch_64(&wrapper->dataWritten, 1);
+  (void)atomic_add_fetch_64(&wrapper->dataWritten, 1);
   rocksdb_write(wrapper->db, wrapper->writeOpt, (rocksdb_writebatch_t*)pBatch, &err);
   if (err != NULL) {
     stError("streamState failed to write batch, err:%s", err);
@@ -4738,7 +4738,7 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
   static char* chkpMeta = "META";
   int32_t      code = 0;
 
-  taosThreadRwlockRdlock(&p->rwLock);
+  (void)taosThreadRwlockRdlock(&p->rwLock);
 
   int32_t cap = p->len + 128;
 
