@@ -21,6 +21,28 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<(
     let target_desc = to.describe(&table).await?;
     let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
 
+    let desc_first = &desc[0];
+    let target_desc_first = target_desc.get(0);
+    // check if the first field is timestamp
+    if desc_first.ty() == Ty::Timestamp {
+        if let Some(target_desc_first) = target_desc_first {
+            if !(target_desc_first.ty() == Ty::Timestamp
+                && desc_first.name() == target_desc_first.field())
+            {
+                bail!(
+                    "Mismatch the first field: expect `{:?}`, but got `{:?}`",
+                    target_desc_first,
+                    desc_first
+                );
+            }
+        }
+    } else {
+        bail!(
+            "Error data: expect timestamp as first field, but got `{}`",
+            desc_first.ty()
+        );
+    }
+
     for l in desc {
         if let Some(r) = fields.get(l.name()) {
             // check if the field is equal.
@@ -221,6 +243,7 @@ async fn write_data(
                     tracing::debug!("Try to recover from error: {err}");
                     if let Some(source_table_name) = source_table_name {
                         match code {
+                            // invalid parameters
                             0x0118 => {
                                 let from = source.get().await?;
                                 let database = topic.database.as_str();
@@ -258,6 +281,7 @@ async fn write_data(
                                     "Write raw block into target error after 0x0118 fix",
                                 )?;
                             }
+                            // table not exist
                             0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
                                 let from = source.get().await?;
                                 let database = topic.database.as_str();
@@ -291,6 +315,7 @@ async fn write_data(
                                         .context("Write raw block into target error")?;
                                 }
                             }
+                            // table has been modified
                             0x061B => {
                                 // Table schema is old.
                                 let _ = taos.describe(raw.table_name().unwrap()).await;
