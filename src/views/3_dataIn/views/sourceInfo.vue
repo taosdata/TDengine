@@ -60,7 +60,6 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import {
   AddSource,
   EditSource,
-  validateTask,
   refreshTask as getDataSourceDetail
 } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";

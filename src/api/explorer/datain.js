@@ -303,11 +303,12 @@ export function getMetrics(taskId) {
     })
 }
 
-export function validateTask(data, agentid) {
+export function validateTask(data) {
     return request({
         baseURL: process.env.VUE_APP_X_API,
-        url: `/ds/in/validate?dsn=${encodeURIComponent(data)}` + (agentid ? `&via=${agentid}` : ''),
-        method: 'get',
+        url: '/ds/in/validate',
+        method: 'post',
+        data
     })
 }
 
