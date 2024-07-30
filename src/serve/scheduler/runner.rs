@@ -1180,7 +1180,7 @@ impl TaskJob {
                                             ipc_in_progress
                                         );
 
-                                        global.send_task_activity(Activity::running(
+                                        global.send_task_activity(Activity::logging(
                                             task_id,
                                             format!(
                                                 "Ingesting data with worker {} completed",
