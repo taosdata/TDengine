@@ -86,6 +86,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
+static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq);
 static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pRsp);
 static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp);
 
@@ -126,6 +127,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -601,37 +603,77 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
 }
 
 static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-dnode-obj");
+  int32_t       code = 0, lino = 0;
+  SDnodeInfoReq infoReq = {0};
+  int32_t       contLen = 0;
+  void         *pReq = NULL;
+
+  infoReq.dnodeId = pDnode->id;
+  tstrncpy(infoReq.machineId, pDnode->machineId, TSDB_MACHINE_ID_LEN + 1);
+
+  if ((contLen = tSerializeSDnodeInfoReq(NULL, 0, &infoReq)) <= 0) {
+    TAOS_RETURN(contLen);
+  }
+  pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  (void)tSerializeSDnodeInfoReq(pReq, contLen, &infoReq);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPDATE_DNODE_INFO, .pCont = pReq, .contLen = contLen};
+  TAOS_CHECK_EXIT(tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg));
+_exit:
+  if (code < 0) {
+    mError("dnode:%d, failed to update dnode info since %s", pDnode->id, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
+  int32_t       code = 0, lino = 0;
+  SMnode       *pMnode = pReq->info.node;
+  SDnodeInfoReq infoReq = {0};
+  SDnodeObj    *pDnode = NULL;
+  STrans       *pTrans = NULL;
+
+  TAOS_CHECK_EXIT(tDeserializeSDnodeInfoReq(pReq->pCont, pReq->contLen, &infoReq));
+
+  pDnode = mndAcquireDnode(pMnode, infoReq.dnodeId);
+  if (pDnode == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-dnode-obj");
   if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _exit;
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pDnode->updateTime = taosGetTimestampMs();
 
   SSdbRaw *pCommitRaw = mndDnodeActionEncode(pDnode);
   if (pCommitRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _exit;
+    TAOS_CHECK_EXIT(terrno);
   }
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    sdbFreeRaw(pCommitRaw);
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
-    code = terrno;
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
-    goto _exit;
+    TAOS_CHECK_EXIT(code);
   }
 
 _exit:
+  mndReleaseDnode(pMnode, pDnode);
+  if (code != 0) {
+    mError("dnode:%d, failed to update dnode info at line %d since %s", infoReq.dnodeId, lino, tstrerror(code));
+  }
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
