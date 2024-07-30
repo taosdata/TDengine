@@ -2300,21 +2300,29 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
   }
 
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
-  void*         tmp = taosArrayPush(pTableList->pTableList, &keyInfo);
+  void*         p = taosHashGet(pTableList->map, &uid, sizeof(uid));
+  if (p != NULL) {
+    qInfo("table:%" PRId64 " already in tableIdList, ignore it", uid);
+    goto _end;
+  }
+
+  void* tmp = taosArrayPush(pTableList->pTableList, &keyInfo);
   QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
   code = taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
-  if (code == TSDB_CODE_DUP_KEY) {
-    code = TSDB_CODE_SUCCESS;
+  if (code != TSDB_CODE_SUCCESS) {
+    ASSERT(code != TSDB_CODE_DUP_KEY);  // we have checked the existence of uid in hash map above
+    taosArrayPopTailBatch(pTableList->pTableList, 1);  // let's pop the last element in the array list
   }
-  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  } else {
+    qDebug("uid:%" PRIu64 ", groupId:%" PRIu64 " added into table list, slot:%d, total:%d", uid, gid, slot, slot + 1);
   }
-  qDebug("uid:%" PRIu64 ", groupId:%" PRIu64 " added into table list, slot:%d, total:%d", uid, gid, slot, slot + 1);
+
   return code;
 }
 
