@@ -567,7 +567,7 @@ async fn poll_message(
                         };
                     }
                     consumer
-                        .commit_consumer_state(CommitMode::Async)
+                        .commit_consumer_state(CommitMode::Sync)
                         .map_err(|err| {
                             anyhow::anyhow!("failed to commit consumer state, cause: {:#}", err)
                         })?;
