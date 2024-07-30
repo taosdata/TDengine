@@ -55,7 +55,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
     TAOS_CHECK_GOTO(tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0), &lino, _exit);
   } else {
     char fname1[TSDB_FILENAME_LEN];
-    tsdbTFileName(config->tsdb, config->file, fname1);
+    (void)tsdbTFileName(config->tsdb, config->file, fname1);
     TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0), &lino, _exit);
   }
 
@@ -91,7 +91,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(config->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
-    tsdbSttFileReaderClose(reader);
+    (void)tsdbSttFileReaderClose(reader);
   }
   return code;
 }
@@ -507,7 +507,7 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
     if (sttBlk->maxVer < blockData->aVersion[iRow]) sttBlk->maxVer = blockData->aVersion[iRow];
   }
 
-  tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
+  (void)tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
   TAOS_CHECK_RETURN(tBlockDataCompress(blockData, info, buffers, buffers + 4));
 
   sttBlk->bInfo.offset = *fileSize;
@@ -790,7 +790,7 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
   char    fname[TSDB_FILENAME_LEN];
 
-  tsdbTFileName(writer->config->tsdb, writer->file, fname);
+  (void)tsdbTFileName(writer->config->tsdb, writer->file, fname);
   TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, 0), &lino, _exit);
 
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};
@@ -860,7 +860,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
       .fid = writer->config->fid,
       .nf = writer->file[0],
   };
-  tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
+  (void)tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
 
   TAOS_CHECK_GOTO(TARRAY2_APPEND(opArray, op), &lino, _exit);
 
@@ -874,7 +874,7 @@ _exit:
 
 static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
   char fname[TSDB_FILENAME_LEN];
-  tsdbTFileName(writer->config->tsdb, writer->file, fname);
+  (void)tsdbTFileName(writer->config->tsdb, writer->file, fname);
   tsdbCloseFile(&writer->fd);
   (void)taosRemoveFile(fname);
   return 0;

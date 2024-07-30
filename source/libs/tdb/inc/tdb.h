@@ -48,7 +48,7 @@ int32_t tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyC
                   int8_t rollback);
 int32_t tdbTbClose(TTB *pTb);
 bool    tdbTbExist(const char *tbname, TDB *pEnv);
-int     tdbTbDropByName(const char *tbname, TDB *pEnv, TXN* pTxn);
+int     tdbTbDropByName(const char *tbname, TDB *pEnv, TXN *pTxn);
 int32_t tdbTbDrop(TTB *pTb);
 int32_t tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn);
 int32_t tdbTbDelete(TTB *pTb, const void *pKey, int kLen, TXN *pTxn);
@@ -80,10 +80,10 @@ int32_t tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, i
 int32_t tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *),
                    void *xArg, int flags);
 int32_t tdbTxnCloseImpl(TXN *pTxn);
-#define tdbTxnClose(pTxn)  \
-  do {                     \
-    tdbTxnCloseImpl(pTxn); \
-    (pTxn) = NULL;         \
+#define tdbTxnClose(pTxn)        \
+  do {                           \
+    (void)tdbTxnCloseImpl(pTxn); \
+    (pTxn) = NULL;               \
   } while (0)
 
 // other

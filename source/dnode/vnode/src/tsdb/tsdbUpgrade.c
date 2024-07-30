@@ -79,7 +79,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
 
     // open fd
     char fname[TSDB_FILENAME_LEN];
-    tsdbTFileName(tsdb, &file, fname);
+    (void)tsdbTFileName(tsdb, &file, fname);
 
     TAOS_CHECK_GOTO(tsdbOpenFile(fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd, 0), &lino, _exit);
 
@@ -321,7 +321,7 @@ static int32_t tsdbUpgradeStt(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *r
   if (TARRAY2_SIZE(lvl->fobjArr) > 0) {
     TAOS_CHECK_GOTO(TARRAY2_APPEND(fset->lvlArr, lvl), &lino, _exit);
   } else {
-    tsdbSttLvlClear(&lvl);
+    (void)tsdbSttLvlClear(&lvl);
   }
 
 _exit:
@@ -358,7 +358,7 @@ static int32_t tsdbUpgradeFileSet(STsdb *tsdb, SDFileSet *pDFileSet, TFileSetArr
     TAOS_CHECK_GOTO(tsdbUpgradeStt(tsdb, pDFileSet, reader, fset), &lino, _exit);
   }
 
-  tsdbDataFReaderClose(&reader);
+  (void)tsdbDataFReaderClose(&reader);
 
   TAOS_CHECK_GOTO(TARRAY2_APPEND(fileSetArray, fset), &lino, _exit);
 
@@ -570,7 +570,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
-  tsdbDelFReaderClose(&reader);
+  (void)tsdbDelFReaderClose(&reader);
   taosArrayDestroy(aDelIdx);
   return code;
 }
@@ -612,7 +612,7 @@ static int32_t tsdbUpgradeFileSystem(STsdb *tsdb, int8_t rollback) {
 
   // save new file system
   char fname[TSDB_FILENAME_LEN];
-  current_fname(tsdb, fname, TSDB_FCURRENT);
+  (void)current_fname(tsdb, fname, TSDB_FCURRENT);
   TAOS_CHECK_GOTO(save_fs(fileSetArray, fname), &lino, _exit);
 
 _exit:

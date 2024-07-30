@@ -127,7 +127,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     if (pNodeRetentions == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    tjsonAddItemToObject(pJson, "retentions", pNodeRetentions);
+    TAOS_CHECK_RETURN(tjsonAddItemToObject(pJson, "retentions", pNodeRetentions));
     for (int32_t i = 0; i < nRetention; ++i) {
       SJson            *pNodeRetention = tjsonCreateObject();
       const SRetention *pRetention = pCfg->tsdbCfg.retentions + i;
@@ -353,7 +353,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (info == NULL) return -1;
     tjsonGetNumberValue(info, "nodePort", pNode->nodePort, code);
     if (code) return code;
-    tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
+    (void)tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
     tjsonGetNumberValue(info, "nodeId", pNode->nodeId, code);
     if (code) return code;
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);

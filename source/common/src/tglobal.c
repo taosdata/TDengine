@@ -396,8 +396,9 @@ struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
-  char cfgDir[PATH_MAX] = {0};
-  char cfgFile[PATH_MAX + 100] = {0};
+  int32_t code = 0;
+  char    cfgDir[PATH_MAX] = {0};
+  char    cfgFile[PATH_MAX + 100] = {0};
 
   TAOS_CHECK_RETURN(taosExpandDir(inputCfgDir, cfgDir, PATH_MAX));
   char  lastC = cfgDir[strlen(cfgDir) - 1];
@@ -424,32 +425,32 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
   }
 
   if (apolloUrl != NULL && apolloUrl[0] == '\0') {
-    TAOS_CHECK_RETURN(cfgGetApollUrl(envCmd, envFile, apolloUrl));
+    (void)(cfgGetApollUrl(envCmd, envFile, apolloUrl));
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
-    uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  if ((code = cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl)) != 0) {
+    uError("failed to load from apollo url:%s since %s", apolloUrl, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
-    uError("failed to load from cfg file:%s since %s", cfgFile, terrstr());
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  if ((code = cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile)) != 0) {
+    uError("failed to load from cfg file:%s since %s", cfgFile, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile) != 0) {
-    uError("failed to load from env file:%s since %s", envFile, terrstr());
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile)) != 0) {
+    uError("failed to load from env file:%s since %s", envFile, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_ENV_VAR, NULL) != 0) {
-    uError("failed to load from global env variables since %s", terrstr());
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_VAR, NULL)) != 0) {
+    uError("failed to load from global env variables since %s", tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_ENV_CMD, envCmd) != 0) {
-    uError("failed to load from cmd env variables since %s", terrstr());
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  if ((code = cfgLoad(pCfg, CFG_STYPE_ENV_CMD, envCmd)) != 0) {
+    uError("failed to load from cmd env variables since %s", tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1280,12 +1281,12 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   }
 
   if ((code = taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl)) != TSDB_CODE_SUCCESS) {
-    printf("failed to load cfg since %s", tstrerror(code));
+    printf("failed to load cfg since %s\n", tstrerror(code));
     goto _exit;
   }
 
   if ((code = cfgLoadFromArray(pCfg, pArgs)) != TSDB_CODE_SUCCESS) {
-    printf("failed to load cfg from array since %s", tstrerror(code));
+    printf("failed to load cfg from array since %s\n", tstrerror(code));
     goto _exit;
   }
 
@@ -1302,12 +1303,12 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   TAOS_CHECK_RETURN(taosSetAllDebugFlag(pCfg, pDebugItem->i32));
 
   if ((code = taosMulModeMkDir(tsLogDir, 0777, true)) != TSDB_CODE_SUCCESS) {
-    printf("failed to create dir:%s since %s", tsLogDir, tstrerror(code));
+    printf("failed to create dir:%s since %s\n", tsLogDir, tstrerror(code));
     goto _exit;
   }
 
   if ((code = taosInitLog(logname, logFileNum)) != 0) {
-    printf("failed to init log file since %s", terrstr());
+    printf("failed to init log file since %s\n", tstrerror(code));
     goto _exit;
   }
 
@@ -1329,12 +1330,12 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
   if (cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
 
   if ((code = taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
-    printf("failed to load cfg since %s", terrstr());
+    printf("failed to load cfg since %s\n", tstrerror(code));
     goto _exit;
   }
 
   if ((code = cfgLoadFromArray(pCfg, pArgs)) != 0) {
-    printf("failed to load cfg from array since %s", terrstr());
+    printf("failed to load cfg from array since %s\n", tstrerror(code));
     goto _exit;
   }
 

@@ -68,7 +68,7 @@ bool tdSTSRowIterFetch(STSRowIter *pIter, col_id_t colId, col_type_t colType, SC
         return false;
       }
     }
-    tdSTSRowIterGetTpVal(pIter, pCol->type, pCol->offset, pVal);
+    (void)tdSTSRowIterGetTpVal(pIter, pCol->type, pCol->offset, pVal);
     ++pIter->colIdx;
   } else if (TD_IS_KV_ROW(pIter->pRow)) {
     return tdSTSRowIterGetKvVal(pIter, colId, &pIter->kvIdx, pVal);

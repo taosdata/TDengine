@@ -44,7 +44,7 @@ static int32_t tsdbFSetWriteTableDataBegin(SFSetWriter *writer, const TABLEID *t
   writer->ctx->tbid->uid = tbid->uid;
 
   code = tsdbUpdateSkmTb(writer->config->tsdb, writer->ctx->tbid, writer->skmTb);
-  TSDB_CHECK_CODE(code , lino, _exit);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, tbid->suid ? tbid->suid : tbid->uid, &writer->pColCmprObj);
   // TODO: TSDB_CHECK_CODE(code, lino, _exit);

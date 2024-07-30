@@ -116,7 +116,7 @@ static FORCE_INLINE int32_t tarray2SortInsert(void *arr, const void *elePtr, int
     if ((cb) && (a)->size > 0) {                \
       TArray2Cb cb_ = (TArray2Cb)(cb);          \
       for (int32_t i = 0; i < (a)->size; ++i) { \
-        cb_((a)->data + i);                     \
+        (void)cb_((a)->data + i);               \
       }                                         \
     }                                           \
     (a)->size = 0;                              \

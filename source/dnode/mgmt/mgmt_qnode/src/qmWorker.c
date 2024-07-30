@@ -23,7 +23,7 @@ static inline void qmSendRsp(SRpcMsg *pMsg, int32_t code) {
       .contLen = pMsg->info.rspLen,
       .info = pMsg->info,
   };
-  tmsgSendRsp(&rsp);
+  (void)tmsgSendRsp(&rsp);
 }
 
 static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
@@ -43,8 +43,7 @@ static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
 static int32_t qmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
   dTrace("msg:%p, put into worker %s, type:%s", pMsg, pWorker->name, TMSG_INFO(pMsg->msgType));
-  taosWriteQitem(pWorker->queue, pMsg);
-  return 0;
+  return taosWriteQitem(pWorker->queue, pMsg);
 }
 
 int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -69,18 +68,18 @@ int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   switch (qtype) {
     case QUERY_QUEUE:
       dTrace("msg:%p, is created and will put into qnode-query queue, len:%d", pMsg, pRpc->contLen);
-      taosWriteQitem(pMgmt->queryWorker.queue, pMsg);
-      return 0;
+      code = taosWriteQitem(pMgmt->queryWorker.queue, pMsg);
+      return code;
     case READ_QUEUE:
     case FETCH_QUEUE:
       dTrace("msg:%p, is created and will put into qnode-fetch queue, len:%d", pMsg, pRpc->contLen);
-      taosWriteQitem(pMgmt->fetchWorker.queue, pMsg);
-      return 0;
+      code = taosWriteQitem(pMgmt->fetchWorker.queue, pMsg);
+      return code;
     default:
       terrno = TSDB_CODE_INVALID_PARA;
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
-      return -1;
+      return terrno;
   }
 }
 

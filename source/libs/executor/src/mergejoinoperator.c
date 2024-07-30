@@ -308,12 +308,9 @@ int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo
     }
   }
 
-  extractQualifiedTupleByFilterResult(pBlock, p, status);
-
-  code = TSDB_CODE_SUCCESS;
+  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
 
 _err:
-
   colDataDestroy(p);
   taosMemoryFree(p);
   
@@ -375,12 +372,9 @@ int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SM
     }
   } 
   
-  extractQualifiedTupleByFilterResult(pBlock, p, status);
-
-  code = TSDB_CODE_SUCCESS;
+  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
 
 _return:
-
   colDataDestroy(p);
   taosMemoryFree(p);
   

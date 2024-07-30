@@ -46,7 +46,7 @@ int32_t smaInit() {
     old = atomic_val_compare_exchange_8(&smaMgmt.inited, 0, 2);
     if (old != 2) break;
     if (++nLoops > 1000) {
-      sched_yield();
+      (void)sched_yield();
       nLoops = 0;
     }
   }
@@ -69,7 +69,7 @@ int32_t smaInit() {
 
     if (!smaMgmt.refHash || !smaMgmt.tmrHandle) {
       code = terrno;
-      taosCloseRef(smaMgmt.rsetId);
+      (void)taosCloseRef(smaMgmt.rsetId);
       if (smaMgmt.refHash) {
         taosHashCleanup(smaMgmt.refHash);
         smaMgmt.refHash = NULL;
@@ -97,7 +97,7 @@ void smaCleanUp() {
     old = atomic_val_compare_exchange_8(&smaMgmt.inited, 1, 2);
     if (old != 2) break;
     if (++nLoops > 1000) {
-      sched_yield();
+      (void)sched_yield();
       nLoops = 0;
     }
   }
@@ -130,7 +130,7 @@ static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
                                         : atomic_store_ptr(&SMA_RSMA_ENV(pSma), *ppEnv);
 
   if ((code = tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma)) != TSDB_CODE_SUCCESS) {
-    tdFreeSmaEnv(pEnv);
+    (void)tdFreeSmaEnv(pEnv);
     *ppEnv = NULL;
     (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), NULL)
                                           : atomic_store_ptr(&SMA_RSMA_ENV(pSma), NULL);
@@ -179,7 +179,7 @@ static void tRSmaInfoHashFreeNode(void *data) {
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
       (void)taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
     }
-    tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo);
+    (void)tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo);
   }
 }
 
@@ -207,7 +207,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       SRSmaStat *pRSmaStat = (SRSmaStat *)(*pSmaStat);
       pRSmaStat->pSma = (SSma *)pSma;
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
-      tsem_init(&pRSmaStat->notEmpty, 0, 0);
+      (void)tsem_init(&pRSmaStat->notEmpty, 0, 0);
       if (!(pRSmaStat->blocks = taosArrayInit(1, sizeof(SSDataBlock)))) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -216,7 +216,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       (void)taosArrayPush(pRSmaStat->blocks, &datablock);
 
       // init smaMgmt
-      smaInit();
+      TAOS_CHECK_GOTO(smaInit(), &lino, _exit);
 
       int64_t refId = taosAddRef(smaMgmt.rsetId, pRSmaStat);
       if (refId < 0) {
@@ -285,20 +285,20 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     }
 
     // step 3:
-    tdRsmaStopExecutor(pSma);
+    (void)tdRsmaStopExecutor(pSma);
 
     // step 4: destroy the rsma info and associated fetch tasks
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
     // step 5: free pStat
-    tsem_destroy(&(pStat->notEmpty));
+    (void)tsem_destroy(&(pStat->notEmpty));
     taosArrayDestroy(pStat->blocks);
     taosMemoryFreeClear(pStat);
   }
 }
 
 static void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
-  tdDestroySmaState(pSmaStat, smaType);
+  (void)tdDestroySmaState(pSmaStat, smaType);
   if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
     taosMemoryFreeClear(pSmaStat);
   }
@@ -438,7 +438,7 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
     pthread = (TdThread *)&pStat->data;
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
-      tsem_post(&(pRSmaStat->notEmpty));
+      (void)tsem_post(&(pRSmaStat->notEmpty));
     }
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
