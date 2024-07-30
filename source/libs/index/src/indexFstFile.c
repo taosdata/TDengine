@@ -275,7 +275,7 @@ IdxFstFile* idxFileCreate(void* wrt) {
   return cw;
 }
 void idxFileDestroy(IdxFstFile* cw) {
-  idxFileFlush(cw);
+  (void)idxFileFlush(cw);
   taosMemoryFree(cw);
 }
 
@@ -314,7 +314,7 @@ uint32_t idxFileMaskedCheckSum(IdxFstFile* write) {
 
 int idxFileFlush(IdxFstFile* write) {
   IFileCtx* ctx = write->wrt;
-  ctx->flush(ctx);
+  (void)(ctx->flush(ctx));
   return 1;
 }
 
@@ -324,7 +324,7 @@ void idxFilePackUintIn(IdxFstFile* writer, uint64_t n, uint8_t nBytes) {
     buf[i] = (uint8_t)n;
     n = n >> 8;
   }
-  idxFileWrite(writer, buf, nBytes);
+  (void)idxFileWrite(writer, buf, nBytes);
   taosMemoryFree(buf);
   return;
 }

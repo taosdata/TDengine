@@ -1673,7 +1673,7 @@ void transCloseServer(void* arg) {
       destroyWorkThrd(srv->pThreadObj[i]);
     }
   } else {
-    uv_loop_close(srv->loop);
+    (void)uv_loop_close(srv->loop);
   }
 
   taosMemoryFree(srv->pThreadObj);
