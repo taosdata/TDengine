@@ -546,6 +546,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py
@@ -725,6 +727,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
@@ -823,6 +826,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
@@ -920,6 +924,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
