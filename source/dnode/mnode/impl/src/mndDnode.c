@@ -636,6 +636,7 @@ static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
   SDnodeInfoReq infoReq = {0};
   SDnodeObj    *pDnode = NULL;
   STrans       *pTrans = NULL;
+  SSdbRaw      *pCommitRaw = NULL;
 
   TAOS_CHECK_EXIT(tDeserializeSDnodeInfoReq(pReq->pCont, pReq->contLen, &infoReq));
 
@@ -651,16 +652,15 @@ static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
 
   pDnode->updateTime = taosGetTimestampMs();
 
-  SSdbRaw *pCommitRaw = mndDnodeActionEncode(pDnode);
-  if (pCommitRaw == NULL) {
+  if ((pCommitRaw = mndDnodeActionEncode(pDnode)) == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-    sdbFreeRaw(pCommitRaw);
     mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
     TAOS_CHECK_EXIT(code);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  pCommitRaw = NULL;
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
@@ -673,6 +673,7 @@ _exit:
     mError("dnode:%d, failed to update dnode info at line %d since %s", infoReq.dnodeId, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
+  sdbFreeRaw(pCommitRaw);
   TAOS_RETURN(code);
 }
 
