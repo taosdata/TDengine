@@ -323,7 +323,6 @@ END:
   tdbFree(pKey);
   tdbFree(pVal);
   (void)tdbTbcClose(pCur);
-  tdbAbort(pMetaDB, txn);
   return code;
 }
 
