@@ -9238,18 +9238,17 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   return false;
 }
 
-int32_t tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
+void tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   tOffsetDestroy(pLeft);
   *pLeft = *pRight;
   if (IS_VAR_DATA_TYPE(pRight->primaryKey.type)) {
     pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData);
     if (pLeft->primaryKey.pData == NULL) {
       uError("failed to allocate memory for offset");
-      return terrno;
+      return;
     }
     (void)memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
   }
-  return 0;
 }
 
 void tOffsetDestroy(void *param) {
