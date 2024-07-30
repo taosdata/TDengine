@@ -40,15 +40,19 @@ class TDTestCase:
         
         tdSql.query(f"select 1 in (2, null)")  
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, False)
-        
+        tdSql.checkData(0, 0, False)   # 1 not in (2, null) is NULL?
+ 
+        tdSql.query(f"select 1 not in (1, null)")  
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, False) 
+               
         tdSql.query(f"select 1 not in (2, null)")  
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True) 
+        tdSql.checkData(0, 0, True)    # 1 not in (2, null) is NULL?
         
         tdSql.query(f"select 1 not in (null)")  
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)
+        tdSql.checkData(0, 0, True)    # 1 not in (null) is NULL?
                
         tdSql.execute(f'''create table {dbname}.stb(ts timestamp, col1 int, col2 nchar(20)) tags(loc nchar(20))''')
         tdSql.execute(f"create table {dbname}.stb_1 using {dbname}.stb tags('beijing')")
