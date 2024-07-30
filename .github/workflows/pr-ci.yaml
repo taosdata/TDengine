@@ -206,7 +206,8 @@ jobs:
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
           echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
-          # TODO 激活 taosd
+          # 激活 taosd
+          docker exec $run_container_id bash -c 'taos -s "show cluster machines;"' | awk 'NR==7' > test && cluster_id=$(awk '{print $1}' test) && machines=$(awk '{print $5}' test) && sql=$(ssh root@192.168.2.13 "cd /data/common/activation-code; ./generateActivationCode.sh $cluster_id $machines" | grep Command | awk -F ":" '{print $2}' | sed 's/^[ \t]*//;s/[ \t]*$//') && docker exec $run_container_id bash -c "taos -s $sql"
 
       - name: run taosx & taosx-agent in container
         run: |
@@ -215,7 +216,7 @@ jobs:
           docker exec -it ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
           docker exec -it ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
 
-      - name: Deploy windows agent taosx-agent
+      - name: Deploy windows agent
         id: deploy_windows_agent
         run: |
           echo "RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}"
