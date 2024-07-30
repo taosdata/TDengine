@@ -274,6 +274,13 @@ int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
   STaskCheckInfo* pInfo = &pTask->taskCheckInfo;
   taosThreadMutexLock(&pInfo->checkInfoLock);
 
+  ETaskStatus status = streamTaskGetStatus(pTask)->state;
+  if (status != TASK_STATUS__UNINIT) {
+    stDebug("s-task:%s task not in uninit status, not start monitor check-rsp", pTask->id.idStr);
+    taosThreadMutexUnlock(&pInfo->checkInfoLock);
+    return TSDB_CODE_FAILED;
+  }
+
   int32_t code = streamTaskStartCheckDownstream(pInfo, pTask->id.idStr);
   if (code != TSDB_CODE_SUCCESS) {
     taosThreadMutexUnlock(&pInfo->checkInfoLock);
