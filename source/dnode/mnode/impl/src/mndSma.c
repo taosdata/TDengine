@@ -1760,14 +1760,14 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt* pCxt) {
   SDbObj newDb = {0};
   memcpy(&newDb, pCxt->pDb, sizeof(SDbObj));
   newDb.tsmaVersion++;
-  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionPrepareLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionCommitLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSmaRedoLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSmaUndoLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransAppendRedoAction(pTrans, &createStreamRedoAction), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransAppendUndoAction(pTrans, &createStreamUndoAction), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransAppendUndoAction(pTrans, &dropStbUndoAction), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionPrepareLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionCommitLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pCxt->pMnode, pTrans), NULL, _OVER);
 
   code = TSDB_CODE_SUCCESS;
@@ -2030,12 +2030,12 @@ static int32_t mndDropTSMA(SCreateTSMACxt* pCxt) {
   SDbObj newDb = {0};
   memcpy(&newDb, pCxt->pDb, sizeof(SDbObj));
   newDb.tsmaVersion++;
-  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionPrepareLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionCommitLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetDropSmaRedoLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetDropSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransAppendRedoAction(pTrans, &dropStreamRedoAction), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransAppendRedoAction(pTrans, &dropStbRedoAction), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionPrepareLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionCommitLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pCxt->pMnode, pTrans), NULL, _OVER);
   code = TSDB_CODE_SUCCESS;
 _OVER:
@@ -2450,13 +2450,14 @@ static int32_t mndGetTSMA(SMnode *pMnode, char *tsmaFName, STableTSMAInfoRsp *rs
 typedef bool (*tsmaFilter)(const SSmaObj* pSma, void* param);
 
 static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilter filtered, void* param, bool* exist) {
-  int32_t        code = -1;
+  int32_t        code = 0;
   SSmaObj *      pSma = NULL;
   SSmaObj *      pBaseTsma = NULL;
   SSdb *         pSdb = pMnode->pSdb;
   void *         pIter = NULL;
   SStreamObj *   pStream = NULL;
   SStbObj *      pStb = NULL;
+  bool           shouldRetry = false;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
@@ -2470,6 +2471,7 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
     pStb = mndAcquireStb(pMnode, pSma->dstTbName);
     if (!pStb) {
       sdbRelease(pSdb, pSma);
+      shouldRetry = true;
       continue;
     }
 
@@ -2478,15 +2480,23 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
     code = tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     if (TSDB_CODE_SUCCESS != code) {
       sdbRelease(pSdb, pSma);
+      mndReleaseStb(pMnode, pStb);
       TAOS_RETURN(code);
     }
     sprintf(streamName, "%d.%s", smaName.acctId, smaName.tname);
     pStream = NULL;
 
     code = mndAcquireStream(pMnode, streamName, &pStream);
-    if (!pStream || (code != 0)) {
+    if (!pStream) {
+      shouldRetry = true;
       sdbRelease(pSdb, pSma);
+      mndReleaseStb(pMnode, pStb);
       continue;
+    }
+    if (code != 0) {
+      sdbRelease(pSdb, pSma);
+      mndReleaseStb(pMnode, pStb);
+      TAOS_RETURN(code);
     }
 
     int64_t streamId = pStream->uid;
@@ -2521,6 +2531,9 @@ static int32_t mndGetSomeTsmas(SMnode* pMnode, STableTSMAInfoRsp* pRsp, tsmaFilt
       TAOS_RETURN(code);
     }
     *exist = true;
+  }
+  if (shouldRetry) {
+    return TSDB_CODE_NEED_RETRY;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2562,6 +2575,9 @@ static int32_t mndProcessGetTbTSMAReq(SRpcMsg *pReq) {
     code = mndGetTSMA(pMnode, tsmaReq.name, &rsp, &exist);
   } else {
     code = mndGetTableTSMA(pMnode, tsmaReq.name, &rsp, &exist);
+    if (TSDB_CODE_NEED_RETRY == code) {
+      code = TSDB_CODE_SUCCESS;
+    }
   }
   if (code) {
     goto _OVER;

@@ -361,7 +361,7 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
   } else {
     rsp.pCont = rpcMallocCont(contLen);
     if (rsp.pCont != NULL) {
-      tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp);
+      (void)tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp);
       rsp.contLen = contLen;
     }
   }
