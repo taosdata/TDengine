@@ -1332,7 +1332,7 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
     code = tjsonToObject(pJson, jkInterpFuncLogicPlanFillValues, jsonToNode, pNode->pFillValues);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonToObject(pJson, jkInterpFuncLogicPlanTimeSeries, jsonToNode, pNode->pTimeSeries);
+    code = jsonToNodeObject(pJson, jkInterpFuncLogicPlanTimeSeries, &pNode->pTimeSeries);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkInterpFuncLogicPlanStreamNodeOption, jsonToStreamNodeOption, &pNode->streamNodeOption);

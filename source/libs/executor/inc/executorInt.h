@@ -828,6 +828,7 @@ typedef struct SStreamTimeSliceOperatorInfo {
   bool                  destHasPrimaryKey;
   SArray*               historyPoints;
   SArray*               pUpdated;  // SWinKey
+  SArray*               historyWins;
   SSHashObj*            pUpdatedMap;
   int32_t               delIndex;
   SArray*               pDelWins;  // SWinKey
@@ -835,6 +836,7 @@ typedef struct SStreamTimeSliceOperatorInfo {
   uint64_t              numOfDatapack;
   SGroupResInfo         groupResInfo;
   bool                  ignoreNull;
+  bool                  isHistoryOp;
 } SStreamTimeSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
@@ -952,56 +954,56 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
 void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
-void     streamOpReleaseState(struct SOperatorInfo* pOperator);
-void     streamOpReloadState(struct SOperatorInfo* pOperator);
-void     destroyStreamAggSupporter(SStreamAggSupporter* pSup);
-void     clearGroupResInfo(SGroupResInfo* pGroupResInfo);
-int32_t  initBasicInfoEx(SOptrBasicInfo* pBasicInfo, SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfCols,
-                         SSDataBlock* pResultBlock, SFunctionStateStore* pStore);
-int32_t  initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, int32_t numOfOutput, int64_t gap,
-                                SStreamState* pState, int32_t keySize, int16_t keyType, SStateStore* pStore,
-                                SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
-                                SStorageAPI* pApi, int32_t tsIndex);
-int32_t  initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type,
-                        int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic);
-int32_t  getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
-void     initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
-void     getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);
-int32_t  deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
-                               SSHashObj* pMapDelete, SSHashObj* pPkDelete, bool needAdd);
-int32_t  getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated);
-int32_t  closeSessionWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SSHashObj* pClosed);
-int32_t  copyUpdateResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar);
-int32_t  sessionKeyCompareAsc(const void* pKey1, const void* pKey2);
-void     removeSessionDeleteResults(SSHashObj* pHashMap, SArray* pWins);
-int32_t  doOneWindowAggImpl(SColumnInfoData* pTimeWindowData, SResultWindowInfo* pCurWin, SResultRow** pResult,
-                            int32_t startIndex, int32_t winRows, int32_t rows, int32_t numOutput,
-                            struct SOperatorInfo* pOperator, int64_t winDelta);
-void     setSessionWinOutputInfo(SSHashObj* pStUpdated, SResultWindowInfo* pWinInfo);
-int32_t  saveSessionOutputBuf(SStreamAggSupporter* pAggSup, SResultWindowInfo* pWinInfo);
-int32_t  saveResult(SResultWindowInfo winInfo, SSHashObj* pStUpdated);
-int32_t  saveDeleteRes(SSHashObj* pStDelete, SSessionKey key);
-void     removeSessionResult(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SSHashObj* pResMap, SSessionKey* pKey);
-void     doBuildDeleteDataBlock(struct SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite);
-void     doBuildSessionResult(struct SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo,
-                              SSDataBlock* pBlock);
-int32_t  getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo);
-void     getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* pStUpdated, SResultWindowInfo* pCurWin,
-                               SResultWindowInfo* pNextWin);
-int32_t  compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwAggSup,
-                           SExecTaskInfo* pTaskInfo, SResultWindowInfo* pCurWin, SResultWindowInfo* pNextWin,
-                           SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool addGap);
-void     releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
-void     resetWinRange(STimeWindow* winRange);
-bool     checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId,
-                          TSKEY ts, void* pPkVal, int32_t len);
-int64_t  getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
-void     resetUnCloseSessionWinInfo(SSHashObj* winMap);
-void     setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
-void     reloadAggSupFromDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup);
-void     destroyFlusedPos(void* pRes);
-bool     isIrowtsPseudoColumn(SExprInfo* pExprInfo);
-bool     isIsfilledPseudoColumn(SExprInfo* pExprInfo);
+void    streamOpReleaseState(struct SOperatorInfo* pOperator);
+void    streamOpReloadState(struct SOperatorInfo* pOperator);
+void    destroyStreamAggSupporter(SStreamAggSupporter* pSup);
+void    clearGroupResInfo(SGroupResInfo* pGroupResInfo);
+int32_t initBasicInfoEx(SOptrBasicInfo* pBasicInfo, SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfCols,
+                        SSDataBlock* pResultBlock, SFunctionStateStore* pStore);
+int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, int32_t numOfOutput, int64_t gap,
+                               SStreamState* pState, int32_t keySize, int16_t keyType, SStateStore* pStore,
+                               SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
+                               SStorageAPI* pApi, int32_t tsIndex);
+int32_t initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type,
+                       int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic);
+int32_t getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
+void    initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
+void    getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);
+int32_t deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
+                              SSHashObj* pMapDelete, SSHashObj* pPkDelete, bool needAdd);
+int32_t getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated);
+int32_t closeSessionWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SSHashObj* pClosed);
+int32_t copyUpdateResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar);
+int32_t sessionKeyCompareAsc(const void* pKey1, const void* pKey2);
+void    removeSessionDeleteResults(SSHashObj* pHashMap, SArray* pWins);
+int32_t doOneWindowAggImpl(SColumnInfoData* pTimeWindowData, SResultWindowInfo* pCurWin, SResultRow** pResult,
+                           int32_t startIndex, int32_t winRows, int32_t rows, int32_t numOutput,
+                           struct SOperatorInfo* pOperator, int64_t winDelta);
+void    setSessionWinOutputInfo(SSHashObj* pStUpdated, SResultWindowInfo* pWinInfo);
+int32_t saveSessionOutputBuf(SStreamAggSupporter* pAggSup, SResultWindowInfo* pWinInfo);
+int32_t saveResult(SResultWindowInfo winInfo, SSHashObj* pStUpdated);
+int32_t saveDeleteRes(SSHashObj* pStDelete, SSessionKey key);
+void    removeSessionResult(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SSHashObj* pResMap, SSessionKey* pKey);
+void    doBuildDeleteDataBlock(struct SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite);
+void    doBuildSessionResult(struct SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo,
+                             SSDataBlock* pBlock);
+int32_t getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo);
+void    getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* pStUpdated, SResultWindowInfo* pCurWin,
+                              SResultWindowInfo* pNextWin);
+int32_t compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwAggSup,
+                          SExecTaskInfo* pTaskInfo, SResultWindowInfo* pCurWin, SResultWindowInfo* pNextWin,
+                          SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool addGap);
+void    releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
+void    resetWinRange(STimeWindow* winRange);
+bool    checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId,
+                         TSKEY ts, void* pPkVal, int32_t len);
+int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
+void    resetUnCloseSessionWinInfo(SSHashObj* winMap);
+void    setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
+void    reloadAggSupFromDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup);
+void    destroyFlusedPos(void* pRes);
+bool    isIrowtsPseudoColumn(SExprInfo* pExprInfo);
+bool    isIsfilledPseudoColumn(SExprInfo* pExprInfo);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);

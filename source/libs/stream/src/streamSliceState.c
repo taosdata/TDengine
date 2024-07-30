@@ -30,6 +30,7 @@ int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
 int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen) {
   int32_t winCode = TSDB_CODE_SUCCESS;
   int32_t code = getRowBuff(pFileState, (void*)pKey, sizeof(SWinKey), pVal, pVLen, &winCode);
+
   SArray*    pWinStates = NULL;
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
   void**     ppBuff = tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
@@ -39,16 +40,18 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     pWinStates = taosArrayInit(16, sizeof(SWinKey));
     tSimpleHashPut(pSearchBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
   }
+
+  //recover
   if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pFileState)) {
     TSKEY ts = getFlushMark(pFileState);
     SWinKey start = {.groupId = pKey->groupId, .ts = INT64_MAX};
     void* pState = getStateFileStore(pFileState);
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, &start);
-    int32_t code = TSDB_CODE_SUCCESS;
-    for(int32_t i = 0; i < NUM_OF_FLUSED_WIN && code == TSDB_CODE_SUCCESS; i++) {
+    int32_t winCode = TSDB_CODE_SUCCESS;
+    for(int32_t i = 0; i < NUM_OF_FLUSED_WIN && winCode == TSDB_CODE_SUCCESS; i++) {
       SWinKey tmp = {.groupId = pKey->groupId};
-      code = streamStateGetGroupKVByCur_rocksdb(pCur, &tmp, NULL, 0);
-      if (code != TSDB_CODE_SUCCESS) {
+      winCode = streamStateGetGroupKVByCur_rocksdb(pCur, &tmp, NULL, 0);
+      if (winCode != TSDB_CODE_SUCCESS) {
         break;
       }
       taosArrayPush(pWinStates, &tmp);
@@ -65,7 +68,10 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     if (index == -1) {
       index = 0;
     }
-    taosArrayInsert(pWinStates, index, pKey);
+    SWinKey* pTmpKey = taosArrayGet(pWinStates, index);
+    if (winKeyCmprImpl(pTmpKey, pKey) != 0) {
+      taosArrayInsert(pWinStates, index, pKey);
+    }
   }
   return code;
 }
@@ -161,5 +167,27 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     return getHashSortRowBuff(pFileState, pResKey, pVal, pVLen);
   }
   return TSDB_CODE_FAILED;
+}
+
+void deleteHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey) {
+  deleteRowBuff(pFileState, pKey, sizeof(SWinKey));
+  SSHashObj* pSearchBuff = getSearchBuff(pFileState);
+  void**     ppBuff = tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
+  if (!ppBuff) {
+    return;
+  }
+  SArray* pWinStates = *ppBuff;
+  int32_t size = taosArrayGetSize(pWinStates);
+  if (!isFlushedState(pFileState, pKey->ts, 0)) {
+    // find the first position which is smaller than the pKey
+    int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
+    if (index == -1) {
+      index = 0;
+    }
+    SWinKey* pTmpKey = taosArrayGet(pWinStates, index);
+    if (winKeyCmprImpl(pTmpKey, pKey) == 0) {
+      taosArrayRemove(pWinStates, index);
+    }
+  }
 }
 

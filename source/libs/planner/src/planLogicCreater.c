@@ -961,6 +961,8 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
     pInterpFunc->interval = ((SValueNode*)pSelect->pEvery)->datum.i;
+    pInterpFunc->intervalUnit = ((SValueNode*)pSelect->pEvery)->unit;
+    pInterpFunc->precision = pSelect->precision;
   }
 
   // set the output

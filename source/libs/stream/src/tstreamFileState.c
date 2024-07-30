@@ -574,7 +574,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
   if (!isDeteled(pFileState, ts) && isFlushedState(pFileState, ts, 0)) {
     int32_t len = 0;
     void*   p = NULL;
-    (*pWinCode) = pFileState->stateFileGetFn(pFileState->pFileStore, pKey, &p, &len);
+    (*pWinCode) = pFileState->stateFileGetFn(pFileState, pKey, &p, &len);
     qDebug("===stream===get %" PRId64 " from disc, res %d", ts, (*pWinCode));
     if ((*pWinCode) == TSDB_CODE_SUCCESS) {
       memcpy(pNewPos->pRowBuff, p, len);
