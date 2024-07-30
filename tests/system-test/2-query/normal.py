@@ -48,11 +48,11 @@ class TDTestCase:
                
         tdSql.query(f"select 1 not in (2, null)")  
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)    # 1 not in (2, null) is NULL?
+        tdSql.checkData(0, 0, False)    # 1 not in (2, null) is NULL?
         
         tdSql.query(f"select 1 not in (null)")  
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, True)    # 1 not in (null) is NULL?
+        tdSql.checkData(0, 0, False)    # 1 not in (null) is NULL?
                
         tdSql.execute(f'''create table {dbname}.stb(ts timestamp, col1 int, col2 nchar(20)) tags(loc nchar(20))''')
         tdSql.execute(f"create table {dbname}.stb_1 using {dbname}.stb tags('beijing')")
@@ -60,6 +60,8 @@ class TDTestCase:
         
         for i in range(self.rowNum):
             tdSql.execute(f"insert into {dbname}.stb_1 values({self.ts + i + 1}, {i+1}, 'taosdata_{i+1}')" )
+        for i in range(self.rowNum):
+            tdSql.execute(f"insert into {dbname}.stb_2 values({self.ts + i + 1}, {i+1}, 'taosdata_{i+1}')" )
 
         tdSql.query(f"select * from {dbname}.stb_1 where col1 in (1, 2) order by ts")
         tdSql.checkRows(2)
@@ -94,11 +96,36 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)
         
+        tdSql.query(f"select * from {dbname}.stb_1 where col2  not in (1, 'taosdata_1', 3, null) order by ts")
+        tdSql.checkRows(0)
+        
         tdSql.execute(f"insert into {dbname}.stb_1 values({self.ts + self.rowNum + 1}, {self.rowNum+1}, null)" )
+        tdSql.execute(f"insert into {dbname}.stb_2 values({self.ts + self.rowNum + 1}, {self.rowNum+1}, null)" )
+        
         tdSql.query(f"select * from {dbname}.stb_1 where col2 in (1, 'taosdata_1', 3, null) order by ts")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)
-
+        
+        tdSql.query(f"select * from {dbname}.stb_1 where col2 not in (1, 'taosdata_1', 3, null) order by ts")
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select * from {dbname}.stb where loc in ('beijing', null)")
+        tdSql.checkRows(11)
+        
+        tdSql.query(f"select * from {dbname}.stb where loc in ('shanghai', null)")
+        tdSql.checkRows(11)
+        
+        tdSql.query(f"select * from {dbname}.stb where loc in ('shanghai', 'shanghai', null)")
+        tdSql.checkRows(11)
+        
+        tdSql.query(f"select * from {dbname}.stb where loc in ('beijing', 'shanghai', null)")
+        tdSql.checkRows(22)
+        
+        tdSql.query(f"select * from {dbname}.stb where loc not in ('beijing', null)")
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select * from {dbname}.stb where loc not in ('shanghai', 'shanghai', null)")
+        tdSql.checkRows(0)
 
 
     def run(self):
