@@ -57,7 +57,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
-  taosThreadMutexInit(&pTsdb->mutex, NULL);
+  (void)taosThreadMutexInit(&pTsdb->mutex, NULL);
   if (!pKeepCfg) {
     (void)tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {

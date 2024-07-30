@@ -777,7 +777,7 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
       }
       fset->channel = (SVAChannelID){0};
       fset->mergeScheduled = false;
-      tsdbFSSetBlockCommit(fset, false);
+      (void)tsdbFSSetBlockCommit(fset, false);
       fset->channelOpened = false;
     }
   }
@@ -877,7 +877,7 @@ int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
   if (fset) {
     while (fset->blockCommit) {
       fset->numWaitCommit++;
-      taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
+      (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
       fset->numWaitCommit--;
     }
   }
@@ -1163,7 +1163,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
-    tsdbTFileSetRangeClear(&fsr1);
+    (void)tsdbTFileSetRangeClear(&fsr1);
     TARRAY2_DESTROY(fsrArr[0], tsdbTFileSetRangeClear);
     fsrArr[0] = NULL;
   }
@@ -1187,7 +1187,7 @@ int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset) {
       if ((*fset)->taskRunning) {
         (*fset)->numWaitTask++;
 
-        taosThreadCondWait(&(*fset)->beginTask, &tsdb->mutex);
+        (void)taosThreadCondWait(&(*fset)->beginTask, &tsdb->mutex);
 
         (void)tsdbFSGetFSet(tsdb->pFS, fid, fset);
         ASSERT(fset != NULL);

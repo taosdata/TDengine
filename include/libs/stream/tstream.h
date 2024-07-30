@@ -682,13 +682,13 @@ void    streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo);
 // fill-history task
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated);
-int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration);
+void    streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration);
 bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
 
 // checkpoint related
 void    streamTaskGetActiveCheckpointInfo(const SStreamTask* pTask, int32_t* pTransId, int64_t* pCheckpointId);
 int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeCheckpointId);
-int32_t streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId);
+void    streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId);
 bool    streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId);
 void    streamTaskGetTriggerRecvStatus(SStreamTask* pTask, int32_t* pRecved, int32_t* pTotal);
 void    streamTaskInitTriggerDispatchInfo(SStreamTask* pTask);

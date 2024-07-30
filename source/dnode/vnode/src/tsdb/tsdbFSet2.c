@@ -45,7 +45,7 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
     STFileObj *fobj;
     code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj);
     if (code) {
-      tsdbSttLvlClear(lvl);
+      (void)tsdbSttLvlClear(lvl);
       return code;
     }
 
@@ -79,7 +79,7 @@ static int32_t tsdbSttLvlFilteredInitEx(STsdb *pTsdb, const SSttLvl *lvl1, int64
       STFileObj *fobj;
       code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj);
       if (code) {
-        tsdbSttLvlClear(lvl);
+        (void)tsdbSttLvlClear(lvl);
         return code;
       }
 
@@ -522,7 +522,8 @@ int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_
           .fid = fobj->f->fid,
           .of = fobj->f[0],
       };
-      TARRAY2_APPEND(fopArr, op);
+      code = TARRAY2_APPEND(fopArr, op);
+      if (code) return code;
     }
   }
 

@@ -646,7 +646,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     }
 
     SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
-    indexMultiTermQueryAdd(mtm, tm, qtype);
+    (void)indexMultiTermQueryAdd(mtm, tm, qtype);
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
@@ -882,9 +882,9 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
   if (ctx->noExec == false) {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       if (node->condType == LOGIC_COND_TYPE_AND) {
-        taosArrayAddAll(output->result, params[m].result);
+        (void)taosArrayAddAll(output->result, params[m].result);
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
-        taosArrayAddAll(output->result, params[m].result);
+        (void)taosArrayAddAll(output->result, params[m].result);
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
         // taosArrayAddAll(output->result, params[m].result);
       }
@@ -1018,12 +1018,12 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
       SIF_ERR_RET(TSDB_CODE_APP_ERROR);
     }
     if (res->result != NULL) {
-      taosArrayAddAll(pDst->result, res->result);
+      (void)taosArrayAddAll(pDst->result, res->result);
     }
     pDst->status = res->status;
 
     sifFreeParam(res);
-    taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   }
   sifFreeRes(ctx.pRes);
   return code;
@@ -1055,7 +1055,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status, SMetaDataFilte
   }
   *status = res->status;
   sifFreeParam(res);
-  taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+  (void)taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
 
   void *iter = taosHashIterate(ctx.pRes, NULL);
   while (iter != NULL) {
@@ -1090,7 +1090,7 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
     *status = st;
   }
 
-  taosArrayAddAll(result, param.result);
+  (void)taosArrayAddAll(result, param.result);
   sifFreeParam(&param);
   return TSDB_CODE_SUCCESS;
 }

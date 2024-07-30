@@ -834,7 +834,7 @@ static void tsSortError(void) {
 }
 
 const char* tstrerror(int32_t err) {
-  taosThreadOnce(&tsErrorInit, tsSortError);
+  (void)taosThreadOnce(&tsErrorInit, tsSortError);
 
   // this is a system errno
   if ((err & 0x00ff0000) == 0x00ff0000) {

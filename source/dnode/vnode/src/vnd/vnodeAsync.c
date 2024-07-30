@@ -389,7 +389,7 @@ static int32_t vnodeAsyncDestroy(SVAsync **async) {
   // set stop and broadcast
   (void)taosThreadMutexLock(&(*async)->mutex);
   (*async)->stop = true;
-  taosThreadCondBroadcast(&(*async)->hasTask);
+  (void)taosThreadCondBroadcast(&(*async)->hasTask);
   (void)taosThreadMutexUnlock(&(*async)->mutex);
 
   // join all workers
@@ -666,7 +666,7 @@ int32_t vnodeAsyncSetWorkers(int64_t asyncID, int32_t numWorkers) {
   (void)taosThreadMutexLock(&async->mutex);
   async->numWorkers = numWorkers;
   if (async->numIdleWorkers > 0) {
-    taosThreadCondBroadcast(&async->hasTask);
+    (void)taosThreadCondBroadcast(&async->hasTask);
   }
   (void)taosThreadMutexUnlock(&async->mutex);
 
