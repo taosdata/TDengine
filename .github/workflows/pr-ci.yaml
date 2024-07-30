@@ -201,7 +201,7 @@ jobs:
         run: |
           for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { rpc=$port; break; }; done && for port in $(seq $((rpc_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { explorer_port=$port; break; }; done && echo "First available rpc_port: $rpc_port, Second available explorer_port: $explorer_port"
 
-          run_container_id=$(docker run -d -v /data/github/TestNG_taosX/:/data/github/TestNG_taosX/ -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:0.6)
+          run_container_id=$(docker run -d -v /data/github/TestNG_taosX/:/data/github/TestNG_taosX/ -v /data/github/TestNG_taosX2/:/data/github/TestNG_taosX2/ -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:0.6)
           echo "container_id: $run_container_id"
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
@@ -213,16 +213,16 @@ jobs:
         run: |
           echo "container_id: ${{ steps.run_container.outputs.container_id }}"
           # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
-          echo "run command: docker exec -it ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
-          docker exec -it ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
-          docker exec -it ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
+          echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
 
       - name: Deploy windows agent
         id: deploy_windows_agent
         run: |
           echo "RPC_PORT: ${{ steps.run_container.outputs.rpc_port }}"
           # 调用 windows 远程服务拉起 windows-agent
-          cd /data/github/TestNG_taosX && poetry shell && python3 ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
+          cd /data/github/TestNG_taosX2/TestNG_taosX && poetry shell && python3 ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
 
   run_test:
     runs-on: [self-hosted, linux, x64, qa, test]
@@ -238,7 +238,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "container_id: ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
-          docker exec -it ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity'
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity'
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
