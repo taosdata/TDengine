@@ -1154,27 +1154,6 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
     }
   }
 
-  if (node->pRight && (QUERY_NODE_NODE_LIST == nodeType(node->pRight))) {
-    SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-    SNode         *tnode = NULL;
-    WHERE_EACH(tnode, listNode->pNodeList) {
-      if (SCL_IS_NULL_VALUE_NODE(tnode)) {
-        if (node->opType == OP_TYPE_IN) {
-          ERASE_NODE(listNode->pNodeList);
-          continue;
-        } else {  // OP_TYPE_NOT_IN
-          return sclRewriteNullInOptr(pNode, ctx, node->opType);
-        }
-      }
-
-      WHERE_NEXT;
-    }
-
-    if (listNode->pNodeList->length <= 0) {
-      return sclRewriteNullInOptr(pNode, ctx, node->opType);
-    }
-  }
-
   return DEAL_RES_CONTINUE;
 }
 
@@ -1285,6 +1264,27 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
   SCL_ERR_RET(sclConvertOpValueNodeTs(node, ctx));
+
+  if (node->pRight && (QUERY_NODE_NODE_LIST == nodeType(node->pRight))) {
+    SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+    SNode         *tnode = NULL;
+    WHERE_EACH(tnode, listNode->pNodeList) {
+      if (SCL_IS_NULL_VALUE_NODE(tnode)) {
+        if (node->opType == OP_TYPE_IN) {
+          ERASE_NODE(listNode->pNodeList);
+          continue;
+        } else {  // OP_TYPE_NOT_IN
+          return sclRewriteNullInOptr(pNode, ctx, node->opType);
+        }
+      }
+
+      WHERE_NEXT;
+    }
+
+    if (listNode->pNodeList->length <= 0) {
+      return sclRewriteNullInOptr(pNode, ctx, node->opType);
+    }
+  }
 
   if ((!SCL_IS_CONST_NODE(node->pLeft)) || (!SCL_IS_CONST_NODE(node->pRight))) {
     return sclRewriteNonConstOperator(pNode, ctx);
