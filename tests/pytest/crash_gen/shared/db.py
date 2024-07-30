@@ -7,7 +7,7 @@ import time
 import threading
 import requests
 from requests.auth import HTTPBasicAuth
-
+from taos.error import SchemalessError
 
 import taos
 from util.sql import *
@@ -204,6 +204,9 @@ class DbConn:
     def getResultCols(self):
         raise RuntimeError("Unexpected execution, should be overriden")
 
+    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+        raise RuntimeError("Unexpected execution, should be overriden")
+
 # Sample: curl -u root:taosdata -d "select * from information_schema.ins_databases" localhost:6020/rest/sql
 
 
@@ -233,16 +236,16 @@ class DbConnRest(DbConn):
         self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
         time_cost = -1
         time_start = time.time()
-        try:   
-            r = requests.post(self._url, 
+        try:
+            r = requests.post(self._url,
                 data = sql,
-                auth = HTTPBasicAuth('root', 'taosdata'))    
+                auth = HTTPBasicAuth('root', 'taosdata'))
         except:
             print("REST API Failure (TODO: more info here)")
             self.sql_exec_spend(-2)
             raise
         finally:
-            time_cost = time.time()- time_start 
+            time_cost = time.time()- time_start
             self.sql_exec_spend(time_cost)
         rj = r.json()
         # Sanity check for the "Json Result"
@@ -311,6 +314,7 @@ class MyTDSql:
         self.queryRows = 0
         self.queryCols = 0
         self.affectedRows = 0
+        self.line = str()
 
     # def init(self, cursor, log=True):
     #     self.cursor = cursor
@@ -401,9 +405,16 @@ class MyTDSql:
             else:
                 f.write(f'{sql};\n')
 
-    def influxdbLineInsert(self, line, ts_type=None):
+    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
         precision = None if ts_type is None else ts_type
-        self._conn.schemaless_insert([line], TDSmlProtocolType.LINE.value, precision)
+        try:
+            self._conn.execute(f'use {dbname}')
+            self._conn.schemaless_insert(line, TDSmlProtocolType.LINE.value, precision)
+            print(f"Inserted influxDb Line: {line}")
+        except SchemalessError as e:
+            print(f"SchemalessError: {e}")
+            raise
+        self.line = line
 
     def openTsdbTelnetLineInsert(self, line, ts_type=None):
         precision = None if ts_type is None else ts_type
@@ -460,7 +471,7 @@ class DbConnNative(DbConn):
             # Record the count in the class
             self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath) # making DB connection
             cls.totalConnections += 1
-
+ 
         self._tdSql.execute('reset query cache')
         # self._cursor.execute('use db') # do this at the beginning of every
 
@@ -531,6 +542,9 @@ class DbConnNative(DbConn):
 
     def getResultCols(self):
         return self._tdSql.queryCols
+
+    def influxdbLineInsert(self, line, ts_type=None, dbname=None):
+        return self._tdSql.influxdbLineInsert(line, ts_type, dbname)
 
 
 class DbManager():

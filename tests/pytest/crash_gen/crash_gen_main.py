@@ -54,6 +54,7 @@ from .shared.db import DbConn, DbManager, DbConnNative, MyTDSql
 from .shared.misc import Dice, Logging, Helper, Status, CrashGenError, Progress
 from .shared.types import TdDataType, DataBoundary
 from .shared.common import TDCom
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 # Config.init()
 
@@ -2714,8 +2715,8 @@ class TaskAddData(StateTransitionTask):
         return random.choice(sts)
 
     def _getStableName(self, db: Database, customStable=None):
-        sTable = db.getFixedSuperTable() if customStable is None else customStable
-        return sTable.getName()
+        sTable = db.getFixedSuperTable().getName() if customStable is None else customStable
+        return sTable
 
     def _getRandomCols(self, db: Database, dbc: DbConn):
         cols = self.getMeta(db, dbc)[0]
@@ -3098,7 +3099,7 @@ class TaskAddData(StateTransitionTask):
         finally:
             conn.close()
 
-    def _format_sml(self, data):
+    def _format_sml(self, data, rowType="tag"):
         """
         Formats the given data into a string representation of SML (Simple Markup Language).
 
@@ -3109,16 +3110,17 @@ class TaskAddData(StateTransitionTask):
             str: The formatted SML string.
 
         """
+        namePrefix = "t" if rowType == "tag" else "c"
         result = []
         type_mapping = {
             "TINYINT": "i8",
             "SMALLINT": "i16",
             "INT": "i32",
             "BIGINT": "i64",
-            "TINYINT UNSIGNED": "i8",
-            "SMALLINT UNSIGNED": "i16",
-            "INT UNSIGNED": "i32",
-            "BIGINT UNSIGNED": "i64",
+            "TINYINT UNSIGNED": "u8",
+            "SMALLINT UNSIGNED": "u16",
+            "INT UNSIGNED": "u32",
+            "BIGINT UNSIGNED": "u64",
             "VARCHAR": '""',
             "BINARY": '""',
             "NCHAR": 'L""',
@@ -3135,56 +3137,69 @@ class TaskAddData(StateTransitionTask):
                         formatted_value = f'"{value}"'
                 else:
                     formatted_value = f'{value}{type_mapping[key]}'
-                result.append(f"t{len(result)}={formatted_value}")
+                result.append(f"{namePrefix}{len(result)}={formatted_value}")
         return ','.join(result)
 
     def _transSmlVal(self, ):
         pass
 
     def _addDataByInfluxdbLine(self, db: Database, dbc):  # implied: NOT in batches
-        dbc.query("show {}.stables like influxdb_%".format(db.getName()))
+        dbc.query('show {}.stables like "influxdb_%"'.format(db.getName()))
         res = dbc.getQueryResult()
         newCreateStable = f'influxdb_{TDCom.get_long_name(8)}'
         stbList = list(map(lambda x: x[0], res)) + [newCreateStable] if len(res) > 0 else [newCreateStable]
-        for stbname in stbList:
-            dataDictList = list()
-            tagDataDictList = list()
-            ts = self._transTs(db.getNextTick())
-            if stbname == newCreateStable:
-                for i in range(2):
-                    sample_cnt = random.randint(1, self.smlSupportTypeList)
-                    typeList = random.sample(self.smlSupportTypeList, sample_cnt)
-                    valList = self._getTagColStrForSql(db, dbc, typeList)
-                    dataDict = dict(zip(typeList, valList))
-                    dataDictList.append(dataDict)
-                tagStrs = self._format_sml(dataDictList[0])
-                colStrs = self._format_sml(dataDictList[1])
-            else:
-                cols, tags = self.getMeta(db, dbc, customStable=stbname)
-                tagNameList = list(tags.keys())
-                tagTypeList = list(tags.values())
-                randomTagValList = self._getTagColStrForSql(db, dbc, tags)[1]
-                randomTagDataDict = dict(zip(tagTypeList, randomTagValList))
-                tagDataDictList.append(randomTagDataDict)
+        stbname = random.choice(stbList)
+        # for stbname in stbList:
+        dataDictList = list()
+        tagDataDictList = list()
+        ts = self._transTs(db.getNextTick())
+        if stbname == newCreateStable:
+            for i in range(2):
+                sample_cnt = random.randint(1, len(self.smlSupportTypeList))
+                typeList = random.sample(self.smlSupportTypeList, sample_cnt)
+                elm = "tag" if i == 0 else "col"
+                nameTypeDict = {f'{typeList[i]}_{elm}': typeList[i] for i in range(sample_cnt)}
+                valList = self._getTagColStrForSql(db, dbc, nameTypeDict)[1]
+                dataDict = dict(zip(typeList, valList))
+                dataDictList.append(dataDict)
+            tagStrs = self._format_sml(dataDictList[0], rowType="tag")
+            colStrs = self._format_sml(dataDictList[1], rowType="col")
+        else:
+            cols, tags = self.getMeta(db, dbc, customStable=stbname)
+            tagNameList = list(tags.keys())
+            tagTypeList = list(tags.values())
+            randomTagValList = self._getTagColStrForSql(db, dbc, tags)[1]
+            randomTagDataDict = dict(zip(tagTypeList, randomTagValList))
+            tagDataDictList.append(randomTagDataDict)
 
-                existCtbTagValList = self._getVals(db, dbc, tagNameList, stbname)
-                existCtbDataDict = dict(zip(tagTypeList, existCtbTagValList))
-                tagDataDictList.append(existCtbDataDict)
-                tagStrs = self._format_sml(random.choice(tagDataDictList))
+            existCtbTagValList = self._getVals(db, dbc, tagNameList, stbname)
+            existCtbDataDict = dict(zip(tagTypeList, existCtbTagValList))
+            tagDataDictList.append(existCtbDataDict)
+            tagStrs = self._format_sml(random.choice(tagDataDictList), rowType="tag")
 
-                colTypeList = list(cols.values())
-                randomColValList = self._getTagColStrForSql(db, dbc, cols)[1]
-                randomcolDataDict = dict(zip(colTypeList, randomColValList))
-                colStrs = self._format_sml(randomcolDataDict)
-            try:
-                lines = f'{stbname},{tagStrs} {colStrs} {ts}'
-                print("lines------", lines)
-                dbc.influxdbLineInsert(lines)
-            except:  # Any exception at all
-                raise
+            colTypeList = list(cols.values())
+            randomColValList = self._getTagColStrForSql(db, dbc, cols)[1]
+            randomcolDataDict = dict(zip(colTypeList, randomColValList))
+            colStrs = self._format_sml(randomcolDataDict, rowType="col")
 
-    def genInfluxdbLine(self):
-        pass
+            # # TODO add/reduce tag and col
+            # if Dice.throw(4) == 0:
+            #     # add tag
+            #     pass
+            # elif Dice.throw(4) == 1:
+            #     # reduce tag
+            #     pass
+            # elif Dice.throw(4) == 2:
+            #     # add col
+            #     pass
+            # elif Dice.throw(4) == 3:
+            #     # reduce col
+            #     pass
+        try:
+            lines = f'{stbname},{tagStrs} {colStrs} {ts}'
+            dbc.influxdbLineInsert(line=[lines], ts_type=TDSmlTimestampType.MILLI_SECOND.value, dbname=db.getName())
+        except:  # Any exception at all
+            raise
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
