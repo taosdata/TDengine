@@ -271,7 +271,7 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
   if (pFile == NULL) return;
 
   if (tsLogObj.fileNum > 1) {
-    taosUnLockFile(pFile);
+    (void)taosUnLockFile(pFile);
   }
 }
 
@@ -478,7 +478,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxFileNum) {
 
   char fileName[LOG_FILE_NAME_LEN + 50] = "\0";
   sprintf(fileName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
-  taosThreadMutexInit(&tsLogObj.logMutex, NULL);
+  (void)taosThreadMutexInit(&tsLogObj.logMutex, NULL);
 
   (void)taosUmaskFile(0);
   tsLogObj.logHandle->pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE);
@@ -562,7 +562,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   if (dflag & DEBUG_SCREEN) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
-    write(1, buffer, (uint32_t)len);
+    (void)write(1, buffer, (uint32_t)len);
 #pragma GCC diagnostic pop
   }
 }
@@ -914,11 +914,11 @@ void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, vo
       goto _return;
     }
 
-    taosLockFile(pFile);
+    (void)taosLockFile(pFile);
 
     int64_t writeSize = taosWriteFile(pFile, &msgLen, sizeof(msgLen));
     if (sizeof(msgLen) != writeSize) {
-      taosUnLockFile(pFile);
+      (void)taosUnLockFile(pFile);
       taosPrintLog(flags, level, dflag, "failed to write len to file:%s,%p wlen:%" PRId64 " tlen:%lu since %s",
                    filepath, pFile, writeSize, sizeof(msgLen), terrstr());
       goto _return;
@@ -926,7 +926,7 @@ void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, vo
 
     writeSize = taosWriteFile(pFile, pMsg, msgLen);
     if (msgLen != writeSize) {
-      taosUnLockFile(pFile);
+      (void)taosUnLockFile(pFile);
       taosPrintLog(flags, level, dflag, "failed to write file:%s,%p wlen:%" PRId64 " tlen:%" PRId64 " since %s",
                    filepath, pFile, writeSize, msgLen, terrstr());
       goto _return;
@@ -990,7 +990,7 @@ void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr 
       return;
     }
 
-    taosLockFile(pFile);
+    (void)taosLockFile(pFile);
   } else {
     pFile = *pFd;
   }
@@ -1031,7 +1031,7 @@ _return:
   if (truncateFile) {
     (void)taosFtruncateFile(pFile, 0);
   }
-  taosUnLockFile(pFile);
+  (void)taosUnLockFile(pFile);
   (void)taosCloseFile(&pFile);
   taosMemoryFree(buf);
 
@@ -1045,7 +1045,7 @@ void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile) {
     (void)taosFtruncateFile(pFile, 0);
   }
 
-  taosUnLockFile(pFile);
+  (void)taosUnLockFile(pFile);
   (void)taosCloseFile(&pFile);
 }
 

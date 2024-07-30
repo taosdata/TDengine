@@ -115,7 +115,7 @@ void tSkipListDestroy(SSkipList *pSkipList) {
 
   (void)tSkipListUnlock(pSkipList);
   if (pSkipList->lock != NULL) {
-    taosThreadRwlockDestroy(pSkipList->lock);
+    (void)taosThreadRwlockDestroy(pSkipList->lock);
     taosMemoryFreeClear(pSkipList->lock);
   }
 

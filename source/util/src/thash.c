@@ -399,7 +399,7 @@ int32_t taosHashGetDup(SHashObj *pHashObj, const void *key, size_t keyLen, void 
 int32_t taosHashGetDup_m(SHashObj *pHashObj, const void *key, size_t keyLen, void **destBuf, int32_t *size) {
   terrno = 0;
 
-  /*char* p = */ taosHashGetImpl(pHashObj, key, keyLen, destBuf, size, false);
+  (void)taosHashGetImpl(pHashObj, key, keyLen, destBuf, size, false);
   return terrno;
 }
 

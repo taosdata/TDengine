@@ -388,7 +388,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
   }
 
   pCacheObj->name = taosStrdup(cacheName);
-  doRegisterCacheObj(pCacheObj);
+  (void)doRegisterCacheObj(pCacheObj);
   return pCacheObj;
 }
 
@@ -616,7 +616,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
           if (ref > 0) {
             taosAddToTrashcan(pCacheObj, pNode);
           } else {  // ref == 0
-            atomic_sub_fetch_64(&pCacheObj->sizeInBytes, pNode->size);
+            (void)atomic_sub_fetch_64(&pCacheObj->sizeInBytes, pNode->size);
 
             int32_t size = (int32_t)pCacheObj->numOfElems;
             uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, totalNum:%d size:%" PRId64 "bytes",
@@ -670,7 +670,7 @@ void doTraverseElems(SCacheObj *pCacheObj, bool (*fp)(void *param, SCacheNode *p
         pEntry->num -= 1;
         ASSERT((pEntry->next && pEntry->num > 0) || (NULL == pEntry->next && pEntry->num == 0));
 
-        atomic_sub_fetch_ptr(&pCacheObj->numOfElems, 1);
+        (void)atomic_sub_fetch_ptr(&pCacheObj->numOfElems, 1);
         pNode = next;
       }
     }
