@@ -104,7 +104,12 @@ export default {
     async getValidateResult(dsn, agent) {
       try {
         this.checkLoading = true;
-        let result = await validateTask(dsn, agent);
+        const parameter = {
+          from: dsn,
+          via: agent,
+          to: this.sourceParent.toUrl
+        }
+        let result = await validateTask(parameter);
         this.checkResult = result;
         // opc 需要获取 namespace
         this.$store.commit('app/SET_CONNECTIVITY_CHECKRESULT',result)
