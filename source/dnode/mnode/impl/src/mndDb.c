@@ -1892,13 +1892,21 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.pTsmaRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
       if (rsp.pTsmaRsp) rsp.pTsmaRsp->pTsmas = taosArrayInit(4, POINTER_BYTES);
       if (rsp.pTsmaRsp && rsp.pTsmaRsp->pTsmas) {
-        rsp.dbTsmaVersion = pDb->tsmaVersion;
         bool exist = false;
-        if (mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist) != 0) {
+        int32_t code = mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist);
+        if (TSDB_CODE_SUCCESS != code) {
           mndReleaseDb(pMnode, pDb);
-          mError("db:%s, failed to get db tsmas", pDb->name);
+          if (code != TSDB_CODE_NEED_RETRY) {
+            mError("db:%s, failed to get db tsmas", pDb->name);
+          } else {
+            mWarn("db:%s, need retry to get db tsmas", pDb->name);
+          }
+          taosArrayDestroyP(rsp.pTsmaRsp->pTsmas, tFreeAndClearTableTSMAInfo);
+          taosMemoryFreeClear(rsp.pTsmaRsp);
           continue;
         }
+        rsp.dbTsmaVersion = pDb->tsmaVersion;
+        mDebug("update tsma version to %d, got tsma num: %ld", pDb->tsmaVersion, rsp.pTsmaRsp->pTsmas->size);
       }
     }
 
@@ -1909,6 +1917,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       if (rsp.useDbRsp->pVgroupInfos == NULL) {
         mndReleaseDb(pMnode, pDb);
         mError("db:%s, failed to malloc usedb response", pDb->name);
+        taosArrayDestroyP(rsp.pTsmaRsp->pTsmas, tFreeAndClearTableTSMAInfo);
+        taosMemoryFreeClear(rsp.pTsmaRsp);
         continue;
       }
 

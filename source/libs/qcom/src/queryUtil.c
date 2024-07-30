@@ -128,7 +128,7 @@ static STaskQueue taskQueue = {0};
 
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
-  execFn(pSchedMsg->thandle);
+  (void)execFn(pSchedMsg->thandle);
   taosFreeQitem(pSchedMsg);
 }
 

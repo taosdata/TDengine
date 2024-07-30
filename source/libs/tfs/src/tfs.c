@@ -483,7 +483,7 @@ const STfsFile *tfsReaddir(STfsDir *pTfsDir) {
 void tfsClosedir(STfsDir *pTfsDir) {
   if (pTfsDir) {
     if (pTfsDir->pDir != NULL) {
-      taosCloseDir(&pTfsDir->pDir);
+      (void)taosCloseDir(&pTfsDir->pDir);
       pTfsDir->pDir = NULL;
     }
     taosMemoryFree(pTfsDir);

@@ -50,8 +50,8 @@ taos_collector_registry_t *taos_collector_registry_new(const char *name) {
 
   self->name = taos_strdup(name);
   self->collectors = taos_map_new();
-  taos_map_set_free_value_fn(self->collectors, &taos_collector_free_generic);
-  taos_map_set(self->collectors, "default", taos_collector_new("default"));
+  (void)taos_map_set_free_value_fn(self->collectors, &taos_collector_free_generic);
+  if (taos_map_set(self->collectors, "default", taos_collector_new("default")) != 0) return NULL;
 
   self->metric_formatter = taos_metric_formatter_new();
   self->string_builder = taos_string_builder_new();
@@ -237,15 +237,15 @@ int taos_collector_registry_clear_batch(taos_collector_registry_t *self){
 }
 
 const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, char *ts, char *format, char** prom_str) {
-  taos_metric_formatter_clear(self->metric_formatter);
-  
+  if (taos_metric_formatter_clear(self->metric_formatter) != 0) return NULL;
+
   SJson* pJson = tjsonCreateArray();
   SJson* item = tjsonCreateObject();
-  tjsonAddItemToArray(pJson, item);
-  tjsonAddStringToObject(item, "ts", ts);
-  tjsonAddDoubleToObject(item, "protocol", 2);
+  (void)tjsonAddItemToArray(pJson, item);
+  (void)tjsonAddStringToObject(item, "ts", ts);
+  (void)tjsonAddDoubleToObject(item, "protocol", 2);
   SJson* array = tjsonCreateArray();
-  tjsonAddItemToObject(item, "tables", array);
+  (void)tjsonAddItemToObject(item, "tables", array);
 
   if(taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array) != 0){
     TAOS_LOG("failed to load metrics");
@@ -304,7 +304,7 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
 _OVER:
   tjsonDelete(pJson);
   if(tmp_builder != NULL){
-    taos_string_builder_destroy(tmp_builder);
+    (void)taos_string_builder_destroy(tmp_builder);
   }
 
   return NULL;

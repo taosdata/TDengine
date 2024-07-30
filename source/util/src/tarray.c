@@ -293,7 +293,7 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   ASSERT(index < pArray->size);
 
   if (index == pArray->size - 1) {
-    taosArrayPop(pArray);
+    (void)taosArrayPop(pArray);
     return;
   }
 

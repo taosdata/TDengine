@@ -34,12 +34,12 @@ taos_metric_formatter_t *taos_metric_formatter_new() {
   taos_metric_formatter_t *self = (taos_metric_formatter_t *)taos_malloc(sizeof(taos_metric_formatter_t));
   self->string_builder = taos_string_builder_new();
   if (self->string_builder == NULL) {
-    taos_metric_formatter_destroy(self);
+    (void)taos_metric_formatter_destroy(self);
     return NULL;
   }
   self->err_builder = taos_string_builder_new();
   if (self->err_builder == NULL) {
-    taos_metric_formatter_destroy(self);
+    (void)taos_metric_formatter_destroy(self);
     return NULL;
   }
   return self;

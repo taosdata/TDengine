@@ -103,11 +103,11 @@ typedef void* queue[2];
 #define TRANS_MAGIC_NUM           0x5f375a86
 #define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
 
-typedef struct SRpcMsg      STransMsg;
-typedef SRpcCtx      STransCtx;
-typedef SRpcCtxVal   STransCtxVal;
-typedef SRpcInfo     STrans;
-typedef SRpcConnInfo STransHandleInfo;
+typedef struct SRpcMsg STransMsg;
+typedef SRpcCtx        STransCtx;
+typedef SRpcCtxVal     STransCtxVal;
+typedef SRpcInfo       STrans;
+typedef SRpcConnInfo   STransHandleInfo;
 
 // ref mgt handle
 typedef struct SExHandle {
@@ -250,10 +250,10 @@ typedef struct {
   int8_t      stop;
 } SAsyncPool;
 
-SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
-void        transAsyncPoolDestroy(SAsyncPool* pool);
-int         transAsyncSend(SAsyncPool* pool, queue* mq);
-bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
+int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool);
+void    transAsyncPoolDestroy(SAsyncPool* pool);
+int     transAsyncSend(SAsyncPool* pool, queue* mq);
+bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc, param) \
   do {                                                               \
@@ -279,6 +279,7 @@ bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
       if (exh2 == NULL || id != exh2->refId) {                                                               \
         tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1,     \
                exh2 ? exh2->refId : 0, id);                                                                  \
+        code = terrno;                                                                                       \
         goto _return1;                                                                                       \
       }                                                                                                      \
     } else if (id == 0) {                                                                                    \
@@ -287,6 +288,7 @@ bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
       if (exh2 == NULL || id == exh2->refId) {                                                               \
         tTrace("handle %p except, may already freed, ignore msg, ref1:%" PRIu64 ", ref2:%" PRIu64, exh1, id, \
                exh2 ? exh2->refId : 0);                                                                      \
+        code = terrno;                                                                                       \
         goto _return1;                                                                                       \
       } else {                                                                                               \
         id = exh1->refId;                                                                                    \
@@ -297,13 +299,13 @@ bool        transAsyncPoolIsEmpty(SAsyncPool* pool);
     }                                                                                                        \
   } while (0)
 
-int  transInitBuffer(SConnBuffer* buf);
-int  transClearBuffer(SConnBuffer* buf);
-int  transDestroyBuffer(SConnBuffer* buf);
-int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
-bool transReadComplete(SConnBuffer* connBuf);
-int  transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
-int  transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
+int32_t transInitBuffer(SConnBuffer* buf);
+int32_t transClearBuffer(SConnBuffer* buf);
+int32_t transDestroyBuffer(SConnBuffer* buf);
+int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
+bool    transReadComplete(SConnBuffer* connBuf);
+int     transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+int     transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
 int transSetConnOption(uv_tcp_t* stream, int keepalive);
 
@@ -316,14 +318,14 @@ void transUnrefCliHandle(void* handle);
 int transReleaseCliHandle(void* handle);
 int transReleaseSrvHandle(void* handle);
 
-int  transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-int  transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int  transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int8_t* epUpdated,
-                              int32_t timeoutMs);
-int  transSendResponse(const STransMsg* msg);
-int  transRegisterMsg(const STransMsg* msg);
-int  transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
-void transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
+int     transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+int     transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
+int     transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp, int8_t* epUpdated,
+                                 int32_t timeoutMs);
+int     transSendResponse(const STransMsg* msg);
+int     transRegisterMsg(const STransMsg* msg);
+int     transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+int32_t transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
 
 int transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
@@ -363,7 +365,7 @@ typedef struct {
  * init queue
  * note: queue'size is small, default 1
  */
-void transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg));
+int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg));
 
 /*
  * put arg into queue
@@ -420,7 +422,7 @@ typedef struct SDelayQueue {
   uv_loop_t*  loop;
 } SDelayQueue;
 
-int         transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
+int32_t     transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
@@ -433,9 +435,9 @@ bool transEpSetIsEqual2(SEpSet* a, SEpSet* b);
  */
 void transThreadOnce();
 
-void transInit();
-void transCleanup();
-void transPrintEpSet(SEpSet* pEpSet);
+int32_t transInit();
+void    transCleanup();
+void    transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
