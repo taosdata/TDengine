@@ -594,7 +594,7 @@ static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
   tstrncpy(infoReq.machineId, pDnode->machineId, TSDB_MACHINE_ID_LEN + 1);
 
   if ((contLen = tSerializeSDnodeInfoReq(NULL, 0, &infoReq)) <= 0) {
-    TAOS_RETURN(contLen);
+    TAOS_RETURN(contLen ? contLen : TSDB_CODE_OUT_OF_MEMORY);
   }
   pReq = rpcMallocCont(contLen);
   if (pReq == NULL) {
