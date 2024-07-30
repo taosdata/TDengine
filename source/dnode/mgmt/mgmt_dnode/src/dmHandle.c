@@ -167,6 +167,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
+
   void *pHead = rpcMallocCont(contLen);
   contLen = tSerializeSStatusReq(pHead, contLen, &req);
   if (contLen < 0) {
