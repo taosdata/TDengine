@@ -507,7 +507,7 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
     if (sttBlk->maxVer < blockData->aVersion[iRow]) sttBlk->maxVer = blockData->aVersion[iRow];
   }
 
-  tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
+  (void)tsdbWriterUpdVerRange(range, sttBlk->minVer, sttBlk->maxVer);
   TAOS_CHECK_RETURN(tBlockDataCompress(blockData, info, buffers, buffers + 4));
 
   sttBlk->bInfo.offset = *fileSize;

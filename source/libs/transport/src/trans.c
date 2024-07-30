@@ -111,7 +111,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
-  transAcquireExHandle(transGetInstMgt(), refId);
+  (void)transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
   return (void*)refId;
 _end:
@@ -122,8 +122,8 @@ _end:
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
-  transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
-  transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
+  (void)transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
+  (void)transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }

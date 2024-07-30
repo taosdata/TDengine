@@ -223,7 +223,7 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_RETURN(code);
   }
-  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -251,7 +251,7 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_RETURN(code);
   }
-  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -383,7 +383,7 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_RETURN(code);
   }
-  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
+  (void)tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -482,16 +482,16 @@ static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)ep, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)ep, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);

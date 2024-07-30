@@ -84,7 +84,7 @@ int32_t taosWTryLockLatch(SRWLatch *pLatch);
     int32_t old_ = atomic_add_fetch_32((x), 0); \
     if (old_ & 0x00000001) {                    \
       if (i_ % 1000 == 0) {                     \
-        sched_yield();                          \
+        (void)sched_yield();                    \
       }                                         \
       continue;                                 \
     }
@@ -98,9 +98,9 @@ int32_t taosWTryLockLatch(SRWLatch *pLatch);
 #define taosCorBeginWrite(x) \
   taosCorBeginRead(x) if (atomic_val_compare_exchange_32((x), old_, old_ + 1) != old_) { continue; }
 
-#define taosCorEndWrite(x)     \
-  atomic_add_fetch_32((x), 1); \
-  break;                       \
+#define taosCorEndWrite(x)           \
+  (void)atomic_add_fetch_32((x), 1); \
+  break;                             \
   }
 
 #ifdef __cplusplus

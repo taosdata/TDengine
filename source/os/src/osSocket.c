@@ -941,7 +941,7 @@ int32_t taosBlockSIGPIPE() {
 #endif
 }
 
-int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
+int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
@@ -959,8 +959,8 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
   hints.ai_socktype = SOCK_STREAM;
 
   struct addrinfo *result = NULL;
-  bool inRetry = false;
-  
+  bool             inRetry = false;
+
   while (true) {
     int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
     if (ret) {
@@ -972,7 +972,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
         return terrno;
       }
 
-      terrno = TAOS_SYSTEM_ERROR(ret);
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return terrno;
     }
 
@@ -1011,7 +1011,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t* ip) {
 #else
     // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
 #endif
-    
+
     *ip = 0xFFFFFFFF;
     return 0xFFFFFFFF;
   }

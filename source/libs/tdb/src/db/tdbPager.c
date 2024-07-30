@@ -968,7 +968,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       if (TDB_PAGE_INITIALIZED(pPage)) break;
       nLoops++;
       if (nLoops > 1000) {
-        sched_yield();
+        (void)sched_yield();
         nLoops = 0;
       }
     }

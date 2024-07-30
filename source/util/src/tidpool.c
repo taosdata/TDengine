@@ -33,7 +33,7 @@ void *taosInitIdPool(int32_t maxId) {
   pIdPool->numOfFree = maxId;
   pIdPool->freeSlot = 0;
 
-  taosThreadMutexInit(&pIdPool->mutex, NULL);
+  (void)taosThreadMutexInit(&pIdPool->mutex, NULL);
 
   uDebug("pool:%p is setup, maxId:%d", pIdPool, pIdPool->maxId);
 
@@ -83,7 +83,7 @@ void taosIdPoolCleanUp(id_pool_t *pIdPool) {
 
   if (pIdPool->freeList) taosMemoryFree(pIdPool->freeList);
 
-  taosThreadMutexDestroy(&pIdPool->mutex);
+  (void)taosThreadMutexDestroy(&pIdPool->mutex);
 
   memset(pIdPool, 0, sizeof(id_pool_t));
 

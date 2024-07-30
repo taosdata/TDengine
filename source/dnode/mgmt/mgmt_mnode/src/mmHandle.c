@@ -17,12 +17,12 @@
 #include "mmInt.h"
 
 void mmGetMonitorInfo(SMnodeMgmt *pMgmt, SMonMmInfo *pInfo) {
-  mndGetMonitorInfo(pMgmt->pMnode, &pInfo->cluster, &pInfo->vgroup, &pInfo->stb, &pInfo->grant);
+  (void)mndGetMonitorInfo(pMgmt->pMnode, &pInfo->cluster, &pInfo->vgroup, &pInfo->stb, &pInfo->grant);
 }
 
 void mmGetMnodeLoads(SMnodeMgmt *pMgmt, SMonMloadInfo *pInfo) {
   pInfo->isMnode = 1;
-  mndGetLoad(pMgmt->pMnode, &pInfo->load);
+  (void)mndGetLoad(pMgmt->pMnode, &pInfo->load);
 }
 
 int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
