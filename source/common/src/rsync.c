@@ -32,10 +32,10 @@ static void removeEmptyDir() {
       empty = false;
     }
     if (empty) taosRemoveDir(filename);
-    taosCloseDir(&pDirTmp);
+    (void)taosCloseDir(&pDirTmp);
   }
 
-  taosCloseDir(&pDir);
+  (void)taosCloseDir(&pDir);
 }
 
 #ifdef WINDOWS
@@ -92,12 +92,12 @@ static int32_t generateConfigFile(char* confDir) {
   uDebug("[rsync] conf:%s", confContent);
   if (taosWriteFile(pFile, confContent, strlen(confContent)) <= 0) {
     uError("[rsync] write conf file error," ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     code = TAOS_SYSTEM_ERROR(errno);
     return code;
   }
 
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   return 0;
 }
 

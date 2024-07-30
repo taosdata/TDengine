@@ -135,7 +135,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // trace log
   syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "");
   syncLogSendRequestVoteReply(ths, pReply, "");
-  syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+  (void)syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
 
   if (resetElect) syncNodeResetElectTimer(ths);
 

@@ -107,7 +107,7 @@ static int hashset_add(hashset_t set, void *item) {
 
     set->nitems = 0;
     for (size_t i = 0; i < old_capacity; ++i) {
-      hashset_add_member(set, (void *)old_items[i]);
+      (void)hashset_add_member(set, (void *)old_items[i]);
     }
     tdbOsFree(old_items);
   }
@@ -223,7 +223,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
 
 int tdbPagerClose(SPager *pPager) {
   if (pPager) {
-    tdbOsClose(pPager->fd);
+    (void)tdbOsClose(pPager->fd);
     tdbOsFree(pPager);
   }
   return 0;
@@ -236,14 +236,14 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   if (pPage->isDirty) return 0;
 
   // ref page one more time so the page will not be release
-  tdbRefPage(pPage);
+  (void)tdbRefPage(pPage);
   tdbTrace("pager/mdirty page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
 
   // Set page as dirty
   pPage->isDirty = 1;
 
   tdbTrace("tdb/pager-write: put page: %p %d to dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
-  tRBTreePut(&pPager->rbt, (SRBTreeNode *)pPage);
+  (void)tRBTreePut(&pPager->rbt, (SRBTreeNode *)pPage);
 
   // Write page to journal if neccessary
   if (TDB_PAGE_PGNO(pPage) <= pPager->dbOrigSize &&
@@ -256,7 +256,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
     }
 
     if (pPager->pActiveTxn->jPageSet) {
-      hashset_add(pPager->pActiveTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+      (void)hashset_add(pPager->pActiveTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
   }
 
@@ -352,7 +352,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     if (pTxn->jPageSet) {
-      hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+      (void)hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     }
 
     tdbTrace("tdb/pager-commit: remove page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
@@ -590,7 +590,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     pPage->isDirty = 0;
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
-    hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
+    (void)hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
     tdbPCacheMarkFree(pPager->pCache, pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
@@ -712,7 +712,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
   pgid.pgno = pgno;
   while ((pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn)) == NULL) {
-    tdbPagerFlushPage(pPager, pTxn);
+    (void)tdbPagerFlushPage(pPager, pTxn);
   }
 
   tdbTrace("tdbttl fetch pager:%p", pPage->pPager);
@@ -815,7 +815,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
   code = tdbTbcMoveToFirst(pCur);
   if (code) {
     tdbError("tdb/remove-free-page: moveto first failed with ret: %d.", code);
-    tdbTbcClose(pCur);
+    (void)tdbTbcClose(pCur);
     return 0;
   }
 
@@ -825,7 +825,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
   code = tdbTbcGet(pCur, (const void **)&pKey, &nKey, NULL, NULL);
   if (code < 0) {
     // tdbError("tdb/remove-free-page: tbc get failed with ret: %d.", code);
-    tdbTbcClose(pCur);
+    (void)tdbTbcClose(pCur);
     return 0;
   }
 
@@ -836,10 +836,10 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
   code = tdbTbcDelete(pCur);
   if (code < 0) {
     tdbError("tdb/remove-free-page: tbc delete failed with ret: %d.", code);
-    tdbTbcClose(pCur);
+    (void)tdbTbcClose(pCur);
     return 0;
   }
-  tdbTbcClose(pCur);
+  (void)tdbTbcClose(pCur);
   return 0;
 }
 
@@ -892,7 +892,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
   lcode = TDB_TRY_LOCK_PAGE(pPage);
   if (lcode == P_LOCK_SUCC) {
     if (TDB_PAGE_INITIALIZED(pPage)) {
-      TDB_UNLOCK_PAGE(pPage);
+      (void)TDB_UNLOCK_PAGE(pPage);
       return 0;
     }
 
@@ -906,7 +906,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       tdbTrace("tdb/pager:%p, pgno:%d, nRead:%" PRId64, pPager, pgno, nRead);
       if (nRead < pPage->pageSize) {
         tdbError("tdb/pager:%p, pgno:%d, nRead:%" PRId64 "pgSize:%" PRId32, pPager, pgno, nRead, pPage->pageSize);
-        TDB_UNLOCK_PAGE(pPage);
+        (void)TDB_UNLOCK_PAGE(pPage);
         return TAOS_SYSTEM_ERROR(errno);
       }
 
@@ -953,7 +953,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
     if (ret < 0) {
       tdbError("tdb/pager:%p, pgno:%d, nRead:%" PRId64 "pgSize:%" PRId32 " init page failed.", pPager, pgno, nRead,
                pPage->pageSize);
-      TDB_UNLOCK_PAGE(pPage);
+      (void)TDB_UNLOCK_PAGE(pPage);
       return ret;
     }
 
@@ -961,14 +961,14 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
 
     pPage->pPager = pPager;
 
-    TDB_UNLOCK_PAGE(pPage);
+    (void)TDB_UNLOCK_PAGE(pPage);
   } else if (lcode == P_LOCK_BUSY) {
     nLoops = 0;
     for (;;) {
       if (TDB_PAGE_INITIALIZED(pPage)) break;
       nLoops++;
       if (nLoops > 1000) {
-        sched_yield();
+        (void)sched_yield();
         nLoops = 0;
       }
     }
@@ -1162,7 +1162,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
       int64_t txnId = -1;
-      sscanf(name, TDB_MAINDB_NAME "-journal.%" PRId64, &txnId);
+      (void)sscanf(name, TDB_MAINDB_NAME "-journal.%" PRId64, &txnId);
       if (taosArrayPush(pTxnList, &txnId) == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -1179,14 +1179,14 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     code = tdbPagerRestore(pPager, jname);
     if (code) {
       taosArrayDestroy(pTxnList);
-      tdbCloseDir(&pDir);
+      (void)tdbCloseDir(&pDir);
       tdbError("failed to restore file due to %s. jFileName:%s", strerror(code), jname);
       return code;
     }
   }
 
   taosArrayDestroy(pTxnList);
-  tdbCloseDir(&pDir);
+  (void)tdbCloseDir(&pDir);
 
   return 0;
 }
@@ -1209,7 +1209,7 @@ int tdbPagerRollback(SPager *pPager) {
       jname[dirLen] = '/';
       memcpy(jname + dirLen + 1, name, strlen(name));
       if (tdbOsRemove(jname) < 0 && errno != ENOENT) {
-        tdbCloseDir(&pDir);
+        (void)tdbCloseDir(&pDir);
 
         tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), name);
         return terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1217,7 +1217,7 @@ int tdbPagerRollback(SPager *pPager) {
     }
   }
 
-  tdbCloseDir(&pDir);
+  (void)tdbCloseDir(&pDir);
 
   return 0;
 }

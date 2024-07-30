@@ -258,7 +258,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   if (code != 0) {
     mError("failed to read sdb file:%s head since %s", file, tstrerror(code));
     taosMemoryFree(pRaw);
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     return -1;
   }
 
@@ -361,14 +361,14 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
         pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   sdbFreeRaw(pRaw);
 
   TAOS_RETURN(code);
 }
 
 int32_t sdbReadFile(SSdb *pSdb) {
-  taosThreadMutexLock(&pSdb->filelock);
+  (void)taosThreadMutexLock(&pSdb->filelock);
 
   sdbResetData(pSdb);
   int32_t code = sdbReadFileImp(pSdb);
@@ -377,7 +377,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
     sdbResetData(pSdb);
   }
 
-  taosThreadMutexUnlock(&pSdb->filelock);
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
   return code;
 }
 
@@ -404,7 +404,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   code = sdbWriteFileHead(pSdb, pFile);
   if (code != 0) {
     mError("failed to write sdb file:%s head since %s", tmpfile, tstrerror(code));
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     return -1;
   }
 
@@ -507,7 +507,9 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     }
   }
 
-  taosCloseFile(&pFile);
+  if (taosCloseFile(&pFile) != 0) {
+    code = taosRenameFile(tmpfile, curfile);
+  }
 
   if (code == 0) {
     code = taosRenameFile(tmpfile, curfile);
@@ -541,7 +543,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
     return 0;
   }
 
-  taosThreadMutexLock(&pSdb->filelock);
+  (void)taosThreadMutexLock(&pSdb->filelock);
   if (pSdb->pWal != NULL) {
     if (pSdb->sync > 0) {
       code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
@@ -560,7 +562,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   if (code != 0) {
     mError("failed to write sdb file since %s", tstrerror(code));
   }
-  taosThreadMutexUnlock(&pSdb->filelock);
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
   return code;
 }
 
@@ -602,7 +604,7 @@ static void sdbCloseIter(SSdbIter *pIter) {
   if (pIter == NULL) return;
 
   if (pIter->file != NULL) {
-    taosCloseFile(&pIter->file);
+    (void)taosCloseFile(&pIter->file);
     pIter->file = NULL;
   }
 
@@ -624,18 +626,18 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *ter
   char datafile[PATH_MAX] = {0};
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
-  taosThreadMutexLock(&pSdb->filelock);
+  (void)taosThreadMutexLock(&pSdb->filelock);
   int64_t commitIndex = pSdb->commitIndex;
   int64_t commitTerm = pSdb->commitTerm;
   int64_t commitConfig = pSdb->commitConfig;
   if (taosCopyFile(datafile, pIter->name) < 0) {
-    taosThreadMutexUnlock(&pSdb->filelock);
+    (void)taosThreadMutexUnlock(&pSdb->filelock);
     code = TAOS_SYSTEM_ERROR(errno);
     mError("failed to copy sdb file %s to %s since %s", datafile, pIter->name, tstrerror(code));
     sdbCloseIter(pIter);
     TAOS_RETURN(code);
   }
-  taosThreadMutexUnlock(&pSdb->filelock);
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
 
   pIter->file = taosOpenFile(pIter->name, TD_FILE_READ);
   if (pIter->file == NULL) {
@@ -725,7 +727,10 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
     goto _OVER;
   }
 
-  taosCloseFile(&pIter->file);
+  if (taosCloseFile(&pIter->file) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _OVER;
+  }
   pIter->file = NULL;
 
   char datafile[PATH_MAX] = {0};

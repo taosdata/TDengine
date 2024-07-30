@@ -270,7 +270,7 @@ int32_t streamTaskRestoreStatus(SStreamTask* pTask) {
     code = TSDB_CODE_FAILED;  // failed to restore the status, since it is not in pause status
   }
 
-  (void)taosThreadMutexUnlock(&pTask->lock);
+  streamMutexUnlock(&pTask->lock);
   return code;
 }
 

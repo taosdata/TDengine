@@ -27,18 +27,20 @@ int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transRelease
 
 static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   int32_t code = taosGetIpv4FromFqdn(localFqdn, ip);
-  if (code) {
-    terrno = TSDB_CODE_RPC_FQDN_ERROR;
-    return -1;
+  if (code != 0) {
+    return TSDB_CODE_RPC_FQDN_ERROR;
   }
   return 0;
 }
 void* rpcOpen(const SRpcInit* pInit) {
-  rpcInit();
+  int32_t code = rpcInit();
+  if (code != 0) {
+    TAOS_CHECK_GOTO(code, NULL, _end);
+  }
 
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
-    return NULL;
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
@@ -84,10 +86,9 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
-    if (transValidLocalFqdn(pInit->localFqdn, &ip) != 0) {
-      tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, terrstr());
-      taosMemoryFree(pRpc);
-      return NULL;
+    if ((code = transValidLocalFqdn(pInit->localFqdn, &ip)) != 0) {
+      tError("invalid fqdn:%s, errmsg:%s", pInit->localFqdn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, NULL, _end);
     }
   }
 
@@ -105,19 +106,24 @@ void* rpcOpen(const SRpcInit* pInit) {
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
-    taosMemoryFree(pRpc);
-    return NULL;
+    tError("failed to init rpc handle");
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
-  transAcquireExHandle(transGetInstMgt(), refId);
+  (void)transAcquireExHandle(transGetInstMgt(), refId);
   pRpc->refId = refId;
   return (void*)refId;
+_end:
+  taosMemoryFree(pRpc);
+  terrno = code;
+
+  return NULL;
 }
 void rpcClose(void* arg) {
   tInfo("start to close rpc");
-  transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
-  transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
+  (void)transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
+  (void)transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }
@@ -186,7 +192,7 @@ int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
 // server only
-void rpcSetIpWhite(void* thandle, void* arg) { transSetIpWhiteList(thandle, arg, NULL); }
+int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
 
 void* rpcAllocHandle() { return (void*)transAllocHandle(); }
 
@@ -202,10 +208,8 @@ int32_t rpcCvtErrCode(int32_t code) {
   return code;
 }
 
-int32_t rpcInit() {
-  transInit();
-  return 0;
-}
+int32_t rpcInit() { return transInit(); }
+
 void rpcCleanup(void) {
   transCleanup();
   transHttpEnvDestroy();

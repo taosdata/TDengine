@@ -410,7 +410,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pMemTable->aBucket[idx] = pTbData;
   pMemTable->nTbData++;
 
-  tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
+  (void)tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
 
   taosWUnLockLatch(&pMemTable->latch);
 
@@ -742,7 +742,7 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode) {
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
   ASSERT(nRef > 0);
 
-  vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
+  (void)vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
 
 _exit:
   return code;
