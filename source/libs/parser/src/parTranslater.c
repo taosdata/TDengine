@@ -1487,11 +1487,7 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
           pCxt->errCode = TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION;
           return DEAL_RES_ERROR;
         } else if (fmIsPseudoColumnFunc(((SFunctionNode*)pFoundNode)->funcId)) {
-          if ('\0' != (*pCol)->tableAlias[0]) {
-            return translateColumnWithPrefix(pCxt, pCol);
-          } else {
-            return translateColumnWithoutPrefix(pCxt, pCol);
-          }
+          /* Do nothing and replace old node with found node. */
         } else {
           /* Do nothing and replace old node with found node. */
         }
