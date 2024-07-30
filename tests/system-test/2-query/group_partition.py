@@ -171,19 +171,18 @@ class TDTestCase:
         tdSql.error(f"select c1, avg(c2), count(*) from {self.dbname}.{self.stable} {keyword} by 1, 2")
 
     def test_groupby_alias(self, keyword, check_num, nonempty_tb_num):
-        ####### by tbname
-        tdSql.query(f"select tbname as tn, count(*) from {self.dbname}.{self.stable} {keyword} by tn ")
+        tdSql.query(f"select t1 as t1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t1_alias ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select tbname as tn from {self.dbname}.{self.stable} {keyword} by tn order by count(*)")
+        tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias order by count(*)")
         tdSql.checkRows(check_num)
 
         # last
-        tdSql.query(f"select tbname as tn from {self.dbname}.{self.stable} {keyword} by tn having count(*)>=0")
+        tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias having count(*)>=0")
         tdSql.checkRows(check_num)
 
         # having filter out empty
-        tdSql.query(f"select tbname as tn, count(*) from {self.dbname}.{self.stable} {keyword} by tn having count(*) <= 0")
+        tdSql.query(f"select t1 as t1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t1_alias having count(*) <= 0")
         tdSql.checkRows(check_num - nonempty_tb_num)
 
         ####### by tag
