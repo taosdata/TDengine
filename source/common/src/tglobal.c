@@ -1212,7 +1212,7 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "charset");
   const char *charset = pItem->str;
 
-  TAOS_CHECK_RETURN(taosSetSystemLocale(locale, charset));
+  (void)taosSetSystemLocale(locale, charset); // ignore this error temporarily
   osSetSystemLocale(locale, charset);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCoreFile");
