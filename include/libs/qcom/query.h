@@ -166,6 +166,7 @@ typedef struct SBoundColInfo {
   int16_t* pColIndex;  // bound index => schema index
   int32_t  numOfCols;
   int32_t  numOfBound;
+  bool     hasBoundCols;
 } SBoundColInfo;
 
 typedef struct STableDataCxt {
