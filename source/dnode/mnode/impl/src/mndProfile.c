@@ -575,7 +575,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     if (needCheck) {
       SKv kv1 = {.key = HEARTBEAT_KEY_DYN_VIEW, .valueLen = sizeof(*pDynViewVer), .value = pRspVer};
-      taosArrayPush(hbRsp.info, &kv1);
+      TAOS_CHECK_RETURN(taosArrayPush(hbRsp.info, &kv1));
       mTrace("need to check view ver, lastest bootTs:%" PRId64 ", ver:%" PRIu64, pRspVer->svrBootTs,
              pRspVer->dynViewVer);
     }
@@ -703,7 +703,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
     } else if (pHbReq->connKey.connType == CONN_TYPE__TMQ) {
       SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
       if (pRsp != NULL) {
-        taosArrayPush(batchRsp.rsps, pRsp);
+        (void)taosArrayPush(batchRsp.rsps, pRsp);
         taosMemoryFree(pRsp);
       }
     }
