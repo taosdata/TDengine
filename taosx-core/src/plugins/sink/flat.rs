@@ -16,15 +16,15 @@ use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use lazy_static::lazy_static;
 use serde_json::json;
 use taos::{taos_query::Manager, AsyncQueryable, Itertools, RawBlock, TaosBuilder, TaosPool, Ty};
+use thiserror::Error;
+use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info, instrument, trace, Instrument};
+
 use taosx_ipc::{
     ack::LushAck,
     stream::{flat::FlatMessage, reader::IpcMessage},
 };
-use thiserror::Error;
-
-use tokio::task::JoinSet;
-use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, trace, Instrument};
 
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
@@ -290,7 +290,19 @@ async fn write_stable_with_sql(
                     0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
                         tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
                         backoff *= 2;
-                        taos.replace(pool.get().await?);
+
+                        tracing::debug!("try to reconnect to taos");
+                        match pool.get().await {
+                            Ok(taos_new) => {
+                                taos.replace(taos_new);
+                                backoff = 1;
+                                write_retries = 0;
+                                tracing::debug!("reconnected to taos");
+                            }
+                            Err(err) => {
+                                error!("failed to get taos connection: {err:#}")
+                            }
+                        }
                     }
                     _ => {
                         break Err(err)
@@ -1544,16 +1556,17 @@ pub async fn ipc_flat_stream_worker_concurrent(
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use arrow::array::*;
     use arrow_schema::{Field, FieldRef, Schema};
     use serde_json::json;
     use taos::AsyncTBuilder;
+
     use taosx_ipc::prelude::IpcDataType;
     use IpcDataType::*;
 
     use crate::plugins::transform::MessageTableMeta;
+
+    use super::*;
 
     struct STableMessagesBuilder {
         /// The stable name of the table, if not set, use ordinary table instead.

@@ -2647,7 +2647,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
     &column_config.alias.as_ref().unwrap_or(&column_config.name)
 }
 
-const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
+const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 5;
 
 /// Write flat message to TDengine.
 ///
