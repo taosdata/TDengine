@@ -1758,7 +1758,7 @@ impl TaskController {
         handle.await?
     }
 
-    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
+    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: &Dsn) -> DataSourceValidation {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
             return DataSourceValidation::invalid(

@@ -142,6 +142,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(metrics::metrics_desc)
             .service(get_sample)
             .service(data_source_is_valid)
+            .service(data_source_sink_is_valid)
             .service(data_sources_in)
             .service(data_sources_in_one)
             .service(data_source_collection)
@@ -374,6 +375,7 @@ impl Cli {
                 metrics::profile,
                 metrics::metrics_desc,
                 data_source_is_valid,
+                data_source_sink_is_valid,
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
