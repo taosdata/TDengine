@@ -2228,7 +2228,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       if ((value = taosMemoryCalloc(valuelen + 1, sizeof(char))) == NULL) goto _err;
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->writeTbs, key, keyLen, value, valuelen + 1);
+      if (taosHashPut(pRsp->writeTbs, key, keyLen, value, valuelen + 1) < 0) goto _err;
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -2285,7 +2285,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       if ((value = taosMemoryCalloc(valuelen + 1, sizeof(char))) == NULL) goto _err;
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->writeViews, key, keyLen, value, valuelen + 1);
+      if (taosHashPut(pRsp->writeViews, key, keyLen, value, valuelen + 1) < 0) goto _err;
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -7101,7 +7101,7 @@ int32_t tDeserializeSMqSeekReq(void *buf, int32_t bufLen, SMqSeekReq *pReq) {
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
-  tDecodeCStrTo(&decoder, pReq->subKey);
+  if (tDecodeCStrTo(&decoder, pReq->subKey) < 0) return -1;
 
   tEndDecode(&decoder);
 

@@ -232,7 +232,7 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   (void)taosThreadMutexUnlock(&queue->mutex);
 
   if (queue->qset) {
-    tsem_post(&queue->qset->sem);
+    (void)tsem_post(&queue->qset->sem);
   }
   return code;
 }
