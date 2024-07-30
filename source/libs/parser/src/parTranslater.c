@@ -1748,6 +1748,12 @@ int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* p
   return TSDB_CODE_SUCCESS;
 }
 
+static bool clauseSupportAlias(ESqlClause clause) {
+  return SQL_CLAUSE_GROUP_BY == clause ||
+         SQL_CLAUSE_PARTITION_BY == clause ||
+         SQL_CLAUSE_ORDER_BY == clause;
+}
+
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   if (NULL == pCxt->pCurrStmt ||
       (isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
@@ -1774,9 +1780,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    if ((SQL_CLAUSE_ORDER_BY == pCxt->currClause ||
-         SQL_CLAUSE_GROUP_BY == pCxt->currClause ||
-         SQL_CLAUSE_PARTITION_BY == pCxt->currClause) &&
+    if ((clauseSupportAlias(pCxt->currClause)) &&
         !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
@@ -1787,10 +1791,9 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
         res = translateColumnWithoutPrefix(pCxt, pCol);
       }
     }
-    if ((SQL_CLAUSE_ORDER_BY == pCxt->currClause ||
-         SQL_CLAUSE_GROUP_BY == pCxt->currClause ||
-         SQL_CLAUSE_PARTITION_BY == pCxt->currClause)
-        && !(*pCol)->node.asParam && res != DEAL_RES_CONTINUE &&
+    if (clauseSupportAlias(pCxt->currClause) &&
+        !(*pCol)->node.asParam &&
+        res != DEAL_RES_CONTINUE &&
         res != DEAL_RES_END) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
