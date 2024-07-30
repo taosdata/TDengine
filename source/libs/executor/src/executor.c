@@ -1437,7 +1437,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
 end:
-  (void) tOffsetCopy(&pTaskInfo->streamInfo.currentOffset, pOffset);
+  tOffsetCopy(&pTaskInfo->streamInfo.currentOffset, pOffset);
   return 0;
 }
 

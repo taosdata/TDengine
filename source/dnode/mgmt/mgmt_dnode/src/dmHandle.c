@@ -214,8 +214,17 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
 void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
   int32_t contLen = tSerializeSNotifyReq(NULL, 0, pReq);
-  void   *pHead = rpcMallocCont(contLen);
-  tSerializeSNotifyReq(pHead, contLen, pReq);
+  if (contLen < 0) {
+    dError("failed to serialize notify req since %s", tstrerror(contLen));
+    return;
+  }
+  void *pHead = rpcMallocCont(contLen);
+  contLen = tSerializeSNotifyReq(pHead, contLen, pReq);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    dError("failed to serialize notify req since %s", tstrerror(contLen));
+    return;
+  }
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
