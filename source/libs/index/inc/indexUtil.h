@@ -55,7 +55,7 @@ extern "C" {
       }                                               \
     }                                                 \
     if (f == false) {                                 \
-      taosArrayPush(dst, &tgt);                       \
+      (void)taosArrayPush(dst, &tgt);                 \
     }                                                 \
   }
 

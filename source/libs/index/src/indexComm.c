@@ -378,6 +378,9 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
 int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
   if (src == NULL) {
     *dst = strndup(INDEX_DATA_NULL_STR, (int)strlen(INDEX_DATA_NULL_STR));
+    if (*dst == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     return (int32_t)strlen(INDEX_DATA_NULL_STR);
   }
   int     tlen = tDataTypes[type].bytes;
@@ -385,63 +388,96 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
   switch (type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(int64_t*)src, *dst, -1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(int64_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_UTINYINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(uint8_t*)src, *dst, 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(uint8_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_TINYINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(int8_t*)src, *dst, 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(int8_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(int16_t*)src, *dst, -1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(int16_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(uint16_t*)src, *dst, -1);
+      (void)idxInt2str(*(uint16_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_INT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(int32_t*)src, *dst, -1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(int32_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(uint32_t*)src, *dst, 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(uint32_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BIGINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       sprintf(*dst, "%" PRIu64, *(uint64_t*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      idxInt2str(*(uint64_t*)src, *dst, 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      (void)idxInt2str(*(uint64_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_FLOAT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       sprintf(*dst, "%.9lf", *(float*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       *dst = taosMemoryCalloc(1, bufSize + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       sprintf(*dst, "%.9lf", *(double*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_NCHAR: {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
       *dst = (char*)*dst - tlen;
       break;
@@ -451,6 +487,9 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
     case TSDB_DATA_TYPE_GEOMETRY: {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
+      if (*dst == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
       *dst = (char*)*dst - tlen;
       break;

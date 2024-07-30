@@ -64,7 +64,7 @@ void iIntersection(SArray *in, SArray *out) {
       }
     }
     if (has == true) {
-      taosArrayPush(out, &tgt);
+      (void)taosArrayPush(out, &tgt);
     }
   }
   taosMemoryFreeClear(mi);
@@ -75,7 +75,7 @@ void iUnion(SArray *in, SArray *out) {
     return;
   }
   if (sz == 1) {
-    taosArrayAddAll(out, taosArrayGetP(in, 0));
+    (void)taosArrayAddAll(out, taosArrayGetP(in, 0));
     return;
   }
 
@@ -108,7 +108,7 @@ void iUnion(SArray *in, SArray *out) {
           continue;
         }
       }
-      taosArrayPush(out, &mVal);
+      (void)taosArrayPush(out, &mVal);
     } else {
       break;
     }
@@ -198,11 +198,11 @@ void idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
 
   if (taosArrayGetSize(tr->total) == 0 || taosArrayGetSize(tr->add) == 0) {
     SArray *t = taosArrayGetSize(tr->total) == 0 ? tr->add : tr->total;
-    taosArrayAddAll(result, t);
+    (void)taosArrayAddAll(result, t);
   } else {
     SArray *arrs = taosArrayInit(2, sizeof(void *));
-    taosArrayPush(arrs, &tr->total);
-    taosArrayPush(arrs, &tr->add);
+    (void)taosArrayPush(arrs, &tr->total);
+    (void)taosArrayPush(arrs, &tr->add);
     iUnion(arrs, result);
     taosArrayDestroy(arrs);
   }
