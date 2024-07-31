@@ -80,6 +80,12 @@ class TDTestCase:
         if nonempty_tb_num > 0:
             num = self.row_nums
         tdSql.checkRows(num)
+
+        tdSql.query(f"select c1, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by c1 having c1 >= 0")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = self.row_nums
+        tdSql.checkRows(num)
     
         tdSql.query(f"select ts, count(*) from {self.dbname}.{self.stable} {keyword} by ts ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)

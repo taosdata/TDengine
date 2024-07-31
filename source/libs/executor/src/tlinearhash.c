@@ -101,7 +101,10 @@ static int32_t doAddToBucket(SLHashObj* pHashObj, SLHashBucket* pBucket, int32_t
       return terrno;
     }
 
-    taosArrayPush(pBucket->pPageIdList, &newPageId);
+    void* px = taosArrayPush(pBucket->pPageIdList, &newPageId);
+    if (px == NULL) {
+      return terrno;
+    }
 
     doCopyObject(pNewPage->data, key, keyLen, data, size);
     pNewPage->num = sizeof(SFilePage) + nodeSize;
@@ -127,7 +130,7 @@ static void doRemoveFromBucket(SFilePage* pPage, SLHashNode* pNode, SLHashBucket
   char*   p = (char*)pNode + len;
 
   char* pEnd = (char*)pPage + pPage->num;
-  memmove(pNode, p, (pEnd - p));
+  (void) memmove(pNode, p, (pEnd - p));
 
   pPage->num -= len;
   if (pPage->num == 0) {
@@ -189,7 +192,7 @@ static void doTrimBucketPages(SLHashObj* pHashObj, SLHashBucket* pBucket) {
       nodeSize = GET_LHASH_NODE_LEN(pStart);
     } else {  // move to the front of pLast page
       if (pStart != pLast->data) {
-        memmove(pLast->data, pStart, (((char*)pLast) + pLast->num - pStart));
+        (void) memmove(pLast->data, pStart, (((char*)pLast) + pLast->num - pStart));
         setBufPageDirty(pLast, true);
       }
 
@@ -235,7 +238,10 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
   setBufPageDirty(p, true);
 
   releaseBufPage(pHashObj->pBuf, p);
-  taosArrayPush(pBucket->pPageIdList, &pageId);
+  void* px = taosArrayPush(pBucket->pPageIdList, &pageId);
+  if (px == NULL) {
+    return terrno;
+  }
 
   pHashObj->numOfBuckets += 1;
   //  printf("---------------add new bucket, id:0x%x, total:%d\n", pHashObj->numOfBuckets - 1, pHashObj->numOfBuckets);
@@ -251,7 +257,7 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
 
   if (!osTempSpaceAvailable()) {
     terrno = TSDB_CODE_NO_DISKSPACE;
-    printf("tHash Init failed since %s, tempDir:%s", terrstr(), tsTempDir);
+    (void) printf("tHash Init failed since %s, tempDir:%s", terrstr(), tsTempDir);
     taosMemoryFree(pHashObj);
     return NULL;
   }
@@ -301,9 +307,10 @@ void* tHashCleanup(SLHashObj* pHashObj) {
 }
 
 int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data, size_t size) {
+  int32_t code = 0;
   if (pHashObj->bits == 0) {
     SLHashBucket* pBucket = pHashObj->pBucket[0];
-    doAddToBucket(pHashObj, pBucket, 0, key, keyLen, data, size);
+    code = doAddToBucket(pHashObj, pBucket, 0, key, keyLen, data, size);
   } else {
     int32_t hashVal = pHashObj->hashFn(key, keyLen);
     int32_t v = doGetBucketIdFromHashVal(hashVal, pHashObj->bits);
@@ -315,10 +322,11 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
     }
 
     SLHashBucket* pBucket = pHashObj->pBucket[v];
-    int32_t       code = doAddToBucket(pHashObj, pBucket, v, key, keyLen, data, size);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+    code = doAddToBucket(pHashObj, pBucket, v, key, keyLen, data, size);
+  }
+
+  if (code) {
+    return code;
   }
 
   pHashObj->size += 1;
@@ -327,7 +335,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
   if ((pHashObj->numOfBuckets * LHASH_CAP_RATIO * pHashObj->tuplesPerPage) < pHashObj->size) {
     int32_t newBucketId = pHashObj->numOfBuckets;
 
-    int32_t code = doAddNewBucket(pHashObj);
+    code = doAddNewBucket(pHashObj);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -362,7 +370,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
           ASSERT(v1 == newBucketId);
           //          printf("move key:%d to 0x%x bucket, remain items:%d\n", *(int32_t*)k, v1, pBucket->size - 1);
           SLHashBucket* pNewBucket = pHashObj->pBucket[newBucketId];
-          doAddToBucket(pHashObj, pNewBucket, newBucketId, (void*)GET_LHASH_NODE_KEY(pNode), pNode->keyLen,
+          code = doAddToBucket(pHashObj, pNewBucket, newBucketId, (void*)GET_LHASH_NODE_KEY(pNode), pNode->keyLen,
                         GET_LHASH_NODE_KEY(pNode), pNode->dataLen);
           doRemoveFromBucket(p, pNode, pBucket);
         } else {
@@ -377,7 +385,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
     doTrimBucketPages(pHashObj, pBucket);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 char* tHashGet(SLHashObj* pHashObj, const void* key, size_t keyLen) {
@@ -420,8 +428,8 @@ int32_t tHashRemove(SLHashObj* pHashObj, const void* key, size_t keyLen) {
 }
 
 void tHashPrint(const SLHashObj* pHashObj, int32_t type) {
-  printf("==================== linear hash ====================\n");
-  printf("total bucket:%d, size:%" PRId64 ", ratio:%.2f\n", pHashObj->numOfBuckets, pHashObj->size, LHASH_CAP_RATIO);
+  (void) printf("==================== linear hash ====================\n");
+  (void) printf("total bucket:%d, size:%" PRId64 ", ratio:%.2f\n", pHashObj->numOfBuckets, pHashObj->size, LHASH_CAP_RATIO);
 
   dBufSetPrintInfo(pHashObj->pBuf);
 
