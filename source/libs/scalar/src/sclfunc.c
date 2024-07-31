@@ -250,7 +250,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
           colDataSetNULL(pOutputData, i);
           continue;
         }
-        out[i] = f1(in[i]);
+        out[i] = f1(in[i]) + 0;
       }
       break;
     }
@@ -264,7 +264,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
           colDataSetNULL(pOutputData, i);
           continue;
         }
-        out[i] = d1(in[i]);
+        out[i] = d1(in[i]) + 0;
       }
       break;
     }
