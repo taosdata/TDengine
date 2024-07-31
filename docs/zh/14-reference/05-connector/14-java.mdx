@@ -205,7 +205,7 @@ TDengine 的 JDBC URL 规范格式为：
 
 **注**：REST 连接中增加 `batchfetch` 参数并设置为 true，将开启 WebSocket 连接。  
 
-##### 原生连接
+**原生连接**  
 `jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 power 的连接。这个 URL
 中指定用户名（user）为 root，密码（password）为 taosdata。
 
@@ -213,18 +213,20 @@ TDengine 的 JDBC URL 规范格式为：
 
 对于原生连接 url 中支持的配置参数如下：
 
-- user：登录 TDengine 用户名，默认值 'root'。
-- password：用户登录密码，默认值 'taosdata'。
-- cfgdir：客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
-- charset：客户端使用的字符集，默认值为系统字符集。
-- locale：客户端语言环境，默认值系统当前 locale。
-- timezone：客户端使用的时区，默认值为系统当前时区。
-- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：true。开启批量拉取同时获取一批数据在查询数据量较大时批量拉取可以有效的提升查询性能。
-- batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败将继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
+| 属性             | 描述                                                                                                   | 默认值          |
+|------------------|--------------------------------------------------------------------------------------------------------|-----------------|
+| user             | 登录 TDengine 用户名                                                                                   | 'root'          |
+| password         | 用户登录密码                                                                                           | 'taosdata'      |
+| cfgdir           | 客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`           | 系统依赖        |
+| charset          | 客户端使用的字符集                                                                                     | 系统字符集      |
+| locale           | 客户端语言环境                                                                                         | 系统当前 locale |
+| timezone         | 客户端使用的时区                                                                                       | 系统当前时区    |
+| batchfetch       | 在执行查询时批量拉取结果集；false：逐行拉取结果集。开启批量拉取可以有效的提升查询性能                 | true            |
+| batchErrorIgnore | true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败将继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句 | false           |
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。  
 
-**使用 TDengine 客户端驱动配置文件建立连接**
+**使用 TDengine 客户端驱动配置文件建立连接**  
 
 当使用 JDBC 原生连接连接 TDengine 集群时，可以使用 TDengine 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。 此时在 JDBC url 中不指定 `hostname` 和 `port`。 
 配置如 `jdbc:TAOS://:/power?user=root&password=taosdata`。  
@@ -234,7 +236,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg ，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 
-##### Websocket 和 REST 连接
+**Websocket 和 REST 连接**  
 使用 JDBC Websocket 或 REST 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.rs.RestfulDriver”；
@@ -243,16 +245,19 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 
 对于 Websocket 和 REST 连接，url 中的配置参数如下：
 
-- user：登录 TDengine 用户名，默认值 'root'。
-- password：用户登录密码，默认值 'taosdata'。
-- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。JDBC REST 连接支持批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
-- charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
-- batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 60000。
-- httpSocketTimeout: socket 超时时间，单位 ms，默认值为 60000。仅在 batchfetch 设置为 false 时生效。
-- messageWaitTimeout: 消息超时时间, 单位 ms， 默认值为 60000。 仅在 batchfetch 设置为 true 时生效。
-- useSSL: 连接中是否使用 SSL。
-- httpPoolSize: REST 并发请求大小，默认 20。
+| 属性              | 描述                                                                                                                                                                                                                   | 默认值  |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| user              | 登录 TDengine 用户名                                                                                                                                                                                                   | 'root'  |
+| password          | 用户登录密码                                                                                                                                                                                                           | 'taosdata' |
+| batchfetch        | true：在执行查询时批量拉取结果集；false：逐行拉取结果集。逐行拉取结果集使用 HTTP 方式进行数据传输。JDBC REST 连接支持批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输，提升查询性能。 | false   |
+| charset           | 当开启批量拉取数据时，指定解析字符串数据的字符集。                                                                                                                                                                     |         |
+| batchErrorIgnore  | true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。                                                                                      | false   |
+| httpConnectTimeout| 连接超时时间，单位 ms                                                                                                                                                                                                   | 60000   |
+| httpSocketTimeout | socket 超时时间，单位 ms。仅在 batchfetch 设置为 false 时生效。                                                                                                                                                         | 60000   |
+| messageWaitTimeout| 消息超时时间, 单位 ms。仅在 batchfetch 设置为 true 时生效。                                                                                                                                                             | 60000   |
+| useSSL            | 连接中是否使用 SSL。                                                                                                                                                                                                    |         |
+| httpPoolSize      | REST 并发请求大小                                                                                                                                                                                                       | 20      |
+
 
 **注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。
 
@@ -269,33 +274,35 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 
 > **注意**：应用中设置的 client parameter 为进程级别的，即如果要更新 client 的参数，需要重启应用。这是因为 client parameter 是全局参数，仅在应用程序的第一次设置生效。
 
-properties 中的配置参数如下：
+properties 中的配置参数如下（**注意**：属性使用需要加上类名，如 `TSDBDriver.PROPERTY_KEY_USER` ）：
 
-- TSDBDriver.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 'root'。
-- TSDBDriver.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 'taosdata'。
-- TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
-- TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
-- TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
-- TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。因为历史的原因，我们只支持POSIX标准的部分规范，如UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
-- TSDBDriver.HTTP_CONNECT_TIMEOUT: 连接超时时间，单位 ms， 默认值为 60000。仅在 REST 连接时生效。
-- TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 60000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
-- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
-- TSDBDriver.HTTP_POOL_SIZE: REST 并发请求大小，默认 20。
-- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 REST/Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+| 属性                                      | 描述                                                                                                                         | 默认值               |
+|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|----------------------|
+| PROPERTY_KEY_USER                         | 登录 TDengine 用户名                                                                                                         | 'root'               |
+| PROPERTY_KEY_PASSWORD                     | 用户登录密码                                                                                                                 | 'taosdata'           |
+| PROPERTY_KEY_BATCH_LOAD                   | 在执行查询时批量拉取结果集；false：逐行拉取结果集                                                                            | false                |
+| PROPERTY_KEY_BATCH_ERROR_IGNORE           | 在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。 | false                |
+| PROPERTY_KEY_CONFIG_DIR                   | 仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径                                                                         | Linux: `/etc/taos`, Windows: `C:/TDengine/cfg` |
+| PROPERTY_KEY_CHARSET                      | 客户端使用的字符集                                                                                                           | 系统字符集           |
+| PROPERTY_KEY_LOCALE                       | 仅在使用 JDBC 原生连接时生效。客户端语言环境                                                                                 | 系统当前 locale      |
+| PROPERTY_KEY_TIME_ZONE                    | 仅在使用 JDBC 原生连接时生效。客户端使用的时区                                                                               | 系统当前时区         |
+| HTTP_CONNECT_TIMEOUT                      | 连接超时时间，单位 ms。仅在 REST 连接时生效。                                                                                 | 60000                |
+| HTTP_SOCKET_TIMEOUT                       | socket 超时时间，单位 ms。仅在 REST 连接且 batchfetch 设置为 false 时生效。                                                  | 60000                |
+| PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT         | 消息超时时间, 单位 ms。仅在 REST 连接且 batchfetch 设置为 true 时生效。                                                      | 60000                |
+| PROPERTY_KEY_USE_SSL                      | 连接中是否使用 SSL。仅在 REST 连接时生效。                                                                                    |                      |
+| HTTP_POOL_SIZE                            | REST 并发请求大小                                                                                                             | 20                   |
+| PROPERTY_KEY_ENABLE_COMPRESSION           | 传输过程是否启用压缩。仅在使用 REST/Websocket 连接时生效。                                                                   | false                |
+| PROPERTY_KEY_ENABLE_AUTO_RECONNECT        | 是否启用自动重连。仅在使用 Websocket 连接时生效。                                                                             | false                |
+| PROPERTY_KEY_RECONNECT_INTERVAL_MS        | 自动重连重试间隔，单位毫秒。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。                                         | 2000                 |
+| PROPERTY_KEY_RECONNECT_RETRY_COUNT        | 自动重连重试次数。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。                                                   | 3                    |
+| PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION  | 关闭 SSL 证书验证。仅在使用 Websocket 连接时生效。                                                                            | false                |
+
 > **注意**：启用自动重连仅对简单执行 SQL 语句以及 无模式写入、数据订阅有效。对于参数绑定无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
-
-- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: 关闭 SSL 证书验证 。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
 
 
 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](../../reference/config/)。
 
-##### 配置参数的优先级
+**配置参数的优先级**  
 
 通过前面三种方式获取连接，如果配置参数在 url、Properties、客户端配置文件中有重复，则参数的`优先级由高到低`分别如下：
 
