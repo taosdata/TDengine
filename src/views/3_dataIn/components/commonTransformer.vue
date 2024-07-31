@@ -164,7 +164,7 @@
                   style="width: 100px;margin-right: 5px"
                   size="small"
                   :controls="false"
-                  min="0"
+                  :min="0"
                 >
                 </el-input-number>
                 <cusSelect
@@ -1114,29 +1114,26 @@ export default {
           topparser = JSON.parse(this.msgForm.msgbody);
         } else {
           let depthObj = {}
-          let expressionObj = {}
           if (this.parseruleForm.type == 'json') {
             depthObj = {
               'depth': this.parseruleForm.depth || 0
             }
           }
-          if (this.parseruleForm.expression) {
-            expressionObj = {
-              [`${this.parseruleForm.type}`]:
-                this.parseruleForm.type == "regex"
-                  ? this.parseruleForm.expression
-                  : this.parseruleForm.type == "split"
-                  ? this.$store.state.app.splitExpresList
-                  : this.parseruleForm.type == "udt"
-                  ? this.parseruleForm.expression
-                  : this.parseruleForm.expression
-                  ? this.parseruleForm.expression
-                      .split(";")
-                      .toString()
-                      .split(",")
-                      .map((item) => item.trim())
-                  : this.parseruleForm.expression
-            }
+          let expressionObj = {
+            [`${this.parseruleForm.type}`]:
+              this.parseruleForm.type == "regex"
+                ? this.parseruleForm.expression
+                : this.parseruleForm.type == "split"
+                ? this.$store.state.app.splitExpresList
+                : this.parseruleForm.type == "udt"
+                ? this.parseruleForm.expression
+                : this.parseruleForm.expression
+                ? this.parseruleForm.expression
+                    .split(";")
+                    .toString()
+                    .split(",")
+                    .map((item) => item.trim())
+                : this.parseruleForm.expression
           }
           topparser = {
             parser: {
