@@ -16,7 +16,7 @@ use shadow_rs::shadow;
 use thiserror::Error;
 use time::{macros::format_description, UtcOffset};
 use tracing::{log::LevelFilter, Instrument};
-use tracing_appender::non_blocking::NonBlocking;
+use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::{
     fmt::{format::FmtSpan, time::OffsetTime},
     prelude::*,
@@ -156,6 +156,14 @@ struct Global {
     /// Log keep days.
     #[clap(long, env = "LOG_KEEP_DAYS", global = true)]
     log_keep_days: Option<i64>,
+
+    /// Not log to files.
+    #[clap(long, global = true)]
+    no_log_to_files: bool,
+
+    /// Disable non-blocking writer for log file appender.
+    #[clap(long, global = true)]
+    no_async_log: bool,
 
     /// Number of jobs, default to 0, will use `jobs` number of works for TMQ.
     #[clap(short, long, value_parser, default_value = "0", global = true)]
@@ -367,12 +375,15 @@ fn create_rolling_file_appender(log_dir: &Path) -> RollingFileAppender {
         .expect("failed to initialize rolling file appender")
 }
 
-async fn init_tracing_layers(
+async fn init_tracing_layers<W>(
     args: &Args,
     span_events: FmtSpan,
     level_filter: LevelFilter,
-    non_blocking: NonBlocking,
-) -> Result<(), anyhow::Error> {
+    make_writer: W,
+) -> Result<(), anyhow::Error>
+where
+    W: for<'writer> MakeWriter<'writer> + 'static + Send + Sync,
+{
     let mut layers = Vec::new();
     use tracing_subscriber::filter::LevelFilter as TracingLevelFilter;
     let tracing_level_filter = match level_filter {
@@ -407,13 +418,15 @@ async fn init_tracing_layers(
         };
         Ok(event_filter)
     }
-    // Add layer for rotating logs
-    layers.push(
-        TaosXLayer::new()
-            .with_writer(non_blocking)
-            .with_filter(env_filter_from(&tracing_level_filter)?)
-            .boxed(),
-    );
+    if !args.global.no_log_to_files {
+        // Add layer for rotating logs
+        layers.push(
+            TaosXLayer::new()
+                .with_writer(make_writer)
+                .with_filter(env_filter_from(&tracing_level_filter)?)
+                .boxed(),
+        );
+    }
 
     let chrono_local = Local::now();
     let timezone_offset = (chrono_local.offset().local_minus_utc()
@@ -597,13 +610,25 @@ fn main() -> Result<()> {
     let runtime = build_runtime("taosx", worker_threads)?;
     let log_dir = get_log_dir("");
     let rolling_file_appender = create_rolling_file_appender(&log_dir);
-    let (non_blocking, _guard) = tracing_appender::non_blocking(rolling_file_appender);
-    runtime.block_on(init_tracing_layers(
-        &args,
-        span_events,
-        level_filter,
-        non_blocking,
-    ))?;
+
+    let _guard = if !args.global.no_async_log {
+        let (non_blocking, guard) = tracing_appender::non_blocking(rolling_file_appender);
+        runtime.block_on(init_tracing_layers(
+            &args,
+            span_events,
+            level_filter,
+            non_blocking,
+        ))?;
+        Some(guard)
+    } else {
+        runtime.block_on(init_tracing_layers(
+            &args,
+            span_events,
+            level_filter,
+            rolling_file_appender,
+        ))?;
+        None
+    };
     tracing::info!("taosx version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
@@ -643,15 +668,19 @@ fn main() -> Result<()> {
 
             debug!("Starting controller");
             let ctl = runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
+
+            debug!("Starting monitor");
             let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
+            debug!("Starting gRPC server");
             let grpc_handle = grpc_rt.spawn(serve_api.grpc(
                 ctl.clone(),
                 agent_rpc_channel,
                 agent_spawn_sender,
                 monitor.clone(),
             ));
+            debug!("Starting API server");
             runtime.block_on(async move {
                 // rest api
                 serve.api(api_ctl, grpc_handle, monitor).await

@@ -627,6 +627,7 @@ impl TaskController {
     ) -> anyhow::Result<Self> {
         if !sqlite.contains(":memory:") {
             let file = sqlite.replacen("sqlite:", "", 1);
+            tracing::debug!("check sqlite file: {}", file);
             let path = std::path::Path::new(&file);
             if let Some(dir) = path.parent() {
                 if !dir.exists() {
@@ -660,6 +661,7 @@ impl TaskController {
             .max_lifetime(Some(Duration::from_secs(60 * 60 * 24)))
             .connect_with(connect_options)
             .await?;
+        tracing::debug!("sqlite pool created, start migration");
         MIGRATOR.run(&pool).await?;
 
         let notify_channel = scheduler.notify_channel();
