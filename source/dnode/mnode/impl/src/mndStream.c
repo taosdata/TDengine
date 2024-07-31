@@ -873,7 +873,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stream:%s, failed to create since %s", createReq.name, terrstr(code));
+    mError("stream:%s, failed to create since %s", createReq.name, terrstr());
   } else {
     mDebug("stream:%s create stream completed", createReq.name);
   }
