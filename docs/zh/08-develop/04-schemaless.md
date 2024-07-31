@@ -39,30 +39,30 @@ tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要�
 - 如果两边有英文双引号而且带有 B 或 b 前缀，表示 varbinary 类型，双引号内可以为 \x 开头的十六进制或者字符串，例如 B"\x98f46e" 和 B"hello"。
 - 对于空格、等号（=）、逗号（,）、双引号（"）、反斜杠（\），前面需要使用反斜杠（\）进行转义（均为英文半角符号）。无模式写入协议的域转义规则如下表所示。
 
-| **序号**  | **域**      | **需转义字符**                  |
-| -------- | ----------- | ----------------------------- |
-| 1        | 超级表名      | 逗号，空格                      |
-| 2        | 标签名       | 逗号，等号，空格                 |
-| 3        | 标签值       | 逗号，等号，空格                 |
-| 4        | 列名         | 逗号，等号，空格                 |
-| 5        | 列值         | 双引号，反斜杠                  |
+| **序号** | **域**   | **需转义字符**   |
+| -------- | -------- | ---------------- |
+| 1        | 超级表名 | 逗号，空格       |
+| 2        | 标签名   | 逗号，等号，空格 |
+| 3        | 标签值   | 逗号，等号，空格 |
+| 4        | 列名     | 逗号，等号，空格 |
+| 5        | 列值     | 双引号，反斜杠   |
 
 如果使用两个连续的反斜杠，则第1个反斜杠作为转义符，当只有一个反斜杠时则无须转义。无模式写入协议的反斜杠转义规则如下表所示。
 
-| **序号**  | **反斜杠**     | **转义为**                     |
-| -------- | -----------   | ----------------------------- |
-| 1        | \             | \                             |
-| 2        | \\\\          | \                             |
-| 3        | \\\\\\        | \\\\                          |
-| 4        | \\\\\\\\      | \\\\                          |
-| 5        | \\\\\\\\\\    | \\\\\\                        |
-| 6        | \\\\\\\\\\\\  | \\\\\\                        |
+| **序号** | **反斜杠**   | **转义为** |
+| -------- | ------------ | ---------- |
+| 1        | \            | \          |
+| 2        | \\\\         | \          |
+| 3        | \\\\\\       | \\\\       |
+| 4        | \\\\\\\\     | \\\\       |
+| 5        | \\\\\\\\\\   | \\\\\\     |
+| 6        | \\\\\\\\\\\\ | \\\\\\     |
 
 数值类型将通过后缀来区分数据类型。无模式写入协议的数值类型转义规则如下表所示。
 
-| **序号**  | **后缀**    | **映射类型**                  | **大小(字节)** |
+| **序号** | **后缀**    | **映射类型**                  | **大小(字节)** |
 | -------- | ----------- | ----------------------------- | -------------- |
-| 1        | 无或 f64     | double                        | 8              |
+| 1        | 无或 f64    | double                        | 8              |
 | 2        | f32         | float                         | 4              |
 | 3        | i8/u8       | TinyInt/UTinyInt              | 1              |
 | 4        | i16/u16     | SmallInt/USmallInt            | 2              |
@@ -151,45 +151,73 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 第二行数据相对于第一行来说增加了一个列 c6，类型为 binary(6)。那么此时会自动增加一个列 c6， 类型为 binary(6)。
 
 ## 无模式写入示例
+下面以智能电表为例，介绍各语言连接器使用无模式写入接口写入数据的代码样例，包含了三种协议： InfluxDB 的行协议、OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议。  
+
+### Websocket 连接
 
 <Tabs defaultValue="java" groupId="schemaless">
 <TabItem value="java" label="Java">
 
+
 ```java
-public class SchemalessWsTest {
-    private static final String host = "127.0.0.1";
-    private static final String lineDemo = "meters,groupid=2,location=California.SanFrancisco current=10.3000002f64,voltage=219i32,phase=0.31f64 1626006833639000000";
-    private static final String telnetDemo = "stb0_0 1707095283260 4 host=host0 interface=eth0";
-    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
-
-    public static void main(String[] args) throws SQLException {
-        final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata&batchfetch=true";
-        try(Connection connection = DriverManager.getConnection(url)){
-            init(connection);
-
-            try(SchemalessWriter writer = new SchemalessWriter(connection, "power")){
-                writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
-                writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
-                writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
-            }
-        }
-    }
-
-    private static void init(Connection connection) throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("CREATE DATABASE IF NOT EXISTS power");
-            stmt.execute("USE power");
-        }
-    }
-}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessWsTest.java:schemaless}}
 ```
+
+
 执行带有 reqId 的无模式写入，此 reqId 可用于请求链路追踪。
 
 ```java
 writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
 ```
+
+</TabItem>
+<TabItem label="Python" value="python">
+</TabItem>
+<TabItem label="Go" value="go">
+</TabItem>
+<TabItem label="Rust" value="rust">
+</TabItem>
+<TabItem label="C#" value="csharp">
+</TabItem>
+<TabItem label="R" value="r">
+</TabItem>
+<TabItem label="C" value="c">
+</TabItem>
+<TabItem label="PHP" value="php">
 </TabItem>
 </Tabs>
+
+### 原生连接
+<Tabs defaultValue="java" groupId="lang">
+    <TabItem label="Java" value="java">
+        ```java
+        {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessJniTest.java:schemaless}}
+        ```
+
+执行带有 reqId 的无模式写入，此 reqId 可用于请求链路追踪。
+
+```java
+writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
+```
+
+    </TabItem>
+    <TabItem label="Python" value="python">
+   </TabItem>
+    <TabItem label="Go" value="go">
+    </TabItem>
+    <TabItem label="Rust" value="rust">
+    </TabItem>
+    <TabItem label="C#" value="csharp">
+    </TabItem>
+    <TabItem label="R" value="r">
+    </TabItem>
+    <TabItem label="C" value="c">
+    </TabItem>
+    <TabItem label="PHP" value="php">
+    </TabItem>
+
+</Tabs>
+
 
 ## 查询写入的数据
 

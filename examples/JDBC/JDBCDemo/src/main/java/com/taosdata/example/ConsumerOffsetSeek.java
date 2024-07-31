@@ -51,7 +51,12 @@ try (TaosConsumer<AbsConsumerLoop.ResultBean> consumer = new TaosConsumer<>(conf
             }
         }
         ConsumerRecords<AbsConsumerLoop.ResultBean> records = consumer.poll(Duration.ofMillis(500));
+        // you can handle data here
     }
+} catch (SQLException ex) {
+    // handle exception
+    System.out.println("SQLException: " + ex.getMessage());
+    throw new SQLException("Failed to create consumer", ex);
 }
 // ANCHOR_END: consumer_seek
     }

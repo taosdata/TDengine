@@ -17,7 +17,6 @@ public class JdbcBasicDemo {
     public static void main(String[] args) throws SQLException {
 
 final String url = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
-Connection connection;
 
 // get connection
 Properties properties = new Properties();
@@ -25,7 +24,9 @@ properties.setProperty("charset", "UTF-8");
 properties.setProperty("locale", "en_US.UTF-8");
 properties.setProperty("timezone", "UTC-8");
 System.out.println("get connection starting...");
-connection = DriverManager.getConnection(url, properties);
+try(Connection connection = DriverManager.getConnection(url, properties)){
+
+
 if (connection != null){
     System.out.println("[ OK ] Connection established.");
 } else {
@@ -106,6 +107,10 @@ try (Statement statement = connection.createStatement()) {
     e.printStackTrace();
 }
 // ANCHOR_END: jdbc_exception
+        } catch (SQLException ex) {
+            // handle any errors
+            System.out.println("SQLException: " + ex.getMessage());
+        }
     }
 
     private static void printResult(ResultSet resultSet) throws SQLException {
