@@ -1763,6 +1763,14 @@ int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
+typedef struct {
+  int32_t dnodeId;
+  char    machineId[TSDB_MACHINE_ID_LEN + 1];
+} SDnodeInfoReq;
+
+int32_t tSerializeSDnodeInfoReq(void* buf, int32_t bufLen, SDnodeInfoReq* pReq);
+int32_t tDeserializeSDnodeInfoReq(void* buf, int32_t bufLen, SDnodeInfoReq* pReq);
+
 typedef enum {
   MONITOR_TYPE_COUNTER = 0,
   MONITOR_TYPE_SLOW_LOG = 1,
@@ -1827,12 +1835,18 @@ typedef struct {
 int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 // int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 
-typedef struct {
-  int64_t tick;
-} SMStreamTickReq;
+typedef struct SOrphanTask {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t nodeId;
+} SOrphanTask;
 
-int32_t tSerializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
-// int32_t tDeserializeSMStreamTickMsg(void* buf, int32_t bufLen, SMStreamTickReq* pReq);
+typedef struct SMStreamDropOrphanMsg {
+  SArray* pList;  // SArray<SOrphanTask>
+} SMStreamDropOrphanMsg;
+
+int32_t tSerializeDropOrphanTaskMsg(void* buf, int32_t bufLen, SMStreamDropOrphanMsg* pMsg);
+int32_t tDeserializeDropOrphanTaskMsg(void* buf, int32_t bufLen, SMStreamDropOrphanMsg* pMsg);
 
 typedef struct {
   int32_t  id;
@@ -3641,7 +3655,7 @@ int32_t tEncodeSTqOffsetVal(SEncoder* pEncoder, const STqOffsetVal* pOffsetVal);
 int32_t tDecodeSTqOffsetVal(SDecoder* pDecoder, STqOffsetVal* pOffsetVal);
 void    tFormatOffset(char* buf, int32_t maxLen, const STqOffsetVal* pVal);
 bool    tOffsetEqual(const STqOffsetVal* pLeft, const STqOffsetVal* pRight);
-int32_t tOffsetCopy(STqOffsetVal* pLeft, const STqOffsetVal* pRight);
+void    tOffsetCopy(STqOffsetVal* pLeft, const STqOffsetVal* pRight);
 void    tOffsetDestroy(void* pVal);
 
 typedef struct {

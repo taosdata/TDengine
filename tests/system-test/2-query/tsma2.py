@@ -615,6 +615,8 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
+        tdSql.execute('alter local "debugFlag" "143"')
+        tdSql.execute('alter dnode 1 "debugFlag" "143"')
         self.tsma_tester: TSMATester = TSMATester(tdSql)
         self.tsma_sql_generator: TSMATestSQLGenerator = TSMATestSQLGenerator()
 

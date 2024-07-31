@@ -65,10 +65,16 @@ interp_clause:
     RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
-    PARTITION BY expr [, expr] ...
+    PARTITION BY partition_by_expr [, partition_by_expr] ...
+
+partition_by_expr:
+    {expr | position | c_alias}
 
 group_by_clause:
-    GROUP BY expr [, expr] ... HAVING condition
+    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
+                                                    
+group_by_expr:
+    {expr | position | c_alias}
 
 order_by_clasue:
     ORDER BY order_expr [, order_expr] ...
@@ -274,7 +280,13 @@ If you use a GROUP BY clause, the SELECT list can only include the following ite
 
 The GROUP BY clause groups each row of data by the value of the expression following the clause and returns a combined result for each group.
 
-The expressions in a GROUP BY clause can include any column in any table or view. It is not necessary that the expressions appear in the SELECT list.
+In the GROUP BY clause, columns from a table or view can be grouped by specifying the column name. These columns do not need to be included in the SELECT list.
+
+You can specify integers in GROUP BY expression to indicate the expressions in the select list used for grouping. For example, 1 indicates the first item in the select list.
+
+You can specify column names in result set to indicate the expressions in the select list used for grouping.
+
+When using position and result set column names for grouping in the GROUP BY clause, the corresponding expressions in the select list must not be aggregate functions.
 
 The GROUP BY clause does not guarantee that the results are ordered. If you want to ensure that grouped data is ordered, use the ORDER BY clause.
 

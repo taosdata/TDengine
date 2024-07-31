@@ -61,9 +61,7 @@ static int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq);
 static int32_t mndProcessCheckpointReport(SRpcMsg *pReq);
 static int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg);
 static void    doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId, int32_t code);
-
-
-static int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
+static int32_t mndProcessDropOrphanTaskReq(SRpcMsg* pReq);
 
 static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList);
 
@@ -121,6 +119,8 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamCheckpoint);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_DROP_ORPHANTASKS, mndProcessDropOrphanTaskReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_TASK_RESET, mndProcessResetStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_REQ_CHKPT, mndProcessStreamReqCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHKPT_REPORT, mndProcessCheckpointReport);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_UPDATE_CHKPT_EVT, mndScanCheckpointReportInfo);
@@ -154,6 +154,7 @@ int32_t mndInitStream(SMnode *pMnode) {
 void mndCleanupStream(SMnode *pMnode) {
   taosArrayDestroy(execInfo.pTaskList);
   taosArrayDestroy(execInfo.pNodeList);
+  taosArrayDestroy(execInfo.pKilledChkptTrans);
   taosHashCleanup(execInfo.pTaskMap);
   taosHashCleanup(execInfo.transMgmt.pDBTrans);
   taosHashCleanup(execInfo.pTransferStateStreams);
@@ -271,37 +272,11 @@ void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
   sdbRelease(pSdb, pStream);
 }
 
-static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
-  int8_t status = atomic_load_8(&pStream->status);
-  if (status == STREAM_STATUS__NORMAL) {
-    strcpy(dst, "ready");
-  } else if (status == STREAM_STATUS__STOP) {
-    strcpy(dst, "stop");
-  } else if (status == STREAM_STATUS__FAILED) {
-    strcpy(dst, "failed");
-  } else if (status == STREAM_STATUS__RECOVER) {
-    strcpy(dst, "recover");
-  } else if (status == STREAM_STATUS__PAUSE) {
-    strcpy(dst, "paused");
-  }
-}
-
 SSdbRaw *mndStreamSeqActionEncode(SStreamObj *pStream) { return NULL; }
 SSdbRow *mndStreamSeqActionDecode(SSdbRaw *pRaw) { return NULL; }
 int32_t  mndStreamSeqActionInsert(SSdb *pSdb, SStreamSeq *pStream) { return 0; }
 int32_t  mndStreamSeqActionDelete(SSdb *pSdb, SStreamSeq *pStream) { return 0; }
 int32_t  mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStreamSeq *pNewStream) { return 0; }
-
-static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
-  int8_t trigger = pStream->conf.trigger;
-  if (trigger == STREAM_TRIGGER_AT_ONCE) {
-    strcpy(dst, "at once");
-  } else if (trigger == STREAM_TRIGGER_WINDOW_CLOSE) {
-    strcpy(dst, "window close");
-  } else if (trigger == STREAM_TRIGGER_MAX_DELAY) {
-    strcpy(dst, "max delay");
-  }
-}
 
 static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
   if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0 || pCreate->sourceDB[0] == 0 ||
@@ -873,7 +848,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stream:%s, failed to create since %s", createReq.name, terrstr(code));
+    mError("stream:%s, failed to create since %s", createReq.name, terrstr());
   } else {
     mDebug("stream:%s create stream completed", createReq.name);
   }
@@ -1020,10 +995,10 @@ static int32_t doSetCheckpointAction(SMnode *pMnode, STrans *pTrans, SStreamTask
 
 static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId,
                                                int8_t mndTrigger, bool lock) {
-  int32_t code = -1;
+  int32_t code = TSDB_CODE_SUCCESS;
   int64_t ts = taosGetTimestampMs();
   if (mndTrigger == 1 && (ts - pStream->checkpointFreq < tsStreamCheckpointInterval * 1000)) {
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHECKPOINT_NAME, lock);
@@ -1087,13 +1062,11 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
     goto _ERR;
   }
 
-  if ((code = mndTransPrepare(pMnode, pTrans)) != TSDB_CODE_SUCCESS) {
-    code = terrno;
+  code = mndTransPrepare(pMnode, pTrans);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to prepare checkpoint trans since %s", terrstr());
-    goto _ERR;
   }
 
-  code = 0;
 _ERR:
   mndTransDrop(pTrans);
   return code;
@@ -1367,8 +1340,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
     mError("invalid drop stream msg recv, discarded");
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_RETURN(code);
   }
 
   mDebug("recv drop stream:%s msg", dropReq.name);
@@ -1381,10 +1354,10 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       tFreeMDropStreamReq(&dropReq);
       return 0;
     } else {
-      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+      code = TSDB_CODE_MND_STREAM_NOT_EXIST;
       mError("stream:%s not exist failed to drop it", dropReq.name);
       tFreeMDropStreamReq(&dropReq);
-      return -1;
+      TAOS_RETURN(code);
     }
   }
 
@@ -1401,11 +1374,11 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
         sdbCancelFetch(pMnode->pSdb, pIter);
         tFreeMDropStreamReq(&dropReq);
-        terrno = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+        code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
 
         mError("try to drop sma-related stream:%s, uid:0x%" PRIx64 " code:%s only allowed to be dropped along with sma",
                dropReq.name, pStream->uid, tstrerror(terrno));
-        return -1;
+        TAOS_RETURN(code);
       }
 
       if (pSma) {
@@ -1427,7 +1400,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (conflict) {
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
-    return -1;
+    return terrno;
   }
 
   STrans *pTrans = NULL;
@@ -1436,34 +1409,44 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mError("stream:%s uid:0x%" PRIx64 " failed to drop since %s", dropReq.name, pStream->uid, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pStream->uid);
-
-  // drop all tasks
-  if (mndStreamSetDropAction(pMnode, pTrans, pStream) < 0) {
-    mError("stream:%s uid:0x%" PRIx64 " failed to drop task since %s", dropReq.name, pStream->uid, terrstr());
+  if (code) {
+    mError("failed to register drop stream trans, code:%s", tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     tFreeMDropStreamReq(&dropReq);
-    return -1;
+    TAOS_RETURN(code);
+  }
+
+  // drop all tasks
+  code = mndStreamSetDropAction(pMnode, pTrans, pStream);
+  if (code) {
+    mError("stream:%s uid:0x%" PRIx64 " failed to drop task since %s", dropReq.name, pStream->uid, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    tFreeMDropStreamReq(&dropReq);
+    TAOS_RETURN(code);
   }
 
   // drop stream
-  if (mndPersistTransLog(pStream, pTrans, SDB_STATUS_DROPPED) < 0) {
+  code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_DROPPED);
+  if (code) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     tFreeMDropStreamReq(&dropReq);
-    return -1;
+    TAOS_RETURN(code);
   }
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
+  code = mndTransPrepare(pMnode, pTrans);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     tFreeMDropStreamReq(&dropReq);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   // kill the related checkpoint trans
@@ -1489,7 +1472,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (code == 0) {
     return TSDB_CODE_ACTION_IN_PROGRESS;
   } else {
-    return code;
+    TAOS_RETURN(code);
   }
 }
 
@@ -1571,15 +1554,6 @@ int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams)
   return 0;
 }
 
-static void int64ToHexStr(int64_t id, char *pBuf, int32_t bufLen) {
-  memset(pBuf, 0, bufLen);
-  pBuf[2] = '0';
-  pBuf[3] = 'x';
-
-  int32_t len = tintToHex(id, &pBuf[4]);
-  varDataSetLen(pBuf, len + 2);
-}
-
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
@@ -1605,379 +1579,6 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void mndCancelGetNextStream(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
-}
-
-int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows) {
-  int32_t code = 0;
-  int32_t cols = 0;
-  int32_t lino = 0;
-
-  char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
-  SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)streamName, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // create time
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->createTime, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // stream id
-  char buf[128] = {0};
-  int64ToHexStr(pStream->uid, buf, tListLen(buf));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, buf, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // related fill-history stream id
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  if (pStream->hTaskUid != 0) {
-    int64ToHexStr(pStream->hTaskUid, buf, tListLen(buf));
-    code = colDataSetVal(pColInfo, numOfRows, buf, false);
-  } else {
-    code = colDataSetVal(pColInfo, numOfRows, buf, true);
-  }
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // related fill-history stream id
-  char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(sql, pStream->sql, sizeof(sql));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  char status[20 + VARSTR_HEADER_SIZE] = {0};
-  char status2[20] = {0};
-  mndShowStreamStatus(status2, pStream);
-  STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  char sourceDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(sourceDB, mndGetDbStr(pStream->sourceDb), sizeof(sourceDB));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&sourceDB, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  char targetDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(targetDB, mndGetDbStr(pStream->targetDb), sizeof(targetDB));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&targetDB, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  if (pStream->targetSTbName[0] == 0) {
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, NULL, true);
-  } else {
-    char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(targetSTB, mndGetStbStr(pStream->targetSTbName), sizeof(targetSTB));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&targetSTB, false);
-  }
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->conf.watermark, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  char trigger[20 + VARSTR_HEADER_SIZE] = {0};
-  char trigger2[20] = {0};
-  mndShowStreamTrigger(trigger2, pStream);
-  STR_WITH_MAXSIZE_TO_VARSTR(trigger, trigger2, sizeof(trigger));
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&trigger, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // sink_quota
-  char sinkQuota[20 + VARSTR_HEADER_SIZE] = {0};
-  sinkQuota[0] = '0';
-  char dstStr[20] = {0};
-  STR_TO_VARSTR(dstStr, sinkQuota)
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // checkpoint interval
-  char tmp[20 + VARSTR_HEADER_SIZE] = {0};
-  sprintf(varDataVal(tmp), "%d sec", tsStreamCheckpointInterval);
-  varDataSetLen(tmp, strlen(varDataVal(tmp)));
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)tmp, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // checkpoint backup type
-  char backup[20 + VARSTR_HEADER_SIZE] = {0};
-  STR_TO_VARSTR(backup, "none")
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)backup, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // history scan idle
-  char scanHistoryIdle[20 + VARSTR_HEADER_SIZE] = {0};
-  strcpy(scanHistoryIdle, "100a");
-
-  memset(dstStr, 0, tListLen(dstStr));
-  STR_TO_VARSTR(dstStr, scanHistoryIdle)
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)dstStr, false);
-
-  _end:
-  return code;
-}
-
-static int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows) {
-  SColumnInfoData *pColInfo;
-  int32_t          cols = 0;
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-
-  STaskStatusEntry *pe = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
-  if (pe == NULL) {
-    mError("task:0x%" PRIx64 " not exists in any vnodes, streamName:%s, streamId:0x%" PRIx64 " createTs:%" PRId64
-           " no valid status/stage info",
-           id.taskId, pStream->name, pStream->uid, pStream->createTime);
-    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
-  }
-
-  // stream name
-  char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)streamName, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // task id
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-
-  char idstr[128] = {0};
-  int64ToHexStr(pTask->id.taskId, idstr, tListLen(idstr));
-  code = colDataSetVal(pColInfo, numOfRows, idstr, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // node type
-  char nodeType[20 + VARSTR_HEADER_SIZE] = {0};
-  varDataSetLen(nodeType, 5);
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  if (pTask->info.nodeId > 0) {
-    memcpy(varDataVal(nodeType), "vnode", 5);
-  } else {
-    memcpy(varDataVal(nodeType), "snode", 5);
-  }
-  code = colDataSetVal(pColInfo, numOfRows, nodeType, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // node id
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  int64_t nodeId = TMAX(pTask->info.nodeId, 0);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&nodeId, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // level
-  char level[20 + VARSTR_HEADER_SIZE] = {0};
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    memcpy(varDataVal(level), "source", 6);
-    varDataSetLen(level, 6);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
-    memcpy(varDataVal(level), "agg", 3);
-    varDataSetLen(level, 3);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    memcpy(varDataVal(level), "sink", 4);
-    varDataSetLen(level, 4);
-  }
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)level, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // status
-  char status[20 + VARSTR_HEADER_SIZE] = {0};
-
-  const char *pStatus = streamTaskGetStatusStr(pe->status);
-  STR_TO_VARSTR(status, pStatus);
-
-  // status
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)status, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // stage
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pe->stage, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // input queue
-  char        vbuf[40] = {0};
-  char        buf[38] = {0};
-  const char *queueInfoStr = "%4.2f MiB (%6.2f%)";
-  snprintf(buf, tListLen(buf), queueInfoStr, pe->inputQUsed, pe->inputRate);
-  STR_TO_VARSTR(vbuf, buf);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // input total
-  const char *formatTotalMb = "%7.2f MiB";
-  const char *formatTotalGb = "%7.2f GiB";
-  if (pe->procsTotal < 1024) {
-    snprintf(buf, tListLen(buf), formatTotalMb, pe->procsTotal);
-  } else {
-    snprintf(buf, tListLen(buf), formatTotalGb, pe->procsTotal / 1024);
-  }
-
-  memset(vbuf, 0, tListLen(vbuf));
-  STR_TO_VARSTR(vbuf, buf);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // process throughput
-  const char *formatKb = "%7.2f KiB/s";
-  const char *formatMb = "%7.2f MiB/s";
-  if (pe->procsThroughput < 1024) {
-    snprintf(buf, tListLen(buf), formatKb, pe->procsThroughput);
-  } else {
-    snprintf(buf, tListLen(buf), formatMb, pe->procsThroughput / 1024);
-  }
-
-  memset(vbuf, 0, tListLen(vbuf));
-  STR_TO_VARSTR(vbuf, buf);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // output total
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-
-  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    colDataSetNULL(pColInfo, numOfRows);
-  } else {
-    sprintf(buf, formatTotalMb, pe->outputTotal);
-    memset(vbuf, 0, tListLen(vbuf));
-    STR_TO_VARSTR(vbuf, buf);
-
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
-    TSDB_CHECK_CODE(code, lino, _end);
-  }
-
-  // output throughput
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-
-  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    colDataSetNULL(pColInfo, numOfRows);
-  } else {
-    if (pe->outputThroughput < 1024) {
-      snprintf(buf, tListLen(buf), formatKb, pe->outputThroughput);
-    } else {
-      snprintf(buf, tListLen(buf), formatMb, pe->outputThroughput / 1024);
-    }
-
-    memset(vbuf, 0, tListLen(vbuf));
-    STR_TO_VARSTR(vbuf, buf);
-
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
-    TSDB_CHECK_CODE(code, lino, _end);
-  }
-
-  // output queue
-  //          sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputRate);
-  //        STR_TO_VARSTR(vbuf, buf);
-
-  //        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  //        colDataSetVal(pColInfo, numOfRows, (const char*)vbuf, false);
-
-  // info
-  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    const char *sinkStr = "%.2f MiB";
-    snprintf(buf, tListLen(buf), sinkStr, pe->sinkDataSize);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    // offset info
-    const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
-    snprintf(buf, tListLen(buf), offsetStr, pe->processedVer, pe->verRange.minVer, pe->verRange.maxVer);
-  } else {
-    memset(buf, 0, tListLen(buf));
-  }
-
-  STR_TO_VARSTR(vbuf, buf);
-
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // start_time
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pe->startTime, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // start id
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pe->startCheckpointId, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // start ver
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pe->startCheckpointVer, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // checkpoint time
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  if (pe->checkpointInfo.latestTime != 0) {
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pe->checkpointInfo.latestTime, false);
-  } else {
-    code = colDataSetVal(pColInfo, numOfRows, 0, true);
-  }
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // checkpoint_id
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pe->checkpointInfo.latestId, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // checkpoint version
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, (const char *)&pe->checkpointInfo.latestVer, false);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // checkpoint size
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  colDataSetNULL(pColInfo, numOfRows);
-
-  // checkpoint backup status
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, 0, true);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // ds_err_info
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, 0, true);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // history_task_id
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  if (pe->hTaskId != 0) {
-    int64ToHexStr(pe->hTaskId, idstr, tListLen(idstr));
-    code = colDataSetVal(pColInfo, numOfRows, idstr, false);
-  } else {
-    code = colDataSetVal(pColInfo, numOfRows, 0, true);
-  }
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // history_task_status
-  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-  code = colDataSetVal(pColInfo, numOfRows, 0, true);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  _end:
-  return code;
 }
 
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
@@ -2179,7 +1780,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   taosWUnLockLatch(&pStream->lock);
 
   code = mndTransPrepare(pMnode, pTrans);
-  if (code) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare pause stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -2273,7 +1874,8 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   }
 
   taosWUnLockLatch(&pStream->lock);
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
+  code = mndTransPrepare(pMnode, pTrans);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare pause stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -2434,7 +2036,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
   }
 
   code = mndTransPrepare(pMnode, pTrans);
-  if (code) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare update stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -3129,7 +2731,7 @@ int32_t mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream,
   }
 
   code = mndTransPrepare(pMnode, pTrans);
-  if (code) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare update checkpoint-info meta trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -3140,4 +2742,81 @@ int32_t mndCreateStreamChkptInfoUpdateTrans(SMnode *pMnode, SStreamObj *pStream,
   mndTransDrop(pTrans);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
+  SMnode      *pMnode = pReq->info.node;
+  int32_t      code = 0;
+  SOrphanTask *pTask = NULL;
+  int32_t      i = 0;
+
+  SMStreamDropOrphanMsg msg = {0};
+  code = tDeserializeDropOrphanTaskMsg(pReq->pCont, pReq->contLen, &msg);
+  if (code) {
+    return code;
+  }
+
+  int32_t numOfTasks = taosArrayGetSize(msg.pList);
+  if (numOfTasks == 0) {
+    mDebug("no orphan tasks to drop, no need to create trans");
+    return code;
+  }
+
+  mDebug("create trans to drop %d orphan tasks", numOfTasks);
+
+  i = 0;
+  while (i < numOfTasks && ((pTask = taosArrayGet(msg.pList, i)) == NULL)) {
+    i += 1;
+  }
+
+  if (pTask == NULL) {
+    mError("failed to extract entry in drop orphan task list, not create trans to drop orphan-task");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // check if it is conflict with other trans in both sourceDb and targetDb.
+  bool conflict = mndStreamTransConflictCheck(pMnode, pTask->streamId, MND_STREAM_DROP_NAME, false);
+  if (conflict) {
+    return -1;
+  }
+
+  SStreamObj dummyObj = {.uid = pTask->streamId, .sourceDb = "", .targetSTbName = ""};
+  STrans    *pTrans = NULL;
+  code = doCreateTrans(pMnode, &dummyObj, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream", &pTrans);
+  if (pTrans == NULL || code != 0) {
+    mError("failed to create trans to drop orphan tasks since %s", terrstr());
+    return code;
+  }
+
+  code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pTask->streamId);
+  if (code) {
+    return code;
+  }
+
+  // drop all tasks
+  if ((code = mndStreamSetDropActionFromList(pMnode, pTrans, msg.pList)) < 0) {
+    mError("failed to create trans to drop orphan tasks since %s", terrstr());
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  // drop stream
+  if ((code = mndPersistTransLog(&dummyObj, pTrans, SDB_STATUS_DROPPED)) < 0) {
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  code = mndTransPrepare(pMnode, pTrans);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    mDebug("create drop %d orphan tasks trans succ", numOfTasks);
+  }
+
+  mndTransDrop(pTrans);
+  return code;
 }

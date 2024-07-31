@@ -2629,7 +2629,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
 
   SName name = {0};
   // TODO check return value
-  tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  (void)tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, name.tname, alterReq.sql, alterReq.sqlLen);
 

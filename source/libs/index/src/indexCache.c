@@ -390,10 +390,10 @@ void idxCacheDebug(IndexCache* cache) {
   }
 
   {
-    taosThreadMutexLock(&cache->mtx);
+    (void)taosThreadMutexLock(&cache->mtx);
     tbl = cache->imm;
     idxMemRef(tbl);
-    taosThreadMutexUnlock(&cache->mtx);
+    (void)taosThreadMutexUnlock(&cache->mtx);
     if (tbl != NULL) {
       SSkipList*         slt = tbl->mem;
       SSkipListIterator* iter = tSkipListCreateIter(slt);
@@ -438,7 +438,7 @@ void idxCacheDestroyImm(IndexCache* cache) {
     return;
   }
   MemTable* tbl = NULL;
-  taosThreadMutexLock(&cache->mtx);
+  (void)taosThreadMutexLock(&cache->mtx);
 
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
@@ -533,7 +533,7 @@ static void idxCacheMakeRoomForWrite(IndexCache* cache) {
       }
       // 1. sched to merge
       // 2. unref cache in bgwork
-      idxCacheSchedToMerge(cache, quit);
+      (void)idxCacheSchedToMerge(cache, quit);
     }
   }
 }

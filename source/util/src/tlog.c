@@ -932,7 +932,7 @@ void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, vo
       goto _return;
     }
 
-    taosUnLockFile(pFile);
+    (void)taosUnLockFile(pFile);
   }
 
 _return:
