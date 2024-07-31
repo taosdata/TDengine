@@ -1457,6 +1457,39 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
 void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
 
+int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
+  int32_t  code = 0, lino = 0;
+  int32_t  tlen = 0;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->machineId));
+
+  tEndEncode(&encoder);
+
+  tlen = encoder.pos;
+_exit:
+  tEncoderClear(&encoder);
+  return code < 0 ? code : tlen;
+}
+
+int32_t tDeserializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
+  int32_t  code = 0, lino = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->machineId));
+
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -9265,18 +9298,17 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   return false;
 }
 
-int32_t tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
+void tOffsetCopy(STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   tOffsetDestroy(pLeft);
   *pLeft = *pRight;
   if (IS_VAR_DATA_TYPE(pRight->primaryKey.type)) {
     pLeft->primaryKey.pData = taosMemoryMalloc(pRight->primaryKey.nData);
     if (pLeft->primaryKey.pData == NULL) {
       uError("failed to allocate memory for offset");
-      return terrno;
+      return;
     }
     (void)memcpy(pLeft->primaryKey.pData, pRight->primaryKey.pData, pRight->primaryKey.nData);
   }
-  return 0;
 }
 
 void tOffsetDestroy(void *param) {

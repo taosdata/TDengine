@@ -716,9 +716,9 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     // TODO check return value
-    syncLeaderTransfer(pMnode->syncMgmt.sync);
+    (void)syncLeaderTransfer(pMnode->syncMgmt.sync);
     syncPreStop(pMnode->syncMgmt.sync);
-    sdbWriteFile(pMnode->pSdb, 0);
+    (void)sdbWriteFile(pMnode->pSdb, 0);
   }
 }
 
@@ -1106,12 +1106,12 @@ int64_t mndGetRoleTimeMs(SMnode *pMnode) {
 
 void mndSetRestored(SMnode *pMnode, bool restored) {
   if (restored) {
-    taosThreadRwlockWrlock(&pMnode->lock);
+    (void)taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = true;
     (void)taosThreadRwlockUnlock(&pMnode->lock);
     mInfo("mnode set restored:%d", restored);
   } else {
-    taosThreadRwlockWrlock(&pMnode->lock);
+    (void)taosThreadRwlockWrlock(&pMnode->lock);
     pMnode->restored = false;
     (void)taosThreadRwlockUnlock(&pMnode->lock);
     mInfo("mnode set restored:%d", restored);
@@ -1125,7 +1125,7 @@ void mndSetRestored(SMnode *pMnode, bool restored) {
 bool mndGetRestored(SMnode *pMnode) { return pMnode->restored; }
 
 void mndSetStop(SMnode *pMnode) {
-  taosThreadRwlockWrlock(&pMnode->lock);
+  (void)taosThreadRwlockWrlock(&pMnode->lock);
   pMnode->stopped = true;
   (void)taosThreadRwlockUnlock(&pMnode->lock);
   mInfo("mnode set stopped");

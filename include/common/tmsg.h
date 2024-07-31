@@ -1763,6 +1763,14 @@ int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
+typedef struct {
+  int32_t dnodeId;
+  char    machineId[TSDB_MACHINE_ID_LEN + 1];
+} SDnodeInfoReq;
+
+int32_t tSerializeSDnodeInfoReq(void* buf, int32_t bufLen, SDnodeInfoReq* pReq);
+int32_t tDeserializeSDnodeInfoReq(void* buf, int32_t bufLen, SDnodeInfoReq* pReq);
+
 typedef enum {
   MONITOR_TYPE_COUNTER = 0,
   MONITOR_TYPE_SLOW_LOG = 1,
@@ -3647,7 +3655,7 @@ int32_t tEncodeSTqOffsetVal(SEncoder* pEncoder, const STqOffsetVal* pOffsetVal);
 int32_t tDecodeSTqOffsetVal(SDecoder* pDecoder, STqOffsetVal* pOffsetVal);
 void    tFormatOffset(char* buf, int32_t maxLen, const STqOffsetVal* pVal);
 bool    tOffsetEqual(const STqOffsetVal* pLeft, const STqOffsetVal* pRight);
-int32_t tOffsetCopy(STqOffsetVal* pLeft, const STqOffsetVal* pRight);
+void    tOffsetCopy(STqOffsetVal* pLeft, const STqOffsetVal* pRight);
 void    tOffsetDestroy(void* pVal);
 
 typedef struct {

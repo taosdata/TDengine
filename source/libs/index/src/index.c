@@ -258,7 +258,7 @@ int32_t indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* re
     (void)idxTermSearch(index, qterm, &trslt);
     (void)taosArrayPush(iRslts, (void*)&trslt);
   }
-  idxMergeFinalResults(iRslts, opera, result);
+  (void)idxMergeFinalResults(iRslts, opera, result);
   idxInterRsltDestroy(iRslts);
   return 0;
 }

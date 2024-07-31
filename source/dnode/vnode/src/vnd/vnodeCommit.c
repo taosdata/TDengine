@@ -256,7 +256,9 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
+    if (pFile) {
+      vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
+    }
   }
   taosMemoryFree(pData);
   (void)taosCloseFile(&pFile);

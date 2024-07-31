@@ -181,7 +181,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
     TAOS_RETURN(code);
   }
 
-  syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg);
+  TAOS_CHECK_RETURN(syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg));
   syncNodeDoConfigChange(pSyncNode, pNewCfg, pNewCfg->lastIndex);
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER || pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {

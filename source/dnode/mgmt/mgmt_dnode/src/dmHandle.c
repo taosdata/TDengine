@@ -41,7 +41,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
       dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
-      rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
+      (void)rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
     }
     return;
   }
@@ -86,7 +86,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
-      dmWriteEps(pMgmt->pData);
+      (void)dmWriteEps(pMgmt->pData);
       dInfo("dnode will exit since it is in the dropped state");
       (void)raise(SIGINT);
     }
@@ -167,8 +167,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
+
   void *pHead = rpcMallocCont(contLen);
-  tSerializeSStatusReq(pHead, contLen, &req);
+  contLen = tSerializeSStatusReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize status req since %s", tstrerror(contLen));
@@ -213,8 +214,17 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
 void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
   int32_t contLen = tSerializeSNotifyReq(NULL, 0, pReq);
-  void   *pHead = rpcMallocCont(contLen);
-  tSerializeSNotifyReq(pHead, contLen, pReq);
+  if (contLen < 0) {
+    dError("failed to serialize notify req since %s", tstrerror(contLen));
+    return;
+  }
+  void *pHead = rpcMallocCont(contLen);
+  contLen = tSerializeSNotifyReq(pHead, contLen, pReq);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    dError("failed to serialize notify req since %s", tstrerror(contLen));
+    return;
+  }
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
@@ -226,7 +236,7 @@ void dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq) {
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
+  (void)rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
 }
 
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {

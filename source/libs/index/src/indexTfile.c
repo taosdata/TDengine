@@ -671,7 +671,7 @@ IndexTFile* idxTFileCreate(SIndex* idx, const char* path) {
     tfileCacheDestroy(cache);
     return NULL;
   }
-  taosThreadMutexInit(&tfile->mtx, NULL);
+  (void)taosThreadMutexInit(&tfile->mtx, NULL);
   tfile->cache = cache;
   return tfile;
 }
