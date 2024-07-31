@@ -38,8 +38,9 @@ config.setProperty("value.deserializer.encoding", "UTF-8");
 try {
     this.consumer = new TaosConsumer<>(config);
 } catch (SQLException ex) {
-    // handle exception
-    System.out.println("SQLException: " + ex.getMessage());
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Error Code: " + ex.getErrorCode());
+    System.out.println("Message: " + ex.getMessage());
     throw new SQLException("Failed to create consumer", ex);
 }
 // ANCHOR_END: create_consumer

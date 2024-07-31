@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用TDengine 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关API以及使用方法。 数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
+TDengine 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。 数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
 
 ## 创建主题
 请用 taos shell 或者 参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
@@ -16,7 +16,7 @@ TDengine 提供了类似于消息队列产品的数据订阅和消费接口。�
 
 **注意**
 在 TDengine 连接器实现中，对于订阅查询，有以下限制。
-- 查询语句限制：订阅查询只能使用 select 语句，不支持其他类型的SQL，如 insert、update或delete等。
+- 查询语句限制：订阅查询只能使用 select 语句，不支持其他类型的SQL，如 insert、update 或 delete 等。
 - 原始始数据查询：订阅查询只能查询原始数据，而不能查询聚合或计算结果。
 - 时间顺序限制：订阅查询只能按照时间正序查询数据。
 
@@ -26,32 +26,29 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 
 
 ### 创建参数
-创建消费者的参数较多，非常灵活的支持了各种连接类型、 Offset 提交方式、压缩、重连、反序列化等特性，下面单独介绍各语言连接器创建消费者的参数。
+创建消费者的参数较多，非常灵活的支持了各种连接类型、 Offset 提交方式、压缩、重连、反序列化等特性。各语言连接器都适用的通用基础配置项如下表所示：
 
+|         参数名称          |  类型   | 参数说明                                                                                                                      | 备注                                                                                                                                                                |
+| :-----------------------: | :-----: | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|      `td.connect.ip`      | string  | 服务端的 IP 地址                                                                                                              |                                                                                                                                                                     |
+|     `td.connect.user`     | string  | 用户名                                                                                                                        |                                                                                                                                                                     |
+|     `td.connect.pass`     | string  | 密码                                                                                                                          |                                                                                                                                                                     |
+|     `td.connect.port`     | integer | 服务端的端口号                                                                                                                |                                                                                                                                                                     |
+|        `group.id`         | string  | 消费组 ID，同一消费组共享消费进度                                                                                             | <br />**必填项**。最大长度：192。<br />每个topic最多可建立100个 consumer group                                                                                      |
+|        `client.id`        | string  | 客户端 ID                                                                                                                     | 最大长度：192。                                                                                                                                                     |
+|    `auto.offset.reset`    |  enum   | 消费组订阅的初始位置                                                                                                          | <br />`earliest`: default(version < 3.2.0.0);从头开始订阅; <br/>`latest`: default(version >= 3.2.0.0);仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
+|   `enable.auto.commit`    | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit                               | 默认值为 true                                                                                                                                                       |
+| `auto.commit.interval.ms` | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒                                                                                  | 默认值为 5000                                                                                                                                                       |
+|   `msg.with.table.name`   | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true） | 默认关闭                                                                                                                                                            |
+|      `enable.replay`      | boolean | 是否开启数据回放功能                                                                                                          | 默认关闭                                                                                                                                                            |
+
+
+下面是各语言连接器创建参数：
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
-Java 连接器创建消费者的参数为 Properties， 可以设置如下参数：  
+Java 连接器创建消费者的参数为 Properties， 可以设置的参数列表请参考 [API 说明](../../reference/connector/java/#消费者)  
+其他参数请参考上文通用基础配置项。
 
-- td.connect.type: 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
-- bootstrap.servers: TDengine 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
-- enable.auto.commit: 是否允许自动提交。
-- group.id: consumer: 所在的 group。
-- value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
-- httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
-- messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
-- httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。  
-- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-
-其他参数请参考：[Consumer 参数列表](../../develop/tmq/#数据订阅相关参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
-
-:::note
-
-- Java 连接器数据订阅 WebSocket 连接方式跟 原生连接方式，除了在创建消费者时参数不同之外，其他接口并无区别。因此我们以 Websocket 连接方式为例介绍数据订阅的其他功能。
-
-:::
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -81,6 +78,7 @@ Java 连接器创建消费者的参数为 Properties， 可以设置如下参数
 </Tabs>
 
 ### Websocket 连接 
+介绍各语言连接器使用 Websocket 连接方式创建消费者。
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
@@ -128,6 +126,8 @@ Java 连接器创建消费者的参数为 Properties， 可以设置如下参数
 
 
 ### 原生连接 
+介绍各语言连接器使用原生连接方式创建消费者。
+
 <Tabs groupId="lang">
 <TabItem value="java" label="Java">
 
@@ -271,20 +271,27 @@ Java 连接器创建消费者的参数为 Properties， 可以设置如下参数
 <TabItem value="java" label="Java">
 
 ```java
-// 获取订阅的 topicPartition
-Set<TopicPartition assignment() throws SQLException;
 
-// 获取 offset
-long position(TopicPartition partition) throws SQLException;
-Map<TopicPartition, Long position(String topic) throws SQLException;
-Map<TopicPartition, Long beginningOffsets(String topic) throws SQLException;
-Map<TopicPartition, Long endOffsets(String topic) throws SQLException;
-Map<TopicPartition, OffsetAndMetadata committed(Set<TopicPartition partitions) throws SQLException;
+// 获取当前消费者分配的 TopicPartition 集合
+Set<TopicPartition> assignment() throws SQLException; 
 
-// 指定下一次 poll 中使用的 offset
+// 获取指定分区的当前偏移量
+long position(TopicPartition partition) throws SQLException; 
+// 获取指定主题的所有分区的当前偏移量
+Map<TopicPartition, Long> position(String topic) throws SQLException; 
+// 获取指定主题的所有分区的起始偏移量
+Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException; 
+// 获取指定主题的所有分区的最新偏移量
+Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
+// 获取指定分区集合中的已提交偏移量
+Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException;
+
+// 设置指定分区的偏移量
 void seek(TopicPartition partition, long offset) throws SQLException;
-void seekToBeginning(Collection<TopicPartition partitions) throws SQLException;
-void seekToEnd(Collection<TopicPartition partitions) throws SQLException;
+// 将指定分区集合的偏移量设置为最开始
+void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException; 
+// 将指定分区集合的偏移量设置为最新
+void seekToEnd(Collection<TopicPartition> partitions) throws SQLException; 
 ```
 
 示例代码：
@@ -381,11 +388,16 @@ void seekToEnd(Collection<TopicPartition partitions) throws SQLException;
 <TabItem value="java" label="Java">
 
 ```java
-void commitSync() throws SQLException;
-void commitSync(Map<TopicPartition, OffsetAndMetadata offsets) throws SQLException;
+// 同步提交当前消费者的偏移量
+void commitSync() throws SQLException; 
+// 同步提交指定的偏移量
+void commitSync(Map<TopicPartition, OffsetAndMetadata> offsets) throws SQLException; 
+
 // 异步提交仅在 native 连接下有效
-void commitAsync(OffsetCommitCallback<V callback) throws SQLException;
-void commitAsync(Map<TopicPartition, OffsetAndMetadata offsets, OffsetCommitCallback<V callback) throws SQLException;
+// 异步提交当前消费者的偏移量，需要提供回调以处理可能的提交结果
+void commitAsync(OffsetCommitCallback<V> callback) throws SQLException; 
+// 异步提交指定的偏移量，需要提供回调以处理可能的提交结果
+void commitAsync(Map<TopicPartition, OffsetAndMetadata> offsets, OffsetCommitCallback<V> callback) throws SQLException; 
 ```
 
 
@@ -583,7 +595,8 @@ void commitAsync(Map<TopicPartition, OffsetAndMetadata offsets, OffsetCommitCall
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsWsConsumerLoop.java:consumer_demo}}
 ```
 
-**注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。
+**注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。  
+其余代码请参考： [JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC/JDBCDemo)
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -629,6 +642,9 @@ void commitAsync(Map<TopicPartition, OffsetAndMetadata offsets, OffsetCommitCall
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoopFull.java:consumer_demo}}
 ```
+
+**注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。  
+其余代码请参考： [JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC/JDBCDemo)
 
 </TabItem>
 

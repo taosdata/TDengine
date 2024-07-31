@@ -1348,18 +1348,23 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
   - **异常**：如果创建失败，抛出 SQLException 异常。
 
 创建消费者支持属性列表：  
-- td.connect.type: 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
-- bootstrap.servers: TDengine 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
-- enable.auto.commit: 是否允许自动提交。
-- group.id: consumer: 所在的 group。
-- value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
-- httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
-- messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
-- httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。  
-- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。  
+
+
+| 属性                | 描述                                                                                                                                                                                                 | 默认值   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| td.connect.type     | 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。                                                                                                             | jni      |
+| bootstrap.servers   | TDengine 服务端所在的ip:port，如果使用 WebSocket 连接，则为 taosAdapter 所在的ip:port。                                                                                                              |          |
+| enable.auto.commit  | 是否允许自动提交。                                                                                                                                                                                   |          |
+| group.id            | consumer 所在的 group。                                                                                                                                                                              |          |
+| value.deserializer  | 结果集反序列化方法。可以继承 com.taosdata.jdbc.tmq.ReferenceDeserializer，并指定结果集 bean，实现反序列化。也可以继承 com.taosdata.jdbc.tmq.Deserializer，根据 SQL 的 resultSet 自定义反序列化方式。 |          |
+| httpConnectTimeout  | 创建连接超时参数，单位 ms。仅在 WebSocket 连接下有效。                                                                                                                                               | 5000 ms  |
+| messageWaitTimeout  | 数据传输超时参数，单位 ms。仅在 WebSocket 连接下有效。                                                                                                                                               | 10000 ms |
+| httpPoolSize        | 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。                                                                                                                                              |          |
+| enableCompression   | 传输过程是否启用压缩。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。                                                                                                                     | false    |
+| enableAutoReconnect | 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。                                                                                                                         | false    |
+| reconnectIntervalMs | 自动重连重试间隔，单位毫秒。仅在 enableCompression 为 true 时生效。                                                                                                                                  | 2000 ms  |
+| reconnectRetryCount | 自动重连重试次数。仅在 enableCompression 为 true 时生效。                                                                                                                                            | 3        |
+  
 其他参数请参考：[Consumer 参数列表](../../develop/tmq/#数据订阅相关参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `public void subscribe(Collection<String> topics) throws SQLException`
