@@ -190,6 +190,7 @@ impl TimeRange {
             (Some(mut start), Some(end)) => {
                 let mut chunks = vec![];
                 loop {
+                    tracing::trace!("Chunks len: {}", chunks.len()); // debug
                     let chunk_end = start + duration;
                     if chunk_end >= end {
                         chunks.push(Self {
@@ -297,7 +298,11 @@ async fn split_table_into_time_range_chunks(
     table: &str,
     opts: &QueryOpts,
 ) -> anyhow::Result<Vec<TimeRange>> {
-    tracing::debug!("Migrate data from table `{table}`");
+    tracing::debug!(
+        "Split table `{table}` into chunks, origin start:{:?}, end:{:?}",
+        opts.time_range.start,
+        opts.time_range.end
+    );
 
     let mut time_range = opts.time_range;
     async fn query_ts_with(
@@ -318,23 +323,28 @@ async fn split_table_into_time_range_chunks(
         (true, false) => {
             if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from `{table}`")).await {
                 time_range.end.replace(ts + chrono::Duration::seconds(1));
+                tracing::debug!("Replace end: {:?}", time_range.end);
             }
         }
         (false, true) => {
             if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from `{table}`")).await {
                 time_range.start.replace(ts);
+                tracing::debug!("Replace start: {:?}", time_range.start);
             }
         }
         (false, false) => {
             if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from `{table}`")).await {
                 time_range.start.replace(ts);
+                tracing::debug!("Replace start: {:?}", time_range.start);
             }
             if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from `{table}`")).await {
                 time_range.end.replace(ts + chrono::Duration::seconds(1));
+                tracing::debug!("Replace end: {:?}", time_range.end);
             }
         }
     }
-
+    let chunks = time_range.to_chunks(opts.unit);
+    tracing::debug!("Split table into time range chunks: {:?}", chunks); // debug
     Ok(time_range.to_chunks(opts.unit))
 }
 
@@ -4095,5 +4105,22 @@ mod tests {
             .await?;
         crate::core_metrics::clear_metrics(tid).await;
         Ok(())
+    }
+
+    // start: 2024-07-31T01:04:39.316816912Z, end: 2024-07-31T01:04:39.437430018Z
+    // start: 2024-07-31T01:04:39.437430018Z, end: 2024-07-31T01:04:39.560152320Z
+    // start: 2024-07-31T01:04:39.560152320Z, end: 2024-07-31T01:04:40.560887126Z
+
+    #[test]
+    fn test_to_chunks() {
+        let start = "2024-07-31T01:04:39.560152320Z";
+        let end = "2024-07-31T01:04:40.560887126Z";
+        let start: DateTime<Utc> = start.parse().unwrap();
+        let end: DateTime<Utc> = end.parse().unwrap();
+        let range = TimeRange::new().start(start).end(end);
+        let unit = Duration::from_secs(1);
+        let chunks = range.to_chunks(unit);
+
+        dbg!(&chunks);
     }
 }
