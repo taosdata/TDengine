@@ -232,13 +232,13 @@ jobs:
         run: |
           # 这里最好是 TestNG_taosx 已经被拉取到一个固定的位置
           # 重新登录执行 git pull，因为当前的 git 仓库对应的是 taosx
-          cd /data/github/TestNG_taosX && git pull
+          ssh root@$RELEASE_HOST "cd /data/github/TestNG_taosX && git pull"
       
       - name: Run Test
         continue-on-error: true
         run: |
           echo "container_id: ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=300 -m sanity'
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity'
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
