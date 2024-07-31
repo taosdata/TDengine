@@ -166,6 +166,13 @@
         :data="data"
         :parentConfigList="parentConfigList"
       />
+      <CustomId
+        v-if="config.type == 'customId'"
+        ref="pattern"
+        :config="config"
+        :data="data"
+        :parentConfigList="parentConfigList"
+      />
       <div v-if="config.info" slot="label">
         {{ config.label }}
         <el-tooltip class="item" effect="light" placement="top" :open-delay="0">
@@ -245,7 +252,8 @@ export default {
     PibackfillTime: () => import("./pibackfillTime.vue"),
     Bucket: () => import("./bucket.vue"),
     Mode: () => import("./mode.vue"),
-    PatternComp: () => import("./pattern.vue")
+    PatternComp: () => import("./pattern.vue"),
+    CustomId: () => import("./customId.vue")
   },
   data() {
     this.inputType = ["input", "textarea", "password"];
@@ -390,7 +398,8 @@ export default {
         return this.config.required(
           this.data,
           this.sourceParent.sourceForm.data,
-          this.sourceParent.currentDefinition
+          this.sourceParent.currentDefinition,
+          this.isEdit && !this.isCopyable
         );
       }
       return this.config.required;
