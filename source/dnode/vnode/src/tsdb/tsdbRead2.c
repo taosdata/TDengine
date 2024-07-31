@@ -2868,6 +2868,7 @@ static void buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockScanIn
   SDataBlockInfo* pInfo = &pReader->resBlockInfo.pResBlock->info;
   bool            asc = ASCENDING_TRAVERSE(pReader->info.order);
 
+  pBlockInfo->numRow--;
   pInfo->rows = pBlockInfo->numRow;
   pInfo->id.uid = pScanInfo->uid;
   pInfo->dataLoad = 0;
@@ -2895,7 +2896,7 @@ static void buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockScanIn
   tsdbDebug("%p uid:%" PRIu64
             " clean file block retrieved from file, global index:%d, "
             "table index:%d, rows:%d, brange:%" PRId64 "-%" PRId64 ", %s",
-            pReader, pScanInfo->uid, blockIndex, pBlockInfo->tbBlockIdx, pBlockInfo->numRow, pBlockInfo->firstKey,
+            pReader, pScanInfo->uid, blockIndex, pBlockInfo->tbBlockIdx, pBlockInfo->numRow + 1, pBlockInfo->firstKey,
             pBlockInfo->lastKey, pReader->idStr);
 }
 

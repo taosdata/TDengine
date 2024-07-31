@@ -716,6 +716,12 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     }
   }
 
+  if (key.key.ts == pTbData->maxKey) {
+    // coredump here
+    ASSERT(0);
+    pTbData = 0;
+    pTbData->maxKey = 0;
+  }
   if (key.key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.key.ts;
   }
