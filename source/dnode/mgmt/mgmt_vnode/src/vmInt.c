@@ -177,6 +177,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 }
 
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal) {
+  int32_t code = 0;
   char path[TSDB_FILENAME_LEN] = {0};
   bool atExit = true;
 
@@ -184,9 +185,15 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
     vnodeProposeCommitOnNeed(pVnode->pImpl, atExit);
   }
 
-  (void)taosThreadRwlockWrlock(&pMgmt->lock);
-  (void)taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  if ((code = taosThreadRwlockWrlock(&pMgmt->lock)) < 0) {
+    dError("Error occur when close vnode, failed to lock, %s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+  }
+  if ((code = taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t))) < 0) {
+    dError("Error occur when close vnode, failed to remove from hash, %s", tstrerror(code));
+  }
+  if ((code = taosThreadRwlockUnlock(&pMgmt->lock)) < 0) {
+    dError("Error occur when close vnode, failed to unlock, %s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+  }
   vmReleaseVnode(pMgmt, pVnode);
 
   if (pVnode->failed) {

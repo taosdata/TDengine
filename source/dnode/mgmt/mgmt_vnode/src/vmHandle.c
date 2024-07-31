@@ -17,12 +17,15 @@
 #include "vmInt.h"
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
+  int32_t code = 0;
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
   if (pInfo->pVloads == NULL) return;
 
   tfsUpdateSize(pMgmt->pTfs);
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  if ((code = taosThreadRwlockRdlock(&pMgmt->lock)) < 0) {
+    dError("Error occur when getting vnode load, failed to lock, %s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+  }
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
@@ -39,7 +42,9 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  if ((code = taosThreadRwlockUnlock(&pMgmt->lock)) < 0) {
+    dError("Error occur when getting vnode load, failed to unlock, %s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+  }
 }
 
 void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
