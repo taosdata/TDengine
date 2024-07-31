@@ -22,7 +22,7 @@ TDengine 提供了类似于消息队列产品的数据订阅和消费接口。�
 
 ## 创建消费者
 
-TDengine 消费者的概念跟 Kafka 类似，是指使用 TDengine 数据库进行数据订阅的客户端应用程序。它通过订阅特定的主题来接收数据流，这些主题由 SQL 查询定义。消费者可以配置多种参数，如连接方式、服务器地址、自动提交偏移量、消费者组标识、反序列化方法等，以适应不同的数据处理需求。TDengine 支持通过 JNI 或 WebSocket 连接，提供了灵活的数据接收方式。此外，消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。
+TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset 等以适应不同的数据处理需求。有的语言连接器的消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。
 
 
 ### 创建参数
@@ -179,9 +179,9 @@ Java 连接器创建消费者的参数为 Properties， 可以设置如下参数
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:poll_data_code_piece}}
 ```
 
-- `subscribe` 方法的参数含义如为：订阅的主题列表（即名称），支持同时订阅多个主题。 
+- `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
 - `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
-- `ResultBean` 是我们自定义的一个内部类，其字段名和数据类型与列名和数据类型一一对应，这样根据 `value.deserializer` 属性对应的反序列化类可以反序列化出 `ResultBean` 类型的对象。
+- `ResultBean` 是我们自定义的一个内部类，其字段名和数据类型与列的名称和数据类型一一对应，这样根据 `value.deserializer` 属性对应的反序列化类可以反序列化出 `ResultBean` 类型的对象。
 
 </TabItem>
 
@@ -262,7 +262,7 @@ Java 连接器创建消费者的参数为 Properties， 可以设置如下参数
 </Tabs>
 
 ## 指定订阅的 Offset
-消费者可以指定从特定 Offset 开始读取分区中的消息，这允许消费者重读消息或跳过已处理的消息。本节展示各语言连接器如何指定订阅的 Offset。  
+消费者可以指定从特定 Offset 开始读取分区中的消息，这允许消费者重读消息或跳过已处理的消息。下面展示各语言连接器如何指定订阅的 Offset。  
 
 ### Websocket 连接 
 <Tabs defaultValue="java" groupId="lang">
@@ -385,6 +385,12 @@ void commitSync(Map<TopicPartition, OffsetAndMetadata offsets) throws SQLExcepti
 void commitAsync(OffsetCommitCallback<V callback) throws SQLException;
 void commitAsync(Map<TopicPartition, OffsetAndMetadata offsets, OffsetCommitCallback<V callback) throws SQLException;
 ```
+
+
+```java
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:commit_code_piece}}
+```
+
 </TabItem>
 
 <TabItem label="Python" value="python">

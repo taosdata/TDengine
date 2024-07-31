@@ -74,6 +74,33 @@ try {
 // ANCHOR_END: poll_data_code_piece
     }
 
+    public void commitCodePiece() throws SQLException {
+// ANCHOR: commit_code_piece
+try {
+    consumer.subscribe(topics);
+    while (!shutdown.get()) {
+        ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+        for (ConsumerRecord<ResultBean> record : records) {
+            ResultBean bean = record.value();
+            // process your data here
+            process(bean);
+        }
+        if (!records.isEmpty()) {
+            // after processing the data, commit the offset manually
+            consumer.commitSync();
+        }
+    }
+} catch (Exception ex){
+    // handle exception
+    System.out.println("SQLException: " + ex.getMessage());
+
+} finally {
+    consumer.close();
+    shutdownLatch.countDown();
+}
+// ANCHOR_END: commit_code_piece
+    }
+
     public void unsubscribeCodePiece() throws SQLException {
 // ANCHOR: unsubscribe_data_code_piece
 try {
