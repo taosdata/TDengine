@@ -2424,8 +2424,109 @@ class TdSuperTable:
 
         return ret
 
+    def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:
+        ''' Generate queries to test/exercise this super table '''
+        ret = []  # type: List[SqlQuery]
+
+        for rTbName in self.getRegTables(dbc):  # regular tables
+
+            filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
+                None
+            ])
+
+            # Run the query against the regular table first
+            doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
+            if not doAggr:  # don't do aggregate query, just simple one
+                commonExpr = Dice.choice([
+                    '*',
+                    'abs(speed)',
+                    'acos(speed)',
+                    'asin(speed)',
+                    'atan(speed)',
+                    'ceil(speed)',
+                    'cos(speed)',
+                    'cos(speed)',
+                    'floor(speed)',
+                    'log(speed,2)',
+                    'pow(speed,2)',
+                    'round(speed)',
+                    'sin(speed)',
+                    'sqrt(speed)',
+                    'char_length(color)',
+                    'concat(color,color)',
+                    'concat_ws(" ", color,color," ")',
+                    'length(color)',
+                    'lower(color)',
+                    'ltrim(color)',
+                    'substr(color , 2)',
+                    'upper(color)',
+                    'cast(speed as double)',
+                    'cast(ts as bigint)',
+                    # 'TO_ISO8601(color)',
+                    # 'TO_UNIXTIMESTAMP(ts)',
+                    'now()',
+                    'timediff(ts,now)',
+                    'timezone()',
+                    'TIMETRUNCATE(ts,1s)',
+                    'TIMEZONE()',
+                    'TODAY()',
+                    'distinct(color)'
+                ]
+                )
+                ret.append(SqlQuery(  # reg table
+                    "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
+                ret.append(SqlQuery(  # super table
+                    "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
+            else:  # Aggregate query
+                aggExpr = Dice.choice([
+                    'count(*)',
+                    'avg(speed)',
+                    # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
+                    'sum(speed)',
+                    'stddev(speed)',
+                    # SELECTOR functions
+                    'min(speed)',
+                    'max(speed)',
+                    'first(speed)',
+                    'last(speed)',
+                    'top(speed, 50)',  # TODO: not supported?
+                    'bottom(speed, 50)',  # TODO: not supported?
+                    'apercentile(speed, 10)',  # TODO: TD-1316
+                    'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
+                    # Transformation Functions
+                    # 'diff(speed)', # TODO: no supported?!
+                    'spread(speed)',
+                    'elapsed(ts)',
+                    'mode(speed)',
+                    'bottom(speed,1)',
+                    'top(speed,1)',
+                    'tail(speed,1)',
+                    'unique(color)',
+                    'csum(speed)',
+                    'DERIVATIVE(speed,1s,1)',
+                    'diff(speed,1)',
+                    'irate(speed)',
+                    'mavg(speed,3)',
+                    'sample(speed,5)',
+                    'STATECOUNT(speed,"LT",1)',
+                    'STATEDURATION(speed,"LT",1)',
+                    'twa(speed)'
+
+                ])  # TODO: add more from 'top'
+
+                # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
+                sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
+                if Dice.throw(3) == 0:  # 1 in X chance
+                    partion_expr = Dice.choice(['color', 'tbname'])
+                    sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
+                    Progress.emit(Progress.QUERY_GROUP_BY)
+                    # Logging.info("Executing GROUP-BY query: " + sql)
+                ret.append(SqlQuery(sql))
+
+        return ret
 
 class TaskReadData(StateTransitionTask):
+    maxSelectItems = 5
     @classmethod
     def getEndState(cls):
         return None  # meaning doesn't affect state
@@ -2469,8 +2570,14 @@ class TaskReadData(StateTransitionTask):
 
         dbc = wt.getDbConn()
         sTable = self._db.getFixedSuperTable()
-
-        for q in sTable.generateQueries(dbc):  # regular tables            
+        tags = sTable._getTags(dbc)
+        cols = sTable._getCols(dbc)
+        tagCols = {**tags, **cols}
+        selectCnt = random.randint(1, len(tagCols))
+        selectKeys = random.sample(list(tagCols.keys()), selectCnt)
+        selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
+        
+        for q in sTable.generateQueries_n(dbc, selectItems):  # regular tables
             try:
                 sql = q.getSql()
                 # if 'GROUP BY' in sql:

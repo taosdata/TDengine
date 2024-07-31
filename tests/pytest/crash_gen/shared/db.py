@@ -471,7 +471,7 @@ class DbConnNative(DbConn):
             # Record the count in the class
             self._tdSql = MyTDSql(dbTarget.hostAddr, dbTarget.cfgPath) # making DB connection
             cls.totalConnections += 1
- 
+
         self._tdSql.execute('reset query cache')
         # self._cursor.execute('use db') # do this at the beginning of every
 
