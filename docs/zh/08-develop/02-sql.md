@@ -15,7 +15,7 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 ## 建库和表
 以智能电表为例，展示如何使用连接器执行 SQL 来创建数据库和表。
 
-<Tabs defaultValue="java" groupId="create">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
 ```java
@@ -43,7 +43,7 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 ## 插入数据
 以智能电表为例，展示如何使用连接器执行 SQL 来插入数据。  
 
-<Tabs defaultValue="java" groupId="insert">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcInsertDataDemo.java:insert_data}}
@@ -74,7 +74,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 ## 查询数据
 以智能电表为例，展示如何使用各语言连接器执行 SQL 来查询数据，并将获取到的结果打印出来。  
 
-<Tabs defaultValue="java" groupId="query">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
 ```java
@@ -114,7 +114,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 
 下面是各语言连接器设置 reqId 执行 SQL 的代码样例。
 
-<Tabs defaultValue="java" groupId="query">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
 ```java
