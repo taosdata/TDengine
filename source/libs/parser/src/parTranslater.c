@@ -2375,7 +2375,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   SNode* pPartKey = NULL;
   FOREACH(pPartKey, pSelect->pPartitionByList) {
     if (nodesEqualNode(pPartKey, *pNode)) {
-      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+      return pCxt->currClause == SQL_CLAUSE_HAVING ? DEAL_RES_IGNORE_CHILD : rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
   }
   if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
@@ -2497,6 +2497,7 @@ static int32_t checkHavingGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect)
     return code;
   }
   if (NULL != pSelect->pHaving) {
+    pCxt->currClause = SQL_CLAUSE_HAVING;
     code = checkExprForGroupBy(pCxt, &pSelect->pHaving);
   }
   /*
