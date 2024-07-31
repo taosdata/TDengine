@@ -148,7 +148,6 @@ typedef struct {
   STransSyncMsg* pSyncMsg;  // for syncchronous with timeout API
   int64_t        syncMsgRef;
   SCvtAddr       cvtAddr;
-  bool           setMaxRetry;
 
   int32_t retryMinInterval;
   int32_t retryMaxInterval;

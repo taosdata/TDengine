@@ -1605,12 +1605,13 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   SCliConn* conn = exh->handle;
   taosRUnLockLatch(&exh->latch);
 
-  if (conn->refId != refId) {
+  if (conn == NULL || conn->refId != refId) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _except);
   }
 
   int32_t size = transQueueSize(&conn->cliMsgs);
   if (size == 0) {
+    // already recv, and notify upper layer
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _except);
     return;
   } else {
@@ -3178,20 +3179,20 @@ _RETURN2:
  *
  **/
 int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
+  if (ip == NULL || fqdn == NULL) return TSDB_CODE_INVALID_PARA;
+
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
+
   SCvtAddr cvtAddr = {0};
-  if (ip != NULL && fqdn != NULL) {
-    tstrncpy(cvtAddr.ip, ip, sizeof(cvtAddr.ip));
-    tstrncpy(cvtAddr.fqdn, fqdn, sizeof(cvtAddr.fqdn));
-    cvtAddr.cvt = true;
-  }
+  tstrncpy(cvtAddr.ip, ip, sizeof(cvtAddr.ip));
+  tstrncpy(cvtAddr.fqdn, fqdn, sizeof(cvtAddr.fqdn));
+  cvtAddr.cvt = true;
 
   int32_t code = 0;
-  int8_t  i = 0;
-  for (i = 0; i < pTransInst->numOfThreads; i++) {
+  for (int8_t i = 0; i < pTransInst->numOfThreads; i++) {
     STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
     if (pCtx == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -3216,7 +3217,9 @@ int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
     if ((code = transAsyncSend(thrd->asyncPool, &(cliMsg->q))) != 0) {
       destroyCmsg(cliMsg);
-      code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+      if (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT) {
+        code = TSDB_CODE_RPC_MODULE_QUIT;
+      }
       break;
     }
   }
