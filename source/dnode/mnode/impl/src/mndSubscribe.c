@@ -396,7 +396,6 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
 
 END:
   taosMemoryFree(pVgEp);
-  sdbRelease(pMnode->pSdb, pVgroup);
   taosArrayDestroyP(newVgs, (FDelete)tDeleteSMqVgEp);
   return code;
 }
@@ -773,7 +772,7 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
 
     if (status == MQ_CONSUMER_STATUS_READY) {
       if (taosArrayGetSize(pConsumer->currentTopics) == 0) {  // unsubscribe or close
-        mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info);
+        MND_TMQ_RETURN_CHECK(mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
       } else if (hbStatus * tsMqRebalanceInterval * 1000 >= pConsumer->sessionTimeoutMs ||
                  pollStatus * tsMqRebalanceInterval * 1000 >= pConsumer->maxPollIntervalMs) {
         taosRLockLatch(&pConsumer->lock);
@@ -788,7 +787,7 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
       MND_TMQ_RETURN_CHECK(buildRebInfo(rebSubHash, pConsumer->rebRemovedTopics, 0, pConsumer->cgroup, pConsumer->consumerId));
       taosRUnLockLatch(&pConsumer->lock);
     } else {
-      mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info);
+      MND_TMQ_RETURN_CHECK(mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
     }
 
     mndReleaseConsumer(pMnode, pConsumer);

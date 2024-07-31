@@ -901,6 +901,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       // status
       const char *pStatusName = mndConsumerStatusName(pConsumer->status);
       status = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
+      MND_TMQ_NULL_CHECK(status);
       STR_TO_VARSTR(status, pStatusName);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -940,6 +941,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       tFormatOffset(buf, TSDB_OFFSET_LEN, &pVal);
 
       parasStr = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
+      MND_TMQ_NULL_CHECK(parasStr);
       (void)sprintf(varDataVal(parasStr), "tbname:%d,commit:%d,interval:%dms,reset:%s", pConsumer->withTbName,
               pConsumer->autoCommit, pConsumer->autoCommitInterval, buf);
       varDataSetLen(parasStr, strlen(varDataVal(parasStr)));
