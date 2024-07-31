@@ -18,36 +18,39 @@ public class WSParameterBindingBasicDemo {
     public static void main(String[] args) throws SQLException {
 
         String jdbcUrl = "jdbc:TAOS-RS://" + host + ":6041/?batchfetch=true";
-        Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
+            init(conn);
 
-        init(conn);
+            String sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
 
-        String sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
+            try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
 
-        try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
+                for (int i = 1; i <= numOfSubTable; i++) {
+                    // set table name
+                    pstmt.setTableName("d_bind_" + i);
 
-            for (int i = 1; i <= numOfSubTable; i++) {
-                // set table name
-                pstmt.setTableName("d_bind_" + i);
+                    // set tags
+                    pstmt.setTagInt(0, i);
+                    pstmt.setTagString(1, "location_" + i);
 
-                // set tags
-                pstmt.setTagInt(0, i);
-                pstmt.setTagString(1, "location_" + i);
-
-                // set columns
-                long current = System.currentTimeMillis();
-                for (int j = 0; j < numOfRow; j++) {
-                    pstmt.setTimestamp(1, new Timestamp(current + j));
-                    pstmt.setFloat(2, random.nextFloat() * 30);
-                    pstmt.setInt(3, random.nextInt(300));
-                    pstmt.setFloat(4, random.nextFloat());
-                    pstmt.addBatch();
+                    // set columns
+                    long current = System.currentTimeMillis();
+                    for (int j = 0; j < numOfRow; j++) {
+                        pstmt.setTimestamp(1, new Timestamp(current + j));
+                        pstmt.setFloat(2, random.nextFloat() * 30);
+                        pstmt.setInt(3, random.nextInt(300));
+                        pstmt.setFloat(4, random.nextFloat());
+                        pstmt.addBatch();
+                    }
+                    int [] exeResult = pstmt.executeBatch();
+                    // you can check exeResult here
+                    System.out.println("insert " + exeResult.length + " rows.");
                 }
-                pstmt.executeBatch();
             }
+        } catch (SQLException ex) {
+            // handle any errors
+            System.out.println("SQLException: " + ex.getMessage());
         }
-
-        conn.close();
     }
 
     private static void init(Connection conn) throws SQLException {
