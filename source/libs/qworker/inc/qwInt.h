@@ -44,6 +44,7 @@ extern "C" {
 #define QW_DEFAULT_RESERVE_MEM_PERCENT 20
 #define QW_MIN_RESERVE_MEM_SIZE        (512 * 1048576UL)
 #define QW_MIN_MEM_POOL_SIZE           (1048576UL)
+#define QW_MAX_RETIRE_JOB_NUM          10000
 
 #define QW_DEFAULT_THREAD_TASK_NUM     3
 
@@ -129,6 +130,15 @@ typedef struct SQWTaskStatus {
   int8_t  status;
 } SQWTaskStatus;
 
+
+typedef struct SQWJobInfo {
+  int8_t              retired;
+  int32_t             errCode;
+  SMemPoolJob*        memInfo;
+  SHashObj*           pSessions;
+} SQWJobInfo;
+
+
 typedef struct SQWTaskCtx {
   SRWLatch lock;
   int8_t   phase;
@@ -166,6 +176,7 @@ typedef struct SQWTaskCtx {
   SArray    *tbInfo; // STbVerInfo
 
   void      *memPoolSession;
+  SQWJobInfo *pJobInfo;
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
@@ -232,31 +243,15 @@ typedef struct SQWorkerMgmt {
   int32_t    paramIdx;
 } SQWorkerMgmt;
 
-typedef struct SQWQueryInfo {
-  int8_t              retired;
-  SMemPoolCollection* pCollection;
-  SHashObj*           pSessions;
-} SQWQueryInfo;
-
-typedef struct SQWRetireLowCtx {
-  int8_t        retireBegin;
-} SQWRetireLowCtx;
-
-typedef struct SQWRetireMidCtx {
-  int8_t        retireBegin;
-  TdThreadCond  retired;
-  BoundedQueue* collectionQueue;
-} SQWRetireMidCtx;
 
 typedef struct SQWRetireCtx {
-  SQWRetireLowCtx lowCtx;
-  SQWRetireMidCtx midCtx;
+  BoundedQueue* pJobQueue;
 } SQWRetireCtx;
 
 typedef struct SQueryMgmt {
   SRWLatch     taskMgmtLock;
   int32_t      concTaskLevel;
-  SHashObj*    pQueryInfo;
+  SHashObj*    pJobInfo;
   void*        memPoolHandle;
   SQWRetireCtx retireCtx;
 } SQueryMgmt;
@@ -482,8 +477,10 @@ void    qwDbgSimulateSleep(void);
 void    qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped);
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwInitQueryPool(void);
-void    qwDestroyQueryInfo(SQWQueryInfo* pQuery);
-int32_t qwInitSession(QW_FPARAMS_DEF, void** ppSession);
+void    qwDestroyJobInfo(SQWJobInfo* pJob);
+void    qwRetireJob(SQWJobInfo* pJob);
+
+int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession);
 
 #ifdef __cplusplus
 }

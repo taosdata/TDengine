@@ -711,7 +711,11 @@ void qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch) {
   }
 }
 
-void qwDestroyQueryInfo(SQWQueryInfo* pQuery) {
+void qwDestroyJobInfo(SQWJobInfo* pJob) {
+  //TODO
+}
+
+void qwRetireJob(SQWJobInfo* pJob) {
   //TODO
 }
 

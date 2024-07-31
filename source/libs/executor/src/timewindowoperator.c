@@ -672,7 +672,7 @@ static bool filterWindowWithLimit(SIntervalAggOperatorInfo* pOperatorInfo, STime
   if (pOperatorInfo->limit == 0) return true;
 
   if (pOperatorInfo->pBQ == NULL) {
-    pOperatorInfo->pBQ = createBoundedQueue(pOperatorInfo->limit - 1, tsKeyCompFn, NULL, pOperatorInfo);
+    pOperatorInfo->pBQ = createBoundedQueue(pOperatorInfo->limit - 1, tsKeyCompFn, taosAutoMemoryFree, pOperatorInfo);
   }
 
   bool shouldFilter = false;

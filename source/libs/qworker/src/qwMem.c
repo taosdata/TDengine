@@ -15,6 +15,8 @@ int32_t qwGetMemPoolMaxMemSize(int64_t totalSize, int64_t* maxSize) {
 }
 
 int32_t qwGetMemPoolChunkSize(int64_t totalSize, int32_t threadNum, int32_t* chunkSize) {
+  //TODO 
+  
   *chunkSize = 2 * 1048576;
 
   return TSDB_CODE_SUCCESS;
@@ -53,101 +55,159 @@ void qwIncConcurrentTaskNumCb(void) {
   //TODO
 }
 
-int32_t qwInitQueryInfo(uint64_t qId, SQWQueryInfo* pQuery) {
-  pQuery->pSessions= taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  if (NULL == pQuery->pSessions) {
-    qError("fail to init session hash");
-    return TSDB_CODE_OUT_OF_MEMORY;
+int32_t qwInitJobInfo(uint64_t qId, SQWJobInfo* pJob) {
+  pJob->pSessions= taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (NULL == pJob->pSessions) {
+    qError("fail to init session hash, code: 0x%x", terrno);
+    return terrno;
   }
 
-  int32_t code = taosMemPoolCallocCollection(qId, (void**)&pQuery->pCollection);
+  int32_t code = taosMemPoolCallocJob(qId, (void**)&pJob->memInfo);
   if (TSDB_CODE_SUCCESS != code) {
-    taosHashCleanup(pQuery->pSessions);
+    taosHashCleanup(pJob->pSessions);
+    pJob->pSessions = NULL;
     return code;
   }
 
   return code;
 }
 
-int32_t qwInitSession(QW_FPARAMS_DEF, void** ppSession) {
+int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SQWQueryInfo* pQuery = NULL;
+  SQWJobInfo* pJob = NULL;
   
   while (true) {
-    pQuery = (SQWQueryInfo*)taosHashGet(gQueryMgmt.pQueryInfo, &qId, sizeof(qId));
-    if (NULL == pQuery) {
-      SQWQueryInfo queryInfo = {0};
-      code = qwInitQueryInfo(qId, &queryInfo);
+    pJob = (SQWJobInfo*)taosHashAcquire(gQueryMgmt.pJobInfo, &qId, sizeof(qId));
+    if (NULL == pJob) {
+      SQWJobInfo jobInfo = {0};
+      code = qwInitJobInfo(qId, &jobInfo);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
       
-      code = taosHashPut(gQueryMgmt.pQueryInfo, &qId, sizeof(qId), &queryInfo, sizeof(queryInfo));
+      code = taosHashPut(gQueryMgmt.pJobInfo, &qId, sizeof(qId), &jobInfo, sizeof(jobInfo));
       if (TSDB_CODE_SUCCESS != code) {
-        qwDestroyQueryInfo(&queryInfo);
-        if (-2 == code) {
+        qwDestroyJobInfo(&jobInfo);
+        if (TSDB_CODE_DUP_KEY == code) {
           code = TSDB_CODE_SUCCESS;
           continue;
         }
         
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return code;
       }
 
-      pQuery = (SQWQueryInfo*)taosHashGet(gQueryMgmt.pQueryInfo, &qId, sizeof(qId));
+      pJob = (SQWJobInfo*)taosHashAcquire(gQueryMgmt.pJobInfo, &qId, sizeof(qId));
+      if (NULL == pJob) {
+        qError("QID:0x%" PRIx64 " not in joj hash, may be dropped", qId);
+        return TSDB_CODE_QRY_JOB_NOT_EXIST;
+      }
     }
 
     break;
   }
 
-  QW_ERR_RET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, ppSession, pQuery->pCollection));
+  ctx->pJobInfo = pJob;
+
+  QW_ERR_JRET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, ppSession, pJob->memInfo));
 
   char id[sizeof(tId) + sizeof(eId)] = {0};
   QW_SET_TEID(id, tId, eId);
 
-  code = taosHashPut(pQuery->pSessions, id, sizeof(id), ppSession, POINTER_BYTES);
+  code = taosHashPut(pJob->pSessions, id, sizeof(id), ppSession, POINTER_BYTES);
   if (TSDB_CODE_SUCCESS != code) {
-    qError("fail to put session into query session hash, errno:%d", terrno);
-    return terrno;
+    qError("fail to put session into query session hash, code: 0x%x", code);
+    QW_ERR_JRET(code);
+  }
+
+_return:
+
+  if (NULL != pJob) {
+    taosHashRelease(gQueryMgmt.pJobInfo, pJob);
   }
 
   return code;
 }
 
-void qwRetireCollectionCb(uint64_t collectionId) {
+void qwRetireJobCb(SMemPoolJob* mpJob, int32_t errCode) {
+  SQWJobInfo* pJob = (SQWJobInfo*)taosHashGet(gQueryMgmt.pJobInfo, &mpJob->jobId, sizeof(mpJob->jobId));
+  if (NULL == pJob) {
+    qError("QID:0x%" PRIx64 " fail to get job from job hash", mpJob->jobId);
+    return;
+  }
 
+  if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
+    qwRetireJob(pJob);
+
+    qInfo("QID:0x%" PRIx64 " retired directly, errCode: 0x%x", mpJob->jobId, errCode);
+  } else {
+    qDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x", mpJob->jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode));
+  }
 }
 
-void qwLowLevelRetire(int64_t retireSize) {
-  SQWQueryInfo* pQuery = (SQWQueryInfo*)taosHashIterate(gQueryMgmt.pQueryInfo, NULL);
-  while (pQuery) {
-    int64_t aSize = atomic_load_64(&pQuery->pCollection->allocMemSize);
-    if (aSize >= retireSize) {
-      atomic_store_8(&pQuery->retired, 1);
-      
-      //TODO RETIRE JOB/TASKS DIRECTLY
+void qwLowLevelRetire(int64_t retireSize, int32_t errCode) {
+  SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
+  while (pJob) {
+    int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
+    if (aSize >= retireSize && 0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
+      qwRetireJob(pJob);
 
       qDebug("QID:0x%" PRIx64 " job retired cause of low level memory retire, usedSize:%" PRId64 ", retireSize:%" PRId64, 
-          pQuery->pCollection->collectionId, aSize, retireSize);
+          pJob->memInfo->jobId, aSize, retireSize);
           
-      taosHashCancelIterate(gQueryMgmt.pQueryInfo, pQuery);
+      taosHashCancelIterate(gQueryMgmt.pJobInfo, pJob);
       break;
     }
     
-    pQuery = (SQWQueryInfo*)taosHashIterate(gQueryMgmt.pQueryInfo, pQuery);
+    pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
   }
 }
 
-void qwMidLevelRetire(int64_t retireSize) {
+void qwMidLevelRetire(int64_t retireSize, int32_t errCode) {
+  SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
+  PriorityQueueNode qNode;
+  while (NULL != pJob) {
+    if (0 == atomic_load_8(&pJob->retired)) {
+      qNode.data = pJob;
+      (void)taosBQPush(gQueryMgmt.retireCtx.pJobQueue, &qNode);
+    }
+    
+    pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, pJob);
+  }
 
+  PriorityQueueNode* pNode = NULL;
+  int64_t retiredSize = 0;
+  while (retiredSize < retireSize) {
+    pNode = taosBQTop(gQueryMgmt.retireCtx.pJobQueue);
+    if (NULL == pNode) {
+      break;
+    }
+
+    pJob = (SQWJobInfo*)pNode->data;
+    if (atomic_load_8(&pJob->retired)) {
+      taosBQPop(gQueryMgmt.retireCtx.pJobQueue);
+      continue;
+    }
+
+    if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
+      int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
+
+      qwRetireJob(pJob);
+
+      qDebug("QID:0x%" PRIx64 " job retired cause of mid level memory retire, usedSize:%" PRId64 ", retireSize:%" PRId64, 
+          pJob->memInfo->jobId, aSize, retireSize);
+
+      retiredSize += aSize;    
+    }
+
+    taosBQPop(gQueryMgmt.retireCtx.pJobQueue);
+  }
+
+  taosBQClear(gQueryMgmt.retireCtx.pJobQueue);
 }
 
 
-void qwRetireCollectionsCb(int64_t retireSize, bool lowLevelRetire) {
-  if (lowLevelRetire) {
-    qwLowLevelRetire(retireSize);
-  } else {
-    qwMidLevelRetire(retireSize);
-  }
+void qwRetireJobsCb(int64_t retireSize, bool lowLevelRetire, int32_t errCode) {
+  (lowLevelRetire) ? qwLowLevelRetire(retireSize, errCode) : qwMidLevelRetire(retireSize, errCode);
 }
 
 int32_t qwGetQueryMemPoolMaxSize(int64_t* pMaxSize, bool* autoMaxSize) {
@@ -161,8 +221,8 @@ int32_t qwGetQueryMemPoolMaxSize(int64_t* pMaxSize, bool* autoMaxSize) {
   int64_t memSize = 0;
   int32_t code = taosGetSysAvailMemory(&memSize);
   if (TSDB_CODE_SUCCESS != code) {
-    qError("get system avaiable memory size failed, errno: %d", errno);
-    return TAOS_SYSTEM_ERROR(errno);
+    qError("get system avaiable memory size failed, error: 0x%x", code);
+    return code;
   }
 
   code = qwGetMemPoolMaxMemSize(memSize, pMaxSize);
@@ -177,9 +237,9 @@ int32_t qwGetQueryMemPoolMaxSize(int64_t* pMaxSize, bool* autoMaxSize) {
 
 void qwCheckUpateCfgCb(void* pHandle, void* cfg) {
   SMemPoolCfg* pCfg = (SMemPoolCfg*)cfg;
-  int64_t newCollectionQuota = tsSingleQueryMaxMemorySize * 1048576UL;
-  if (pCfg->collectionQuota != newCollectionQuota) {
-    atomic_store_64(&pCfg->collectionQuota, newCollectionQuota);
+  int64_t newJobQuota = tsSingleQueryMaxMemorySize * 1048576UL;
+  if (pCfg->jobQuota != newJobQuota) {
+    atomic_store_64(&pCfg->jobQuota, newJobQuota);
   }
   
   int64_t maxSize = 0;
@@ -198,13 +258,28 @@ void qwCheckUpateCfgCb(void* pHandle, void* cfg) {
   }
 }
 
+static bool qwJobMemSizeCompFn(void* l, void* r, void* param) {
+  SQWJobInfo* left = (SQWJobInfo*)l;
+  SQWJobInfo* right = (SQWJobInfo*)r;
+  if (atomic_load_8(&right->retired)) {
+    return true;
+  }
+  
+  return atomic_load_64(&right->memInfo->allocMemSize) < atomic_load_64(&left->memInfo->allocMemSize);
+}
+
+
 int32_t qwInitQueryPool(void) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
+#ifdef LINUX  
   if (!tsQueryUseMemoryPool) {
-    qDebug("query memory pool disabled");
+#endif  
+    qInfo("query memory pool disabled");
     return code;
+#ifdef LINUX  
   }
+#endif
 
   SMemPoolCfg cfg = {0};
   int64_t maxSize = 0;
@@ -216,12 +291,12 @@ int32_t qwInitQueryPool(void) {
 
   cfg.threadNum = 10; //TODO
   cfg.evicPolicy = E_EVICT_AUTO; //TODO
-  cfg.collectionQuota = tsSingleQueryMaxMemorySize * 1048576UL;
+  cfg.jobQuota = tsSingleQueryMaxMemorySize * 1048576UL;
   cfg.cb.setSessFp = qwSetConcurrentTaskNumCb;
   cfg.cb.decSessFp = qwDecConcurrentTaskNumCb;
   cfg.cb.incSessFp = qwIncConcurrentTaskNumCb;
-  cfg.cb.retiresFp = qwRetireCollectionsCb;
-  cfg.cb.retireFp  = qwRetireCollectionCb;
+  cfg.cb.retireJobsFp = qwRetireJobsCb;
+  cfg.cb.retireJobFp  = qwRetireJobCb;
   cfg.cb.cfgUpdateFp = qwCheckUpateCfgCb;
 
   code = qwGetMemPoolChunkSize(cfg.maxSize, cfg.threadNum, &cfg.chunkSize);
@@ -229,18 +304,24 @@ int32_t qwInitQueryPool(void) {
     return code;
   }  
 
+  gQueryMgmt.pJobInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  if (NULL == gQueryMgmt.pJobInfo) {
+    qError("init job hash failed, error:0x%x", terrno);
+    return terrno;
+  }
+
+  gQueryMgmt.retireCtx.pJobQueue = createBoundedQueue(QW_MAX_RETIRE_JOB_NUM, qwJobMemSizeCompFn, NULL, NULL);
+  if (NULL == gQueryMgmt.retireCtx.pJobQueue) {
+    qError("init job bounded queue failed, error:0x%x", terrno);
+    return terrno;
+  }
+  
   code = taosMemPoolOpen(QW_QUERY_MEM_POOL_NAME, &cfg, &gQueryMgmt.memPoolHandle);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }  
 
-  gQueryMgmt.pQueryInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  if (NULL == gQueryMgmt.pQueryInfo) {
-    qError("init query hash failed");
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  qDebug("query memory pool initialized");
+  qInfo("query memory pool initialized");
 
   return code;
 }

@@ -193,26 +193,15 @@ typedef struct SMPStatInfo {
 } SMPStatInfo;
 
 
-typedef struct SMPCollection {
-  SMemPoolCollection collection; // KEEP IT FIRST
+typedef struct SMPJob {
+  SMemPoolJob        job; // KEEP IT FIRST
+  int32_t            remainSession;
   SMPStatInfo        stat;
-} SMPCollection;
+} SMPJob;
 
-
-typedef struct SMPSession {
-  SMPListNode        list;
-
-  int64_t            sessionId;
-
-  void*              pCollection;
-  SMPCollection*     pMpCollection;
-  bool               needRetire;
-  SMPCtrlInfo        ctrlInfo;
-
+typedef struct SMPSessionChunk {
   int64_t            allocChunkNum;
   int64_t            allocChunkMemSize;
-  int64_t            allocMemSize;
-  int64_t            maxAllocMemSize;
   int64_t            reUseChunkNum;
   
   int32_t            srcChunkNum;
@@ -231,6 +220,18 @@ typedef struct SMPSession {
 
   SMPNSChunk        *reUseNSChunkHead;
   SMPNSChunk        *reUseNSChunkTail;
+} SMPSessionChunk;
+
+typedef struct SMPSession {
+  SMPListNode        list;
+
+  int64_t            sessionId;
+  SMPJob*            pJob;
+  SMPCtrlInfo        ctrlInfo;
+  int64_t            allocMemSize;
+  int64_t            maxAllocMemSize;
+
+  SMPSessionChunk    chunk;
 
   SMPStatInfo        stat;
 } SMPSession; 
@@ -240,32 +241,20 @@ typedef struct SMPCacheGroupInfo {
   int64_t            allocNum;
   int32_t            groupNum;
   SMPCacheGroup     *pGrpHead;
-  SMPCacheGroup     *pGrpTail;
   void              *pIdleList;
 } SMPCacheGroupInfo;
 
-
-typedef struct SMemPool {
-  char              *name;
-  int16_t            slotId;
-  SMemPoolCfg        cfg;
-  int64_t            memRetireThreshold[3];
-  int64_t            memRetireUnit;
+typedef struct SMPChunkMgmt {
   int32_t            maxChunkNum;
-  SMPCtrlInfo        ctrlInfo;
-
   int16_t            maxDiscardSize;
   double             threadChunkReserveNum;
   int64_t            allocChunkNum;
   int64_t            allocChunkSize;
   int64_t            allocNSChunkNum;
   int64_t            allocNSChunkSize;
-  int64_t            allocMemSize;
-  int64_t            maxAllocMemSize;
 
   SMPCacheGroupInfo  chunkCache;
   SMPCacheGroupInfo  NSChunkCache;
-  SMPCacheGroupInfo  sessionCache;
   
   int32_t            readyChunkNum;
   int32_t            readyChunkReserveNum;
@@ -275,11 +264,28 @@ typedef struct SMemPool {
   SMPChunk          *readyChunkHead;
   SMPChunk          *readyChunkTail;
 
-  int64_t              readyNSChunkNum;
-  SMPChunk            *readyNSChunkHead;
-  SMPChunk            *readyNSChunkTail;
+  int64_t            readyNSChunkNum;
+  SMPChunk          *readyNSChunkHead;
+  SMPChunk          *readyNSChunkTail;
+} SMPChunkMgmt;
 
-  SMPStatInfo          stat;
+
+typedef struct SMemPool {
+  char              *name;
+  int16_t            slotId;
+  SMemPoolCfg        cfg;
+  int64_t            retireThreshold[3];
+  int64_t            retireUnit;
+  SMPCtrlInfo        ctrlInfo;
+
+  int64_t            maxAllocMemSize;
+  int64_t            allocMemSize;
+
+  SMPCacheGroupInfo  sessionCache;
+
+  SMPChunkMgmt       chunk;
+
+  SMPStatInfo        stat;
 } SMemPool;
 
 typedef enum EMPMemStrategy {
@@ -304,6 +310,24 @@ typedef struct SMemPoolMgmt {
   int64_t        waitMs;
   int32_t        code;
 } SMemPoolMgmt;
+
+typedef int32_t (*mpAllocFunc)(SMemPool*, SMPSession*, int64_t, uint32_t, void**);
+typedef void    (*mpFreeFunc)(SMemPool*, SMPSession*, void *, int64_t*);
+typedef int64_t (*mpGetSizeFunc)(SMemPool*, SMPSession*, void*);
+typedef int32_t (*mpReallocFunc)(SMemPool*, SMPSession*, void **, int64_t, int64_t*);
+typedef int32_t (*mpInitSessionFunc)(SMemPool*, SMPSession*);
+typedef int32_t (*mpInitFunc)(SMemPool*, char*, SMemPoolCfg*);
+typedef int32_t (*mpUpdateCfgFunc)(SMemPool*);
+
+typedef struct SMPStrategyFp {
+  mpInitFunc        initFp;
+  mpAllocFunc       allocFp;
+  mpFreeFunc        freeFp;
+  mpGetSizeFunc     getSizeFp;
+  mpReallocFunc     reallocFp;
+  mpInitSessionFunc initSessionFp;
+  mpUpdateCfgFunc   updateCfgFp;
+} SMPStrategyFp;
 
 #define MP_GET_FLAG(st, f) ((st) & (f))
 #define MP_SET_FLAG(st, f) (st) |= (f)
@@ -402,6 +426,28 @@ enum {
       goto _return;                  \
     }                                \
   } while (0)
+
+// direct
+int32_t mpDirectAlloc(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes);
+int64_t mpDirectGetMemSize(SMemPool* pPool, SMPSession* pSession, void *ptr);
+void    mpDirectFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* origSize);
+int32_t mpDirectRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t size, int64_t* origSize);
+
+// chunk
+int32_t mpChunkInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg);
+int64_t mpChunkGetMemSize(SMemPool* pPool, SMPSession* pSession, void *ptr);
+int32_t mpChunkAlloc(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes);
+void    mpChunkFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* origSize);
+int32_t mpChunkRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t size, int64_t* origSize);
+int32_t mpChunkInitSession(SMemPool* pPool, SMPSession* pSession);
+int32_t mpChunkUpdateCfg(SMemPool* pPool);
+
+
+int32_t mpPopIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, void** ppRes);
+int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size);
+void    mpUpdateAllocSize(SMemPool* pPool, SMPSession* pSession, int64_t size);
+int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup* pHead);
+int32_t mpMalloc(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes);
 
 
 

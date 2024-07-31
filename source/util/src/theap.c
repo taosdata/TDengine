@@ -343,6 +343,13 @@ BoundedQueue* createBoundedQueue(uint32_t maxSize, pq_comp_fn fn, FDelete delete
 
 void taosBQSetFn(BoundedQueue* q, pq_comp_fn fn) { taosPQSetFn(q->queue, fn); }
 
+void taosBQClear(BoundedQueue* q) {
+  if (q->queue->deleteFn)
+    taosArrayClearEx(q->queue->container, q->queue->deleteFn);
+  else
+    taosArrayClear(q->queue->container);
+}
+
 void destroyBoundedQueue(BoundedQueue* q) {
   if (!q) return;
   destroyPriorityQueue(q->queue);
@@ -357,11 +364,9 @@ PriorityQueueNode* taosBQPush(BoundedQueue* q, PriorityQueueNode* n) {
     } else {
       void* p = top->data;
       top->data = n->data;
-      n->data = p;
       if (q->queue->deleteFn) {
+        n->data = p;
         q->queue->deleteFn(n->data);
-      } else {
-        taosMemoryFree(n->data);
       }
     }
     return pqHeapify(q->queue, 0, taosBQSize(q));

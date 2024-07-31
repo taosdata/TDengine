@@ -23,8 +23,14 @@ static TdThreadOnce  gMPoolInit = PTHREAD_ONCE_INIT;
 threadlocal void* threadPoolHandle = NULL;
 threadlocal void* threadPoolSession = NULL;
 SMemPoolMgmt gMPMgmt = {0};
+SMPStrategyFp gMPFps[] = {
+  {NULL}, 
+  {NULL,        mpDirectAlloc, mpDirectFree, mpDirectGetMemSize, mpDirectRealloc, NULL,               NULL},
+  {mpChunkInit, mpChunkAlloc,  mpChunkFree,  mpChunkGetMemSize,  mpChunkRealloc,  mpChunkInitSession, mpChunkUpdateCfg}
+};
 
-int32_t memPoolCheckCfg(SMemPoolCfg* cfg) {
+
+int32_t mpCheckCfg(SMemPoolCfg* cfg) {
   if (cfg->chunkSize < MEMPOOL_MIN_CHUNK_SIZE || cfg->chunkSize > MEMPOOL_MAX_CHUNK_SIZE) {
     uError("invalid memory pool chunkSize:%d", cfg->chunkSize);
     return TSDB_CODE_INVALID_MEM_POOL_PARAM;
@@ -43,11 +49,18 @@ int32_t memPoolCheckCfg(SMemPoolCfg* cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-void memPoolFreeChunkGroup(SMPCacheGroup* pGrp) {
-  //TODO
+
+void mpFreeCacheGroup(SMPCacheGroup* pGrp) {
+  if (NULL == pGrp) {
+    return;
+  }
+
+  taosMemoryFree(pGrp->pNodes);
+  taosMemoryFree(pGrp);
 }
 
-int32_t memPoolAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup* pTail) {
+
+int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup* pHead) {
   SMPCacheGroup* pGrp = NULL;
   if (NULL == pInfo->pGrpHead) {
     pInfo->pGrpHead = taosMemCalloc(1, sizeof(*pInfo->pGrpHead));
@@ -59,6 +72,7 @@ int32_t memPoolAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCache
     pGrp = pInfo->pGrpHead;
   } else {
     pGrp = (SMPCacheGroup*)taosMemCalloc(1, sizeof(SMPCacheGroup));
+    pGrp->pNext = pHead;
   }
 
   pGrp->nodesNum = pInfo->groupNum;
@@ -68,8 +82,8 @@ int32_t memPoolAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCache
     MP_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  if (atomic_val_compare_exchange_ptr(&pInfo->pGrpTail, pTail, pGrp) != pTail) {
-    memPoolFreeChunkGroup(pGrp);
+  if (pHead && atomic_val_compare_exchange_ptr(&pInfo->pGrpHead, pHead, pGrp) != pHead) {
+    mpFreeCacheGroup(pGrp);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -78,222 +92,117 @@ int32_t memPoolAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCache
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t memPoolGetIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, void** ppRes) {
+void mpDestroyCacheGroup(SMPCacheGroupInfo* pInfo) {
+  SMPCacheGroup* pGrp = pInfo->pGrpHead;
+  SMPCacheGroup* pNext = NULL;
+  while (NULL != pGrp) {
+    pNext = pGrp->pNext;
+
+    mpFreeCacheGroup(pGrp);
+
+    pGrp = pNext;
+  }
+}
+
+
+int32_t mpPopIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, void** ppRes) {
   SMPCacheGroup* pGrp = NULL;
-  SMPListNode* pList = NULL;
+  SMPListNode* pNode = NULL;
   
   while (true) {
-    pList = (SMPListNode*)atomic_load_ptr(&pInfo->pIdleList);
-    if (NULL == pList) {
+    pNode = (SMPListNode*)atomic_load_ptr(&pInfo->pIdleList);
+    if (NULL == pNode) {
       break;
     }
 
-    if (atomic_val_compare_exchange_ptr(&pInfo->pIdleList, pList, pList->pNext) != pList) {
+    if (atomic_val_compare_exchange_ptr(&pInfo->pIdleList, pNode, pNode->pNext) != pNode) {
       continue;
     }
 
-    pList->pNext = NULL;
+    pNode->pNext = NULL;
     goto _return;
   }
 
   while (true) {
-    pGrp = atomic_load_ptr(&pInfo->pGrpTail);
+    pGrp = atomic_load_ptr(&pInfo->pGrpHead);
     int32_t offset = atomic_fetch_add_32(&pGrp->idleOffset, 1);
     if (offset < pGrp->nodesNum) {
-      pList = (SMPListNode*)((char*)pGrp->pNodes + offset * pInfo->nodeSize);
+      pNode = (SMPListNode*)((char*)pGrp->pNodes + offset * pInfo->nodeSize);
       break;
     } else {
       atomic_sub_fetch_32(&pGrp->idleOffset, 1);
     }
     
-    MP_ERR_RET(memPoolAddCacheGroup(pPool, pInfo, pGrp));
+    MP_ERR_RET(mpAddCacheGroup(pPool, pInfo, pGrp));
   }
 
 _return:
 
-  *ppRes = pList;
+  *ppRes = pNode;
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t memPoolNewChunk(SMemPool* pPool, SMPChunk** ppChunk) {
-  SMPChunk* pChunk = NULL;
-  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->chunkCache, (void**)&pChunk));
+void mpPushIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPListNode* pNode) {
+  SMPCacheGroup* pGrp = NULL;
+  SMPListNode* pOrig = NULL;
   
-  pChunk->pMemStart = taosMemMalloc(pPool->cfg.chunkSize);
-  if (NULL == pChunk->pMemStart) {
-    uError("add new chunk, memory malloc %d failed since %s", pPool->cfg.chunkSize, strerror(errno));
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  pPool->allocChunkNum++;
-  pPool->allocChunkSize += pPool->cfg.chunkSize;
-
-  *ppChunk = pChunk;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
-int32_t memPoolNewNSChunk(SMemPool* pPool, SMPNSChunk** ppChunk, int64_t chunkSize) {
-  SMPNSChunk* pChunk = NULL;
-  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->NSChunkCache, (void**)&pChunk));
-  
-  pChunk->pMemStart = taosMemMalloc(chunkSize);
-  if (NULL == pChunk->pMemStart) {
-    uError("add new NS chunk, memory malloc %" PRId64 " failed since %s", chunkSize, strerror(errno));
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  pChunk->memBytes = chunkSize;
-  MP_SET_FLAG(pChunk->flags, MP_CHUNK_FLAG_NS_CHUNK);
-
-  pPool->allocNSChunkNum++;
-  pPool->allocNSChunkSize += pPool->cfg.chunkSize;
-
-  *ppChunk = pChunk;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
-int32_t memPoolPrepareChunks(SMemPool* pPool, int32_t num) {
-  SMPChunk* pChunk = NULL;
-  for (int32_t i = 0; i < num; ++i) {
-    MP_ERR_RET(memPoolNewChunk(pPool, &pChunk));
-
-    pPool->readyChunkTail->list.pNext = pChunk;
-    pPool->readyChunkTail = pChunk;
-
-    atomic_add_fetch_32(&pPool->readyChunkNum, 1);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
-int32_t memPoolEnsureChunks(SMemPool* pPool) {
-  if (E_EVICT_ALL == pPool->cfg.evicPolicy) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t readyMissNum = pPool->readyChunkReserveNum - atomic_load_32(&pPool->readyChunkNum);
-  if (readyMissNum <= 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  MP_ERR_RET(memPoolPrepareChunks(pPool, readyMissNum));
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t memPoolApplyCfgUpdate(SMemPool* pPool) {
-  atomic_store_64(&pPool->memRetireThreshold[0], pPool->cfg.maxSize * MP_RETIRE_LOW_THRESHOLD_PERCENT);
-  atomic_store_64(&pPool->memRetireThreshold[1], pPool->cfg.maxSize * MP_RETIRE_MID_THRESHOLD_PERCENT);
-  atomic_store_64(&pPool->memRetireThreshold[2], pPool->cfg.maxSize * MP_RETIRE_HIGH_THRESHOLD_PERCENT);
-  
-  atomic_store_64(&pPool->memRetireUnit, TMAX(pPool->cfg.maxSize * MP_RETIRE_UNIT_PERCENT, MP_RETIRE_UNIT_MIN_SIZE));
-
-  if (E_MP_STRATEGY_CHUNK == gMPMgmt.strategy) {
-    pPool->maxChunkNum = pPool->cfg.maxSize / pPool->cfg.chunkSize;
-    if (pPool->maxChunkNum <= 0) {
-      uError("invalid memory pool max chunk num, maxSize:%" PRId64 ", chunkSize:%d", pPool->cfg.maxSize, pPool->cfg.chunkSize);
-      return TSDB_CODE_INVALID_MEM_POOL_PARAM;
+  while (true) {
+    pOrig = (SMPListNode*)atomic_load_ptr(&pInfo->pIdleList);
+    pNode->pNext = pOrig;
+    
+    if (atomic_val_compare_exchange_ptr(&pInfo->pIdleList, pOrig, pNode) != pOrig) {
+      continue;
     }
 
-    pPool->readyChunkReserveNum = TMIN(pPool->cfg.threadNum * pPool->threadChunkReserveNum, pPool->maxChunkNum);
+    break;
+  }
+}
 
-    pPool->chunkCache.groupNum = TMAX(pPool->maxChunkNum / 10, MP_CHUNK_CACHE_ALLOC_BATCH_SIZE);
+
+int32_t mpUpdateCfg(SMemPool* pPool) {
+  atomic_store_64(&pPool->retireThreshold[0], pPool->cfg.maxSize * MP_RETIRE_LOW_THRESHOLD_PERCENT);
+  atomic_store_64(&pPool->retireThreshold[1], pPool->cfg.maxSize * MP_RETIRE_MID_THRESHOLD_PERCENT);
+  atomic_store_64(&pPool->retireThreshold[2], pPool->cfg.maxSize * MP_RETIRE_HIGH_THRESHOLD_PERCENT);
+  
+  atomic_store_64(&pPool->retireUnit, TMAX(pPool->cfg.maxSize * MP_RETIRE_UNIT_PERCENT, MP_RETIRE_UNIT_MIN_SIZE));
+
+  if (gMPFps[gMPMgmt.strategy].updateCfgFp) {
+    MP_ERR_RET((*gMPFps[gMPMgmt.strategy].updateCfgFp)(pPool));
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t memPoolInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
-  MP_ERR_RET(memPoolCheckCfg(cfg));
+int32_t mpInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
+  MP_ERR_RET(mpCheckCfg(cfg));
   
-  memcpy(&pPool->cfg, cfg, sizeof(*cfg));
+  TAOS_MEMCPY(&pPool->cfg, cfg, sizeof(*cfg));
   
   pPool->name = taosStrdup(poolName);
   if (NULL == pPool->name) {
     uError("calloc memory pool name %s failed", poolName);
-    MP_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    MP_ERR_RET(terrno);
   }
 
-  MP_ERR_RET(memPoolApplyCfgUpdate(pPool));
+  MP_ERR_RET(mpUpdateCfg(pPool));
 
   pPool->ctrlInfo.statFlags = MP_STAT_FLAG_LOG_ALL;
   pPool->ctrlInfo.funcFlags = MP_CTRL_FLAG_PRINT_STAT;
 
-  pPool->threadChunkReserveNum = 1;
-
-  pPool->chunkCache.nodeSize = sizeof(SMPChunk);
-  pPool->NSChunkCache.groupNum = MP_NSCHUNK_CACHE_ALLOC_BATCH_SIZE;
-  pPool->NSChunkCache.nodeSize = sizeof(SMPNSChunk);
   pPool->sessionCache.groupNum = MP_SESSION_CACHE_ALLOC_BATCH_SIZE;
   pPool->sessionCache.nodeSize = sizeof(SMPSession);
 
-  MP_ERR_RET(memPoolAddCacheGroup(pPool, &pPool->chunkCache, NULL));
-  MP_ERR_RET(memPoolAddCacheGroup(pPool, &pPool->NSChunkCache, NULL));
-  MP_ERR_RET(memPoolAddCacheGroup(pPool, &pPool->sessionCache, NULL));
+  MP_ERR_RET(mpAddCacheGroup(pPool, &pPool->sessionCache, NULL));
 
-  MP_ERR_RET(memPoolGetIdleNode(pPool, &pPool->chunkCache, (void**)&pPool->readyChunkHead));
-  pPool->readyChunkTail = pPool->readyChunkHead;
-
-  MP_ERR_RET(memPoolEnsureChunks(pPool));
-
+  if (gMPFps[gMPMgmt.strategy].initFp) {
+    MP_ERR_RET((*gMPFps[gMPMgmt.strategy].initFp)(pPool, poolName, cfg));
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
-void memPoolNotifyLowChunkNum(SMemPool* pPool) {
-
-}
-
-int32_t memPoolGetChunk(SMemPool* pPool, SMPChunk** ppChunk) {
-  SMPCacheGroup* pCache = NULL;
-  SMPChunk* pChunk = NULL;
-  int32_t readyChunkNum = atomic_sub_fetch_32(&pPool->readyChunkNum, 1);
-  if (readyChunkNum >= 0) {
-    if (atomic_add_fetch_32(&pPool->readyChunkGotNum, 1) == pPool->readyChunkLowNum) {
-      memPoolNotifyLowChunkNum(pPool);
-    }
-
-    pChunk = (SMPChunk*)atomic_load_ptr(&pPool->readyChunkHead->list.pNext);
-    while (atomic_val_compare_exchange_ptr(&pPool->readyChunkHead->list.pNext, pChunk, pChunk->list.pNext) != pChunk) {
-      pChunk = (SMPChunk*)atomic_load_ptr(&pPool->readyChunkHead->list.pNext);
-    }
-
-    *ppChunk = pChunk;
-
-    return TSDB_CODE_SUCCESS;
-  } else {
-    atomic_add_fetch_32(&pPool->readyChunkNum, 1);
-  }
-
-  MP_RET(memPoolNewChunk(pPool, ppChunk));
-}
-
-int32_t memPoolGetChunkFromSession(SMemPool* pPool, SMPSession* pSession, int64_t size, SMPChunk** ppChunk, SMPChunk** ppPreChunk) {
-  SMPChunk* pChunk = pSession->srcChunkHead;
-  while (NULL != pChunk) {
-    if ((pChunk->offset + size) <= pPool->cfg.chunkSize) {
-      *ppChunk = pChunk;
-      break;
-    }
-
-    *ppPreChunk = pChunk;
-    pChunk = (SMPChunk*)pChunk->list.pNext;
-  }
-
-  if (NULL == *ppChunk) {
-    *ppPreChunk = NULL;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
-void memPoolUpdateMaxAllocMemSize(int64_t* pMaxAllocMemSize, int64_t newSize) {
+FORCE_INLINE void mpUpdateMaxAllocSize(int64_t* pMaxAllocMemSize, int64_t newSize) {
   int64_t maxAllocMemSize = atomic_load_64(pMaxAllocMemSize);
   while (true) {
     if (newSize <= maxAllocMemSize) {
@@ -308,99 +217,22 @@ void memPoolUpdateMaxAllocMemSize(int64_t* pMaxAllocMemSize, int64_t newSize) {
   }
 }
 
-void memPoolUpdateAllocMemSize(SMemPool* pPool, SMPSession* pSession, int64_t size) {
+void mpUpdateAllocSize(SMemPool* pPool, SMPSession* pSession, int64_t size) {
   int64_t allocMemSize = atomic_add_fetch_64(&pSession->allocMemSize, size);
-  memPoolUpdateMaxAllocMemSize(&pSession->maxAllocMemSize, allocMemSize);
+  mpUpdateMaxAllocSize(&pSession->maxAllocMemSize, allocMemSize);
 
-  allocMemSize = atomic_load_64(&pSession->pMpCollection->collection.allocMemSize);
-  memPoolUpdateMaxAllocMemSize(&pSession->pMpCollection->collection.maxAllocMemSize, allocMemSize);
+  allocMemSize = atomic_load_64(&pSession->pJob->job.allocMemSize);
+  mpUpdateMaxAllocSize(&pSession->pJob->job.maxAllocMemSize, allocMemSize);
 
   allocMemSize = atomic_load_64(&pPool->allocMemSize);
-  memPoolUpdateMaxAllocMemSize(&pPool->maxAllocMemSize, allocMemSize);
+  mpUpdateMaxAllocSize(&pPool->maxAllocMemSize, allocMemSize);
 }
 
-
-int32_t memPoolAllocFromChunk(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SMPChunk* pChunk = NULL, *preSrcChunk = NULL;
-  void* pRes = NULL;
-  int64_t totalSize = size + sizeof(SMPMemHeader) + sizeof(SMPMemTailer);
-  
-  if (pSession->srcChunkNum > 0) {
-    MP_ERR_JRET(memPoolGetChunkFromSession(pPool, pSession, totalSize, &pChunk, &preSrcChunk));
-  }
-
-  if (NULL == pChunk) {
-    MP_ERR_JRET(memPoolNewChunk(pPool, &pChunk));
-    
-    pSession->allocChunkNum++;
-    pSession->allocChunkMemSize += pPool->cfg.chunkSize;
-    memPoolUpdateAllocMemSize(pPool, pSession, totalSize);
-
-    MP_ADD_TO_CHUNK_LIST(pSession->srcChunkHead, pSession->srcChunkTail, pSession->srcChunkNum, pChunk);
-    MP_ADD_TO_CHUNK_LIST(pSession->inUseChunkHead, pSession->inUseChunkTail, pSession->inUseChunkNum, pChunk);
-  }
-
-  SMPMemHeader* pHeader = (SMPMemHeader*)(pChunk->pMemStart + pChunk->offset);
-  MP_INIT_MEM_HEADER(pHeader, size, false);
-
-  pRes = (void*)(pHeader + 1);
-  pChunk->offset += totalSize;
-
-  if (pChunk->offset >= (pPool->cfg.chunkSize - pPool->maxDiscardSize)) {
-    if (NULL == preSrcChunk) {
-      pSession->srcChunkHead = NULL;
-      pSession->srcChunkTail = NULL;
-    } else {
-      preSrcChunk->list.pNext = pChunk->list.pNext;
-    }
-
-    pSession->srcChunkNum--;
-  }
-  
-  
-_return:
-
-  *ppRes = pRes;
-
-  return code;
-}
-
-int32_t memPoolAllocFromNSChunk(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SMPNSChunk* pChunk = NULL;
-  void* pRes = NULL;
-  int64_t totalSize = size + sizeof(SMPMemHeader) + sizeof(SMPMemTailer) + alignment;
-  
-  MP_ERR_JRET(memPoolNewNSChunk(pPool, &pChunk, totalSize));
-  SMPMemHeader* pHeader = (SMPMemHeader*)pChunk->pMemStart;
-  MP_INIT_MEM_HEADER(pHeader, size, false);
-
-  pRes = (void*)(pHeader + 1);
-  
-  pSession->allocChunkNum++;
-  pSession->allocChunkMemSize += totalSize;
-  memPoolUpdateAllocMemSize(pPool, pSession, totalSize);
-  
-  if (NULL == pSession->inUseNSChunkHead) {
-    pSession->inUseNSChunkHead = pChunk;
-    pSession->inUseNSChunkTail = pChunk;
-  } else {
-    pSession->inUseNSChunkTail->list.pNext = pChunk;
-  }
-  
-_return:
-
-  *ppRes = pRes;
-  
-  return code;
-}
-
-int32_t memPoolPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
+int32_t mpPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
   if (retireLowLevel) {
     if (0 == atomic_val_compare_exchange_8(&gMPMgmt.msgQueue.lowLevelRetire, 0, 1)) {
       atomic_store_ptr(&gMPMgmt.msgQueue.pPool, pPool);
-      tsem2_post(&gMPMgmt.threadSem);
+      MP_ERR_RET(tsem2_post(&gMPMgmt.threadSem));
     }
     
     return TSDB_CODE_SUCCESS;
@@ -408,129 +240,88 @@ int32_t memPoolPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
 
   if (0 == atomic_val_compare_exchange_8(&gMPMgmt.msgQueue.midLevelRetire, 0, 1)) {
     atomic_store_ptr(&gMPMgmt.msgQueue.pPool, pPool);
-    tsem2_post(&gMPMgmt.threadSem);
+    MP_ERR_RET(tsem2_post(&gMPMgmt.threadSem));
   }
   
   return TSDB_CODE_SUCCESS;
 }
 
 
-int32_t memPoolMemQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) {
-  SMPCollection* pCollection = pSession->pMpCollection;
-  int64_t cAllocSize = atomic_add_fetch_64(&pCollection->collection.allocMemSize, size);
-  int64_t quota = atomic_load_64(&pPool->cfg.collectionQuota);
+int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) {
+  SMPJob* pJob = pSession->pJob;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t cAllocSize = atomic_add_fetch_64(&pJob->job.allocMemSize, size);
+  int64_t quota = atomic_load_64(&pPool->cfg.jobQuota);
   if (quota > 0 && cAllocSize > quota) {
-    uWarn("collection %" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, pCollection->collection.collectionId, cAllocSize, quota);
-    pPool->cfg.cb.retireFp(pCollection->collection.collectionId);
-    atomic_sub_fetch_64(&pCollection->collection.allocMemSize, size);
-    MP_RET(TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);
+    code = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;
+    uWarn("job 0x%" PRIx64 " allocSize %" PRId64 " is over than quota %" PRId64, pJob->job.jobId, cAllocSize, quota);
+    pPool->cfg.cb.retireJobFp(&pJob->job, code);
+    (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
+    MP_RET(code);
   }
 
   int64_t pAllocSize = atomic_add_fetch_64(&pPool->allocMemSize, size);
-  quota = atomic_load_64(&pPool->memRetireThreshold[2]);
+  quota = atomic_load_64(&pPool->retireThreshold[2]);
   if (pAllocSize >= quota) {
-    uWarn("pool allocSize %" PRId64 " reaches the high quota %" PRId64, pAllocSize, quota);
-    pPool->cfg.cb.retireFp(pCollection->collection.collectionId);
-    atomic_sub_fetch_64(&pCollection->collection.allocMemSize, size);
-    atomic_sub_fetch_64(&pPool->allocMemSize, size);
-    MP_RET(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
+    code = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;
+    uWarn("%s pool allocSize %" PRId64 " reaches the high quota %" PRId64, pPool->name, pAllocSize, quota);
+    pPool->cfg.cb.retireJobFp(&pJob->job, code);
+    (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
+    (void)atomic_sub_fetch_64(&pPool->allocMemSize, size);
+    MP_RET(code);
   }
 
-  quota = atomic_load_64(&pPool->memRetireThreshold[1]);  
+  quota = atomic_load_64(&pPool->retireThreshold[1]);  
   if (pAllocSize >= quota) {
-    uInfo("pool allocSize %" PRId64 " reaches the middle quota %" PRId64, pAllocSize, quota);
-    if (cAllocSize >= atomic_load_64(&pPool->memRetireUnit) / 2) {
-      uWarn("session retired in middle quota retire choise, sessionAllocSize: %" PRId64 ", collectionSize: %" PRId64, 
-        atomic_load_64(&pSession->allocMemSize), cAllocSize);
+    uInfo("%s pool allocSize %" PRId64 " reaches the middle quota %" PRId64, pPool->name, pAllocSize, quota);
+    if (cAllocSize >= atomic_load_64(&pPool->retireUnit) / 2) {
+      code = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;
+      pPool->cfg.cb.retireJobFp(&pJob->job, code);
+      (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
+      (void)atomic_sub_fetch_64(&pPool->allocMemSize, size);
 
-      pPool->cfg.cb.retireFp(pCollection->collection.collectionId);
-      atomic_sub_fetch_64(&pCollection->collection.allocMemSize, size);
-      atomic_sub_fetch_64(&pPool->allocMemSize, size);
-
-      MP_ERR_RET(memPoolPutRetireMsgToQueue(pPool, false));
-      MP_RET(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
+      MP_ERR_RET(mpPutRetireMsgToQueue(pPool, false));
+      MP_RET(code);
     }
     
     return TSDB_CODE_SUCCESS;
   }
 
-  quota = atomic_load_64(&pPool->memRetireThreshold[0]);    
+  quota = atomic_load_64(&pPool->retireThreshold[0]);    
   if (pAllocSize >= quota) {
-    uInfo("pool allocSize %" PRId64 " reaches the low quota %" PRId64, pAllocSize, quota);
-    if (cAllocSize >= atomic_load_64(&pPool->memRetireUnit)) {
-      uWarn("session retired in low quota retire choise, sessionAllocSize: %" PRId64, atomic_load_64(&pSession->allocMemSize));
+    uInfo("%s pool allocSize %" PRId64 " reaches the low quota %" PRId64, pPool->name, pAllocSize, quota);
+    if (cAllocSize >= atomic_load_64(&pPool->retireUnit)) {
+      code = TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED;
+      pPool->cfg.cb.retireJobFp(&pJob->job, code);
+      
+      (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
+      (void)atomic_sub_fetch_64(&pPool->allocMemSize, size);
 
-      pPool->cfg.cb.retireFp(pCollection->collection.collectionId);
-      atomic_sub_fetch_64(&pCollection->collection.allocMemSize, size);
-      atomic_sub_fetch_64(&pPool->allocMemSize, size);
-
-      MP_ERR_RET(memPoolPutRetireMsgToQueue(pPool, true));
-      MP_RET(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
+      MP_ERR_RET(mpPutRetireMsgToQueue(pPool, true));
+      MP_RET(code);
     }
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t memPoolAllocDirect(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  MP_ERR_RET(memPoolMemQuotaOverflow(pPool, pSession, size));
-  
-  void* res = alignment ? taosMemMallocAlign(alignment, size) : taosMemMalloc(size);
-  if (NULL != res) {
-    memPoolUpdateAllocMemSize(pPool, pSession, size);
-  } else {
-    atomic_sub_fetch_64(&pSession->pMpCollection->collection.allocMemSize, size);
-    atomic_sub_fetch_64(&pPool->allocMemSize, size);
-    uError("malloc %" PRId64 " alighment %d failed", size, alignment);
-
-    code = TAOS_SYSTEM_ERROR(errno);
-  }
-  
-  MP_RET(code);
+int64_t mpGetMemorySizeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr) {
+  return (*gMPFps[gMPMgmt.strategy].getSizeFp)(pPool, pSession, ptr);
 }
 
-int64_t memPoolGetMemorySizeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr) {
-  switch (gMPMgmt.strategy) {
-    case E_MP_STRATEGY_DIRECT:
-      return taosMemSize(ptr);
-    case E_MP_STRATEGY_CHUNK: {
-      SMPMemHeader* pHeader = (SMPMemHeader*)ptr - 1;
-      return pHeader->size;
-    }
-    default:
-      break;
-  }
-
-  return 0;
+int32_t mpMalloc(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
+  MP_RET((*gMPFps[gMPMgmt.strategy].allocFp)(pPool, pSession, size, alignment, ppRes));
 }
 
-int32_t memPoolMallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  switch (gMPMgmt.strategy) {
-    case E_MP_STRATEGY_DIRECT:
-      MP_ERR_RET(memPoolAllocDirect(pPool, pSession, size, alignment, ppRes));
-      break;
-    case E_MP_STRATEGY_CHUNK:
-      MP_ERR_RET((size > pPool->cfg.chunkSize) ? memPoolAllocFromNSChunk(pPool, pSession, size, alignment, ppRes) : memPoolAllocFromChunk(pPool, pSession, size, alignment, ppRes));
-      break;
-    default:
-      break;
-  }
-
-  return code;
-}
-
-int32_t memPoolCallocImpl(SMemPool* pPool, SMPSession* pSession, int64_t num, int64_t size, void** ppRes) {
+int32_t mpCalloc(SMemPool* pPool, SMPSession* pSession, int64_t num, int64_t size, void** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t totalSize = num * size;
   void *res = NULL;
 
-  MP_ERR_RET(memPoolMallocImpl(pPool, pSession, totalSize, 0, &res));
+  MP_ERR_RET(mpMalloc(pPool, pSession, totalSize, 0, &res));
 
   if (NULL != res) {
-    memset(res, 0, totalSize);
+    TAOS_MEMSET(res, 0, totalSize);
   }
 
 _return:
@@ -541,7 +332,7 @@ _return:
 }
 
 
-void memPoolFreeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* origSize) {
+void mpFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* origSize) {
   if (NULL == ptr) {
     if (origSize) {
       *origSize = 0;
@@ -550,87 +341,28 @@ void memPoolFreeImpl(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* 
     return;
   }
 
-  switch (gMPMgmt.strategy) {
-    case E_MP_STRATEGY_DIRECT: {
-      int64_t oSize = taosMemSize(ptr);
-      if (origSize) {
-        *origSize = oSize;
-      }
-      taosMemFree(ptr);
-      
-      atomic_sub_fetch_64(&pSession->allocMemSize, oSize);
-      atomic_sub_fetch_64(&pPool->allocMemSize, oSize);
-      break;
-    }
-    case E_MP_STRATEGY_CHUNK:
-      if (origSize) {
-        *origSize = memPoolGetMemorySizeImpl(pPool, pSession, ptr);
-      }
-      break;
-    default:
-      break;
-  }
-  
-  return;
+  (*gMPFps[gMPMgmt.strategy].freeFp)(pPool, pSession, ptr, origSize);
 }
 
-int32_t memPoolReallocImpl(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t size, int64_t* origSize) {
+int32_t mpRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t size, int64_t* origSize) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (NULL == *pPtr) {
     *origSize = 0;
-    MP_RET(memPoolMallocImpl(pPool, pSession, size, 0, pPtr));
+    MP_RET(mpMalloc(pPool, pSession, size, 0, pPtr));
   }
 
   if (0 == size) {
-    memPoolFreeImpl(pPool, pSession, *pPtr, origSize);
+    mpFree(pPool, pSession, *pPtr, origSize);
     return TSDB_CODE_SUCCESS;
   }
 
-  *origSize = memPoolGetMemorySizeImpl(pPool, pSession, *pPtr);
+  *origSize = mpGetMemorySizeImpl(pPool, pSession, *pPtr);
 
-  switch (gMPMgmt.strategy) {
-    case E_MP_STRATEGY_DIRECT: {
-      MP_ERR_JRET(memPoolMemQuotaOverflow(pPool, pSession, size));
-      
-      *pPtr = taosMemRealloc(*pPtr, size);
-      if (NULL != *pPtr) {
-        memPoolUpdateAllocMemSize(pPool, pSession, size - *origSize);
-      } else {
-        MP_ERR_JRET(TAOS_SYSTEM_ERROR(errno));
-      }
-      break;
-    }
-    case E_MP_STRATEGY_CHUNK: {
-      if (*origSize >= size) {
-        SMPMemHeader* pHeader = (SMPMemHeader*)((char*)*pPtr - sizeof(SMPMemHeader));
-        pHeader->size = size;
-        return TSDB_CODE_SUCCESS;
-      }
-
-      void* res = NULL;
-      MP_ERR_JRET(memPoolMallocImpl(pPool, pSession, size, 0, &res));
-      SMPMemHeader* pOrigHeader = (SMPMemHeader*)((char*)*pPtr - sizeof(SMPMemHeader));
-      SMPMemHeader* pNewHeader = (SMPMemHeader*)((char*)res - sizeof(SMPMemHeader));
-      
-      memcpy(res, *pPtr, *origSize);
-      memPoolFreeImpl(pPool, pSession, *pPtr, NULL);
-      *pPtr = res;
-      
-      return TSDB_CODE_SUCCESS;
-    }
-    default:
-      break;
-  }
-
-_return:
-
-  memPoolFreeImpl(pPool, pSession, *pPtr, NULL);
-  
-  return code;
+  MP_RET((*gMPFps[gMPMgmt.strategy].reallocFp)(pPool, pSession, pPtr, size, origSize));
 }
 
-void memPoolPrintStatDetail(SMPCtrlInfo* pCtrl, SMPStatDetail* pDetail, char* detailName, int64_t maxAllocSize) {
+void mpPrintStatDetail(SMPCtrlInfo* pCtrl, SMPStatDetail* pDetail, char* detailName, int64_t maxAllocSize) {
   if (!MP_GET_FLAG(pCtrl->funcFlags, MP_CTRL_FLAG_PRINT_STAT)) {
     return;
   }
@@ -663,15 +395,15 @@ void memPoolPrintStatDetail(SMPCtrlInfo* pCtrl, SMPStatDetail* pDetail, char* de
 
 }
 
-void memPoolPrintFileLineStat(SMPCtrlInfo* pCtrl, SHashObj* pHash, char* detailName) {
+void mpPrintFileLineStat(SMPCtrlInfo* pCtrl, SHashObj* pHash, char* detailName) {
   //TODO
 }
 
-void memPoolPrintNodeStat(SMPCtrlInfo* pCtrl, SHashObj* pHash, char* detailName) {
+void mpPrintNodeStat(SMPCtrlInfo* pCtrl, SHashObj* pHash, char* detailName) {
   //TODO
 }
 
-void memPoolPrintSessionStat(SMPCtrlInfo* pCtrl, SMPStatSession* pSessStat, char* detailName) {
+void mpPrintSessionStat(SMPCtrlInfo* pCtrl, SMPStatSession* pSessStat, char* detailName) {
   if (!MP_GET_FLAG(pCtrl->funcFlags, MP_CTRL_FLAG_PRINT_STAT)) {
     return;
   }
@@ -682,42 +414,42 @@ void memPoolPrintSessionStat(SMPCtrlInfo* pCtrl, SMPStatSession* pSessStat, char
   uInfo("session destroyed num: %" PRId64, pSessStat->destroyNum);
 }
 
-void memPoolPrintStat(SMemPool* pPool, SMPSession* pSession, char* procName) {
+void mpPrintStat(SMemPool* pPool, SMPSession* pSession, char* procName) {
   char detailName[128];
 
   if (NULL != pSession) {
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "Session");
     detailName[sizeof(detailName) - 1] = 0;
-    memPoolPrintStatDetail(&pSession->ctrlInfo, &pSession->stat.statDetail, detailName, pSession->maxAllocMemSize);
+    mpPrintStatDetail(&pSession->ctrlInfo, &pSession->stat.statDetail, detailName, pSession->maxAllocMemSize);
 
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "SessionFile");
     detailName[sizeof(detailName) - 1] = 0;
-    memPoolPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.fileStat, detailName);
+    mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.fileStat, detailName);
 
     snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "SessionFileLine");
     detailName[sizeof(detailName) - 1] = 0;
-    memPoolPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.lineStat, detailName);
+    mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.lineStat, detailName);
   }
 
   snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, pPool->name);
   detailName[sizeof(detailName) - 1] = 0;
-  memPoolPrintSessionStat(&pPool->ctrlInfo, &pPool->stat.statSession, detailName);
-  memPoolPrintStatDetail(&pPool->ctrlInfo, &pPool->stat.statDetail, detailName, pPool->maxAllocMemSize);
+  mpPrintSessionStat(&pPool->ctrlInfo, &pPool->stat.statSession, detailName);
+  mpPrintStatDetail(&pPool->ctrlInfo, &pPool->stat.statDetail, detailName, pPool->maxAllocMemSize);
 
   snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolNode");
   detailName[sizeof(detailName) - 1] = 0;
-  memPoolPrintNodeStat(&pSession->ctrlInfo, pSession->stat.nodeStat, detailName);
+  mpPrintNodeStat(&pSession->ctrlInfo, pSession->stat.nodeStat, detailName);
   
   snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolFile");
   detailName[sizeof(detailName) - 1] = 0;
-  memPoolPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.fileStat, detailName);
+  mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.fileStat, detailName);
   
   snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolFileLine");
   detailName[sizeof(detailName) - 1] = 0;
-  memPoolPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.lineStat, detailName);
+  mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.lineStat, detailName);
 }
 
-void memPoolLogStatDetail(SMPStatDetail* pDetail, EMPStatLogItem item, SMPStatInput* pInput) {
+void mpLogStatDetail(SMPStatDetail* pDetail, EMPStatLogItem item, SMPStatInput* pInput) {
   switch (item) {
     case E_MP_STAT_LOG_MEM_MALLOC: {
       if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
@@ -807,11 +539,9 @@ void memPoolLogStatDetail(SMPStatDetail* pDetail, EMPStatLogItem item, SMPStatIn
       uError("Invalid stat item: %d", item);
       break;
   }
-
-
 }
 
-void memPoolLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPStatInput* pInput) {
+void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPStatInput* pInput) {
   switch (item) {
     case E_MP_STAT_LOG_MEM_MALLOC:
     case E_MP_STAT_LOG_MEM_CALLOC:
@@ -819,10 +549,10 @@ void memPoolLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, 
     case E_MP_STAT_LOG_MEM_FREE:
     case E_MP_STAT_LOG_MEM_STRDUP: {
       if (MP_GET_FLAG(pSession->ctrlInfo.statFlags, MP_STAT_FLAG_LOG_ALL_MEM_STAT)) {
-        memPoolLogStatDetail(&pSession->stat.statDetail, item, pInput);
+        mpLogStatDetail(&pSession->stat.statDetail, item, pInput);
       }
       if (MP_GET_FLAG(pPool->ctrlInfo.statFlags, MP_STAT_FLAG_LOG_ALL_MEM_STAT)) {
-        memPoolLogStatDetail(&pPool->stat.statDetail, item, pInput);
+        mpLogStatDetail(&pPool->stat.statDetail, item, pInput);
       }
       break;
     }
@@ -838,7 +568,7 @@ void memPoolLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, 
   }
 }
 
-void memPoolCheckUpateCfg(void) {
+void mpCheckUpateCfg(void) {
   taosRLockLatch(&gMPMgmt.poolLock);
   int32_t poolNum = taosArrayGetSize(gMPMgmt.poolList);
   for (int32_t i = 0; i < poolNum; ++i) {
@@ -850,79 +580,89 @@ void memPoolCheckUpateCfg(void) {
   taosRUnLockLatch(&gMPMgmt.poolLock);
 }
 
-void* memPoolMgmtThreadFunc(void* param) {
+void* mpMgmtThreadFunc(void* param) {
   int32_t timeout = 0;
   while (0 == atomic_load_8(&gMPMgmt.modExit)) {
     timeout = tsem2_timewait(&gMPMgmt.threadSem, gMPMgmt.waitMs);
     if (0 != timeout) {
-      memPoolCheckUpateCfg();
+      mpCheckUpateCfg();
       continue;
     }
 
     if (atomic_load_8(&gMPMgmt.msgQueue.midLevelRetire)) {
-      (*gMPMgmt.msgQueue.pPool->cfg.cb.retiresFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->memRetireUnit), false);
+      (*gMPMgmt.msgQueue.pPool->cfg.cb.retireJobsFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->retireUnit), false, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
     } else if (atomic_load_8(&gMPMgmt.msgQueue.lowLevelRetire)) {
-      (*gMPMgmt.msgQueue.pPool->cfg.cb.retiresFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->memRetireUnit), true);
+      (*gMPMgmt.msgQueue.pPool->cfg.cb.retireJobsFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->retireUnit), true, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
     }
     
-    memPoolCheckUpateCfg();
+    mpCheckUpateCfg();
   }
   
   return NULL;
 }
 
-void taosMemPoolModInit(void) {
+void mpModInit(void) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
   taosInitRWLatch(&gMPMgmt.poolLock);
   
   gMPMgmt.poolList = taosArrayInit(10, POINTER_BYTES);
   if (NULL == gMPMgmt.poolList) {
-    gMPMgmt.code = TSDB_CODE_OUT_OF_MEMORY;
-    return;
+    MP_ERR_JRET(terrno);
   }
 
   gMPMgmt.strategy = E_MP_STRATEGY_DIRECT;
 
   gMPMgmt.code = tsem2_init(&gMPMgmt.threadSem, 0, 0);
   if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
-    uError("failed to init sem2, error: %x", gMPMgmt.code);
+    uError("failed to init sem2, error: 0x%x", gMPMgmt.code);
     return;
   }
 
   gMPMgmt.waitMs = MP_DEFAULT_MEM_CHK_INTERVAL_MS;
   
   TdThreadAttr thAttr;
-  taosThreadAttrInit(&thAttr);
-  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-  if (taosThreadCreate(&gMPMgmt.poolMgmtThread, &thAttr, memPoolMgmtThreadFunc, NULL) != 0) {
-    uError("failed to create memPool mgmt thread since %s", strerror(errno));
-    gMPMgmt.code = TSDB_CODE_SYSTEM_ERROR;
-    return;
+  MP_ERR_JRET(taosThreadAttrInit(&thAttr));
+  MP_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
+  code = taosThreadCreate(&gMPMgmt.poolMgmtThread, &thAttr, mpMgmtThreadFunc, NULL);
+  if (code != 0) {
+    uError("failed to create memPool mgmt thread, error: 0x%x", code);
+    (void)taosThreadAttrDestroy(&thAttr);
+    MP_ERR_JRET(code);
   }
 
-  taosThreadAttrDestroy(&thAttr);
+  MP_ERR_JRET(taosThreadAttrDestroy(&thAttr));
+
+_return:
+
+  gMPMgmt.code = code;
 }
 
 int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMemPool* pPool = NULL;
   
-  taosThreadOnce(&gMPoolInit, taosMemPoolModInit);
+  MP_ERR_JRET(taosThreadOnce(&gMPoolInit, mpModInit));
   if (TSDB_CODE_SUCCESS != gMPMgmt.code) {
-    uError("init memory pool failed");
+    uError("init memory pool failed, code: 0x%x", gMPMgmt.code);
     MP_ERR_JRET(gMPMgmt.code);
   }
 
   pPool = (SMemPool*)taosMemoryCalloc(1, sizeof(SMemPool));
   if (NULL == pPool) {
-    uError("calloc memory pool failed");
-    MP_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    uError("calloc memory pool failed, code: 0x%x", terrno);
+    MP_ERR_JRET(terrno);
   }
 
-  MP_ERR_JRET(memPoolInit(pPool, poolName, cfg));
+  MP_ERR_JRET(mpInit(pPool, poolName, cfg));
 
   taosWLockLatch(&gMPMgmt.poolLock);
   
-  taosArrayPush(gMPMgmt.poolList, &pPool);
+  if (NULL == taosArrayPush(gMPMgmt.poolList, &pPool)) {
+    taosWUnLockLatch(&gMPMgmt.poolLock);
+    MP_ERR_JRET(terrno);
+  }
+  
   pPool->slotId = taosArrayGetSize(gMPMgmt.poolList) - 1;
   
   taosWUnLockLatch(&gMPMgmt.poolLock);
@@ -942,47 +682,54 @@ _return:
 void taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg) {
   SMemPool* pPool = (SMemPool*)poolHandle;
 
-  (void)memPoolApplyCfgUpdate(pPool);
+  (void)mpUpdateCfg(pPool);
 }
 
 void taosMemPoolDestroySession(void* poolHandle, void* session) {
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
+  if (NULL == pSession) {
+    uWarn("null pointer of session");
+    return;
+  }
+
+  (void)atomic_sub_fetch_32(&pSession->pJob->remainSession, 1);
+  
   //TODO;
 
-  memPoolPrintStat(pPool, pSession, "DestroySession");
+  (void)atomic_add_fetch_64(&pPool->stat.statSession.destroyNum, 1);
 
-  atomic_add_fetch_64(&pPool->stat.statSession.destroyNum, 1);
+  mpPrintStat(pPool, pSession, "DestroySession");
+
+  TAOS_MEMSET(pSession, 0, sizeof(*pSession));
+
+  mpPushIdleNode(pPool, &pPool->sessionCache, (SMPListNode*)pSession);
 }
 
-int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pCollection) {
+int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = NULL;
-  SMPChunk* pChunk = NULL;
 
-  MP_ERR_JRET(memPoolGetIdleNode(pPool, &pPool->sessionCache, (void**)&pSession));
+  MP_ERR_JRET(mpPopIdleNode(pPool, &pPool->sessionCache, (void**)&pSession));
 
-  memcpy(&pSession->ctrlInfo, &pPool->ctrlInfo, sizeof(pSession->ctrlInfo));
+  TAOS_MEMCPY(&pSession->ctrlInfo, &pPool->ctrlInfo, sizeof(pSession->ctrlInfo));
 
-  MP_ERR_JRET(memPoolGetChunk(pPool, &pChunk));
-
-  pSession->allocChunkNum = 1;
-  pSession->allocChunkMemSize = pPool->cfg.chunkSize;
-
-  MP_ADD_TO_CHUNK_LIST(pSession->srcChunkHead, pSession->srcChunkTail, pSession->srcChunkNum, pChunk);
-  MP_ADD_TO_CHUNK_LIST(pSession->inUseChunkHead, pSession->inUseChunkTail, pSession->inUseChunkNum, pChunk);
-
-  pSession->pMpCollection = (SMPCollection*)pCollection;
+  if (gMPFps[gMPMgmt.strategy].initSessionFp) {
+    MP_ERR_JRET((*gMPFps[gMPMgmt.strategy].initSessionFp)(pPool, pSession));
+  }
+  
+  pSession->pJob = (SMPJob*)pJob;
+  (void)atomic_add_fetch_32(&pSession->pJob->remainSession, 1);
 
 _return:
 
   if (TSDB_CODE_SUCCESS != code) {
     taosMemPoolDestroySession(poolHandle, pSession);
     pSession = NULL;
-    atomic_add_fetch_64(&pPool->stat.statSession.initFail, 1);
+    (void)atomic_add_fetch_64(&pPool->stat.statSession.initFail, 1);
   } else {
-    atomic_add_fetch_64(&pPool->stat.statSession.initSucc, 1);
+    (void)atomic_add_fetch_64(&pPool->stat.statSession.initSucc, 1);
   }
 
   *ppSession = pSession;
@@ -1004,10 +751,10 @@ void *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* fil
   SMPSession* pSession = (SMPSession*)session;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  MP_ERR_JRET(memPoolMallocImpl(pPool, pSession, size, 0, &res));
+  terrno = mpMalloc(pPool, pSession, size, 0, &res);
 
   MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
-  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_MALLOC, &input);
+  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_MALLOC, &input);
 
 _return:
 
@@ -1029,10 +776,10 @@ void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t 
   int64_t totalSize = num * size;
   SMPStatInput input = {.size = totalSize, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  MP_ERR_JRET(memPoolCallocImpl(pPool, pSession, num, size, &res));
+  terrno = mpCalloc(pPool, pSession, num, size, &res);
 
   MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
-  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_CALLOC, &input);
+  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_CALLOC, &input);
 
 _return:
 
@@ -1053,10 +800,10 @@ void *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t siz
   SMPSession* pSession = (SMPSession*)session;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  MP_ERR_JRET(memPoolReallocImpl(pPool, pSession, &ptr, size, &input.origSize));
+  terrno = mpRealloc(pPool, pSession, &ptr, size, &input.origSize);
 
   MP_SET_FLAG(input.procFlags, ((res || 0 == size) ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
-  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_REALLOC, &input);
+  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_REALLOC, &input);
 
 _return:
 
@@ -1078,13 +825,14 @@ char   *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char
   int64_t size = strlen(ptr) + 1;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  MP_ERR_JRET(memPoolMallocImpl(pPool, pSession, size, 0, &res));
+  terrno = mpMalloc(pPool, pSession, size, 0, &res);
   if (NULL != res) {
-    strcpy(res, ptr);
+    TAOS_STRCPY(res, ptr);
+    *((char*)res + size - 1) = 0;
   }
 
   MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
-  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_STRDUP, &input);
+  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_STRDUP, &input);
 
 _return:
 
@@ -1103,10 +851,10 @@ void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName,
   SMPSession* pSession = (SMPSession*)session;
   SMPStatInput input = {.file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  memPoolFreeImpl(pPool, pSession, ptr, &input.size);
+  mpFree(pPool, pSession, ptr, &input.size);
 
   MP_SET_FLAG(input.procFlags, MP_STAT_PROC_FLAG_RES_SUCC);
-  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_FREE, &input);
+  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_FREE, &input);
 
 _return:
 
@@ -1127,11 +875,11 @@ int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, cha
 
   SMemPool* pPool = (SMemPool*)poolHandle;
   SMPSession* pSession = (SMPSession*)session;
-  return memPoolGetMemorySizeImpl(pPool, pSession, ptr);
+  return mpGetMemorySizeImpl(pPool, pSession, ptr);
 
 _return:
 
-  return -1;
+  return code;
 }
 
 void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment, int64_t size, char* fileName, int32_t lineNo) {
@@ -1148,10 +896,10 @@ void* taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment
   SMPSession* pSession = (SMPSession*)session;
   SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
 
-  MP_ERR_JRET(memPoolMallocImpl(pPool, pSession, size, alignment, &res));
+  terrno = mpMalloc(pPool, pSession, size, alignment, &res);
 
   MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
-  memPoolLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_MALLOC, &input);
+  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_MALLOC, &input);
 
 _return:
 
@@ -1159,12 +907,34 @@ _return:
 }
 
 void taosMemPoolClose(void* poolHandle) {
+  SMemPool* pPool = (SMemPool*)poolHandle;
+
+  taosMemoryFree(pPool->name);
+  mpDestroyCacheGroup(&pPool->sessionCache);
+}
+
+void taosMemPoolModDestroy(void) {
 
 }
 
-void    taosMemPoolModDestroy(void) {
+
+void taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo) {
 
 }
+
+int32_t taosMemPoolCallocJob(uint64_t jobId, void** ppJob) {
+  *ppJob = taosMemoryCalloc(1, sizeof(SMPJob));
+  if (NULL == *ppJob) {
+    uError("calloc mp job failed, code: 0x%x", terrno);
+    return terrno;
+  }
+
+  SMPJob* pJob = (SMPJob*)*ppJob;
+  pJob->job.jobId = jobId;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 void taosAutoMemoryFree(void *ptr) {
   if (NULL != threadPoolHandle) {
@@ -1172,23 +942,6 @@ void taosAutoMemoryFree(void *ptr) {
   } else {
     taosMemFree(ptr);
   }
-}
-
-void    taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo) {
-
-}
-
-int32_t taosMemPoolCallocCollection(uint64_t collectionId, void** ppCollection) {
-  *ppCollection = taosMemCalloc(1, sizeof(SMPCollection));
-  if (NULL == *ppCollection) {
-    uError("calloc collection failed");
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  SMPCollection* pCollection = (SMPCollection*)*ppCollection;
-  pCollection->collection.collectionId = collectionId;
-  
-  return TSDB_CODE_SUCCESS;
 }
 
 

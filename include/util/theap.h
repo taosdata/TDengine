@@ -87,6 +87,8 @@ BoundedQueue* createBoundedQueue(uint32_t maxSize, pq_comp_fn fn, FDelete delete
 
 void taosBQSetFn(BoundedQueue* q, pq_comp_fn fn);
 
+void taosBQClear(BoundedQueue* q);
+
 void destroyBoundedQueue(BoundedQueue* q);
 
 /*
