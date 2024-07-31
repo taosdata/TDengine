@@ -2678,9 +2678,9 @@ class TaskAddData(StateTransitionTask):
 
         fullTableName = db.getName() + '.' + regTableName
         self._lockTableIfNeeded(fullTableName, 'batch')
-        colStrs = self._getTagColStrForSql(db, dbc)[0]
         sql = "INSERT INTO {} VALUES ".format(fullTableName)
         for j in range(numRecords):  # number of records per table
+            colStrs = self._getTagColStrForSql(db, dbc)[0]
             # nextInt = db.getNextInt()
             # nextTick = db.getNextTick()
             # nextColor = db.getNextColor()
@@ -2887,8 +2887,8 @@ class TaskAddData(StateTransitionTask):
 
     def _addData_n(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
-        colStrs = self._getTagColStrForSql(db, dbc)[0]
         for j in range(numRecords):  # number of records per table
+            colStrs = self._getTagColStrForSql(db, dbc)[0]
             intToWrite = db.getNextInt()
             nextTick = db.getNextTick()
             nextColor = db.getNextColor()
