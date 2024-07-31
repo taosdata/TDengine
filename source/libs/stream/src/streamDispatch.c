@@ -919,8 +919,8 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
     STaskCheckpointReadyInfo* pInfo = taosArrayGet(pList, i);
 
     SRpcMsg msg = {0};
-    int32_t code = initCheckpointReadyMsg(pTask, pInfo->upstreamNodeId, pInfo->upstreamTaskId, pInfo->childId, pInfo->checkpointId,
-                           &msg);
+    int32_t code = initCheckpointReadyMsg(pTask, pInfo->upstreamNodeId, pInfo->upstreamTaskId, pInfo->childId,
+                                          pInfo->checkpointId, &msg);
     if (code == TSDB_CODE_SUCCESS) {
       code = tmsgSendReq(&pInfo->upstreamNodeEpset, &msg);
       if (code == TSDB_CODE_SUCCESS) {
