@@ -104,10 +104,16 @@ export default {
     async getValidateResult(dsn, agent) {
       try {
         this.checkLoading = true;
+        let viaObj = {};
+        if (agent) {
+          viaObj = {
+            via: agent
+          }
+        }
         const parameter = {
           from: dsn,
-          via: agent,
-          to: this.sourceParent.toUrl
+          to: this.sourceParent.toUrl,
+          ...viaObj
         }
         let result = await validateTask(parameter);
         this.checkResult = result;
