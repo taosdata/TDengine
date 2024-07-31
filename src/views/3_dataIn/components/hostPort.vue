@@ -33,10 +33,12 @@
                 style="flex: 0 80%"
                 class="mr20"
                 :placeholder="child.host.placeholder"
+                :disabled="isEdit"
               >
               </el-input>
               <el-button
-                :disabled="!index"
+                v-if="index"
+                :disabled="!index || isEdit"
                 style="width: 110px"
                 type="primary"
                 plain
@@ -75,6 +77,7 @@
                 style="flex: 0 80%"
                 class="mr20"
                 :placeholder="child.port.placeholder"
+                :disabled="isEdit"
               >
               </el-input>
             </div>
@@ -85,7 +88,7 @@
         <el-button
           size="small"
           style="width: 110px"
-          :disabled="loading"
+          :disabled="isEdit"
           type="primary"
           plain
           @click="add"

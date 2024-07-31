@@ -78,7 +78,7 @@ function handlerData(data) {
     if (field.includes(',') || field.includes('"')) {
       return `"${field.replace(/"/g, '""')}"`;
     } else {
-      return `"${field}"`;
+      return field;
     }
   }).join(',');
 }

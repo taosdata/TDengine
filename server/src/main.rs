@@ -9,11 +9,14 @@ use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
+use chrono::TimeZone;
 use std::{
+    collections::HashMap,
     fmt::Display,
     fs::File,
     io::{BufReader, Read},
     path::PathBuf,
+    str::FromStr,
     time::Duration,
 };
 use taos::*;
@@ -28,7 +31,9 @@ use actix_web::{
     error::{self, JsonPayloadError, PayloadError},
     http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
     middleware::{Compress, Logger},
-    post, web, App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
+    post,
+    web::{self, Query},
+    App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
 };
 
 use clap::Parser;
@@ -621,13 +626,19 @@ async fn report_taosd_info(
 }
 
 #[post("/rest/sql")]
-async fn rest_sql_builtin(args: web::Data<Args>, req: HttpRequest, sql: String) -> impl Responder {
+async fn rest_sql_builtin(
+    args: web::Data<Args>,
+    req: HttpRequest,
+    sql: String,
+    query: Query<HashMap<String, String>>,
+) -> impl Responder {
     let header = req
         .headers()
         .get(AUTHORIZATION)
         .and_then(|header| header.to_str().ok())
         .unwrap_or_default();
-    match args.query(header, &sql).await {
+    let tz = query.get("tz");
+    match args.query(header, &sql, tz).await {
         Ok(ok) => HttpResponse::Ok().json(ok),
         Err(err) => HttpResponse::InternalServerError().json(err),
     }
@@ -769,6 +780,7 @@ async fn rest_proxy(
     _path: web::Path<String>,
     req: HttpRequest,
     payload: web::Payload,
+    query: Query<HashMap<String, String>>,
 ) -> impl Responder {
     // let x = args.profile.cluster.as_deref().unwrap();
     // let query = req.query_string();
@@ -785,7 +797,8 @@ async fn rest_proxy(
         .and_then(|header| header.to_str().ok())
         .unwrap_or_default();
     let sql = get_body_from_payload(payload).await.unwrap();
-    match args.query(header, &sql).await {
+    let tz = query.get("tz");
+    match args.query(header, &sql, tz).await {
         Ok(ok) => HttpResponse::Ok().json(ok),
         Err(err) => HttpResponse::InternalServerError().json(err),
     }
@@ -830,6 +843,7 @@ async fn import(
     client: web::Data<reqwest::Client>,
     req: HttpRequest,
     import: web::Json<ImportRequest>,
+    query: Query<HashMap<String, String>>,
 ) -> impl Responder {
     if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().body("taosX API is required"));
@@ -842,7 +856,8 @@ async fn import(
         return Ok(HttpResponse::Unauthorized().body("Authorization header not found"));
     }
     let header = header.unwrap();
-    match args.query(header, "select server_status()").await {
+    let tz = query.get("tz");
+    match args.query(header, "select server_status()", tz).await {
         Ok(ok) => {
             if ok.code != Code::SUCCESS {
                 return Ok(HttpResponse::InternalServerError().json(ok));
@@ -1097,10 +1112,21 @@ impl Args {
         Ok(dsn)
     }
 
-    async fn query_inner(&self, dsn: Dsn, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
-        log::info!("SQL: {sql}");
+    async fn query_inner(
+        &self,
+        dsn: Dsn,
+        sql: &str,
+        tz: Option<&String>,
+    ) -> Result<RestOkResponse, RestErrResponse> {
+        log::info!("SQL: {}, TZ: {:?}", sql, tz);
 
         let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
+
+        let tz = if let Some(tz) = tz {
+            chrono_tz::Tz::from_str(tz).unwrap_or(chrono_tz::Tz::UTC)
+        } else {
+            chrono_tz::Tz::UTC
+        };
 
         log::info!("Got connection, querying");
         let mut set = conn.query(sql).await?;
@@ -1128,7 +1154,8 @@ impl Args {
                 row.into_iter()
                     .map(|v| match v {
                         taos::Value::Timestamp(ts) => {
-                            serde_json::Value::String(ts.to_datetime_with_tz().to_rfc3339())
+                            let ts_with_tz = tz.from_utc_datetime(&ts.to_naive_datetime());
+                            serde_json::Value::String(ts_with_tz.to_rfc3339())
                         }
                         taos::Value::VarBinary(vb) => serde_json::Value::String(format!(
                             "\\x{}",
@@ -1151,7 +1178,12 @@ impl Args {
         })
     }
 
-    async fn query(&self, header: &str, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
+    async fn query(
+        &self,
+        header: &str,
+        sql: &str,
+        tz: Option<&String>,
+    ) -> Result<RestOkResponse, RestErrResponse> {
         //token
         let credentials =
             Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
@@ -1165,7 +1197,7 @@ impl Args {
         dsn.username = Some(credentials.user_id);
         dsn.password = Some(credentials.password);
 
-        self.query_inner(dsn, sql).await
+        self.query_inner(dsn, sql, tz).await
     }
 
     // 开源版想在登录前就获取TDengine版本信息，使用root用户尝试登录获取。
@@ -1180,7 +1212,7 @@ impl Args {
         dsn.username = Some("root".to_string());
         dsn.password = Some("taosdata".to_string());
 
-        self.query_inner(dsn, sql).await
+        self.query_inner(dsn, sql, None).await
     }
 
     async fn renew(
@@ -1356,3 +1388,17 @@ pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<
 
 #[cfg(test)]
 mod tests;
+
+#[test]
+fn test_timezone() {
+    let tz = "Asia/Muscat";
+    let offset = chrono_tz::Tz::from_str(tz).unwrap();
+    dbg!(offset);
+
+    let ts = taos_query::common::Timestamp::Milliseconds(1722255496870);
+    let ts_with_tz = offset.from_utc_datetime(&ts.to_naive_datetime());
+    dbg!(ts_with_tz);
+
+    let str = serde_json::Value::String(ts_with_tz.to_rfc3339());
+    dbg!(str);
+}

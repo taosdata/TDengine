@@ -35,6 +35,7 @@ const historianLiveTable = 'Runtime.dbo.Live'
 const historianSynchronizeMode = 'synchronize'
 const opcuaSecuritymodeValue = 'None'
 const opcGroupShowValue = 'csv_config_file'
+const piAdvancedShowValue = 'multi-column'
 const authenticationField = uuid();
 export const datasetsField = uuid();
 let currentType = '';
@@ -143,7 +144,7 @@ export function getFormConfigByDataSource(dataSource, parserValue) {
     handleGroups(groups, paramsConfig, false, id);
     handleParser(parser, paramsConfig, parserValue,id);
     handleCsvData(id,paramsConfig);
-    handleAdvanced(advanced, paramsConfig)
+    handleAdvanced(advanced, paramsConfig, id)
     // 先处理protocol
     if(id=='csv'){
       config.parser=parserValue
@@ -406,7 +407,7 @@ function handleOptions(options, paramsConfig, id) {
             return required
           }
         },
-         disabled: (currentData) => {
+         disabled: (currentData,b,c,isEdit) => {
           if (id?.startsWith('opcua')) {
             // 特殊处理 opcua 安全策略
             if ( currentData.security_mode == opcuaSecuritymodeValue) {
@@ -414,9 +415,11 @@ function handleOptions(options, paramsConfig, id) {
             }
             return currentData.security_mode == opcuaSecuritymodeValue &&
               ['security_policy'].includes(key)
-          } else {
-            return false
+          } 
+          if (id?.startsWith('mqtt')) {
+            return ['host','port'].includes(key) && isEdit ? isEdit : false;
           }
+          return false
         },
       };
       if (key == 'host') {
@@ -815,7 +818,19 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
         },
         placeholder,
         defaultValue: multiple ? value?.split(',') : value,
-        required,
+        required: (currentData,b,c,isEdit) => {
+          if (id?.startsWith('kafka') || id?.startsWith('mqtt')) {
+            return ['client_id','group'].includes(name) && 
+              isEdit ? !isEdit: required;
+          } 
+          return required;
+        },
+        disabled: (currentData,b,c,isEdit) => {
+          if (id?.startsWith('kafka') || id?.startsWith('mqtt')) {
+            return isEdit ? ['topics'].includes(name) : false;
+          } 
+          return false
+        },
         multiple,
         pattern: pattern || null,
         patternMsg,
@@ -848,6 +863,9 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
       // 特殊处理 historian 的 mode
       if ((currentType == 'avevaHistorian' || currentType == 'mysql' || currentType == 'postgres') && paramConfig.field == 'mode') {
         paramConfig.type = 'mode';
+      }
+      if ((currentType == 'mqtt' && paramConfig.field == 'client_id') || (currentType == 'kafka' &&(paramConfig.field == 'client_id' || paramConfig.field == 'group' ))) {
+        paramConfig.type = 'customId'
       }
       if (paramConfig.type == 'select') {
         paramConfig.meta = {
@@ -968,7 +986,7 @@ function handleParams(params, paramsConfig) {
     ]
   }
 */ 
-function handleAdvanced(advanced, paramsConfig) {
+function handleAdvanced(advanced, paramsConfig, id) {
   if (!advanced) return;
   const { params, collapsible, collapsed = true, name, description } = advanced
   const children = [];
@@ -992,9 +1010,17 @@ function handleAdvanced(advanced, paramsConfig) {
       field: handleField(name), 
       description: d1 ?? d2, 
       defaultValue: value,
-      if: !hidden,
+      // if: !hidden,
       placeholder,
       required,
+      if: (currentData, originalData) => {
+        if (id == 'pi') {
+          const datasetsData = originalData[datasetsField];
+          if (piAdvancedShowValue == datasetsData[valueField]) return true
+          return ['batch_size', 'batch_timeout', 'log_level'].includes(name) 
+        }
+        return !hidden
+      }
     };
     handleHintType(config, hint, value);
     children.push(config);
@@ -1034,6 +1060,9 @@ export function handleHintType(config, hint) {
       break;
     case 'host':
       config.type = 'grouping';
+      break;
+    case 'customId':
+      config.type = 'customId';
       break;
     case 'pibackfillTime':
       config.type = 'pibackfillTime';
