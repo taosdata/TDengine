@@ -298,11 +298,7 @@ async fn split_table_into_time_range_chunks(
     table: &str,
     opts: &QueryOpts,
 ) -> anyhow::Result<Vec<TimeRange>> {
-    tracing::debug!(
-        "Split table `{table}` into chunks, origin start:{:?}, end:{:?}",
-        opts.time_range.start,
-        opts.time_range.end
-    );
+    tracing::debug!("Split table `{table}` into chunks");
 
     let mut time_range = opts.time_range;
     async fn query_ts_with(
@@ -343,7 +339,6 @@ async fn split_table_into_time_range_chunks(
             }
         }
     }
-
     Ok(time_range.to_chunks(opts.unit))
 }
 
