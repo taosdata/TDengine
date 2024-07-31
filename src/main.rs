@@ -14,8 +14,6 @@ use chrono::Local;
 use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
-#[cfg(feature = "mimalloc")]
-use mimalloc::MiMalloc;
 use opentelemetry::trace::Tracer;
 use serde::{Deserialize, Serialize};
 use shadow_rs::shadow;
@@ -48,11 +46,11 @@ compile_error!("Only one allocator can be specified");
 #[cfg(feature = "tikv-jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 shadow!(build);
 
