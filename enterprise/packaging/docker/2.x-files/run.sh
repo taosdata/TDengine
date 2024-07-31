@@ -41,7 +41,7 @@ logger "INFO" "FQDN is $FQDN, FIRSTEP is $FIRST_EP_HOST and ENDPOINT is $ENDPOIN
                       
 ulimit -c unlimited
 # set core files pattern, maybe failed
-# sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
+sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 
 logger "INFO" "ADMIN_URL: ${ADMIN_URL}"
 logger "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
@@ -354,24 +354,6 @@ function initDnodeAndMnode {
             else 
                 MNODE_CREATED=1
                 logger "INFO" "Mnode $MNODETmp already created"
-            fi
-            # third check snode created
-            SNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show snodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-            if [[ "$SNODETmp" == "" ]]; then
-                DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
-                if [[ "$DNODEID" != "" ]]; then
-                    taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create snode on dnode $DNODEID;"
-                    SNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show snodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-                    if [[ "$SNODETmp" != "" ]]; then
-                        SNODE_CREATED=1
-                        logger "INFO" "Created the snode for dnode $DNODEID"
-                    else 
-                        logger "ERROR" "failed to create snode for dnode $ENDPOINT through taos"
-                    fi
-                fi
-            else 
-                SNODE_CREATED=1
-                logger "INFO" "Snode $SNODETmp already created"
             fi
         else
             # check admin_user created or not
