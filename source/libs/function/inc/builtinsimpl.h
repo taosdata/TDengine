@@ -253,6 +253,8 @@ bool    getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t groupKeyFunction(SqlFunctionCtx* pCtx);
 int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t groupConstValueFunction(SqlFunctionCtx* pCtx);
+int32_t groupConstValueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 #ifdef __cplusplus
 }

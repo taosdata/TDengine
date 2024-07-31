@@ -1626,7 +1626,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
+    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)
+      || (strcmp(pName, "_group_const_value") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       void* data = taosHashGet(pSelectFuncs, pName, strlen(pName));
@@ -2025,6 +2026,12 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
   }
 
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
+  void* p = taosHashGet(pTableList->map, &uid, sizeof(uid));
+  if (p != NULL) {
+    qInfo("table:%" PRId64 " already in tableIdList, ignore it", uid);
+    return TSDB_CODE_SUCCESS;
+  }
+
   taosArrayPush(pTableList->pTableList, &keyInfo);
 
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
