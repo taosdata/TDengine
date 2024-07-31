@@ -208,6 +208,7 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
   }
 
   *pList = pVgroupList;
+  taosHashCleanup(pHash);
   return code;
 
 _err:
