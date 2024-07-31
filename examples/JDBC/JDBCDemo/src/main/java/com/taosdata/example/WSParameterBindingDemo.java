@@ -36,7 +36,9 @@ public class WSParameterBindingDemo {
             bindString(conn);
 
         } catch (SQLException ex) {
-            System.out.println("SQLException: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Error Code: " + ex.getErrorCode());
+            System.out.println("Message: " + ex.getMessage());
         }
     }
 
