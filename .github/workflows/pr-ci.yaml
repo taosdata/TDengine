@@ -215,7 +215,9 @@ jobs:
           # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
           echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
           echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'"
-          docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
+          run_taosx_command=$(nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &)
+          echo "run_taosx_command: $run_taosx_command"
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c '$run_taosx_command'
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'ps -ef |grep taosx'
 
