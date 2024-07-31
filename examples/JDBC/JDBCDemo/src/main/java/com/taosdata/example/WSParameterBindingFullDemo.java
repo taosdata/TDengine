@@ -22,21 +22,24 @@ public class WSParameterBindingFullDemo {
     public static void main(String[] args) throws SQLException {
 
         String jdbcUrl = "jdbc:TAOS-RS://" + host + ":6041/?batchfetch=true";
-        Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
 
-        init(conn);
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
 
-        bindInteger(conn);
+            init(conn);
 
-        bindFloat(conn);
+            bindInteger(conn);
 
-        bindBoolean(conn);
+            bindFloat(conn);
 
-        bindBytes(conn);
+            bindBoolean(conn);
 
-        bindString(conn);
+            bindBytes(conn);
 
-        conn.close();
+            bindString(conn);
+
+        } catch (SQLException ex) {
+            System.out.println("SQLException: " + ex.getMessage());
+        }
     }
 
     private static void init(Connection conn) throws SQLException {

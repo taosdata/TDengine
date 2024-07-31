@@ -22,19 +22,28 @@ public abstract class AbsWsConsumerLoop {
     private final CountDownLatch shutdownLatch;
 
     public AbsWsConsumerLoop() throws SQLException {
-        Properties config = new Properties();
-        config.setProperty("td.connect.type", "ws");
-        config.setProperty("bootstrap.servers", "localhost:6041");
-        config.setProperty("auto.offset.reset", "latest");
-        config.setProperty("msg.with.table.name", "true");
-        config.setProperty("enable.auto.commit", "true");
-        config.setProperty("auto.commit.interval.ms", "1000");
-        config.setProperty("group.id", "group2");
-        config.setProperty("client.id", "1");
-        config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoopWs$ResultDeserializer");
-        config.setProperty("value.deserializer.encoding", "UTF-8");
+// ANCHOR: create_consumer
+Properties config = new Properties();
+config.setProperty("td.connect.type", "ws");
+config.setProperty("bootstrap.servers", "localhost:6041");
+config.setProperty("auto.offset.reset", "latest");
+config.setProperty("msg.with.table.name", "true");
+config.setProperty("enable.auto.commit", "true");
+config.setProperty("auto.commit.interval.ms", "1000");
+config.setProperty("group.id", "group2");
+config.setProperty("client.id", "1");
+config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoopWs$ResultDeserializer");
+config.setProperty("value.deserializer.encoding", "UTF-8");
 
-        this.consumer = new TaosConsumer<>(config);
+try {
+    this.consumer = new TaosConsumer<>(config);
+} catch (SQLException ex) {
+    // handle exception
+    System.out.println("SQLException: " + ex.getMessage());
+    throw new SQLException("Failed to create consumer", ex);
+}
+// ANCHOR_END: create_consumer
+
         this.topics = Collections.singletonList("topic_speed");
         this.shutdown = new AtomicBoolean(false);
         this.shutdownLatch = new CountDownLatch(1);

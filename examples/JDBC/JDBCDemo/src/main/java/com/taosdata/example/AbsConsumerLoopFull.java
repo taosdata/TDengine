@@ -35,7 +35,13 @@ public abstract class AbsConsumerLoopFull {
         config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoop$ResultDeserializer");
         config.setProperty("value.deserializer.encoding", "UTF-8");
 
-        this.consumer = new TaosConsumer<>(config);
+        try {
+            this.consumer = new TaosConsumer<>(config);
+        } catch (SQLException ex) {
+            // handle exception
+            System.out.println("SQLException: " + ex.getMessage());
+            throw new SQLException("Failed to create consumer", ex);
+        }
 
         this.topics = Collections.singletonList("topic_meters");
         this.shutdown = new AtomicBoolean(false);
