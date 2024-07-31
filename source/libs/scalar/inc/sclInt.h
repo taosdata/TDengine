@@ -54,6 +54,52 @@ typedef struct SScalarCtx {
 #define SCL_DOWNGRADE_DATETYPE(_type) \
   ((_type) == TSDB_DATA_TYPE_BIGINT || TSDB_DATA_TYPE_DOUBLE == (_type) || (_type) == TSDB_DATA_TYPE_UBIGINT)
 
+
+/** Flags for calculateWeekNum() function.  */
+#define WEEK_FLAG_MONDAY_FIRST 1       /* If set this, monday is first day of week, else, sunday is first day.*/
+#define WEEK_FLAG_FROM_ONE 2           /* If set this, week start from 1, else, week start from 0. */
+#define WEEK_FLAG_INCLUDE_FIRST_DAY 4  /* If set this, week contains 'first day of week' is week one,
+                                        * else, weeks are numbered according to ISO 8601:1988. */
+
+#ifndef M_PI
+#define M_PI        3.14159265358979323846264338327950288   /* pi             */
+#endif
+
+#ifndef M_1_PI
+#define M_1_PI      0.318309886183790671537767526745028724  /* 1/pi           */
+#endif
+
+#define INT1TOCHAR(T, A)                                          \
+  {                                                               \
+    const unsigned long  def_temp = (unsigned long)(A);           \
+    ((unsigned char *)(T))[0] = (unsigned char)(def_temp);        \
+    T += 1;                                                       \
+  }
+#define INT2TOCHAR(T, A)                                          \
+  {                                                               \
+    const unsigned long  def_temp = (unsigned long)(A);           \
+    ((unsigned char *)(T))[1] = (unsigned char)(def_temp);        \
+    ((unsigned char *)(T))[0] = (unsigned char)(def_temp >> 8);   \
+    T += 2;                                                       \
+  }
+#define INT3TOCHAR(T, A)                                          \
+  {                                                               \
+    const unsigned long  def_temp = (unsigned long)(A);           \
+    ((unsigned char *)(T))[2] = (unsigned char)(def_temp);        \
+    ((unsigned char *)(T))[1] = (unsigned char)(def_temp >> 8);   \
+    ((unsigned char *)(T))[0] = (unsigned char)(def_temp >> 16);  \
+    T += 3;                                                       \
+  }
+#define INT4TOCHAR(T, A)                                          \
+  {                                                               \
+    const unsigned long  def_temp = (unsigned long)(A);           \
+    ((unsigned char *)(T))[3] = (unsigned char)(def_temp);        \
+    ((unsigned char *)(T))[2] = (unsigned char)(def_temp >> 8);   \
+    ((unsigned char *)(T))[1] = (unsigned char)(def_temp >> 16);  \
+    ((unsigned char *)(T))[0] = (unsigned char)(def_temp >> 24);  \
+    T += 4;                                                       \
+  }
+
 #define sclFatal(...) qFatal(__VA_ARGS__)
 #define sclError(...) qError(__VA_ARGS__)
 #define sclWarn(...)  qWarn(__VA_ARGS__)
