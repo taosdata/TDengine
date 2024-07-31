@@ -451,11 +451,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (tqCommit(pVnode->pTq) < 0) {
-    code = TSDB_CODE_FAILED;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   // commit info
   if (vnodeCommitInfo(dir) < 0) {
     code = terrno;

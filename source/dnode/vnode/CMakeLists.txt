@@ -68,10 +68,8 @@ set(
     "src/tq/tqOffset.c"
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
-    "src/tq/tqCommit.c"
     "src/tq/tqStreamTask.c"
     "src/tq/tqSnapshot.c"
-    "src/tq/tqOffsetSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
     
