@@ -158,7 +158,6 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 <Tabs defaultValue="java" groupId="schemaless">
 <TabItem value="java" label="Java">
 
-
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessWsTest.java:schemaless}}
 ```
@@ -190,9 +189,9 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ### 原生连接
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
-        ```java
-        {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessJniTest.java:schemaless}}
-        ```
+```java
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessJniTest.java:schemaless}}
+```
 
 执行带有 reqId 的无模式写入，此 reqId 可用于请求链路追踪。
 
@@ -200,6 +199,29 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
 ```
 
+    </TabItem>
+    <TabItem label="Python" value="python">
+   </TabItem>
+    <TabItem label="Go" value="go">
+    </TabItem>
+    <TabItem label="Rust" value="rust">
+    </TabItem>
+    <TabItem label="C#" value="csharp">
+    </TabItem>
+    <TabItem label="R" value="r">
+    </TabItem>
+    <TabItem label="C" value="c">
+    </TabItem>
+    <TabItem label="PHP" value="php">
+    </TabItem>
+
+</Tabs>
+
+
+### REST 连接
+<Tabs defaultValue="java" groupId="lang">
+    <TabItem label="Java" value="java">
+    不支持
     </TabItem>
     <TabItem label="Python" value="python">
    </TabItem>

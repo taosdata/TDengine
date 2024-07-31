@@ -264,6 +264,8 @@ phpize && ./configure --enable-swoole && make -j && make install
 
 在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine，而且服务端的 FQDN 配置正确。以下示例代码，都假设 TDengine 安装在本机，且 FQDN（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
 ### 连接参数
+连接的配置项较多，因此在建立连接之前，我们能先介绍一下各语言连接器建立连接使用的参数。
+
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 
@@ -317,7 +319,7 @@ properties 中的配置参数如下：
 
 **配置参数的优先级：**  
 
-通过前面三种方式获取连接，如果配置参数在 url、Properties、客户端配置文件中有重复，则参数的`优先级由高到低`分别如下：
+通过前面三种方式获取连接，如果配置参数在 url、Properties、客户端配置文件中有重复，则参数的**优先级由高到低**分别如下：
 
 1. JDBC URL 参数，如上所述，可以在 JDBC URL 的参数中指定。
 2. Properties connProps
@@ -372,6 +374,7 @@ properties 中的配置参数如下：
 </Tabs>
 
 ### Websocket 连接
+各语言连接器建立 Websocket 连接代码样例。 
 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
@@ -411,6 +414,7 @@ properties 中的配置参数如下：
 </Tabs>
 
 ### 原生连接
+各语言连接器建立原生连接代码样例。   
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
@@ -442,6 +446,7 @@ properties 中的配置参数如下：
 </Tabs>
 
 ### REST 连接
+各语言连接器建立 REST 连接代码样例。  
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java

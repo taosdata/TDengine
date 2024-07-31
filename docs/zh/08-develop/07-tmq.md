@@ -26,6 +26,8 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 
 
 ### 创建参数
+创建消费者的参数较多，非常灵活的支持了各种连接类型、 Offset 提交方式、压缩、重连、反序列化等特性，下面单独介绍各语言连接器创建消费者的参数。
+
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 Java 连接器创建消费者的参数为 Properties， 可以设置如下参数：  
