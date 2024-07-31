@@ -5736,15 +5736,20 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
     }
   }
 
-  if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-    if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
-      // single point interp every can be omitted
-    } else {
-      if (pCxt->createStream) {
-        if (NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                        "Missing EVERY clause or FILL clause");
-        }
+  if (pCxt->createStream) {
+    if (NULL != pSelect->pRange) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream Unsupported RANGE clause");
+    }
+
+    if (NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Missing EVERY clause or FILL clause");
+    }
+  } else {
+    if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+      if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+        // single point interp every can be omitted
       } else {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
                                        "Missing RANGE clause, EVERY clause or FILL clause");
@@ -10180,6 +10185,11 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Source table of Count window must not has primary key");
     }
+  }
+
+  if (pStmt->pOptions->fillHistory && pSelect->hasInterpFunc) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "Stream interp unsupported Fill history");
   }
 
   return TSDB_CODE_SUCCESS;
