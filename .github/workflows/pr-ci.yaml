@@ -217,6 +217,7 @@ jobs:
           echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'"
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'ps -ef |grep taosx'
 
       - name: Deploy windows agent
         id: deploy_windows_agent
@@ -239,6 +240,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "container_id: ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
+          ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c 'cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity'
 
   generate_report:
