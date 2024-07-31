@@ -33,12 +33,12 @@
                 style="flex: 0 80%"
                 class="mr20"
                 :placeholder="child.host.placeholder"
-                :disabled="isEdit"
+                :disabled="isEdit && !isCopy"
               >
               </el-input>
               <el-button
                 v-if="index"
-                :disabled="!index || isEdit"
+                :disabled="isEdit && !isCopy"
                 style="width: 110px"
                 type="primary"
                 plain
@@ -77,7 +77,7 @@
                 style="flex: 0 80%"
                 class="mr20"
                 :placeholder="child.port.placeholder"
-                :disabled="isEdit"
+                :disabled="isEdit && !isCopy"
               >
               </el-input>
             </div>
@@ -88,7 +88,7 @@
         <el-button
           size="small"
           style="width: 110px"
-          :disabled="isEdit"
+          :disabled="isEdit && !isCopy"
           type="primary"
           plain
           @click="add"
@@ -154,6 +154,9 @@ export default {
   computed: {
     isEdit() {
       return this.sourceParent.isEditable;
+    },
+    isCopy() {
+      return this.sourceParent.isCopyable;
     },
     rules() {
       return (config) => {

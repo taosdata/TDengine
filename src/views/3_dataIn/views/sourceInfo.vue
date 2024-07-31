@@ -171,6 +171,17 @@ export default {
         ? this.editSourceConfig
         : getFormConfigByDataSource(this.definitionsList);
     },
+    toUrl() {
+      let native_url = localStorage.getItem("native_url")
+      let base_url = native_url || localStorage.getItem("base_url")
+      let splitArr = base_url.split('//')
+      let url = splitArr[0] + "//" + this.username + ':' + encodeURIComponent(this.decryptPwd) + '@'+ splitArr[1]
+      return (
+        (splitArr[0].startsWith('taos') ? '' : "taos+") +
+        url +
+        (this.sourceForm.targetDB ? "/" + this.sourceForm.targetDB : "")
+      );
+    },
   },
   watch: {
     "$store.state.app.createStWithoutDB": {
