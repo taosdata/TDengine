@@ -226,10 +226,12 @@ impl Cli {
         max_activities_per_entity: usize,
     ) -> Result<TaskControllerRef> {
         if let Some(interval) = self.repeat_interval {
+            tracing::debug!("initial repeat interval");
             let dur = Duration::from_secs(interval);
             controller::trigger::init_repeat_interval(dur);
         }
         let database_url = self.get_database_url();
+        tracing::debug!(db = database_url, "create database connection");
         let controller =
             TaskControllerRef::from_sqlite(&database_url, scheduler, max_activities_per_entity)
                 .in_current_span()
