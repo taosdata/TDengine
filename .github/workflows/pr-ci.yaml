@@ -261,8 +261,8 @@ jobs:
         # shell: bash {0}
         run: |
           echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
-          # docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
-          # docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+          docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+          docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
   
 
   feishu_report:
