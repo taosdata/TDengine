@@ -55,6 +55,11 @@
               >
               {{ parseruleForm.type }}
               </span>
+              <span
+                v-if="parseruleForm.depth"
+              >
+              depth: {{ parseruleForm.depth }}
+              </span>
             </el-form-item>
             <el-form-item prop="expression">
               <el-input
@@ -1035,15 +1040,13 @@ export default {
             tagKey = "value";
             break;
         }
-        this.parseruleForm.type = Object.keys(
-          value.parser.parse[tagKey]
-        ).toString();
-        this.parseruleForm.expression =
-          this.parseruleForm.type == "regex"
-            ? Object.values(value.parser.parse[tagKey]).toString()
-            : Object.values(value.parser.parse[tagKey])
-                .toString()
-                // .replace(",", ";");
+        let keys = Object.keys(value.parser.parse[tagKey])
+        this.parseruleForm.type = keys.filter(item => item != 'depth').toString(); 
+
+        if (this.parseruleForm.type == 'json') {
+          this.parseruleForm.depth = value.parser.parse[tagKey]['depth']
+        }
+        this.parseruleForm.expression = value.parser.parse[tagKey][this.parseruleForm.type].toString();
       }
 
       await this.submitParse();

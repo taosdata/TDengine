@@ -154,13 +154,26 @@
                 :disabled="parseruleForm.type == 'json'"
               >
               </el-input>
-              <cusSelect
+              <div
+                class="josn-wrap"
                 v-else-if="parseruleForm.type == 'json'"
-                v-model="parseruleForm.expression"
-                :allProperties="allProperties"
-                :selectJson="selectJson"
-                @updateData="updateData"
-              />
+              >
+                <span>depth </span>
+                <el-input-number
+                  v-model="parseruleForm.depth"
+                  style="width: 100px;margin-right: 5px"
+                  size="small"
+                  :controls="false"
+                  min="0"
+                >
+                </el-input-number>
+                <cusSelect
+                  v-model="parseruleForm.expression"
+                  :allProperties="allProperties"
+                  :selectJson="selectJson"
+                  @updateData="updateData"
+                />
+              </div>
               <div v-else style="display: inline-flex; align-items: start; width: 100%;">
                 <el-input 
                   size="small"
@@ -1100,26 +1113,39 @@ export default {
         if (this.$store.state.app.supportSQL) {
           topparser = JSON.parse(this.msgForm.msgbody);
         } else {
+          let depthObj = {}
+          let expressionObj = {}
+          if (this.parseruleForm.type == 'json') {
+            depthObj = {
+              'depth': this.parseruleForm.depth || 0
+            }
+          }
+          if (this.parseruleForm.expression) {
+            expressionObj = {
+              [`${this.parseruleForm.type}`]:
+                this.parseruleForm.type == "regex"
+                  ? this.parseruleForm.expression
+                  : this.parseruleForm.type == "split"
+                  ? this.$store.state.app.splitExpresList
+                  : this.parseruleForm.type == "udt"
+                  ? this.parseruleForm.expression
+                  : this.parseruleForm.expression
+                  ? this.parseruleForm.expression
+                      .split(";")
+                      .toString()
+                      .split(",")
+                      .map((item) => item.trim())
+                  : this.parseruleForm.expression
+            }
+          }
           topparser = {
             parser: {
               parse: {
                 [this.$store.state.app.currentDBType == "mqtt"
                   ? "payload"
                   : "value"]: {
-                  [`${this.parseruleForm.type}`]:
-                    this.parseruleForm.type == "regex"
-                      ? this.parseruleForm.expression
-                      : this.parseruleForm.type == "split"
-                      ? this.$store.state.app.splitExpresList
-                      : this.parseruleForm.type == "udt"
-                      ? this.parseruleForm.expression
-                      : this.parseruleForm.expression
-                      ? this.parseruleForm.expression
-                          .split(";")
-                          .toString()
-                          .split(",")
-                          .map((item) => item.trim())
-                      : this.parseruleForm.expression,
+                    ...expressionObj,
+                    ...depthObj
                 },
               },
             },
@@ -1365,14 +1391,18 @@ export default {
             tagKey = "value";
             break;
         }
-        this.parseruleForm.type = Object.keys(
-          value.parser.parse[tagKey]
-        ).toString();
-        this.parseruleForm.expression =
-          this.parseruleForm.type == "regex"
-            ? Object.values(value.parser.parse[tagKey]).toString()
-            : Object.values(value.parser.parse[tagKey])
-                .toString()
+        let keys = Object.keys(value.parser.parse[tagKey])
+        this.parseruleForm.type = keys.filter(item => item != 'depth').toString(); 
+
+        if (this.parseruleForm.type == 'json') {
+          this.parseruleForm.depth = value.parser.parse[tagKey]['depth']
+        }
+        this.parseruleForm.expression = value.parser.parse[tagKey][this.parseruleForm.type].toString();
+        // this.parseruleForm.expression = 
+        //   this.parseruleForm.type == "regex"
+        //     ? Object.values(value.parser.parse[tagKey]).toString()
+        //     : Object.values(value.parser.parse[tagKey])
+        //         .toString()
                 // .replace(",", ";");
       }
 
@@ -2418,6 +2448,7 @@ export default {
     },
     handleTypeChange() {
       this.parseruleForm.expression = ""
+      this.parseruleForm.depth = ""
     }
   },
   watch: {
@@ -2778,5 +2809,21 @@ export default {
 }
 .udt {
   margin-bottom: 16px;
+}
+.josn-wrap {
+  display: inline-flex;
+  align-items: start; 
+  width: 100%;
+  > span {
+    line-height: 30px;
+    color: #909399;
+    background-color: #f5f7fa;
+    padding: 0 5px;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    border-right: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
 }
 </style>
