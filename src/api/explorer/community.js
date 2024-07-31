@@ -2242,6 +2242,7 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
+                "required": true,
                 "short_description": "Client id used to connect to mqtt broker.",
                 "description": "Client id used to connect to mqtt broker.",
                 "placeholder": "client_id"
@@ -2614,6 +2615,28 @@ export function getDataSources(lang) {
                 "description": "Specifies one topic or several topics to consume. e.g. topics=tp1,tp2\n",
                 "required": true,
                 "placeholder": "tp1,tp2"
+              },
+              {
+                "name": "client_id",
+                "display": "Client id",
+                "hint": {
+                  "type": "str"
+                },
+                "required": true,
+                "short_description": "Client id used to connect to Kafka broker.",
+                "description": "Client id used to connect to Kafka broker.",
+                "placeholder": "client_id"
+              },
+              {
+                "name": "group",
+                "display": "Group ID",
+                "hint": {
+                  "type": "str"
+                },
+                "required": true,
+                "short_description": "Kafka Group ID。",
+                "description": "Kafka Group ID。",
+                "placeholder": "group_id"
               },
               {
                 "name": "fallback_offset",
@@ -6685,6 +6708,7 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "str"
                 },
+                "required": true,
                 "short_description": "MQTT Broker 客户端 ID。",
                 "description": "MQTT Broker 客户端 ID。",
                 "placeholder": "client_id"
@@ -7069,6 +7093,28 @@ export function getDataSources(lang) {
                 "description": "指定要消费的 Topic。可以配置多个 Topic，Topic 之间使用逗号分隔，例如：`tp1,tp2`。\n",
                 "required": true,
                 "placeholder": "tp1,tp2"
+              },
+              {
+                "name": "client_id",
+                "display": "Client ID",
+                "hint": {
+                  "type": "str"
+                },
+                "required": true,
+                "short_description": "Kafka Broker 客户端 ID。",
+                "description": "Kafka Broker 客户端 ID。",
+                "placeholder": "client_id"
+              },
+              {
+                "name": "group",
+                "display": "消费者组 ID",
+                "hint": {
+                  "type": "str"
+                },
+                "required": true,
+                "short_description": "Kafka 消费者组 ID。",
+                "description": "Kafka 消费者组 ID。",
+                "placeholder": "group_id"
               },
               {
                 "name": "fallback_offset",

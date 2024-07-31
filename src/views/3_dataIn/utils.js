@@ -407,7 +407,7 @@ function handleOptions(options, paramsConfig, id) {
             return required
           }
         },
-         disabled: (currentData) => {
+         disabled: (currentData,b,c,isEdit) => {
           if (id?.startsWith('opcua')) {
             // 特殊处理 opcua 安全策略
             if ( currentData.security_mode == opcuaSecuritymodeValue) {
@@ -415,9 +415,11 @@ function handleOptions(options, paramsConfig, id) {
             }
             return currentData.security_mode == opcuaSecuritymodeValue &&
               ['security_policy'].includes(key)
-          } else {
-            return false
+          } 
+          if (id?.startsWith('mqtt')) {
+            return ['host','port'].includes(key) && isEdit ? isEdit : false;
           }
+          return false
         },
       };
       if (key == 'host') {
@@ -816,7 +818,19 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
         },
         placeholder,
         defaultValue: multiple ? value?.split(',') : value,
-        required,
+        required: (currentData,b,c,isEdit) => {
+          if (id?.startsWith('kafka') || id?.startsWith('mqtt')) {
+            return ['client_id','group'].includes(name) && 
+              isEdit ? !isEdit: required;
+          } 
+          return required;
+        },
+        disabled: (currentData,b,c,isEdit) => {
+          if (id?.startsWith('kafka') || id?.startsWith('mqtt')) {
+            return isEdit ? ['topics'].includes(name) : false;
+          } 
+          return false
+        },
         multiple,
         pattern: pattern || null,
         patternMsg,
@@ -849,6 +863,9 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
       // 特殊处理 historian 的 mode
       if ((currentType == 'avevaHistorian' || currentType == 'mysql' || currentType == 'postgres') && paramConfig.field == 'mode') {
         paramConfig.type = 'mode';
+      }
+      if ((currentType == 'mqtt' && paramConfig.field == 'client_id') || (currentType == 'kafka' &&(paramConfig.field == 'client_id' || paramConfig.field == 'group' ))) {
+        paramConfig.type = 'customId'
       }
       if (paramConfig.type == 'select') {
         paramConfig.meta = {
@@ -1043,6 +1060,9 @@ export function handleHintType(config, hint) {
       break;
     case 'host':
       config.type = 'grouping';
+      break;
+    case 'customId':
+      config.type = 'customId';
       break;
     case 'pibackfillTime':
       config.type = 'pibackfillTime';
