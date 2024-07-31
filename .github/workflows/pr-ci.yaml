@@ -214,6 +214,7 @@ jobs:
           echo "container_id: ${{ steps.run_container.outputs.container_id }}"
           # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
           echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
+          echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'"
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'
 
@@ -261,8 +262,8 @@ jobs:
         # shell: bash {0}
         run: |
           echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
-          docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
-          docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+          # docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+          # docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
   
 
   feishu_report:
