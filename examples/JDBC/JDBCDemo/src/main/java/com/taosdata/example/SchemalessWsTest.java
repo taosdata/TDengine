@@ -26,7 +26,9 @@ public class SchemalessWsTest {
             conn.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
             conn.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
         } catch (SQLException ex) {
-            System.out.println("SQLException: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Error Code: " + ex.getErrorCode());
+            System.out.println("Message: " + ex.getMessage());
         }
     }
 

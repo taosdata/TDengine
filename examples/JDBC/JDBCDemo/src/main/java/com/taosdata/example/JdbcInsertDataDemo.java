@@ -41,8 +41,9 @@ try (Connection connection = DriverManager.getConnection(url, properties);
     // you can check affectedRows here
     System.out.println("insert " + affectedRows + " rows.");
 } catch (SQLException ex) {
-    // handle any errors
-    System.out.println("SQLException: " + ex.getMessage());
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Error Code: " + ex.getErrorCode());
+    System.out.println("Message: " + ex.getMessage());
 }
 // ANCHOR_END: insert_data
     }
