@@ -347,11 +347,9 @@ properties 中的配置参数如下：
 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
-
-        ```java
-        {{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
-        ```
-
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
+```
     </TabItem>
     <TabItem label="Python" value="python">
 
@@ -387,9 +385,9 @@ properties 中的配置参数如下：
 ### 原生连接
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
-        ```java
-        {{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java:main}}
-        ```
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java:main}}
+```
     </TabItem>
     <TabItem label="Python" value="python">
         <ConnPythonNative />
@@ -418,9 +416,9 @@ properties 中的配置参数如下：
 ### REST 连接
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
-        ```java
-        {{#include docs/examples/java/src/main/java/com/taos/example/RESTConnectExample.java:main}}
-        ```
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/RESTConnectExample.java:main}}
+```
     </TabItem>
     <TabItem label="Python" value="python">
         <ConnPythonNative />
@@ -454,7 +452,7 @@ properties 中的配置参数如下：
 
 
 ## 连接池
-有些连接器提供了连接池，或者可以与已有的连接池组件配合使用。 使用连接池，应用程序可以快速地从连接池中获取可用连接，避免了每次操作时创建和销毁连接的开销。这不仅减少了资源消耗，还提高了响应速度。此外，连接池还支持对连接的管理，如最大连接数限制、连接的有效性检查，确保了连接的高效和可靠使用。我们推荐使用连接池管理连接。
+有些连接器提供了连接池，或者可以与已有的连接池组件配合使用。 使用连接池，应用程序可以快速地从连接池中获取可用连接，避免了每次操作时创建和销毁连接的开销。这不仅减少了资源消耗，还提高了响应速度。此外，连接池还支持对连接的管理，如最大连接数限制、连接的有效性检查，确保了连接的高效和可靠使用。我们**推荐使用连接池管理连接**。  
 下面是各语言连接器的连接池支持代码样例。  
 
 <Tabs defaultValue="java" groupId="lang">
