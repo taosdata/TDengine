@@ -52,16 +52,21 @@ public abstract class AbsConsumerLoopFull {
 
     public void pollData() throws SQLException {
         try {
+            // subscribe to the topics
             consumer.subscribe(topics);
             while (!shutdown.get()) {
+                // poll data
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean bean = record.value();
+                    // process the data here
                     process(bean);
                 }
             }
+            // unsubscribe the topics
             consumer.unsubscribe();
         } finally {
+            // close the consumer
             consumer.close();
             shutdownLatch.countDown();
         }
@@ -76,6 +81,7 @@ public abstract class AbsConsumerLoopFull {
 
     }
 
+    // use this class to define the data structure of the result record
     public static class ResultBean {
         private Timestamp ts;
         private double current;
