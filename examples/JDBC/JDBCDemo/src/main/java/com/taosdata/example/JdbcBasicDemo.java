@@ -96,9 +96,10 @@ aStmt.close();
 String sql = "SELECT * FROM meters limit 2;";
 
 // ANCHOR: jdbc_exception
-try (Statement statement = connection.createStatement()) {
-    // executeQuery
-    ResultSet tempResultSet = statement.executeQuery(sql);
+try (Statement statement = connection.createStatement();
+     // executeQuery
+     ResultSet tempResultSet = statement.executeQuery(sql)) {
+
     // print result
     printResult(tempResultSet);
 } catch (SQLException e) {

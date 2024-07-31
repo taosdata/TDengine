@@ -224,7 +224,7 @@ TDengine 的 JDBC URL 规范格式为：
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。  
 
-**使用 TDengine 客户端驱动配置文件建立连接 **
+**使用 TDengine 客户端驱动配置文件建立连接**
 
 当使用 JDBC 原生连接连接 TDengine 集群时，可以使用 TDengine 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。 此时在 JDBC url 中不指定 `hostname` 和 `port`。 
 配置如 `jdbc:TAOS://:/power?user=root&password=taosdata`。  
@@ -235,7 +235,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 
 
 ##### Websocket 和 REST 连接
-使用 JDBC REST 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
+使用 JDBC Websocket 或 REST 连接，不需要依赖客户端驱动。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.rs.RestfulDriver”；
 2. jdbcUrl 以“jdbc:TAOS-RS://”开头；
