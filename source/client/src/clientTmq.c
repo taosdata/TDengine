@@ -240,7 +240,7 @@ typedef struct {
   SMqCommitCbParamSet* params;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   int32_t vgId;
-  tmq_t*  pTmq;
+  int64_t consumerId;
 } SMqCommitCbParam;
 
 typedef struct SSyncCommitInfo {
@@ -439,7 +439,7 @@ static int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   taosMemoryFree(pBuf->pData);
   taosMemoryFree(pBuf->pEpSet);
 
-  return commitRspCountDown(pParamSet, pParam->pTmq->consumerId, pParam->topicName, pParam->vgId);
+  return commitRspCountDown(pParamSet, pParam->consumerId, pParam->topicName, pParam->vgId);
 }
 
 static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffsetVal* offset, const char* pTopicName,
@@ -483,7 +483,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
 
   pParam->params = pParamSet;
   pParam->vgId = vgId;
-  pParam->pTmq = tmq;
+  pParam->consumerId = tmq->consumerId;
 
   tstrncpy(pParam->topicName, pTopicName, tListLen(pParam->topicName));
 
