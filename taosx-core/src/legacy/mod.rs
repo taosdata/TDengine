@@ -29,8 +29,10 @@ use crate::{
     Action,
 };
 
+use self::chunks::TimeChunks;
 use self::scheduler::Scheduler;
 
+mod chunks;
 pub mod legacy_metric;
 mod scheduler;
 mod verify;
@@ -158,6 +160,14 @@ impl TimeRange {
         }
     }
 
+    pub fn get_start(&self) -> Option<DateTime<Utc>> {
+        self.start
+    }
+
+    pub fn get_end(&self) -> Option<DateTime<Utc>> {
+        self.end
+    }
+
     pub const fn start(mut self, start: DateTime<Utc>) -> Self {
         self.start = Some(start);
         self
@@ -190,7 +200,6 @@ impl TimeRange {
             (Some(mut start), Some(end)) => {
                 let mut chunks = vec![];
                 loop {
-                    tracing::trace!("Chunks len: {}", chunks.len()); // debug
                     let chunk_end = start + duration;
                     if chunk_end >= end {
                         chunks.push(Self {
@@ -210,6 +219,15 @@ impl TimeRange {
             }
             _ => vec![*self],
         }
+    }
+
+    pub fn to_chunks_iter(&self, duration: Duration) -> TimeChunks {
+        let duration = if duration.is_zero() {
+            chrono::Duration::days(1)
+        } else {
+            chrono::Duration::from_std(duration).unwrap()
+        };
+        TimeChunks::new(*self, duration)
     }
 
     pub fn till_now() -> Self {
@@ -297,7 +315,7 @@ async fn split_table_into_time_range_chunks(
     from: &Taos,
     table: &str,
     opts: &QueryOpts,
-) -> anyhow::Result<Vec<TimeRange>> {
+) -> anyhow::Result<TimeChunks> {
     tracing::debug!("Split table `{table}` into chunks");
 
     let mut time_range = opts.time_range;
@@ -339,7 +357,7 @@ async fn split_table_into_time_range_chunks(
             }
         }
     }
-    Ok(time_range.to_chunks(opts.unit))
+    Ok(time_range.to_chunks_iter(opts.unit))
 }
 
 struct WriteContext {
