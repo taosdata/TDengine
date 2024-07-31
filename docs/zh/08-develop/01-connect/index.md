@@ -388,7 +388,7 @@ properties 中的配置参数如下：
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
         ```java
-        {{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java}}
+        {{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java:main}}
         ```
     </TabItem>
     <TabItem label="Python" value="python">
