@@ -234,7 +234,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
   return (p->left == 0 || p->invalid) ? true : false;
 }
 
-int transSetConnOption(uv_tcp_t* stream, int keepalive) {
+int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
 #if defined(WINDOWS) || defined(DARWIN)
 #else
   return uv_tcp_keepalive(stream, 1, keepalive);
@@ -745,8 +745,7 @@ int32_t transRemoveExHandle(int32_t refMgt, int64_t refId) {
   return taosRemoveRef(refMgt, refId);
 }
 
-void* transAcquireExHandle(int32_t refMgt, int64_t refId) {
-  // acquire extern handle
+void* transAcquireExHandle(int32_t refMgt, int64_t refId) {  // acquire extern handle
   return (void*)taosAcquireRef(refMgt, refId);
 }
 

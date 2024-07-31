@@ -163,38 +163,44 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
   return st + TRANS_MSG_OVERHEAD;
 }
 
-int rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
+int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
 }
-int rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
+int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
   return transSendRequest(shandle, pEpSet, pMsg, pCtx);
 }
-int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
+
+int32_t rpcSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
+  return transSendRequestWithId(shandle, pEpSet, pReq, transpointId);
+}
+
+int32_t rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   return transSendRecv(shandle, pEpSet, pMsg, pRsp);
 }
-int rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
+int32_t rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
                            int32_t timeoutMs) {
   return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
 }
+int32_t rpcFreeConnById(void* shandle, int64_t connId) { return transFreeConnById(shandle, connId); }
 
-int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
+int32_t rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 
 void rpcRefHandle(void* handle, int8_t type) { (*taosRefHandle[type])(handle); }
 
 void rpcUnrefHandle(void* handle, int8_t type) { (*taosUnRefHandle[type])(handle); }
 
-int rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
-int rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
+int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
+int32_t rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
 
 // client only
-int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
+int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
 // server only
 int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
 
-void* rpcAllocHandle() { return (void*)transAllocHandle(); }
+int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
 int32_t rpcUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf) {
