@@ -82,7 +82,7 @@ jobs:
 
   build_go:
     needs: remove_artifacts
-    runs-on: [self-hosted, linux, x64, qa, go]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -140,7 +140,7 @@ jobs:
 
   build_java:
     needs: remove_artifacts
-    runs-on: [self-hosted, linux, x64, qa, java]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
