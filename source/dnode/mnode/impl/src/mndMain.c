@@ -669,6 +669,13 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   }
   (void)memset(pMnode, 0, sizeof(SMnode));
 
+  int32_t code = taosThreadRwlockInit(&pMnode->lock, NULL);
+  if (code != 0) {
+    taosMemoryFree(pMnode);
+    mError("failed to open mnode lock since %s", tstrerror(code));
+    return NULL;
+  }
+
   char timestr[24] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   mndSetOptions(pMnode, pOption);
@@ -682,7 +689,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  int32_t code = mndCreateDir(pMnode, path);
+  code = mndCreateDir(pMnode, path);
   if (code != 0) {
     code = terrno;
     mError("failed to open mnode since %s", tstrerror(code));
