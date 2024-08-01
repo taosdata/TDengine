@@ -2,7 +2,10 @@ package com.taosdata.example;
 
 import com.taosdata.jdbc.TSDBPreparedStatement;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -24,6 +27,7 @@ public class ParameterBindingBasicDemo {
             String sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
 
             try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+
                 for (int i = 1; i <= numOfSubTable; i++) {
                     // set table name
                     pstmt.setTableName("d_bind_" + i);
@@ -32,19 +36,35 @@ public class ParameterBindingBasicDemo {
                     pstmt.setTagInt(0, i);
                     pstmt.setTagString(1, "location_" + i);
 
-                    // set columns
+                    // set column ts
+                    ArrayList<Long> tsList = new ArrayList<>();
                     long current = System.currentTimeMillis();
-                    for (int j = 0; j < numOfRow; j++) {
-                        pstmt.setTimestamp(1, new Timestamp(current + j));
-                        pstmt.setFloat(2, random.nextFloat() * 30);
-                        pstmt.setInt(3, random.nextInt(300));
-                        pstmt.setFloat(4, random.nextFloat());
-                        pstmt.addBatch();
-                    }
-                    int [] exeResult = pstmt.executeBatch();
-                    // you can check exeResult here
-                    System.out.println("insert " + exeResult.length + " rows.");
+                    for (int j = 0; j < numOfRow; j++)
+                        tsList.add(current + j);
+                    pstmt.setTimestamp(0, tsList);
+
+                    // set column current
+                    ArrayList<Float> currentList = new ArrayList<>();
+                    for (int j = 0; j < numOfRow; j++)
+                        currentList.add(random.nextFloat() * 30);
+                    pstmt.setFloat(1, currentList);
+
+                    // set column voltage
+                    ArrayList<Integer> voltageList = new ArrayList<>();
+                    for (int j = 0; j < numOfRow; j++)
+                        voltageList.add(random.nextInt(300));
+                    pstmt.setInt(2, voltageList);
+
+                    // set column phase
+                    ArrayList<Float> phaseList = new ArrayList<>();
+                    for (int j = 0; j < numOfRow; j++)
+                        phaseList.add(random.nextFloat());
+                    pstmt.setFloat(3, phaseList);
+                    // add column
+                    pstmt.columnDataAddBatch();
                 }
+                // execute column
+                pstmt.columnDataExecuteBatch();
             }
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
