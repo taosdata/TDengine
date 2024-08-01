@@ -4,6 +4,7 @@ match callExpr(
       doStmt(hasCondition(expr().bind("cond"))))                                                                                                                                                                                                          
   ),                                                                                                                                                                                                                                                     
   unless(hasType(voidType())),                                                                                                                                                                                                                           
+  unless(callee(functionDecl(hasName("memcpy")))),
   unless(callee(functionDecl(hasName("strcpy")))), 
   unless(callee(functionDecl(hasName("strcat")))), 
   unless(callee(functionDecl(hasName("strncpy")))), 
