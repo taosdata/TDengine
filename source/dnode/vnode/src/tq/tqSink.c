@@ -811,6 +811,12 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
     metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
 
     code = metaReaderGetTableEntryByUid(&mer1, pOutputInfo->tbSink.stbUid);
+    if (code != TSDB_CODE_SUCCESS) {
+      tqError("s-task:%s vgId:%d failed to get the dst stable, failed to sink results", id, vgId);
+      metaReaderClear(&mer1);
+      return;
+    }
+
     pOutputInfo->tbSink.pTagSchema = tCloneSSchemaWrapper(&mer1.me.stbEntry.schemaTag);
     metaReaderClear(&mer1);
 
