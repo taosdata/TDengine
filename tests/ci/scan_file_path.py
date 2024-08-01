@@ -53,7 +53,7 @@ else:
 
 
 # log file path
-log_file_path = f"{source_path}/../{branch_name}/"
+log_file_path = f"{source_path}/../log/{branch_name}/"
 os.makedirs(log_file_path, exist_ok=True)
 
 scan_log_file = f"{log_file_path}/scan.log"
@@ -65,8 +65,11 @@ scan_result_base_path = f"{log_file_path}/clang_scan_result/"
 
 
 # the compile commands json file path
-# compile_commands_path = f"{source_path}/../debugNoSan/compile_commands.json"
-compile_commands_path = f"{source_path}/debug/compile_commands.json"
+compile_commands_path = f"{source_path}/../debugNoSan/compile_commands.json"
+sed_command = r"sed -i 's/home/var\\lib\\jenkins\\workspace/g' compile_commands.json"
+result = subprocess.run(sed_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+logger.debug(f"STDOUT: {result.stdout} STDERR: {result.stderr}")
+# compile_commands_path = f"{source_path}/debug/compile_commands.json"
 
 # the ast parser rule for c file
 clang_scan_rules_path = f"{self_path}/filter_for_return_values"
@@ -164,6 +167,7 @@ if __name__ == "__main__":
     if not os.path.exists(scan_result_path):
         os.makedirs(scan_result_path)
     for file in all_file_path:
+
         cmd = f"clang-query-10 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
         print(f"cmd:{cmd}")
         try:
