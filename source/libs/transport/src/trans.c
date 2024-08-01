@@ -167,7 +167,7 @@ int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
 }
 int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
-  if (pCtx != NULL) {
+  if (pCtx != NULL || pMsg->info.handle != 0) {
     return transSendRequest(shandle, pEpSet, pMsg, pCtx);
   } else {
     return transSendRequestWithId(shandle, pEpSet, pMsg, pRid);
