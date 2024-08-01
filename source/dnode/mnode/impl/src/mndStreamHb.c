@@ -333,7 +333,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
-  mDebug("receive stream-meta hb from vgId:%d, active numOfTasks:%d, msgId:%d", req.vgId, req.numOfTasks, req.msgId);
+  mDebug("receive stream-meta hb from vgId:%d, active numOfTasks:%d, HbMsgId:%d, HbMsgTs:%" PRId64, req.vgId,
+         req.numOfTasks, req.msgId, req.ts);
 
   pFailedChkpt = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   pOrphanTasks = taosArrayInit(4, sizeof(SOrphanTask));
@@ -366,17 +367,18 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       continue;
     }
 
-    if (pEntry->lastHbMsgId == req.msgId) {
-      mError("vgId:%d Hb msgId:%d already handled, discard", pEntry->nodeId, req.msgId);
+    if ((pEntry->lastHbMsgId == req.msgId) && (pEntry->lastHbMsgTs == req.ts)) {
+      mError("vgId:%d HbMsgId:%d already handled, bh msg discard", pEntry->nodeId, req.msgId);
 
       terrno = TSDB_CODE_INVALID_MSG;
       doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
 
       streamMutexUnlock(&execInfo.lock);
       cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
-      return -1;
+      return terrno;
     } else {
       pEntry->lastHbMsgId = req.msgId;
+      pEntry->lastHbMsgTs = req.ts;
     }
   }
 
@@ -417,6 +419,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       SStreamObj *pStream = NULL;
       code = mndGetStreamObj(pMnode, p->id.streamId, &pStream);
       if (code) {
+        mError("stream obj not exist, failed to handle consensus checkpoint-info req, code:%s", tstrerror(code));
         continue;
       }
 

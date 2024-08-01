@@ -2085,7 +2085,7 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
         break;
       }
 
-      SNodeEntry entry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId};
+      SNodeEntry entry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId, .lastHbMsgId = -1};
       epsetAssign(&entry.epset, &pTask->info.epSet);
       (void)taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry));
     }
@@ -2265,7 +2265,7 @@ void saveTaskAndNodeInfoIntoBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode)
       }
 
       if (!exist) {
-        SNodeEntry nodeEntry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId};
+        SNodeEntry nodeEntry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId, .lastHbMsgId = -1};
         epsetAssign(&nodeEntry.epset, &pTask->info.epSet);
 
         void* px = taosArrayPush(pExecNode->pNodeList, &nodeEntry);

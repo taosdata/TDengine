@@ -80,6 +80,7 @@ typedef struct SNodeEntry {
   SEpSet  epset;         // compare the epset to identify the vgroup tranferring between different dnodes.
   int64_t hbTimestamp;   // second
   int32_t lastHbMsgId;   // latest hb msgId
+  int64_t lastHbMsgTs;
 } SNodeEntry;
 
 typedef struct {
