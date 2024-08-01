@@ -167,7 +167,11 @@ int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
 }
 int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
-  return transSendRequest(shandle, pEpSet, pMsg, pCtx);
+  if (pCtx != NULL) {
+    return transSendRequest(shandle, pEpSet, pMsg, pCtx);
+  } else {
+    return transSendRequestWithId(shandle, pEpSet, pMsg, pRid);
+  }
 }
 
 int32_t rpcSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
@@ -178,7 +182,7 @@ int32_t rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp)
   return transSendRecv(shandle, pEpSet, pMsg, pRsp);
 }
 int32_t rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
-                           int32_t timeoutMs) {
+                               int32_t timeoutMs) {
   return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
 }
 int32_t rpcFreeConnById(void* shandle, int64_t connId) { return transFreeConnById(shandle, connId); }

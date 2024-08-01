@@ -225,6 +225,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
+
   int code = rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   if (code) {
     destroySendMsgInfo(pInfo);
@@ -448,13 +449,13 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
       if (value == NULL) {
         goto end;
       }
-      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
         goto end;
       }
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
       if (pTagVal->nData > 0) {
-        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
         if (tagJsonValue == NULL) {
           goto end;
         }
@@ -479,7 +480,7 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
         goto end;
       }
 
-      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
         goto end;
       }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
@@ -488,7 +489,7 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
       if (value == NULL) {
         goto end;
       }
-      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
         goto end;
       }
     } else if (type == TSDB_DATA_TYPE_BOOL) {
@@ -497,7 +498,7 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
       if (value == NULL) {
         goto end;
       }
-      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
         goto end;
       }
     } else {
