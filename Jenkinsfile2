@@ -4,6 +4,7 @@ import jenkins.model.CauseOfInterruption
 docs_only=0
 node {
 }
+def file_changed
 
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
@@ -58,7 +59,7 @@ def check_docs() {
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
         '''
-        def file_changed = sh (
+        file_changed = sh (
             script: '''
                 cd ${WKC}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/" || :
@@ -76,7 +77,7 @@ def check_docs() {
             sh '''
                 echo ${file_changed} > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
             '''
-        }        
+        }
     }
 }
 def pre_test(){
@@ -429,6 +430,9 @@ pipeline {
                                         rm -rf ${WKC}/debug
                                         cd ${WKC}/tests/parallel_test
                                         time ./container_build.sh -w ${WKDIR} -e
+                                    '''
+                                    sh '''
+                                    echo ${file_changed} > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
                                     sh '''
                                        cd ${WKC}/tests/ci
