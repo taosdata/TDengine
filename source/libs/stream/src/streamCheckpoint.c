@@ -253,6 +253,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
         for (int32_t i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); ++i) {
           STaskCheckpointReadyInfo* p = taosArrayGet(pActiveInfo->pReadyMsgList, i);
           if (p == NULL) {
+            streamMutexUnlock(&pTask->lock);
             return TSDB_CODE_INVALID_PARA;
           }
 
