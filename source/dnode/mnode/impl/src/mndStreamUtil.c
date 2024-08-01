@@ -138,6 +138,7 @@ SArray* mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
       if (code) {
         mError("failed to put info into hashmap during task vgroup snapshot, code:%s", tstrerror(code));
         sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
         goto _err;  // take snapshot failed, and not all ready
       }
     } else {
@@ -161,6 +162,7 @@ SArray* mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     if (p == NULL) {
       mError("failed to put entry in vgroup list, nodeId:%d code:out of memory", entry.nodeId);
       sdbRelease(pSdb, pVgroup);
+      sdbCancelFetch(pSdb, pIter);
       goto _err;
     } else {
       mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
@@ -191,6 +193,7 @@ SArray* mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady) {
     if (p == NULL) {
       code = terrno;
       sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
       mError("failed to put entry in vgroup list, nodeId:%d code:%s", entry.nodeId, tstrerror(code));
       goto _err;
     } else {
