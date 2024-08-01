@@ -212,17 +212,14 @@ TDengine 的 JDBC URL 规范格式为：
 **注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll；macOS 下是 libtaos.dylib）。
 
 对于原生连接 url 中支持的配置参数如下：
-
-| 属性             | 描述                                                                                                   | 默认值          |
-|------------------|--------------------------------------------------------------------------------------------------------|-----------------|
-| user             | 登录 TDengine 用户名                                                                                   | 'root'          |
-| password         | 用户登录密码                                                                                           | 'taosdata'      |
-| cfgdir           | 客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`           | 系统依赖        |
-| charset          | 客户端使用的字符集                                                                                     | 系统字符集      |
-| locale           | 客户端语言环境                                                                                         | 系统当前 locale |
-| timezone         | 客户端使用的时区                                                                                       | 系统当前时区    |
-| batchfetch       | 在执行查询时批量拉取结果集；false：逐行拉取结果集。开启批量拉取可以有效的提升查询性能                 | true            |
-| batchErrorIgnore | true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败将继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句 | false           |
+- user：登录 TDengine 用户名，默认值 'root'。
+- password：用户登录密码，默认值 'taosdata'。
+- cfgdir：客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
+- charset：客户端使用的字符集，默认值为系统字符集。
+- locale：客户端语言环境，默认值系统当前 locale。
+- timezone：客户端使用的时区，默认值为系统当前时区。
+- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：true。开启批量拉取同时获取一批数据在查询数据量较大时批量拉取可以有效的提升查询性能。
+- batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败将继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。  
 
@@ -244,20 +241,16 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 3. 使用 6041 作为连接端口。
 
 对于 Websocket 和 REST 连接，url 中的配置参数如下：
-
-| 属性              | 描述                                                                                                                                                                                                                   | 默认值  |
-|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| user              | 登录 TDengine 用户名                                                                                                                                                                                                   | 'root'  |
-| password          | 用户登录密码                                                                                                                                                                                                           | 'taosdata' |
-| batchfetch        | true：在执行查询时批量拉取结果集；false：逐行拉取结果集。逐行拉取结果集使用 HTTP 方式进行数据传输。JDBC REST 连接支持批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输，提升查询性能。 | false   |
-| charset           | 当开启批量拉取数据时，指定解析字符串数据的字符集。                                                                                                                                                                     |         |
-| batchErrorIgnore  | true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。                                                                                      | false   |
-| httpConnectTimeout| 连接超时时间，单位 ms                                                                                                                                                                                                   | 60000   |
-| httpSocketTimeout | socket 超时时间，单位 ms。仅在 batchfetch 设置为 false 时生效。                                                                                                                                                         | 60000   |
-| messageWaitTimeout| 消息超时时间, 单位 ms。仅在 batchfetch 设置为 true 时生效。                                                                                                                                                             | 60000   |
-| useSSL            | 连接中是否使用 SSL。                                                                                                                                                                                                    |         |
-| httpPoolSize      | REST 并发请求大小                                                                                                                                                                                                       | 20      |
-
+- user：登录 TDengine 用户名，默认值 'root'。
+- password：用户登录密码，默认值 'taosdata'。
+- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。JDBC REST 连接支持批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
+- charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
+- batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
+- httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 60000。
+- httpSocketTimeout: socket 超时时间，单位 ms，默认值为 60000。仅在 batchfetch 设置为 false 时生效。
+- messageWaitTimeout: 消息超时时间, 单位 ms， 默认值为 60000。 仅在 batchfetch 设置为 true 时生效。
+- useSSL: 连接中是否使用 SSL。
+- httpPoolSize: REST 并发请求大小，默认 20。
 
 **注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。
 
@@ -274,31 +267,27 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 
 > **注意**：应用中设置的 client parameter 为进程级别的，即如果要更新 client 的参数，需要重启应用。这是因为 client parameter 是全局参数，仅在应用程序的第一次设置生效。
 
-properties 中的配置参数如下（**注意**：属性使用需要加上类名，如 `TSDBDriver.PROPERTY_KEY_USER` ）：
-
-| 属性                                      | 描述                                                                                                                         | 默认值               |
-|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|----------------------|
-| PROPERTY_KEY_USER                         | 登录 TDengine 用户名                                                                                                         | 'root'               |
-| PROPERTY_KEY_PASSWORD                     | 用户登录密码                                                                                                                 | 'taosdata'           |
-| PROPERTY_KEY_BATCH_LOAD                   | 在执行查询时批量拉取结果集；false：逐行拉取结果集                                                                            | false                |
-| PROPERTY_KEY_BATCH_ERROR_IGNORE           | 在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。 | false                |
-| PROPERTY_KEY_CONFIG_DIR                   | 仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径                                                                         | Linux: `/etc/taos`, Windows: `C:/TDengine/cfg` |
-| PROPERTY_KEY_CHARSET                      | 客户端使用的字符集                                                                                                           | 系统字符集           |
-| PROPERTY_KEY_LOCALE                       | 仅在使用 JDBC 原生连接时生效。客户端语言环境                                                                                 | 系统当前 locale      |
-| PROPERTY_KEY_TIME_ZONE                    | 仅在使用 JDBC 原生连接时生效。客户端使用的时区                                                                               | 系统当前时区         |
-| HTTP_CONNECT_TIMEOUT                      | 连接超时时间，单位 ms。仅在 REST 连接时生效。                                                                                 | 60000                |
-| HTTP_SOCKET_TIMEOUT                       | socket 超时时间，单位 ms。仅在 REST 连接且 batchfetch 设置为 false 时生效。                                                  | 60000                |
-| PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT         | 消息超时时间, 单位 ms。仅在 REST 连接且 batchfetch 设置为 true 时生效。                                                      | 60000                |
-| PROPERTY_KEY_USE_SSL                      | 连接中是否使用 SSL。仅在 REST 连接时生效。                                                                                    |                      |
-| HTTP_POOL_SIZE                            | REST 并发请求大小                                                                                                             | 20                   |
-| PROPERTY_KEY_ENABLE_COMPRESSION           | 传输过程是否启用压缩。仅在使用 REST/Websocket 连接时生效。                                                                   | false                |
-| PROPERTY_KEY_ENABLE_AUTO_RECONNECT        | 是否启用自动重连。仅在使用 Websocket 连接时生效。                                                                             | false                |
-| PROPERTY_KEY_RECONNECT_INTERVAL_MS        | 自动重连重试间隔，单位毫秒。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。                                         | 2000                 |
-| PROPERTY_KEY_RECONNECT_RETRY_COUNT        | 自动重连重试次数。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。                                                   | 3                    |
-| PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION  | 关闭 SSL 证书验证。仅在使用 Websocket 连接时生效。                                                                            | false                |
-
+properties 中的配置参数如下：
+- TSDBDriver.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 'root'。
+- TSDBDriver.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 'taosdata'。
+- TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
+- TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
+- TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
+- TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
+- TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
+- TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。因为历史的原因，我们只支持POSIX标准的部分规范，如UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
+- TSDBDriver.HTTP_CONNECT_TIMEOUT: 连接超时时间，单位 ms， 默认值为 60000。仅在 REST 连接时生效。
+- TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 60000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
+- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
+- TSDBDriver.HTTP_POOL_SIZE: REST 并发请求大小，默认 20。
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 REST/Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
 > **注意**：启用自动重连仅对简单执行 SQL 语句以及 无模式写入、数据订阅有效。对于参数绑定无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
 
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: 关闭 SSL 证书验证 。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
 
 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](../../reference/config/)。
 
@@ -315,142 +304,142 @@ properties 中的配置参数如下（**注意**：属性使用需要加上类�
 #### 接口说明  
 
 - `Connection connect(String url, java.util.Properties info) throws SQLException`
-  - **接口说明**：连接 TDengine 数据库
+  - **接口说明**：连接 TDengine 数据库。
   - **参数说明**：
-    - `url`：连接地址 url，详见上文 URL 规范
-    - `info`：连接属性，详见上文 Properties 章节
-  - **返回值**：连接对象
-  - **异常**：连接失败抛出 `SQLException` 异常
+    - `url`：连接地址 url，详见上文 URL 规范。
+    - `info`：连接属性，详见上文 Properties 章节。
+  - **返回值**：连接对象。
+  - **异常**：连接失败抛出 `SQLException` 异常。
 
 - `boolean acceptsURL(String url) throws SQLException`
-  - **接口说明**：判断驱动是否支持 url
+  - **接口说明**：判断驱动是否支持 url。
   - **参数说明**：
-    - `url`：连接地址 url
-  - **返回值**：`true`：支持，`false`：不支持
-  - **异常**：url 非法抛出 `SQLException` 异常
+    - `url`：连接地址 url。
+  - **返回值**：`true`：支持，`false`：不支持。
+  - **异常**：url 非法抛出 `SQLException` 异常。
 
 - `DriverPropertyInfo[] getPropertyInfo(String url, java.util.Properties info) throws SQLException`
-  - **接口说明**：获取尝试连接数据库时可能需要的所有属性的详细信息。这些属性信息被封装在 DriverPropertyInfo 对象数组中返回。每个 DriverPropertyInfo 对象包含了一个数据库连接属性的详细信息，比如属性名、属性值、描述等
+  - **接口说明**：获取尝试连接数据库时可能需要的所有属性的详细信息。这些属性信息被封装在 DriverPropertyInfo 对象数组中返回。每个 DriverPropertyInfo 对象包含了一个数据库连接属性的详细信息，比如属性名、属性值、描述等。
   - **参数说明**：
-    - `url`：一个 String 类型的参数，表示数据库的 URL
-    - `info`：一个 java.util.Properties 类型的参数，包含了尝试连接时用户可能提供的属性列表
-  - **返回值**：返回值类型为 `DriverPropertyInfo[]`，即 `DriverPropertyInfo` 对象的数组。每个 `DriverPropertyInfo` 对象包含了一个特定的数据库连接属性的详细信息
-  - **异常**：如果在获取属性信息的过程中发生数据库访问错误或其他错误，将抛出 `SQLException` 异常
+    - `url`：一个 String 类型的参数，表示数据库的 URL。
+    - `info`：一个 java.util.Properties 类型的参数，包含了尝试连接时用户可能提供的属性列表。
+  - **返回值**：返回值类型为 `DriverPropertyInfo[]`，即 `DriverPropertyInfo` 对象的数组。每个 `DriverPropertyInfo` 对象包含了一个特定的数据库连接属性的详细信息。
+  - **异常**：如果在获取属性信息的过程中发生数据库访问错误或其他错误，将抛出 `SQLException` 异常。
 
 - `int getMajorVersion()`
-  - **接口说明**：获取 JDBC 驱动程序的主版本号
+  - **接口说明**：获取 JDBC 驱动程序的主版本号。
 
 - `int getMinorVersion()`
-  - **接口说明**：获取 JDBC 驱动程序的次版本号
+  - **接口说明**：获取 JDBC 驱动程序的次版本号。
 
 ### 数据库元数据
 `DatabaseMetaData` 是 JDBC API 的一部分，它提供了关于数据库的元数据的详细信息，元数据意味着关于数据库数据的数据。通过 `DatabaseMetaData` 接口，可以查询数据库服务器的详细信息，比如数据库产品名称、版本、已安装的功能、表、视图、存储过程的列表等。这对于了解和适应不同数据库的特性非常有用。
 
 
 - `String getURL() throws SQLException`
-  - **接口说明**：获取用于连接数据库的 URL
-  - **返回值**：连接数据库的 URL
-  - **异常**：获取失败将抛出 `SQLException` 异常
+  - **接口说明**：获取用于连接数据库的 URL。
+  - **返回值**：连接数据库的 URL。
+  - **异常**：获取失败将抛出 `SQLException` 异常。
 
 - `String getUserName() throws SQLException`
-  - **接口说明**：获取用于连接获取数据库的用户名
-  - **返回值**：连接数据库的用户名
-  - **异常**：获取失败将抛出 `SQLException` 异常
+  - **接口说明**：获取用于连接获取数据库的用户名。
+  - **返回值**：连接数据库的用户名。
+  - **异常**：获取失败将抛出 `SQLException` 异常。
 
 - `String getDriverName() throws SQLException`
-  - **接口说明**：获取 JDBC 驱动程序的名称
-  - **返回值**：驱动名称字符串
-  - **异常**：获取失败将抛出 `SQLException` 异常
+  - **接口说明**：获取 JDBC 驱动程序的名称。
+  - **返回值**：驱动名称字符串。
+  - **异常**：获取失败将抛出 `SQLException` 异常。
 
 - `String getDriverVersion() throws SQLException`
-  - **接口说明**：获取 JDBC 驱动版本
-  - **返回值**：驱动版本字符串
-  - **异常**：获取失败将抛出 `SQLException` 异常
+  - **接口说明**：获取 JDBC 驱动版本。
+  - **返回值**：驱动版本字符串。
+  - **异常**：获取失败将抛出 `SQLException` 异常。
 
 - `int getDriverMajorVersion()`
-  - **接口说明**：获取 JDBC 驱动主版本号
+  - **接口说明**：获取 JDBC 驱动主版本号。
 
 - `int getDriverMinorVersion()`
-  - **接口说明**：获取 JDBC 驱动次版本号
+  - **接口说明**：获取 JDBC 驱动次版本号。
 
 - `String getDatabaseProductName() throws SQLException`
-  - **接口说明**：获取数据库产品的名称
+  - **接口说明**：获取数据库产品的名称。
 
 - `String getDatabaseProductVersion() throws SQLException`
-  - **接口说明**：获取数据库产品的版本号
+  - **接口说明**：获取数据库产品的版本号。
 
 - `String getIdentifierQuoteString() throws SQLException`
-  - **接口说明**：获取用于引用 SQL 标识符的字符串
+  - **接口说明**：获取用于引用 SQL 标识符的字符串。
 
 - `String getSQLKeywords() throws SQLException`
-  - **接口说明**：获取数据库特有的 SQL 关键字列表
+  - **接口说明**：获取数据库特有的 SQL 关键字列表。
 
 - `String getNumericFunctions() throws SQLException`
-  - **接口说明**：获取数据库支持的数值函数名称列表
+  - **接口说明**：获取数据库支持的数值函数名称列表。
 
 - `String getStringFunctions() throws SQLException`
-  - **接口说明**：获取数据库支持的字符串函数名称列表
+  - **接口说明**：获取数据库支持的字符串函数名称列表。
 
 - `String getSystemFunctions() throws SQLException`
-  - **接口说明**：获取数据库支持的系统函数名称列表
+  - **接口说明**：获取数据库支持的系统函数名称列表。
 
 - `String getTimeDateFunctions() throws SQLException`
-  - **接口说明**：获取数据库支持的时间日期函数名称列表
+  - **接口说明**：获取数据库支持的时间日期函数名称列表。
 
 - `String getCatalogTerm() throws SQLException`
-  - **接口说明**：获取数据库中目录的术语
+  - **接口说明**：获取数据库中目录的术语。
 
 - `String getCatalogSeparator() throws SQLException`
-  - **接口说明**：获取用于分隔目录和表名的分隔符
+  - **接口说明**：获取用于分隔目录和表名的分隔符。
 
 - `int getDefaultTransactionIsolation() throws SQLException`
-  - **接口说明**：获取数据库的默认事务隔离级别
+  - **接口说明**：获取数据库的默认事务隔离级别。
 
 - `boolean supportsTransactionIsolationLevel(int level) throws SQLException`
-  - **接口说明**：判断数据库是否支持给定的事务隔离级别
+  - **接口说明**：判断数据库是否支持给定的事务隔离级别。
   - **参数说明**：
-    - `level`：事务隔离级别
-  - **返回值**：`true`：支持，`false`：不支持
-  - **异常**：操作失败抛出 `SQLException` 异常
+    - `level`：事务隔离级别。
+  - **返回值**：`true`：支持，`false`：不支持。
+  - **异常**：操作失败抛出 `SQLException` 异常。
 
 - `ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException`
-  - **接口说明**：获取数据库中匹配指定模式的表信息
+  - **接口说明**：获取数据库中匹配指定模式的表信息。
   - **参数说明**：
-    - `catalog`：目录名称；`null` 表示不指定目录
-    - `schemaPattern`：模式名称的模式；null 表示不指定模式
-    - `tableNamePattern`：表名称的模式
-    - `types`：表类型列表，返回指定类型的表
-  - **返回值**：包含表信息的 `ResultSet`
-  - **异常**：操作失败抛出 `SQLException` 异常
+    - `catalog`：目录名称；`null` 表示不指定目录。
+    - `schemaPattern`：模式名称的模式；null 表示不指定模式。
+    - `tableNamePattern`：表名称的模式。
+    - `types`：表类型列表，返回指定类型的表。
+  - **返回值**：包含表信息的 `ResultSet`。
+  - **异常**：操作失败抛出 `SQLException` 异常。
 
 - `ResultSet getCatalogs() throws SQLException`
-  - **接口说明**：获取数据库中所有目录的信息
-  - **返回值**：包含目录信息的 `ResultSet`
-  - **异常**：操作失败抛出 `SQLException` 异常
+  - **接口说明**：获取数据库中所有目录的信息。
+  - **返回值**：包含目录信息的 `ResultSet`。
+  - **异常**：操作失败抛出 `SQLException` 异常。
 
 - `ResultSet getTableTypes() throws SQLException`
-  - **接口说明**：获取数据库支持的表类型
-  - **返回值**：包含表类型的 `ResultSet`
-  - **异常**：操作失败抛出 `SQLException` 异常
+  - **接口说明**：获取数据库支持的表类型。
+  - **返回值**：包含表类型的 `ResultSet`。
+  - **异常**：操作失败抛出 `SQLException` 异常。
 
 - `ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException`
-  - **接口说明**：获取指定表中匹配指定模式的列信息
+  - **接口说明**：获取指定表中匹配指定模式的列信息。
   - **参数说明**：
-    - `catalog`：目录名称；`null` 表示不指定目录
-    - `schemaPattern`：模式名称的模式；`null` 表示不指定模式
-    - `tableNamePattern`：表名称的模式
-    - `columnNamePattern`：列名称的模式
-  - **返回值**：包含列信息的 `ResultSet`
-  - **异常**：操作失败抛出 `SQLException` 异常
+    - `catalog`：目录名称；`null` 表示不指定目录。
+    - `schemaPattern`：模式名称的模式；`null` 表示不指定模式。
+    - `tableNamePattern`：表名称的模式。
+    - `columnNamePattern`：列名称的模式。
+  - **返回值**：包含列信息的 `ResultSet`。
+  - **异常**：操作失败抛出 `SQLException` 异常。
 
 - `ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException`
-  - **接口说明**：获取指定表的主键信息
+  - **接口说明**：获取指定表的主键信息。
   - **参数说明**：
-    - `catalog`：目录名称；`null` 表示不指定目录
-    - `schema`：模式名称；`null` 表示不指定模式
-    - `table`：表名称
-  - **返回值**：包含主键信息的 `ResultSet`
-  - **异常**：操作失败抛出 `SQLException` 异常
+    - `catalog`：目录名称；`null` 表示不指定目录。
+    - `schema`：模式名称；`null` 表示不指定模式。
+    - `table`：表名称。
+  - **返回值**：包含主键信息的 `ResultSet`。
+  - **异常**：操作失败抛出 `SQLException` 异常。
 
 - `Connection getConnection() throws SQLException`
   - **接口说明**：获取数据库连接。
@@ -615,7 +604,7 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
 
 注：下面 abstract 类型接口会被具体实现类实现，因此建立连接后得到连接对象可以直接调用。
 
-- `public abstract void write(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType, Integer ttl, Long reqId) throws SQLException`
+- `abstract void write(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType, Integer ttl, Long reqId) throws SQLException`
   - **接口说明**：以指定的协议类型、时间戳类型、TTL（生存时间）和请求 ID 写入多行数据。
   - **参数说明**：
     - `lines`：待写入的数据行数组。
@@ -624,28 +613,28 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
     - `ttl`：数据的生存时间，单位天。
     - `reqId`：请求 ID。
   - **异常**：操作失败抛出 SQLException 异常。
-- `public void write(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
+- `void write(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
   - **接口说明**：以指定的协议类型和时间戳类型写入多行数据。
   - **参数说明**：
     - `lines`：待写入的数据行数组。
     - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
   - **异常**：操作失败抛出 SQLException 异常。
-- `public void write(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
+- `void write(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
   - **接口说明**：以指定的协议类型和时间戳类型写入单行数据。
   - **参数说明**：
     - `line`：待写入的数据行。
     - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
   - **异常**：操作失败抛出 SQLException 异常。
-- `public void write(List<String> lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
+- `void write(List<String> lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
   - **接口说明**：以指定的协议类型和时间戳类型写入多行数据（使用列表）。
   - **参数说明**：
     - `lines`：待写入的数据行列表。
     - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
   - **异常**：操作失败抛出 SQLException 异常。
-- `public int writeRaw(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
+- `int writeRaw(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
   - **接口说明**：以指定的协议类型和时间戳类型写入多行回车符分割的原始数据，回车符分割，并返回操作结果。
   - **参数说明**：
     - `line`：待写入的原始数据。
@@ -653,7 +642,7 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
   - **返回值**：操作结果。
   - **异常**：操作失败抛出 SQLException 异常。
-- `public abstract int writeRaw(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType, Integer ttl, Long reqId) throws SQLException`
+- `abstract int writeRaw(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType, Integer ttl, Long reqId) throws SQLException`
   - **接口说明**：以指定的协议类型、时间戳类型、TTL（生存时间）和请求 ID 写入多行回车符分割的原始数据，并返回操作结果。
   - **参数说明**：
     - `line`：待写入的原始数据。
@@ -1270,35 +1259,35 @@ ParameterMetaData 提供了参数元数据接口：
 
 #### 扩展接口  
 
-- `public void setTableName(String name) throws SQLException`
+- `void setTableName(String name) throws SQLException`
   - **接口说明**：设置当前操作的表名。
   - **参数说明**：
     - `name`：一个 String 类型的参数，表示要绑定的表名。
-- `public void setTagNull(int index, int type)`
+- `void setTagNull(int index, int type)`
   - **接口说明**：为指定索引的标签设置 null 值。
   - **参数说明**：
     - `index`：标签的索引位置。
     - `type`：标签的数据类型。
-- `public void setTagBoolean(int index, boolean value)`
+- `void setTagBoolean(int index, boolean value)`
   - **接口说明**：为指定索引的标签设置布尔值。
   - **参数说明**：
     - `index`：标签的索引位置。
     - `value`：要设置的布尔值。
 - 下面接口除了要设置的值类型不同外，其余同 setTagBoolean，不再赘述：
-  - `public void setTagInt(int index, int value)`
-  - `public void setTagByte(int index, byte value)`
-  - `public void setTagShort(int index, short value)`
-  - `public void setTagLong(int index, long value)`
-  - `public void setTagTimestamp(int index, long value)`
-  - `public void setTagFloat(int index, float value)`
-  - `public void setTagDouble(int index, double value)`
-  - `public void setTagString(int index, String value)`
-  - `public void setTagNString(int index, String value)`
-  - `public void setTagJson(int index, String value)`
-  - `public void setTagVarbinary(int index, byte[] value)`
-  - `public void setTagGeometry(int index, byte[] value)`
+  - `void setTagInt(int index, int value)`
+  - `void setTagByte(int index, byte value)`
+  - `void setTagShort(int index, short value)`
+  - `void setTagLong(int index, long value)`
+  - `void setTagTimestamp(int index, long value)`
+  - `void setTagFloat(int index, float value)`
+  - `void setTagDouble(int index, double value)`
+  - `void setTagString(int index, String value)`
+  - `void setTagNString(int index, String value)`
+  - `void setTagJson(int index, String value)`
+  - `void setTagVarbinary(int index, byte[] value)`
+  - `void setTagGeometry(int index, byte[] value)`
 
-- `public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException`
+- `void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException`
   - **接口说明**：为指定列索引设置批量整型值。
   - **参数说明**：
     - `columnIndex`：列的索引位置。
@@ -1306,14 +1295,14 @@ ParameterMetaData 提供了参数元数据接口：
   - **异常**：
     - 如果操作过程中发生错误，将抛出 SQLException 异常。
 - 下面接口除了要设置的值类型不同外，其余同 setInt：
-  - `public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException`
-  - `public void setTimestamp(int columnIndex, ArrayList<Long> list) throws SQLException`
-  - `public void setLong(int columnIndex, ArrayList<Long> list) throws SQLException`
-  - `public void setDouble(int columnIndex, ArrayList<Double> list) throws SQLException`
-  - `public void setBoolean(int columnIndex, ArrayList<Boolean> list) throws SQLException`
-  - `public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException`
-  - `public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException`
-- `public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException`
+  - `void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException`
+  - `void setTimestamp(int columnIndex, ArrayList<Long> list) throws SQLException`
+  - `void setLong(int columnIndex, ArrayList<Long> list) throws SQLException`
+  - `void setDouble(int columnIndex, ArrayList<Double> list) throws SQLException`
+  - `void setBoolean(int columnIndex, ArrayList<Boolean> list) throws SQLException`
+  - `void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException`
+  - `void setShort(int columnIndex, ArrayList<Short> list) throws SQLException`
+- `void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException`
   - **接口说明**：为指定列索引设置字符串值列表。
   - **参数说明**：
     - `columnIndex`：列的索引位置。
@@ -1322,9 +1311,9 @@ ParameterMetaData 提供了参数元数据接口：
   - **异常**：
     - 如果操作过程中发生错误，将抛出 SQLException 异常。
 - 下面接口除了要设置的值类型不同外，其余同 setString：    
-  - `public void setVarbinary(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
-  - `public void setGeometry(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
-  - `public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException`
+  - `void setVarbinary(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
+  - `void setGeometry(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
+  - `void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException`
 - `void columnDataAddBatch() throws SQLException`
   - **接口说明**：将 `setInt（int columnIndex， ArrayList<Integer> list）` 等数组形式接口设置的数据添加到当前 PrepareStatement 对象的批处理中。
   - **异常**：
@@ -1348,97 +1337,93 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
   - **异常**：如果创建失败，抛出 SQLException 异常。
 
 创建消费者支持属性列表：  
+- td.connect.type: 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
+- bootstrap.servers: TDengine 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
+- enable.auto.commit: 是否允许自动提交。
+- group.id: consumer: 所在的 group。
+- value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
+- httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
+- messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
+- httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。  
+- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 
-
-| 属性                | 描述                                                                                                                                                                                                 | 默认值   |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| td.connect.type     | 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。                                                                                                             | jni      |
-| bootstrap.servers   | TDengine 服务端所在的ip:port，如果使用 WebSocket 连接，则为 taosAdapter 所在的ip:port。                                                                                                              |          |
-| enable.auto.commit  | 是否允许自动提交。                                                                                                                                                                                   |          |
-| group.id            | consumer 所在的 group。                                                                                                                                                                              |          |
-| value.deserializer  | 结果集反序列化方法。可以继承 com.taosdata.jdbc.tmq.ReferenceDeserializer，并指定结果集 bean，实现反序列化。也可以继承 com.taosdata.jdbc.tmq.Deserializer，根据 SQL 的 resultSet 自定义反序列化方式。 |          |
-| httpConnectTimeout  | 创建连接超时参数，单位 ms。仅在 WebSocket 连接下有效。                                                                                                                                               | 5000 ms  |
-| messageWaitTimeout  | 数据传输超时参数，单位 ms。仅在 WebSocket 连接下有效。                                                                                                                                               | 10000 ms |
-| httpPoolSize        | 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。                                                                                                                                              |          |
-| enableCompression   | 传输过程是否启用压缩。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。                                                                                                                     | false    |
-| enableAutoReconnect | 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。                                                                                                                         | false    |
-| reconnectIntervalMs | 自动重连重试间隔，单位毫秒。仅在 enableCompression 为 true 时生效。                                                                                                                                  | 2000 ms  |
-| reconnectRetryCount | 自动重连重试次数。仅在 enableCompression 为 true 时生效。                                                                                                                                            | 3        |
-  
 其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
-- `public void subscribe(Collection<String> topics) throws SQLException`
+- `void subscribe(Collection<String> topics) throws SQLException`
   - **接口说明**：订阅一组主题。
   - **参数说明**：
     - `topics`：一个 `Collection<String>` 类型的参数，表示要订阅的主题列表。
   - **异常**：如果在订阅过程中发生错误，将抛出 SQLException 异常。
-- `public void unsubscribe() throws SQLException`
+- `void unsubscribe() throws SQLException`
   - **接口说明**：取消订阅所有主题。
   - **异常**：如果在取消订阅过程中发生错误，将抛出 SQLException 异常。
-- `public Set<String> subscription() throws SQLException`
+- `Set<String> subscription() throws SQLException`
   - **接口说明**：获取当前订阅的所有主题。
   - **返回值**：返回值类型为 `Set<String>`，即当前订阅的所有主题集合。
   - **异常**：如果在获取订阅信息过程中发生错误，将抛出 SQLException 异常。
-- `public ConsumerRecords<V> poll(Duration timeout) throws SQLException`
+- `ConsumerRecords<V> poll(Duration timeout) throws SQLException`
   - **接口说明**：轮询消息。
   - **参数说明**：
     - `timeout`：一个 `Duration` 类型的参数，表示轮询的超时时间。
   - **返回值**：返回值类型为 `ConsumerRecords<V>`，即轮询到的消息记录。
   - **异常**：如果在轮询过程中发生错误，将抛出 SQLException 异常。
-- `public void commitAsync() throws SQLException`
+- `void commitAsync() throws SQLException`
   - **接口说明**：异步提交当前处理的消息的偏移量。
   - **异常**：如果在提交过程中发生错误，将抛出 SQLException 异常。
-- `public void commitSync() throws SQLException`
+- `void commitSync() throws SQLException`
   - **接口说明**：同步提交当前处理的消息的偏移量。
   - **异常**：如果在提交过程中发生错误，将抛出 SQLException 异常。
-- `public void close() throws SQLException`
+- `void close() throws SQLException`
   - **接口说明**：关闭消费者，释放资源。
   - **异常**：如果在关闭过程中发生错误，将抛出 SQLException 异常。
-- `public void seek(TopicPartition partition, long offset) throws SQLException`
+- `void seek(TopicPartition partition, long offset) throws SQLException`
   - **接口说明**：将给定分区的偏移量设置到指定的位置。
   - **参数说明**：
     - `partition`：一个 `TopicPartition` 类型的参数，表示要操作的分区。
     - `offset`：一个 `long` 类型的参数，表示要设置的偏移量。
   - **异常**：如果在设置偏移量过程中发生错误，将抛出 SQLException 异常。
-- `public long position(TopicPartition tp) throws SQLException`
+- `long position(TopicPartition tp) throws SQLException`
   - **接口说明**：获取给定分区当前的偏移量。
   - **参数说明**：
     - `tp`：一个 `TopicPartition` 类型的参数，表示要查询的分区。
   - **返回值**：返回值类型为 `long`，即给定分区当前的偏移量。
   - **异常**：如果在获取偏移量过程中发生错误，将抛出 SQLException 异常。
-- `public Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException`
+- `Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException`
   - **接口说明**：获取指定主题的每个分区的最早偏移量。
   - **参数说明**：
     - `topic`：一个 `String` 类型的参数，表示要查询的主题。
   - **返回值**：返回值类型为 `Map<TopicPartition, Long>`，即指定主题的每个分区的最早偏移量。
   - **异常**：如果在获取最早偏移量过程中发生错误，将抛出 SQLException 异常。
-- `public Map<TopicPartition, Long> endOffsets(String topic) throws SQLException`
+- `Map<TopicPartition, Long> endOffsets(String topic) throws SQLException`
   - **接口说明**：获取指定主题的每个分区的最新偏移量。
   - **参数说明**：
     - `topic`：一个 `String` 类型的参数，表示要查询的主题。
   - **返回值**：返回值类型为 `Map<TopicPartition, Long>`，即指定主题的每个分区的最新偏移量。
   - **异常**：如果在获取最新偏移量过程中发生错误，将抛出 SQLException 异常。
-- `public void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException`
+- `void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException`
   - **接口说明**：将一组分区的偏移量设置到最早的偏移量。
   - **参数说明**：
     - `partitions`：一个 `Collection<TopicPartition>` 类型的参数，表示要操作的分区集合。
   - **异常**：如果在设置偏移量过程中发生错误，将抛出 SQLException 异常。
-- `public void seekToEnd(Collection<TopicPartition> partitions) throws SQLException`
+- `void seekToEnd(Collection<TopicPartition> partitions) throws SQLException`
   - **接口说明**：将一组分区的偏移量设置到最新的偏移量。
   - **参数说明**：
     - `partitions`：一个 `Collection<TopicPartition>` 类型的参数，表示要操作的分区集合。
   - **异常**：如果在设置偏移量过程中发生错误，将抛出 SQLException 异常。
-- `public Set<TopicPartition> assignment() throws SQLException`
+- `Set<TopicPartition> assignment() throws SQLException`
   - **接口说明**：获取消费者当前分配的所有分区。
   - **返回值**：返回值类型为 `Set<TopicPartition>`，即消费者当前分配的所有分区。
   - **异常**：如果在获取分配的分区过程中发生错误，将抛出 SQLException 异常。
-- `public OffsetAndMetadata committed(TopicPartition partition) throws SQLException`
+- `OffsetAndMetadata committed(TopicPartition partition) throws SQLException`
   - **接口说明**：获取指定分区最后提交的偏移量。
   - **参数说明**：
     - `partition`：一个 `TopicPartition` 类型的参数，表示要查询的分区。
   - **返回值**：返回值类型为 `OffsetAndMetadata`，即指定分区最后提交的偏移量。
   - **异常**：如果在获取提交的偏移量过程中发生错误，将抛出 SQLException 异常。
-- `public Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException`
+- `Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException`
   - **接口说明**：获取一组分区最后提交的偏移量。
   - **参数说明**：
     - `partitions`：一个 `Set<TopicPartition>` 类型的参数，表示要查询的分区集合。
@@ -1451,19 +1436,19 @@ ConsumerRecords 类提供了消费记录信息，可以迭代 ConsumerRecord 对
 
 ConsumerRecord 提供的接口：
 
-- `public String getTopic()`
+- `String getTopic()`
   - **接口说明**：获取消息的主题。
   - **返回值**：返回值类型为 `String`，即消息的主题。
-- `public String getDbName()`
+- `String getDbName()`
   - **接口说明**：获取数据库名称。
   - **返回值**：返回值类型为 `String`，即数据库名称。
-- `public int getVGroupId()`
+- `int getVGroupId()`
   - **接口说明**：获取虚拟组 ID。
   - **返回值**：返回值类型为 `int`，即虚拟组 ID。
-- `public V value()`
+- `V value()`
   - **接口说明**：获取消息的值。
   - **返回值**：返回值类型为 `V`，即消息的值。
-- `public long getOffset()`
+- `long getOffset()`
   - **接口说明**：获取消息的偏移量。
   - **返回值**：返回值类型为 `long`，即消息的偏移量。
 
@@ -1471,15 +1456,15 @@ ConsumerRecord 提供的接口：
 
 TopicPartition 类提供了分区信息，包含消息主题和虚拟组 ID。
 
-- `public TopicPartition(String topic, int vGroupId)`
+- `TopicPartition(String topic, int vGroupId)`
   - **接口说明**：构造一个新的 TopicPartition 实例，用于表示一个特定的主题和虚拟组 ID。
   - **参数说明**：
     - `topic`：一个 `String` 类型的参数，表示消息的主题。
     - `vGroupId`：一个 `int` 类型的参数，表示虚拟组 ID。
-- `public String getTopic()`
+- `String getTopic()`
   - **接口说明**：获取此 TopicPartition 实例的主题。
   - **返回值**：返回值类型为 `String`，即此 TopicPartition 实例的主题。
-- `public int getVGroupId()`
+- `int getVGroupId()`
   - **接口说明**：获取此 TopicPartition 实例的虚拟组 ID。
   - **返回值**：返回值类型为 `int`，即此 TopicPartition 实例的虚拟组 ID。
 
@@ -1487,10 +1472,10 @@ TopicPartition 类提供了分区信息，包含消息主题和虚拟组 ID。
 
 OffsetAndMetadata 类提供了偏移量元数据信息。
 
-- `public long offset()`
+- `long offset()`
   - **接口说明**：获取此 OffsetAndMetadata 实例中的偏移量。
   - **返回值**：返回值类型为 `long`，即此 OffsetAndMetadata 实例中的偏移量。
-- `public String metadata()`
+- `String metadata()`
   - **接口说明**：获取此 OffsetAndMetadata 实例中的元数据。
   - **返回值**：返回值类型为 `String`，即此 OffsetAndMetadata 实例中的元数据。
 
