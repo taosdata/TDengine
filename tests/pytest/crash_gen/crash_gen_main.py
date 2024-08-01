@@ -2428,6 +2428,7 @@ class TdSuperTable:
         ''' Generate queries to test/exercise this super table '''
         ret = []  # type: List[SqlQuery]
 
+
         for rTbName in self.getRegTables(dbc):  # regular tables
 
             filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
@@ -2791,7 +2792,7 @@ class TaskAddData(StateTransitionTask):
             # nextInt = db.getNextInt()
             # nextTick = db.getNextTick()
             # nextColor = db.getNextColor()
-            sql += "({});".format(colStrs)
+            sql += "({})".format(colStrs)
 
         # Logging.info("Adding data in batch: {}".format(sql))
         try:
