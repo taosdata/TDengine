@@ -65,18 +65,18 @@ scan_result_base_path = f"{log_file_path}/clang_scan_result/"
 
 
 # the compile commands json file path
-compile_commands_path = f"{work_path}/debugNoSan/compile_commands.json"
-# compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
+# compile_commands_path = f"{work_path}/debugNoSan/compile_commands.json"
+compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
 print(f"compile_commands_path:{compile_commands_path}")
 
-# replace the docerk worf path with real work path in compile_commands.json
-docker_work_path = "home"
-replace_path= work_path[1:-1]
-replace_path = replace_path.replace("/", "\/")
-sed_command = f"sed -i 's/{docker_work_path}/{replace_path}/g' {compile_commands_path}"
-print(sed_command)
-result = subprocess.run(sed_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-logger.debug(f"STDOUT: {result.stdout} STDERR: {result.stderr}")
+# # replace the docerk worf path with real work path in compile_commands.json
+# docker_work_path = "home"
+# replace_path= work_path[1:-1]
+# replace_path = replace_path.replace("/", "\/")
+# sed_command = f"sed -i 's/{docker_work_path}/{replace_path}/g' {compile_commands_path}"
+# print(sed_command)
+# result = subprocess.run(sed_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+# logger.debug(f"STDOUT: {result.stdout} STDERR: {result.stderr}")
 
 # the ast parser rule for c file
 clang_scan_rules_path = f"{self_path}/filter_for_return_values"
