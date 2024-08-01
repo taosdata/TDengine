@@ -74,7 +74,7 @@ def check_docs() {
         env.FILE_CHANGED = file_changed
         script {
             sh '''
-                echo " ''' + env.FILE_CHANGED + '''"  > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
+                echo "''' + env.FILE_CHANGED + '''"  > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
             '''
         }
     }
@@ -431,7 +431,8 @@ pipeline {
                                         time ./container_build.sh -w ${WKDIR} -e
                                     '''
                                     sh '''
-                                    echo ${file_changed} > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
+                                    mkdir -p ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}
+                                    echo "''' + env.FILE_CHANGED + '''" > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
                                     sh '''
                                        cd ${WKC}/tests/ci
