@@ -27,49 +27,56 @@ for key, value in opts:
 self_path =  os.path.dirname(os.path.realpath(__file__))
 
 if ("community" in self_path):
-    source_path = self_path[:self_path.find("community")]
-    work_path = source_path[:source_path.find("TDinternal")]
+    TD_project_path = self_path[:self_path.find("community")]
+    work_path = TD_project_path[:TD_project_path.find("TDinternal")]
 
 else:
-    source_path = self_path[:self_path.find("tests")]
-    work_path = source_path[:source_path.find("TDengine")]
+    TD_project_path = self_path[:self_path.find("tests")]
+    work_path = TD_project_path[:TD_project_path.find("TDengine")]
 
 # Check if "community"  or "tests" is in self_path
 index_community = self_path.find("community")
 if index_community != -1:
-    source_path = self_path[:index_community]
-    index_TDinternal = source_path.find("TDinternal")
+    TD_project_path = self_path[:index_community]
+    index_TDinternal = TD_project_path.find("TDinternal")
     # Check if index_TDinternal is valid and set work_path accordingly
     if index_TDinternal != -1:
-        work_path = source_path[:index_TDinternal]
+        work_path = TD_project_path[:index_TDinternal]
 else:
     index_tests = self_path.find("tests")
     if index_tests != -1:
-        source_path = self_path[:index_tests]
+        TD_project_path = self_path[:index_tests]
     # Check if index_TDengine is valid and set work_path accordingly
-        index_TDengine = source_path.find("TDengine")
+        index_TDengine = TD_project_path.find("TDengine")
         if index_TDengine != -1:
-            work_path = source_path[:index_TDengine]
+            work_path = TD_project_path[:index_TDengine]
 
 
 # log file path
-log_file_path = f"{source_path}/../log/{branch_name}/"
+log_file_path = f"{work_path}/log/{branch_name}/"
 os.makedirs(log_file_path, exist_ok=True)
 
 scan_log_file = f"{log_file_path}/scan.log"
 logger.add(scan_log_file, rotation="10MB", retention="7 days", level="DEBUG")
-print(self_path,work_path,source_path,log_file_path)
+print(self_path,work_path,TD_project_path,log_file_path)
 
 # scan result base path
 scan_result_base_path = f"{log_file_path}/clang_scan_result/"
 
 
 # the compile commands json file path
-compile_commands_path = f"{source_path}/debugNoSan/compile_commands.json"
-sed_command = r"sed -i 's/home/var\\lib\\jenkins\\workspace/g' compile_commands.json"
+compile_commands_path = f"{work_path}/debugNoSan/compile_commands.json"
+# compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
+print(f"compile_commands_path:{compile_commands_path}")
+
+# replace the docerk worf path with real work path in compile_commands.json
+docker_work_path = "home"
+replace_path= work_path[1:-1]
+replace_path = replace_path.replace("/", "\/")
+sed_command = f"sed -i 's/{docker_work_path}/{replace_path}/g' {compile_commands_path}"
+print(sed_command)
 result = subprocess.run(sed_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 logger.debug(f"STDOUT: {result.stdout} STDERR: {result.stderr}")
-# compile_commands_path = f"{source_path}/debug/compile_commands.json"
 
 # the ast parser rule for c file
 clang_scan_rules_path = f"{self_path}/filter_for_return_values"
@@ -112,16 +119,16 @@ def scan_files_path(source_file_path):
 def input_files(change_files):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = [f"{source_path}/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl", "/test/", "contrib", "debug", "deps", f"{source_path}/TDinternal/community/source/libs/parser/src/sql.c", f"{source_path}/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
+    scan_skip_file_list = [f"{TD_project_path}/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl", "/test/", "contrib", "debug", "deps", f"{TD_project_path}/TDinternal/community/source/libs/parser/src/sql.c", f"{TD_project_path}/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
     with open(change_files, 'r') as file:
         for line in file:
             file_name = line.strip()
             if any(dir_name in file_name for dir_name in scan_dir_list):
                 if (file_name.endswith(".c") or file_name.endswith(".h") or line.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
                     if "enterprise" in file_name:
-                        file_name = os.path.join(source_path, file_name)
+                        file_name = os.path.join(TD_project_path, file_name)
                     else: 
-                        tdc_file_path = os.path.join(source_path, "community/")
+                        tdc_file_path = os.path.join(TD_project_path, "community/")
                         file_name = os.path.join(tdc_file_path, file_name)                    
                     all_file_path.append(file_name)
                     print(f"all_file_path:{all_file_path}")
@@ -156,7 +163,7 @@ def write_csv(file_path, data):
 if __name__ == "__main__":
     command_executor = CommandExecutor()
     # get all the c files path
-    # scan_files_path(source_path)
+    # scan_files_path(TD_project_path)
     input_files(change_file_list)
     print(f"all_file_path:{all_file_path}")
     res = []
