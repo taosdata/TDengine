@@ -62,6 +62,7 @@ def check_docs() {
             script: '''
                 cd ${WKC}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/" || :
+                mkdir -p ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}
             ''',
             returnStdout: true
         ).trim()
@@ -70,7 +71,6 @@ def check_docs() {
             docs_only=1
         } else {
             echo file_changed 
-            mkdir -p ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}
             echo file_changed > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
         }
     }
