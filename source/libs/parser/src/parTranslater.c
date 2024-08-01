@@ -1893,7 +1893,8 @@ static int32_t calcSelectFuncNum(SFunctionNode* pFunc, int32_t currSelectFuncNum
                                   : 1);
 }
 
-static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
+static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  SNode* pCurrStmt = pCxt->pCurrStmt;
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
@@ -1922,7 +1923,9 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
     pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
     pSelect->hasUdaf = pSelect->hasUdaf ? true : fmIsUserDefinedFunc(pFunc->funcId) && fmIsAggFunc(pFunc->funcId);
-    pSelect->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc ? fmIsKeepOrderFunc(pFunc->funcId) : false;
+    if (SQL_CLAUSE_SELECT == pCxt->currClause) {
+      pSelect->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc ? fmIsKeepOrderFunc(pFunc->funcId) : false;
+    }
   }
 }
 
@@ -2061,7 +2064,7 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SFunctionNode* p
     code = translateBlockDistFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    setFuncClassification(pCxt->pCurrStmt, pFunc);
+    setFuncClassification(pCxt, pFunc);
   }
   return code;
 }
