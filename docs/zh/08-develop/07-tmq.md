@@ -78,7 +78,8 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </Tabs>
 
 ### Websocket 连接 
-介绍各语言连接器使用 Websocket 连接方式创建消费者。
+介绍各语言连接器使用 Websocket 连接方式创建消费者。指定连接的服务器地址，设置自动提交，从最新消息开始消费，指定 `group.id` 和 `client.id` 等信息。有的语言的连接器还支持反序列化参数。
+
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
@@ -126,7 +127,8 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 
 
 ### 原生连接 
-介绍各语言连接器使用原生连接方式创建消费者。
+介绍各语言连接器使用原生连接方式创建消费者。指定连接的服务器地址，设置自动提交，从最新消息开始消费，指定 `group.id` 和 `client.id` 等信息。有的语言的连接器还支持反序列化参数。
+
 
 <Tabs groupId="lang">
 <TabItem value="java" label="Java">

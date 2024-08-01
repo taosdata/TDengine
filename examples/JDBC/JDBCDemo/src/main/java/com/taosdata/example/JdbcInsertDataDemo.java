@@ -15,7 +15,7 @@ public class JdbcInsertDataDemo {
 
     public static void main(String[] args) throws SQLException {
 
-final String url = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
+final String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
 
 // get connection
 Properties properties = new Properties();
@@ -24,7 +24,7 @@ properties.setProperty("locale", "en_US.UTF-8");
 properties.setProperty("timezone", "UTC-8");
 System.out.println("get connection starting...");
 // ANCHOR: insert_data
-try (Connection connection = DriverManager.getConnection(url, properties);
+try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
      Statement stmt = connection.createStatement()) {
 
     // insert data, please make sure the database and table are created before
@@ -39,11 +39,11 @@ try (Connection connection = DriverManager.getConnection(url, properties);
             "(NOW + 1a, 10.30000, 218, 0.25000) ";
     int affectedRows = stmt.executeUpdate(insertQuery);
     // you can check affectedRows here
-    System.out.println("insert " + affectedRows + " rows.");
+    System.out.println("inserted into " + affectedRows + " rows to power.meters successfully.");
 } catch (SQLException ex) {
     // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Error Code: " + ex.getErrorCode());
-    System.out.println("Message: " + ex.getMessage());
+    System.out.println("Failed to insert data to power.meters, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+
 }
 // ANCHOR_END: insert_data
     }

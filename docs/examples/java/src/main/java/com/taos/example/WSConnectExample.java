@@ -21,15 +21,13 @@ public static void main(String[] args) throws SQLException {
     connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
 
     try (Connection conn = DriverManager.getConnection(jdbcUrl, connProps)){
-        System.out.println("Connected");
+        System.out.println("Connected to " + jdbcUrl + " successfully.");
 
         // you can use the connection for execute SQL here
 
     } catch (SQLException ex) {
         // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-        System.out.println("SQLState: " + ex.getSQLState());
-        System.out.println("Error Code: " + ex.getErrorCode());
-        System.out.println("Message: " + ex.getMessage());
+        System.out.println("Failed to connect to " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
     }
 }
 // ANCHOR_END: main
