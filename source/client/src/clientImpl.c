@@ -2629,24 +2629,3 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
     pRequest->body.fetchFp(param, pRequest, code);    
   }
 }
-
-void doRequestCallback(SRequestObj* pRequest, int32_t code) {
-  pRequest->inCallback = true;
-  int64_t this = pRequest->self;
-  pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
-  SRequestObj* pReq = acquireRequest(this);
-  if (pReq != NULL) {
-    pReq->inCallback = false;
-    (void)releaseRequest(this);
-  }
-}
-
-int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,
-                       SParseSqlRes* pRes) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_SUCCESS;
-#else
-  return clientParseSqlImpl(param, dbName, sql, parseOnly, effectiveUser, pRes);
-#endif
->>>>>>> 8e23cbfa2e... fix: fetch row failed issue
-}
