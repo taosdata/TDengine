@@ -277,6 +277,9 @@ namespace TDPIConnector.Core
                     // 处理其它事件, 理论不应该走到这里，如果走到这里，需要检查代码逻辑
                     log.Warn($"DataPipeEvent-{action}:ignored");
                 }
+                catch (InvalidOperationException oe) { 
+                    log.Warn($"Process DataPipeEvent Warn: {oe.Message}");
+                }
                 catch (Exception e)
                 {
                     log.Error("Process DataPipeEvent Error", e);

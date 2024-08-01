@@ -63,7 +63,7 @@ namespace TDPIConnector.Core
 
         internal void OnChanged(object sender, AFChangedEventArgs e)
         {
-            log.Info($"AFChangedEvent:{e.ID},Identity={e.Identity},Action={e.Action}");
+            log.Info($"AFChangedEvent:{e.Action}:{e.ID},Identity={e.Identity}");
             // e.Identity 表示事件的对象的类型
             if (e.Identity == AFIdentity.ElementTemplate)
             {
@@ -78,53 +78,55 @@ namespace TDPIConnector.Core
                 //    elementTemplateEventHandle(template);
                 //}
             }
-            else if (e.Identity == AFIdentity.Element || e.Identity == AFIdentity.Analysis)
+            else if (e.Identity == AFIdentity.Element)
             {
                 // 模板元素变化事件
                 AFElementWrapper element = piSystemManager.GetElementsById(e.ID);
                 if (element == null)
                 {
-                    log.Info($"AFChangedEvent:{e.ID},Element not actually exists.Ignored");
+                    log.Info($"AFChangedEvent:{e.Action}:{e.ID},Element not actually exists.Ignored");
                     return;
                 }
                 if (e.Action == AFChangeAction.SubObjectAdd)
                 {
                     if (!SyncAddElement)
                     {
-                        log.Info($"AFChangedEvent:{e.ID},Ignore add new element {element.Name}");
+                        log.Info($"AFChangedEvent:{e.Action}:{e.ID},{element.Name}.Ignored");
                         return;
                     }
-                    // 添加新元素
-                    initializer.AddNewElementToTaskAsync(element).Wait();
-                    log.Info($"AFChangedEvent:{e.ID},Add new element {element.Name}");
+                    // 添加新元素, 此时还没有 CheckIn
+                    initializer.AddOrRefreshElementToTaskAsync(element).Wait();
+                    log.Info($"AFChangedEvent:{e.Action}:{e.ID},{element.Name}.Done");
                     return;
                 }
                 else if (e.Action == AFChangeAction.SubObjectRefresh)
                 {
-                    // 刷新元素
-                    log.Info($"AFChangedEvent:{e.ID}.Refresh element {element.Name}.Ignored");
+                    // 刷新元素, 很多情况都会触发
+                    initializer.AddOrRefreshElementToTaskAsync(element).Wait();
+                    log.Info($"AFChangedEvent:{e.Action}:{e.ID}.{element.Name}.Done");
                     return;
                 }
                 else if (e.Action == AFChangeAction.SubObjectChange)
                 {
-                    // 修改元素
-                    log.Info($"AFChangedEvent:{e.ID}.Change element {element.Name}.Ignored");
+                    // 修改元素, CheckIn 会触发此事件
+                    initializer.AddOrRefreshElementToTaskAsync(element).Wait();
+                    log.Info($"AFChangedEvent:{e.Action}:{e.ID}.{element.Name}.Done");
                     return;
                 }
                 else if (e.Action == AFChangeAction.SubObjectRemove)
                 {
                     if (!SyncDeleteElement)
                     {
-                        log.Info($"AFChangedEvent:{e.ID},Ignore delete element {element.Name}");
+                        log.Info($"AFChangedEvent:{e.Action}:{e.ID},{element.Name}.Ignored");
                         return;
                     }
                     // 删除元素
                     tdEngineProxy.DropElement(e.ID.ToString());
-                    log.Info($"AFChangedEvent:{e.ID}.Delete element done");
+                    log.Info($"AFChangedEvent:{e.Action}:{e.ID},{element.Name}.Done");
                     return;
                 }
             }
-            log.Info($"AFChangedEvent:{e.ID},Identity={e.Identity},Action={e.Action}.Ingored");
+            log.Info($"AFChangedEvent:{e.Action}:{e.ID},Identity={e.Identity}.Ingored");
         }
 
         internal void OnTemplateElapsed(object sender, System.Timers.ElapsedEventArgs e)
