@@ -1,6 +1,6 @@
+// ANCHOR: createConnect
 const taos = require("@tdengine/websocket");
 
-// ANCHOR: createConnect
 async function createConnect() {
     let dsn = 'ws://localhost:6041';
     let conf = new taos.WSConfig(dsn);
