@@ -16,11 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 #include "mndPrivilege.h"
-#include "systable.h"
 #include "mndUser.h"
+#include "systable.h"
 
-#define SHOW_STEP_SIZE 100
-#define SHOW_COLS_STEP_SIZE 4096
+#define SHOW_STEP_SIZE            100
+#define SHOW_COLS_STEP_SIZE       4096
 #define SHOW_PRIVILEGES_STEP_SIZE 2048
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
@@ -60,10 +60,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_DNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_MNODE;
-/*
-  } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
-    type = TSDB_MGMT_TABLE_MODULE;
-*/
+    /*
+      } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
+        type = TSDB_MGMT_TABLE_MODULE;
+    */
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_QNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
@@ -138,6 +138,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ENCRYPTIONS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TSMAS, len) == 0) {
     type = TSDB_MGMT_TABLE_TSMAS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USAGE, len) == 0) {
+    type = TSDB_MGMT_TABLE_USAGE;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -255,7 +257,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  if(pShow->type == TSDB_MGMT_TABLE_COL){   // expend capacity for ins_columns
+  if (pShow->type == TSDB_MGMT_TABLE_COL) {  // expend capacity for ins_columns
     rowsToRead = SHOW_COLS_STEP_SIZE;
   } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES) {
     rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
@@ -280,7 +282,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
   if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
-    if(strcmp(pReq->info.conn.user, "root") != 0){
+    if (strcmp(pReq->info.conn.user, "root") != 0) {
       mError("The operation is not permitted, user:%s, pShow->type:%d", pReq->info.conn.user, pShow->type);
       code = TSDB_CODE_MND_NO_RIGHTS;
       TAOS_RETURN(code);
