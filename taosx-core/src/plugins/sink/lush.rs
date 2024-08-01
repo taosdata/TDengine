@@ -1091,6 +1091,7 @@ pub fn get_table_name_from_table_id(
     }
     let table_name = table_name.unwrap();
     let table_name = table_name.value(0);
+    let table_name = parser.global().canonical_table_name(table_name);
     Some(table_name.to_string())
 }
 
