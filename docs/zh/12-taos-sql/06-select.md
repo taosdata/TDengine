@@ -65,10 +65,16 @@ interp_clause:
     RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
-    PARTITION BY expr [, expr] ...
+    PARTITION BY partition_by_expr [, partition_by_expr] ...
+
+partition_by_expr:
+    {expr | position | c_alias}
 
 group_by_clause:
-    GROUP BY expr [, expr] ... HAVING condition
+    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
+                                                    
+group_by_expr:
+    {expr | position | c_alias}
 
 order_by_clasue:
     ORDER BY order_expr [, order_expr] ...
@@ -274,7 +280,13 @@ TDengine 支持基于时间戳主键的 INNER JOIN，规则如下：
 
 GROUP BY 子句对每行数据按 GROUP BY 后的表达式的值进行分组，并为每个组返回一行汇总信息。
 
-GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些列不需要出现在 SELECT 列表中。
+GROUP BY 子句中可以通过指定表或视图的列名来按照表或视图中的任何列分组，这些列不需要出现在 SELECT 列表中。
+
+GROUP BY 子句中可以使用位置语法，位置标识为正整数，从 1 开始，表示使用 SELECT 列表的第几个表达式进行分组。
+
+GROUP BY 子句中可以使用结果集列名，表示使用 SELECT 列表的指定表达式进行分组。
+
+GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其对应的 SELECT 列表中的表达式不能是聚集函数。
 
 该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
 

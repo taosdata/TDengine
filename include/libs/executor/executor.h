@@ -201,7 +201,7 @@ void qStreamSetOpen(qTaskInfo_t tinfo);
 
 void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
 
-void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
+int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
@@ -211,7 +211,7 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
 void* qExtractReaderFromStreamScanner(void* scanner);
 
-int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+void qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);

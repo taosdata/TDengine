@@ -98,7 +98,7 @@ int32_t vHashPut(SVHashTable* ht, void* obj) {
   }
 
   if (ht->numEntries >= ht->numBuckets) {
-    vHashRehash(ht, ht->numBuckets * 2);
+    (void)vHashRehash(ht, ht->numBuckets * 2);
     bucketIndex = ht->hash(obj) % ht->numBuckets;
   }
 
@@ -144,7 +144,7 @@ int32_t vHashDrop(SVHashTable* ht, const void* obj) {
       taosMemoryFree(tmp);
       ht->numEntries--;
       if (ht->numBuckets > VNODE_HASH_DEFAULT_NUM_BUCKETS && ht->numEntries < ht->numBuckets / 4) {
-        vHashRehash(ht, ht->numBuckets / 2);
+        (void)vHashRehash(ht, ht->numBuckets / 2);
       }
       return 0;
     }

@@ -22,7 +22,8 @@ sql create table t2 using st tags(2,2,2);
 sql create stable result.streamt0(ts timestamp,a int,b int) tags(ta int,tb varchar(100),tc int);
 
 sql create stream streams0 trigger at_once  into result.streamt0 tags(tb) as select  _wstart, count(*) c1, max(a) c2 from st partition by tbname tb interval(10s);
-sleep 500
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,2,3);
 sql insert into t2 values(1648791213000,2,2,3);
@@ -108,7 +109,8 @@ sql create table t2 using st tags(2,2,2);
 sql create stable result1.streamt1(ts timestamp,a int,b int,c int) tags(ta varchar(100),tb int,tc int);
 
 sql create stream streams1 trigger at_once  into result1.streamt1(ts,c,a,b) tags(ta) as select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by tbname as ta interval(10s);
-sleep 500
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,10,20,30);
 sql insert into t2 values(1648791213000,40,50,60);
@@ -198,7 +200,8 @@ sql_error create stream streams2 trigger at_once  into result2.streamt2 as selec
 
 # column dest 3, source 2
 sql create stream streams2 trigger at_once  into result2.streamt2(ts, a) tags(ta) as select  _wstart, count(*) c1 from st partition by tbname as ta interval(10s);
-sleep 500
+
+run tsim/stream/checkTaskStatus.sim
 
 print ===== step5
 
@@ -215,7 +218,8 @@ sql create table t2 using st tags(4,5,6);
 sql create stable result3.streamt3(ts timestamp,a int,b int,c int, d int) tags(ta int,tb int,tc int);
 
 sql create stream streams3 trigger at_once  into result3.streamt3(ts,c,a,b) as select  _wstart, count(*) c1, max(a),min(b) c2 from st interval(10s);
-sleep 500
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,10,20,30);
 sql insert into t2 values(1648791213000,40,50,60);
@@ -295,7 +299,8 @@ sql create table t2 using st tags(4,5,6);
 sql create stable result4.streamt4(ts timestamp,a int,b int,c int, d int) tags(tg1 int,tg2 int,tg3 int);
 
 sql create stream streams4 trigger at_once  into result4.streamt4(ts,c,a,b) tags(tg2, tg3, tg1) subtable( concat("tbl-", cast(tg1 as varchar(10)) ) )  as select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by ta+1 as tg1, cast(tb as bigint) as tg2, tc as tg3 interval(10s);
-sleep 500
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,10,20,30);
 sql insert into t2 values(1648791213000,40,50,60);
@@ -380,7 +385,8 @@ sql create table t2 using st tags(4,5,6);
 sql create stable result5.streamt5(ts timestamp,a int,b int,c int, d int) tags(tg1 int,tg2 int,tg3 int);
 
 sql create stream streams5 trigger at_once  into result5.streamt5(ts,c,a,b) tags(tg2, tg3, tg1) subtable( concat("tbl-", cast(tg3 as varchar(10)) ) )  as select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by ta+1 as tg1, cast(tb as bigint) as tg2, a as tg3 session(ts, 10s);
-sleep 500
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL);
 
@@ -465,7 +471,8 @@ sql create stream streams8 trigger at_once  into streamt8 as select  _wstart as 
 
 sql drop stream streams8;
 sql create stream streams71 trigger at_once  into streamt8(ts, c2) tags(group_id)as select _wstart, count(*) from t1 partition by tbname as group_id interval(10s);
-sleep 500
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791233000,1,2,3,1.0);
 

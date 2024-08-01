@@ -86,7 +86,7 @@ static char* readFile(TdFilePtr pFile, int64_t *offset, int64_t size){
     return NULL;
   }
   char*  buf = pCont;
-  strcat(buf++, "[");
+  (void)strcat(buf++, "[");
   int64_t readSize = taosReadFile(pFile, buf, SLOW_LOG_SEND_SIZE_MAX);
   if (readSize <= 0) {
     if (readSize < 0){
@@ -153,7 +153,7 @@ TEST(clientMonitorTest, ReadOneFile) {
   const int size = 10;
   for(int i = 0; i < batch; i++){
     char value[size] = {0};
-    memset(value, '0' + i, size - 1);
+    (void)memset(value, '0' + i, size - 1);
     if (taosWriteFile(pFile, value, strlen(value) + 1) < 0){
       uError("failed to write len to file:%p since %s", pFile, terrstr());
     }

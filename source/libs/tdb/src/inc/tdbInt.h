@@ -17,6 +17,7 @@
 #define _TD_TDB_INTERNAL_H_
 
 #include "tdb.h"
+#include "tutil.h"
 
 #include "tdef.h"
 #include "tlog.h"
@@ -338,15 +339,15 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
   ((*(pPage)->xCellSize)(pPage, pCell, 0, NULL, NULL) + (pPage)->pPageMethods->szOffset)
 #define TDB_PAGE_OFFSET_SIZE(pPage) ((pPage)->pPageMethods->szOffset)
 
-int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
-int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
-void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
-int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
-int  tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
-int  tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
-void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int copyOvflCells);
-int  tdbPageCapacity(int pageSize, int amHdrSize);
+int     tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
+int     tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
+void    tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
+void    tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
+int     tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
+int     tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
+int     tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
+int32_t tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl);
+int     tdbPageCapacity(int pageSize, int amHdrSize);
 
 static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   SCell *pCell;

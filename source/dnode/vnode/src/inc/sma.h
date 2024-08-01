@@ -194,7 +194,7 @@ typedef enum {
 
 #define TD_SMA_LOOPS_CHECK(n, limit) \
   if (++(n) > limit) {               \
-    sched_yield();                   \
+    (void)sched_yield();             \
     (n) = 0;                         \
   }
 

@@ -169,7 +169,8 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
     return;
   }
 
-  SSchJob *pJob = schAcquireJob(*jobId);
+  SSchJob *pJob = NULL;
+  (void)schAcquireJob(*jobId, &pJob);
   if (NULL == pJob) {
     qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
@@ -213,7 +214,6 @@ void schedulerDestroy(void) {
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
 
-  taosTmrCleanUp(schMgmt.timer);
   qWorkerDestroy(&schMgmt.queryMgmt);
   schMgmt.queryMgmt = NULL;
 }

@@ -27,6 +27,15 @@
 extern "C" {
 #endif
 
+// clang-format off
+#define wFatal(...) { if (wDebugFlag & DEBUG_FATAL) { taosPrintLog("WAL FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
+#define wError(...) { if (wDebugFlag & DEBUG_ERROR) { taosPrintLog("WAL ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
+#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN ",  DEBUG_WARN, 255,         __VA_ARGS__); }}
+#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL ",       DEBUG_INFO, 255,         __VA_ARGS__); }}
+#define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL ",       DEBUG_DEBUG, wDebugFlag, __VA_ARGS__); }}
+#define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ",       DEBUG_TRACE, wDebugFlag, __VA_ARGS__); }}
+// clang-format on
+
 // meta section begin
 typedef struct {
   int64_t firstVer;
@@ -105,11 +114,11 @@ static inline SWalFileInfo* walGetCurFileInfo(SWal* pWal) {
 }
 
 static inline void walBuildLogName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  sprintf(buf, "%s/%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, fileFirstVer);
+  TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, fileFirstVer));
 }
 
 static inline void walBuildIdxName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  sprintf(buf, "%s/%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer);
+  TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer));
 }
 
 static inline int walValidHeadCksum(SWalCkHead* pHead) {
@@ -144,27 +153,22 @@ static inline void walResetVer(SWalVer* pVer) {
   pVer->lastVer = -1;
 }
 
-int walLoadMeta(SWal* pWal);
-int walSaveMeta(SWal* pWal);
-int walRemoveMeta(SWal* pWal);
-int walRollFileInfo(SWal* pWal);
+int32_t walLoadMeta(SWal* pWal);
+int32_t walSaveMeta(SWal* pWal);
+int32_t walRemoveMeta(SWal* pWal);
+int32_t walRollFileInfo(SWal* pWal);
 
-int walCheckAndRepairMeta(SWal* pWal);
+int32_t walCheckAndRepairMeta(SWal* pWal);
 
-int walCheckAndRepairIdx(SWal* pWal);
+int32_t walCheckAndRepairIdx(SWal* pWal);
 
-char* walMetaSerialize(SWal* pWal);
-int   walMetaDeserialize(SWal* pWal, const char* bytes);
+int32_t walMetaSerialize(SWal* pWal, char** serialized);
+int32_t walMetaDeserialize(SWal* pWal, const char* bytes);
 // meta section end
 
-// seek section
-int64_t walChangeWrite(SWal* pWal, int64_t ver);
-int     walInitWriteFile(SWal* pWal);
-// seek section end
+int32_t decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func);
 
 int64_t walGetSeq();
-int     walSeekWriteVer(SWal* pWal, int64_t ver);
-int32_t walRollImpl(SWal* pWal);
 
 #ifdef __cplusplus
 }

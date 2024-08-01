@@ -14,26 +14,28 @@
  */
 
 #include "tqueue.h"
+
 #include "executor.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
 
-SQnode *qndOpen(const SQnodeOpt *pOption) {
-  SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
-  if (NULL == pQnode) {
+int32_t qndOpen(const SQnodeOpt *pOption, SQnode **pQnode) {
+  *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
+  if (NULL == *pQnode) {
     qError("calloc SQnode failed");
-    return NULL;
+    return terrno;
   }
-  pQnode->qndId = QNODE_HANDLE;
+  (*pQnode)->qndId = QNODE_HANDLE;
 
-  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, (void **)&pQnode->pQuery, &pOption->msgCb)) {
+  int32_t code = qWorkerInit(NODE_TYPE_QNODE, (*pQnode)->qndId, (void **)&(*pQnode)->pQuery, &pOption->msgCb);
+  if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFreeClear(pQnode);
-    return NULL;
+    return code;
   }
 
-  pQnode->msgCb = pOption->msgCb;
-  return pQnode;
+  (*pQnode)->msgCb = pOption->msgCb;
+  return TSDB_CODE_SUCCESS;
 }
 
 void qndClose(SQnode *pQnode) {
@@ -74,9 +76,9 @@ int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg, false);
 }
 
-int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo* pInfo, SRpcMsg *pMsg) {
+int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t     code = -1;
-  int64_t ts = pInfo->timestamp;
+  int64_t     ts = pInfo->timestamp;
   SReadHandle handle = {.pMsgCb = &pQnode->msgCb, .pWorkerCb = pInfo->workerCb};
   qTrace("message in qnode queue is processing");
 
@@ -112,6 +114,9 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo* pInfo, SRpcMsg *pMsg) {
       terrno = TSDB_CODE_APP_ERROR;
   }
 
-  if (code == 0) return TSDB_CODE_ACTION_IN_PROGRESS;
-  return code;
+  if (code == 0) {
+    return TSDB_CODE_ACTION_IN_PROGRESS;
+  } else {
+    return code;
+  }
 }

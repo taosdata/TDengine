@@ -123,8 +123,8 @@ class TDTestCase:
                 {
                     "name": "checkpointInterval",
                     "alias": "tsStreamCheckpointInterval",
-                    "values": [60, 1000, 1200],
-                    "except_values": [59, 1201]
+                    "values": [60, 1000, 1800],
+                    "except_values": [59, 1801]
                 },
                 {
                     "name": "trimVDbIntervalSec",

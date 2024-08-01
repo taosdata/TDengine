@@ -32,9 +32,12 @@
  */
 static int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val);
 
-SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
+int32_t tHistogramCreate(int32_t numOfEntries, SHistogramInfo** pHisto) {
   /* need one redundant slot */
-  SHistogramInfo* pHisto = taosMemoryMalloc(sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfEntries + 1));
+  *pHisto = taosMemoryMalloc(sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfEntries + 1));
+  if (NULL == *pHisto) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
 #if !defined(USE_ARRAYLIST)
   pHisto->pList = SSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
@@ -46,11 +49,12 @@ SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
   pss->pTree = pHisto->pLoserTree;
 #endif
 
-  return tHistogramCreateFrom(pHisto, numOfEntries);
+  *pHisto = tHistogramCreateFrom(*pHisto, numOfEntries);
+  return TSDB_CODE_SUCCESS;
 }
 
 SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins) {
-  memset(pBuf, 0, sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfBins + 1));
+  (void)memset(pBuf, 0, sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfBins + 1));
 
   SHistogramInfo* pHisto = (SHistogramInfo*)pBuf;
   pHisto->elems = (SHistBin*)((char*)pBuf + sizeof(SHistogramInfo));
@@ -67,15 +71,19 @@ SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins) {
 }
 
 int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (*pHisto == NULL) {
-    *pHisto = tHistogramCreate(MAX_HISTOGRAM_BIN);
+    code = tHistogramCreate(MAX_HISTOGRAM_BIN, pHisto);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
 #if defined(USE_ARRAYLIST)
   int32_t idx = histoBinarySearch((*pHisto)->elems, (*pHisto)->numOfEntries, val);
   if (ASSERTS(idx >= 0 && idx <= (*pHisto)->maxEntries && (*pHisto)->elems != NULL, "tHistogramAdd Error, idx:%d, maxEntries:%d, elems:%p",
               idx, (*pHisto)->maxEntries, (*pHisto)->elems)) {
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
   if ((*pHisto)->elems[idx].val == val && idx >= 0) {
@@ -89,23 +97,23 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       if (idx > 0) {
         if (ASSERTS((*pHisto)->elems[idx - 1].val <= val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
                     idx - 1, (*pHisto)->elems[idx - 1].val, val)) {
-          return -1;
+          return TSDB_CODE_FAILED;
         }
       } else {
         if (ASSERTS((*pHisto)->elems[idx].val > val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
                     idx, (*pHisto)->elems[idx].val, val)) {
-          return -1;
+          return TSDB_CODE_FAILED;
         }
       }
     } else if ((*pHisto)->numOfElems > 0) {
       if (ASSERTS((*pHisto)->elems[(*pHisto)->numOfEntries].val <= val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
                   (*pHisto)->numOfEntries, (*pHisto)->elems[idx].val, val)) {
-        return -1;
+        return TSDB_CODE_FAILED;
       }
     }
 
-    int32_t code = histogramCreateBin(*pHisto, idx, val);
-    if (code != 0) {
+    code = histogramCreateBin(*pHisto, idx, val);
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
   }
@@ -286,7 +294,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   }
 
   (*pHisto)->numOfElems += 1;
-  return 0;
+  return code;
 }
 
 int32_t histoBinarySearch(SHistBin* pEntry, int32_t len, double val) {
@@ -335,7 +343,7 @@ static void histogramMergeImpl(SHistBin* pHistBin, int32_t* size) {
   s1->val = newVal;
   s1->num = s1->num + s2->num;
 
-  memmove(&pHistBin[index + 1], &pHistBin[index + 2], (oldSize - index - 2) * sizeof(SHistBin));
+  (void)memmove(&pHistBin[index + 1], &pHistBin[index + 2], (oldSize - index - 2) * sizeof(SHistBin));
   (*size) -= 1;
 #endif
 }
@@ -345,12 +353,12 @@ int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val) {
 #if defined(USE_ARRAYLIST)
   int32_t remain = pHisto->numOfEntries - index;
   if (remain > 0) {
-    memmove(&pHisto->elems[index + 1], &pHisto->elems[index], sizeof(SHistBin) * remain);
+    (void)memmove(&pHisto->elems[index + 1], &pHisto->elems[index], sizeof(SHistBin) * remain);
   }
 
   if (ASSERTS(index >= 0 && index <= pHisto->maxEntries, "histogramCreateBin Error, index:%d, maxEntries:%d",
               index, pHisto->maxEntries)) {
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
   pHisto->elems[index].num = 1;
@@ -367,10 +375,10 @@ int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val) {
 #endif
   if (ASSERTS(pHisto->numOfEntries <= pHisto->maxEntries, "histogramCreateBin Error, numOfEntries:%d, maxEntries:%d",
               pHisto->numOfEntries, pHisto->maxEntries)) {
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 void tHistogramDestroy(SHistogramInfo** pHisto) {
@@ -383,17 +391,17 @@ void tHistogramDestroy(SHistogramInfo** pHisto) {
 }
 
 void tHistogramPrint(SHistogramInfo* pHisto) {
-  printf("total entries: %d, elements: %" PRId64 "\n", pHisto->numOfEntries, pHisto->numOfElems);
+  (void)printf("total entries: %d, elements: %" PRId64 "\n", pHisto->numOfEntries, pHisto->numOfElems);
 #if defined(USE_ARRAYLIST)
   for (int32_t i = 0; i < pHisto->numOfEntries; ++i) {
-    printf("%d: (%f, %" PRId64 ")\n", i + 1, pHisto->elems[i].val, pHisto->elems[i].num);
+    (void)printf("%d: (%f, %" PRId64 ")\n", i + 1, pHisto->elems[i].val, pHisto->elems[i].num);
   }
 #else
   tSkipListNode* pNode = pHisto->pList->pHead.pForward[0];
 
   for (int32_t i = 0; i < pHisto->numOfEntries; ++i) {
     SHistBin* pEntry = (SHistBin*)pNode->pData;
-    printf("%d: (%f, %" PRId64 ")\n", i + 1, pEntry->val, pEntry->num);
+    (void)printf("%d: (%f, %" PRId64 ")\n", i + 1, pEntry->val, pEntry->num);
     pNode = pNode->pForward[0];
   }
 #endif
@@ -443,21 +451,24 @@ int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
 #endif
 }
 
-double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
+int32_t tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num, double** pVal) {
 #if defined(USE_ARRAYLIST)
-  double* pVal = taosMemoryMalloc(num * sizeof(double));
+  *pVal = taosMemoryMalloc(num * sizeof(double));
+  if (NULL == *pVal) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   for (int32_t i = 0; i < num; ++i) {
     double numOfElem = (ratio[i] / 100) * pHisto->numOfElems;
 
     if (numOfElem == 0) {
-      pVal[i] = pHisto->min;
+      (*pVal)[i] = pHisto->min;
       continue;
     } else if (numOfElem <= pHisto->elems[0].num) {
-      pVal[i] = pHisto->elems[0].val;
+      (*pVal)[i] = pHisto->elems[0].val;
       continue;
     } else if (numOfElem == pHisto->numOfElems) {
-      pVal[i] = pHisto->max;
+      (*pVal)[i] = pHisto->max;
       continue;
     }
 
@@ -479,37 +490,39 @@ double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
 
     double delta = numOfElem - total;
     if (fabs(delta) < FLT_EPSILON) {
-      pVal[i] = pHisto->elems[j].val;
+      (*pVal)[i] = pHisto->elems[j].val;
     }
 
     double start = (double)pHisto->elems[j].num;
     double range = pHisto->elems[j + 1].num - start;
 
     if (range == 0) {
-      pVal[i] = (pHisto->elems[j + 1].val - pHisto->elems[j].val) * delta / start + pHisto->elems[j].val;
+      (*pVal)[i] = (pHisto->elems[j + 1].val - pHisto->elems[j].val) * delta / start + pHisto->elems[j].val;
     } else {
       double factor = (-2 * start + sqrt(4 * start * start - 4 * range * (-2 * delta))) / (2 * range);
-      pVal[i] = pHisto->elems[j].val + (pHisto->elems[j + 1].val - pHisto->elems[j].val) * factor;
+      (*pVal)[i] = pHisto->elems[j].val + (pHisto->elems[j + 1].val - pHisto->elems[j].val) * factor;
     }
   }
 #else
   double* pVal = taosMemoryMalloc(num * sizeof(double));
-
+  if (NULL == *pVal) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   for (int32_t i = 0; i < num; ++i) {
     double numOfElem = ratio[i] * pHisto->numOfElems;
 
     tSkipListNode* pFirst = pHisto->pList->pHead.pForward[0];
     SHistBin*      pEntry = (SHistBin*)pFirst->pData;
     if (numOfElem == 0) {
-      pVal[i] = pHisto->min;
+      (*pVal)[i] = pHisto->min;
       printf("i/numofSlot: %f, v:%f, %f\n", ratio[i], numOfElem, pVal[i]);
       continue;
     } else if (numOfElem <= pEntry->num) {
-      pVal[i] = pEntry->val;
+      (*pVal)[i] = pEntry->val;
       printf("i/numofSlot: %f, v:%f, %f\n", ratio[i], numOfElem, pVal[i]);
       continue;
     } else if (numOfElem == pHisto->numOfElems) {
-      pVal[i] = pHisto->max;
+      (*pVal)[i] = pHisto->max;
       printf("i/numofSlot: %f, v:%f, %f\n", ratio[i], numOfElem, pVal[i]);
       continue;
     }
@@ -540,34 +553,40 @@ double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
     if (fabs(delta) < FLT_EPSILON) {
       //                printf("i/numofSlot: %f, v:%f, %f\n",
       //                (double)i/numOfSlots, numOfElem, pHisto->elems[j].val);
-      pVal[i] = pPrev->val;
+      (*pVal)[i] = pPrev->val;
     }
 
     double start = pPrev->num;
     double range = pEntry->num - start;
 
     if (range == 0) {
-      pVal[i] = (pEntry->val - pPrev->val) * delta / start + pPrev->val;
+      (*pVal)[i] = (pEntry->val - pPrev->val) * delta / start + pPrev->val;
     } else {
       double factor = (-2 * start + sqrt(4 * start * start - 4 * range * (-2 * delta))) / (2 * range);
-      pVal[i] = pPrev->val + (pEntry->val - pPrev->val) * factor;
+      (*pVal)[i] = pPrev->val + (pEntry->val - pPrev->val) * factor;
     }
     //            printf("i/numofSlot: %f, v:%f, %f\n", (double)i/numOfSlots,
     //            numOfElem, val);
   }
 #endif
-  return pVal;
+  return TSDB_CODE_SUCCESS;
 }
 
-SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2, int32_t numOfEntries) {
-  SHistogramInfo* pResHistogram = tHistogramCreate(numOfEntries);
+int32_t tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2, int32_t numOfEntries, SHistogramInfo** pResHistogram) {
+  int32_t code = tHistogramCreate(numOfEntries, pResHistogram);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   // error in histogram info
   if (pHisto1->numOfEntries > MAX_HISTOGRAM_BIN || pHisto2->numOfEntries > MAX_HISTOGRAM_BIN) {
-    return pResHistogram;
+    return code;
   }
 
   SHistBin* pHistoBins = taosMemoryCalloc(1, sizeof(SHistBin) * (pHisto1->numOfEntries + pHisto2->numOfEntries));
+  if (NULL == pHistoBins) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   int32_t   i = 0, j = 0, k = 0;
 
   while (i < pHisto1->numOfEntries && j < pHisto2->numOfEntries) {
@@ -583,28 +602,28 @@ SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2
 
   if (i < pHisto1->numOfEntries) {
     int32_t remain = pHisto1->numOfEntries - i;
-    memcpy(&pHistoBins[k], &pHisto1->elems[i], sizeof(SHistBin) * remain);
+    (void)memcpy(&pHistoBins[k], &pHisto1->elems[i], sizeof(SHistBin) * remain);
     k += remain;
   }
 
   if (j < pHisto2->numOfEntries) {
     int32_t remain = pHisto2->numOfEntries - j;
-    memcpy(&pHistoBins[k], &pHisto2->elems[j], sizeof(SHistBin) * remain);
+    (void)memcpy(&pHistoBins[k], &pHisto2->elems[j], sizeof(SHistBin) * remain);
     k += remain;
   }
 
   /* update other information */
-  pResHistogram->numOfElems = pHisto1->numOfElems + pHisto2->numOfElems;
-  pResHistogram->min = (pHisto1->min < pHisto2->min) ? pHisto1->min : pHisto2->min;
-  pResHistogram->max = (pHisto1->max > pHisto2->max) ? pHisto1->max : pHisto2->max;
+  (*pResHistogram)->numOfElems = pHisto1->numOfElems + pHisto2->numOfElems;
+  (*pResHistogram)->min = (pHisto1->min < pHisto2->min) ? pHisto1->min : pHisto2->min;
+  (*pResHistogram)->max = (pHisto1->max > pHisto2->max) ? pHisto1->max : pHisto2->max;
 
   while (k > numOfEntries) {
     histogramMergeImpl(pHistoBins, &k);
   }
 
-  pResHistogram->numOfEntries = k;
-  memcpy(pResHistogram->elems, pHistoBins, sizeof(SHistBin) * k);
+  (*pResHistogram)->numOfEntries = k;
+  (void)memcpy((*pResHistogram)->elems, pHistoBins, sizeof(SHistBin) * k);
 
   taosMemoryFree(pHistoBins);
-  return pResHistogram;
+  return TSDB_CODE_SUCCESS;
 }

@@ -63,7 +63,7 @@ int taos_metric_sample_destroy_generic(void *gen) {
 
 void taos_metric_sample_free_generic(void *gen) {
   taos_metric_sample_t *self = (taos_metric_sample_t *)gen;
-  taos_metric_sample_destroy(self);
+  (void)taos_metric_sample_destroy(self);
 }
 
 int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
