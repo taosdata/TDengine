@@ -65,7 +65,7 @@ scan_result_base_path = f"{log_file_path}/clang_scan_result/"
 
 
 # the compile commands json file path
-compile_commands_path = f"{source_path}/../debugNoSan/compile_commands.json"
+compile_commands_path = f"{source_path}/debugNoSan/compile_commands.json"
 sed_command = r"sed -i 's/home/var\\lib\\jenkins\\workspace/g' compile_commands.json"
 result = subprocess.run(sed_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 logger.debug(f"STDOUT: {result.stdout} STDERR: {result.stderr}")
