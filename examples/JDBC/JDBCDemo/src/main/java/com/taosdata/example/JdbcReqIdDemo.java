@@ -15,7 +15,7 @@ public class JdbcReqIdDemo {
 
     public static void main(String[] args) throws SQLException {
 
-final String url = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
+final String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
 
 // get connection
 Properties properties = new Properties();
@@ -25,17 +25,11 @@ properties.setProperty("timezone", "UTC-8");
 System.out.println("get connection starting...");
 
 // ANCHOR: with_reqid
-try (Connection connection = DriverManager.getConnection(url, properties);
+try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
      // Create a statement that allows specifying a request ID
      AbstractStatement aStmt = (AbstractStatement) connection.createStatement()) {
 
-    boolean hasResultSet = aStmt.execute("CREATE DATABASE IF NOT EXISTS power", 1L);
-    assert !hasResultSet;
-
-    int rowsAffected = aStmt.executeUpdate("USE power", 2L);
-    assert rowsAffected == 0;
-
-    try (ResultSet rs = aStmt.executeQuery("SELECT * FROM meters limit 1", 3L)) {
+    try (ResultSet rs = aStmt.executeQuery("SELECT ts, current, location FROM power.meters limit 1", 3L)) {
         while (rs.next()) {
             Timestamp timestamp = rs.getTimestamp(1);
             System.out.println("timestamp = " + timestamp);
@@ -43,8 +37,8 @@ try (Connection connection = DriverManager.getConnection(url, properties);
     }
 } catch (SQLException ex) {
     // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Error Code: " + ex.getErrorCode());
-    System.out.println("Message: " + ex.getMessage());
+    System.out.println("Failed to execute sql with reqId, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+
 }
 // ANCHOR_END: with_reqid
     }

@@ -1365,7 +1365,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
 | reconnectIntervalMs | 自动重连重试间隔，单位毫秒。仅在 enableCompression 为 true 时生效。                                                                                                                                  | 2000 ms  |
 | reconnectRetryCount | 自动重连重试次数。仅在 enableCompression 为 true 时生效。                                                                                                                                            | 3        |
   
-其他参数请参考：[Consumer 参数列表](../../develop/tmq/#数据订阅相关参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `public void subscribe(Collection<String> topics) throws SQLException`
   - **接口说明**：订阅一组主题。
