@@ -85,7 +85,7 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsWsConsumerLoop.java:create_consumer}}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:create_consumer}}
 ```
 </TabItem>
 
@@ -135,7 +135,7 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:create_consumer}}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopFull.java:create_consumer}}
 ```
 
 
@@ -180,7 +180,7 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:poll_data_code_piece}}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:poll_data_code_piece}}
 ```
 
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
@@ -273,33 +273,7 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 <TabItem value="java" label="Java">
 
 ```java
-
-// 获取当前消费者分配的 TopicPartition 集合
-Set<TopicPartition> assignment() throws SQLException; 
-
-// 获取指定分区的当前偏移量
-long position(TopicPartition partition) throws SQLException; 
-// 获取指定主题的所有分区的当前偏移量
-Map<TopicPartition, Long> position(String topic) throws SQLException; 
-// 获取指定主题的所有分区的起始偏移量
-Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException; 
-// 获取指定主题的所有分区的最新偏移量
-Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
-// 获取指定分区集合中的已提交偏移量
-Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException;
-
-// 设置指定分区的偏移量
-void seek(TopicPartition partition, long offset) throws SQLException;
-// 将指定分区集合的偏移量设置为最开始
-void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException; 
-// 将指定分区集合的偏移量设置为最新
-void seekToEnd(Collection<TopicPartition> partitions) throws SQLException; 
-```
-
-示例代码：
-
-```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerOffsetSeek.java:consumer_seek}}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_seek}}
 ```
 
 </TabItem>
@@ -344,7 +318,6 @@ void seekToEnd(Collection<TopicPartition> partitions) throws SQLException;
 <Tabs groupId="lang">
 
 <TabItem value="java" label="Java">
-
 同 Websocket 代码样例。
 
 </TabItem>
@@ -389,22 +362,9 @@ void seekToEnd(Collection<TopicPartition> partitions) throws SQLException;
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
-```java
-// 同步提交当前消费者的偏移量
-void commitSync() throws SQLException; 
-// 同步提交指定的偏移量
-void commitSync(Map<TopicPartition, OffsetAndMetadata> offsets) throws SQLException; 
-
-// 异步提交仅在 native 连接下有效
-// 异步提交当前消费者的偏移量，需要提供回调以处理可能的提交结果
-void commitAsync(OffsetCommitCallback<V> callback) throws SQLException; 
-// 异步提交指定的偏移量，需要提供回调以处理可能的提交结果
-void commitAsync(Map<TopicPartition, OffsetAndMetadata> offsets, OffsetCommitCallback<V> callback) throws SQLException; 
-```
-
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:commit_code_piece}}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:commit_code_piece}}
 ```
 
 </TabItem>
@@ -501,7 +461,7 @@ void commitAsync(Map<TopicPartition, OffsetAndMetadata> offsets, OffsetCommitCal
 <TabItem value="java" label="Java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoop.java:unsubscribe_data_code_piece}}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
 ```
 
 </TabItem>
@@ -593,12 +553,14 @@ void commitAsync(Map<TopicPartition, OffsetAndMetadata> offsets, OffsetCommitCal
 ### Websocket 连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
+<details>
+<summary>完整 Websocket 连接代码示例</summary> 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsWsConsumerLoop.java:consumer_demo}}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_demo}}
 ```
 
 **注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。  
-其余代码请参考： [JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC/JDBCDemo)
+</details>
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -641,12 +603,16 @@ void commitAsync(Map<TopicPartition, OffsetAndMetadata> offsets, OffsetCommitCal
 ### 原生连接 
 <Tabs groupId="lang">
 <TabItem value="java" label="Java">
+<details>
+<summary>完整原生连接代码示例</summary> 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/AbsConsumerLoopFull.java:consumer_demo}}
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopFull.java:consumer_demo}}
 ```
 
 **注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。  
-其余代码请参考： [JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC/JDBCDemo)
+</details>
+
+
 
 </TabItem>
 
