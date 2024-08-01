@@ -2577,7 +2577,7 @@ class TaskReadData(StateTransitionTask):
         selectCnt = random.randint(1, len(tagCols))
         selectKeys = random.sample(list(tagCols.keys()), selectCnt)
         selectItems = {key: tagCols[key] for key in selectKeys[:self.maxSelectItems]}
-        
+
         for q in sTable.generateQueries_n(dbc, selectItems):  # regular tables
             try:
                 sql = q.getSql()

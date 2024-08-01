@@ -78,8 +78,82 @@ class DataBoundary(Enum):
     DB_PARAM_VGROUPS_CONFIG = {"create_name": "vgroups", "query_name": "vgroups", "vnode_json_key": "", "boundary": [1, 1024], "default": 2}
     DB_PARAM_WAL_CONFIG = {"create_name": "wal_level", "query_name": "wal_level", "vnode_json_key": "wal.level", "boundary": [0, 2], "default": 1}
 
+class FunctionMap(Enum):
+    # TODO TO_JSON
+    NUMERIC = {
+        'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
+        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+        'strFuncs': [],
+        'castFuncs': ['CAST', 'TO_ISO8601'],
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP']
+    }
+    TEXT = {
+        'types': ['BINARY', 'VARCHAR', 'NCHAR'],
+        'mathFuncs': [],
+        'strFuncs': ['CHAR_LENGTH', 'CONCAT', 'CONCAT_WS', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'SUBSTR', 'UPPER', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ],
+        'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
+        'castTypes': []
+    }
+    
+
+
+
+
+
+
+
+
+
+    BINARY = {
+        'types': ['VARBINARY'],
+        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+        'strFuncs': [],
+        'castFuncs': ['TO_ISO8601'],
+        'castTypes': []
+    }
+    BOOLEAN = {
+        'types': ['BOOL'],
+        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+        'strFuncs': [],
+        'castFuncs': ['CAST'],
+        'castTypes': []
+    }
+    TIMESTAMP = {
+        'types': ['TIMESTAMP'],
+        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+        'strFuncs': [],
+        'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
+        'castTypes': []
+    }
+    
+
+
+
+
+
+
+
+
+
+
+
+
+    TEXT = {
+        'types': ['VARCHAR(16)', 'CHAR(10)', 'TEXT'],
+        'functions': ['first', 'last', 'count', 'max_length']
+    }
+    DATETIME = {
+        'types': ['DATE', 'TIMESTAMP'],
+        'functions': ['min', 'max', 'date_part']
+    }
+    BOOLEAN = {
+        'types': ['BOOL'],
+        'functions': ['count', 'bool_and', 'bool_or']
+    }
 
 TdColumns = Dict[str, TdDataType]
 TdTags    = Dict[str, TdDataType]
 
 IpcStream = NewType('IpcStream', BinaryIO)
+
+print(TdColumns)
