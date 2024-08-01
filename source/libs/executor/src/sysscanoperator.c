@@ -1293,6 +1293,105 @@ _end:
   return code;
 }
 
+int32_t buildSysUsageInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
+                              const char* dbName, int64_t* pRows) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char    n[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  int32_t numOfRows = p->info.rows;
+
+  for (int32_t i = 0; i < size; ++i) {
+    const SSysTableMeta* pm = &pSysDbTableMeta[i];
+    if (!sysInfo && pm->sysInfo) {
+      continue;
+    }
+
+    // if (strcmp(pm->name, TSDB_INS_TABLE_USERS_FULL) == 0) {
+    //   continue;
+    // }
+    int32_t numOfCols = 0;
+    SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
+
+    // STR_TO_VARSTR(n, pm->name);
+    // code = colDataSetVal(pColInfoData, numOfRows, n, false);
+    // QUERY_CHECK_CODE(code, lino, _end);
+
+    // database name
+    STR_TO_VARSTR(n, dbName);
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, n, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // create time
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    colDataSetNULL(pColInfoData, numOfRows);
+
+    // number of columns
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&pm->colNum, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&pm->colNum, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // for (int32_t j = 4; j <= 8; ++j) {
+    //   pColInfoData = taosArrayGet(p->pDataBlock, j);
+    //   colDataSetNULL(pColInfoData, numOfRows);
+    // }
+
+    //STR_TO_VARSTR(n, "SYSTEM_TABLE");
+
+    pColInfoData = taosArrayGet(p->pDataBlock, 9);
+    code = colDataSetVal(pColInfoData, numOfRows, n, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    numOfRows += 1;
+  }
+
+  *pRows = numOfRows;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+
+  return code;
+}
+int32_t buildSysUsageInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USAGE);
+  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+
+  code = blockDataEnsureCapacity(p, capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  size_t               size = 0;
+  const SSysTableMeta* pSysDbTableMeta = NULL;
+
+  getInfosDbMeta(&pSysDbTableMeta, &size);
+  code = buildSysUsageInfoBlock(pInfo->sysInfo, p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB, &p->info.rows);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // getPerfDbMeta(&pSysDbTableMeta, &size);
+  // code = buildSysUse(pInfo->sysInfo, p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB, &p->info.rows);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pInfo->pRes->info.rows = p->info.rows;
+  code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  blockDataDestroy(p);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -1741,7 +1840,156 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+
+  
 }
+
+
+static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+  int8_t         firstMetaCursor = 0;
+
+  SSysTableScanInfo* pInfo = pOperator->info;
+  if (pInfo->readHandle.mnd != NULL) {
+    // code = buildSysUsageInfo(pInfo, pOperator->resultInfo.capacity);
+    // QUERY_CHECK_CODE(code, lino, _end);
+
+    // code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    // QUERY_CHECK_CODE(code, lino, _end);
+    // pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+
+    setOperatorCompleted(pOperator);
+    return NULL;
+    return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+    
+  }
+  if (pInfo->pCur == NULL) {
+    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    firstMetaCursor = 1;
+  }
+  if (!firstMetaCursor) {
+    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+  }
+
+  blockDataCleanup(pInfo->pRes);
+  int32_t numOfRows = 0;
+
+  const char* db = NULL;
+  int32_t     vgId = 0;
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
+
+  SName sn = {0};
+  char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  code = tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = tNameGetDbName(&sn, varDataVal(dbname));
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  varDataSetLen(dbname, strlen(varDataVal(dbname)));
+
+  SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_USAGE);
+  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+
+  code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+
+  int64_t walSize = 1024, totalSize = 0;
+  int32_t numOfCols = 0; 
+  SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  pColInfoData = taosArrayGet(p->pDataBlock, 0);
+  code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // wal
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  totalSize += walSize;
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // memtable  
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  totalSize += walSize;
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // l1_size 
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  totalSize += walSize;
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // l2_size
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  totalSize += walSize;
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // l3_size
+  QUERY_CHECK_CODE(code, lino, _end);
+  totalSize += walSize;
+   
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // s3_size
+  QUERY_CHECK_CODE(code, lino, _end);
+  totalSize += walSize;
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // estimate_size
+  QUERY_CHECK_CODE(code, lino, _end);
+  totalSize += walSize;
+
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&totalSize, false); // totoal size 
+  QUERY_CHECK_CODE(code, lino, _end);
+  totalSize += walSize;
+
+
+  numOfRows +=1;
+  pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+  pInfo->pCur = NULL;
+  setOperatorCompleted(pOperator);
+
+  if (numOfRows > 0) {
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
+    setOperatorCompleted(pOperator);
+
+    p->info.rows = numOfRows;
+    pInfo->pRes->info.rows = numOfRows;
+
+    code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    blockDataCleanup(p);
+    numOfRows = 0;
+  }
+
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+}
+
 
 static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -1794,6 +2042,31 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
 
     return sysTableBuildUserTables(pOperator);
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  return NULL;
+}
+
+
+static SSDataBlock* sysTableScanUsage(SOperatorInfo* pOperator) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SSysTableScanInfo* pInfo = pOperator->info;
+
+  SNode* pCondition = pInfo->pCondition;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+  
+
+  // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
+  return sysTableBuildVgUsage(pOperator);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1916,6 +2189,8 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
                IS_SYS_DBNAME(dbName)) {
       pBlock = sysTableScanUserSTables(pOperator);
+    } else if (strncasecmp(name, TSDB_INS_TABLE_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
+      pBlock = sysTableScanUsage(pOperator);
     } else {  // load the meta from mnode of the given epset
       pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
     }
