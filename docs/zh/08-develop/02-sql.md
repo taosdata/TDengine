@@ -25,6 +25,8 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 
 </TabItem>
 <TabItem label="Python" value="python">
+- Websocket 连接
+
 </TabItem>
 <TabItem label="Go" value="go">
 </TabItem>
