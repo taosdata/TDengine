@@ -395,6 +395,7 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
   return totalVgNum;
 
 END:
+  sdbRelease(pMnode->pSdb, pVgroup);
   taosMemoryFree(pVgEp);
   taosArrayDestroyP(newVgs, (FDelete)tDeleteSMqVgEp);
   return code;
