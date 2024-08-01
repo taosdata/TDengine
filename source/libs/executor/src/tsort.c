@@ -361,7 +361,10 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 }
 
 int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
-  taosArrayPush(pSortHandle->pOrderedSource, &pSource);
+  void* px = taosArrayPush(pSortHandle->pOrderedSource, &pSource);
+  if (px == NULL) {
+    taosMemoryFree(pSource);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
