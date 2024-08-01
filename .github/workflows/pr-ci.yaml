@@ -13,6 +13,7 @@ env:
   # DIR_PATH: ${{ github.event.number }}
   DIR_PATH: ${{ github.sha }}
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
+  CONTAINER_DO_NOT_KEEP_FLAG: /etc/taos/taosxci_container_not_keep
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -215,11 +216,9 @@ jobs:
           # 由于容器每次启动的时候都会有一个全新的 cluster id，所以 agent 的状态无法直接通过 explorer 查看
           echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
           echo "run command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &'"
-          run_taosx_command="'nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &'"
-          echo "run_taosx_command: docker exec ${{ steps.run_container.outputs.container_id }} bash -c $run_taosx_command"
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx.log 2>&1 &"
           docker exec ${{ steps.run_container.outputs.container_id }} bash -c "nohup $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent > $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent.log 2>&1 &"
-          docker exec ${{ steps.run_container.outputs.container_id }} bash -c 'ps -ef |grep taosx'
+          docker exec ${{ steps.run_container.outputs.container_id }} bash -c "ps -ef |grep taosx"
 
       - name: Deploy windows agent
         id: deploy_windows_agent
@@ -243,7 +242,7 @@ jobs:
         run: |
           echo "container_id: ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
           ls $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH/allure_profile
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile --reruns 3 --reruns-delay 2"
 
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
@@ -265,9 +264,11 @@ jobs:
         if: always()
         # shell: bash {0}
         run: |
-          echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
-          # docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
-          # docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+          if [ -f "$CONTAINER_DO_NOT_KEEP_FLAG" ]; then
+            echo "stop and rm container ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}"
+            docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+            docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
+          fi
   
 
   feishu_report:
