@@ -144,6 +144,7 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
       if (code) {
         mError("failed to put info into hashmap during task vgroup snapshot, code:%s", tstrerror(code));
         sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
         goto _err;  // take snapshot failed, and not all ready
       }
     } else {
@@ -168,6 +169,7 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
       mError("failed to put entry in vgroup list, nodeId:%d code:out of memory", entry.nodeId);
       code = terrno;
       sdbRelease(pSdb, pVgroup);
+      sdbCancelFetch(pSdb, pIter);
       goto _err;
     } else {
       mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
@@ -187,6 +189,7 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
     code = addEpIntoEpSet(&entry.epset, pObj->pDnode->fqdn, pObj->pDnode->port);
     if (code) {
       sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
       mError("failed to extract epset for fqdn:%s during task vgroup snapshot", pObj->pDnode->fqdn);
       goto _err;
     }
@@ -198,6 +201,7 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
     if (p == NULL) {
       code = terrno;
       sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
       mError("failed to put entry in vgroup list, nodeId:%d code:%s", entry.nodeId, tstrerror(code));
       goto _err;
     } else {
