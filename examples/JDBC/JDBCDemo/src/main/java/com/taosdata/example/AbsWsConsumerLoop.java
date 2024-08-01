@@ -30,21 +30,21 @@ config.setProperty("auto.offset.reset", "latest");
 config.setProperty("msg.with.table.name", "true");
 config.setProperty("enable.auto.commit", "true");
 config.setProperty("auto.commit.interval.ms", "1000");
-config.setProperty("group.id", "group2");
-config.setProperty("client.id", "1");
+config.setProperty("group.id", "group1");
+config.setProperty("client.id", "client1");
 config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoopWs$ResultDeserializer");
 config.setProperty("value.deserializer.encoding", "UTF-8");
 
 try {
     this.consumer = new TaosConsumer<>(config);
 } catch (SQLException ex) {
-    // handle exception
-    System.out.println("SQLException: " + ex.getMessage());
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Failed to create ws consumer with " + config.getProperty("bootstrap.servers") + " ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
     throw new SQLException("Failed to create consumer", ex);
 }
 // ANCHOR_END: create_consumer
 
-        this.topics = Collections.singletonList("topic_speed");
+        this.topics = Collections.singletonList("topic_meters");
         this.shutdown = new AtomicBoolean(false);
         this.shutdownLatch = new CountDownLatch(1);
     }
@@ -53,17 +53,22 @@ try {
 
     public void pollData() throws SQLException {
         try {
+            // Subscribe to the topic
             consumer.subscribe(topics);
 
             while (!shutdown.get()) {
+                // poll data
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean bean = record.value();
+                    // process data here
                     process(bean);
                 }
             }
+            // unsubscribe the topics
             consumer.unsubscribe();
         } finally {
+            // close the consumer
             consumer.close();
             shutdownLatch.countDown();
         }
@@ -78,6 +83,7 @@ try {
 
     }
 
+    // use this class to define the data structure of the result record
     public static class ResultBean {
         private Timestamp ts;
         private double current;

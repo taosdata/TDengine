@@ -38,8 +38,8 @@ config.setProperty("value.deserializer.encoding", "UTF-8");
 try {
     this.consumer = new TaosConsumer<>(config);
 } catch (SQLException ex) {
-    // handle exception
-    System.out.println("SQLException: " + ex.getMessage());
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Failed to create jni consumer with " + config.getProperty("bootstrap.servers") + " ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
     throw new SQLException("Failed to create consumer", ex);
 }
 // ANCHOR_END: create_consumer
@@ -63,10 +63,10 @@ try {
             process(bean);
         }
     }
-} catch (Exception ex){
-    // handle exception
-    System.out.println("SQLException: " + ex.getMessage());
-
+} catch (SQLException ex){
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+    throw new SQLException("Failed to poll data", ex);
 } finally {
     consumer.close();
     shutdownLatch.countDown();
@@ -90,10 +90,10 @@ try {
             consumer.commitSync();
         }
     }
-} catch (Exception ex){
-    // handle exception
-    System.out.println("SQLException: " + ex.getMessage());
-
+} catch (SQLException ex){
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Failed to execute consumer functions. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+    throw new SQLException("Failed to execute consumer functions", ex);
 } finally {
     consumer.close();
     shutdownLatch.countDown();
@@ -105,9 +105,10 @@ try {
 // ANCHOR: unsubscribe_data_code_piece
 try {
     consumer.unsubscribe();
-} catch (Exception ex){
-    // handle exception
-    System.out.println("SQLException: " + ex.getMessage());
+} catch (SQLException ex){
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+    throw new SQLException("Failed to unsubscribe consumer", ex);
 } finally {
     consumer.close();
 }

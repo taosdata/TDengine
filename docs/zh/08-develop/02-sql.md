@@ -11,9 +11,9 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 
 下面介绍使用各语言连接器通过执行 SQL 完成建库、建表、写入数据和查询数据。
 
-
 ## 建库和表
-以智能电表为例，展示如何使用连接器执行 SQL 来创建数据库和表。
+下面以智能电表为例，展示使用各语言连接器如何执行 SQL 命令创建一个名为 `power` 的数据库，然后使用 `power` 数据库为默认数据库。
+接着创建一个名为 `meters` 的超级表（STABLE），其表结构包含时间戳、电流、电压、相位等列，以及分组 ID 和位置作为标签。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -41,7 +41,7 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 </Tabs>
 
 ## 插入数据
-以智能电表为例，展示如何使用连接器执行 SQL 来插入数据。  
+下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -70,9 +70,8 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 </TabItem>
 </Tabs>
 
-
 ## 查询数据
-以智能电表为例，展示如何使用各语言连接器执行 SQL 来查询数据，并将获取到的结果打印出来。  
+下面以智能电表为例，展示如何使用各语言连接器执行 SQL 来查询数据，从 `power` 数据库 `meters` 超级表中查询最多 100 行数据，并将获取到的结果按行打印出来。  
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
@@ -99,7 +98,6 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 <TabItem label="PHP" value="php">
 </TabItem>
 </Tabs>
-
 
 ## 执行带有 reqId 的 SQL
 

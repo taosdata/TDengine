@@ -312,66 +312,16 @@ phpize && ./configure --enable-swoole && make -j && make install
 
 在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine，而且服务端的 FQDN 配置正确。以下示例代码，都假设 TDengine 安装在本机，且 FQDN（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
 ### 连接参数
+连接的配置项较多，因此在建立连接之前，我们能先介绍一下各语言连接器建立连接使用的参数。
+
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 
-Java 连接器建立连接的参数有 URL 和 properties，下面分别详细介绍。  
+Java 连接器建立连接的参数有 URL 和 Properties。  
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`  
-对于建立连接，原生连接与 REST 连接有细微不同。  
-**注**：REST 连接中增加 `batchfetch` 参数并设置为 true，将开启 WebSocket 连接。   
 
-
-**注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll；macOS 下是 libtaos.dylib）。
-
-url 中的配置参数如下：  
-- user：登录 TDengine 用户名，默认值 'root'。
-- password：用户登录密码，默认值 'taosdata'。
-- batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。JDBC REST 连接支持批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
-- charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
-- batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 60000。
-- httpSocketTimeout: socket 超时时间，单位 ms，默认值为 60000。仅在 batchfetch 设置为 false 时生效。
-- messageWaitTimeout: 消息超时时间, 单位 ms， 默认值为 60000。 仅在 batchfetch 设置为 true 时生效。
-- useSSL: 连接中是否使用 SSL。
-- httpPoolSize: REST 并发请求大小，默认 20。  
-
-
-**注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。  
-
-
-除了通过指定的 URL 获取连接，还可以使用 Properties 指定建立连接时的参数。
-properties 中的配置参数如下：
-- TSDBDriver.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 'root'。
-- TSDBDriver.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 'taosdata'。
-- TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
-- TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
-- TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
-- TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
-- TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。因为历史的原因，我们只支持POSIX标准的部分规范，如UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
-- TSDBDriver.HTTP_CONNECT_TIMEOUT: 连接超时时间，单位 ms， 默认值为 60000。仅在 REST 连接时生效。
-- TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 60000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
-- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
-- TSDBDriver.HTTP_POOL_SIZE: REST 并发请求大小，默认 20。
-- TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION: 传输过程是否启用压缩。仅在使用 REST/Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-- TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: 是否启用自动重连。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-> **注意**：启用自动重连仅对简单执行 SQL 语句以及 无模式写入、数据订阅有效。对于参数绑定无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
-
-- TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: 自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: 自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: 关闭 SSL 证书验证 。仅在使用 Websocket 连接时生效。true: 启用，false: 不启用。默认为 false。
-
-**配置参数的优先级：**  
-
-通过前面三种方式获取连接，如果配置参数在 url、Properties、客户端配置文件中有重复，则参数的`优先级由高到低`分别如下：
-
-1. JDBC URL 参数，如上所述，可以在 JDBC URL 的参数中指定。
-2. Properties connProps
-3. 使用原生连接时，TDengine 客户端驱动的配置文件 taos.cfg
-
-例如：在 url 中指定了 password 为 taosdata，在 Properties 中指定了 password 为 taosdemo，那么，JDBC 会使用 url 中的 password 建立连接。
+URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../../reference/connector/java/#url-规范)
 
     </TabItem>
     <TabItem label="Python" value="python">
@@ -392,6 +342,7 @@ properties 中的配置参数如下：
 </Tabs>
 
 ### Websocket 连接
+下面是各语言连接器建立 Websocket 连接代码样例。演示了如何使用 Websocket 连接方式连接到 TDengine 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
@@ -431,6 +382,8 @@ properties 中的配置参数如下：
 </Tabs>
 
 ### 原生连接
+下面是各语言连接器建立原生连接代码样例。演示了如何使用原生连接方式连接到 TDengine 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
+ 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
@@ -462,6 +415,8 @@ properties 中的配置参数如下：
 </Tabs>
 
 ### REST 连接
+下面是各语言连接器建立 RESt 连接代码样例。演示了如何使用 REST 连接方式连接到 TDengine 数据库。整个过程主要涉及到数据库连接的建立和异常处理。
+ 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
