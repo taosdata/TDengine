@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use self::cast::Cast;
 use self::join::Join;
@@ -13,7 +13,7 @@ use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
         Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
-        ListArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        ListArray, StringArray, StructArray, TimestampMicrosecondArray, TimestampMillisecondArray,
         TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
         UInt8Array,
     },
@@ -425,8 +425,21 @@ pub trait ArrayForTaos: Array {
                     let array = self.as_any().downcast_ref::<ListArray>().unwrap();
                     taos::Value::VarChar(format!("{:?}", array.value(index)))
                 }
+                arrow::datatypes::DataType::Struct(_) => {
+                    let array = self.as_any().downcast_ref::<StructArray>().unwrap();
+                    let values: HashMap<String, taos::Value> = array
+                        .fields()
+                        .iter()
+                        .map(|field| {
+                            let array = array.column_by_name(field.name()).unwrap();
+                            (field.name().clone(), array.taos_value(index))
+                        })
+                        .collect();
+                    taos::Value::VarChar(format!("{:?}", values))
+                }
+                arrow::datatypes::DataType::Null => taos::Value::Null(ty),
                 _ => {
-                    tracing::error!("Unsupported data type: {:?}", self.data_type());
+                    tracing::warn!("Unsupported data type: {:?}", self.data_type());
                     taos::Value::Null(ty)
                 }
             }

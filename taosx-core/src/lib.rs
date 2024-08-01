@@ -564,6 +564,25 @@ impl TaskOpts {
                 }
                 clean_task(from.clone()).await?;
             }
+            ("csv", _) => {
+                let path = from.path.clone();
+                tracing::warn!("delete csv task, path: {:?}", path);
+                match path {
+                    Some(path) => {
+                        let path = std::path::Path::new(&path);
+                        if path.exists() {
+                            if path.is_file() && path.is_relative() {
+                                if let Some(parent) = path.parent() {
+                                    std::fs::remove_dir_all(parent)?;
+                                }
+                            } else {
+                                // ignore directory or absolute path, since it's created by manual
+                            }
+                        }
+                    }
+                    None => {}
+                }
+            }
             (_, _) => {}
         }
         Ok(())

@@ -1,9 +1,9 @@
-use std::cmp;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use arrow::array::{
     ArrayBuilder, BinaryBuilder, Int32Builder, Int64Builder, StringBuilder,
     TimestampNanosecondBuilder,
@@ -259,9 +259,8 @@ pub async fn kafka_to_taos(
 
     let aborted = Arc::new(AtomicBool::new(false));
     let aborted_cloned = aborted.clone();
-    let mut join_set = execute(from, ipc_port, aborted_cloned, notify.clone()).await?;
+    let mut join_set = execute(from, ipc_port.get(), aborted_cloned, notify.clone()).await?;
 
-    let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
             // application exit with error code
@@ -320,8 +319,6 @@ pub async fn kafka_to_taos(
         // stop the connector
         tracing::info!("Kafka task Done");
         ipc.close().await?;
-        // put ipc port back to port pool.
-        port_pool.put(ipc_port).await;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
@@ -459,35 +456,14 @@ impl SubTask {
             "kafka metadata"
         );
 
-        let mut topic_partitions: Vec<String> = Vec::new();
-
-        // filter topics
-        let topics_readable = metadata
+        // topic -> partition count
+        let topic_partitions: HashMap<&str, usize> = metadata
             .topics()
             .iter()
             .filter(|tp| !tp.name().starts_with("__"))
             .filter(|tp| config.topics.contains(&tp.name().to_string()))
-            .collect::<Vec<_>>();
-        if topics_readable.len() != config.topics.len() {
-            tracing::error!(
-                "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
-                config.topics.len(),
-                topics_readable.len());
-            anyhow::bail!(
-                    "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
-                    config.topics.len(),
-                    topics_readable.len());
-        }
-
-        topics_readable.into_iter().for_each(|tp| {
-            let topic_name = tp.name();
-            let partitions: Vec<String> = tp
-                .partitions()
-                .iter()
-                .map(|partition| format!("{}:{}", topic_name, partition.id()))
-                .collect();
-            topic_partitions.extend(partitions);
-        });
+            .map(|tp| (tp.name(), tp.partitions().len()))
+            .collect();
 
         if topic_partitions.is_empty() {
             tracing::error!(
@@ -500,39 +476,33 @@ impl SubTask {
             );
         }
 
-        let mut concurrency = config
-            .advanced_options
-            .read_concurrency
-            .unwrap_or(usize::MAX);
-        if concurrency == 0 {
-            concurrency = topic_partitions.len();
+        if topic_partitions.len() != config.topics.len() {
+            tracing::error!(
+                "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
+                config.topics.len(),
+                topic_partitions.len());
+            anyhow::bail!(
+                    "Some topics are not readable, expected: {:?}, actual: {:?}, please check your topic authorization",
+                    config.topics.len(),
+                    topic_partitions.len());
         }
-        concurrency = cmp::min(concurrency, topic_partitions.len());
-
-        // let chunk_size = topic_partitions.len().div_ceil(concurrency);
-        let chunk_size = (topic_partitions.len() + concurrency - 1) / concurrency;
 
         let mut sub_tasks = Vec::new();
-        for (index, chunk) in topic_partitions.chunks(chunk_size).enumerate() {
-            // let mut topic_partitions: HashMap<String, Vec<i32>> = HashMap::new();
-            let mut topic_partition_list = TopicPartitionList::new();
-            for c in chunk {
-                let mut parts = c.split(":");
-                let topic = parts.next().unwrap().to_string();
-                let partition = parts.next().unwrap().parse::<i32>().unwrap();
+        let concurrency = match config.advanced_options.read_concurrency {
+            Some(n) if n > 0 => n,
+            _ => topic_partitions.values().sum(),
+        };
 
-                topic_partition_list.add_partition(topic.as_str(), partition);
-            }
-            tracing::info!(
-                "kafka consumer-{} assigned topic partitions: {:?}",
-                index,
-                topic_partitions
-            );
-
+        for _ in 0..concurrency {
             let consumer = consumer_builder(config.clone())?;
+            let topics = topic_partitions
+                .keys()
+                .into_iter()
+                .map(|k| *k)
+                .collect_vec();
             consumer
-                .assign(&topic_partition_list)
-                .expect("Can't assign to specified topics");
+                .subscribe(&topics)
+                .context("Kafka subscribe consumer error")?;
 
             let sub_task = SubTask {
                 consumer,
@@ -540,6 +510,7 @@ impl SubTask {
             };
             sub_tasks.push(sub_task);
         }
+
         Ok(sub_tasks)
     }
 }
@@ -596,7 +567,7 @@ async fn poll_message(
                         };
                     }
                     consumer
-                        .commit_consumer_state(CommitMode::Async)
+                        .commit_consumer_state(CommitMode::Sync)
                         .map_err(|err| {
                             anyhow::anyhow!("failed to commit consumer state, cause: {:#}", err)
                         })?;
@@ -669,25 +640,46 @@ fn build_schema() -> Schema {
     schema
 }
 
-/// A context can be used to change the behavior of producers and consumers by adding callbacks
-/// that will be executed by librdkafka.
-/// This particular context sets up custom callbacks to log rebalancing events.
+/// due to this issue: https://github.com/fede1024/rust-rdkafka/issues/681
+/// do not use `{:?}` for `TopicPartitionList` struct, or we will meet a panic
+/// we use a temporary workaround for now
 struct CustomContext;
 
 impl ClientContext for CustomContext {}
 
 impl ConsumerContext for CustomContext {
     fn pre_rebalance(&self, rebalance: &Rebalance) {
+        if is_rebalance_empty(rebalance) {
+            return;
+        }
         tracing::info!("Pre rebalance {:?}", rebalance);
     }
 
     fn post_rebalance(&self, rebalance: &Rebalance) {
+        if is_rebalance_empty(rebalance) {
+            return;
+        }
         tracing::info!("Post rebalance {:?}", rebalance);
     }
 
-    fn commit_callback(&self, result: KafkaResult<()>, _offsets: &TopicPartitionList) {
+    fn commit_callback(&self, result: KafkaResult<()>, tpl: &TopicPartitionList) {
+        if is_tplist_empty(tpl) {
+            return;
+        }
         tracing::info!("Committing offsets: {:?}", result);
     }
+}
+
+fn is_rebalance_empty(r: &Rebalance) -> bool {
+    match r {
+        Rebalance::Assign(tpl) => is_tplist_empty(tpl),
+        Rebalance::Revoke(tpl) => is_tplist_empty(tpl),
+        Rebalance::Error(_) => false,
+    }
+}
+
+fn is_tplist_empty(tpl: &TopicPartitionList) -> bool {
+    tpl.capacity() == 0
 }
 
 // A type alias with your custom consumer can be created for convenience.
@@ -696,21 +688,25 @@ type LoggingConsumer = StreamConsumer<CustomContext>;
 fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> {
     let mut client = build_client_config(config.connect.clone()).unwrap();
     // Client identifier, default "rdkafka".
-    if config.client_id.is_some() {
-        client.set("client.id", config.client_id.unwrap());
+    if let Some(client_id) = config.client_id {
+        client.set("client.id", client_id);
     }
     // All clients sharing the same group.id belong to the same group.
     client.set("group.id", config.group);
     // Action to take when there is no initial offset in offset store or the desired offset is out of range.
     // smallest, earliest, beginning, largest, latest, end, error
     client.set("auto.offset.reset", config.fallback_offset);
-    // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages.
-    if config.fetch_max_wait_time.is_some() {
-        client.set(
-            "fetch.wait.max.ms",
-            config.fetch_max_wait_time.unwrap().as_millis().to_string(),
-        );
-    }
+
+    // Maximum time the broker may wait to fill the Fetch response with fetch.min.bytes of messages, default 5 seconds.
+    client.set(
+        "fetch.wait.max.ms",
+        config
+            .fetch_max_wait_time
+            .map(|v| v.as_millis())
+            .unwrap_or(5000)
+            .to_string(),
+    );
+
     // Minimum number of bytes the broker responds with.
     if config.fetch_min_bytes.is_some() {
         client.set(
@@ -747,7 +743,7 @@ fn consumer_builder(config: KafkaTaskConfig) -> anyhow::Result<LoggingConsumer> 
     let consumer = client
         .set_log_level(RDKafkaLogLevel::Info)
         .create_with_context(CustomContext)
-        .expect("Consumer creation failed");
+        .context("Consumer creation failed")?;
     Ok(consumer)
 }
 

@@ -34,7 +34,7 @@ use crate::serve::middleware::TaosXRootSpanBuilder;
 use self::scheduler::agent::AgentSpawnSender;
 use self::{
     agent::{create_agent, delete_agent, get_agent_activities, get_agents, update_agent},
-    routes::cluster::get_cluster_connector_transferred,
+    routes::{cluster::get_cluster_connector_transferred, utils::handle_get_heap},
     rpc::AgentRpcChannel,
     scheduler::{
         agent::AgentWorker, runner::AgentIntegrationChannel, SchedulerNotifier, SchedulerNotify,
@@ -142,6 +142,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(metrics::metrics_desc)
             .service(get_sample)
             .service(data_source_is_valid)
+            .service(data_source_sink_is_valid)
             .service(data_sources_in)
             .service(data_sources_in_one)
             .service(data_source_collection)
@@ -160,6 +161,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_agents)
             .service(get_agent_activities)
             .service(get_cluster_connector_transferred)
+            .service(handle_get_heap)
             .service(get_task_activities_by_id)
             .service(get_task_metrics)
             .service(get_tmq_task_vgroup_progress)
@@ -374,6 +376,7 @@ impl Cli {
                 metrics::profile,
                 metrics::metrics_desc,
                 data_source_is_valid,
+                data_source_sink_is_valid,
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
@@ -396,7 +399,6 @@ impl Cli {
                 privileges::privileges_import,
 
                 routes::cluster::get_cluster_connector_transferred,
-
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),

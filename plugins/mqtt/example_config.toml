@@ -19,3 +19,9 @@ clean_session = true
 enable = true
 path = "./tmp/mqtt"
 keep = 7
+
+[batch]
+# Maximum number of messages to send in a batch
+size = 100
+# Maximum time to wait before sending a batch
+timeout = 500

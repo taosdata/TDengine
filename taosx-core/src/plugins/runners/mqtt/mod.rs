@@ -90,7 +90,7 @@ pub async fn mqtt_to_taos(
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for MQTT connection"))?;
 
-    let config = MqttConfig::from(&from, Some(ipc_port), task_id)?;
+    let config = MqttConfig::from(&from, Some(ipc_port.get()), task_id)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -170,13 +170,7 @@ pub async fn mqtt_to_taos(
         let mut line = String::new();
         loop {
             // Read a line from stderr
-            let bytes_read = reader
-                .read_line(&mut line)
-                .await
-                .expect("failed to read line from stderr");
-            if bytes_read == 0 {
-                break; // End of stream, exit the loop
-            }
+            let bytes_read = reader.read_line(&mut line).await?;
             if line.contains("fatal") {
                 use ringbuf::Rb;
                 let mut guard = error_buf_producer.lock().await;
@@ -185,19 +179,20 @@ pub async fn mqtt_to_taos(
             if line.contains(r#""stop server""#) {
                 is_killed_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             }
-            // Write the line to log_rotation
-            write!(log_rotation, "{}", line).expect("failed to write line to log_rotation");
+            if bytes_read > 0 {
+                // Write the line to log_rotation
+                write!(log_rotation, "{}", line)?;
+            }
             line.clear();
         }
+        #[allow(unreachable_code)]
         Ok::<(), std::io::Error>(())
     });
 
-    let port_pool = port_pool.clone();
     macro_rules! safe_exit {
         () => {
             let _ = ipc_handler.close().await;
             let _ = temp_path.close();
-            port_pool.put(ipc_port).await;
         };
     }
     tokio::select! {

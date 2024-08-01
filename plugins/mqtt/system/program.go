@@ -46,6 +46,8 @@ func Start(s service.Service) {
 	}
 }
 
+var defaultBatchSize = 1024
+
 type program struct {
 	configFile    string
 	messages      *report.MessageList
@@ -82,7 +84,17 @@ func (p *program) Start(s service.Service) error {
 			}
 		}
 	}
-	p.messages = report.NewMessageList()
+	batchSize := defaultBatchSize
+	batchTimeout := 500 * time.Millisecond
+	if conf.Batch != nil {
+		if conf.Batch.BatchSize > 0 {
+			batchSize = conf.Batch.BatchSize
+		}
+		if conf.Batch.BatchTimeout > 0 {
+			batchTimeout = time.Duration(conf.Batch.BatchTimeout) * time.Millisecond
+		}
+	}
+	p.messages = report.NewMessageList(batchSize)
 	p.logger = log.GetLogger("main")
 	if service.Interactive() {
 		p.logger.Info("Running in terminal.")
@@ -107,7 +119,7 @@ func (p *program) Start(s service.Service) error {
 		p.logger.WithError(err).WithField("topics", conf.Topics).Error("subscribe fail")
 		return errors.WithMessage(err, "subscribe fail")
 	}
-	go p.handleMessage()
+	go p.handleMessage(batchTimeout)
 	return nil
 }
 
@@ -160,7 +172,8 @@ func (p *program) onDisconnected(err error) {
 	p.logger.WithError(err).Fatal("mqtt disconnected")
 }
 
-func (p *program) handleMessage() {
+func (p *program) handleMessage(tick time.Duration) {
+	ticker := time.NewTicker(tick)
 	for {
 		select {
 		case <-p.exit:
@@ -172,7 +185,16 @@ func (p *program) handleMessage() {
 				}
 			}
 			p.exitFinish <- struct{}{}
+			ticker.Stop()
 			return
+		case <-ticker.C:
+			list := p.messages.GetAll()
+			if len(list) > 0 {
+				err := p.reporter.Report(list)
+				if err != nil {
+					p.logger.WithError(err).WithField("list", list).Fatal("report data to taosX error")
+				}
+			}
 		case <-p.messages.C():
 			list := p.messages.GetAll()
 			if len(list) > 0 {

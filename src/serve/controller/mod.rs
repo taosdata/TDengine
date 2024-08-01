@@ -438,6 +438,9 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .await
                 .context("Update task properties error")?;
         }
+        "logging" => {
+            // do nothing
+        }
         _ => {
             sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
                 .bind(activity.status.as_str())
@@ -929,33 +932,40 @@ impl TaskController {
         .await?;
         let id: i64 = res.last_insert_rowid();
 
-        match from.driver.as_str() {
-            MQTT_ID => {
-                const CLIENT_ID: &str = "client_id";
-                let client_id = from
-                    .get(CLIENT_ID)
+        let set_id =
+            |from: &mut Dsn, field_to_build: &str, build_switch_name: &str| -> anyhow::Result<()> {
+                let origin_id = from
+                    .get(field_to_build)
                     .filter(|s| !s.trim().is_empty())
-                    .context("mqtt client id not found")?;
-                if task.prepend_builtin_task_id.is_some_and(|s| s) {
-                    from.set(CLIENT_ID, format!("{}{id}{client_id}", build::CUS_CLI_NAME));
-                } else {
-                    from.set(CLIENT_ID, format!("{}{client_id}", build::CUS_CLI_NAME));
-                }
-            }
-            KAFKA_ID => {
-                const KAFKA_GROUP_ID: &str = "group";
-                let group_id = from
-                    .get(KAFKA_GROUP_ID)
-                    .filter(|s| !s.trim().is_empty())
-                    .context("kafka group id not found")?;
-                if task.prepend_builtin_task_id.is_some_and(|s| s) {
+                    .with_context(|| format!("{field_to_build} not found"))?;
+                if from
+                    .get(build_switch_name)
+                    .is_some_and(|s| s.to_ascii_lowercase() == "true")
+                {
                     from.set(
-                        KAFKA_GROUP_ID,
-                        format!("{}{id}{group_id}", build::CUS_CLI_NAME),
+                        field_to_build,
+                        format!("{}{id}{origin_id}", build::CUS_CLI_NAME),
                     );
                 } else {
-                    from.set(KAFKA_GROUP_ID, format!("{}{group_id}", build::CUS_CLI_NAME));
+                    from.set(
+                        field_to_build,
+                        format!("{}{origin_id}", build::CUS_CLI_NAME),
+                    );
                 }
+                Ok(())
+            };
+
+        const CLIENT_ID: &str = "client_id";
+        const CLIENT_ID_SWITCH: &str = "client_id_with_task_id";
+        const GROUP_ID: &str = "group";
+        const GROUP_ID_SWITCH: &str = "group_id_with_task_id";
+        match from.driver.as_str() {
+            MQTT_ID => {
+                set_id(&mut from, CLIENT_ID, CLIENT_ID_SWITCH)?;
+            }
+            KAFKA_ID => {
+                set_id(&mut from, GROUP_ID, GROUP_ID_SWITCH)?;
+                set_id(&mut from, CLIENT_ID, CLIENT_ID_SWITCH)?;
             }
             _ => {}
         }
@@ -1748,7 +1758,7 @@ impl TaskController {
         handle.await?
     }
 
-    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
+    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: &Dsn) -> DataSourceValidation {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
             return DataSourceValidation::invalid(
@@ -2280,6 +2290,18 @@ impl TaskActivity {
             level: LevelFilter::Info,
             activity: message,
             status: "running".to_string(),
+            context: None,
+        }
+    }
+
+    /// Info-level activity under any state.
+    pub fn logging(id: i64, message: String) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: message,
+            status: "logging".to_string(),
             context: None,
         }
     }
@@ -2960,9 +2982,6 @@ pub(crate) struct NewTask {
     ///
     #[serde(default)]
     not_start: bool,
-
-    #[sqlx(skip)]
-    prepend_builtin_task_id: Option<bool>,
 }
 
 impl NewTask {

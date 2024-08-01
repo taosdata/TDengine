@@ -5,6 +5,7 @@ use taos::*;
 
 pub mod breakpoints;
 pub mod constants;
+pub mod dsn;
 pub mod files;
 pub mod interval;
 pub mod license;

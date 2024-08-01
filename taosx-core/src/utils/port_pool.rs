@@ -2,12 +2,83 @@ use bitvec::prelude::*;
 use tokio::sync::Mutex;
 // use port_selector::Port;
 use std::{
-    fmt::{Debug, Formatter},
+    fmt::{Debug, Display, Formatter},
     net::{Ipv4Addr, SocketAddrV4, TcpListener, ToSocketAddrs},
-    ops::Range,
+    ops::{Deref, Range},
     sync::Arc,
 };
 
+#[derive(Clone)]
+pub struct Port {
+    port: Arc<u16>,
+    bitmap: Arc<Mutex<BitVec>>,
+}
+
+impl Display for Port {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.port)
+    }
+}
+impl AsRef<u16> for Port {
+    fn as_ref(&self) -> &u16 {
+        &self.port
+    }
+}
+
+impl Deref for Port {
+    type Target = u16;
+
+    fn deref(&self) -> &Self::Target {
+        &self.port
+    }
+}
+
+impl PartialEq<u16> for Port {
+    fn eq(&self, other: &u16) -> bool {
+        *self.port.deref() == *other
+    }
+}
+
+impl PartialEq<Port> for u16 {
+    fn eq(&self, other: &Port) -> bool {
+        self == &other.get()
+    }
+}
+
+impl Debug for Port {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Port")
+            .field("port", &self.port)
+            .field(
+                "in_use",
+                &self.bitmap.try_lock().map(|bitmap| bitmap.count_ones()),
+            )
+            .finish()
+    }
+}
+
+impl Drop for Port {
+    fn drop(&mut self) {
+        let bitmap = self.bitmap.clone();
+        tracing::info!("Dropping port: {}", &self.port);
+        if Arc::strong_count(&self.port) > 1 {
+            return;
+        }
+        let port = self.get();
+        let _ = tokio::spawn(async move {
+            let mut bitmap = bitmap.lock().await;
+            let index = port - 6051;
+            bitmap.set(index as _, false);
+        });
+    }
+}
+
+impl Port {
+    /// Get the port number
+    pub fn get(&self) -> u16 {
+        *self.port.deref()
+    }
+}
 #[derive(Clone)]
 pub struct PortPool {
     range: Range<u16>,
@@ -35,7 +106,7 @@ impl Default for PortPool {
 }
 
 impl PortPool {
-    pub async fn get(&self) -> Option<u16> {
+    pub async fn get(&self) -> Option<Port> {
         let mut bitmap = self.bitmap.lock().await;
         loop {
             if let Some(index) = bitmap.first_zero() {
@@ -46,7 +117,10 @@ impl PortPool {
                 }
                 if is_free_tcp(port) {
                     bitmap.set(index, true);
-                    return Some(port);
+                    return Some(Port {
+                        port: Arc::new(port),
+                        bitmap: self.bitmap.clone(),
+                    });
                 } else {
                     bitmap.set(index, true);
                     continue;
@@ -54,12 +128,6 @@ impl PortPool {
             }
             return None;
         }
-    }
-
-    pub async fn put(&self, port: u16) {
-        let mut bitmap = self.bitmap.lock().await;
-        let index = port - self.range.start;
-        bitmap.set(index as _, false);
     }
 }
 

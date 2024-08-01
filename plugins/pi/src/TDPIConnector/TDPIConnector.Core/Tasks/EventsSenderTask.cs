@@ -17,15 +17,15 @@ namespace TDPIConnector.Core.Tasks
         {
             this.eventsSender = eventsSender;
 
-            this.task = new Task(async () =>
+            task = new Task(() =>
             {
                 log.Info("Process datapipe, Event sender start...");
                 while (!stopRequested)
                 {
                     try
                     {
-                        this.eventsSender.OnAFElementEvents();
-                        this.eventsSender.OnPIPointEvents();
+                        eventsSender.OnAFElementEvents();
+                        eventsSender.OnPIPointEvents();
                     }
                     catch (Exception ex)
                     {

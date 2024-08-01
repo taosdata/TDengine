@@ -18,7 +18,7 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::{dsv::DataSourceValidation, QueryDataSourceReq};
+use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
 use taosx_core::{
     plugins::transform::sample::DsSampleIn,
@@ -331,7 +331,7 @@ const DEFAULT_REQUEST_TIMEOUT: u64 = 30; // 30s
     params(
         ("dsn" = String, description = "dsn string"),
         ("via" = String, description = "agent id"),
-        ("timeout" = Option<String>, description = "timeout seconds, use default 20s when not set")
+        ("timeout" = Option<String>, description = "timeout seconds, use default 30s when not set")
     ),
 )]
 #[get("/ds/in/validate")]
@@ -372,9 +372,95 @@ async fn is_datasource_valid_impl(
             let via = query.via;
             match via {
                 None => validate_dsn(d).await,
-                Some(agent) => controller.validate_dsn_via_agent(agent, d).await,
+                Some(agent) => controller.validate_dsn_via_agent(agent, &d).await,
             }
         }
+    }
+}
+
+#[derive(Deserialize, Debug, ToSchema, IntoParams)]
+pub struct DsnAgentQueryV2 {
+    #[param(allow_reserved)]
+    from: String,
+    #[param(allow_reserved)]
+    to: String,
+    via: Option<i64>,
+    timeout: Option<u64>,
+}
+
+/// check data source validation by dsn
+#[utoipa::path(
+    post,
+    path = "/ds/in/validate",
+    responses(
+        (status = 200, description = "data source is valid or not", body = DataSourceValidation),
+        (status = 500, description = "check data source failed", body = Failed),
+    )
+)]
+#[post("/ds/in/validate")]
+pub(super) async fn data_source_sink_is_valid(
+    controller: Data<TaskControllerRef>,
+    query: Json<DsnAgentQueryV2>,
+) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
+    let query = query.into_inner();
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let span = Span::current();
+    let result = timeout(
+        Duration::from_secs(timeout_sec),
+        dsn_and_license_validate(controller, query).instrument(span),
+    )
+    .await;
+    match result {
+        Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
+        Err(_) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("Failed to connect to dsn: timed out"),
+        }),
+    }
+}
+
+async fn dsn_and_license_validate(
+    controller: Data<TaskControllerRef>,
+    query: DsnAgentQueryV2,
+) -> DataSourceValidation {
+    let from = match query.from.into_dsn() {
+        Ok(dsn) => dsn,
+        Err(err) => {
+            return DataSourceValidation::invalid(
+                "unknown".to_string(),
+                format!("DSN error: {err:#}"),
+            )
+        }
+    };
+
+    let via = query.via;
+    let res = match via {
+        None => validate_dsn(&from).await,
+        Some(agent) => controller.validate_dsn_via_agent(agent, &from).await,
+    };
+
+    let to = match query.to.into_dsn() {
+        Ok(dsn) => dsn,
+        Err(err) => {
+            return DataSourceValidation::invalid(
+                "unknown".to_string(),
+                format!("Target DSN error: {err:#}"),
+            )
+        }
+    };
+
+    match license::validate_enterprise_license(&from, &to).await {
+        Ok(license::LicenseKind::Good { .. }) => res,
+        Ok(license::LicenseKind::Feature(err))
+        | Ok(license::LicenseKind::Edition(err))
+        | Ok(license::LicenseKind::Connector(err))
+        | Err(err) => DataSourceValidation::invalid(
+            "unknown".to_string(),
+            format!("DSN license validate error: {err:#}"),
+        ),
     }
 }
 

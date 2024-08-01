@@ -15,6 +15,7 @@ import (
 	"github.com/apache/arrow/go/v12/arrow"
 	"github.com/apache/arrow/go/v12/arrow/array"
 	"github.com/apache/arrow/go/v12/arrow/ipc"
+	"github.com/apache/arrow/go/v12/arrow/memory"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/assert"
 )
@@ -110,7 +111,7 @@ func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
 	metadata := arrow.MetadataFrom(map[string]string{
 		"version": "1.0",
 		"stream":  "flat",
-		"ack":     "none",
+		"ack":     "ack",
 	})
 	schema := arrow.NewSchema(
 		[]arrow.Field{
@@ -122,6 +123,18 @@ func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
 		&metadata,
 	)
 	assert.True(t, schema.Equal(meta))
+
+	ackSchema := arrow.NewSchema(
+		[]arrow.Field{
+			{Name: "code", Type: &arrow.Int32Type{}},
+			{Name: "message", Type: arrow.BinaryTypes.String},
+			{Name: "context", Type: arrow.BinaryTypes.Binary},
+		},
+		nil,
+	)
+	allocator := memory.NewGoAllocator()
+	writer := ipc.NewWriter(conn, ipc.WithSchema(ackSchema))
+	defer writer.Close()
 	if reader.Next() {
 		r := reader.Record()
 		assert.Equal(t, "topic1", r.Column(1).(*array.String).Value(0))
@@ -129,6 +142,21 @@ func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
 		assert.Equal(t, "value1", r.Column(3).(*array.String).Value(0))
 		t.Log("record check pass")
 		r.Release()
+
+		recordBuilder := array.NewRecordBuilder(allocator, ackSchema)
+		codeBuilder := recordBuilder.Field(0).(*array.Int32Builder)
+		defer codeBuilder.Release()
+		codeBuilder.Append(0)
+
+		messageBuilder := recordBuilder.Field(0).(*array.BinaryBuilder)
+		defer messageBuilder.Release()
+		messageBuilder.Append([]byte("OK"))
+
+		contextBuilder := recordBuilder.Field(0).(*array.BinaryBuilder)
+		defer contextBuilder.Release()
+		contextBuilder.Append([]byte("context data"))
+
+		writer.Write(recordBuilder.NewRecord())
 	} else {
 		t.Error("expect get data")
 	}
