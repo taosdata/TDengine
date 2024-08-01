@@ -1,3 +1,6 @@
+use std::net::SocketAddr;
+use std::{sync::Arc, time::Duration};
+
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
@@ -12,8 +15,6 @@ use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
-use std::net::SocketAddr;
-use std::{sync::Arc, time::Duration};
 use tracing::{info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
@@ -30,6 +31,11 @@ use crate::serve::controller::agent::{
     AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
 };
 use crate::serve::middleware::TaosXRootSpanBuilder;
+use crate::serve::opc::AddPointReq;
+use crate::serve::opc::GetPointsHeaderReq;
+use crate::serve::opc::OpcPoint;
+use crate::serve::opc::OpcPointTag;
+use crate::serve::opc::PointsHeader;
 
 use self::scheduler::agent::AgentSpawnSender;
 use self::{
@@ -134,10 +140,13 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(create_task)
             .service(update_task)
             .service(delete_task)
+            .service(delete_batch_tasks)
             .service(get_task_by_id)
             .service(get_task_offsets_by_id)
             .service(start_task)
+            .service(start_batch_tasks)
             .service(stop_task)
+            .service(stop_batch_tasks)
             .service(metrics::metrics_exporter)
             .service(metrics::metrics_desc)
             .service(get_sample)
@@ -155,6 +164,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(check_point_file_ready)
             .service(download_point_file)
             .service(page_point_data)
+            .service(opc::get_point_header)
+            .service(opc::append_point)
             .service(create_agent)
             .service(update_agent)
             .service(delete_agent)
@@ -308,6 +319,8 @@ impl Cli {
     ) -> Result<()> {
         let span = tracing::info_span!("server", addr = self.listen).entered();
         let store_cloned = controller.clone();
+        let store = Data::new(controller);
+
         #[derive(OpenApi)]
         #[openapi(
             components(
@@ -357,6 +370,15 @@ impl Cli {
                     ActivityOrder,
                     DsSampleIn,
                     DsSampleOut,
+
+                    TaskBatchReq,
+
+                    PointsHeader,
+                    OpcPoint,
+                    OpcPointTag,
+                    GetPointsHeaderReq,
+                    AddPointReq,
+
                 ),
                 responses(
                 )
@@ -367,8 +389,11 @@ impl Cli {
                 task::create_task,
                 task::update_task,
                 task::delete_task,
+                task::delete_batch_tasks,
                 task::start_task,
+                task::start_batch_tasks,
                 task::stop_task,
+                task::stop_batch_tasks,
                 task::get_task_by_id,
                 task::get_task_offsets_by_id,
                 task::get_task_activities_by_id,
@@ -389,6 +414,8 @@ impl Cli {
                 download_point_file,
                 download_point_template_file,
                 page_point_data,
+                opc::get_point_header,
+                opc::append_point,
 
                 agent::create_agent,
                 agent::update_agent,
@@ -412,8 +439,6 @@ impl Cli {
             ),
         )]
         struct ApiDoc;
-
-        let store = Data::new(controller);
         assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
 
         let openapi = ApiDoc::openapi();
