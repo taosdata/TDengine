@@ -1457,6 +1457,39 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
 void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
 
+int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
+  int32_t  code = 0, lino = 0;
+  int32_t  tlen = 0;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->machineId));
+
+  tEndEncode(&encoder);
+
+  tlen = encoder.pos;
+_exit:
+  tEncoderClear(&encoder);
+  return code < 0 ? code : tlen;
+}
+
+int32_t tDeserializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
+  int32_t  code = 0, lino = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->machineId));
+
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -5275,12 +5308,22 @@ int32_t tSerializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
 //   return 0;
 // }
 
-int32_t tSerializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
+int32_t tSerializeDropOrphanTaskMsg(void* buf, int32_t bufLen, SMStreamDropOrphanMsg* pMsg) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI64(&encoder, pReq->tick) < 0) return -1;
+
+  int32_t size = taosArrayGetSize(pMsg->pList);
+  if (tEncodeI32(&encoder, size) < 0) return -1;
+
+  for (int32_t i = 0; i < size; i++) {
+    SOrphanTask *pTask = taosArrayGet(pMsg->pList, i);
+    if (tEncodeI64(&encoder, pTask->streamId) < 0) return -1;
+    if (tEncodeI32(&encoder, pTask->taskId) < 0) return -1;
+    if (tEncodeI32(&encoder, pTask->nodeId) < 0) return -1;
+  }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -5288,17 +5331,34 @@ int32_t tSerializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pR
   return tlen;
 }
 
-// int32_t tDeserializeSMStreamTickMsg(void *buf, int32_t bufLen, SMStreamTickReq *pReq) {
-//   SDecoder decoder = {0};
-//   tDecoderInit(&decoder, buf, bufLen);
+int32_t tDeserializeDropOrphanTaskMsg(void* buf, int32_t bufLen, SMStreamDropOrphanMsg* pMsg) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
 
-//   if (tStartDecode(&decoder) < 0) return -1;
-//   if (tDecodeI64(&decoder, &pReq->tick) < 0) return -1;
-//   tEndDecode(&decoder);
+  if (tStartDecode(&decoder) < 0) return -1;
 
-//   tDecoderClear(&decoder);
-//   return 0;
-// }
+  int32_t num = 0;
+  if (tDecodeI32(&decoder, &num) < 0) return -1;
+
+  if (num > 0) {
+    pMsg->pList = taosArrayInit(num, sizeof(SOrphanTask));
+    if (NULL == pMsg->pList) return -1;
+    for (int32_t i = 0; i < num; ++i) {
+      SOrphanTask info = {0};
+      if (tDecodeI64(&decoder, &info.streamId) < 0) return -1;
+      if (tDecodeI32(&decoder, &info.taskId) < 0) return -1;
+      if (tDecodeI32(&decoder, &info.nodeId) < 0) return -1;
+
+      if (taosArrayPush(pMsg->pList, &info) == NULL) {
+        return -1;
+      }
+    }
+  }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
 
 int32_t tEncodeSReplica(SEncoder *pEncoder, SReplica *pReplica) {
   if (tEncodeI32(pEncoder, pReplica->id) < 0) return -1;
@@ -7023,6 +7083,7 @@ int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
     }
   }
 
+  if (tEncodeI8(&encoder, pReq->pollFlag) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -7061,6 +7122,9 @@ int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
         }
       }
     }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->pollFlag) < 0) return -1;
   }
   tEndDecode(&decoder);
 

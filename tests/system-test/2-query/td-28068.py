@@ -20,32 +20,32 @@ class TDTestCase:
         tdSql.execute("insert into td_28068.ct4 using td_28068.st (branch, scenario) tags ('3.1', 'scenario2') values (1717122950000, 'query1', 9,10);")
 
     def run(self):
-        tdSql.query('select last(ts) as ts, last(branch) as branch, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by branch, scenario order by last(branch);')
+        tdSql.query('select last(ts) as ts, last(branch) as branch, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch);')
         tdSql.checkRows(4)
-        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by branch, scenario order by last(branch), last(scenario); ')
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch), last(scenario); ')
         tdSql.checkRows(4)
-        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by branch, scenario order by last(branch); ')
-        tdSql.checkRows(4)
-
-        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case)  from td_28068.st group by branch, scenario order by last(branch), last(test_case);')
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch); ')
         tdSql.checkRows(4)
 
-        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by branch, scenario order by last(branch), last(scenario);')
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case)  from td_28068.st group by st.branch, st.scenario order by last(branch), last(test_case);')
         tdSql.checkRows(4)
 
-        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by branch, scenario order by branch1, scenario1;')
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch), last(scenario);')
+        tdSql.checkRows(4)
+
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by branch1, scenario1;')
         tdSql.checkRows(4)
 
         tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by tbname; ')
         tdSql.checkRows(4)
 
-        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by branch, scenario order by test_case;')
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by test_case;')
         tdSql.checkRows(4)
 
-        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case1  from td_28068.st group by branch, scenario order by last(test_case);')
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case1  from td_28068.st group by st.branch, st.scenario order by last(test_case);')
         tdSql.checkRows(4)
 
-        tdSql.query('select time_cost, num, time_cost + num as final_cost  from td_28068.st partition by branch; ')
+        tdSql.query('select time_cost, num, time_cost + num as final_cost  from td_28068.st partition by st.branch; ')
         tdSql.checkRows(8)
 
         tdSql.query('select count(*) from td_28068.st partition by branch order by branch; ')

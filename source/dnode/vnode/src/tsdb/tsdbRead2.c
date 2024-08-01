@@ -3293,23 +3293,10 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
       if ((!hasDataInSttBlock(pScanInfo)) || (asc && pBlockInfo->lastKey < keyInStt) ||
           (!asc && pBlockInfo->firstKey > keyInStt)) {
-        if (pScanInfo->cleanSttBlocks && hasDataInSttBlock(pScanInfo)) {
-          if (asc) {  // file block is located before the stt block
-            ASSERT(pScanInfo->sttRange.skey.ts > pBlockInfo->lastKey);
-          } else {  // stt block is before the file block
-            ASSERT(pScanInfo->sttRange.ekey.ts < pBlockInfo->firstKey);
-          }
-        }
-
+        // the stt blocks may located in the gap of different data block, but the whole sttRange may overlap with the
+        // data block, so the overlap check is invalid actually.
         buildCleanBlockFromDataFiles(pReader, pScanInfo, pBlockInfo, pBlockIter->index);
       } else {  // clean stt block
-        if (asc) {
-          ASSERT(pScanInfo->sttRange.ekey.ts < pBlockInfo->firstKey);
-        } else {
-          ASSERT(pScanInfo->sttRange.skey.ts > pBlockInfo->lastKey);
-        }
-
-        // return the stt file block
         ASSERT(pReader->info.execMode == READER_EXEC_ROWS && pSttBlockReader->mergeTree.pIter == NULL);
         code = buildCleanBlockFromSttFiles(pReader, pScanInfo);
         return code;
