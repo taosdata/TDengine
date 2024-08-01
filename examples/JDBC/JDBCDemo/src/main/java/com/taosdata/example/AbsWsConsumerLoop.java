@@ -39,13 +39,12 @@ try {
     this.consumer = new TaosConsumer<>(config);
 } catch (SQLException ex) {
     // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Error Code: " + ex.getErrorCode());
-    System.out.println("Message: " + ex.getMessage());
+    System.out.println("Failed to create ws consumer with " + config.getProperty("bootstrap.servers") + " ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
     throw new SQLException("Failed to create consumer", ex);
 }
 // ANCHOR_END: create_consumer
 
-        this.topics = Collections.singletonList("topic_speed");
+        this.topics = Collections.singletonList("topic_meters");
         this.shutdown = new AtomicBoolean(false);
         this.shutdownLatch = new CountDownLatch(1);
     }

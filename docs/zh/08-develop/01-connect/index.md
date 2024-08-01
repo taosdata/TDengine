@@ -294,7 +294,7 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 </Tabs>
 
 ### Websocket 连接
-各语言连接器建立 Websocket 连接代码样例。 
+下面是各语言连接器建立 Websocket 连接代码样例。演示了如何使用 Websocket 连接方式连接到 TDengine 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
@@ -334,7 +334,8 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 </Tabs>
 
 ### 原生连接
-各语言连接器建立原生连接代码样例。   
+下面是各语言连接器建立原生连接代码样例。演示了如何使用原生连接方式连接到 TDengine 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
+ 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
@@ -366,7 +367,8 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 </Tabs>
 
 ### REST 连接
-各语言连接器建立 REST 连接代码样例。  
+下面是各语言连接器建立 RESt 连接代码样例。演示了如何使用 REST 连接方式连接到 TDengine 数据库。整个过程主要涉及到数据库连接的建立和异常处理。
+ 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
