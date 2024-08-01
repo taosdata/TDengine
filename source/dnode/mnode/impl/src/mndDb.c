@@ -791,12 +791,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   mndSetDefaultDbCfg(&dbObj.cfg);
 
   if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, terrstr());
     TAOS_RETURN(code);
   }
 
   if ((code = mndCheckDbCfg(pMnode, &dbObj.cfg)) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    mError("db:%s, failed to create, check db cfg failed, since %s", pCreate->db, terrstr());
     TAOS_RETURN(code);
   }
 
@@ -812,7 +812,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
   SVgObj *pVgroups = NULL;
   if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups)) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
     TAOS_RETURN(code);
   }
 
@@ -965,7 +965,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
-  code = mndCreateDb(pMnode, pReq, &createReq, pUser);
+  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
