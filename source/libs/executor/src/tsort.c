@@ -1363,6 +1363,7 @@ static void initRowIdSort(SSortHandle* pHandle) {
 
   taosArrayDestroy(pHandle->pSortInfo);
   pHandle->pSortInfo = pOrderInfoList;
+  pHandle->cmpParam.pPkOrder = (pHandle->bSortPk) ? taosArrayGet(pHandle->pSortInfo, 1) : NULL;
 }
 
 int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsMemSize) {
