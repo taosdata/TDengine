@@ -70,8 +70,8 @@ def check_docs() {
             echo "docs PR"
             docs_only=1
         } else {
-            echo file_changed 
-            echo file_changed > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
+            echo file_changed
+            new File("${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt").write(file_changed)
         }
     }
 }
