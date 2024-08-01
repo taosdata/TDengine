@@ -351,10 +351,9 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 ```
     </TabItem>
     <TabItem label="Python" value="python">
-
-        ```python
-        {{#include docs/examples/python/connect_websocket_examples.py:connect}}
-        ```
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
     </TabItem>
     <TabItem label="Go" value="go">
         <ConnGo />
@@ -363,9 +362,9 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
         <ConnRust />
     </TabItem>
     <TabItem label="Node.js" value="node">
-        ```js
-            {{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
-        ```
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
+```
     </TabItem>
     <TabItem label="C#" value="csharp">
         <ConnCSNative />
@@ -424,7 +423,9 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 ```
     </TabItem>
     <TabItem label="Python" value="python">
-        <ConnPythonNative />
+```python
+{{#include docs/examples/python/connect_rest_examples.py:connect}}
+```
     </TabItem>
     <TabItem label="Go" value="go">
         <ConnGo />

@@ -115,11 +115,6 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
-
-## API 参考
-
-- [taos](https://docs.taosdata.com/api/taospy/taos/)
-- [taosrest](https://docs.taosdata.com/api/taospy/taosrest)
   
 ## 常见问题
 
@@ -127,10 +122,9 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 
 ## API 参考
 
-<Tabs>
-<TabItem label="WebSocket" value="websocket">
+### WebSocket 连接
 
-### URL 规范
+#### URL 规范
 
 ```text
 [+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
@@ -144,7 +138,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 - **database**: 数据库名称。
 - **params**: 其他参数。 例如token。
 
-### 建立连接
+#### 建立连接
 
 - `fn connect(dsn: Option<&str>, args: Option<&PyDict>) -> PyResult<Connection>`
     - **接口说明**：建立 taosAdapter 连接。
@@ -163,7 +157,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
     - **返回值**：数据库游标对象。
     - **异常**：操作失败抛出 `ConnectionError` 异常。
 
-### 执行SQL
+#### 执行SQL
 
 - `fn execute(&self, sql: &str) -> PyResult<i32>`
     - **接口说明**：执行 sql 语句。 
@@ -192,7 +186,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
     - **返回值**：`TaosResult` 数据集对象。
     - **异常**：操作失败抛出 `QueryError` 异常。
 
-### 数据集
+#### 数据集
 
 TaosResult 对象可以通过循环遍历获取查询到的数据。
 
@@ -203,7 +197,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **接口说明**：获取查询到的记录条数。 
     - **返回值**：`i32` 查询到的记录条数。
 
-### 无模式写入
+#### 无模式写入
 - `fn schemaless_insert(&self, lines: Vec<String>, protocol: PySchemalessProtocol, precision: PySchemalessPrecision, ttl: i32, req_id: u64) -> PyResult<()>`
     - **接口说明**：无模式写入。
     - **参数说明**：
@@ -223,7 +217,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
         - `reqId`: 用于问题追踪。
     - **异常**：操作失败抛出 `DataError` 或 `OperationalError` 异常。
 
-### 参数绑定
+#### 参数绑定
 - `fn statement(&self) -> PyResult<TaosStmt>`
     - **接口说明**：使用 连接 对象创建 stmt 对象。
     - **返回值**：stmt 对象。
@@ -261,7 +255,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `fn close(&self) -> PyResult<()>`
     - **接口说明**： 关闭 stmt 对象。
 
-### 数据订阅
+#### 数据订阅
 - **创建消费者支持属性列表**：
     - host：主机地址。
     - port：端口号。
@@ -327,10 +321,10 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `fn close(&mut self)`
     - **接口说明**：关闭 tmq 连接。
     - **异常**：操作失败抛出 ConsumerException 异常。
-</TabItem>
 
-<TabItem label="Native" value="native">
-### 建立连接
+### Native 连接
+
+#### 建立连接
 
 - `def connect(*args, **kwargs):`
     - **接口说明**：建立 taosAdapter 连接。
@@ -348,8 +342,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **接口说明**：创建一个新的数据库游标对象，用于执行SQL命令和查询。
     - **返回值**：数据库游标对象。
 
-
-### 执行SQL
+#### 执行SQL
 
 - `def execute(self, operation, req_id: Optional[int] = None)`
     - **接口说明**：执行 sql 语句。 
@@ -366,7 +359,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **返回值**：`TaosResult` 数据集对象。
     - **异常**：操作失败抛出 `ProgrammingError` 异常。
 
-### 数据集
+#### 数据集
 
 TaosResult 对象可以通过循环遍历获取查询到的数据。
 
@@ -380,7 +373,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **接口说明**：将所有的记录转换为字典。 
     - **返回值**：返回字典列表。 
 
-### 无模式写入
+#### 无模式写入
 - `def schemaless_insert(&self, lines: List[str], protocol: SmlProtocol, precision: SmlPrecision, req_id: Optional[int] = None, ttl: Optional[int] = None) -> int:`
     - **接口说明**：无模式写入。
     - **参数说明**：
@@ -401,7 +394,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
     - **返回值**：影响的条数。    
     - **异常**：操作失败抛出 `SchemalessError` 异常。
 
-### 参数绑定
+#### 参数绑定
 - `def statement(self, sql=None)`
     - **接口说明**：使用连接对象创建 stmt 对象, 如果 sql 不空会进行调用 prepare。
     - `sql`: 预编译的 SQL 语句。
@@ -447,7 +440,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def close(&self)`
     - **接口说明**： 关闭 stmt 对象。
 
-### 数据订阅
+#### 数据订阅
 - **创建消费者支持属性列表**：
     - td.connect.ip：主机地址。
     - td.connect.port：端口号。
@@ -515,8 +508,9 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def close(self)`
     - **接口说明**：关闭 tmq 连接。
     - **异常**：操作失败抛出 TmqError 异常。
-</TabItem>
-<TabItem label="REST 连接" value="rest">
+
+### REST 连接
+
 - `def connect(**kwargs) -> TaosRestConnection`
     - **接口说明**：建立 taosAdapter 连接。
     - **参数说明**：
@@ -562,5 +556,3 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
         - `reqId`: 用于问题追踪。
     - **返回值**：返回字典列表。
     - **异常**：操作失败抛出 `ConnectError` 或 `HTTPError` 异常。
-</TabItem>
-</Tabs>
