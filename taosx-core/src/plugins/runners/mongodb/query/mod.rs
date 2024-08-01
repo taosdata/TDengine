@@ -182,14 +182,7 @@ impl MongoDBQuery {
                     match item {
                         Some(Ok(item)) => {
                             if documents.len() >= batch_size {
-                                let batches = appender::to_record_batches(&documents, batch_size)?;
-                                for batch in batches {
-                                    if batch.num_rows() > 0 {
-                                        tx.send(batch).context("failed to send record batch")?;
-                                    }
-                                }
-                                amount += documents.len() as u64;
-                                documents.clear();
+                                send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount)?;
                             } else {
                                 documents.push(item);
                             }
@@ -201,14 +194,7 @@ impl MongoDBQuery {
                     }
                 }
                 if documents.len() > 0 {
-                    let batches = appender::to_record_batches(&documents, batch_size)?;
-                    for batch in batches {
-                        if batch.num_rows() > 0 {
-                            tx.send(batch).context("failed to send record batch")?;
-                        }
-                    }
-                    amount += documents.len() as u64;
-                    documents.clear();
+                    send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount)?;
                 }
                 Ok(amount)
             }
@@ -251,6 +237,23 @@ impl MongoDBQuery {
             Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
         }
     }
+}
+
+fn send_documents_to_ipc(
+    documents: &mut Vec<Document>,
+    batch_size: usize,
+    tx: &Sender<RecordBatch>,
+    amount: &mut u64,
+) -> Result<(), anyhow::Error> {
+    let batches = appender::to_record_batches(&*documents, batch_size)?;
+    for batch in batches {
+        if batch.num_rows() > 0 {
+            tx.send(batch).context("failed to send record batch")?;
+        }
+    }
+    *amount += documents.len() as u64;
+    documents.clear();
+    Ok(())
 }
 
 #[cfg(test)]
