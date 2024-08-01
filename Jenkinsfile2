@@ -74,7 +74,7 @@ def check_docs() {
         env.FILE_CHANGED = file_changed
         script {
             sh '''
-                echo ''' + env.FILE_CHANGED + ''' > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
+                echo " ''' + env.FILE_CHANGED + '''"  > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
             '''
         }
     }
