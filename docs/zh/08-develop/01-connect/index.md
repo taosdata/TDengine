@@ -97,18 +97,63 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 </TabItem>
 <TabItem label="Python" value="python">
 
-使用 `pip` 从 PyPI 安装:
+- **安装前准备**
+    - 安装 Python。新近版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
+    - 安装 [pip](https://pypi.org/project/pip/)。大部分情况下 Python 的安装包都自带了 pip 工具， 如果没有请参考 [pip documentation](https://pip.pypa.io/en/stable/installation/) 安装。
+    - 如果使用原生连接，还需[安装客户端驱动](../#安装客户端驱动)。客户端软件包含了 TDengine 客户端动态链接库(libtaos.so 或 taos.dll) 和 TDengine CLI。
 
-```
-pip install taospy
-```
+- **使用 pip 安装**
+    - 卸载旧版本
+        如果以前安装过旧版本的 Python 连接器, 请提前卸载。
+        ```
+        pip3 uninstall taos taospy
+        pip3 uninstall taos  taos-ws-py
+        ```
+    - 安装 `taospy`
+        - 最新版本
+            ```
+            pip3 install taospy
+            ```
+        - 指定某个特定版本安装
+            ```
+            pip3 install taospy==2.3.0
+            ```
+        - 从 GitHub 安装
+            ```
+            pip3 install git+https://github.com/taosdata/taos-connector-python.git
+            ```
+        :::note 此安装包为原生连接器    
+    - 安装 `taos-ws-py`
+        ```bash
+        pip3 install taos-ws-py
+        ```
+        :::note 此安装包为 Websocket 连接器
+    - 同时安装 `taospy` 和 `taos-ws-py`
+        ```bash
+        pip3 install taospy[ws]
+        ```                     
 
-从 Git URL 安装：
-
-```
-pip install git+https://github.com/taosdata/taos-connector-python.git
-```
-
+  - **安装验证**
+    <Tabs defaultValue="rest">
+    <TabItem value="native" label="原生连接">
+    对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
+    ```python
+    import taos
+    ```
+    </TabItem>
+    <TabItem  value="rest" label="REST 连接">
+    对于 REST 连接，只需验证是否能成功导入 `taosrest` 模块。可在 Python 交互式 Shell 中输入：
+    ```python
+    import taosrest
+    ```
+    </TabItem>
+    <TabItem  value="ws" label="WebSocket 连接">
+    对于 WebSocket 连接，只需验证是否能成功导入 `taosws` 模块。可在 Python 交互式 Shell 中输入：
+    ```python
+    import taosws
+    ```
+    </TabItem> 
+    </Tabs>
 </TabItem>
 <TabItem label="Go" value="go">
 
@@ -149,23 +194,26 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 </TabItem>
 <TabItem label="Node.js" value="node">
 
-Node.js 连接器通过不同的包提供不同的连接方式。
+- **安装前准备**
+    - 安装 Node.js 开发环境, 使用14以上版本。下载链接： https://nodejs.org/en/download/
 
-1. 安装 Node.js 原生连接器
+- **安装**
+    - 使用 npm 安装 Node.js 连接器
+    ```
+    npm install @tdengine/websocket
+    ```
+    :::note Node.js 目前只支持 Websocket 连接
+- **安装验证**
+    - 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js)到本地。
+    - 在命令行中执行以下命令。
+    ```bash
+    npm init -y
+    npm install @tdengine/websocket
+    node nodejsChecker.js
+    ```
+    - 执行以上步骤后，在命令行会输出 nodeChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
 
-```
-npm install @tdengine/client
-```
 
-:::note
-推荐 Node 版本大于等于 `node-v12.8.0` 小于 `node-v13.0.0`
-:::
-
-2. 安装 Node.js REST 连接器
-
-```
-npm install @tdengine/rest
-```
 
 </TabItem>
 <TabItem label="C#" value="csharp">
