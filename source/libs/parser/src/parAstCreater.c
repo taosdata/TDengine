@@ -207,6 +207,8 @@ static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
     return false;
   }
   return true;
+
+
 }
 
 static bool checkTopicName(SAstCreateContext* pCxt, SToken* pTopicName) {

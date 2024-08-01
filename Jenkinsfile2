@@ -69,7 +69,9 @@ def check_docs() {
             echo "docs PR"
             docs_only=1
         } else {
-            echo file_changed
+            echo file_changed 
+            mkdir -p ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}
+            echo file_changed > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
         }
     }
 }
@@ -350,7 +352,6 @@ pipeline {
             when {
                 allOf {
                     not { expression { env.CHANGE_BRANCH =~ /docs\// }}
-                    not { expression { env.CHANGE_URL =~ /\/TDinternal\// }}
                 }
             }
             parallel {
@@ -401,7 +402,7 @@ pipeline {
                     }
                 }
                 stage('linux test') {
-                    agent{label "slave1_47 || slave1_48 || slave1_49 || slave1_50 || slave1_52 || slave1_59 || slave1_63 || worker03 || slave215 || slave217 || slave219 "}
+                    agent{label "slave1_47 "}
                     options { skipDefaultCheckout() } 
                     when {
                         changeRequest()
@@ -424,6 +425,10 @@ pipeline {
                                         rm -rf ${WKC}/debug
                                         cd ${WKC}/tests/parallel_test
                                         time ./container_build.sh -w ${WKDIR} -e
+                                    '''
+                                    sh '''
+                                       cd ${WKC}/tests/ci
+                                       python3 scan_file_path.py -b ${BRANCH_NAME}_${BUILD_ID}  -f ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
                                     def extra_param = ""
                                     def log_server_file = "/home/log_server.json"
