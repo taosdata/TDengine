@@ -182,10 +182,14 @@ impl MongoDBQuery {
                     match item {
                         Some(Ok(item)) => {
                             if documents.len() >= batch_size {
-                                send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount)?;
-                            } else {
-                                documents.push(item);
+                                send_documents_to_ipc(
+                                    &mut documents,
+                                    batch_size,
+                                    &tx,
+                                    &mut amount,
+                                )?;
                             }
+                            documents.push(item);
                         }
                         Some(Err(e)) => {
                             anyhow::bail!("failed to select data, cause: {}", e.to_string());
