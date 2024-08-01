@@ -1065,7 +1065,7 @@ type ConfigMap map[string]ConfigValue
 - `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
 - `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
 
-其他参数请参考：[Consumer 参数列表](../../develop/tmq/#数据订阅相关参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#数据订阅相关参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
     - **接口说明**：订阅主题。

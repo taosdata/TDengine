@@ -30,8 +30,8 @@ config.setProperty("auto.offset.reset", "latest");
 config.setProperty("msg.with.table.name", "true");
 config.setProperty("enable.auto.commit", "true");
 config.setProperty("auto.commit.interval.ms", "1000");
-config.setProperty("group.id", "group2");
-config.setProperty("client.id", "1");
+config.setProperty("group.id", "group1");
+config.setProperty("client.id", "client1");
 config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoopWs$ResultDeserializer");
 config.setProperty("value.deserializer.encoding", "UTF-8");
 
