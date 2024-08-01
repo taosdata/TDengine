@@ -636,12 +636,9 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
 static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, SVgroupChangeInfo *pInfo) {
   void   *pBuf = NULL;
   int32_t len = 0;
-  int32_t code = streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
-  if (code) {
-    return code;
-  }
+  (void)streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
 
-  code = doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, &pTask->id, pTrans->id);
+  int32_t code = doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, &pTask->id, pTrans->id);
   if (code) {
     return code;
   }
