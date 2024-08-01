@@ -298,13 +298,13 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  (*ppRes) =  NULL;
+  (*ppRes) = NULL;
   return code;
 }
 
 static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t code = loadRemoteDataNext(pOperator, &pRes);
+  int32_t      code = loadRemoteDataNext(pOperator, &pRes);
   return pRes;
 }
 
@@ -391,7 +391,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
                                    SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
-  int32_t code = 0;
+  int32_t        code = 0;
   int32_t        lino = 0;
   SExchangeInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -690,7 +690,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
   int32_t lino = 0;
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
-    code = blockDecode(pRes, pData, (const char**) pNextStart);
+    code = blockDecode(pRes, pData, (const char**)pNextStart);
     if (code) {
       return code;
     }
