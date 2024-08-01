@@ -7083,6 +7083,7 @@ int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
     }
   }
 
+  if (tEncodeI8(&encoder, pReq->pollFlag) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -7121,6 +7122,9 @@ int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
         }
       }
     }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->pollFlag) < 0) return -1;
   }
   tEndDecode(&decoder);
 
