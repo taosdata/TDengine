@@ -188,9 +188,8 @@ impl MongoDBQuery {
                                     &tx,
                                     &mut amount,
                                 )?;
-                            } else {
-                                documents.push(item);
                             }
+                            documents.push(item);
                         }
                         Some(Err(e)) => {
                             anyhow::bail!("failed to select data, cause: {}", e.to_string());
