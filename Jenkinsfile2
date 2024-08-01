@@ -423,7 +423,7 @@ pipeline {
                                     echo "''' + env.FILE_CHANGED + '''" > ${WK}/../log/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt
                                     '''
                                     sh'''
-                                    cd $${WK}/;rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ;make -j 10|| exit 1
+                                    cd ${WK} || exit 0 ; rm -rf debug;mkdir -p debug;cd debug;cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ;make -j 10|| exit 1
                                     '''
                                     sh '''
                                        cd ${WKC}/tests/ci
