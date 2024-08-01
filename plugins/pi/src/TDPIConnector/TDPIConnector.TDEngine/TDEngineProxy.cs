@@ -8,8 +8,6 @@ using System.Threading;
 using TDPIConnector.TDEngine.Models;
 using TDPIConnector.TDEngine.Helper;
 using TDPIConnector.TDEngine.TaosxClient;
-using log4net.Repository.Hierarchy;
-using Newtonsoft.Json.Linq;
 
 namespace TDPIConnector.TDEngine
 {
