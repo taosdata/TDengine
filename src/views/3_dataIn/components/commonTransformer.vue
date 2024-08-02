@@ -2335,18 +2335,19 @@ export default {
       this.parseruleForm.expression = data
     },
     selectJson() {
-      // this.dialogVisible = true;
+      
+      try {
+        this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
+      } catch (err) {
+        if (err.lineNumber > 0) {
+          this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
+        } else {
+          this.$error(this.$t(err));
+        }
+      }
+      
       if (this.parseruleForm.expression && this.parseruleForm.type == "json") {
         // 回显逻辑
-        try {
-          this.allProperties = extractAllProperties(this.msgForm.msgbody)
-        } catch (err) {
-          if (err.lineNumber > 0) {
-            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
-          } else {
-            this.$error(this.$t(err));
-          }
-        }
         let firstSplitArr = this.parseruleForm.expression.split(',')
         let checkedKey = []
         let checkedObj = {}
@@ -2364,15 +2365,6 @@ export default {
           }
         })
       } else {
-        try {
-          this.allProperties = extractAllProperties(this.msgForm.msgbody)
-        } catch (err) {
-          if (err.lineNumber > 0) {
-            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
-          } else {
-            this.$error(this.$t(err));
-          }
-        }
         this.allProperties = this.allProperties.map((item,index) => {
           return  {
             defaultValue: item,
@@ -2394,19 +2386,7 @@ export default {
       console.log('this.checkedProperties',this.allProperties);
     },
     handleRename(value) {
-      let inputString = value
-      inputString = inputString.replace(/\$./g, '');
-      // 判断不是嵌套属性 
-      if (!inputString.includes('.')) {
-        inputString = "";
-      }
-      inputString = inputString.replace(/\./g, '_');
-      // 替换所有的中括号为下划线
-      inputString = inputString.replace(/\[/g, '_');
-      inputString = inputString.replace(/\]/g, '');
-      
-
-      return inputString;
+      return value.replaceAll("\"][\"", '_').replace("$[\"", "").replace("\"]", "");
     },
     handleTypeChange() {
       this.parseruleForm.expression = ""

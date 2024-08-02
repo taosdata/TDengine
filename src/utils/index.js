@@ -479,28 +479,24 @@ function removeQuotedStrings(str) {
   return str.replace(/:\s*"([^"]*)"/g, ':""').replace(/:\s*'([^']*)'/g, ":''");
 }
 
-function getAllProperties(obj) {
+function getAllProperties(obj, deep) {
   const properties = [];
 
-  function traverse(prefix, obj) {
-      for (let key in obj) {
-          if (Array.isArray(obj[key])) {
-              for (let i = 0; i < obj[key].length; i++) {
-                  traverse(`${prefix}.${key}[${i}]`, obj[key][i]);
-              }
-          } else if (typeof obj[key] === 'object') {
-              traverse(`${prefix}.${key}`,  obj[key]);
-          } else {
-              properties.push(`${prefix}.${key}`);
-          }
+  function traverse(prefix, obj, my_deep) {
+    for (let key in obj) {
+      if (my_deep < deep && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+          traverse(`${prefix}["${key}"]`,  obj[key], my_deep + 1);
+      } else {
+          properties.push(`${prefix}["${key}"]`);
       }
+    }
   }
 
-  traverse("$", obj);
+  traverse("$", obj, 0);
   return properties;
 }
 
-export function extractAllProperties(sampleData) {
+export function extractAllProperties(sampleData, deep) {
   // 1. Remove all quoted strings，避免字符串中包含{}导致提取出错
   const json_list = getExampleList(sampleData, true);
   const jsonObject = {}
@@ -514,7 +510,7 @@ export function extractAllProperties(sampleData) {
       Object.assign(jsonObject, json);
     }
   }
-  return getAllProperties(jsonObject);
+  return getAllProperties(jsonObject, deep);
 }
 
 // 获取示例数据字符串列表[]
