@@ -330,7 +330,8 @@ export default {
         return this.config.required(
           this.data,
           this.sourceParent.sourceForm.data,
-          this.sourceParent.currentDefinition
+          this.sourceParent.currentDefinition,
+          this.isEdit && !this.isCopyable
         )
           ? this.config.pattern 
             ? [...requireRule,...patternRule] 
