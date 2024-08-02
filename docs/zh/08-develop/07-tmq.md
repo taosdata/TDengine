@@ -104,9 +104,10 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Rust" value="rust">
 
-
 ```rust
-{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer}}
+{{#include docs/examples/rust/restexample/examples/tmq.rs:create_consumer_dsn}}
+
+{{#include docs/examples/rust/restexample/examples/tmq.rs:create_consumer}}
 ```
 
 </TabItem>
