@@ -179,11 +179,11 @@ if __name__ == "__main__":
     # create dir
     # current_time = datetime.now().strftime("%Y%m%d%H%M%S")
     # scan_result_path = os.path.join(scan_result_base_path, current_time)
-    scan_result_path = scan_result_base_path
-    if not os.path.exists(scan_result_path):
-        os.makedirs(scan_result_path)
-    for file in all_file_path:
+    # scan_result_path = scan_result_base_path
+    # if not os.path.exists(scan_result_path):
+    #     os.makedirs(scan_result_path)
 
+    for file in all_file_path:
         cmd = f"clang-query-10 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
         logger.debug(f"cmd:{cmd}")
         try:
@@ -195,9 +195,9 @@ if __name__ == "__main__":
                 match_num = int(lines[-2].split(" ")[0])
                 logger.info("The match lines of file %s: %s" % (file, match_num))
                 if match_num > 0:
-                    logger.info(f"scan_result_path: {scan_result_path} ,file:{file}")
-                    save_scan_res(scan_result_path, file, stdout, stderr)
-                    index_tests = file_res_path.find(branch_name)
+                    logger.info(f"log_file_path: {log_file_path} ,file:{file}")
+                    save_scan_res(log_file_path, file, stdout, stderr)
+                    index_tests = file_res_path.find("scan_log")
                     if index_tests != -1:
                         web_path_file = file_res_path[index_tests:]
                         web_path_file = os.path.join(web_server, web_path_file)
@@ -212,8 +212,8 @@ if __name__ == "__main__":
     # for item in res:
     #     data += item[0] + "," + str(item[1]) + "\n"
     # logger.info("Csv data: %s" % data)
-    write_csv(os.path.join(scan_result_path, "scan_res.csv"), res)
-    scan_result_log = f"{scan_result_path}/scan_res.csv"
+    write_csv(os.path.join(log_file_path, "scan_res.csv"), res)
+    scan_result_log = f"{log_file_path}/scan_res.csv"
     # delete the first element of res
     res= res[1:]
     logger.info("The result of scan: \n")
