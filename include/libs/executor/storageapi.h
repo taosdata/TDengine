@@ -350,12 +350,13 @@ typedef struct SStateStore {
   int32_t (*streamStateGetInfo)(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
 
   int32_t (*streamStateFillPut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
-  int32_t (*streamStateFillGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
+  int32_t (*streamStateFillGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+                                int32_t* pWinCode);
   void (*streamStateFillDel)(SStreamState* pState, const SWinKey* key);
   int32_t (*streamStateFillGetNext)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
-                                    int32_t* pVLen);
+                                    int32_t* pVLen, int32_t* pWinCode);
   int32_t (*streamStateFillGetPrev)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
-                                    int32_t* pVLen);
+                                    int32_t* pVLen, int32_t* pWinCode);
 
   void (*streamStateCurNext)(SStreamState* pState, SStreamStateCur* pCur);
   void (*streamStateCurPrev)(SStreamState* pState, SStreamStateCur* pCur);

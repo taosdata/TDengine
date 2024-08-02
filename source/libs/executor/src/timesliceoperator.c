@@ -227,7 +227,7 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
   return false;
 }
 
-static bool isInterpFunc(SExprInfo* pExprInfo) {
+bool isInterpFunc(SExprInfo* pExprInfo) {
   int32_t functionType = pExprInfo->pExpr->_function.functionType;
   return (functionType == FUNCTION_TYPE_INTERP);
 }

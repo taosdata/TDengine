@@ -2065,9 +2065,11 @@ _end:
   return code;
 }
 
-void getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SInterval* pInterval, TSKEY start, TSKEY end, int64_t groupId,
+int32_t getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SInterval* pInterval, TSKEY start, TSKEY end, int64_t groupId,
                           STimeWindow* pScanRange, STimeWindow* pDelRange) {
   int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  int32_t        winCode = TSDB_CODE_SUCCESS;
   SResultRowInfo dumyInfo = {0};
   dumyInfo.cur.pageId = -1;
   STimeWindow sWin = getActiveTimeWindow(NULL, &dumyInfo, start, pInterval, TSDB_ORDER_ASC);
@@ -2079,20 +2081,28 @@ void getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SInterval* pInterval, TS
   pDelRange->ekey = sWin.ekey;
 
   SWinKey preKey = {.groupId = groupId};
-  code = pAggSup->stateStore.streamStateFillGetPrev(pAggSup->pState, &startKey, &preKey, NULL, NULL);
-  if (code == TSDB_CODE_SUCCESS) {
+  code = pAggSup->stateStore.streamStateFillGetPrev(pAggSup->pState, &startKey, &preKey, NULL, NULL, &winCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (winCode == TSDB_CODE_SUCCESS) {
     pScanRange->skey = preKey.ts;
   } else {
     pScanRange->skey = startKey.ts;
   }
 
   SWinKey nextKey = {.groupId = groupId};
-  code = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, &endKey, &nextKey, NULL, NULL);
-  if (code == TSDB_CODE_SUCCESS) {
+  code = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, &endKey, &nextKey, NULL, NULL, &winCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (winCode == TSDB_CODE_SUCCESS) {
     pScanRange->ekey = nextKey.ts;
   } else {
     pScanRange->ekey = endKey.ts;
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t generateTimeSliceScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock,
@@ -2150,7 +2160,9 @@ static int32_t generateTimeSliceScanRange(SStreamScanInfo* pInfo, SSDataBlock* p
     STimeWindow scanRange = {0};
     STimeWindow delRange = {0};
     ASSERT(mode == STREAM_DELETE_RESULT || mode == STREAM_DELETE_DATA);
-    getTimeSliceWinRange(pInfo->windowSup.pStreamAggSup, &pInfo->interval, startData[i], endData[i], groupId, &scanRange, &delRange);
+    code = getTimeSliceWinRange(pInfo->windowSup.pStreamAggSup, &pInfo->interval, startData[i], endData[i], groupId,
+                         &scanRange, &delRange);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     code = colDataSetVal(pDestStartCol, i, (const char*)&scanRange.skey, false);
     QUERY_CHECK_CODE(code, lino, _end);

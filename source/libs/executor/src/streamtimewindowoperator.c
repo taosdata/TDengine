@@ -394,7 +394,8 @@ static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWin
   doBuildDeleteResultImpl(&pInfo->stateStore, pInfo->pState, pWins, index, pBlock);
 }
 
-void doBuildDeleteResultImpl(SStateStore* pAPI, SStreamState* pState, SArray* pWins, int32_t* index, SSDataBlock* pBlock) {
+void doBuildDeleteResultImpl(SStateStore* pAPI, SStreamState* pState, SArray* pWins, int32_t* index,
+                             SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   blockDataCleanup(pBlock);
@@ -1852,9 +1853,8 @@ _end:
   }
 }
 
-int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                     SExecTaskInfo* pTaskInfo, int32_t numOfChild,
-                                                     SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                              int32_t numOfChild, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
   int32_t                      code = TSDB_CODE_SUCCESS;
@@ -2121,8 +2121,8 @@ static TSKEY sesionTs(void* pKey) {
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, int32_t numOfOutput, int64_t gap,
                                SStreamState* pState, int32_t keySize, int16_t keyType, SStateStore* pStore,
                                SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
-                               SStorageAPI* pApi, int32_t tsIndex) {
-  pSup->resultRowSize = keySize + getResultRowSize(pExpSup->pCtx, numOfOutput);
+                               SStorageAPI* pApi, int32_t tsIndex, int8_t stateType, int32_t ratio) {
+  pSup->resultRowSize = (keySize + getResultRowSize(pExpSup->pCtx, numOfOutput)) * ratio;
 
   int32_t code = createSpecialDataBlock(STREAM_CLEAR, &pSup->pScanBlock);
   if (code) {
@@ -2144,9 +2144,15 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   *(pSup->pState) = *pState;
   pSup->stateStore.streamStateSetNumber(pSup->pState, -1, tsIndex);
   int32_t funResSize = getMaxFunResSize(pExpSup, numOfOutput);
-  pSup->pState->pFileState = pSup->stateStore.streamFileStateInit(
-      tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize, funResSize, sesionTs, pSup->pState,
-      pTwAggSup->deleteMark, taskIdStr, pHandle->checkpointId, STREAM_STATE_BUFF_SORT);
+  if (stateType == STREAM_STATE_BUFF_SORT) {
+    pSup->pState->pFileState = pSup->stateStore.streamFileStateInit(
+        tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize, funResSize, sesionTs, pSup->pState,
+        pTwAggSup->deleteMark, taskIdStr, pHandle->checkpointId, stateType);
+  } else if (stateType == STREAM_STATE_BUFF_HASH_SORT) {
+    pSup->pState->pFileState = pSup->stateStore.streamFileStateInit(
+        tsStreamBufferSize, sizeof(SWinKey), pSup->resultRowSize, funResSize, compareTs, pSup->pState,
+        pTwAggSup->deleteMark, taskIdStr, pHandle->checkpointId, stateType);
+  }
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pSup->pResultRows = tSimpleHashInit(32, hashFn);
@@ -3682,8 +3688,8 @@ _end:
   }
 }
 
-int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                  SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                           SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
   SSessionWinodwPhysiNode*       pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
@@ -3726,9 +3732,10 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   };
 
   pInfo->primaryTsIndex = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
-  code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, pSessionNode->gap,
-                                pTaskInfo->streamInfo.pState, 0, 0, &pTaskInfo->storageAPI.stateStore, pHandle,
-                                &pInfo->twAggSup, GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
+  code =
+      initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, pSessionNode->gap, pTaskInfo->streamInfo.pState,
+                             0, 0, &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup, GET_TASKID(pTaskInfo),
+                             &pTaskInfo->storageAPI, pInfo->primaryTsIndex, STREAM_STATE_BUFF_SORT, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -3993,8 +4000,8 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
 }
 
 int32_t createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                       SExecTaskInfo* pTaskInfo, int32_t numOfChild,
-                                                       SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
+                                                SExecTaskInfo* pTaskInfo, int32_t numOfChild, SReadHandle* pHandle,
+                                                SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -4870,9 +4877,10 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   int32_t keySize = sizeof(SStateKeys) + pColNode->node.resType.bytes;
   int16_t type = pColNode->node.resType.type;
   pInfo->primaryTsIndex = tsSlotId;
-  code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0, pTaskInfo->streamInfo.pState, keySize,
-                                type, &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup,
-                                GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
+  code =
+      initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfCols, 0, pTaskInfo->streamInfo.pState, keySize, type,
+                             &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup, GET_TASKID(pTaskInfo),
+                             &pTaskInfo->storageAPI, pInfo->primaryTsIndex, STREAM_STATE_BUFF_SORT, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -5229,7 +5237,7 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   pInfo->recvGetAll = false;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
-      QUERY_CHECK_CODE(code, lino, _error);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pDeletedMap = tSimpleHashInit(4096, hashFn);
@@ -5643,6 +5651,7 @@ static SSDataBlock* doStreamMidIntervalAgg(SOperatorInfo* pOperator) {
 }
 
 void setStreamOperatorCompleted(SOperatorInfo* pOperator) {
-  qDebug("stask:%s  %s status: %d. set completed", GET_TASKID(pOperator->pTaskInfo), getStreamOpName(pOperator->operatorType), pOperator->status);
+  qDebug("stask:%s  %s status: %d. set completed", GET_TASKID(pOperator->pTaskInfo),
+         getStreamOpName(pOperator->operatorType), pOperator->status);
   setOperatorCompleted(pOperator);
 }

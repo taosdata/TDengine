@@ -208,7 +208,7 @@ typedef struct SInterpFuncLogicNode {
   SNodeList*    pFuncs;
   STimeWindow   timeRange;
   int64_t       interval;
-  char          intervalUnit;
+  int8_t        intervalUnit;
   int8_t        precision;
   EFillMode     fillMode;
   SNode*        pFillValues;  // SNodeListNode
@@ -513,7 +513,7 @@ typedef struct SInterpFuncPhysiNode {
   SNodeList*    pFuncs;
   STimeWindow   timeRange;
   int64_t       interval;
-  char          intervalUnit;
+  int8_t        intervalUnit;
   int8_t        precision;
   EFillMode     fillMode;
   SNode*        pFillValues;  // SNodeListNode

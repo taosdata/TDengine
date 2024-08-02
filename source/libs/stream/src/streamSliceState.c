@@ -27,9 +27,13 @@ int fillStateKeyCompare(const void* pWin1, const void* pDatas, int pos) {
   return winKeyCmprImpl((SWinKey*)pWin1, pWin2);
 }
 
-int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen) {
-  int32_t winCode = TSDB_CODE_SUCCESS;
-  int32_t code = getRowBuff(pFileState, (void*)pKey, sizeof(SWinKey), pVal, pVLen, &winCode);
+int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
+                           int32_t* pWinCode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  code = getRowBuff(pFileState, (void*)pKey, sizeof(SWinKey), pVal, pVLen, pWinCode);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   SArray*    pWinStates = NULL;
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
@@ -38,23 +42,26 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
     pWinStates = (SArray*)(*ppBuff);
   } else {
     pWinStates = taosArrayInit(16, sizeof(SWinKey));
-    tSimpleHashPut(pSearchBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
+    QUERY_CHECK_NULL(pWinStates, code, lino, _end, terrno);
+
+    code = tSimpleHashPut(pSearchBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  //recover
+  // recover
   if (taosArrayGetSize(pWinStates) == 0 && needClearDiskBuff(pFileState)) {
-    TSKEY ts = getFlushMark(pFileState);
-    SWinKey start = {.groupId = pKey->groupId, .ts = INT64_MAX};
-    void* pState = getStateFileStore(pFileState);
+    TSKEY            ts = getFlushMark(pFileState);
+    SWinKey          start = {.groupId = pKey->groupId, .ts = INT64_MAX};
+    void*            pState = getStateFileStore(pFileState);
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, &start);
-    int32_t winCode = TSDB_CODE_SUCCESS;
-    for(int32_t i = 0; i < NUM_OF_FLUSED_WIN && winCode == TSDB_CODE_SUCCESS; i++) {
-      SWinKey tmp = {.groupId = pKey->groupId};
-      winCode = streamStateGetGroupKVByCur_rocksdb(pCur, &tmp, NULL, 0);
-      if (winCode != TSDB_CODE_SUCCESS) {
+    for (int32_t i = 0; i < NUM_OF_FLUSED_WIN; i++) {
+      SWinKey tmpKey = {.groupId = pKey->groupId};
+      int32_t tmpRes = streamStateGetGroupKVByCur_rocksdb(pCur, &tmpKey, NULL, 0);
+      if (tmpRes != TSDB_CODE_SUCCESS) {
         break;
       }
-      taosArrayPush(pWinStates, &tmp);
+      void* tmp = taosArrayPush(pWinStates, &tmp);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       streamStateCurPrev_rocksdb(pCur);
     }
     taosArraySort(pWinStates, winKeyCmprImpl);
@@ -65,13 +72,20 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
   if (!isFlushedState(pFileState, pKey->ts, 0)) {
     // find the first position which is smaller than the pKey
     int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
-    if (index == -1) {
-      index = 0;
+    if (index >= 0) {
+      SWinKey* pTmpKey = taosArrayGet(pWinStates, index);
+      if (winKeyCmprImpl(pTmpKey, pKey) == 0) {
+        goto _end;
+      }
     }
-    SWinKey* pTmpKey = taosArrayGet(pWinStates, index);
-    if (winKeyCmprImpl(pTmpKey, pKey) != 0) {
-      taosArrayInsert(pWinStates, index, pKey);
-    }
+    index++;
+    void* tmp = taosArrayInsert(pWinStates, index, pKey);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -91,16 +105,15 @@ void clearSearchBuff(SStreamFileState* pFileState) {
   if (!pSearchBuff) {
     return;
   }
+  TSKEY   flushMark = getFlushMark(pFileState);
   void*   pIte = NULL;
   int32_t iter = 0;
-  void*   pBuff = getRowStateBuff(pFileState);
-  while ((pIte = tSimpleHashIterate(pBuff, pIte, &iter)) != NULL) {
+  while ((pIte = tSimpleHashIterate(pSearchBuff, pIte, &iter)) != NULL) {
     SArray* pWinStates = *((void**)pIte);
     int32_t size = taosArrayGetSize(pWinStates);
     if (size > 0) {
-      TSKEY ts = getFlushMark(pFileState);
-      SWinKey key = *(SWinKey*)taosArrayGet(pWinStates, 0);
-      key.ts = ts;
+      int64_t gpId = *(int64_t*)tSimpleHashGetKey(pIte, NULL);
+      SWinKey key = {.ts = flushMark, .groupId = gpId};
       int32_t num = binarySearch(pWinStates, size, &key, fillStateKeyCompare);
       if (size > NUM_OF_FLUSED_WIN) {
         num = TMIN(num, size - NUM_OF_FLUSED_WIN);
@@ -110,7 +123,9 @@ void clearSearchBuff(SStreamFileState* pFileState) {
   }
 }
 
-int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen) {
+int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
+                           int32_t* pVLen, int32_t* pWinCode) {
+    int32_t        code = TSDB_CODE_SUCCESS;
   SArray*    pWinStates = NULL;
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
   void*      pState = getStateFileStore(pFileState);
@@ -119,7 +134,7 @@ int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     pWinStates = (SArray*)(*ppBuff);
   } else {
     SStreamStateCur* pCur = streamStateFillSeekKeyNext_rocksdb(pState, pKey);
-    int32_t code = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void **)pVal, pVLen);
+    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)pVal, pVLen);
     streamStateFreeCur(pCur);
     return code;
   }
@@ -127,21 +142,25 @@ int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
   int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
   if (index == -1) {
     SStreamStateCur* pCur = streamStateFillSeekKeyNext_rocksdb(pState, pKey);
-    int32_t code = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void **)pVal, pVLen);
+    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)pVal, pVLen);
     streamStateFreeCur(pCur);
     return code;
   } else {
     if (index == size - 1) {
-      return TSDB_CODE_FAILED;
+      (*pWinCode) = TSDB_CODE_FAILED;
+      return code;
     }
     SWinKey* pNext = taosArrayGet(pWinStates, index + 1);
     *pResKey = *pNext;
-    return getHashSortRowBuff(pFileState, pResKey, pVal, pVLen);
+    return getHashSortRowBuff(pFileState, pResKey, pVal, pVLen, pWinCode);
   }
-  return TSDB_CODE_FAILED;
+  (*pWinCode) = TSDB_CODE_FAILED;
+  return code;
 }
 
-int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen) {
+int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
+                           int32_t* pVLen, int32_t* pWinCode) {
+  int32_t    code = TSDB_CODE_SUCCESS;
   SArray*    pWinStates = NULL;
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
   void*      pState = getStateFileStore(pFileState);
@@ -150,7 +169,7 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
     pWinStates = (SArray*)(*ppBuff);
   } else {
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, pKey);
-    int32_t code = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)pVal, pVLen);
+    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)pVal, pVLen);
     streamStateFreeCur(pCur);
     return code;
   }
@@ -158,15 +177,16 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
   int32_t index = binarySearch(pWinStates, size, pKey, fillStateKeyCompare);
   if (index == -1 || index == 0) {
     SStreamStateCur* pCur = streamStateFillSeekKeyPrev_rocksdb(pState, pKey);
-    int32_t code = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)pVal, pVLen);
+    (*pWinCode) = streamStateGetGroupKVByCur_rocksdb(pCur, pResKey, (const void**)pVal, pVLen);
     streamStateFreeCur(pCur);
     return code;
   } else {
     SWinKey* pNext = taosArrayGet(pWinStates, index - 1);
     *pResKey = *pNext;
-    return getHashSortRowBuff(pFileState, pResKey, pVal, pVLen);
+    return getHashSortRowBuff(pFileState, pResKey, pVal, pVLen, pWinCode);
   }
-  return TSDB_CODE_FAILED;
+  (*pWinCode) = TSDB_CODE_FAILED;
+  return code;
 }
 
 void deleteHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey) {
@@ -190,4 +210,3 @@ void deleteHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey) {
     }
   }
 }
-

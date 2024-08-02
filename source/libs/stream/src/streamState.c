@@ -232,19 +232,19 @@ int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void*
 }
 
 // todo refactor
-int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
+int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
   if (pState->pFileState) {
-    return getHashSortRowBuff(pState->pFileState, key, pVal, pVLen);
+    return getHashSortRowBuff(pState->pFileState, key, pVal, pVLen, pWinCode);
   }
   return streamStateFillGet_rocksdb(pState, key, pVal, pVLen);
 }
 
-int32_t streamStateFillGetNext(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen) {
-  return getHashSortNextRow(pState->pFileState, pKey, pResKey, pVal, pVLen); 
+int32_t streamStateFillGetNext(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
+  return getHashSortNextRow(pState->pFileState, pKey, pResKey, pVal, pVLen, pWinCode); 
 }
 
-int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen) {
-  return getHashSortPrevRow(pState->pFileState, pKey, pResKey, pVal, pVLen);
+int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
+  return getHashSortPrevRow(pState->pFileState, pKey, pResKey, pVal, pVLen, pWinCode);
 }
 
 // todo refactor

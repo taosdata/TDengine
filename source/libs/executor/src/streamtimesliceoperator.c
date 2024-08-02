@@ -29,13 +29,21 @@
 
 #define STREAM_TIME_SLICE_OP_STATE_NAME      "StreamTimeSliceHistoryState"
 #define STREAM_TIME_SLICE_OP_CHECKPOINT_NAME "StreamTimeSliceOperator_Checkpoint"
-#define HAS_NON_ROW_DATA(pRowData)           (pRowData == NULL || pRowData->key == INT64_MIN)
+#define HAS_NON_ROW_DATA(pRowData)           (pRowData->key == INT64_MIN)
+#define HAS_ROW_DATA(pRowData)               (pRowData && pRowData->key != INT64_MIN)
+#define IS_INVALID_WIN_KEY(ts)               ((ts) == INT64_MIN)
+#define SET_WIN_KEY_INVALID(ts)              ((ts) = INT64_MIN)
+
+typedef struct SSliceRowData {
+  TSKEY           key;
+  SResultCellData pRowVal[];
+} SSliceRowData;
 
 typedef struct SSlicePoint {
-  SWinKey         key;
-  SResultRowData* pLeftRow;
-  SResultRowData* pRightRow;
-  SRowBuffPos*    pResPos;
+  SWinKey        key;
+  SSliceRowData* pLeftRow;
+  SSliceRowData* pRightRow;
+  SRowBuffPos*   pResPos;
 } SSlicePoint;
 
 int32_t saveTimeSliceWinResult(SWinKey* pKey, SSHashObj* pUpdatedMap) {
@@ -121,10 +129,23 @@ _end:
   }
 }
 
+static void resetFillWindow(SResultRowData* pRowData) {
+  pRowData->key = INT64_MIN;
+  pRowData->pRowVal = NULL;
+}
+
+static void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup) {
+  resetFillWindow(&pFillSup->cur);
+  resetFillWindow(&pFillSup->prev);
+  resetFillWindow(&pFillSup->next);
+  resetFillWindow(&pFillSup->nextNext);
+}
+
 void destroyStreamTimeSliceOperatorInfo(void* param) {
   SStreamTimeSliceOperatorInfo* pInfo = (SStreamTimeSliceOperatorInfo*)param;
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
+  resetPrevAndNextWindow(pInfo->pFillSup);
   destroyStreamFillSupporter(pInfo->pFillSup);
   destroyStreamFillInfo(pInfo->pFillInfo);
   blockDataDestroy(pInfo->pRes);
@@ -168,8 +189,8 @@ int32_t doStreamTimeSliceEncodeOpState(void** buf, int32_t len, SOperatorInfo* p
   size_t  keyLen = 0;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pInfo->streamAggSup.pResultRows, pIte, &iter)) != NULL) {
-    void* key = tSimpleHashGetKey(pIte, &keyLen);
-    tlen += encodeSSessionKey(buf, key);
+    void* pKey = tSimpleHashGetKey(pIte, &keyLen);
+    tlen += encodeSSessionKey(buf, pKey);
     tlen += encodeSResultWindowInfo(buf, pIte, pInfo->streamAggSup.resultRowSize);
   }
 
@@ -258,11 +279,13 @@ static int32_t initTimeSliceFillSup(SStreamInterpFuncPhysiNode* pPhyFillNode, SE
   pFillSup->interval.sliding = pPhyFillNode->interval;
   pFillSup->interval.slidingUnit = pPhyFillNode->intervalUnit;
   pFillSup->pAPI = NULL;
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pFillSup->pResMap = tSimpleHashInit(16, hashFn);
+  QUERY_CHECK_NULL(pFillSup->pResMap, code, lino, _end, terrno);
 
   code = initResultBuf(pFillSup);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  pFillSup->pResMap = NULL;
   pFillSup->hasDelete = false;
   (*ppResFillSup) = pFillSup;
 
@@ -303,6 +326,19 @@ _end:
   }
 }
 
+static SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index) {
+  if (!pRowVal) {
+    return NULL;
+  }
+  char*            pData = (char*)pRowVal;
+  SResultCellData* pCell = pRowVal;
+  for (int32_t i = 0; i < index; i++) {
+    pData += (pCell->bytes + sizeof(SResultCellData));
+    pCell = (SResultCellData*)pData;
+  }
+  return pCell;
+}
+
 static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* pResRow, TSKEY ts, SSDataBlock* pBlock,
                                bool* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -311,6 +347,18 @@ static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* p
     (*pRes) = false;
     goto _end;
   }
+  if (IS_INVALID_WIN_KEY(ts)) {
+    (*pRes) = true;
+    goto _end;
+  }
+  bool ckRes = true;
+  code = checkResult(pFillSup, ts, pBlock->info.id.groupId, &ckRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (!ckRes) {
+    (*pRes) = true;
+    goto _end;
+  }
+
   for (int32_t i = 0; i < pFillSup->numOfAllCols; i++) {
     SFillColInfo*    pFillCol = pFillSup->pAllColInfo + i;
     int32_t          dstSlotId = GET_DEST_SLOT_ID(pFillCol);
@@ -325,13 +373,13 @@ static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* p
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
-      SResultCellData* pCell = getResultCell(pResRow, srcSlot);
+      SResultCellData* pCell = getSliceResultCell(pResRow->pRowVal, srcSlot);
       code = setRowCell(pDstCol, pBlock->info.rows, pCell);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
-  pBlock->info.rows += 1;
+  pBlock->info.rows++;
   (*pRes) = true;
 
 _end:
@@ -365,13 +413,14 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   while (hasRemainCalc(pFillInfo) && pBlock->info.rows < pBlock->info.capacity) {
-    for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
+    bool ckRes = true;
+    code = checkResult(pFillSup, pFillInfo->current, pBlock->info.id.groupId, &ckRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+    for (int32_t i = 0; i < pFillSup->numOfAllCols && ckRes; ++i) {
       SFillColInfo*    pFillCol = pFillSup->pAllColInfo + i;
       int32_t          dstSlotId = GET_DEST_SLOT_ID(pFillCol);
-      int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
       int16_t          type = pDstCol->info.type;
-      SResultCellData* pCell = getResultCell(pFillInfo->pResRow, srcSlot);
       int32_t          index = pBlock->info.rows;
       if (isIrowtsPseudoColumn(pFillCol->pExpr)) {
         code = colDataSetVal(pDstCol, pBlock->info.rows, (char*)&pFillInfo->current, false);
@@ -381,6 +430,8 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
         code = colDataSetVal(pDstCol, pBlock->info.rows, (char*)&isFilled, false);
         QUERY_CHECK_CODE(code, lino, _end);
       } else {
+        int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
+        SResultCellData* pCell = getSliceResultCell(pFillInfo->pResRow->pRowVal, srcSlot);
         if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pCell->isNull) {
           colDataSetNULL(pDstCol, index);
           continue;
@@ -405,13 +456,21 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                      pFillSup->interval.precision);
-    pBlock->info.rows++;
+    if (ckRes) {
+      pBlock->info.rows++;
+    }
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+}
+
+static void setFillKeyInfo(TSKEY start, TSKEY end, SInterval* pInterval, SStreamFillInfo* pFillInfo) {
+  pFillInfo->start = start;
+  pFillInfo->current = pFillInfo->start;
+  pFillInfo->end = end;
 }
 
 static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pRes) {
@@ -467,6 +526,10 @@ _end:
 }
 
 static int32_t getQualifiedRowNumAsc(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId, bool ignoreNull) {
+  if (rowId >= pBlock->info.rows) {
+    return -1;
+  }
+
   if (!ignoreNull) {
     return rowId;
   }
@@ -500,9 +563,37 @@ static int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, 
   return resRow;
 }
 
-static void getPointInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, TSKEY ts,
-                                  int64_t groupId, SSlicePoint* pCurPoint, SSlicePoint* pPrevPoint,
-                                  SSlicePoint* pNextPoint, int32_t* pWinCode) {
+static void setResultRowData(SSliceRowData** ppRowData, void* pBuff) { (*ppRowData) = (SSliceRowData*)pBuff; }
+
+static void setPointBuff(SSlicePoint* pPoint, SStreamFillSupporter* pFillSup) {
+  if (pFillSup->type != TSDB_FILL_LINEAR) {
+    setResultRowData(&pPoint->pRightRow, pPoint->pResPos->pRowBuff);
+    pPoint->pLeftRow = pPoint->pRightRow;
+  } else {
+    setResultRowData(&pPoint->pLeftRow, pPoint->pResPos->pRowBuff);
+    void* pBuff = POINTER_SHIFT(pPoint->pResPos->pRowBuff, pFillSup->rowSize + sizeof(TSKEY));
+    setResultRowData(&pPoint->pRightRow, pBuff);
+  }
+}
+
+static TSKEY adustPrevTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval) {
+  if (rowTs >= pointTs) {
+    pointTs = taosTimeAdd(pointTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+  }
+  return pointTs;
+}
+
+static TSKEY adustEndTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval) {
+  if (rowTs <= pointTs) {
+    pointTs = taosTimeAdd(pointTs, pInterval->sliding * -1, pInterval->slidingUnit, pInterval->precision);
+  }
+  return pointTs;
+}
+static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, TSKEY ts,
+                                            int64_t groupId, SSlicePoint* pCurPoint, SSlicePoint* pPrevPoint,
+                                            SSlicePoint* pNextPoint, int32_t* pWinCode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t tmpRes = TSDB_CODE_SUCCESS;
   void*   pState = pAggSup->pState;
   resetPrevAndNextWindow(pFillSup);
@@ -513,55 +604,252 @@ static void getPointInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSuppo
   pCurPoint->key.groupId = groupId;
   pCurPoint->key.ts = ts;
   int32_t curVLen = 0;
-  (*pWinCode) = pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen);
-  pCurPoint->pLeftRow = pCurPoint->pResPos->pRowBuff;
-  if (pFillSup->type == TSDB_FILL_LINEAR) {
-    pCurPoint->pRightRow = POINTER_SHIFT(pCurPoint->pResPos->pRowBuff, pFillSup->rowSize);
-  } else {
-    pCurPoint->pRightRow = NULL;
-  }
+  code =
+      pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen, pWinCode);
+  QUERY_CHECK_CODE(code, lino, _end);
 
-  if (pCurPoint->pLeftRow->key == pCurPoint->key.ts) {
-    pFillSup->cur.key = pCurPoint->key.ts;
-    pFillSup->cur.pRowVal = pCurPoint->pResPos->pRowBuff;
-  }
+  setPointBuff(pCurPoint, pFillSup);
 
-  if (pPrevPoint) {
+  if (HAS_ROW_DATA(pCurPoint->pRightRow)) {
+    pFillSup->cur.key = pCurPoint->pRightRow->key;
+    pFillSup->cur.pRowVal = pCurPoint->pRightRow->pRowVal;
     if (HAS_NON_ROW_DATA(pCurPoint->pLeftRow)) {
       pPrevPoint->key.groupId = groupId;
       int32_t preVLen = 0;
-      tmpRes = pAggSup->stateStore.streamStateFillGetPrev(pState, &pCurPoint->key, &pPrevPoint->key,
-                                                          (void**)&pPrevPoint->pResPos, &preVLen);
+      code = pAggSup->stateStore.streamStateFillGetPrev(pState, &pCurPoint->key, &pPrevPoint->key,
+                                                        (void**)&pPrevPoint->pResPos, &preVLen, &tmpRes);
+      QUERY_CHECK_CODE(code, lino, _end);
       if (tmpRes == TSDB_CODE_SUCCESS) {
-        pFillSup->prev.key = pPrevPoint->key.ts;
-        pFillSup->prev.pRowVal = pPrevPoint->pResPos->pRowBuff;
+        ASSERT(!IS_INVALID_WIN_KEY(pPrevPoint->key.ts));
+        setPointBuff(pPrevPoint, pFillSup);
+        if (HAS_ROW_DATA(pPrevPoint->pRightRow)) {
+          pFillSup->prev.key = pPrevPoint->pRightRow->key;
+          pFillSup->prev.pRowVal = pPrevPoint->pRightRow->pRowVal;
+        } else {
+          pFillSup->prev.key = pPrevPoint->pLeftRow->key;
+          pFillSup->prev.pRowVal = pPrevPoint->pLeftRow->pRowVal;
+        }
+        pFillSup->prevOriginKey = pFillSup->prev.key;
+        pFillSup->prev.key = adustPrevTsKey(pPrevPoint->key.ts, pFillSup->prev.key, &pFillSup->interval);
       }
+      goto _end;
+    }
+  }
+
+  if (HAS_ROW_DATA(pCurPoint->pLeftRow)) {
+    pFillSup->prev.key = pCurPoint->pLeftRow->key;
+    pFillSup->prev.pRowVal = pCurPoint->pLeftRow->pRowVal;
+    pFillSup->prevOriginKey = pFillSup->prev.key;
+    pFillSup->prev.key = adustPrevTsKey(pCurPoint->key.ts, pFillSup->prev.key, &pFillSup->interval);
+    if (HAS_NON_ROW_DATA(pCurPoint->pRightRow)) {
+      pNextPoint->key.groupId = groupId;
+      int32_t nextVLen = 0;
+      code = pAggSup->stateStore.streamStateFillGetNext(pState, &pCurPoint->key, &pNextPoint->key,
+                                                        (void**)&pNextPoint->pResPos, &nextVLen, &tmpRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (tmpRes == TSDB_CODE_SUCCESS) {
+        ASSERT(!IS_INVALID_WIN_KEY(pNextPoint->key.ts));
+        setPointBuff(pNextPoint, pFillSup);
+        if (HAS_ROW_DATA(pNextPoint->pLeftRow)) {
+          pFillSup->next.key = pNextPoint->pLeftRow->key;
+          pFillSup->next.pRowVal = pNextPoint->pLeftRow->pRowVal;
+        } else {
+          pFillSup->next.key = pNextPoint->pRightRow->key;
+          pFillSup->next.pRowVal = pNextPoint->pRightRow->pRowVal;
+        }
+        pFillSup->nextOriginKey = pFillSup->next.key;
+        pFillSup->next.key = adustEndTsKey(pNextPoint->key.ts, pFillSup->next.key, &pFillSup->interval);
+      } else {
+        resetFillWindow(&pFillSup->prev);
+      }
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, TSKEY ts,
+                                      int64_t groupId, SSlicePoint* pCurPoint, SSlicePoint* pPrevPoint,
+                                      SSlicePoint* pNextPoint, int32_t* pWinCode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tmpRes = TSDB_CODE_SUCCESS;
+  void*   pState = pAggSup->pState;
+  resetPrevAndNextWindow(pFillSup);
+  pCurPoint->pResPos = NULL;
+  pPrevPoint->pResPos = NULL;
+  pNextPoint->pResPos = NULL;
+
+  pCurPoint->key.groupId = groupId;
+  pCurPoint->key.ts = ts;
+  int32_t curVLen = 0;
+  code =
+      pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen, pWinCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  setPointBuff(pCurPoint, pFillSup);
+
+  pFillSup->cur.key = pCurPoint->pRightRow->key;
+  pFillSup->cur.pRowVal = pCurPoint->pRightRow->pRowVal;
+
+  pPrevPoint->key.groupId = groupId;
+  int32_t preVLen = 0;
+  code = pAggSup->stateStore.streamStateFillGetPrev(pState, &pCurPoint->key, &pPrevPoint->key,
+                                                    (void**)&pPrevPoint->pResPos, &preVLen, &tmpRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (tmpRes == TSDB_CODE_SUCCESS) {
+    ASSERT(!IS_INVALID_WIN_KEY(pPrevPoint->key.ts));
+    setPointBuff(pPrevPoint, pFillSup);
+    if (HAS_ROW_DATA(pPrevPoint->pRightRow)) {
+      pFillSup->prev.key = pPrevPoint->pRightRow->key;
+      pFillSup->prev.pRowVal = pPrevPoint->pRightRow->pRowVal;
     } else {
       pFillSup->prev.key = pPrevPoint->pLeftRow->key;
       pFillSup->prev.pRowVal = pPrevPoint->pLeftRow->pRowVal;
     }
+    pFillSup->prev.key = adustPrevTsKey(pPrevPoint->key.ts, pFillSup->prev.key, &pFillSup->interval);
   }
 
-  if (HAS_NON_ROW_DATA(pCurPoint->pRightRow)) {
-    pNextPoint->key.groupId = groupId;
-    int32_t nextVLen = 0;
-    tmpRes = pAggSup->stateStore.streamStateFillGetNext(pState, &pCurPoint->key, &pNextPoint->key,
-                                                        (void**)&pNextPoint->pResPos, &nextVLen);
-    if (tmpRes == TSDB_CODE_SUCCESS) {
-      pFillSup->next.key = pNextPoint->key.ts;
-      pFillSup->next.pRowVal = pNextPoint->pResPos->pRowBuff;
+  pNextPoint->key.groupId = groupId;
+  int32_t nextVLen = 0;
+  code = pAggSup->stateStore.streamStateFillGetNext(pState, &pCurPoint->key, &pNextPoint->key,
+                                                    (void**)&pNextPoint->pResPos, &nextVLen, &tmpRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (tmpRes == TSDB_CODE_SUCCESS) {
+    ASSERT(!IS_INVALID_WIN_KEY(pNextPoint->key.ts));
+    setPointBuff(pNextPoint, pFillSup);
+    if (HAS_ROW_DATA(pNextPoint->pLeftRow)) {
+      pFillSup->next.key = pNextPoint->pLeftRow->key;
+      pFillSup->next.pRowVal = pNextPoint->pLeftRow->pRowVal;
+    } else {
+      pFillSup->next.key = pNextPoint->pRightRow->key;
+      pFillSup->next.pRowVal = pNextPoint->pRightRow->pRowVal;
     }
-  } else {
-    pFillSup->next.key = pCurPoint->pRightRow->key;
-    pFillSup->next.pRowVal = pCurPoint->pRightRow->pRowVal;
+    pFillSup->next.key = adustEndTsKey(pNextPoint->key.ts, pFillSup->next.key, &pFillSup->interval);
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-static void setTimeSliceFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts) {
+static int32_t getPointInfoFromStateRight(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, TSKEY ts,
+                                          int64_t groupId, SSlicePoint* pCurPoint, SSlicePoint* pNextPoint,
+                                          int32_t* pWinCode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tmpRes = TSDB_CODE_SUCCESS;
+  void*   pState = pAggSup->pState;
+  pCurPoint->pResPos = NULL;
+  pNextPoint->pResPos = NULL;
+
+  pNextPoint->key.groupId = groupId;
+  STimeWindow stw = {.skey = ts, .ekey = ts};
+  getNextTimeWindow(&pFillSup->interval, &stw, TSDB_ORDER_ASC);
+  pNextPoint->key.ts = stw.skey;
+
+  int32_t curVLen = 0;
+  code = pAggSup->stateStore.streamStateFillGet(pState, &pNextPoint->key, (void**)&pNextPoint->pResPos, &curVLen,
+                                                pWinCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  setPointBuff(pNextPoint, pFillSup);
+
+  if (*pWinCode != TSDB_CODE_SUCCESS) {
+    if (pNextPoint->pLeftRow) {
+      SET_WIN_KEY_INVALID(pNextPoint->pLeftRow->key);
+    }
+    if (pNextPoint->pRightRow) {
+      SET_WIN_KEY_INVALID(pNextPoint->pRightRow->key);
+    }
+  }
+
+  SET_WIN_KEY_INVALID(pCurPoint->key.ts);
+  pCurPoint->key.groupId = groupId;
+  int32_t nextVLen = 0;
+  code = pAggSup->stateStore.streamStateFillGetPrev(pState, &pNextPoint->key, &pCurPoint->key,
+                                                    (void**)&pCurPoint->pResPos, &nextVLen, &tmpRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (tmpRes == TSDB_CODE_SUCCESS) {
+    setPointBuff(pCurPoint, pFillSup);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t getPointInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, TSKEY ts,
+                                     int64_t groupId, SSlicePoint* pCurPoint, SSlicePoint* pNextPoint,
+                                     int32_t* pWinCode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tmpRes = TSDB_CODE_SUCCESS;
+  void*   pState = pAggSup->pState;
+  pCurPoint->pResPos = NULL;
+  pNextPoint->pResPos = NULL;
+  pCurPoint->key.groupId = groupId;
+  pCurPoint->key.ts = ts;
+
+  int32_t curVLen = 0;
+  code =
+      pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen, pWinCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  setPointBuff(pCurPoint, pFillSup);
+
+  if (*pWinCode != TSDB_CODE_SUCCESS) {
+    if (pCurPoint->pLeftRow) {
+      SET_WIN_KEY_INVALID(pCurPoint->pLeftRow->key);
+    }
+    if (pCurPoint->pRightRow) {
+      SET_WIN_KEY_INVALID(pCurPoint->pRightRow->key);
+    }
+  }
+
+  int32_t nextVLen = 0;
+  pNextPoint->key.groupId = groupId;
+  if (pFillSup->type != TSDB_FILL_LINEAR) {
+    SET_WIN_KEY_INVALID(pNextPoint->key.ts);
+    code = pAggSup->stateStore.streamStateFillGetNext(pState, &pCurPoint->key, &pNextPoint->key,
+                                                      (void**)&pNextPoint->pResPos, &nextVLen, &tmpRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (tmpRes == TSDB_CODE_SUCCESS) {
+      setPointBuff(pNextPoint, pFillSup);
+    }
+  } else {
+    pNextPoint->key.ts = taosTimeAdd(pCurPoint->key.ts, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
+                                     pFillSup->interval.precision);
+    code = pAggSup->stateStore.streamStateFillGet(pState, &pNextPoint->key, (void**)&pNextPoint->pResPos, &nextVLen,
+                                                  &tmpRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+    setPointBuff(pNextPoint, pFillSup);
+    if (tmpRes != TSDB_CODE_SUCCESS) {
+      SET_WIN_KEY_INVALID(pNextPoint->pLeftRow->key);
+      SET_WIN_KEY_INVALID(pNextPoint->pRightRow->key);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts) {
   if (!hasPrevWindow(pFillSup) && !hasNextWindow(pFillSup)) {
     pFillInfo->needFill = false;
     pFillInfo->pos = FILL_POS_START;
-    return;
+    goto _end;
   }
   TSKEY prevWKey = INT64_MIN;
   TSKEY nextWKey = INT64_MIN;
@@ -579,73 +867,79 @@ static void setTimeSliceFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo
     case TSDB_FILL_NULL_F:
     case TSDB_FILL_SET_VALUE:
     case TSDB_FILL_SET_VALUE_F: {
-      if (hasPrevWindow(pFillSup) && hasNextWindow(pFillSup)) {
-        pFillInfo->needFill = false;
-        pFillInfo->pos = FILL_POS_START;
-      } else if (hasPrevWindow(pFillSup)) {
-        setFillKeyInfo(prevWKey, ts, &pFillSup->interval, pFillInfo);
+      if (hasPrevWindow(pFillSup)) {
+        TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+        setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
       } else {
-        setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
+        TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+        setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
       }
       copyNotFillExpData(pFillSup, pFillInfo);
+      pFillInfo->pResRow->key = ts;
     } break;
     case TSDB_FILL_PREV: {
       if (hasNextWindow(pFillSup)) {
-        setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
+        TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+        setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         resetFillWindow(&pFillSup->prev);
-        pFillSup->prev.key = pFillSup->cur.key;
+        pFillSup->prev.key = ts;
         pFillSup->prev.pRowVal = pFillSup->cur.pRowVal;
       } else {
         ASSERT(hasPrevWindow(pFillSup));
-        setFillKeyInfo(prevWKey, ts, &pFillSup->interval, pFillInfo);
+        TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+        setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
-        pFillInfo->preRowKey = INT64_MIN;
       }
       pFillInfo->pResRow = &pFillSup->prev;
     } break;
     case TSDB_FILL_NEXT: {
       if (hasPrevWindow(pFillSup)) {
-        setFillKeyInfo(prevWKey, ts, &pFillSup->interval, pFillInfo);
+        TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+        setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
         resetFillWindow(&pFillSup->next);
-        pFillSup->next.key = pFillSup->cur.key;
+        pFillSup->next.key = ts;
         pFillSup->next.pRowVal = pFillSup->cur.pRowVal;
-        pFillInfo->preRowKey = INT64_MIN;
       } else {
         ASSERT(hasNextWindow(pFillSup));
-        setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
+        TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+        setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
+        resetFillWindow(&pFillSup->prev);
       }
       pFillInfo->pResRow = &pFillSup->next;
     } break;
     case TSDB_FILL_LINEAR: {
       if (hasPrevWindow(pFillSup) && hasNextWindow(pFillSup)) {
-        setFillKeyInfo(prevWKey, ts, &pFillSup->interval, pFillInfo);
-        pFillInfo->pos = FILL_POS_MID;
-        pFillInfo->pLinearInfo->nextEnd = nextWKey;
-        calcRowDeltaData(&pFillSup->cur, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
+        setFillKeyInfo(prevWKey, nextWKey, &pFillSup->interval, pFillInfo);
+        pFillInfo->pos = FILL_POS_INVALID;
+        SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
+        pFillSup->next.key = pFillSup->nextOriginKey;
+        calcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
                          pFillSup->numOfAllCols);
+        pFillSup->prev.key = pFillSup->prevOriginKey;
         pFillInfo->pResRow = &pFillSup->prev;
-
-        calcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pNextEndPoints, pFillSup->pAllColInfo,
-                         pFillSup->numOfAllCols);
-        pFillInfo->pLinearInfo->hasNext = true;
+        pFillInfo->pLinearInfo->hasNext = false;
       } else if (hasPrevWindow(pFillSup)) {
-        setFillKeyInfo(prevWKey, ts, &pFillSup->interval, pFillInfo);
+        TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+        setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
-        pFillInfo->pLinearInfo->nextEnd = INT64_MIN;
+        SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
         calcRowDeltaData(&pFillSup->cur, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
                          pFillSup->numOfAllCols);
+        pFillSup->prev.key = pFillSup->prevOriginKey;
         pFillInfo->pResRow = &pFillSup->prev;
         pFillInfo->pLinearInfo->hasNext = false;
       } else {
         ASSERT(hasNextWindow(pFillSup));
-        setFillKeyInfo(ts, nextWKey, &pFillSup->interval, pFillInfo);
+        TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+        setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
-        pFillInfo->pLinearInfo->nextEnd = INT64_MIN;
+        SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
+        pFillSup->next.key = pFillSup->nextOriginKey;
         calcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
                          pFillSup->numOfAllCols);
         pFillInfo->pResRow = &pFillSup->cur;
@@ -656,33 +950,46 @@ static void setTimeSliceFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo
       ASSERT(0);
       break;
   }
-  ASSERT(pFillInfo->pos != FILL_POS_INVALID);
+
+_end:
+  if (ts != pFillSup->cur.key) {
+    SET_WIN_KEY_INVALID(pFillSup->cur.key);
+    pFillInfo->pos = FILL_POS_INVALID;
+  }
 }
 
-static bool needAdjValue(SSlicePoint* pPoint, TSKEY ts, bool isLeft, int32_t fillType) {
+static bool needAdjustValue(SSlicePoint* pPoint, TSKEY ts, bool isLeft, int32_t fillType) {
+  if (IS_INVALID_WIN_KEY(pPoint->key.ts)) {
+    return false;
+  }
+
   switch (fillType) {
     case TSDB_FILL_NULL:
     case TSDB_FILL_NULL_F:
     case TSDB_FILL_SET_VALUE:
     case TSDB_FILL_SET_VALUE_F: {
-      if (HAS_NON_ROW_DATA(pPoint->pRightRow) && HAS_NON_ROW_DATA(pPoint->pLeftRow)) {
+      if (!isLeft && HAS_NON_ROW_DATA(pPoint->pRightRow)) {
         return true;
       }
     } break;
     case TSDB_FILL_PREV: {
-      if (isLeft && (HAS_NON_ROW_DATA(pPoint->pLeftRow) || pPoint->pLeftRow->key < ts)) {
+      if (isLeft && (HAS_NON_ROW_DATA(pPoint->pLeftRow) || pPoint->pLeftRow->key <= ts)) {
+        return true;
+      }
+
+      if (!isLeft && pPoint->key.ts == ts) {
         return true;
       }
     } break;
     case TSDB_FILL_NEXT: {
-      if (!isLeft && (HAS_NON_ROW_DATA(pPoint->pRightRow) || pPoint->pRightRow->key > ts)) {
+      if (!isLeft && (HAS_NON_ROW_DATA(pPoint->pRightRow) || pPoint->pRightRow->key >= ts)) {
         return true;
       }
     } break;
     case TSDB_FILL_LINEAR: {
-      if (isLeft && (HAS_NON_ROW_DATA(pPoint->pLeftRow) || pPoint->pLeftRow->key < ts)) {
+      if (isLeft && (HAS_NON_ROW_DATA(pPoint->pLeftRow) || pPoint->pLeftRow->key <= ts)) {
         return true;
-      } else if (!isLeft && (HAS_NON_ROW_DATA(pPoint->pRightRow) || pPoint->pRightRow->key > ts)) {
+      } else if (!isLeft && (HAS_NON_ROW_DATA(pPoint->pRightRow) || pPoint->pRightRow->key >= ts)) {
         return true;
       }
     } break;
@@ -692,7 +999,31 @@ static bool needAdjValue(SSlicePoint* pPoint, TSKEY ts, bool isLeft, int32_t fil
   return false;
 }
 
+static void transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SSliceRowData* pRowVal) {
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
+    SResultCellData* pCell = getSliceResultCell(pRowVal->pRowVal, i);
+    if (!colDataIsNull_s(pColData, rowId)) {
+      pCell->isNull = false;
+      pCell->type = pColData->info.type;
+      pCell->bytes = pColData->info.bytes;
+      char* val = colDataGetData(pColData, rowId);
+      if (IS_VAR_DATA_TYPE(pCell->type)) {
+        memcpy(pCell->pData, val, varDataTLen(val));
+      } else {
+        memcpy(pCell->pData, val, pCell->bytes);
+      }
+    } else {
+      pCell->isNull = true;
+    }
+  }
+  pRowVal->key = ts;
+}
+
 static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       lino = 0;
   int32_t                       winCode = TSDB_CODE_SUCCESS;
   SStreamTimeSliceOperatorInfo* pInfo = (SStreamTimeSliceOperatorInfo*)pOperator->info;
   SExecTaskInfo*                pTaskInfo = pOperator->pTaskInfo;
@@ -713,7 +1044,7 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
 
   pFillSup->winRange = pTaskInfo->streamInfo.fillHistoryWindow;
   if (pFillSup->winRange.ekey <= 0) {
-    pFillSup->winRange.ekey = INT64_MIN;
+    pFillSup->winRange.ekey = INT64_MAX;
   }
 
   int32_t startPos = 0;
@@ -733,6 +1064,7 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
     if (checkNullRow(pExprSup, pBlock, startPos, pInfo->ignoreNull)) {
       continue;
     }
+    break;
   }
 
   if (startPos >= pBlock->info.rows) {
@@ -742,13 +1074,18 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
   SResultRowInfo dumyInfo = {0};
   dumyInfo.cur.pageId = -1;
   STimeWindow curWin = getActiveTimeWindow(NULL, &dumyInfo, tsCols[startPos], &pFillSup->interval, TSDB_ORDER_ASC);
-  SSlicePoint curPoint = {.key.ts = curWin.skey, .key.groupId = groupId};
-  SSlicePoint prevPoint = {0};
+  SSlicePoint curPoint = {0};
   SSlicePoint nextPoint = {0};
   bool        left = false;
   bool        right = false;
-  getPointInfoFromState(pAggSup, pFillSup, curWin.skey, groupId, &curPoint, &prevPoint, &nextPoint, &winCode);
-  right = needAdjValue(&curPoint, tsCols[startPos], false, pFillSup->type);
+  if (pFillSup->type != TSDB_FILL_PREV || curWin.skey == tsCols[startPos]) {
+    code = getPointInfoFromState(pAggSup, pFillSup, curWin.skey, groupId, &curPoint, &nextPoint, &winCode);
+  } else {
+    code = getPointInfoFromStateRight(pAggSup, pFillSup, curWin.skey, groupId, &curPoint, &nextPoint, &winCode);
+  }
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  right = needAdjustValue(&curPoint, tsCols[startPos], false, pFillSup->type);
   if (right) {
     transBlockToResultRow(pBlock, startPos, tsCols[startPos], curPoint.pRightRow);
     saveTimeSliceWinResult(&curPoint.key, pInfo->pUpdatedMap);
@@ -763,7 +1100,7 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
                                                 TSDB_ORDER_ASC);
     startPos += numOfWin;
     int32_t leftRowId = getQualifiedRowNumDesc(pExprSup, pBlock, tsCols, startPos - 1, pInfo->ignoreNull);
-    left = needAdjValue(&nextPoint, tsCols[leftRowId], true, pFillSup->type);
+    left = needAdjustValue(&nextPoint, tsCols[leftRowId], true, pFillSup->type);
     if (left) {
       transBlockToResultRow(pBlock, leftRowId, tsCols[leftRowId], nextPoint.pLeftRow);
       saveTimeSliceWinResult(&nextPoint.key, pInfo->pUpdatedMap);
@@ -778,9 +1115,14 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
       break;
     }
     curWin = getActiveTimeWindow(NULL, &dumyInfo, tsCols[startPos], &pFillSup->interval, TSDB_ORDER_ASC);
-    getPointInfoFromState(pAggSup, pFillSup, curWin.skey, groupId, &curPoint, &prevPoint, &nextPoint, &winCode);
+    if (pFillSup->type != TSDB_FILL_PREV || curWin.skey == tsCols[startPos]) {
+      code = getPointInfoFromState(pAggSup, pFillSup, curWin.skey, groupId, &curPoint, &nextPoint, &winCode);
+    } else {
+      code = getPointInfoFromStateRight(pAggSup, pFillSup, curWin.skey, groupId, &curPoint, &nextPoint, &winCode);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
 
-    right = needAdjValue(&curPoint, tsCols[startPos], false, pFillSup->type);
+    right = needAdjustValue(&curPoint, tsCols[startPos], false, pFillSup->type);
     if (right) {
       transBlockToResultRow(pBlock, startPos, tsCols[startPos], curPoint.pRightRow);
       saveTimeSliceWinResult(&curPoint.key, pInfo->pUpdatedMap);
@@ -790,10 +1132,17 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
     }
     releaseOutputBuf(pAggSup->pState, curPoint.pResPos, &pAggSup->stateStore);
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
 }
 
 void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup,
                                  SStreamFillInfo* pFillInfo, SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   blockDataCleanup(pBlock);
   if (!hasRemainResults(pGroupResInfo)) {
     return;
@@ -803,8 +1152,7 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSuppor
   pBlock->info.id.groupId = 0;
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   for (; pGroupResInfo->index < numOfRows; pGroupResInfo->index++) {
-    SRowBuffPos* pPos = *(SRowBuffPos**)taosArrayGet(pGroupResInfo->pRows, pGroupResInfo->index);
-    SWinKey*     pKey = (SWinKey*)pPos->pKey;
+    SWinKey* pKey = (SWinKey*)taosArrayGet(pGroupResInfo->pRows, pGroupResInfo->index);
     if (pBlock->info.id.groupId == 0) {
       pBlock->info.id.groupId = pKey->groupId;
     } else if (pBlock->info.id.groupId != pKey->groupId) {
@@ -814,13 +1162,26 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSuppor
     SSlicePoint curPoint = {.key.ts = pKey->ts, .key.groupId = pKey->groupId};
     SSlicePoint prevPoint = {0};
     SSlicePoint nextPoint = {0};
-    int32_t winCode = TSDB_CODE_SUCCESS;
-    getPointInfoFromState(pAggSup, pFillSup, pKey->ts, pKey->groupId, &curPoint, &prevPoint, &nextPoint, &winCode);
-    setTimeSliceFillInfo(pFillSup, pFillInfo, pKey->ts);
+    int32_t     winCode = TSDB_CODE_SUCCESS;
+    if (pFillSup->type != TSDB_FILL_LINEAR) {
+      code = getResultInfoFromState(pAggSup, pFillSup, pKey->ts, pKey->groupId, &curPoint, &prevPoint, &nextPoint,
+                                    &winCode);
+    } else {
+      code = getLinearResultInfoFromState(pAggSup, pFillSup, pKey->ts, pKey->groupId, &curPoint, &prevPoint, &nextPoint,
+                                          &winCode);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    setTimeSliceFillRule(pFillSup, pFillInfo, pKey->ts);
     doStreamFillRange(pFillSup, pFillInfo, pBlock);
     releaseOutputBuf(pAggSup->pState, curPoint.pResPos, &pAggSup->stateStore);
     releaseOutputBuf(pAggSup->pState, prevPoint.pResPos, &pAggSup->stateStore);
     releaseOutputBuf(pAggSup->pState, nextPoint.pResPos, &pAggSup->stateStore);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 }
 
@@ -906,7 +1267,8 @@ static int32_t doDeleteTimeSliceResult(SStreamAggSupporter* pAggSup, SSDataBlock
       uint64_t groupId = groupIds[i];
       SWinKey  key = {.ts = ts, .groupId = groupId};
       SWinKey  nextKey = {.groupId = groupId};
-      winCode = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, &key, &nextKey, NULL, NULL);
+      code = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, &key, &nextKey, NULL, NULL, &winCode);
+      QUERY_CHECK_CODE(code, lino, _end);
       if (key.ts > endTs) {
         break;
       }
@@ -970,6 +1332,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     }
 
     setStreamOperatorCompleted(pOperator);
+    resetStreamFillSup(pInfo->pFillSup);
     (*ppRes) = NULL;
     goto _end;
   }
@@ -1029,7 +1392,8 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   void*   pIte = NULL;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pInfo->pUpdatedMap, pIte, &iter)) != NULL) {
-    void* tmp = taosArrayPush(pInfo->pUpdated, pIte);
+    SWinKey* pKey = (SWinKey*)tSimpleHashGetKey(pIte, NULL);
+    void*    tmp = taosArrayPush(pInfo->pUpdated, pKey);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
   taosArraySort(pInfo->pUpdated, winKeyCmprImpl);
@@ -1040,15 +1404,23 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   }
 
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pInfo->pUpdated);
-  pInfo->pUpdated = NULL;
+  pInfo->pUpdated = taosArrayInit(16, sizeof(SWinKey));
+  QUERY_CHECK_NULL(pInfo->pUpdated, code, lino, _end, terrno);
+
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
   tSimpleHashCleanup(pInfo->pUpdatedMap);
-  pInfo->pUpdatedMap = NULL;
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pInfo->pUpdatedMap = tSimpleHashInit(1024, hashFn);
 
   code = buildTimeSliceResult(pOperator, ppRes);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  if (!(*ppRes)) {
+    setStreamOperatorCompleted(pOperator);
+    resetStreamFillSup(pInfo->pFillSup);
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1061,6 +1433,55 @@ static SSDataBlock* doStreamTimeSlice(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
   (void)doStreamTimeSliceNext(pOperator, &pRes);
   return pRes;
+}
+
+static void setValueForFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo) {
+  if (pFillInfo->type == TSDB_FILL_SET_VALUE || pFillInfo->type == TSDB_FILL_SET_VALUE_F) {
+    int32_t valueIndex = 0;
+    for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
+      SFillColInfo* pFillCol = pFillSup->pAllColInfo + i;
+      if (!isInterpFunc(pFillCol->pExpr)) {
+        continue;
+      }
+      int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
+      SResultCellData* pCell = getResultCell(pFillInfo->pResRow, srcSlot);
+      SFillColInfo*    pValueCol = pFillSup->pAllColInfo + valueIndex;
+      SVariant*        pVar = &(pValueCol->fillVal);
+      if (pCell->type == TSDB_DATA_TYPE_FLOAT) {
+        float v = 0;
+        GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
+        SET_TYPED_DATA(pCell->pData, pCell->type, v);
+      } else if (IS_FLOAT_TYPE(pCell->type)) {
+        double v = 0;
+        GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
+        SET_TYPED_DATA(pCell->pData, pCell->type, v);
+      } else if (IS_INTEGER_TYPE(pCell->type)) {
+        int64_t v = 0;
+        GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+        SET_TYPED_DATA(pCell->pData, pCell->type, v);
+      } else {
+        pCell->isNull = true;
+      }
+      valueIndex++;
+    }
+  } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
+    for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
+      SFillColInfo*    pFillCol = pFillSup->pAllColInfo + i;
+      int32_t          slotId = GET_DEST_SLOT_ID(pFillCol);
+      SResultCellData* pCell = getResultCell(pFillInfo->pResRow, slotId);
+      pCell->isNull = true;
+    }
+  }
+}
+
+int32_t getDownstreamRes(SOperatorInfo* downstream, SSDataBlock** ppRes) {
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pInfo = (SStreamScanInfo*)downstream->info;
+    *ppRes = pInfo->pRes;
+    return TSDB_CODE_SUCCESS;
+  }
+  qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_FAILED));
+  return TSDB_CODE_FAILED;
 }
 
 int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
@@ -1101,9 +1522,20 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   };
 
   pInfo->primaryTsIndex = ((SColumnNode*)pInterpPhyNode->pTimeSeries)->slotId;
-  code = initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfExprs, 0, pTaskInfo->streamInfo.pState,
-                                sizeof(COUNT_TYPE), 0, &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup,
-                                GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI, pInfo->primaryTsIndex);
+
+  pInfo->pFillSup = NULL;
+  code = initTimeSliceFillSup(pInterpPhyNode, pExprInfo, numOfExprs, &pInfo->pFillSup);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  int32_t ratio = 1;
+  if (pInfo->pFillSup->type == TSDB_FILL_LINEAR) {
+    ratio = 2;
+  }
+
+  code =
+      initStreamAggSupporter(&pInfo->streamAggSup, pExpSup, numOfExprs, 0, pTaskInfo->streamInfo.pState, sizeof(TSKEY),
+                             0, &pTaskInfo->storageAPI.stateStore, pHandle, &pInfo->twAggSup, GET_TASKID(pTaskInfo),
+                             &pTaskInfo->storageAPI, pInfo->primaryTsIndex, STREAM_STATE_BUFF_HASH_SORT, ratio);
   QUERY_CHECK_CODE(code, lino, _error);
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -1123,8 +1555,8 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   pInfo->ignoreExpiredData = pInterpPhyNode->streamNodeOption.igExpired;
   pInfo->ignoreExpiredDataSaved = false;
-  pInfo->pUpdated = NULL;
-  pInfo->pUpdatedMap = NULL;
+  pInfo->pUpdated = taosArrayInit(64, sizeof(SWinKey));
+  pInfo->pUpdatedMap = tSimpleHashInit(1024, hashFn);
   pInfo->historyPoints = taosArrayInit(4, sizeof(SWinKey));
   QUERY_CHECK_NULL(pInfo->historyPoints, code, lino, _error, terrno);
 
@@ -1135,9 +1567,13 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   pInfo->destHasPrimaryKey = pInterpPhyNode->streamNodeOption.destHasPrimaryKey;
   pInfo->numOfDatapack = 0;
-  pInfo->pFillSup = NULL;
-  code = initTimeSliceFillSup(pInterpPhyNode, pExprInfo, numOfExprs, &pInfo->pFillSup);
+
+  SSDataBlock* pDownRes = NULL;
+  code = getDownstreamRes(downstream, &pDownRes);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->pFillInfo = initStreamFillInfo(pInfo->pFillSup, pDownRes);
+  setValueForFillInfo(pInfo->pFillSup, pInfo->pFillInfo);
 
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;
@@ -1162,7 +1598,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   setOperatorStreamStateFn(pOperator, streamTimeSliceReleaseState, streamTimeSliceReloadState);
 
   if (downstream) {
-    if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       SStreamScanInfo* pScanInfo = downstream->info;
       pScanInfo->igCheckUpdate = true;
     }

@@ -35,27 +35,28 @@ int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption);
 void    removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins);
 int32_t copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins);
 bool    hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo);
-void    transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SResultRowData* pRowVal);
 int32_t getNexWindowPos(SInterval* pInterval, SDataBlockInfo* pBlockInfo, TSKEY* tsCols, int32_t startPos, TSKEY eKey,
                         STimeWindow* pNextWin);
 int32_t saveWinResult(SWinKey* pKey, SRowBuffPos* pPos, SSHashObj* pUpdatedMap);
-void    resetPrevAndNextWindow(SStreamFillSupporter* pFillSup);
 void    doBuildDeleteResultImpl(SStateStore* pAPI, SStreamState* pState, SArray* pWins, int32_t* index,
                                 SSDataBlock* pBlock);
 
-SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index);
 int32_t          initResultBuf(SStreamFillSupporter* pFillSup);
-void             destroyStreamFillSupporter(SStreamFillSupporter* pFillSup);
-void             calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol, int32_t numOfCol);
-void             resetFillWindow(SResultRowData* pRowData);
-bool             hasPrevWindow(SStreamFillSupporter* pFillSup);
-bool             hasNextWindow(SStreamFillSupporter* pFillSup);
-void             copyNotFillExpData(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo);
-void             setFillKeyInfo(TSKEY start, TSKEY end, SInterval* pInterval, SStreamFillInfo* pFillInfo);
-int32_t          setRowCell(SColumnInfoData* pCol, int32_t rowId, const SResultCellData* pCell);
-bool             hasRemainCalc(SStreamFillInfo* pFillInfo);
-void             destroySPoint(void* ptr);
-void             destroyStreamFillInfo(SStreamFillInfo* pFillInfo);
+SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
+SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index);
+
+void    destroyStreamFillSupporter(SStreamFillSupporter* pFillSup);
+void    calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol, int32_t numOfCol);
+bool    hasCurWindow(SStreamFillSupporter* pFillSup);
+bool    hasPrevWindow(SStreamFillSupporter* pFillSup);
+bool    hasNextWindow(SStreamFillSupporter* pFillSup);
+void    copyNotFillExpData(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo);
+int32_t setRowCell(SColumnInfoData* pCol, int32_t rowId, const SResultCellData* pCell);
+bool    hasRemainCalc(SStreamFillInfo* pFillInfo);
+void    destroySPoint(void* ptr);
+void    destroyStreamFillInfo(SStreamFillInfo* pFillInfo);
+int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId, bool* pRes);
+void    resetStreamFillSup(SStreamFillSupporter* pFillSup);
 
 int winPosCmprImpl(const void* pKey1, const void* pKey2);
 
