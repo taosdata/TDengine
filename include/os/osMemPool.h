@@ -90,6 +90,8 @@ void    taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg);
     }                              \
   } while (0)
 
+
+#ifndef BUILD_TEST
 extern threadlocal void* threadPoolHandle;
 extern threadlocal void* threadPoolSession;
 
@@ -107,6 +109,22 @@ extern threadlocal void* threadPoolSession;
 #define taosMemorySize(_ptr) ((NULL != threadPoolHandle) ? (taosMemPoolGetMemorySize(threadPoolHandle, threadPoolSession, _ptr, __FILE__, __LINE__)) : (taosMemSize(_ptr)))
 #define taosMemoryTrim(_size) ((NULL != threadPoolHandle) ? (taosMemPoolTrim(threadPoolHandle, threadPoolSession, _size, __FILE__, __LINE__)) : (taosMemTrim(_size)))
 #define taosMemoryMallocAlign(_alignment, _size) ((NULL != threadPoolHandle) ? (taosMemPoolMallocAlign(threadPoolHandle, threadPoolSession, _alignment, _size, __FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
+#else
+#define taosEnableMemoryPoolUsage(_pool, _session) 
+#define taosDisableMemoryPoolUsage() 
+#define taosSaveDisableMemoryPoolUsage(_handle) 
+#define taosRestoreEnableMemoryPoolUsage(_handle) 
+
+#define taosMemoryMalloc(_size) taosMemMalloc(_size)
+#define taosMemoryCalloc(_num, _size) taosMemCalloc(_num, _size)
+#define taosMemoryRealloc(_ptr, _size) taosMemRealloc(_ptr, _size)
+#define taosStrdup(_ptr) taosStrdupi(_ptr)
+#define taosMemoryFree(_ptr) taosMemFree(_ptr)
+#define taosMemorySize(_ptr) taosMemSize(_ptr)
+#define taosMemoryTrim(_size) taosMemTrim(_size)
+#define taosMemoryMallocAlign(_alignment, _size) taosMemMallocAlign(_alignment, _size)
+
+#endif
 
 #define taosMemoryFreeClear(ptr)   \
   do {                             \
