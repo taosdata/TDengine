@@ -215,6 +215,7 @@ async fn ipc_stream_writer(
                             metrics,
                             metrics_arc,
                             tables_messages_in_progress,
+                            None,
                         )
                         .in_current_span()
                         .await
