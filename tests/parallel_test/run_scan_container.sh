@@ -69,7 +69,7 @@ mkdir -p $scan_changefile_temp_path
 scan_file_name="$docker_can_changefile_temp_path/docs_changed.txt"
 
 #scan log file path
-scan_log_temp_path="$WORKDIR/scan_log/"
+scan_log_temp_path="$WORKDIR/log/scan_log/"
 docker_scan_log_temp_path="/home/scan_log/"
 mkdir -p $scan_log_temp_path
 
