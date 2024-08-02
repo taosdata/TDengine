@@ -1177,7 +1177,7 @@ static SSDataBlock* buildInfoSchemaTableMetaBlock(char* tableName) {
   }
 
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code) {
     terrno = code;
     return NULL;
@@ -1294,7 +1294,7 @@ _end:
 }
 
 int32_t buildSysUsageInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
-                              const char* dbName, int64_t* pRows) {
+                               const char* dbName, int64_t* pRows) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char    n[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1309,7 +1309,7 @@ int32_t buildSysUsageInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTab
     // if (strcmp(pm->name, TSDB_INS_TABLE_USERS_FULL) == 0) {
     //   continue;
     // }
-    int32_t numOfCols = 0;
+    int32_t          numOfCols = 0;
     SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
 
     // STR_TO_VARSTR(n, pm->name);
@@ -1340,7 +1340,7 @@ int32_t buildSysUsageInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTab
     //   colDataSetNULL(pColInfoData, numOfRows);
     // }
 
-    //STR_TO_VARSTR(n, "SYSTEM_TABLE");
+    // STR_TO_VARSTR(n, "SYSTEM_TABLE");
 
     pColInfoData = taosArrayGet(p->pDataBlock, 9);
     code = colDataSetVal(pColInfoData, numOfRows, n, false);
@@ -1840,10 +1840,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
-
-  
 }
-
 
 static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -1853,6 +1850,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   int8_t         firstMetaCursor = 0;
 
   SSysTableScanInfo* pInfo = pOperator->info;
+  // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
   if (pInfo->readHandle.mnd != NULL) {
     // code = buildSysUsageInfo(pInfo, pOperator->resultInfo.capacity);
     // QUERY_CHECK_CODE(code, lino, _end);
@@ -1864,7 +1862,6 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     setOperatorCompleted(pOperator);
     return NULL;
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
-    
   }
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
@@ -1899,8 +1896,8 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
 
   char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
-  int64_t walSize = 1024, totalSize = 0;
-  int32_t numOfCols = 0; 
+  int64_t          walSize = 1024, totalSize = 0;
+  int32_t          numOfCols = 0;
   SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
   pColInfoData = taosArrayGet(p->pDataBlock, 0);
   code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
@@ -1911,57 +1908,57 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // wal
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // wal
   QUERY_CHECK_CODE(code, lino, _end);
 
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // memtable  
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // memtable
   QUERY_CHECK_CODE(code, lino, _end);
 
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // l1_size 
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // l1_size
   QUERY_CHECK_CODE(code, lino, _end);
 
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // l2_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // l2_size
   QUERY_CHECK_CODE(code, lino, _end);
 
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // l3_size
-  QUERY_CHECK_CODE(code, lino, _end);
-  totalSize += walSize;
-   
-
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // s3_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // l3_size
   QUERY_CHECK_CODE(code, lino, _end);
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false); // estimate_size
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&walSize, false);  // s3_size
+  QUERY_CHECK_CODE(code, lino, _end);
+  totalSize += walSize;
+
+
+  int64_t raw_data_size = 100000;
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&raw_data_size, false);  // estimate_size
   QUERY_CHECK_CODE(code, lino, _end);
   totalSize += walSize;
 
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&totalSize, false); // totoal size 
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&totalSize, false);  // totoal size
   QUERY_CHECK_CODE(code, lino, _end);
   totalSize += walSize;
-
 
   int64_t timeserial = 100000;
   pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&timeserial, false); // totoal size 
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&timeserial, false);  // total size
   QUERY_CHECK_CODE(code, lino, _end);
 
-  numOfRows +=1;
+  numOfRows += 1;
   pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
   pInfo->pCur = NULL;
   setOperatorCompleted(pOperator);
@@ -1994,7 +1991,6 @@ _end:
   }
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
-
 
 static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -2057,7 +2053,6 @@ _end:
   return NULL;
 }
 
-
 static SSDataBlock* sysTableScanUsage(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -2068,9 +2063,6 @@ static SSDataBlock* sysTableScanUsage(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
-  
-
-  // the retrieve is executed on the mnode, so return tables that belongs to the information schema database.
   return sysTableBuildVgUsage(pOperator);
 
 _end:
@@ -2353,8 +2345,8 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
   }
 }
 
-int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
-                                              const char* pUser, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode, const char* pUser,
+                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -2647,10 +2639,10 @@ static FORCE_INLINE int optSysBinarySearch(SArray* arr, int s, int e, uint64_t k
 }
 
 int32_t optSysIntersection(SArray* in, SArray* out) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
   MergeIndex* mi = NULL;
-  int32_t sz = (int32_t)taosArrayGetSize(in);
+  int32_t     sz = (int32_t)taosArrayGetSize(in);
   if (sz <= 0) {
     goto _end;
   }
@@ -2961,11 +2953,12 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
 }
 
 int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
-                                               STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+                                        STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
+                                        SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t         code = 0;
+  int32_t         lino = 0;
   SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
