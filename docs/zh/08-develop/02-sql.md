@@ -252,6 +252,19 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 
 </TabItem>
 <TabItem label="Python" value="python">
+
+```python title="Websocket 连接"
+{{#include docs/examples/python/reqid_ws.py}}
+```
+
+```python title="原生连接"
+{{#include docs/examples/python/reqid_native.py}}
+```
+
+```python title="Rest 连接"
+{{#include docs/examples/python/reqid_rest.py}}
+```
+
 </TabItem>
 <TabItem label="Go" value="go">
 ```go

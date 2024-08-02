@@ -177,6 +177,10 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 </TabItem>
 <TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/schemaless_ws.py}}
+```
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -219,6 +223,10 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 </TabItem>
 <TabItem label="Python" value="python">
+
+```python
+{{#include docs/examples/python/schemaless_native.py}}
+```
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -248,6 +256,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
     不支持
     </TabItem>
     <TabItem label="Python" value="python">
+    不支持
    </TabItem>
     <TabItem label="Go" value="go">
     不支持

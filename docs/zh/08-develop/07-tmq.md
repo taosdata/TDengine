@@ -111,7 +111,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:create_consumer}}
 ```
 </TabItem>
 
@@ -171,7 +171,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:create_consumer}}
 ```
 </TabItem>
 
@@ -223,7 +223,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:subscribe}}
 ```
 </TabItem>
 
@@ -271,7 +271,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:subscribe}}
 ```
 </TabItem>
 
@@ -317,7 +317,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:assignment}}
 ```
 </TabItem>
 
@@ -371,7 +371,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:assignment}}
 ```
 </TabItem>
 
@@ -417,7 +417,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:commit_offset}}
 ```
 </TabItem>
 
@@ -465,7 +465,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:commit_offset}}
 ```
 </TabItem>
 
@@ -511,7 +511,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:unsubscribe}}
 ```
 </TabItem>
 
@@ -559,7 +559,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:unsubscribe}}
 ```
 </TabItem>
 
@@ -607,7 +607,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py}}
 ```
 </TabItem>
 
@@ -661,7 +661,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py}}
 ```
 </TabItem>
 
