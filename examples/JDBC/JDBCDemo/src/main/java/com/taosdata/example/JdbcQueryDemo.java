@@ -44,6 +44,10 @@ public class JdbcQueryDemo {
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to query data from power.meters, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw ex;
+        } catch (Exception ex){
+            System.out.println("Failed to query data from power.meters, url:" + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+            throw ex;
         }
 // ANCHOR_END: query_data
     }

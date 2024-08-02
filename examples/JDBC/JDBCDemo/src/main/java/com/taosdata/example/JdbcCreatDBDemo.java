@@ -45,6 +45,10 @@ public class JdbcCreatDBDemo {
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to create db and table, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw ex;
+        } catch (Exception ex){
+            System.out.println("Failed to create db and table, url:" + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+            throw ex;
         }
 // ANCHOR_END: create_db_and_table
 

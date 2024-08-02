@@ -50,6 +50,10 @@ public class WSParameterBindingBasicDemo {
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw ex;
+        } catch (Exception ex){
+            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+            throw ex;
         }
     }
 
