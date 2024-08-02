@@ -749,6 +749,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     sqlLen = 0;
   const char *pMsg = "create stream tasks on dnodes";
   int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
 
   terrno = TSDB_CODE_SUCCESS;
   SCMCreateStreamReq createReq = {0};
@@ -788,11 +789,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (createReq.sql != NULL) {
     sqlLen = strlen(createReq.sql);
     sql = taosMemoryMalloc(sqlLen + 1);
-    if (sql == NULL) {
-      code = terrno;
-      goto _OVER;
-    }
-
+    TSDB_CHECK_NULL(sql, code, lino, _OVER, terrno);
     memset(sql, 0, sqlLen + 1);
     memcpy(sql, createReq.sql, sqlLen);
   }
