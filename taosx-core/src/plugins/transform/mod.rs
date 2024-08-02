@@ -1823,7 +1823,6 @@ impl MessageArrowRecords {
         )
         .expect("Sql values should be recognizable");
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
-
         col_values
             .into_iter()
             .map(|(col_values, rows)| {

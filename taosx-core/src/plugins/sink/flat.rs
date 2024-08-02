@@ -319,7 +319,30 @@ pub async fn flat_write_with_sql(
     let groups = messages
         .into_iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
+
     for (stable, messages) in groups.into_iter() {
+        if let Some(stable) = stable.as_ref() {
+            let describe = taos
+                .as_ref()
+                .unwrap()
+                .describe(&stable)
+                .await
+                .context("Get table meta describe error")?;
+            if describe
+                .split()
+                .map(|s| s.0)
+                .and_then(|s| s.get(1))
+                .is_some_and(|s| s.is_primary_key())
+            {
+                if messages
+                    .iter()
+                    .filter(|s| s.records.num_columns() >= 1)
+                    .any(|s| s.records.column(1).null_count() > 0)
+                {
+                    bail!("Parimary key field contains null value")
+                }
+            }
+        }
         let sqls = message_to_sql(&messages, target_precision, true, true);
         for records in sqls {
             loop {
@@ -433,6 +456,24 @@ pub async fn flat_write_with_raw_block(
         metrics.add_processed_rows(records.records.num_rows() as u64);
         if records.records.column(0).null_count() > 0 {
             bail!("Timestamp field contains null or invalid values");
+        }
+        if let Some(stable) = records.stable_name() {
+            let describe = taos
+                .as_ref()
+                .unwrap()
+                .describe(&stable)
+                .await
+                .context("Get table meta describe error")?;
+            if describe
+                .split()
+                .map(|s| s.0)
+                .and_then(|s| s.get(1))
+                .is_some_and(|s| s.is_primary_key())
+            {
+                if records.records.column(1).null_count() > 0 {
+                    bail!("Parimary key field contains null value")
+                }
+            }
         }
         tracing::debug!("Write records with rows {}", records.records.num_rows());
         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
