@@ -818,8 +818,9 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
+                "required": true,
                 "short_description": "The start time for backfilling data.",
-                "description": "The start time for backfilling data.\n\nIf not provided, the start time will be the earliest time available(10 days ago from now).\n",
+                "description": "The start time for backfilling data.\n",
                 "placeholder": "YYYY-MM-DD HH:mm:ss"
               },
               {
@@ -828,8 +829,9 @@ export function getDataSources(lang) {
                 "hint": {
                   "type": "time"
                 },
-                "short_description": "The end time for backfilling data. The default is now.",
-                "description": "The end time for backfilling data. The default is now.\n",
+                "required": true,
+                "short_description": "The end time for backfilling data.",
+                "description": "The end time for backfilling data.Cannot be later than the now.\n",
                 "placeholder": "YYYY-MM-DD HH:mm:ss",
               }
             ]
@@ -5289,8 +5291,9 @@ export function getDataSources(lang) {
               "hint": {
                 "type": "time",
               },
-              "short_description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。",
-              "description": "从该时间开始导入历史数据，默认为当前时间 10 天之前。\n",
+              "required": true,
+              "short_description": "从该时间开始导入历史数据。",
+              "description": "从该时间开始导入历史数据。\n",
               "placeholder": "YYYY-MM-DD HH:mm:ss"
             }, {
               "name": "BackfillEndTime",
@@ -5298,8 +5301,9 @@ export function getDataSources(lang) {
               "hint": {
                 "type": "time"
               },
-              "short_description": "导入历史数据以该时间结束，默认是当前时间。",
-              "description": "导入历史数据以该时间结束，默认是当前时间。\n",
+              "required": true,
+              "short_description": "导入历史数据以该时间结束，不能大于当前时间。",
+              "description": "导入历史数据以该时间结束，不能大于当前时间。\n",
               "placeholder": "YYYY-MM-DD HH:mm:ss"
             }]
           }
