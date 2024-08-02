@@ -25,55 +25,55 @@
 
 static int DemoQueryData() {
 // ANCHOR: query_data
-  int         ret_code  = -1;
-  const char *ip        = "localhost";
-  const char *user      = "root";
-  const char *password  = "taosdata";
+const char *ip        = "localhost";
+const char *user      = "root";
+const char *password  = "taosdata";
 
-  // connect
-  TAOS *taos = taos_connect(ip, user, password, NULL, 0);
-  if (taos == NULL) {
-    printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
-    goto end;
-  }
+// connect
+TAOS *taos = taos_connect(ip, user, password, NULL, 0);
+if (taos == NULL) {
+  printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
+  taos_cleanup();
+  return -1;
+}
 
-  // use database
-  TAOS_RES *result = taos_query(taos, "USE power");
-  taos_free_result(result);
+// use database
+TAOS_RES *result = taos_query(taos, "USE power");
+taos_free_result(result);
 
-  // query data, please make sure the database and table are already created
-  const char* sql = "SELECT * FROM power.meters";
-  result = taos_query(taos, sql);
-  int code = taos_errno(result);
-  if (code != 0) {
-    printf("failed to select, reason: %s\n", taos_errstr(result));
-    goto end;
-  }
-
-  TAOS_ROW    row         = NULL;
-  int         rows        = 0;
-  int         num_fields  = taos_field_count(result);
-  TAOS_FIELD *fields      = taos_fetch_fields(result);
-
-  printf("fields: %d\n", num_fields);
-  printf("sql: %s, result:\n", sql);
-  
-  // fetch the records row by row
-  while ((row = taos_fetch_row(result))) {
-    char temp[1024] = {0};
-    rows++;
-    taos_print_row(temp, row, fields, num_fields);
-    printf("%s\n", temp);
-  }
-  printf("total rows: %d\n", rows);
-  taos_free_result(result);
-  ret_code = 0;
-
-end:
-  // close & clean
+// query data, please make sure the database and table are already created
+const char* sql = "SELECT * FROM power.meters";
+result = taos_query(taos, sql);
+int code = taos_errno(result);
+if (code != 0) {
+  printf("failed to select, reason: %s\n", taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
-  return ret_code;
+  return -1;
+}
+
+TAOS_ROW    row         = NULL;
+int         rows        = 0;
+int         num_fields  = taos_field_count(result);
+TAOS_FIELD *fields      = taos_fetch_fields(result);
+
+printf("fields: %d\n", num_fields);
+printf("sql: %s, result:\n", sql);
+
+// fetch the records row by row
+while ((row = taos_fetch_row(result))) {
+  char temp[1024] = {0};
+  rows++;
+  taos_print_row(temp, row, fields, num_fields);
+  printf("%s\n", temp);
+}
+printf("total rows: %d\n", rows);
+taos_free_result(result);
+
+// close & clean
+taos_close(taos);
+taos_cleanup();
+return 0;
 // ANCHOR_END: query_data
 }
 
