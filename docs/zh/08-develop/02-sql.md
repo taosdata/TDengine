@@ -38,7 +38,7 @@ REST API：通过 `curl` 命令进行数据写入和查询操作。
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
-{{#include docs/examples/go/queryreqid/main.go:query_id}}
+{{#include docs/examples/go/sqlquery/main.go:create_db_and_table}}
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
@@ -101,7 +101,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
-{{#include docs/examples/go/sqlquery/main.go:create_db_and_table}}
+{{#include docs/examples/go/sqlquery/main.go:insert_data}}
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
@@ -157,7 +157,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
-{{#include docs/examples/go/sqlquery/main.go:insert_data}}
+{{#include docs/examples/go/sqlquery/main.go:select_data}}
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
@@ -218,7 +218,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
-{{#include docs/examples/go/sqlquery/main.go:select_data}}
+{{#include docs/examples/go/queryreqid/main.go:query_id}}
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
