@@ -1464,14 +1464,16 @@ bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
-  int32_t code = 0;
-  int32_t vgId = pMeta->vgId;
+  int32_t      code = 0;
+  int32_t      vgId = pMeta->vgId;
+  SStreamTask* pTask = NULL;
+  bool         continueExec = true;
+
   stInfo("vgId:%d start task:0x%x by checking it's downstream status", vgId, taskId);
 
-  SStreamTask* pTask = NULL;
   code = streamMetaAcquireTask(pMeta, streamId, taskId, &pTask);
   if (pTask == NULL) {
-    stError("vgId:%d failed to acquire task:0x%x when starting task", pMeta->vgId, taskId);
+    stError("vgId:%d failed to acquire task:0x%x when starting task", vgId, taskId);
     (void)streamMetaAddFailedTask(pMeta, streamId, taskId);
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
@@ -1479,8 +1481,24 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   // fill-history task can only be launched by related stream tasks.
   STaskExecStatisInfo* pInfo = &pTask->execInfo;
   if (pTask->info.fillHistory == 1) {
+    stError("s-task:0x%x vgId:%d fill-histroy task, not start here", taskId, vgId);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
+  }
+
+  streamMutexLock(&pTask->lock);
+  SStreamTaskState status = streamTaskGetStatus(pTask);
+  if (status.state != TASK_STATUS__UNINIT) {
+    stError("s-task:0x%x vgId:%d status:%s not uninit status, not start stream task", taskId, vgId, status.name);
+    continueExec = false;
+  } else {
+    continueExec = true;
+  }
+  streamMutexUnlock(&pTask->lock);
+
+  if (!continueExec) {
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
   ASSERT(pTask->status.downstreamReady == 0);
@@ -1501,7 +1519,8 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   if (code == TSDB_CODE_SUCCESS) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s vgId:%d failed to handle event:%d", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT);
+      stError("s-task:%s vgId:%d failed to handle event:%d, code:%s", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT,
+              tstrerror(code));
       streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
     }
   }

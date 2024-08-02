@@ -322,11 +322,10 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
 
   if (pTrans->attachEvent.event != 0) {
     code = attachWaitedEvent(pTask, &pTrans->attachEvent);
+    streamMutexUnlock(&pTask->lock);
     if (code) {
       return code;
     }
-
-    streamMutexUnlock(&pTask->lock);
 
     while (1) {
       // wait for the task to be here
@@ -557,6 +556,11 @@ ETaskStatus streamTaskGetPrevStatus(const SStreamTask* pTask) {
 }
 
 const char* streamTaskGetStatusStr(ETaskStatus status) {
+  int32_t index = status;
+  if (index < 0 || index > tListLen(StreamTaskStatusList)) {
+    return "";
+  }
+
   return StreamTaskStatusList[status].name;
 }
 

@@ -641,12 +641,13 @@ bool streamTaskShouldPause(const SStreamTask* pStatus);
 bool streamTaskIsIdle(const SStreamTask* pTask);
 bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus);
 
-int32_t           createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId);
-SStreamTaskState  streamTaskGetStatus(const SStreamTask* pTask);
-const char*       streamTaskGetStatusStr(ETaskStatus status);
-void              streamTaskResetStatus(SStreamTask* pTask);
-void              streamTaskSetStatusReady(SStreamTask* pTask);
-ETaskStatus       streamTaskGetPrevStatus(const SStreamTask* pTask);
+int32_t          createStreamTaskIdStr(int64_t streamId, int32_t taskId, const char** pId);
+SStreamTaskState streamTaskGetStatus(const SStreamTask* pTask);
+const char*      streamTaskGetStatusStr(ETaskStatus status);
+void             streamTaskResetStatus(SStreamTask* pTask);
+void             streamTaskSetStatusReady(SStreamTask* pTask);
+ETaskStatus      streamTaskGetPrevStatus(const SStreamTask* pTask);
+const char*      streamTaskGetExecType(int32_t type);
 
 bool streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void streamTaskResetUpstreamStageInfo(SStreamTask* pTask);

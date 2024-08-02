@@ -1150,3 +1150,24 @@ void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);
 }
+
+const char* streamTaskGetExecType(int32_t type) {
+  switch (type) {
+    case STREAM_EXEC_T_EXTRACT_WAL_DATA:
+      return "scan-wal-file";
+    case STREAM_EXEC_T_START_ALL_TASKS:
+      return "start-all-tasks";
+    case STREAM_EXEC_T_START_ONE_TASK:
+      return "start-one-task";
+    case STREAM_EXEC_T_RESTART_ALL_TASKS:
+      return "restart-all-tasks";
+    case STREAM_EXEC_T_STOP_ALL_TASKS:
+      return "stop-all-tasks";
+    case STREAM_EXEC_T_RESUME_TASK:
+      return "resume-task-from-idle";
+    case STREAM_EXEC_T_ADD_FAILED_TASK:
+      return "record-start-failed-task";
+    default:
+      return "invalid-exec-type";
+  }
+}
