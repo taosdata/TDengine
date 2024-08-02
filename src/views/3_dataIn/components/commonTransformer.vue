@@ -1868,51 +1868,16 @@ export default {
         console.log(error);
       }
     },
-    // 获取示例数据字符串列表
-    getExampleList() {
-      let demo_string = (this.msgForm.msgbody || "").trim();
-      let demo_string_arr = [];
-      if (demo_string.startsWith("[") && demo_string.endsWith("]")) {
-        let arr_list = demo_string.replace(/\]\s*\[/g, "]&$[").split("&$");
-        let total = 0;
-        for (let i = 0; i < arr_list.length; i++) {
-          try {
-            let item_parsed = JSON.parse(arr_list[i]);
-            total += item_parsed.length;
-          } catch (err) {
-            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
-            throw err;
-          }
-          demo_string_arr.push(arr_list[i]);
-          if (total >= 100) {
-            return demo_string_arr;
-          }
-        }
-      } else if (demo_string.startsWith("{") && demo_string.endsWith("}")) {
-          let obj_list = demo_string.replace(/\}\s*\{/g, "}&${").split("&$");
-          for (let i = 0; i < obj_list.length; i++) {
-            if (i >= 100) {
-              return demo_string_arr;
-            }
-            try {
-              JSON.parse(obj_list[i]);
-            } catch (err) {
-              this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
-              throw err;
-            }
-            demo_string_arr.push(obj_list[i]);
-          }
-      } else {
-        Message.warning(this.$t("datasource.transformer.jsontip"));
-        throw new Error("Invalid JSON format");
-      }
-      return demo_string_arr;
-    },
+    
     //输出input结果
     generateInput() {
       let demo_list;
       try {
-        demo_list = getExampleList(this.msgForm.msgbody);
+        if (this.parseruleForm.type == "regex") {
+          demo_list = this.msgForm.msgbody.split(/\n+/);
+        } else {
+          demo_list = getExampleList(this.msgForm.msgbody);
+        }
       } catch (err) {
         if (err.lineNumber > 0) {
           this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
