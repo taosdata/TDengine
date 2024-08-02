@@ -44,8 +44,12 @@ async fn main() -> anyhow::Result<()> {
     // ANCHOR_END: create_topic
 
     // ANCHOR: create_consumer
-    dsn.params.insert("group.id".to_string(), "abc".to_string());
-    dsn.params.insert("auto.offset.reset".to_string(), "earliest".to_string());
+    dsn.params.insert("auto.offset.reset".to_string(), "latest".to_string());
+    dsn.params.insert("msg.with.table.name".to_string(), "true".to_string());
+    dsn.params.insert("enable.auto.commit".to_string(), "true".to_string());
+    dsn.params.insert("auto.commit.interval.ms".to_string(), "1000".to_string());
+    dsn.params.insert("group.id".to_string(), "group1".to_string());
+    dsn.params.insert("client.id".to_string(), "client1".to_string());
 
     let builder = TmqBuilder::from_dsn(&dsn)?;
     let mut consumer = builder.build().await?;

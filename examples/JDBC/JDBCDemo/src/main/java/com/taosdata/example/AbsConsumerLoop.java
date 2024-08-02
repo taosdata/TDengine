@@ -24,24 +24,24 @@ public abstract class AbsConsumerLoop {
     public AbsConsumerLoop() throws SQLException {
 
 // ANCHOR: create_consumer
-Properties config = new Properties();
-config.setProperty("td.connect.type", "jni");
-config.setProperty("bootstrap.servers", "localhost:6030");
-config.setProperty("auto.offset.reset", "latest");
-config.setProperty("msg.with.table.name", "true");
-config.setProperty("enable.auto.commit", "true");
-config.setProperty("auto.commit.interval.ms", "1000");
-config.setProperty("group.id", "group1");
-config.setProperty("client.id", "client1");
-config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoop$ResultDeserializer");
-config.setProperty("value.deserializer.encoding", "UTF-8");
-try {
-    this.consumer = new TaosConsumer<>(config);
-} catch (SQLException ex) {
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Failed to create jni consumer with " + config.getProperty("bootstrap.servers") + " ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-    throw new SQLException("Failed to create consumer", ex);
-}
+        Properties config = new Properties();
+        config.setProperty("td.connect.type", "jni");
+        config.setProperty("bootstrap.servers", "localhost:6030");
+        config.setProperty("auto.offset.reset", "latest");
+        config.setProperty("msg.with.table.name", "true");
+        config.setProperty("enable.auto.commit", "true");
+        config.setProperty("auto.commit.interval.ms", "1000");
+        config.setProperty("group.id", "group1");
+        config.setProperty("client.id", "client1");
+        config.setProperty("value.deserializer", "com.taosdata.example.AbsConsumerLoop$ResultDeserializer");
+        config.setProperty("value.deserializer.encoding", "UTF-8");
+        try {
+            this.consumer = new TaosConsumer<>(config);
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to create jni consumer with " + config.getProperty("bootstrap.servers") + " ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to create consumer", ex);
+        }
 // ANCHOR_END: create_consumer
 
         this.topics = Collections.singletonList("topic_meters");
@@ -53,65 +53,65 @@ try {
 
     public void pollDataCodePiece() throws SQLException {
 // ANCHOR: poll_data_code_piece
-try {
-    consumer.subscribe(topics);
-    while (!shutdown.get()) {
-        ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-        for (ConsumerRecord<ResultBean> record : records) {
-            ResultBean bean = record.value();
-            // process your data here
-            process(bean);
+        try {
+            consumer.subscribe(topics);
+            while (!shutdown.get()) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ConsumerRecord<ResultBean> record : records) {
+                    ResultBean bean = record.value();
+                    // process your data here
+                    process(bean);
+                }
+            }
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to poll data", ex);
+        } finally {
+            consumer.close();
+            shutdownLatch.countDown();
         }
-    }
-} catch (SQLException ex){
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-    throw new SQLException("Failed to poll data", ex);
-} finally {
-    consumer.close();
-    shutdownLatch.countDown();
-}
 // ANCHOR_END: poll_data_code_piece
     }
 
     public void commitCodePiece() throws SQLException {
 // ANCHOR: commit_code_piece
-try {
-    consumer.subscribe(topics);
-    while (!shutdown.get()) {
-        ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-        for (ConsumerRecord<ResultBean> record : records) {
-            ResultBean bean = record.value();
-            // process your data here
-            process(bean);
+        try {
+            consumer.subscribe(topics);
+            while (!shutdown.get()) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ConsumerRecord<ResultBean> record : records) {
+                    ResultBean bean = record.value();
+                    // process your data here
+                    process(bean);
+                }
+                if (!records.isEmpty()) {
+                    // after processing the data, commit the offset manually
+                    consumer.commitSync();
+                }
+            }
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to execute consumer functions. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to execute consumer functions", ex);
+        } finally {
+            consumer.close();
+            shutdownLatch.countDown();
         }
-        if (!records.isEmpty()) {
-            // after processing the data, commit the offset manually
-            consumer.commitSync();
-        }
-    }
-} catch (SQLException ex){
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Failed to execute consumer functions. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-    throw new SQLException("Failed to execute consumer functions", ex);
-} finally {
-    consumer.close();
-    shutdownLatch.countDown();
-}
 // ANCHOR_END: commit_code_piece
     }
 
     public void unsubscribeCodePiece() throws SQLException {
 // ANCHOR: unsubscribe_data_code_piece
-try {
-    consumer.unsubscribe();
-} catch (SQLException ex){
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-    throw new SQLException("Failed to unsubscribe consumer", ex);
-} finally {
-    consumer.close();
-}
+        try {
+            consumer.unsubscribe();
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to unsubscribe consumer", ex);
+        } finally {
+            consumer.close();
+        }
 // ANCHOR_END: unsubscribe_data_code_piece
     }
 
@@ -119,14 +119,14 @@ try {
         try {
 
 // ANCHOR: poll_data
-consumer.subscribe(topics);
-while (!shutdown.get()) {
-    ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-    for (ConsumerRecord<ResultBean> record : records) {
-        ResultBean bean = record.value();
-        process(bean);
-    }
-}
+            consumer.subscribe(topics);
+            while (!shutdown.get()) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ConsumerRecord<ResultBean> record : records) {
+                    ResultBean bean = record.value();
+                    process(bean);
+                }
+            }
 // ANCHOR_END: poll_data
 
             consumer.unsubscribe();
