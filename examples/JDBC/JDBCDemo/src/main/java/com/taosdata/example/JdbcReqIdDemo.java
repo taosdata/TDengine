@@ -15,31 +15,31 @@ public class JdbcReqIdDemo {
 
     public static void main(String[] args) throws SQLException {
 
-final String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
+        final String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
 
 // get connection
-Properties properties = new Properties();
-properties.setProperty("charset", "UTF-8");
-properties.setProperty("locale", "en_US.UTF-8");
-properties.setProperty("timezone", "UTC-8");
-System.out.println("get connection starting...");
+        Properties properties = new Properties();
+        properties.setProperty("charset", "UTF-8");
+        properties.setProperty("locale", "en_US.UTF-8");
+        properties.setProperty("timezone", "UTC-8");
+        System.out.println("get connection starting...");
 
 // ANCHOR: with_reqid
-try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
-     // Create a statement that allows specifying a request ID
-     AbstractStatement aStmt = (AbstractStatement) connection.createStatement()) {
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
+             // Create a statement that allows specifying a request ID
+             AbstractStatement aStmt = (AbstractStatement) connection.createStatement()) {
 
-    try (ResultSet rs = aStmt.executeQuery("SELECT ts, current, location FROM power.meters limit 1", 3L)) {
-        while (rs.next()) {
-            Timestamp timestamp = rs.getTimestamp(1);
-            System.out.println("timestamp = " + timestamp);
+            try (ResultSet rs = aStmt.executeQuery("SELECT ts, current, location FROM power.meters limit 1", 3L)) {
+                while (rs.next()) {
+                    Timestamp timestamp = rs.getTimestamp(1);
+                    System.out.println("timestamp = " + timestamp);
+                }
+            }
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to execute sql with reqId, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+
         }
-    }
-} catch (SQLException ex) {
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Failed to execute sql with reqId, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-
-}
 // ANCHOR_END: with_reqid
     }
 

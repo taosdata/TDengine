@@ -200,11 +200,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 {{#include docs/examples/csharp/wssml/Program.cs:main}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-</TabItem>
 <TabItem label="C" value="c">
-</TabItem>
-<TabItem label="PHP" value="php">
 </TabItem>
 </Tabs>
 
@@ -237,11 +233,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 {{#include docs/examples/csharp/nativesml/Program.cs:main}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-</TabItem>
 <TabItem label="C" value="c">
-</TabItem>
-<TabItem label="PHP" value="php">
 </TabItem>
 
 </Tabs>
@@ -263,11 +255,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
     <TabItem label="C#" value="csharp">
     不支持
     </TabItem>
-    <TabItem label="R" value="r">
-    </TabItem>
     <TabItem label="C" value="c">
-    </TabItem>
-    <TabItem label="PHP" value="php">
     </TabItem>
 
 </Tabs>

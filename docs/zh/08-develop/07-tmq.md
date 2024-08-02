@@ -91,13 +91,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 其他参数见上表。
 
 </TabItem>
-<TabItem label="R" value="r">
-
-</TabItem>
 <TabItem label="C" value="c">
-
-</TabItem>
-<TabItem label="PHP" value="php">
 
 </TabItem>
 </Tabs>
@@ -129,9 +123,13 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Rust" value="rust">
 
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:create_consumer_dsn}}
+```
+
 
 ```rust
-{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer}}
+{{#include docs/examples/rust/restexample/examples/tmq.rs:create_consumer_ac}}
 ```
 
 </TabItem>
@@ -149,16 +147,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -192,6 +182,13 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+```rust
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer_dsn}}
+```
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer_ac}}
+```
 
 </TabItem>
 
@@ -201,17 +198,10 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ## 订阅消费数据
@@ -244,7 +234,12 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+消费者可订阅一个或多个 `TOPIC`，一般建议一个消费者只订阅一个 `TOPIC`。  
+TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) 类型，可以使用相应 API 对每个消息进行消费，并通过 `.commit` 进行已消费标记。
 
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:consume}}
+```
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -260,16 +255,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -295,7 +282,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+同 Websocket 示例代码
 </TabItem>
 
 <TabItem label="C#" value="csharp">
@@ -304,17 +291,10 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ## 指定订阅的 Offset
@@ -327,6 +307,10 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_seek}}
 ```
+1. 使用 consumer.poll 方法轮询数据，直到获取到数据为止。
+2. 对于轮询到的第一批数据，打印第一条数据的内容，并获取当前消费者的分区分配信息。
+3. 使用 consumer.seekToBeginning 方法将所有分区的偏移量重置到开始位置，并打印成功重置的消息。
+4. 再次使用 consumer.poll 方法轮询数据，并打印第一条数据的内容。
 
 </TabItem>
 
@@ -345,6 +329,16 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Rust" value="rust">
 
+```rust
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:seek_offset}}
+```
+
+1. 通过调用 consumer.assignments() 方法获取消费者当前的分区分配信息，并记录初始分配状态。  
+2. 遍历每个分区分配信息，对于每个分区：提取主题（topic）、消费组ID（vgroup_id）、当前偏移量（current）、起始偏移量（begin）和结束偏移量（end）。
+记录这些信息。  
+1. 调用 consumer.offset_seek 方法将偏移量设置到起始位置。如果操作失败，记录错误信息和当前分配状态。  
+2. 在所有分区的偏移量调整完成后，再次获取并记录消费者的分区分配信息，以确认偏移量调整后的状态。    
+
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -360,17 +354,10 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ### 原生连接 
@@ -395,7 +382,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+同 Websocket 代码样例。
 </TabItem>
 
 <TabItem label="C#" value="csharp">
@@ -404,16 +391,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -421,6 +400,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ## 提交 Offset
 当消费者读取并处理完消息后，它可以提交 Offset，这表示消费者已经成功处理到这个 Offset 的消息。Offset 提交可以是自动的（根据配置定期提交）或手动的（应用程序控制何时提交）。   
 当创建消费者时，属性 `enable.auto.commit` 为 false 时，可以手动提交 offset。  
+
+**注意**：手工提交消费进度前确保消息正常处理完成，否则处理出错的消息不会被再次消费。自动提交是在本次 `poll` 消息时可能会提交上次消息的消费进度，因此请确保消息处理完毕再进行下一次 `poll` 或消息获取。
+
 ### Websocket 连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -446,7 +428,11 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+```rust
+{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs:consumer_commit_manually}}
+```
 
+可以通过 `consumer.commit` 方法来手工提交消费进度。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -462,18 +448,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>
 
 ### 原生连接 
@@ -499,7 +476,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+同 Websocket 代码样例。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -512,18 +489,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>
 
 
@@ -554,7 +522,11 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
+```
 
+**注意**：消费者取消订阅后无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -570,16 +542,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
@@ -606,7 +570,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+同 Websocket 代码样例。  
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -619,16 +583,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
@@ -662,7 +618,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+```rust
+{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs}}
+```
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -678,16 +636,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
@@ -722,7 +672,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+```rust
+{{#include docs/examples/rust/nativeexample/examples/subscribe_demo.rs}}
+```
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -735,16 +687,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>

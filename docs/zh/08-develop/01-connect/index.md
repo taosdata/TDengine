@@ -13,8 +13,6 @@ import ConnNode from "./_connect_node.mdx";
 import ConnPythonNative from "./_connect_python.mdx";
 import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
-import ConnR from "./_connect_r.mdx";
-import ConnPHP from "./_connect_php.mdx";
 import InstallOnLinux from "../../14-reference/05-connector/_linux_install.mdx";
 import InstallOnWindows from "../../14-reference/05-connector/_windows_install.mdx";
 import InstallOnMacOS from "../../14-reference/05-connector/_macos_install.mdx";
@@ -250,60 +248,10 @@ dotnet add package TDengine.Connector
 :::
 
 </TabItem>
-<TabItem label="R" value="r">
-
-1. 下载 [taos-jdbcdriver-version-dist.jar](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.0.0/)。
-2. 安装 R 的依赖包`RJDBC`：
-
-```R
-install.packages("RJDBC")
-```
-
-</TabItem>
 <TabItem label="C" value="c">
 
 如果已经安装了 TDengine 服务端软件或 TDengine 客户端驱动 taosc， 那么已经安装了 C 连接器，无需额外操作。
 <br/>
-
-</TabItem>
-<TabItem label="PHP" value="php">
-
-**下载代码并解压：**
-
-```shell
-curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
-&& mkdir php-tdengine \
-&& tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
-```
-
-> 版本 `v1.0.2` 只是示例，可替换为任意更新的版本，可在 [TDengine PHP Connector 发布历史](https://github.com/Yurunsoft/php-tdengine/releases) 中查看可用版本。
-
-**非 Swoole 环境：**
-
-```shell
-phpize && ./configure && make -j && make install
-```
-
-**手动指定 TDengine 目录：**
-
-```shell
-phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/3.0.0.0 && make -j && make install
-```
-
-> `--with-tdengine-dir=` 后跟上 TDengine 目录。
-> 适用于默认找不到的情况，或者 macOS 系统用户。
-
-**Swoole 环境：**
-
-```shell
-phpize && ./configure --enable-swoole && make -j && make install
-```
-
-**启用扩展：**
-
-方法一：在 `php.ini` 中加入 `extension=tdengine`
-
-方法二：运行带参数 `php -d extension=tdengine test.php`
 
 </TabItem>
 </Tabs>
@@ -404,8 +352,6 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     - `reconnectRetryCount`：重连次数，默认为 3。
     - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
     </TabItem>
-    <TabItem label="R" value="r">
-    </TabItem>
     <TabItem label="C" value="c">
 使用客户端驱动访问 TDengine 集群的基本过程为：建立连接、查询和写入、关闭连接、清除资源。
 
@@ -433,10 +379,6 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 
 :::
 
-
-
-    </TabItem>
-    <TabItem label="PHP" value="php">
     </TabItem>
 
 </Tabs>
@@ -475,14 +417,8 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 {{#include docs/examples/csharp/wsConnect/Program.cs:main}}
 ```
     </TabItem>
-    <TabItem label="R" value="r">
-        <ConnR/>
-    </TabItem>
     <TabItem label="C" value="c">
         <ConnC />
-    </TabItem>
-    <TabItem label="PHP" value="php">
-        <ConnPHP />
     </TabItem>
 </Tabs>
 
@@ -513,14 +449,8 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 {{#include docs/examples/csharp/connect/Program.cs:main}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-    <ConnR/>
-</TabItem>
 <TabItem label="C" value="c">
     <ConnC />
-</TabItem>
-<TabItem label="PHP" value="php">
-    <ConnPHP />
 </TabItem>
 
 </Tabs>
@@ -550,14 +480,8 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     <TabItem label="C#" value="csharp">
         不支持
     </TabItem>
-    <TabItem label="R" value="r">
-        <ConnR/>
-    </TabItem>
     <TabItem label="C" value="c">
         <ConnC />
-    </TabItem>
-    <TabItem label="PHP" value="php">
-        <ConnPHP />
     </TabItem>
 
 </Tabs>
@@ -642,14 +566,8 @@ let taos = pool.get()?;
     <TabItem label="C#" value="csharp">
         不支持
     </TabItem>
-    <TabItem label="R" value="r">
-        <ConnR/>
-    </TabItem>
     <TabItem label="C" value="c">
         <ConnC />
-    </TabItem>
-    <TabItem label="PHP" value="php">
-        <ConnPHP />
     </TabItem>
 
 </Tabs>
