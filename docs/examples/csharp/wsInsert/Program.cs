@@ -50,13 +50,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to create db and table; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to create db and table; Err:" + e.Message);
                 throw;
             }
             // ANCHOR_END: create_db_and_table
@@ -78,18 +78,18 @@ namespace Examples
                                   "VALUES " +
                                   "(NOW + 1a, 10.30000, 218, 0.25000) ";
                 var affectedRows = client.Exec(insertQuery);
-                Console.WriteLine("inserted " + affectedRows + " rows to power.meters successfully.");
+                Console.WriteLine("insert " + affectedRows + " rows to power.meters successfully.");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to insert data to power.meters; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to insert data to power.meters; Err:" + e.Message);
                 throw;
             }
             // ANCHOR_END: insert_data
@@ -117,13 +117,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to query data from power.meters; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to query data from power.meters; Err:" + e.Message);
                 throw;
             }
             // ANCHOR_END: select_data
@@ -136,8 +136,8 @@ namespace Examples
             {
                 // query data
                 var query = "SELECT ts, current, location FROM power.meters limit 1";
-                // query with request id 1
-                using (var rows = client.Query(query,1))
+                // query with request id 3
+                using (var rows = client.Query(query,3))
                 {
                     while (rows.Read())
                     {
@@ -152,13 +152,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to execute sql with reqId; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to execute sql with reqId; Err:" + e.Message);
                 throw;
             }
             // ANCHOR_END: query_id

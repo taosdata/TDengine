@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+
 	"github.com/taosdata/driver-go/v3/af"
 )
 
@@ -12,30 +14,30 @@ func main() {
 
 	conn, err := af.Open(host, "root", "taosdata", "", 0)
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to connect TDengine, err:", err)
 	}
 	defer conn.Close()
 	_, err = conn.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to create database, err:", err)
 	}
 	_, err = conn.Exec("USE power")
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to use database, err:", err)
 	}
 	// insert influxdb line protocol
 	err = conn.InfluxDBInsertLines([]string{lineDemo}, "ms")
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to insert influxdb line protocol, err:", err)
 	}
 	// insert opentsdb telnet protocol
 	err = conn.OpenTSDBInsertTelnetLines([]string{telnetDemo})
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to insert opentsdb telnet line protocol, err:", err)
 	}
 	// insert opentsdb json protocol
 	err = conn.OpenTSDBInsertJsonPayload(jsonDemo)
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to insert opentsdb json format protocol, err:", err)
 	}
 }
