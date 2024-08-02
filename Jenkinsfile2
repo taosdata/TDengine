@@ -30,14 +30,14 @@ def abort_previous(){
     milestone(buildNumber)
 }
 def check_docs() {
-    if (env.CHANGE_URL =~ /\/TDengine\//) {
+    if (env.CHANGE_URL =~ /\/TDinternal\//) {
         sh '''
             hostname
             date
             env
         '''
         sh '''
-            cd ${WKC}
+            cd ${WK}
             git reset --hard
             git clean -f
             rm -rf examples/rust/
@@ -46,12 +46,12 @@ def check_docs() {
         '''
         script {
             sh '''
-                cd ${WKC}
+                cd ${WK}
                 git checkout ''' + env.CHANGE_TARGET + '''
             '''
         }
         sh '''
-            cd ${WKC}
+            cd ${WK}
             git remote prune origin
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
@@ -59,7 +59,7 @@ def check_docs() {
         '''
         def file_changed = sh (
             script: '''
-                cd ${WKC}
+                cd ${WK}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/" || :
             ''',
             returnStdout: true
