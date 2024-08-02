@@ -9,6 +9,9 @@ import (
 )
 
 func main() {
+	// use
+	// var taosDSN = "root:taosdata@http(localhost:6041)/dbName"
+	// if you want to connect a specified database named "dbName".
 	var taosDSN = "root:taosdata@http(localhost:6041)/"
 	taos, err := sql.Open("taosRestful", taosDSN)
 	if err != nil {
@@ -18,7 +21,3 @@ func main() {
 	fmt.Println("Connected")
 	defer taos.Close()
 }
-
-// use
-// var taosDSN = "root:taosdata@http(localhost:6041)/dbName"
-// if you want to connect a specified database named "dbName".

@@ -11,6 +11,15 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 
 下面介绍使用各语言连接器通过执行 SQL 完成建库、建表、写入数据和查询数据。
 
+:::note
+
+REST 连接：各编程语言的连接器封装使用 `HTTP` 请求的连接，支持数据写入和查询操作。
+
+REST API：通过 `curl` 命令进行数据写入和查询操作。
+
+:::
+
+
 ## 建库和表
 下面以智能电表为例，展示使用各语言连接器如何执行 SQL 命令创建一个名为 `power` 的数据库，然后使用 `power` 数据库为默认数据库。
 接着创建一个名为 `meters` 的超级表（STABLE），其表结构包含时间戳、电流、电压、相位等列，以及分组 ID 和位置作为标签。
@@ -28,6 +37,9 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 
 </TabItem>
 <TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/queryreqid/main.go:query_id}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
 
@@ -37,6 +49,9 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 
 </TabItem>
 <TabItem label="C#" value="csharp">
+```csharp
+{{#include docs/examples/csharp/wsInsert/Program.cs:create_db_and_table}}
+```
 </TabItem>
 <TabItem label="R" value="r">
 </TabItem>
@@ -47,6 +62,23 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 > **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 power.meters。
 </TabItem>
 <TabItem label="PHP" value="php">
+</TabItem>
+<TabItem label="REST API" value="rest">
+
+创建数据库
+
+```bash
+curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
+--data 'CREATE DATABASE IF NOT EXISTS power'
+```
+
+创建表，在 url 中指定数据库为 `power`
+
+```bash
+curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
+--data 'CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))'
+```
+
 </TabItem>
 </Tabs>
 > **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 `power.meters`。
@@ -68,6 +100,9 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 <TabItem label="Python" value="python">
 </TabItem>
 <TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/sqlquery/main.go:create_db_and_table}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
 
@@ -77,6 +112,9 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 
 </TabItem>
 <TabItem label="C#" value="csharp">
+```csharp
+{{#include docs/examples/csharp/wsInsert/Program.cs:insert_data}}
+```
 </TabItem>
 <TabItem label="R" value="r">
 </TabItem>
@@ -89,6 +127,16 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
 </TabItem>
 <TabItem label="PHP" value="php">
+</TabItem>
+<TabItem label="REST API" value="rest">
+
+写入数据
+
+```bash
+curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
+--data 'INSERT INTO power.d1001 USING power.meters TAGS(2,'\''California.SanFrancisco'\'') VALUES (NOW + 1a, 10.30000, 219, 0.31000) (NOW + 2a, 12.60000, 218, 0.33000) (NOW + 3a, 12.30000, 221, 0.31000) power.d1002 USING power.meters TAGS(3, '\''California.SanFrancisco'\'') VALUES (NOW + 1a, 10.30000, 218, 0.25000)'
+```
+
 </TabItem>
 </Tabs>
 
@@ -108,6 +156,9 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 <TabItem label="Python" value="python">
 </TabItem>
 <TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/sqlquery/main.go:insert_data}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
 
@@ -117,6 +168,9 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 
 </TabItem>
 <TabItem label="C#" value="csharp">
+```csharp
+{{#include docs/examples/csharp/wsInsert/Program.cs:select_data}}
+```
 </TabItem>
 <TabItem label="R" value="r">
 </TabItem>
@@ -126,6 +180,16 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 ```
 </TabItem>
 <TabItem label="PHP" value="php">
+</TabItem>
+<TabItem label="REST API" value="rest">
+
+查询数据
+
+```bash
+curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
+--data 'SELECT ts, current, location FROM power.meters limit 100'
+```
+
 </TabItem>
 </Tabs>
 
@@ -153,6 +217,9 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 <TabItem label="Python" value="python">
 </TabItem>
 <TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/sqlquery/main.go:select_data}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
 
@@ -162,6 +229,9 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 
 </TabItem>
 <TabItem label="C#" value="csharp">
+```csharp
+{{#include docs/examples/csharp/wsInsert/Program.cs:query_id}}
+```
 </TabItem>
 <TabItem label="R" value="r">
 </TabItem>
@@ -171,5 +241,15 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 ```
 </TabItem>
 <TabItem label="PHP" value="php">
+</TabItem>
+<TabItem label="REST API" value="rest">
+
+查询数据，指定 reqId 为 3
+
+```bash
+curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql?req_id=3' \
+--data 'SELECT ts, current, location FROM power.meters limit 1'
+```
+
 </TabItem>
 </Tabs>
