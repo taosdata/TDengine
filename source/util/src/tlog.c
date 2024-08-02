@@ -182,7 +182,6 @@ int32_t taosInitSlowLog() {
     return TAOS_SYSTEM_ERROR(errno);
   }
 
-  backUpSlowLog();
   return 0;
 }
 
@@ -403,7 +402,6 @@ static void taosOpenNewSlowLogFile(char* day) {
 
 END:
   taosUnLockLogFile(pOldFile);
-
 }
 
 void taosResetLog() {
@@ -643,19 +641,19 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   taosMemoryFree(buffer);
 }
 
-static void backUpSlowLog(){
+static void checkSwitchSlowLogFile(){
   char buf[64] = {0};
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
   if (taosLocalTime(&t, &tmInfo, buf) != NULL) {
     (void)strftime(buf, sizeof(buf), "%Y-%m-%d", &tmInfo);
   }
-//  (void)taosThreadMutexLock(&tsLogObj.logMutex);
-//  if (strlen(tsLogObj.slowLogDay) == 0) {
-//    tstrncpy(tsLogObj.slowLogDay, buf, 64);
-//  }else if (strcmp(tsLogObj.slowLogDay, buf) != 0) {
-    (void)taosOpenNewSlowLogFile(buf);
-//  }
+  (void)taosThreadMutexLock(&tsLogObj.logMutex);
+  if (strlen(tsLogObj.slowLogDay) == 0) {
+    tstrncpy(tsLogObj.slowLogDay, buf, 64);
+  }else if (strcmp(tsLogObj.slowLogDay, buf) != 0) {
+    taosOpenNewSlowLogFile(buf);
+  }
   (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
 }
 void taosPrintSlowLog(const char *format, ...) {
@@ -682,6 +680,8 @@ void taosPrintSlowLog(const char *format, ...) {
   } else {
     (void)taosWriteFile(tsLogObj.slowHandle->pFile, buffer, len);
   }
+
+  checkSwitchSlowLogFile();
 
   taosMemoryFree(buffer);
 }
