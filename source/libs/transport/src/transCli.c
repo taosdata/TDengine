@@ -901,9 +901,11 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
   exh->handle = conn;
   exh->pThrd = conn->hostThrd;
   taosWUnLockLatch(&exh->latch);
-
+  
   conn->refId = exh->refId;
   taosWUnLockLatch(&exh->latch);
+
+  tDebug("conn %p specified by %"PRId64"", conn, handle); 
 
   (void)transReleaseExHandle(transGetRefMgt(), handle);
   return 0;
@@ -1608,6 +1610,7 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (conn == NULL || conn->refId != refId) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
   }
+  tDebug("do free conn %p by id %" PRId64 "", conn, refId);
 
   int32_t size = transQueueSize(&conn->cliMsgs);
   if (size == 0) {
@@ -1619,6 +1622,8 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   }
   return;
 _exception:
+  tDebug("already free conn %p by id %" PRId64"", conn, refId);
+
   (void)transReleaseExHandle(transGetRefMgt(), refId);
   destroyCmsg(pMsg);
 }
@@ -3260,7 +3265,8 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
   if (transpointId == 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
+    tDebug("not free by refId:%"PRId64"", transpointId);
+    TAOS_CHECK_GOTO(0, NULL, _exception);
   }
 
   SCliThrd* pThrd = transGetWorkThrdFromHandle(pTransInst, transpointId);
@@ -3273,6 +3279,8 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _exception);
   }
   pCli->type = FreeById;
+
+  tDebug("release conn By refId %" PRId64 "", transpointId);
 
   STransMsg msg = {.info.handle = (void*)transpointId};
 
