@@ -10,6 +10,9 @@ SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 EXPLORER_CONFIG_NAME="explorer"
+AGENT_CONFIG_NAME="agent"
+LOG_DIR="/var/log/${PREFIX}"
+DATA_DIR="/var/lib/${PREFIX}"
 csudo=""
 
 target="taosx-agent"
@@ -123,43 +126,69 @@ remove_taosx() {
     stop_taosx_service
     stop_explore_service
 
+    if ! need_remove_data; then 
+        return
+    fi
+
     ${csudo}rm -rf ${INSTALL_DIR}/${xName}
-    remove_data_dir ${CONFIG_DIR}/${xName}.toml
+    remove_custom_data_dir ${CONFIG_DIR}/${xName}.toml
+    ${csudo}rm -rf ${DATA_DIR}/${xName}
+    ${csudo}rm -rf ${LOG_DIR}/${xName}.log*
+    remove_plugin_logs
+    ${csudo}rm -rf ${CONFIG_DIR}/${xName}.toml
     echo "${xName} is removed successfully!"
 
     ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
-    remove_data_dir ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
+    remove_custom_data_dir ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
+    ${csudo}rm -rf ${DATA_DIR}/${EXPLORER_CONFIG_NAME}
+    ${csudo}rm -rf ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
     echo "${explorerName} is removed successfully!"
 
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/bin/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+    ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
+    ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
     echo "${agentname} is removed successfully!"
 }
 
-remove_data_dir() {
+remove_custom_data_dir() {
     # find config file
-    CONFIG_FILE=$1
-    if [ ! -e "${CONFIG_FILE}" ]; then
+    config_file=$1
+    if [ ! -e "${config_file}" ]; then
         return
     fi
     # find data dir from config file
-    DATA_DIR=$(grep '^\s*data_dir' ${CONFIG_FILE} | sed 's/.*=.*"\(.*\)"/\1/')
+    custom_data_dir=$(grep '^\s*data_dir' ${config_file} | sed 's/.*=.*"\(.*\)"/\1/')
     # data dir is not empty and is a absolute path
-    if [[ -n "$DATA_DIR" && "$DATA_DIR" == /* ]]; then
-        rm -rf $DATA_DIR
+    if [[ -n "$custom_data_dir" && "$custom_data_dir" == /* ]]; then
+        rm -rf $custom_data_dir
     fi
+}
+
+remove_plugin_logs() {
+    ${csudo}rm -rf ${LOG_DIR}/mqtt-*.log*
+    ${csudo}rm -rf ${LOG_DIR}/influxdb-*.log*
+    ${csudo}rm -rf ${LOG_DIR}/opc-*.log*
+    ${csudo}rm -rf ${LOG_DIR}/opentsdb-*.log*
+    ${csudo}rm -rf ${LOG_DIR}/pi-*.log*
 }
 
 # remove taosx-agent
 remove_taos_agent() {
     stop_taosx_agent_service
 
+    if ! need_remove_data; then 
+        return
+    fi
+
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/bin/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+    ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
+    ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
     echo "${agentname} is removed successfully!"
 }
 
@@ -169,6 +198,24 @@ remove_target() {
     else
       remove_taos_agent
     fi
+}
+
+need_remove_data() {
+    echo 
+    echo "Do you want to remove all the data, log and configuration files? [y/n]"
+    read answer
+    if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+        confirmMsg="I confirm that I would like to delete all data, log and configuration files"
+        echo "Please enter '${confirmMsg}' to continue"
+        read answer
+        if [ X"$answer" == X"${confirmMsg}" ]; then
+            return 0
+        else
+            echo "answer doesn't match, skip this step"
+            return 1
+        fi
+    fi
+    return 1
 }
 
 remove_target
