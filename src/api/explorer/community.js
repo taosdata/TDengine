@@ -2418,7 +2418,7 @@ export function getDataSources(lang) {
                 "name": "host",
                 "required": true,
                 "display": "bootstrap-server",
-                "description": "kafka bootstrap-server.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
+                "description": "kafka bootstrap-server.\n<br/>If you configure multiple Kafka servers, all Kafka servers must belong to the same cluster.\n<br/>If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.",
                 "placeholder": "127.0.0.1",
               },
               "port": {
@@ -6898,7 +6898,7 @@ export function getDataSources(lang) {
                 "name": "host",
                 "required": true,
                 "display": "bootstrap-server",
-                "description": "Kafka Server 地址。\n如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n",
+                "description": "Kafka Server 地址。\n<br/>如果配置多个，所有 Kafka Server 必须属于同一个集群。\n<br/>如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n",
                 "placeholder": "127.0.0.1"
               },
               "port": {
