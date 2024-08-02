@@ -24,50 +24,50 @@
 
 static int DemoInsertData() {
 // ANCHOR: insert_data
-  int         ret_code  = -1;
-  const char *ip        = "localhost";
-  const char *user      = "root";
-  const char *password  = "taosdata";
+const char *ip        = "localhost";
+const char *user      = "root";
+const char *password  = "taosdata";
 
-  // connect
-  TAOS *taos = taos_connect(ip, user, password, NULL, 0);
-  if (taos == NULL) {
-    printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
-    goto end;
-  }
+// connect
+TAOS *taos = taos_connect(ip, user, password, NULL, 0);
+if (taos == NULL) {
+  printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
+  taos_cleanup();
+  return -1;
+}
 
-  // use database
-  TAOS_RES *result = taos_query(taos, "USE power");
-  taos_free_result(result);
+// use database
+TAOS_RES *result = taos_query(taos, "USE power");
+taos_free_result(result);
 
-  // insert data, please make sure the database and table are already created
-  const char* sql = "INSERT INTO "                                                  \
-            "power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') "     \
-            "VALUES "                                                               \
-            "(NOW + 1a, 10.30000, 219, 0.31000) "                                   \
-            "(NOW + 2a, 12.60000, 218, 0.33000) "                                   \
-            "(NOW + 3a, 12.30000, 221, 0.31000) "                                   \
-            "power.d1002 USING power.meters TAGS(3, 'California.SanFrancisco') "    \
-            "VALUES "                                                               \
-            "(NOW + 1a, 10.30000, 218, 0.25000) ";
-  result = taos_query(taos, sql);
-  int code = taos_errno(result);
-  if (code != 0) {
-    printf("failed to insert rows, reason: %s\n", taos_errstr(result));
-    goto end;
-  }
-  taos_free_result(result);
-
-  // you can check affectedRows here
-  int rows = taos_affected_rows(result);
-  printf("success to insert %d rows\n", rows);
-  ret_code = 0;
-
-end:
-  // close & clean
+// insert data, please make sure the database and table are already created
+const char* sql = "INSERT INTO "                                                  \
+          "power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') "     \
+          "VALUES "                                                               \
+          "(NOW + 1a, 10.30000, 219, 0.31000) "                                   \
+          "(NOW + 2a, 12.60000, 218, 0.33000) "                                   \
+          "(NOW + 3a, 12.30000, 221, 0.31000) "                                   \
+          "power.d1002 USING power.meters TAGS(3, 'California.SanFrancisco') "    \
+          "VALUES "                                                               \
+          "(NOW + 1a, 10.30000, 218, 0.25000) ";
+result = taos_query(taos, sql);
+int code = taos_errno(result);
+if (code != 0) {
+  printf("failed to insert rows, reason: %s\n", taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
-  return ret_code;
+  return -1;
+}
+taos_free_result(result);
+
+// you can check affectedRows here
+int rows = taos_affected_rows(result);
+printf("success to insert %d rows\n", rows);
+
+// close & clean
+taos_close(taos);
+taos_cleanup();
+return 0;
 // ANCHOR_END: insert_data
 }
 
