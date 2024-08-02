@@ -5360,6 +5360,14 @@ int32_t tDeserializeDropOrphanTaskMsg(void* buf, int32_t bufLen, SMStreamDropOrp
   return 0;
 }
 
+void tDestroyDropOrphanTaskMsg(SMStreamDropOrphanMsg *pMsg) {
+  if (pMsg == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(pMsg->pList);
+}
+
 int32_t tEncodeSReplica(SEncoder *pEncoder, SReplica *pReplica) {
   if (tEncodeI32(pEncoder, pReplica->id) < 0) return -1;
   if (tEncodeU16(pEncoder, pReplica->port) < 0) return -1;
