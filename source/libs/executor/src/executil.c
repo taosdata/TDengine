@@ -2001,6 +2001,7 @@ _end:
       taosMemoryFree(pFuncCtx[i].input.pData);
       taosMemoryFree(pFuncCtx[i].input.pColumnDataAgg);
     }
+    taosMemoryFreeClear(*rowEntryInfoOffset);
     taosMemoryFreeClear(pFuncCtx);
     return NULL;
   }
