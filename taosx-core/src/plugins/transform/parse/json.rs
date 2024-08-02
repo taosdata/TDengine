@@ -1,5 +1,6 @@
 use std::{borrow::Cow, str::FromStr, sync::Arc};
 
+use anyhow::Context;
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array,
@@ -12,6 +13,7 @@ use arrow::{
 };
 use arrow_schema::{Field, Fields};
 use itertools::Itertools;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
@@ -154,12 +156,17 @@ impl Parse for Json {
 
         let mut schema =
             arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter())?;
-        if let Some(select) = self.json.as_ref() {
-            schema = select.schema(&schema);
-        } else {
-            let keys = flat_fields(schema.fields(), &String::new(), self.depth);
-            let select = Select::from_str(serde_json::to_string(&keys).unwrap().as_str()).unwrap();
-            schema = select.schema(&schema);
+
+        match self.json.as_ref() {
+            Some(select) if select != &Select::pattern(Regex::new("").unwrap()) => {
+                schema = select.schema(&schema);
+            }
+            _ => {
+                let keys = flat_fields(schema.fields(), &String::new(), self.depth);
+                let keys = serde_json::to_string(&keys).context("Fields to json string")?;
+                let select = Select::from_str(&keys).context("Json string to select")?;
+                schema = select.schema(&schema);
+            }
         }
         // dbg!(&schema);
         let json_values: Vec<_> = (0..num_rows)
