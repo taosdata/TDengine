@@ -19,12 +19,12 @@ func main() {
 
 	db, err := sql.Open("taosWS", fmt.Sprintf("root:taosdata@ws(%s:6041)/", host))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("failed to connect TDengine, err:", err)
 	}
 	defer db.Close()
 	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("failed to create database, err:", err)
 	}
 	s, err := schemaless.NewSchemaless(schemaless.NewConfig("ws://localhost:6041", 1,
 		schemaless.SetDb("power"),
@@ -32,26 +32,23 @@ func main() {
 		schemaless.SetWriteTimeout(10*time.Second),
 		schemaless.SetUser("root"),
 		schemaless.SetPassword("taosdata"),
-		schemaless.SetErrorHandler(func(err error) {
-			log.Fatal(err)
-		}),
 	))
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to create schemaless connection, err:", err)
 	}
 	// insert influxdb line protocol
 	err = s.Insert(lineDemo, schemaless.InfluxDBLineProtocol, "ms", 0, common.GetReqID())
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to insert influxdb line protocol, err:", err)
 	}
 	// insert opentsdb telnet line protocol
 	err = s.Insert(telnetDemo, schemaless.OpenTSDBTelnetLineProtocol, "ms", 0, common.GetReqID())
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to insert opentsdb telnet line protocol, err:", err)
 	}
 	// insert opentsdb json format protocol
 	err = s.Insert(jsonDemo, schemaless.OpenTSDBJsonFormatProtocol, "s", 0, common.GetReqID())
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to insert opentsdb json format protocol, err:", err)
 	}
 }

@@ -221,6 +221,9 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 <TabItem label="Python" value="python">
 </TabItem>
 <TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/schemaless/native/main.go}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
 除 DSN 不同，其余同 Websocket 代码示例。  
@@ -244,9 +247,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
     <TabItem label="Python" value="python">
    </TabItem>
     <TabItem label="Go" value="go">
-    ```go
-    {{#include docs/examples/go/schemaless/native/main.go}}
-    ```
+    不支持
     </TabItem>
     <TabItem label="Rust" value="rust">
     不支持

@@ -71,8 +71,8 @@ namespace TMQExample
                 { "msg.with.table.name", "true" },
                 { "enable.auto.commit", "true" },
                 { "auto.commit.interval.ms", "1000" },
-                { "group.id", "group2" },
-                { "client.id", "1" },
+                { "group.id", "group1" },
+                { "client.id", "client1" },
                 { "td.connect.ip", "127.0.0.1" },
                 { "td.connect.user", "root" },
                 { "td.connect.pass", "taosdata" },
@@ -86,13 +86,13 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to create consumer; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to create consumer; Err:" + e.Message);
                 throw;
             }
 
@@ -117,7 +117,7 @@ namespace TMQExample
                         {
                             // handle message
                             Console.WriteLine(
-                                $"message {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
+                                $"data {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
                                 $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
                         }
                     }
@@ -126,13 +126,13 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to poll data; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to poll data; Err:" + e.Message);
                 throw;
             }
             // ANCHOR_END: subscribe
@@ -150,17 +150,35 @@ namespace TMQExample
                 {
                     consumer.Seek(new TopicPartitionOffset(topicPartition.Topic, topicPartition.Partition, 0));
                 }
+                Console.WriteLine("assignment seek to beginning successfully");
+                // poll data again
+                for (int i = 0; i < 50; i++)
+                {
+                    // consume message with using block to ensure the result is disposed
+                    using (var cr = consumer.Consume(100))
+                    {
+                        if (cr == null) continue;
+                        foreach (var message in cr.Message)
+                        {
+                            // handle message
+                            Console.WriteLine(
+                                $"second data polled: {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
+                                $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
+                        }
+                        break;
+                    }
+                }
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to seek; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to seek; Err:" + e.Message);
                 throw;
             }
             // ANCHOR_END: seek
@@ -187,13 +205,13 @@ namespace TMQExample
                 catch (TDengineError e)
                 {
                     // handle TDengine error
-                    Console.WriteLine(e.Message);
+                    Console.WriteLine("Failed to commit offset; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                     throw;
                 }
                 catch (Exception e)
                 {
                     // handle other exceptions
-                    Console.WriteLine(e.Message);
+                    Console.WriteLine("Failed to commit offset; Err:" + e.Message);
                     throw;
                 }
             }
@@ -207,20 +225,23 @@ namespace TMQExample
             {
                 // unsubscribe
                 consumer.Unsubscribe();
-                // close consumer
-                consumer.Close();
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to unsubscribe consumer; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to unsubscribe consumer; Err:" + e.Message);
                 throw;
+            }
+            finally
+            {
+                // close consumer
+                consumer.Close();
             }
             // ANCHOR_END: close
         }
