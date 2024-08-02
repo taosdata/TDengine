@@ -524,7 +524,7 @@ int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq) {
   int32_t                  code = 0;
   SQueryCompactProgressRsp req = {0};
   if (pReq->code != 0) {
-    mError("received wrong compact response, req code is %d", pReq->code);
+    mError("received wrong compact response, req code is %s", tstrerror(pReq->code));
     TAOS_RETURN(pReq->code);
   }
   code = tDeserializeSQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &req);
