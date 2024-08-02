@@ -117,7 +117,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:create_consumer}}
 ```
 </TabItem>
 
@@ -181,7 +181,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:create_consumer}}
 ```
 </TabItem>
 
@@ -233,7 +233,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:subscribe}}
 ```
 </TabItem>
 
@@ -284,7 +284,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:subscribe}}
 ```
 </TabItem>
 
@@ -333,7 +333,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:assignment}}
 ```
 </TabItem>
 
@@ -384,7 +384,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:assignment}}
 ```
 </TabItem>
 
@@ -435,7 +435,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:commit_offset}}
 ```
 </TabItem>
 
@@ -488,7 +488,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:commit_offset}}
 ```
 </TabItem>
 
@@ -543,7 +543,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py:unsubscribe}}
 ```
 </TabItem>
 
@@ -595,7 +595,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py:unsubscribe}}
 ```
 </TabItem>
 
@@ -651,7 +651,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_websocket_example.py}}
 ```
 </TabItem>
 
@@ -711,7 +711,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+{{#include docs/examples/python/tmq_native.py}}
 ```
 </TabItem>
 

@@ -34,9 +34,9 @@ import TabItem from "@theme/TabItem";
 </TabItem>
 <TabItem label="Python" value="python">
 
-    ```python
-    {{#include docs/examples/python/connect_websocket_examples.py:connect}}
-    ```
+```python
+{{#include docs/examples/python/stmt_ws.py}}
+```
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -85,6 +85,9 @@ import TabItem from "@theme/TabItem";
 </TabItem>
 <TabItem label="Python" value="python">
 
+```python
+{{#include docs/examples/python/stmt_native.py}}
+```
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
