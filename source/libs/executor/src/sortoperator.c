@@ -365,6 +365,7 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   ps->onlyRef = true;
   code = tsortAddSource(pInfo->pSortHandle, ps);
   if (code) {
+    taosMemoryFree(ps);
     return code;
   }
 

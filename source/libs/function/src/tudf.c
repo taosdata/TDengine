@@ -229,6 +229,7 @@ static void udfWatchUdfd(void *args) {
   if(uv_loop_close(&pData->loop) != 0) {
     fnError("udfd loop close failed, lino:%d", __LINE__);
   }
+  return;
 
 _exit:
   if (terrno != 0) {
