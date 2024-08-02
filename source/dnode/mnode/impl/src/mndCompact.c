@@ -493,6 +493,10 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
 int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq) {
   SQueryCompactProgressRsp req = {0};
   int32_t                  code = 0;
+  if (pReq->code != 0) {
+    mError("received wrong compact response, req code is %s", tstrerror(pReq->code));
+    return pReq->code;
+  }
   code = tDeserializeSQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &req);
   if (code != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
