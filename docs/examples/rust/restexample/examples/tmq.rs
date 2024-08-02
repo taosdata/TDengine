@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
     .await?;
     // ANCHOR_END: create_topic
 
-    // ANCHOR: create_consumer
+    // ANCHOR: create_consumer_ac
     dsn.params.insert("auto.offset.reset".to_string(), "latest".to_string());
     dsn.params.insert("msg.with.table.name".to_string(), "true".to_string());
     dsn.params.insert("enable.auto.commit".to_string(), "true".to_string());
@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 
     let builder = TmqBuilder::from_dsn(&dsn)?;
     let mut consumer = builder.build().await?;
-    // ANCHOR_END: create_consumer
+    // ANCHOR_END: create_consumer_ac
 
     // ANCHOR: subscribe
     consumer.subscribe(["topic_meters"]).await?;
@@ -60,56 +60,23 @@ async fn main() -> anyhow::Result<()> {
 
     // ANCHOR: consume
     {
-        let mut stream = consumer.stream_with_timeout(Timeout::from_secs(1));
-
-        while let Some((offset, message)) = stream.try_next().await? {
-
-            let topic: &str = offset.topic();
-            let database = offset.database();
+        consumer
+        .stream()
+        .try_for_each(|(offset, message)| async {
+            let topic = offset.topic();
+            // the vgroup id, like partition id in kafka.
             let vgroup_id = offset.vgroup_id();
-            log::debug!(
-                "topic: {}, database: {}, vgroup_id: {}",
-                topic,
-                database,
-                vgroup_id
-            );
+            println!("* in vgroup id {vgroup_id} of topic {topic}\n");
 
-            match message {
-                MessageSet::Meta(meta) => {
-                    log::info!("Meta");
-                    let raw = meta.as_raw_meta().await?;
-                    taos.write_raw_meta(&raw).await?;
-
-                    let json = meta.as_json_meta().await?;
-                    let sql = json.to_string();
-                    if let Err(err) = taos.exec(sql).await {
-                        println!("maybe error: {}", err);
-                    }
-                }
-                MessageSet::Data(data) => {
-                    log::info!("Data");
-                    while let Some(data) = data.fetch_raw_block().await? {
-                        log::debug!("data: {:?}", data);
-                    }
-                }
-                MessageSet::MetaData(meta, data) => {
-                    log::info!("MetaData");
-                    let raw = meta.as_raw_meta().await?;
-                    taos.write_raw_meta(&raw).await?;
-
-                    let json = meta.as_json_meta().await?;
-                    let sql = json.to_string();
-                    if let Err(err) = taos.exec(sql).await {
-                        println!("maybe error: {}", err);
-                    }
-
-                    while let Some(data) = data.fetch_raw_block().await? {
-                        log::debug!("data: {:?}", data);
-                    }
+            if let Some(data) = message.into_data() {
+                while let Some(block) = data.fetch_raw_block().await? {
+                    let records: Vec<Record> = block.deserialize().try_collect()?;
+                    println!("** read {} records: {:#?}\n", records.len(), records);
                 }
             }
-            consumer.commit(offset).await?;
-        }
+            Ok(())
+        })
+        .await?;
     }
     // ANCHOR_END: consume
 
