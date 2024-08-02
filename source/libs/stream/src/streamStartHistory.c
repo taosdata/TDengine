@@ -80,7 +80,7 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   return tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg);
 }
 
-int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
+void streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {
   int32_t numOfTicks = idleDuration / SCANHISTORY_IDLE_TIME_SLICE;
   if (numOfTicks <= 0) {
     numOfTicks = 1;
@@ -91,10 +91,10 @@ int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) 
   // add ref for task
   SStreamTask* p = NULL;
   int32_t code = streamMetaAcquireTask(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, &p);
-  if (p == NULL) {
+  if (p == NULL || code != 0) {
     stError("s-task:0x%x failed to acquire task, status:%s, not exec scan-history data", pTask->id.taskId,
             streamTaskGetStatus(pTask).name);
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   pTask->schedHistoryInfo.numOfTicks = numOfTicks;
@@ -109,8 +109,6 @@ int32_t streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) 
     streamTmrReset(doExecScanhistoryInFuture, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamTimer,
                  &pTask->schedHistoryInfo.pTimer, pTask->pMeta->vgId, " start-history-task-tmr");
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamTaskStartScanHistory(SStreamTask* pTask) {

@@ -257,7 +257,7 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
       if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
         int32_t refVal = T_REF_VAL_GET(pRSmaInfo);
         if (refVal == 0) {
-          taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(*pSuid));
+          (void)taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(*pSuid));
         } else {
           smaDebug(
               "vgId:%d, rsma async post commit, not free rsma info since ref is %d although already deleted for "

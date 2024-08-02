@@ -69,7 +69,7 @@ void *backendOpen() {
     key.ts = ts;
     const char *val = "value data";
     int32_t     vlen = strlen(val);
-    int32_t code = streamStatePut_rocksdb(p, &key, (char *)val, vlen);
+    int32_t     code = streamStatePut_rocksdb(p, &key, (char *)val, vlen);
     ASSERT(code == 0);
 
     tsArray.push_back(ts);
@@ -83,7 +83,7 @@ void *backendOpen() {
     const char *val = "value data";
     int32_t     len = 0;
     char       *newVal = NULL;
-    int32_t code = streamStateGet_rocksdb(p, &key, (void **)&newVal, &len);
+    int32_t     code = streamStateGet_rocksdb(p, &key, (void **)&newVal, &len);
     ASSERT(code == 0);
 
     ASSERT(len == strlen(val));
@@ -377,7 +377,7 @@ TEST_F(BackendEnv, checkOpen) {
       char val[128] = {0};
       sprintf(val, "val_%d", i);
       int32_t code = streamStatePutBatch(p, "default", (rocksdb_writebatch_t *)pBatch, (void *)key, (void *)val,
-                          (int32_t)(strlen(val)), tsStart + 100000);
+                                         (int32_t)(strlen(val)), tsStart + 100000);
       ASSERT(code == 0);
     }
 
@@ -396,7 +396,7 @@ TEST_F(BackendEnv, checkOpen) {
       char val[128] = {0};
       sprintf(val, "val_%d", i);
       int32_t code = streamStatePutBatchOptimize(p, 0, (rocksdb_writebatch_t *)pBatch, (void *)key, (void *)val,
-                                  (int32_t)(strlen(val)), tsStart + 100000, (void *)valBuf);
+                                                 (int32_t)(strlen(val)), tsStart + 100000, (void *)valBuf);
       ASSERT(code == 0);
     }
     int32_t code = streamStatePutBatch_rocksdb(p, pBatch);
@@ -417,7 +417,7 @@ TEST_F(BackendEnv, checkOpen) {
       char val[128] = {0};
       sprintf(val, "val_%d", i);
       int32_t code = streamStatePutBatchOptimize(p, 0, (rocksdb_writebatch_t *)pBatch, (void *)key, (void *)val,
-                                  (int32_t)(strlen(val)), tsStart + 100000, (void *)valBuf);
+                                                 (int32_t)(strlen(val)), tsStart + 100000, (void *)valBuf);
       ASSERT(code == 0);
     }
     code = streamStatePutBatch_rocksdb(p, pBatch);
@@ -432,13 +432,12 @@ TEST_F(BackendEnv, checkOpen) {
   const char *path = "/tmp/backend/stream";
   const char *dump = "/tmp/backend/stream/dump";
   // taosMkDir(dump);
-  code = taosMulMkDir(dump);
-  ASSERT(code == 0);
+  taosMulMkDir(dump);
+  SBkdMgt *mgt = NULL;
 
-  SBkdMgt *mgt = bkdMgtCreate((char *)path);
-  SArray  *result = taosArrayInit(4, sizeof(void *));
-  code = bkdMgtGetDelta(mgt, p->pTdbState->idstr, 3, result, (char *)dump);
-  ASSERT(code == 0);
+  code = bkdMgtCreate((char *)path, &mgt);
+  SArray *result = taosArrayInit(4, sizeof(void *));
+  bkdMgtGetDelta(mgt, p->pTdbState->idstr, 3, result, (char *)dump);
 
   code = taskDbDoCheckpoint(p->pTdbState->pOwner->pBackend, 4, 0);
   ASSERT(code == 0);
@@ -475,7 +474,7 @@ TEST_F(BackendEnv, backendUtil) {
 }
 TEST_F(BackendEnv, oldBackendInit) {
   const char *path = "/tmp/backend1";
-  int32_t code = taosMulMkDir(path);
+  int32_t     code = taosMulMkDir(path);
   ASSERT(code == 0);
 
   {

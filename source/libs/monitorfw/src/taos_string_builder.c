@@ -44,7 +44,7 @@ taos_string_builder_t *taos_string_builder_new(void) {
   self->init_size = TAOS_STRING_BUILDER_INIT_SIZE;
   r = taos_string_builder_init(self);
   if (r) {
-    taos_string_builder_destroy(self);
+    (void)taos_string_builder_destroy(self);
     return NULL;
   }
 

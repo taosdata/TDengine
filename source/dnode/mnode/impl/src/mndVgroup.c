@@ -390,7 +390,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
     return NULL;
   }
 
-  tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
+  (void)tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
   *pContLen = contLen;
   return pReq;
 }
@@ -436,7 +436,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  tSerializeSAlterVnodeConfigReq((char *)pReq + sizeof(SMsgHead), contLen, &alterReq);
+  (void)tSerializeSAlterVnodeConfigReq((char *)pReq + sizeof(SMsgHead), contLen, &alterReq);
   *pContLen = contLen;
   return pReq;
 }
@@ -514,7 +514,7 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
     return NULL;
   }
 
-  tSerializeSAlterVnodeReplicaReq(pReq, contLen, &alterReq);
+  (void)tSerializeSAlterVnodeReplicaReq(pReq, contLen, &alterReq);
   *pContLen = contLen;
   return pReq;
 }
@@ -587,7 +587,7 @@ static void *mndBuildCheckLearnCatchupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
     return NULL;
   }
 
-  tSerializeSAlterVnodeReplicaReq(pReq, contLen, &req);
+  (void)tSerializeSAlterVnodeReplicaReq(pReq, contLen, &req);
   *pContLen = contLen;
   return pReq;
 }
@@ -611,7 +611,7 @@ static void *mndBuildDisableVnodeWriteReq(SMnode *pMnode, SDbObj *pDb, int32_t v
     return NULL;
   }
 
-  tSerializeSDisableVnodeWriteReq(pReq, contLen, &disableReq);
+  (void)tSerializeSDisableVnodeWriteReq(pReq, contLen, &disableReq);
   *pContLen = contLen;
   return pReq;
 }
@@ -639,7 +639,7 @@ static void *mndBuildAlterVnodeHashRangeReq(SMnode *pMnode, int32_t srcVgId, SVg
     return NULL;
   }
 
-  tSerializeSAlterVnodeHashRangeReq(pReq, contLen, &alterReq);
+  (void)tSerializeSAlterVnodeHashRangeReq(pReq, contLen, &alterReq);
   *pContLen = contLen;
   return pReq;
 }
@@ -664,7 +664,7 @@ void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgOb
     return NULL;
   }
 
-  tSerializeSDropVnodeReq(pReq, contLen, &dropReq);
+  (void)tSerializeSDropVnodeReq(pReq, contLen, &dropReq);
   *pContLen = contLen;
   return pReq;
 }
@@ -699,7 +699,7 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   }
 
   if (online && pDnode->numOfSupportVnodes > 0) {
-    taosArrayPush(pArray, pDnode);
+    if (taosArrayPush(pArray, pDnode) == NULL) return false;
   }
   return true;
 }
@@ -877,7 +877,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     pVgroup->dbUid = pDb->uid;
     pVgroup->replica = pDb->cfg.replications;
 
-    if (mndGetAvailableDnode(pMnode, pDb, pVgroup, pArray) != 0) {
+    if ((code = mndGetAvailableDnode(pMnode, pDb, pVgroup, pArray)) != 0) {
       goto _OVER;
     }
 
@@ -907,7 +907,7 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
       epset.inUse = epset.numOfEps;
     }
 
-    addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
+    (void)addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
     mndReleaseDnode(pMnode, pDnode);
   }
   epsetSort(&epset);
@@ -930,7 +930,7 @@ SEpSet mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId) {
       epset.inUse = epset.numOfEps;
     }
 
-    addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
+    (void)addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
     mndReleaseDnode(pMnode, pDnode);
   }
 
@@ -965,26 +965,26 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
 
     SName name = {0};
     char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
-    tNameGetDbName(&name, varDataVal(db));
+    (void)tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
+    (void)tNameGetDbName(&name, varDataVal(db));
     varDataSetLen(db, strlen(varDataVal(db)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
 
     // default 3 replica, add 1 replica if move vnode
     for (int32_t i = 0; i < 4; ++i) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       if (i < pVgroup->replica) {
         int16_t dnodeId = (int16_t)pVgroup->vnodeGid[i].dnodeId;
-        colDataSetVal(pColInfo, numOfRows, (const char *)&dnodeId, false);
+        (void)colDataSetVal(pColInfo, numOfRows, (const char *)&dnodeId, false);
 
         bool       exist = false;
         bool       online = false;
@@ -1038,7 +1038,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)buf1, false);
+        (void)colDataSetVal(pColInfo, numOfRows, (const char *)buf1, false);
       } else {
         colDataSetNULL(pColInfo, numOfRows);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1048,19 +1048,19 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
-    colDataSetVal(pColInfo, numOfRows, (const char *)&cacheUsage, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&cacheUsage, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfCachedTables, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfCachedTables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
 
     // pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     // if (pDb == NULL || pDb->compactStartTime <= 0) {
     //   colDataSetNULL(pColInfo, numOfRows);
     // } else {
-    //   colDataSetVal(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
+    //   (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
     // }
 
     numOfRows++;
@@ -1158,10 +1158,10 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       cols = 0;
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->dnodeId, false);
+      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->dnodeId, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
+      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
 
       // db_name
       const char *dbname = mndGetDbStr(pVgroup->dbName);
@@ -1172,7 +1172,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         STR_WITH_MAXSIZE_TO_VARSTR(b1, "NULL", TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE);
       }
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
+      (void)colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
 
       // dnode is online?
       SDnodeObj *pDnode = mndAcquireDnode(pMnode, pGid->dnodeId);
@@ -1186,18 +1186,18 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       ESyncState syncState = (isDnodeOnline) ? pGid->syncState : TAOS_SYNC_STATE_OFFLINE;
       STR_TO_VARSTR(buf, syncStr(syncState));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      (void)colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
 
       int64_t roleTimeMs = (isDnodeOnline) ? pGid->roleTimeMs : 0;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
+      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
 
       int64_t startTimeMs = (isDnodeOnline) ? pGid->startTimeMs : 0;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&startTimeMs, false);
+      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&startTimeMs, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
+      (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
 
       numOfRows++;
       sdbRelease(pSdb, pDnode);
@@ -2452,7 +2452,7 @@ static void *mndBuildSForceBecomeFollowerReq(SMnode *pMnode, SVgObj *pVgroup, in
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  tSerializeSForceBecomeFollowerReq((char *)pReq + sizeof(SMsgHead), contLen, &balanceReq);
+  (void)tSerializeSForceBecomeFollowerReq((char *)pReq + sizeof(SMsgHead), contLen, &balanceReq);
   *pContLen = contLen;
   return pReq;
 }
@@ -3366,7 +3366,7 @@ static void *mndBuildCompactVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgrou
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  tSerializeSCompactVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &compactReq);
+  (void)tSerializeSCompactVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &compactReq);
   *pContLen = contLen;
   return pReq;
 }

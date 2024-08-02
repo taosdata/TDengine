@@ -295,7 +295,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
       return NULL;
     }
 
-    createRawScanOperatorInfo(pReaderHandle, pTaskInfo, &pTaskInfo->pRoot);
+    code = createRawScanOperatorInfo(pReaderHandle, pTaskInfo, &pTaskInfo->pRoot);
     if (NULL == pTaskInfo->pRoot || code != 0) {
       taosMemoryFree(pTaskInfo);
       return NULL;
@@ -1158,9 +1158,15 @@ SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   return &pTaskInfo->streamInfo.btMetaRsp;
 }
 
-void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
+int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   tOffsetCopy(pOffset, &pTaskInfo->streamInfo.currentOffset);
+  return 0;
+  /*if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }*/
 }
 
 int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo* pMtInfo) {
@@ -1231,7 +1237,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
-    extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pOperator);
+    code = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pOperator);
     if (pOperator == NULL || code != 0) {
       return code;
     }
@@ -1432,7 +1438,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
 end:
   tOffsetCopy(&pTaskInfo->streamInfo.currentOffset, pOffset);
-
   return 0;
 }
 

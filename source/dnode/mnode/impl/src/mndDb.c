@@ -791,12 +791,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   mndSetDefaultDbCfg(&dbObj.cfg);
 
   if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, terrstr());
     TAOS_RETURN(code);
   }
 
   if ((code = mndCheckDbCfg(pMnode, &dbObj.cfg)) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    mError("db:%s, failed to create, check db cfg failed, since %s", pCreate->db, terrstr());
     TAOS_RETURN(code);
   }
 
@@ -812,7 +812,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
   SVgObj *pVgroups = NULL;
   if ((code = mndAllocVgroup(pMnode, &dbObj, &pVgroups)) != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    mError("db:%s, failed to create, alloc vgroup failed, since %s", pCreate->db, terrstr());
     TAOS_RETURN(code);
   }
 
@@ -965,7 +965,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
-  code = mndCreateDb(pMnode, pReq, &createReq, pUser);
+  TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
@@ -1892,13 +1892,21 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.pTsmaRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
       if (rsp.pTsmaRsp) rsp.pTsmaRsp->pTsmas = taosArrayInit(4, POINTER_BYTES);
       if (rsp.pTsmaRsp && rsp.pTsmaRsp->pTsmas) {
-        rsp.dbTsmaVersion = pDb->tsmaVersion;
         bool exist = false;
-        if (mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist) != 0) {
+        int32_t code = mndGetDbTsmas(pMnode, 0, pDb->uid, rsp.pTsmaRsp, &exist);
+        if (TSDB_CODE_SUCCESS != code) {
           mndReleaseDb(pMnode, pDb);
-          mError("db:%s, failed to get db tsmas", pDb->name);
+          if (code != TSDB_CODE_NEED_RETRY) {
+            mError("db:%s, failed to get db tsmas", pDb->name);
+          } else {
+            mWarn("db:%s, need retry to get db tsmas", pDb->name);
+          }
+          taosArrayDestroyP(rsp.pTsmaRsp->pTsmas, tFreeAndClearTableTSMAInfo);
+          taosMemoryFreeClear(rsp.pTsmaRsp);
           continue;
         }
+        rsp.dbTsmaVersion = pDb->tsmaVersion;
+        mDebug("update tsma version to %d, got tsma num: %ld", pDb->tsmaVersion, rsp.pTsmaRsp->pTsmas->size);
       }
     }
 
@@ -1909,6 +1917,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       if (rsp.useDbRsp->pVgroupInfos == NULL) {
         mndReleaseDb(pMnode, pDb);
         mError("db:%s, failed to malloc usedb response", pDb->name);
+        taosArrayDestroyP(rsp.pTsmaRsp->pTsmas, tFreeAndClearTableTSMAInfo);
+        taosMemoryFreeClear(rsp.pTsmaRsp);
         continue;
       }
 

@@ -602,9 +602,9 @@ int32_t streamTaskStop(SStreamTask* pTask) {
     stError("failed to handle STOP event, s-task:%s", id);
   }
 
-  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
     code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
-    if (code) {
+    if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to kill task related query handle", id);
     }
   }
@@ -766,8 +766,7 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, int64_t resetRelHalt) {
   SVDropStreamTaskReq* pReq = rpcMallocCont(sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   pReq->head.vgId = vgId;
@@ -873,6 +872,7 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
   pDst->checkpointInfo = pSrc->checkpointInfo;
   pDst->startCheckpointId = pSrc->startCheckpointId;
   pDst->startCheckpointVer = pSrc->startCheckpointVer;
+  pDst->status = pSrc->status;
 
   pDst->startTime = pSrc->startTime;
   pDst->hTaskId = pSrc->hTaskId;
@@ -1089,11 +1089,10 @@ int32_t streamTaskSetActiveCheckpointInfo(SStreamTask* pTask, int64_t activeChec
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId) {
+void streamTaskSetFailedChkptInfo(SStreamTask* pTask, int32_t transId, int64_t checkpointId) {
   pTask->chkInfo.pActiveInfo->transId = transId;
   pTask->chkInfo.pActiveInfo->activeId = checkpointId;
   pTask->chkInfo.pActiveInfo->failedId = checkpointId;
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamTaskCreateActiveChkptInfo(SActiveCheckpointInfo** pRes) {

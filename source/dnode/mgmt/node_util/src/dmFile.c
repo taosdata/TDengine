@@ -211,7 +211,7 @@ int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile) {
 
   if (ret < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(pFile);
+    (void)taosCloseFile(pFile);
     *pFile = NULL;
     return code;
   }
@@ -239,7 +239,7 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
   opts.source = DM_KEY_INDICATOR;
   opts.result = result;
   opts.unitLen = 16;
-  CBC_Encrypt(&opts);
+  (void)CBC_Encrypt(&opts);
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
@@ -359,7 +359,7 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
   opts.source = content;
   opts.result = result;
   opts.unitLen = 16;
-  CBC_Decrypt(&opts);
+  (void)CBC_Decrypt(&opts);
 
   if (strcmp(opts.result, DM_KEY_INDICATOR) != 0) {
     code = TSDB_CODE_DNODE_ENCRYPTKEY_CHANGED;

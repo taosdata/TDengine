@@ -283,6 +283,8 @@ void streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
   // drop procedure already started, not start check downstream now
   ETaskStatus s = streamTaskGetStatus(pTask).state;
   if (s == TASK_STATUS__DROPPING) {
+    stDebug("s-task:%s task not in uninit status, status:%s not start monitor check-rsp", pTask->id.idStr,
+            streamTaskGetStatusStr(s));
     streamMutexUnlock(&pInfo->checkInfoLock);
     return;
   }

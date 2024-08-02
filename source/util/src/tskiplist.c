@@ -103,7 +103,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
 void tSkipListDestroy(SSkipList *pSkipList) {
   if (pSkipList == NULL) return;
 
-  tSkipListWLock(pSkipList);
+  (void)tSkipListWLock(pSkipList);
 
   SSkipListNode *pNode = SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, 0);
 
@@ -113,9 +113,9 @@ void tSkipListDestroy(SSkipList *pSkipList) {
     tSkipListFreeNode(pTemp);
   }
 
-  tSkipListUnlock(pSkipList);
+  (void)tSkipListUnlock(pSkipList);
   if (pSkipList->lock != NULL) {
-    taosThreadRwlockDestroy(pSkipList->lock);
+    (void)taosThreadRwlockDestroy(pSkipList->lock);
     taosMemoryFreeClear(pSkipList->lock);
   }
 
@@ -130,12 +130,12 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData) {
   SSkipListNode *backward[MAX_SKIP_LIST_LEVEL] = {0};
   SSkipListNode *pNode = NULL;
 
-  tSkipListWLock(pSkipList);
+  (void)tSkipListWLock(pSkipList);
 
   bool hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);
   pNode = tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
 
-  tSkipListUnlock(pSkipList);
+  (void)tSkipListUnlock(pSkipList);
 
   return pNode;
 }
@@ -293,11 +293,11 @@ SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *
     return iter;
   }
 
-  tSkipListRLock(pSkipList);
+  (void)tSkipListRLock(pSkipList);
 
   iter->cur = getPriorNode(pSkipList, val, order, &(iter->next));
 
-  tSkipListUnlock(pSkipList);
+  (void)tSkipListUnlock(pSkipList);
 
   return iter;
 }
@@ -307,13 +307,13 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
 
   SSkipList *pSkipList = iter->pSkipList;
 
-  tSkipListRLock(pSkipList);
+  (void)tSkipListRLock(pSkipList);
 
   if (iter->order == TSDB_ORDER_ASC) {
     // no data in the skip list
     if (iter->cur == pSkipList->pTail || iter->next == NULL) {
       iter->cur = pSkipList->pTail;
-      tSkipListUnlock(pSkipList);
+      (void)tSkipListUnlock(pSkipList);
       return false;
     }
 
@@ -329,7 +329,7 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
   } else {
     if (iter->cur == pSkipList->pHead) {
       iter->cur = pSkipList->pHead;
-      tSkipListUnlock(pSkipList);
+      (void)tSkipListUnlock(pSkipList);
       return false;
     }
 
@@ -344,7 +344,7 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
     iter->step++;
   }
 
-  tSkipListUnlock(pSkipList);
+  (void)tSkipListUnlock(pSkipList);
 
   return (iter->order == TSDB_ORDER_ASC) ? (iter->cur != pSkipList->pTail) : (iter->cur != pSkipList->pHead);
 }

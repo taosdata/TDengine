@@ -2369,11 +2369,12 @@ static FORCE_INLINE int optSysBinarySearch(SArray* arr, int s, int e, uint64_t k
 int32_t optSysIntersection(SArray* in, SArray* out) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  MergeIndex* mi = NULL;
   int32_t sz = (int32_t)taosArrayGetSize(in);
   if (sz <= 0) {
     goto _end;
   }
-  MergeIndex* mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
+  mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   QUERY_CHECK_NULL(mi, code, lino, _end, terrno);
   for (int i = 0; i < sz; i++) {
     SArray* t = taosArrayGetP(in, i);

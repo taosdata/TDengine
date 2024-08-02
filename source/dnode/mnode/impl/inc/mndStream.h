@@ -52,6 +52,11 @@ typedef struct SStreamTransMgmt {
   SHashObj *pDBTrans;
 } SStreamTransMgmt;
 
+typedef struct SStreamTaskResetMsg {
+  int64_t streamId;
+  int32_t transId;
+} SStreamTaskResetMsg;
+
 typedef struct SStreamExecInfo {
   bool             initTaskList;
   SArray          *pNodeList;
@@ -63,6 +68,7 @@ typedef struct SStreamExecInfo {
   SHashObj        *pTransferStateStreams;
   SHashObj        *pChkptStreams;
   SHashObj        *pStreamConsensus;
+  SArray          *pKilledChkptTrans;    // SArray<SStreamTaskResetMsg>
 } SStreamExecInfo;
 
 extern SStreamExecInfo         execInfo;
@@ -74,12 +80,6 @@ typedef struct SNodeEntry {
   SEpSet  epset;         // compare the epset to identify the vgroup tranferring between different dnodes.
   int64_t hbTimestamp;   // second
 } SNodeEntry;
-
-typedef struct SOrphanTask {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t nodeId;
-} SOrphanTask;
 
 typedef struct {
   SMsgHead head;
@@ -151,6 +151,11 @@ int32_t mndGetConsensusInfo(SHashObj *pHash, int64_t streamId, int32_t numOfTask
 void    mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo);
 void    mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo);
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId);
+
+int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
+int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows);
+
+int32_t mndProcessResetStatusReq(SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }

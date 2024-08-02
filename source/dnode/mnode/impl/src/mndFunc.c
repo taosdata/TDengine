@@ -598,7 +598,7 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
     goto RETRIEVE_FUNC_OVER;
   }
 
-  tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp);
+  (void)tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp);
 
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = contLen;

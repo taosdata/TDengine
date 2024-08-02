@@ -88,17 +88,17 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
       char* value = *(pair + 1);
 
       SJson* tag = tjsonCreateObject();
-      tjsonAddStringToObject(tag, "name", key);
-      tjsonAddStringToObject(tag, "value", value);
+      (void)tjsonAddStringToObject(tag, "name", key);
+      (void)tjsonAddStringToObject(tag, "value", value);
 
-      tjsonAddItemToArray(arrayTag, tag);
+      (void)tjsonAddItemToArray(arrayTag, tag);
     }
-    tjsonAddItemToObject(item, "tags", arrayTag);
+    (void)tjsonAddItemToObject(item, "tags", arrayTag);
 
     metrics = tjsonCreateArray();
-    tjsonAddItemToObject(item, "metrics", metrics);
+    (void)tjsonAddItemToObject(item, "metrics", metrics);
 
-    tjsonAddItemToArray(arrayMetricGroups, item);
+    (void)tjsonAddItemToArray(arrayMetricGroups, item);
   }
   else{
     metrics = tjsonGetObjectItem(item, "metrics");
@@ -109,20 +109,20 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
   taosMemoryFreeClear(keyvalues);
 
   SJson* metric = tjsonCreateObject();
-  tjsonAddStringToObject(metric, "name", metricName);
-  
+  (void)tjsonAddStringToObject(metric, "name", metricName);
+
   double old_value = 0;
 #define USE_EXCHANGE
 #ifdef USE_EXCHANGE
-  taos_metric_sample_exchange(sample, 0, &old_value);
+  (void)taos_metric_sample_exchange(sample, 0, &old_value);
 #else
   old_value = sample->r_value;
   taos_metric_sample_set(sample, 0);
 #endif
 
-  tjsonAddDoubleToObject(metric, "value", old_value);
-  tjsonAddDoubleToObject(metric, "type", metric_type);
-  tjsonAddItemToArray(metrics, metric);
+  (void)tjsonAddDoubleToObject(metric, "value", old_value);
+  (void)tjsonAddDoubleToObject(metric, "type", metric_type);
+  (void)tjsonAddItemToArray(metrics, metric);
 
   return 0;
 }
@@ -150,7 +150,7 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
     SJson* table = tjsonGetArrayItem(tableArray, i);
 
     char tableName[MONITOR_TABLENAME_LEN] = {0};
-    tjsonGetStringValue(table, "name", tableName);
+    (void)tjsonGetStringValue(table, "name", tableName);
     if(strcmp(tableName, arr[0]) == 0){
       isFound = true;
       arrayMetricGroups = tjsonGetObjectItem(table, "metric_groups");
@@ -161,10 +161,10 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
   if(!isFound){
     table = tjsonCreateObject();
 
-    tjsonAddStringToObject(table, "name", arr[0]);
+    (void)tjsonAddStringToObject(table, "name", arr[0]);
 
     arrayMetricGroups = tjsonCreateArray();
-    tjsonAddItemToObject(table, "metric_groups", arrayMetricGroups);
+    (void)tjsonAddItemToObject(table, "metric_groups", arrayMetricGroups);
   }
   
   int32_t sample_count = 0;
@@ -183,7 +183,7 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
   }
 
   if(!isFound && sample_count > 0){
-    tjsonAddItemToArray(tableArray, table);
+    (void)tjsonAddItemToArray(tableArray, table);
   }
   else{
     if(table != NULL) tjsonDelete(table);

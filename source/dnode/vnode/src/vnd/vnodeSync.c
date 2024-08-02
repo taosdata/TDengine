@@ -28,7 +28,7 @@ static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   vGTrace("vgId:%d, msg:%p wait block, type:%s sec:%d seq:%" PRId64, pVnode->config.vgId, pMsg,
           TMSG_INFO(pMsg->msgType), pVnode->blockSec, pVnode->blockSeq);
-  tsem_wait(&pVnode->syncSem);
+  (void)tsem_wait(&pVnode->syncSem);
 }
 
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
@@ -41,7 +41,7 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
       pVnode->blocked = false;
       pVnode->blockSec = 0;
       pVnode->blockSeq = 0;
-      tsem_post(&pVnode->syncSem);
+      (void)tsem_post(&pVnode->syncSem);
     }
     (void)taosThreadMutexUnlock(&pVnode->lock);
   }
@@ -69,7 +69,7 @@ void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg, int32_t code) {
   if (rsp.pCont == NULL) {
     pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    tSerializeSEpSet(rsp.pCont, contLen, &newEpSet);
+    (void)tSerializeSEpSet(rsp.pCont, contLen, &newEpSet);
     rsp.contLen = contLen;
   }
 
@@ -161,7 +161,7 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit) {
     rpcFreeCont(rpcMsg.pCont);
     rpcMsg.pCont = NULL;
   } else {
-    tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    (void)tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 }
 
@@ -556,7 +556,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   } while (true);
 
   ASSERT(commitIdx == vnodeSyncAppliedIndex(pFsm));
-  walApplyVer(pVnode->pWal, commitIdx);
+  (void)walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
   SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
@@ -583,7 +583,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
         streamMetaWUnLock(pMeta);
 
         tqInfo("vgId:%d stream task already loaded, start them", vgId);
-        streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
+        (void)streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS);
         return;
       }
     }
@@ -602,13 +602,13 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   if (pVnode->blocked) {
     pVnode->blocked = false;
     vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
-    tsem_post(&pVnode->syncSem);
+    (void)tsem_post(&pVnode->syncSem);
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, false);
-    tqStopStreamTasksAsync(pVnode->pTq);
+    (void)tqStopStreamTasksAsync(pVnode->pTq);
   }
 }
 
@@ -620,7 +620,7 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
   if (pVnode->blocked) {
     pVnode->blocked = false;
     vDebug("vgId:%d, become learner and post block", pVnode->config.vgId);
-    tsem_post(&pVnode->syncSem);
+    (void)tsem_post(&pVnode->syncSem);
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 }
@@ -743,14 +743,14 @@ int32_t vnodeSyncStart(SVnode *pVnode) {
 
 void vnodeSyncPreClose(SVnode *pVnode) {
   vInfo("vgId:%d, sync pre close", pVnode->config.vgId);
-  syncLeaderTransfer(pVnode->sync);
+  (void)syncLeaderTransfer(pVnode->sync);
   syncPreStop(pVnode->sync);
 
   (void)taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
     pVnode->blocked = false;
-    tsem_post(&pVnode->syncSem);
+    (void)tsem_post(&pVnode->syncSem);
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 }
@@ -785,7 +785,7 @@ void vnodeSyncCheckTimeout(SVnode *pVnode) {
       pVnode->blocked = false;
       pVnode->blockSec = 0;
       pVnode->blockSeq = 0;
-      tsem_post(&pVnode->syncSem);
+      (void)tsem_post(&pVnode->syncSem);
     }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);

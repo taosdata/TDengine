@@ -75,7 +75,7 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 static int32_t setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
 
 static int32_t initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
-static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
+static void    doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol);
@@ -193,7 +193,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
     // add a new result set for a new group
     SResultRowPosition pos = {.pageId = pResult->pageId, .offset = pResult->offset};
     int32_t code = tSimpleHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos,
-                          sizeof(SResultRowPosition));
+                                  sizeof(SResultRowPosition));
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       T_LONG_JMP(pTaskInfo->env, code);
@@ -522,7 +522,7 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
     if (!pResInfo->initialized) {
       if (pCtx[i].functionId != -1) {
         int32_t code = pCtx[i].fpSet.init(&pCtx[i], pResInfo);
-        if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)){
+        if (code != TSDB_CODE_SUCCESS && fmIsUserDefinedFunc(pCtx[i].functionId)) {
           pResInfo->initialized = false;
           return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
         }
@@ -567,7 +567,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
-  extractQualifiedTupleByFilterResult(pBlock, p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
+  QUERY_CHECK_CODE(code, lino, _err);
 
   if (pColMatchInfo != NULL) {
     size_t size = taosArrayGetSize(pColMatchInfo->pList);
@@ -591,18 +592,20 @@ _err:
   return code;
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status) {
+int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status) {
+  int32_t code = TSDB_CODE_SUCCESS;
   int8_t* pIndicator = (int8_t*)p->pData;
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
     // here nothing needs to be done
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
-    trimDataBlock(pBlock, pBlock->info.rows, NULL);
+    code = trimDataBlock(pBlock, pBlock->info.rows, NULL);
     pBlock->info.rows = 0;
   } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
-    trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);
+    code = trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);
   } else {
     qError("unknown filter result type: %d", status);
   }
+  return code;
 }
 
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset) {
@@ -639,7 +642,7 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
     pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (pCtx[j].fpSet.finalize) {
       if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0 ||
-      strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_const_value") == 0) {
+          strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_const_value") == 0) {
         // for groupkey along with functions that output multiple lines(e.g. Histogram)
         // need to match groupkey result for each output row of that function.
         if (pCtx[j].resultInfo->numOfRes != 0) {
@@ -678,7 +681,7 @@ _end:
 
 // todo refactor. SResultRow has direct pointer in miainfo
 void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
-                           SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
+                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   SFilePage* page = getBufPage(pBuf, resultRowPosition->pageId);
   if (page == NULL) {
     qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
@@ -694,7 +697,7 @@ void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPositi
   doUpdateNumOfRows(pCtx, pRow, pSup->numOfExprs, rowEntryOffset);
   if (pRow->numOfRows == 0) {
     releaseBufPage(pBuf, page);
-    return ;
+    return;
   }
 
   int32_t size = pBlock->info.capacity;

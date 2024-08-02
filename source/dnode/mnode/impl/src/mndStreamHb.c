@@ -22,12 +22,12 @@ typedef struct SFailedCheckpointInfo {
   int32_t transId;
 } SFailedCheckpointInfo;
 
-static void    mndStreamStartUpdateCheckpointInfo(SMnode *pMnode);
+static int32_t mndStreamSendUpdateChkptInfoMsg(SMnode *pMnode);
+static int32_t mndSendDropOrphanTasksMsg(SMnode *pMnode, SArray *pList);
+static int32_t mndSendResetFromCheckpointMsg(SMnode *pMnode, int64_t streamId, int32_t transId);
 static void    updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage);
 static void    addIntoCheckpointList(SArray *pList, const SFailedCheckpointInfo *pInfo);
-static int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, int32_t transId);
 static int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList);
-static int32_t mndDropOrphanTasks(SMnode *pMnode, SArray *pList);
 static int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info);
 static bool    validateHbMsg(const SArray *pNodeList, int32_t vgId);
 static void    cleanupAfterProcessHbMsg(SStreamHbMsg *pReq, SArray *pFailedChkptList, SArray *pOrphanTasks);
@@ -37,6 +37,10 @@ void updateStageInfo(STaskStatusEntry *pTaskEntry, int64_t stage) {
   int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeList);
   for (int32_t j = 0; j < numOfNodes; ++j) {
     SNodeEntry *pNodeEntry = taosArrayGet(execInfo.pNodeList, j);
+    if (pNodeEntry == NULL) {
+      continue;
+    }
+
     if (pNodeEntry->nodeId == pTaskEntry->nodeId) {
       mInfo("vgId:%d stage updated from %" PRId64 " to %" PRId64 ", nodeUpdate trigger by s-task:0x%" PRIx64,
             pTaskEntry->nodeId, pTaskEntry->stage, stage, pTaskEntry->id.taskId);
@@ -52,7 +56,7 @@ void addIntoCheckpointList(SArray *pList, const SFailedCheckpointInfo *pInfo) {
   int32_t num = taosArrayGetSize(pList);
   for (int32_t i = 0; i < num; ++i) {
     SFailedCheckpointInfo *p = taosArrayGet(pList, i);
-    if (p->transId == pInfo->transId) {
+    if (p && (p->transId == pInfo->transId)) {
       return;
     }
   }
@@ -94,7 +98,7 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   }
 
   code = mndTransPrepare(pMnode, pTrans);
-  if (code != 0) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare update stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -104,15 +108,110 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
 
-  return TSDB_CODE_ACTION_IN_PROGRESS;
+  return code;
 }
 
-int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, int32_t transId) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  mndKillTransImpl(pMnode, transId, "");
+int32_t mndSendResetFromCheckpointMsg(SMnode *pMnode, int64_t streamId, int32_t transId) {
+  int32_t size = sizeof(SStreamTaskResetMsg);
 
+  int32_t num = taosArrayGetSize(execInfo.pKilledChkptTrans);
+  for(int32_t i = 0; i < num; ++i) {
+    SStreamTaskResetMsg* p = taosArrayGet(execInfo.pKilledChkptTrans, i);
+    if (p == NULL) {
+      continue;
+    }
+
+    if (p->transId == transId && p->streamId == streamId) {
+      mDebug("already reset stream:0x%" PRIx64 ", not send reset-msg again for transId:%d", streamId, transId);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  if (num >= 10) {
+    taosArrayRemove(execInfo.pKilledChkptTrans, 0);  // remove this first, append new reset trans in the tail
+  }
+
+  SStreamTaskResetMsg p = {.streamId = streamId, .transId = transId};
+
+  void *px = taosArrayPush(execInfo.pKilledChkptTrans, &p);
+  if (px == NULL) {
+    mError("failed to push reset-msg trans:%d into the killed chkpt trans list, size:%d", transId, num - 1);
+    return terrno;
+  }
+
+  SStreamTaskResetMsg *pReq = rpcMallocCont(size);
+  if (pReq == NULL) {
+    return terrno;
+  }
+
+  pReq->streamId = streamId;
+  pReq->transId = transId;
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_TASK_RESET, .pCont = pReq, .contLen = size};
+  int32_t code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  if (code) {
+    mError("failed to put reset-task msg into write queue, code:%s", tstrerror(code));
+  } else {
+    mDebug("send reset task status msg for transId:%d succ", transId);
+  }
+
+  return code;
+}
+
+int32_t mndStreamSendUpdateChkptInfoMsg(SMnode *pMnode) {  // here reuse the doCheckpointmsg
+  int32_t size = sizeof(SMStreamDoCheckpointMsg);
+  void   *pMsg = rpcMallocCont(size);
+  if (pMsg == NULL) {
+    return terrno;
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_UPDATE_CHKPT_EVT, .pCont = pMsg, .contLen = size};
+  int32_t code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  if (code) {
+    mError("failed to put update-checkpoint-info msg into write queue, code:%s", tstrerror(code));
+  } else {
+    mDebug("send update checkpoint-info msg succ");
+  }
+
+  return code;
+}
+
+int32_t mndSendDropOrphanTasksMsg(SMnode *pMnode, SArray *pList) {
+  SMStreamDropOrphanMsg msg = {.pList = pList};
+
+  int32_t num = taosArrayGetSize(pList);
+  int32_t contLen = tSerializeDropOrphanTaskMsg(NULL, 0, &msg);
+  if (contLen <= 0) {
+    return terrno;
+  }
+
+  void *pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) {
+    return terrno;
+  }
+
+  (void)tSerializeDropOrphanTaskMsg(pReq, contLen, &msg);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_DROP_ORPHANTASKS, .pCont = pReq, .contLen = contLen};
+  int32_t code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  if (code) {
+    mError("failed to put drop-orphan task msg into write queue, code:%s", tstrerror(code));
+  } else {
+    mDebug("send drop %d orphan tasks msg succ", num);
+  }
+
+  return code;
+}
+
+int32_t mndProcessResetStatusReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  int32_t     code = TSDB_CODE_SUCCESS;
   SStreamObj *pStream = NULL;
-  code = mndGetStreamObj(pMnode, streamId, &pStream);
+
+  SStreamTaskResetMsg* pMsg = pReq->pCont;
+  mndKillTransImpl(pMnode, pMsg->transId, "");
+
+  code = mndGetStreamObj(pMnode, pMsg->streamId, &pStream);
   if (pStream == NULL || code != 0) {
     code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     mError("failed to acquire the streamObj:0x%" PRIx64 " to reset checkpoint, may have been dropped", pStream->uid);
@@ -123,7 +222,7 @@ int32_t mndResetStatusFromCheckpoint(SMnode *pMnode, int64_t streamId, int32_t t
              pStream->sourceDb, pStream->targetSTbName);
     } else {
       mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, transId:%d, create reset trans", pStream->name,
-             pStream->uid, transId);
+             pStream->uid, pMsg->transId);
       code = mndCreateStreamResetStatusTrans(pMnode, pStream);
     }
   }
@@ -138,6 +237,10 @@ int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
 
   for (int k = 0; k < num; ++k) {
     int32_t *pVgId = taosArrayGet(pNodeList, k);
+    if (pVgId == NULL) {
+      continue;
+    }
+
     mInfo("set node expired for nodeId:%d, total:%d", *pVgId, num);
 
     bool    setFlag = false;
@@ -145,8 +248,7 @@ int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
 
     for (int i = 0; i < numOfNodes; ++i) {
       SNodeEntry *pNodeEntry = taosArrayGet(execInfo.pNodeList, i);
-
-      if (pNodeEntry->nodeId == *pVgId) {
+      if ((pNodeEntry) && (pNodeEntry->nodeId == *pVgId)) {
         mInfo("vgId:%d expired for some stream tasks, needs update nodeEp", *pVgId);
         pNodeEntry->stageUpdated = true;
         setFlag = true;
@@ -160,51 +262,6 @@ int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
     }
   }
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t mndDropOrphanTasks(SMnode *pMnode, SArray *pList) {
-  SOrphanTask *pTask = taosArrayGet(pList, 0);
-
-  // check if it is conflict with other trans in both sourceDb and targetDb.
-  bool conflict = mndStreamTransConflictCheck(pMnode, pTask->streamId, MND_STREAM_DROP_NAME, false);
-  if (conflict) {
-    return -1;
-  }
-
-  SStreamObj dummyObj = {.uid = pTask->streamId, .sourceDb = "", .targetSTbName = ""};
-  STrans    *pTrans = NULL;
-  int32_t    code =
-      doCreateTrans(pMnode, &dummyObj, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream", &pTrans);
-  if (pTrans == NULL || code != 0) {
-    mError("failed to create trans to drop orphan tasks since %s", terrstr());
-    return code;
-  }
-
-  code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pTask->streamId);
-  if (code) {
-    return code;
-  }
-  // drop all tasks
-  if ((code = mndStreamSetDropActionFromList(pMnode, pTrans, pList)) < 0) {
-    mError("failed to create trans to drop orphan tasks since %s", terrstr());
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  // drop stream
-  if ((code = mndPersistTransLog(&dummyObj, pTrans, SDB_STATUS_DROPPED)) < 0) {
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
-    mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return code;
-  }
-
-  mndTransDrop(pTrans);
-  return code;
 }
 
 int32_t suspendAllStreams(SMnode *pMnode, SRpcHandleInfo *info) {
@@ -258,7 +315,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SStreamHbMsg req = {0};
   SArray      *pFailedChkpt = NULL;
   SArray      *pOrphanTasks = NULL;
-  int32_t code = 0;
+  int32_t      code = 0;
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     if (suspendAllStreams(pMnode, &pReq->info) < 0) {
@@ -272,8 +329,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   if (tDecodeStreamHbMsg(&decoder, &req) < 0) {
     tCleanupStreamHbMsg(&req);
     tDecoderClear(&decoder);
-    code = terrno = TSDB_CODE_INVALID_MSG;
-    return code;
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
   tDecoderClear(&decoder);
 
@@ -281,6 +337,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   pFailedChkpt = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   pOrphanTasks = taosArrayInit(4, sizeof(SOrphanTask));
+  if (pFailedChkpt == NULL || pOrphanTasks == NULL) {
+    taosArrayDestroy(pFailedChkpt);
+    taosArrayDestroy(pOrphanTasks);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   streamMutexLock(&execInfo.lock);
 
@@ -288,12 +349,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
     mError("vgId:%d not exists in nodeList buf, discarded", req.vgId);
 
-    code = terrno = TSDB_CODE_INVALID_MSG;
     doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
 
     streamMutexUnlock(&execInfo.lock);
     cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
-    return code;
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
@@ -305,15 +365,18 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   bool snodeChanged = false;
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
+    if (p == NULL) {
+      continue;
+    }
 
     STaskStatusEntry *pTaskEntry = taosHashGet(execInfo.pTaskMap, &p->id, sizeof(p->id));
     if (pTaskEntry == NULL) {
-      mError("s-task:0x%" PRIx64 " not found in mnode task list", p->id.taskId);
+      mError("s-task:0x%" PRIx64 " not found in mnode task list, added into orphan task list", p->id.taskId);
 
       SOrphanTask oTask = {.streamId = p->id.streamId, .taskId = p->id.taskId, .nodeId = p->nodeId};
       void* px = taosArrayPush(pOrphanTasks, &oTask);
       if (px == NULL) {
-        mError("Failed to put task into list, taskId:0x%" PRIx64, p->id.taskId);
+        mError("failed to put task into list, taskId:0x%" PRIx64, p->id.taskId);
       }
       continue;
     }
@@ -330,13 +393,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       SStreamObj *pStream = NULL;
       code = mndGetStreamObj(pMnode, p->id.streamId, &pStream);
       if (code) {
-        code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
         continue;
       }
 
       int32_t numOfTasks = mndGetNumOfStreamTasks(pStream);
-      SCheckpointConsensusInfo *pInfo = NULL;
 
+      SCheckpointConsensusInfo *pInfo = NULL;
       code = mndGetConsensusInfo(execInfo.pStreamConsensus, p->id.streamId, numOfTasks, &pInfo);
       if (code == 0) {
         mndAddConsensusTasks(pInfo, &cp);
@@ -356,7 +418,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       streamTaskStatusCopy(pTaskEntry, p);
 
       if ((pChkInfo->activeId != 0) && pChkInfo->failed) {
-        mError("stream task:0x%" PRIx64 " checkpointId:%" PRIx64 " transId:%d failed, kill it", p->id.taskId,
+        mError("stream task:0x%" PRIx64 " checkpointId:%" PRId64 " transId:%d failed, kill it", p->id.taskId,
                pChkInfo->activeId, pChkInfo->activeTransId);
 
         SFailedCheckpointInfo info = {
@@ -371,13 +433,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       }
     }
 
-    if (p->status == pTaskEntry->status) {
-      pTaskEntry->statusLastDuration++;
-    } else {
-      pTaskEntry->status = p->status;
-      pTaskEntry->statusLastDuration = 0;
-    }
-
     if (p->status != TASK_STATUS__READY) {
       mDebug("received s-task:0x%" PRIx64 " not in ready status:%s", p->id.taskId, streamTaskGetStatusStr(p->status));
     }
@@ -390,7 +445,6 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     if (pMnode != NULL) {
       SArray *p = NULL;
-
       code = mndTakeVgroupSnapshot(pMnode, &allReady, &p);
       taosArrayDestroy(p);
       if (code) {
@@ -404,10 +458,14 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
       for (int32_t i = 0; i < taosArrayGetSize(pFailedChkpt); ++i) {
         SFailedCheckpointInfo *pInfo = taosArrayGet(pFailedChkpt, i);
+        if (pInfo == NULL) {
+          continue;
+        }
+
         mInfo("checkpointId:%" PRId64 " transId:%d failed, issue task-reset trans to reset all tasks status",
               pInfo->checkpointId, pInfo->transId);
 
-        code = mndResetStatusFromCheckpoint(pMnode, pInfo->streamUid, pInfo->transId);
+        code = mndSendResetFromCheckpointMsg(pMnode, pInfo->streamUid, pInfo->transId);
         if (code) {
           mError("failed to create reset task trans, code:%s", tstrerror(code));
         }
@@ -419,11 +477,14 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // handle the orphan tasks that are invalid but not removed in some vnodes or snode due to some unknown errors.
   if (taosArrayGetSize(pOrphanTasks) > 0) {
-    code = mndDropOrphanTasks(pMnode, pOrphanTasks);
+    code = mndSendDropOrphanTasksMsg(pMnode, pOrphanTasks);
+    if (code) {
+      mError("failed to send drop orphan tasks msg, code:%s, try next time", tstrerror(code));
+    }
   }
 
   if (pMnode != NULL) {  // make sure that the unit test case can work
-    mndStreamStartUpdateCheckpointInfo(pMnode);
+    mndStreamSendUpdateChkptInfoMsg(pMnode);
   }
 
   streamMutexUnlock(&execInfo.lock);
@@ -434,22 +495,10 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   return code;
 }
 
-void mndStreamStartUpdateCheckpointInfo(SMnode *pMnode) {  // here reuse the doCheckpointmsg
-  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  if (pMsg != NULL) {
-    int32_t size = sizeof(SMStreamDoCheckpointMsg);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_UPDATE_CHKPT_EVT, .pCont = pMsg, .contLen = size};
-    int32_t code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-    if (code) {
-      mError("failed to put into write Queue, code:%s", tstrerror(code));
-    }
-  }
-}
-
 bool validateHbMsg(const SArray *pNodeList, int32_t vgId) {
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
     SNodeEntry *pEntry = taosArrayGet(pNodeList, i);
-    if (pEntry->nodeId == vgId) {
+    if ((pEntry) && (pEntry->nodeId == vgId)) {
       return true;
     }
   }
