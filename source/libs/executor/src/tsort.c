@@ -1699,6 +1699,7 @@ static int32_t initRowIdSort(SSortHandle* pHandle) {
 
   taosArrayDestroy(pHandle->pSortInfo);
   pHandle->pSortInfo = pOrderInfoList;
+  pHandle->cmpParam.pPkOrder = (pHandle->bSortPk) ? taosArrayGet(pHandle->pSortInfo, 1) : NULL;
   return TSDB_CODE_SUCCESS;
 }
 
