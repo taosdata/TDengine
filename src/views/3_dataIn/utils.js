@@ -373,7 +373,7 @@ function handleOptions(options, paramsConfig, id) {
           pattern: pattern || null,
           patternMsg,
           defaultValue: value ?? '',
-          // value,
+          value,
         }
         handleHintType(param[key], param[key]?.hint);
       })
