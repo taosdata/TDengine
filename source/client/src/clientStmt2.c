@@ -1503,7 +1503,41 @@ _return:
 }
 */
 
-int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
+static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** pCxt, SSqlCallbackWrapper* pWrapper) {
+  const STscObj* pTscObj = pRequest->pTscObj;
+
+  *pCxt = taosMemoryCalloc(1, sizeof(SParseContext));
+  if (*pCxt == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  **pCxt = (SParseContext){.requestId = pRequest->requestId,
+                           .requestRid = pRequest->self,
+                           .acctId = pTscObj->acctId,
+                           .db = pRequest->pDb,
+                           .topicQuery = false,
+                           .pSql = pRequest->sqlstr,
+                           .sqlLen = pRequest->sqlLen,
+                           .pMsg = pRequest->msgBuf,
+                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                           .pTransporter = pTscObj->pAppInfo->pTransporter,
+                           .pStmtCb = NULL,
+                           .pUser = pTscObj->user,
+                           .pEffectiveUser = pRequest->effectiveUser,
+                           .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
+                           .enableSysInfo = pTscObj->sysInfo,
+                           .async = true,
+                           .svrVer = pTscObj->sVer,
+                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
+                           .allocatorId = pRequest->allocatorRefId,
+                           .parseSqlFp = clientParseSql,
+                           .parseSqlParam = pWrapper};
+  int8_t biMode = atomic_load_8(&((STscObj*)pTscObj)->biMode);
+  (*pCxt)->biMode = biMode;
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtExec2(TAOS_STMT2* stmt, int* affected_rows, __taos_async_fn_t fp, void* param) {
   STscStmt2*  pStmt = (STscStmt2*)stmt;
   int32_t     code = 0;
   SSubmitRsp* pRsp = NULL;
@@ -1518,9 +1552,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
-  if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
-  } else {
+  if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
       int64_t startTs = taosGetTimestampUs();
       while (atomic_load_64(&pStmt->sql.siInfo.tbRemainNum)) {
@@ -1540,10 +1572,28 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
       STMT_ERR_RET(qBuildStmtOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->exec.pBlockHash));
     }
-
-    launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
   }
 
+  launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
+  /*
+  SSqlCallbackWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SSqlCallbackWrapper));
+  if (pWrapper == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    pWrapper->pRequest = pStmt->exec.pRequest;
+    pStmt->exec.pRequest->pWrapper = pWrapper;
+    //*ppWrapper = pWrapper;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createParseContext(pStmt->exec.pRequest, &pWrapper->pParseCtx, pWrapper);
+  }
+
+  pStmt->exec.pRequest->syncQuery = false;
+  pStmt->exec.pRequest->body.queryFp = fp;
+  ((SSyncQueryParam*)(pStmt->exec.pRequest)->body.interParam)->userParam = param;
+  launchAsyncQuery(pStmt->exec.pRequest, pStmt->sql.pQuery, NULL, pWrapper);
+  */
   if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {
     code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
     if (code) {

@@ -212,7 +212,7 @@ extern char *gStmtStatusStr[];
 */
 TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
-int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
+int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows, __taos_async_fn_t fp, void *param);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
 int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags);
