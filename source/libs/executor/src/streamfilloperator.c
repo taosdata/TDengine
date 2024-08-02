@@ -470,6 +470,7 @@ static int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t gr
   SWinKey key = {.groupId = groupId, .ts = ts};
   if (tSimpleHashGet(pFillSup->pResMap, &key, sizeof(SWinKey)) != NULL) {
     (*pRes) = false;
+    goto _end;
   }
   code = tSimpleHashPut(pFillSup->pResMap, &key, sizeof(SWinKey), NULL, 0);
   QUERY_CHECK_CODE(code, lino, _end);
