@@ -2922,6 +2922,7 @@ _exception:
 }
 int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
   if (transpointId == NULL) {
+    ASSERT(0);
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
