@@ -521,6 +521,7 @@ impl ReplicaConfig {
         Ok(replicas)
     }
 
+    #[tracing::instrument(skip_all, fields(replica = replica.id.as_str(), source = replica.canonical_source(), sink = replica.canonical_sink()))]
     async fn start_replica(
         &self,
         replica: &Replica,
@@ -531,15 +532,26 @@ impl ReplicaConfig {
         keep_topic_after_remove: bool,
     ) -> anyhow::Result<()> {
         let source = replica.source_pool();
-        let source_conn = tokio::time::timeout(self.timeout(), source.get())
+        let timeout = self.timeout();
+        tracing::debug!(
+            source = replica.canonical_source(),
+            sink = replica.canonical_sink(),
+            ?timeout,
+            "start replication"
+        );
+
+        let source_conn = tokio::time::timeout(timeout, source.get())
             .await
+            .inspect_err(|_| {
+                tracing::error!("Source connection timeout: {}", replica.canonical_source());
+            })
             .with_context(|| format!("Source connection timeout: {}", replica.canonical_source()))?
             .with_context(|| {
                 format!("Source connection error for {}", replica.canonical_source())
             })?;
 
         let sink = replica.sink_pool();
-        let sink_conn = tokio::time::timeout(self.timeout(), sink.get())
+        let sink_conn = tokio::time::timeout(timeout, sink.get())
             .await
             .with_context(|| format!("Sink connection timeout: {}", replica.canonical_sink()))?
             .with_context(|| format!("Sink connection error for {}", replica.canonical_sink()))?;
@@ -992,7 +1004,10 @@ impl Cli {
                         group.as_deref(),
                         keep_topic_after_remove,
                     )
-                    .await?;
+                    .await
+                    .inspect_err(|err| {
+                        tracing::error!("start replication failed: {:#}", err);
+                    })?;
             }
             ReplicaCommands::Status { ids: replica_ids } => {
                 let mut replicas = Vec::new();

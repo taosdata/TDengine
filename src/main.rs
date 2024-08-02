@@ -633,65 +633,68 @@ fn main() -> Result<()> {
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
     print_effective_config(&level_filter, &args);
-    match args.commands.unwrap_or(Commands::Serve(Default::default())) {
+    let res = match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
             let span = tracing::info_span!("main");
             let _ = span.enter();
-            runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
+            runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))
         }
-        Commands::Privileges(privileges) => {
-            runtime.block_on(privileges.run(args.opt_args))?;
-        }
-        Commands::Replica(replica) => {
-            runtime.block_on(replica.run(args.opt_args))?;
-        }
+        Commands::Privileges(privileges) => runtime.block_on(privileges.run(args.opt_args)),
+        Commands::Replica(replica) => runtime.block_on(replica.run(args.opt_args)),
         Commands::Serve(serve) => {
-            let _ = tracing::info_span!("serve").entered();
-            let addr = serve.get_listen_address();
-            let port = addr.split(':').last().unwrap();
-            let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
-            let (
-                agent_integration_channel,
-                agent_rpc_channel,
-                agent_spawn_sender,
-                scheduler_notifier,
-            ) = scheduler_rt.block_on(serve.channels());
+            let serve = || {
+                let _ = tracing::info_span!("serve").entered();
+                let addr = serve.get_listen_address();
+                let port = addr.split(':').last().unwrap();
+                let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
+                let (
+                    agent_integration_channel,
+                    agent_rpc_channel,
+                    agent_spawn_sender,
+                    scheduler_notifier,
+                ) = scheduler_rt.block_on(serve.channels());
 
-            debug!("Starting scheduler");
-            let scheduler = scheduler_rt
-                .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
+                debug!("Starting scheduler");
+                let scheduler = scheduler_rt
+                    .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
 
-            let grpc_rt = build_runtime("grpc-server", worker_threads)?;
+                let grpc_rt = build_runtime("grpc-server", worker_threads)?;
 
-            // let api_rt = build_runtime(worker_threads)?;
-            let max_activities_per_entity = args.global.max_activities_per_entity.unwrap_or(100);
+                // let api_rt = build_runtime(worker_threads)?;
+                let max_activities_per_entity =
+                    args.global.max_activities_per_entity.unwrap_or(100);
 
-            debug!("Starting controller");
-            let ctl = runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
+                debug!("Starting controller");
+                let ctl =
+                    runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
 
-            debug!("Starting monitor");
-            let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
-            let api_ctl = ctl.clone();
-            let serve_api = serve.clone();
-            debug!("Starting gRPC server");
-            let grpc_handle = grpc_rt.spawn(serve_api.grpc(
-                ctl.clone(),
-                agent_rpc_channel,
-                agent_spawn_sender,
-                monitor.clone(),
-            ));
-            debug!("Starting API server");
-            runtime.block_on(async move {
-                // rest api
-                serve.api(api_ctl, grpc_handle, monitor).await
-            })?;
+                debug!("Starting monitor");
+                let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
+                let api_ctl = ctl.clone();
+                let serve_api = serve.clone();
+                debug!("Starting gRPC server");
+                let grpc_handle = grpc_rt.spawn(serve_api.grpc(
+                    ctl.clone(),
+                    agent_rpc_channel,
+                    agent_spawn_sender,
+                    monitor.clone(),
+                ));
+                debug!("Starting API server");
+                runtime.block_on(async move {
+                    // rest api
+                    serve.api(api_ctl, grpc_handle, monitor).await
+                })?;
+                Ok(())
+            };
+            serve()
         }
-    }
+    };
     runtime.block_on(async move {
         opentelemetry::global::shutdown_tracer_provider();
     });
+    tracing::trace!("Shutdown main runtime");
     runtime.shutdown_timeout(std::time::Duration::from_secs(1));
-    Ok(())
+    res
 }
 
 #[cfg(test)]
