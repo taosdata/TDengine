@@ -2,7 +2,7 @@
   <div>
     <template v-if="!isViewable">
       <template v-for="(child, index) in configData">
-        <div :key="'child' + '-' + index">
+        <div :key="'child' + '-' + child.host.field">
           <el-form-item
             label-width="240px"
             :required="child.host.required"
@@ -34,6 +34,7 @@
                 class="mr20"
                 :placeholder="child.host.placeholder"
                 :disabled="isEdit && !isCopy"
+                @input="handlerConfig('host', child.host.field)"
               >
               </el-input>
               <el-button
@@ -78,6 +79,7 @@
                 class="mr20"
                 :placeholder="child.port.placeholder"
                 :disabled="isEdit && !isCopy"
+                @input="handlerConfig('port', child.port.field)"
               >
               </el-input>
             </div>
@@ -147,7 +149,6 @@ export default {
   data() {
     return {
       loading: false,
-      item: {},
       configData: this.config,
     };
   },
@@ -199,12 +200,10 @@ export default {
     },
   },
   created() {},
-  mounted() {
-    this.item = deepClone(this.config[0]);
-  },
+  mounted() {},
   methods: {
     add() {
-      let item = deepClone(this.item);
+      let item = deepClone(this.config[0]);
       const key = uuid();
       item.host.field = "host_" + key;
       item.port.field = "port_" + key;
@@ -213,6 +212,7 @@ export default {
       item.host.value = "";
       item.port.value = "";
       this.configData = this.configData.concat(item);
+      this.$store.state.app.configData = this.configData;
     },
     remove(index, hostField, portField) {
       if (hostField) {
@@ -223,8 +223,31 @@ export default {
       }
       this.configData.splice(index, 1);
       this.getResult();
+      this.$store.state.app.configData = this.configData;
     },
-    getResult() {
+    handlerConfig(type, field) {
+      let keys = [];
+      if (type == "host") {
+        const hostKey = Object.keys(this.data).filter((key) => key == field)[0];
+        if (hostKey) {
+          const id = hostKey.substring("host_".length);
+          const portKey = `port_${id}`;
+          const host = this.data[hostKey];
+          const port = this.data[portKey];
+          this.mange(type, hostKey, portKey, host, port);
+        }
+      } else {
+        const portKey = Object.keys(this.data).filter((key) => key == field)[0];
+        if (portKey) {
+          const id = portKey.substring("port_".length);
+          const hostKey = `host_${id}`;
+          const host = this.data[hostKey];
+          const port = this.data[portKey];
+          this.mange(type, hostKey, portKey, host, port);
+        }
+      }
+    },
+    getResult(field) {
       let result = [];
       result = Object.keys(this.data)
         .filter((key) => key.startsWith("host_"))
@@ -233,26 +256,51 @@ export default {
           const portKey = `port_${id}`;
           const host = this.data[hostKey];
           const port = this.data[portKey];
-          if ((host && !port) || (!host && port)) {
-            this.mange(hostKey, portKey);
-          }
-          if (!host && !port) {
-            this.mange(hostKey, portKey, true);
-          }
           return host && port ? `${host}:${port}` : "";
         });
-      this.data.endpoint = result.join(",");
+      this.data.endpoint = result.join(",").replace(/(,{2,})/g, ',').replace(/^,|,$/g, '');
     },
-    mange(hostKey, portKey, empty) {
-      this.configData = this.configData.map((config, index) => {
-        if (config.host.field === hostKey && index) {
-          config.port.required = !empty;
-        }
-        if (config.port.field === portKey && index) {
-          config.host.required = !empty;
+    mange(type, hostKey, portKey, host, port, empty) {
+      const newData = deepClone(this.configData);
+      this.configData = newData.map((config, index) => {
+        if (config.host.field === hostKey && index && type == "host") {
+          if (host && !port) {
+            if (!config.port.required) {
+              config.port.required = true;
+            }
+            config.port.defaultValue = "";
+          } else if (!host && port) {
+            if (!config.host.required) {
+              config.host.required = true;
+            }
+            config.host.defaultValue = "";
+          } else if (!host && !port) {
+            config.host.required = false;
+            config.port.required = false;
+            config.host.defaultValue = "";
+            config.port.defaultValue = "";
+          }
+        } else if (config.port.field === portKey && index && type == "port") {
+          if (host && !port) {
+            if (!config.port.required) {
+              config.port.required = true;
+            }
+            config.port.defaultValue = "";
+          } else if (!host && port) {
+            if (!config.host.required) {
+              config.host.required = true;
+            }
+            config.host.defaultValue = "";
+          } else if (!host && !port) {
+            config.host.required = false;
+            config.port.required = false;
+            config.host.defaultValue = "";
+            config.port.defaultValue = "";
+          }
         }
         return config;
       });
+      this.$store.state.app.configData = this.configData;
     },
   },
 };

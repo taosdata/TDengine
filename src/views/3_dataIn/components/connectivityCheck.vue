@@ -31,6 +31,7 @@ import Result from "./result.vue";
 import { getDsnData, getFieldClassMarkName } from "../utils";
 import { validateTask } from "@/api/explorer/datain";
 import BlockHeader from "./blockHeader.vue";
+import { deepClone } from "@/utils";
 export default {
   name: 'connectivityCheck',
   components: { Result, BlockHeader },
@@ -46,7 +47,13 @@ export default {
   computed: {
     validFieldList() {
       const result = [];
-      this.getValidFieldList(this.sourceParent.currentDefinition.config, result);
+      if (this.sourceParent.sourceForm.type == 'kafka') {
+        let config = deepClone(this.sourceParent.currentDefinition.config) 
+        config[0].children = this.$store.state.app.configData
+        this.getValidFieldList(config, result);
+      } else {
+        this.getValidFieldList(this.sourceParent.currentDefinition.config, result);
+      }
       return result;
     },
     type() {
@@ -88,6 +95,7 @@ export default {
         errorMsg.push(valid);
         if (errorMsg.length == validFieldList.length && errorMsg.every(item => !item)) {
           this.activeCollapse = '';
+          this.sourceParent.$refs.form.clearValidate()
           const type = this.sourceParent.sourceForm.type
           const agent = this.sourceParent.sourceForm.agent
           const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)

@@ -104,9 +104,9 @@ function mergeTaskDetailOptions(cfgOptions, data, from) {
         const endIndex = from.indexOf('?');
         const hostsAndPorts = from.substring(startIndex, endIndex);
         const endpoints = hostsAndPorts.split(',')
-        let item = deepClone(cfgOptions.params[0])
-     
+        
         while (cfgOptions.params.length < endpoints.length) {
+            let item = deepClone(cfgOptions.params[0])
             cfgOptions.params.push({...item}); 
         }
         for (let i = 0; i < endpoints.length; i++) {
