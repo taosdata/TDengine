@@ -182,7 +182,7 @@ if __name__ == "__main__":
     for file in all_file_path:
 
         cmd = f"clang-query-10 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
-        print(f"cmd:{cmd}")
+        logger.debug(f"cmd:{cmd}")
         try:
             stdout, stderr = command_executor.execute(cmd)
             #if "error" in stderr:
