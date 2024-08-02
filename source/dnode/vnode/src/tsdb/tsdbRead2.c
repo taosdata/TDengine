@@ -48,7 +48,7 @@ typedef struct {
 static int32_t  getCurrentBlockInfo(SDataBlockIter* pBlockIter, SFileDataBlockInfo** pInfo);
 static int32_t  buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t endKey, int32_t capacity,
                                           STsdbReader* pReader);
-static int32_t  getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader, TSDBROW** pRes);
+static void     getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader, TSDBROW** pRes);
 static int32_t  doMergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pScanInfo, SRowKey* pKey,
                                         STsdbReader* pReader);
 static int32_t  doMergeRowsInSttBlock(SSttBlockReader* pSttBlockReader, STableBlockScanInfo* pScanInfo,
@@ -3293,23 +3293,10 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
       if ((!hasDataInSttBlock(pScanInfo)) || (asc && pBlockInfo->lastKey < keyInStt) ||
           (!asc && pBlockInfo->firstKey > keyInStt)) {
-        if (pScanInfo->cleanSttBlocks && hasDataInSttBlock(pScanInfo)) {
-          if (asc) {  // file block is located before the stt block
-            ASSERT(pScanInfo->sttRange.skey.ts > pBlockInfo->lastKey);
-          } else {  // stt block is before the file block
-            ASSERT(pScanInfo->sttRange.ekey.ts < pBlockInfo->firstKey);
-          }
-        }
-
+        // the stt blocks may located in the gap of different data block, but the whole sttRange may overlap with the
+        // data block, so the overlap check is invalid actually.
         buildCleanBlockFromDataFiles(pReader, pScanInfo, pBlockInfo, pBlockIter->index);
       } else {  // clean stt block
-        if (asc) {
-          ASSERT(pScanInfo->sttRange.ekey.ts < pBlockInfo->firstKey);
-        } else {
-          ASSERT(pScanInfo->sttRange.skey.ts > pBlockInfo->lastKey);
-        }
-
-        // return the stt file block
         ASSERT(pReader->info.execMode == READER_EXEC_ROWS && pSttBlockReader->mergeTree.pIter == NULL);
         code = buildCleanBlockFromSttFiles(pReader, pScanInfo);
         return code;
@@ -3866,11 +3853,11 @@ bool hasBeenDropped(const SArray* pDelList, int32_t* index, int64_t key, int64_t
   return false;
 }
 
-FORCE_INLINE int32_t getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader, TSDBROW** pRes) {
+FORCE_INLINE void getValidMemRow(SIterInfo* pIter, const SArray* pDelList, STsdbReader* pReader, TSDBROW** pRes) {
   *pRes = NULL;
 
   if (!pIter->hasVal) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   int32_t  order = pReader->info.order;
@@ -3880,20 +3867,20 @@ FORCE_INLINE int32_t getValidMemRow(SIterInfo* pIter, const SArray* pDelList, ST
   TSDBROW_INIT_KEY(pRow, key);
   if (outOfTimeWindow(key.ts, &pReader->info.window)) {
     pIter->hasVal = false;
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   // it is a valid data version
   if (key.version <= pReader->info.verRange.maxVer && key.version >= pReader->info.verRange.minVer) {
     if (pDelList == NULL || TARRAY_SIZE(pDelList) == 0) {
       *pRes = pRow;
-      return TSDB_CODE_SUCCESS;
+      return;
     } else {
       bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange,
                                     pReader->suppInfo.numOfPks > 0);
       if (!dropped) {
         *pRes = pRow;
-        return TSDB_CODE_SUCCESS;
+        return;
       }
     }
   }
@@ -3901,7 +3888,7 @@ FORCE_INLINE int32_t getValidMemRow(SIterInfo* pIter, const SArray* pDelList, ST
   while (1) {
     pIter->hasVal = tsdbTbDataIterNext(pIter->iter);
     if (!pIter->hasVal) {
-      return TSDB_CODE_SUCCESS;
+      return;
     }
 
     pRow = tsdbTbDataIterGet(pIter->iter);
@@ -3909,19 +3896,19 @@ FORCE_INLINE int32_t getValidMemRow(SIterInfo* pIter, const SArray* pDelList, ST
     TSDBROW_INIT_KEY(pRow, key);
     if (outOfTimeWindow(key.ts, &pReader->info.window)) {
       pIter->hasVal = false;
-      return TSDB_CODE_SUCCESS;
+      return;
     }
 
     if (key.version <= pReader->info.verRange.maxVer && key.version >= pReader->info.verRange.minVer) {
       if (pDelList == NULL || TARRAY_SIZE(pDelList) == 0) {
         *pRes = pRow;
-        return TSDB_CODE_SUCCESS;
+        return;
       } else {
         bool dropped = hasBeenDropped(pDelList, &pIter->index, key.ts, key.version, order, &pReader->info.verRange,
                                       pReader->suppInfo.numOfPks > 0);
         if (!dropped) {
           *pRes = pRow;
-          return TSDB_CODE_SUCCESS;
+          return;
         }
       }
     }

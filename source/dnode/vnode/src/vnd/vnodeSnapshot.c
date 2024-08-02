@@ -209,7 +209,7 @@ static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
     TFileSetRangeArray **ppRanges = vnodeSnapReaderGetTsdbRanges(pReader, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    tsdbTFileSetRangeArrayDestroy(ppRanges);
+    (void)tsdbTFileSetRangeArrayDestroy(ppRanges);
   }
 }
 
@@ -218,15 +218,15 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
   vnodeSnapReaderDestroyTsdbRanges(pReader);
 
   if (pReader->pRsmaReader) {
-    rsmaSnapReaderClose(&pReader->pRsmaReader);
+    (void)rsmaSnapReaderClose(&pReader->pRsmaReader);
   }
 
   if (pReader->pTsdbReader) {
-    tsdbSnapReaderClose(&pReader->pTsdbReader);
+    (void)tsdbSnapReaderClose(&pReader->pTsdbReader);
   }
 
   if (pReader->pTsdbRAWReader) {
-    tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
+    (void)tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
   }
 
   if (pReader->pMetaReader) {
@@ -260,7 +260,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     char    fName[TSDB_FILENAME_LEN];
     int32_t offset = 0;
 
-    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fName, TSDB_FILENAME_LEN);
+    (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fName, TSDB_FILENAME_LEN);
     offset = strlen(fName);
     snprintf(fName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME);
 
@@ -272,13 +272,13 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
     int64_t size;
     if (taosFStatFile(pFile, &size, NULL) < 0) {
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
     }
 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size + 1);
     if (*ppData == NULL) {
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     }
     ((SSnapDataHdr *)(*ppData))->type = SNAP_DATA_CFG;
@@ -287,11 +287,11 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
     if (taosReadFile(pFile, ((SSnapDataHdr *)(*ppData))->data, size) < 0) {
       taosMemoryFree(*ppData);
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
     }
 
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
 
     pReader->cfgDone = 1;
     goto _exit;
@@ -590,15 +590,15 @@ extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
 extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
 
 static int32_t vnodeCancelAndDisableAllBgTask(SVnode *pVnode) {
-  tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
-  vnodeSyncCommit(pVnode);
-  vnodeAChannelDestroy(&pVnode->commitChannel, true);
+  (void)tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
+  (void)vnodeSyncCommit(pVnode);
+  (void)vnodeAChannelDestroy(&pVnode->commitChannel, true);
   return 0;
 }
 
 static int32_t vnodeEnableBgTask(SVnode *pVnode) {
-  tsdbEnableBgTask(pVnode->pTsdb);
-  vnodeAChannelInit(1, &pVnode->commitChannel);
+  (void)tsdbEnableBgTask(pVnode->pTsdb);
+  (void)vnodeAChannelInit(1, &pVnode->commitChannel);
   return 0;
 }
 
@@ -610,7 +610,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   int64_t       ever = pParam->end;
 
   // cancel and disable all bg task
-  vnodeCancelAndDisableAllBgTask(pVnode);
+  (void)vnodeCancelAndDisableAllBgTask(pVnode);
 
   // alloc
   pWriter = (SVSnapWriter *)taosMemoryCalloc(1, sizeof(*pWriter));
@@ -646,7 +646,7 @@ static void vnodeSnapWriterDestroyTsdbRanges(SVSnapWriter *pWriter) {
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
     TFileSetRangeArray **ppRanges = vnodeSnapWriterGetTsdbRanges(pWriter, tsdbTyps[j]);
     if (ppRanges == NULL) continue;
-    tsdbTFileSetRangeArrayDestroy(ppRanges);
+    (void)tsdbTFileSetRangeArrayDestroy(ppRanges);
   }
 }
 
@@ -658,15 +658,15 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   // prepare
   if (pWriter->pTsdbSnapWriter) {
-    tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
+    (void)tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
   }
 
   if (pWriter->pTsdbSnapRAWWriter) {
-    tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
+    (void)tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
   }
 
   if (pWriter->pRsmaSnapWriter) {
-    rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter);
+    (void)rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter);
   }
 
   // commit json
@@ -681,7 +681,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
                               .applyTerm = pWriter->info.state.commitTerm};
     pVnode->statis = pWriter->info.statis;
     char dir[TSDB_FILENAME_LEN] = {0};
-    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+    (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
     code = vnodeCommitInfo(dir);
     if (code) goto _exit;
@@ -740,7 +740,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
   }
 
-  vnodeBegin(pVnode);
+  (void)vnodeBegin(pVnode);
 
 _exit:
   if (code) {
@@ -749,7 +749,7 @@ _exit:
     vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
     taosMemoryFree(pWriter);
   }
-  vnodeEnableBgTask(pVnode);
+  (void)vnodeEnableBgTask(pVnode);
   return code;
 }
 
@@ -768,7 +768,7 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
 
   // modify info as needed
   char dir[TSDB_FILENAME_LEN] = {0};
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
   SVnodeStats vndStats = pWriter->info.config.vndStats;
   pWriter->info.config = pVnode->config;

@@ -63,7 +63,7 @@ int32_t taosOpenRef(int32_t max, RefFp fp) {
   int64_t   *lockedBy;
   int32_t    i, rsetId;
 
-  taosThreadOnce(&tsRefModuleInit, taosInitRefModule);
+  (void)taosThreadOnce(&tsRefModuleInit, taosInitRefModule);
 
   nodeList = taosMemoryCalloc(sizeof(SRefNode *), (size_t)max);
   if (nodeList == NULL) {
@@ -450,7 +450,7 @@ static void taosLockList(int64_t *lockedBy) {
   int32_t i = 0;
   while (atomic_val_compare_exchange_64(lockedBy, 0, tid) != 0) {
     if (++i % 100 == 0) {
-      sched_yield();
+      (void)sched_yield();
     }
   }
 }
@@ -462,10 +462,10 @@ static void taosUnlockList(int64_t *lockedBy) {
   }
 }
 
-static void taosInitRefModule(void) { taosThreadMutexInit(&tsRefMutex, NULL); }
+static void taosInitRefModule(void) { (void)taosThreadMutexInit(&tsRefMutex, NULL); }
 
 static void taosIncRsetCount(SRefSet *pSet) {
-  atomic_add_fetch_32(&pSet->count, 1);
+  (void)atomic_add_fetch_32(&pSet->count, 1);
   // uTrace("rsetId:%d inc count:%d", pSet->rsetId, count);
 }
 

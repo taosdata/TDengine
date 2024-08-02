@@ -69,13 +69,13 @@ void syncCleanUp() {
 
   if (gNodeRefId != -1) {
     sDebug("sync rsetId:%d is closed", gNodeRefId);
-    taosCloseRef(gNodeRefId);
+    (void)taosCloseRef(gNodeRefId);
     gNodeRefId = -1;
   }
 
   if (gHbDataRefId != -1) {
     sDebug("sync rsetId:%d is closed", gHbDataRefId);
-    taosCloseRef(gHbDataRefId);
+    (void)taosCloseRef(gHbDataRefId);
     gHbDataRefId = -1;
   }
 }
@@ -88,7 +88,7 @@ int64_t syncNodeAdd(SSyncNode *pNode) {
   return pNode->rid;
 }
 
-void syncNodeRemove(int64_t rid) { taosRemoveRef(gNodeRefId, rid); }
+void syncNodeRemove(int64_t rid) { (void)taosRemoveRef(gNodeRefId, rid); }
 
 SSyncNode *syncNodeAcquire(int64_t rid) {
   SSyncNode *pNode = taosAcquireRef(gNodeRefId, rid);
@@ -101,7 +101,7 @@ SSyncNode *syncNodeAcquire(int64_t rid) {
 }
 
 void syncNodeRelease(SSyncNode *pNode) {
-  if (pNode) taosReleaseRef(gNodeRefId, pNode->rid);
+  if (pNode) (void)taosReleaseRef(gNodeRefId, pNode->rid);
 }
 
 int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
@@ -110,7 +110,7 @@ int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
   return pData->rid;
 }
 
-void syncHbTimerDataRemove(int64_t rid) { taosRemoveRef(gHbDataRefId, rid); }
+void syncHbTimerDataRemove(int64_t rid) { (void)taosRemoveRef(gHbDataRefId, rid); }
 
 SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
   SSyncHbTimerData *pData = taosAcquireRef(gHbDataRefId, rid);
@@ -122,7 +122,7 @@ SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
   return pData;
 }
 
-void syncHbTimerDataRelease(SSyncHbTimerData *pData) { taosReleaseRef(gHbDataRefId, pData->rid); }
+void syncHbTimerDataRelease(SSyncHbTimerData *pData) { (void)taosReleaseRef(gHbDataRefId, pData->rid); }
 
 #if 0
 void syncEnvStartTimer() {

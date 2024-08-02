@@ -219,13 +219,17 @@ int32_t streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem
   if (dst->type == STREAM_INPUT__DATA_BLOCK && pElem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;
     SStreamDataBlock* pBlockSrc = (SStreamDataBlock*)pElem;
-    (void) taosArrayAddAll(pBlock->blocks, pBlockSrc->blocks);
+    void* px = taosArrayAddAll(pBlock->blocks, pBlockSrc->blocks);
+    if (px == NULL) {
+      return terrno;
+    }
+
     taosArrayDestroy(pBlockSrc->blocks);
     streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
 
     taosFreeQitem(pElem);
     *pRes = dst;
-    return TSDB_CODE_SUCCESS;
+    return code;
   } else if (dst->type == STREAM_INPUT__MERGED_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)dst;
     SStreamDataSubmit*   pBlockSrc = (SStreamDataSubmit*)pElem;
