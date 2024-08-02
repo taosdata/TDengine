@@ -61,13 +61,7 @@ import TabItem from "@theme/TabItem";
 {{#include docs/examples/csharp/wsStmt/Program.cs:main}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-
-</TabItem>
 <TabItem label="C" value="c">
-
-</TabItem>
-<TabItem label="PHP" value="php">
 
 </TabItem>
 </Tabs>
@@ -99,14 +93,7 @@ import TabItem from "@theme/TabItem";
 {{#include docs/examples/csharp/stmtInsert/Program.cs:main}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-
-</TabItem>
 <TabItem label="C" value="c">
-
-</TabItem>
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
