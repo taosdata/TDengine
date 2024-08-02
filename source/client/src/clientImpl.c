@@ -1206,6 +1206,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
 void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper) {
   int32_t code = 0;
 
+  tscDebug("0x%" PRIx64 " start to launch async query", pRequest->requestId);
+
   pRequest->body.execMode = pQuery->execMode;
   if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
     destorySqlCallbackWrapper(pWrapper);
@@ -1235,10 +1237,12 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
-      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;      
+      tscDebug("0x%" PRIx64 " empty result query", pRequest->requestId);
       pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
       break;
     default:
+      tscDebug("0x%" PRIx64 " unknown exec mode %d query", pRequest->requestId, pQuery->execMode);
       pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
       break;
   }
@@ -2623,5 +2627,9 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
       .cbParam = pRequest,
   };
 
-  schedulerFetchRows(pRequest->body.queryJob, &req);
+  int32_t code = schedulerFetchRows(pRequest->body.queryJob, &req);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
+    pRequest->body.fetchFp(param, pRequest, code);    
+  }
 }
