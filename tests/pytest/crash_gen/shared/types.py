@@ -84,6 +84,8 @@ class FunctionMap(Enum):
         'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
         'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
         'strFuncs': [],
+        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
         'castFuncs': ['CAST', 'TO_ISO8601'],
         'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP']
     }
@@ -91,23 +93,17 @@ class FunctionMap(Enum):
         'types': ['BINARY', 'VARCHAR', 'NCHAR'],
         'mathFuncs': [],
         'strFuncs': ['CHAR_LENGTH', 'CONCAT', 'CONCAT_WS', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'SUBSTR', 'UPPER', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ],
+        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
         'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
         'castTypes': []
     }
-    
-
-
-
-
-
-
-
-
-
     BINARY = {
         'types': ['VARBINARY'],
         'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
-        'strFuncs': [],
+        'strFuncs': ['LENGTH'],
+        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
         'castFuncs': ['TO_ISO8601'],
         'castTypes': []
     }
@@ -115,6 +111,8 @@ class FunctionMap(Enum):
         'types': ['BOOL'],
         'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
         'strFuncs': [],
+        'timeFuncs': ['NOW', 'TIMEDIFF'],
+        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
         'castFuncs': ['CAST'],
         'castTypes': []
     }
@@ -122,33 +120,10 @@ class FunctionMap(Enum):
         'types': ['TIMESTAMP'],
         'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
         'strFuncs': [],
+        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['ELAPSED', 'SPREAD'],
         'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
         'castTypes': []
-    }
-    
-
-
-
-
-
-
-
-
-
-
-
-
-    TEXT = {
-        'types': ['VARCHAR(16)', 'CHAR(10)', 'TEXT'],
-        'functions': ['first', 'last', 'count', 'max_length']
-    }
-    DATETIME = {
-        'types': ['DATE', 'TIMESTAMP'],
-        'functions': ['min', 'max', 'date_part']
-    }
-    BOOLEAN = {
-        'types': ['BOOL'],
-        'functions': ['count', 'bool_and', 'bool_or']
     }
 
 TdColumns = Dict[str, TdDataType]
