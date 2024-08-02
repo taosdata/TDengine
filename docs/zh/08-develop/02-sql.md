@@ -41,6 +41,10 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 <TabItem label="R" value="r">
 </TabItem>
 <TabItem label="C" value="c">
+```c
+{{#include docs/examples/c/CCreateDBDemo.c:create_db_and_table}}
+```
+> **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 power.meters。
 </TabItem>
 <TabItem label="PHP" value="php">
 </TabItem>
@@ -77,6 +81,12 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 <TabItem label="R" value="r">
 </TabItem>
 <TabItem label="C" value="c">
+```c
+{{#include docs/examples/c/CInsertDataDemo.c:insert_data}}
+```
+
+**Note**
+NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
 </TabItem>
 <TabItem label="PHP" value="php">
 </TabItem>
@@ -111,6 +121,9 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 <TabItem label="R" value="r">
 </TabItem>
 <TabItem label="C" value="c">
+```c
+{{#include docs/examples/c/CQueryDataDemo.c:query_data}}
+```
 </TabItem>
 <TabItem label="PHP" value="php">
 </TabItem>
@@ -153,6 +166,9 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 <TabItem label="R" value="r">
 </TabItem>
 <TabItem label="C" value="c">
+```c
+{{#include docs/examples/c/CWithReqIdDemo.c:with_reqid}}
+```
 </TabItem>
 <TabItem label="PHP" value="php">
 </TabItem>

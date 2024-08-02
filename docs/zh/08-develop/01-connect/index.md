@@ -345,6 +345,34 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     <TabItem label="R" value="r">
     </TabItem>
     <TabItem label="C" value="c">
+使用客户端驱动访问 TDengine 集群的基本过程为：建立连接、查询和写入、关闭连接、清除资源。
+
+下面为建立连接的示例代码，其中省略了查询和写入部分，展示了如何建立连接、关闭连接以及清除资源。
+
+```c
+  TAOS *taos = taos_connect("localhost:6030", "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
+    exit(1);
+  }
+
+  /* put your code here for read and write */
+
+  taos_close(taos);
+  taos_cleanup();
+```
+
+在上面的示例代码中， `taos_connect()` 建立到客户端程序所在主机的 6030 端口的连接，`taos_close()`关闭当前连接，`taos_cleanup()`清除客户端驱动所申请和使用的资源。
+
+:::note
+
+- 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
+- 所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。
+
+:::
+
+
+
     </TabItem>
     <TabItem label="PHP" value="php">
     </TabItem>
