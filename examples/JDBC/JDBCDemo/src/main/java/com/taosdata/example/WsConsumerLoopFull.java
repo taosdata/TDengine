@@ -20,7 +20,7 @@ public class WsConsumerLoopFull {
     static private Statement statement;
 
     public static TaosConsumer<ResultBean> getConsumer() throws SQLException {
-// ANCHOR: create_consumer
+        // ANCHOR: create_consumer
         Properties config = new Properties();
         config.setProperty("td.connect.type", "ws");
         config.setProperty("bootstrap.servers", "localhost:6041");
@@ -38,14 +38,16 @@ public class WsConsumerLoopFull {
         try {
             return new TaosConsumer<>(config);
         } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed
+            // exceptions info
+            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers")
+                    + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create consumer", ex);
         } catch (Exception e) {
             e.printStackTrace();
             throw new SQLException("Failed to create consumer", e);
         }
-// ANCHOR_END: create_consumer
+        // ANCHOR_END: create_consumer
     }
 
     public static void pollDataExample() throws SQLException {
@@ -68,14 +70,16 @@ public class WsConsumerLoopFull {
             consumer.unsubscribe();
             System.out.println("unsubscribed topics successfully");
         } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed
+            // exceptions info
+            System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: "
+                    + ex.getMessage());
             throw new SQLException("Failed to poll data from topic_meters", ex);
         }
     }
 
     public static void pollExample() throws SQLException {
-// ANCHOR: poll_data_code_piece
+        // ANCHOR: poll_data_code_piece
         try (TaosConsumer<ResultBean> consumer = getConsumer()) {
             List<String> topics = Collections.singletonList("topic_meters");
 
@@ -93,15 +97,17 @@ public class WsConsumerLoopFull {
             }
 
         } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed
+            // exceptions info
+            System.out
+                    .println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to poll data", ex);
         }
-// ANCHOR_END: poll_data_code_piece
+        // ANCHOR_END: poll_data_code_piece
     }
 
     public static void seekExample() throws SQLException {
-// ANCHOR: consumer_seek
+        // ANCHOR: consumer_seek
         try (TaosConsumer<ResultBean> consumer = getConsumer()) {
             List<String> topics = Collections.singletonList("topic_meters");
 
@@ -123,7 +129,7 @@ public class WsConsumerLoopFull {
                 break;
             }
 
-            // poll data agagin
+            // poll data again
             records = consumer.poll(Duration.ofMillis(100));
             for (ConsumerRecord<ResultBean> record : records) {
                 // process the data here
@@ -131,16 +137,17 @@ public class WsConsumerLoopFull {
                 break;
             }
         } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed
+            // exceptions info
+            System.out
+                    .println("seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("seek example failed", ex);
         }
-// ANCHOR_END: consumer_seek
+        // ANCHOR_END: consumer_seek
     }
 
-
     public static void commitExample() throws SQLException {
-// ANCHOR: commit_code_piece
+        // ANCHOR: commit_code_piece
         try (TaosConsumer<ResultBean> consumer = getConsumer()) {
             List<String> topics = Collections.singletonList("topic_meters");
 
@@ -158,28 +165,32 @@ public class WsConsumerLoopFull {
                 }
             }
         } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to execute consumer functions. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed
+            // exceptions info
+            System.out.println("Failed to execute consumer functions. ErrCode:" + ex.getErrorCode() + "; ErrMessage: "
+                    + ex.getMessage());
             throw new SQLException("Failed to execute consumer functions", ex);
         }
-// ANCHOR_END: commit_code_piece
+        // ANCHOR_END: commit_code_piece
     }
 
     public static void unsubscribeExample() throws SQLException {
         TaosConsumer<ResultBean> consumer = getConsumer();
         List<String> topics = Collections.singletonList("topic_meters");
         consumer.subscribe(topics);
-// ANCHOR: unsubscribe_data_code_piece
+        // ANCHOR: unsubscribe_data_code_piece
         try {
             consumer.unsubscribe();
         } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed
+            // exceptions info
+            System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: "
+                    + ex.getMessage());
             throw new SQLException("Failed to unsubscribe consumer", ex);
         } finally {
             consumer.close();
         }
-// ANCHOR_END: unsubscribe_data_code_piece
+        // ANCHOR_END: unsubscribe_data_code_piece
     }
 
     public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
@@ -256,7 +267,8 @@ public class WsConsumerLoopFull {
             int affectedRows = statement.executeUpdate(insertQuery.toString());
             assert affectedRows == 10000;
         } catch (SQLException ex) {
-            System.out.println("Failed to insert data to power.meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to insert data to power.meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: "
+                    + ex.getMessage());
             throw new SQLException("Failed to insert data to power.meters", ex);
         }
     }
@@ -265,10 +277,13 @@ public class WsConsumerLoopFull {
         try {
             statement.executeUpdate("CREATE DATABASE IF NOT EXISTS power");
             statement.executeUpdate("USE power");
-            statement.executeUpdate("CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
-            statement.executeUpdate("CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters");
+            statement.executeUpdate(
+                    "CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
+            statement.executeUpdate(
+                    "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters");
         } catch (SQLException ex) {
-            System.out.println("Failed to create db and table, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println(
+                    "Failed to create db and table, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create db and table", ex);
         }
     }
@@ -282,13 +297,15 @@ public class WsConsumerLoopFull {
         try {
             connection = DriverManager.getConnection(url, properties);
         } catch (SQLException ex) {
-            System.out.println("Failed to create connection, url:" + url + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to create connection, url:" + url + "; ErrCode:" + ex.getErrorCode()
+                    + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create connection", ex);
         }
         try {
             statement = connection.createStatement();
         } catch (SQLException ex) {
-            System.out.println("Failed to create statement, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println(
+                    "Failed to create statement, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create statement", ex);
         }
         System.out.println("Connection created successfully.");
@@ -300,7 +317,8 @@ public class WsConsumerLoopFull {
                 statement.close();
             }
         } catch (SQLException ex) {
-            System.out.println("Failed to close statement, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println(
+                    "Failed to close statement, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to close statement", ex);
         }
 
@@ -309,12 +327,12 @@ public class WsConsumerLoopFull {
                 connection.close();
             }
         } catch (SQLException ex) {
-            System.out.println("Failed to close connection, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println(
+                    "Failed to close connection, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to close connection", ex);
         }
         System.out.println("Connection closed Successfully.");
     }
-
 
     public static void main(String[] args) throws SQLException {
         initConnection();
@@ -328,12 +346,13 @@ public class WsConsumerLoopFull {
             try {
                 // please use one example at a time
                 pollDataExample();
-//                seekExample();
-//                pollExample();
-//                commitExample();
+                // seekExample();
+                // pollExample();
+                // commitExample();
                 unsubscribeExample();
             } catch (SQLException ex) {
-                System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+                System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode()
+                        + "; ErrMessage: " + ex.getMessage());
             }
             System.out.println("pollDataExample executed successfully");
         });

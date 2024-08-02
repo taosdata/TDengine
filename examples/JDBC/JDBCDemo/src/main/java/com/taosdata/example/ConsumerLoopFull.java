@@ -120,7 +120,7 @@ public class ConsumerLoopFull {
                 break;
             }
 
-            // poll data agagin
+            // poll data again
             records = consumer.poll(Duration.ofMillis(100));
             for (ConsumerRecord<ResultBean> record : records) {
                 // process the data here
