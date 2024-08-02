@@ -13,12 +13,12 @@ import java.sql.Statement;
 public class SchemalessJniTest {
     private static final String host = "127.0.0.1";
     private static final String lineDemo = "meters,groupid=2,location=California.SanFrancisco current=10.3000002f64,voltage=219i32,phase=0.31f64 1626006833639";
-    private static final String telnetDemo = "stb0_0 1707095283260 4 host=host0 interface=eth0";
-    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
+    private static final String telnetDemo = "metric_telnet 1707095283260 4 host=host0 interface=eth0";
+    private static final String jsonDemo = "{\"metric\": \"metric_json\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
 
     public static void main(String[] args) throws SQLException {
-        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
-        try (Connection connection = DriverManager.getConnection(url)) {
+        final String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
             init(connection);
             AbstractConnection conn = connection.unwrap(AbstractConnection.class);
 
@@ -26,7 +26,8 @@ public class SchemalessJniTest {
             conn.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
             conn.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
         } catch (SQLException ex) {
-            System.out.println("SQLException: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to insert data with schemaless, host:" + host + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
         }
     }
 

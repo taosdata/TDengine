@@ -153,11 +153,16 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 ## 无模式写入示例
 下面以智能电表为例，介绍各语言连接器使用无模式写入接口写入数据的代码样例，包含了三种协议： InfluxDB 的行协议、OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议。  
 
+:::note
+- 因为无模式写入自动建表规则与之前执行 SQL 样例中不同，因此运行代码样例前请确保 `meters`、`metric_telnet` 和 `metric_json` 表不存在。 
+- OpenTSDB 的 TELNET 行协议和 OpenTSDB 的 JSON 格式协议只支持一个数据列，因此我们采用了其他示例。   
+
+:::
+
 ### Websocket 连接
 
 <Tabs defaultValue="java" groupId="schemaless">
 <TabItem value="java" label="Java">
-
 
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessWsTest.java:schemaless}}
@@ -190,9 +195,9 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ### 原生连接
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
-        ```java
-        {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessJniTest.java:schemaless}}
-        ```
+```java
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessJniTest.java:schemaless}}
+```
 
 执行带有 reqId 的无模式写入，此 reqId 可用于请求链路追踪。
 
@@ -200,6 +205,29 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
 ```
 
+    </TabItem>
+    <TabItem label="Python" value="python">
+   </TabItem>
+    <TabItem label="Go" value="go">
+    </TabItem>
+    <TabItem label="Rust" value="rust">
+    </TabItem>
+    <TabItem label="C#" value="csharp">
+    </TabItem>
+    <TabItem label="R" value="r">
+    </TabItem>
+    <TabItem label="C" value="c">
+    </TabItem>
+    <TabItem label="PHP" value="php">
+    </TabItem>
+
+</Tabs>
+
+
+### REST 连接
+<Tabs defaultValue="java" groupId="lang">
+    <TabItem label="Java" value="java">
+    不支持
     </TabItem>
     <TabItem label="Python" value="python">
    </TabItem>

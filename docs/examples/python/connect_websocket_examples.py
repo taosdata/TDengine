@@ -1,26 +1,53 @@
-# ANCHOR: connect
 import taosws
 
-conn = taosws.connect("taosws://root:taosdata@localhost:6041")
+def create_connection():
+    conn = None
+# ANCHOR: connect
+    try:
+        conn = taosws.connect(
+            user="root",
+            password="taosdata",
+            host="localhost",
+            port=6041,
+        )
+    except Exception as err:
+        print(f'Exception {err}')
 # ANCHOR_END: connect
+    return conn
 
-# ANCHOR: basic
-conn.execute("drop database if exists connwspy")
-conn.execute("create database if not exists connwspy wal_retention_period 3600 keep 36500 ")
-conn.execute("use connwspy")
-conn.execute("create table if not exists stb (ts timestamp, c1 int) tags (t1 int)")
-conn.execute("create table if not exists tb1 using stb tags (1)")
-conn.execute("insert into tb1 values (now, 1)")
-conn.execute("insert into tb1 values (now+1s, 2)")
-conn.execute("insert into tb1 values (now+2s, 3)")
+def create_db_table(conn):
+# ANCHOR: create_db
+    try:
+        conn.execute("CREATE DATABASE IF NOT EXISTS power")
+        conn.execute("USE power")
+        conn.execute("CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))")
+        conn.execute("CREATE TABLE `d0` USING `meters` TAGS(0, 'Los Angles')")
+    except Exception as err:
+        print(f'Exception {err}')
+# ANCHOR_END: create_db
 
-r = conn.execute("select * from stb")
-result = conn.query("select * from stb")
-num_of_fields = result.field_count
-print(num_of_fields)
+def insert(conn):    
+    sql = """
+    INSERT INTO 
+    power.d1001 USING power.meters TAGS('California.SanFrancisco', 2)
+        VALUES (NOW + 1a, 10.30000, 219, 0.31000) 
+        (NOW + 2a, 12.60000, 218, 0.33000) (NOW + 3a, 12.30000, 221, 0.31000)
+    power.d1002 USING power.meters TAGS('California.SanFrancisco', 3)
+        VALUES (NOW + 1a, 10.30000, 218, 0.25000)
+    """
+    try:
+        inserted = conn.execute(sql)
+        assert inserted == 8
+    except Exception as err:
+        print(f'Exception {err}')   
 
-for row in result:
-    print(row)
+def query(conn):
+    result = conn.query("select * from stb")
+    num_of_fields = result.field_count
+    print(num_of_fields)
+
+    for row in result:
+        print(row)
 
 # output:
 # 3

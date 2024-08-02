@@ -54,9 +54,9 @@ try (TaosConsumer<AbsConsumerLoop.ResultBean> consumer = new TaosConsumer<>(conf
         // you can handle data here
     }
 } catch (SQLException ex) {
-    // handle exception
-    System.out.println("SQLException: " + ex.getMessage());
-    throw new SQLException("Failed to create consumer", ex);
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Failed to execute consumer functions. server: " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+    throw new SQLException("Failed to execute consumer functions", ex);
 }
 // ANCHOR_END: consumer_seek
     }

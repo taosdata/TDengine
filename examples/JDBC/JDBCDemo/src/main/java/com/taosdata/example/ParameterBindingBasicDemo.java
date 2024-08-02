@@ -1,14 +1,12 @@
 package com.taosdata.example;
 
 import com.taosdata.jdbc.TSDBPreparedStatement;
-import com.taosdata.jdbc.utils.StringUtils;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 
 // ANCHOR: para_bind
@@ -46,22 +44,22 @@ public class ParameterBindingBasicDemo {
                     pstmt.setTimestamp(0, tsList);
 
                     // set column current
-                    ArrayList<Float> f1List = new ArrayList<>();
+                    ArrayList<Float> currentList = new ArrayList<>();
                     for (int j = 0; j < numOfRow; j++)
-                        f1List.add(random.nextFloat() * 30);
-                    pstmt.setFloat(1, f1List);
+                        currentList.add(random.nextFloat() * 30);
+                    pstmt.setFloat(1, currentList);
 
                     // set column voltage
-                    ArrayList<Integer> f2List = new ArrayList<>();
+                    ArrayList<Integer> voltageList = new ArrayList<>();
                     for (int j = 0; j < numOfRow; j++)
-                        f2List.add(random.nextInt(300));
-                    pstmt.setInt(2, f2List);
+                        voltageList.add(random.nextInt(300));
+                    pstmt.setInt(2, voltageList);
 
                     // set column phase
-                    ArrayList<Float> f3List = new ArrayList<>();
+                    ArrayList<Float> phaseList = new ArrayList<>();
                     for (int j = 0; j < numOfRow; j++)
-                        f3List.add(random.nextFloat());
-                    pstmt.setFloat(3, f3List);
+                        phaseList.add(random.nextFloat());
+                    pstmt.setFloat(3, phaseList);
                     // add column
                     pstmt.columnDataAddBatch();
                 }
@@ -69,8 +67,8 @@ public class ParameterBindingBasicDemo {
                 pstmt.columnDataExecuteBatch();
             }
         } catch (SQLException ex) {
-            // handle any errors
-            System.out.println("SQLException: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
         }
     }
 

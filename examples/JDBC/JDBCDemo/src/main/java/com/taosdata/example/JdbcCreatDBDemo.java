@@ -15,7 +15,7 @@ public class JdbcCreatDBDemo {
 
     public static void main(String[] args) throws SQLException {
 
-final String url = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
+final String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
 
 // get connection
 Properties properties = new Properties();
@@ -24,7 +24,7 @@ properties.setProperty("locale", "en_US.UTF-8");
 properties.setProperty("timezone", "UTC-8");
 System.out.println("get connection starting...");
 // ANCHOR: create_db_and_table
-try (Connection connection = DriverManager.getConnection(url, properties);
+try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
      Statement stmt = connection.createStatement()) {
 
     // create database
@@ -43,8 +43,8 @@ try (Connection connection = DriverManager.getConnection(url, properties);
     assert rowsAffected == 0;
 
 } catch (SQLException ex) {
-    // handle any errors
-    System.out.println("SQLException: " + ex.getMessage());
+    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+    System.out.println("Failed to create db and table, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
 }
 // ANCHOR_END: create_db_and_table
 

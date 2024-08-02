@@ -109,8 +109,9 @@ try (Statement statement = connection.createStatement();
 }
 // ANCHOR_END: jdbc_exception
         } catch (SQLException ex) {
-            // handle any errors
-            System.out.println("SQLException: " + ex.getMessage());
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Error Code: " + ex.getErrorCode());
+            System.out.println("Message: " + ex.getMessage());
         }
     }
 
