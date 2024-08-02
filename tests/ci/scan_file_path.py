@@ -62,11 +62,8 @@ os.makedirs(log_file_path, exist_ok=True)
 
 scan_log_file = f"{log_file_path}/scan.log"
 logger.add(scan_log_file, rotation="10MB", retention="7 days", level="DEBUG")
-# logging.basicConfig(level=logging.INFO,
-#                     format='%(asctime)s | %(levelname)s | %(name)s:%(lineno)d - %(message)s')
-# logger = logging.getLogger(__name__)
-
-print(self_path,work_path,TD_project_path,log_file_path,change_file_list)
+#if error happens, open this to debug
+# print(self_path,work_path,TD_project_path,log_file_path,change_file_list)
 
 # scan result base path
 scan_result_base_path = f"{log_file_path}/clang_scan_result/"
@@ -75,7 +72,9 @@ scan_result_base_path = f"{log_file_path}/clang_scan_result/"
 # the compile commands json file path
 # compile_commands_path = f"{work_path}/debugNoSan/compile_commands.json"
 compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
-print(f"compile_commands_path:{compile_commands_path}")
+
+#if error happens, open this to debug
+# print(f"compile_commands_path:{compile_commands_path}")
 
 # # replace the docerk worf path with real work path in compile_commands.json
 # docker_work_path = "home"
@@ -140,17 +139,14 @@ def input_files(change_files):
                         tdc_file_path = os.path.join(TD_project_path, "community/")
                         file_name = os.path.join(tdc_file_path, file_name)                    
                     all_file_path.append(file_name)
-                    print(f"all_file_path:{all_file_path}")
-    # for file_path in change_files:
-    #     if (file_path.endswith(".c") or file_path.endswith(".h") or file_path.endswith(".cpp")) and all(item not in file_path for item in scan_skip_file_list):
-    #         all_file_path.append(file_path)
+                    # print(f"all_file_path:{all_file_path}")
     logger.info("Found %s files" % len(all_file_path))
 file_res_path = ""
 
 def save_scan_res(res_base_path, file_path, out, err):
     global file_res_path
     file_res_path = os.path.join(res_base_path, file_path.replace(f"{work_path}", "").split(".")[0] + ".txt")
-    print(f"file_res_path:{file_res_path},res_base_path:{res_base_path},file_path:{file_path}")
+    # print(f"file_res_path:{file_res_path},res_base_path:{res_base_path},file_path:{file_path}")
     if not os.path.exists(os.path.dirname(file_res_path)):
         os.makedirs(os.path.dirname(file_res_path))
     logger.info("Save scan result to: %s" % file_res_path)
@@ -174,7 +170,7 @@ if __name__ == "__main__":
     # get all the c files path
     # scan_files_path(TD_project_path)
     input_files(change_file_list)
-    print(f"all_file_path:{all_file_path}")
+    # print(f"all_file_path:{all_file_path}")
     res = []
     web_path = []
     res.append(["scan_source_file", "scan_result_file", "match_num", "check_result"])
@@ -189,7 +185,8 @@ if __name__ == "__main__":
         print(f"cmd:{cmd}")
         try:
             stdout, stderr = command_executor.execute(cmd)
-            print(stderr)
+            #if "error" in stderr:
+            # print(stderr)
             lines = stdout.split("\n")
             if lines[-2].endswith("matches.") or lines[-2].endswith("match."): 
                 match_num = int(lines[-2].split(" ")[0])
