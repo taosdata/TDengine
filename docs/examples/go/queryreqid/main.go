@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	_ "github.com/taosdata/driver-go/v3/taosSql"
@@ -12,7 +13,7 @@ import (
 func main() {
 	db, err := sql.Open("taosSql", "root:taosdata@tcp(localhost:6030)/")
 	if err != nil {
-		panic(err)
+		log.Fatal("Open database error: ", err)
 	}
 	defer db.Close()
 	initEnv(db)
@@ -22,7 +23,7 @@ func main() {
 	// execute query with context
 	rows, err := db.QueryContext(ctx, "SELECT ts, current, location FROM power.meters limit 1")
 	if err != nil {
-		panic(err)
+		log.Fatal("Query error: ", err)
 	}
 	for rows.Next() {
 		var (
@@ -32,7 +33,7 @@ func main() {
 		)
 		err = rows.Scan(&ts, &current, &location)
 		if err != nil {
-			panic(err)
+			log.Fatal("Scan error: ", err)
 		}
 		fmt.Printf("ts: %s, current: %f, location: %s\n", ts, current, location)
 	}
@@ -42,14 +43,14 @@ func main() {
 func initEnv(conn *sql.DB) {
 	_, err := conn.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		panic(err)
+		log.Fatal("Create database error: ", err)
 	}
 	_, err = conn.Exec("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))")
 	if err != nil {
-		panic(err)
+		log.Fatal("Create table error: ", err)
 	}
 	_, err = conn.Exec("INSERT INTO power.d1001 USING power.meters TAGS (2, 'California.SanFrancisco') VALUES (NOW , 10.2, 219, 0.32)")
 	if err != nil {
-		panic(err)
+		log.Fatal("Insert data error: ", err)
 	}
 }
