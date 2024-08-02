@@ -13,9 +13,8 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 
 :::note
 
-REST 连接：各编程语言的连接器封装使用 `HTTP` 请求的连接，支持数据写入和查询操作。
-
-REST API：通过 `curl` 命令进行数据写入和查询操作。
+REST 连接：各编程语言的连接器封装使用 `HTTP` 请求的连接，支持数据写入和查询操作，开发者依然使用连接器提供的接口访问 `TDengine`。  
+REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据写入和查询操作。代码示例使用 `curl` 命令来演示。
 
 :::
 
@@ -68,15 +67,11 @@ REST API：通过 `curl` 命令进行数据写入和查询操作。
 {{#include docs/examples/csharp/wsInsert/Program.cs:create_db_and_table}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-</TabItem>
 <TabItem label="C" value="c">
 ```c
 {{#include docs/examples/c/CCreateDBDemo.c:create_db_and_table}}
 ```
 > **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 power.meters。
-</TabItem>
-<TabItem label="PHP" value="php">
 </TabItem>
 <TabItem label="REST API" value="rest">
 
@@ -149,8 +144,6 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 {{#include docs/examples/csharp/wsInsert/Program.cs:insert_data}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-</TabItem>
 <TabItem label="C" value="c">
 ```c
 {{#include docs/examples/c/CInsertDataDemo.c:insert_data}}
@@ -158,8 +151,6 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 
 **Note**
 NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
-</TabItem>
-<TabItem label="PHP" value="php">
 </TabItem>
 <TabItem label="REST API" value="rest">
 
@@ -222,14 +213,10 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 {{#include docs/examples/csharp/wsInsert/Program.cs:select_data}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-</TabItem>
 <TabItem label="C" value="c">
 ```c
 {{#include docs/examples/c/CQueryDataDemo.c:query_data}}
 ```
-</TabItem>
-<TabItem label="PHP" value="php">
 </TabItem>
 <TabItem label="REST API" value="rest">
 
@@ -288,14 +275,10 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 {{#include docs/examples/csharp/wsInsert/Program.cs:query_id}}
 ```
 </TabItem>
-<TabItem label="R" value="r">
-</TabItem>
 <TabItem label="C" value="c">
 ```c
 {{#include docs/examples/c/CWithReqIdDemo.c:with_reqid}}
 ```
-</TabItem>
-<TabItem label="PHP" value="php">
 </TabItem>
 <TabItem label="REST API" value="rest">
 

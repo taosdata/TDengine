@@ -35,7 +35,7 @@ async fn prepare(taos: Taos) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let dsn = "taos://localhost:6030";
+    let dsn = "ws://localhost:6041";
     let builder = TaosBuilder::from_dsn(dsn)?;
 
     let taos = builder.build().await?;
@@ -59,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     // subscribe
-    let tmq = TmqBuilder::from_dsn("taos://localhost:6030/?group.id=test")?;
+    let tmq = TmqBuilder::from_dsn("ws://localhost:6041/?group.id=test")?;
 
     let mut consumer = tmq.build().await?;
     consumer.subscribe(["tmq_meters"]).await?;

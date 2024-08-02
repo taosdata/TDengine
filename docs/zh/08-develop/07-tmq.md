@@ -91,13 +91,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 其他参数见上表。
 
 </TabItem>
-<TabItem label="R" value="r">
-
-</TabItem>
 <TabItem label="C" value="c">
-
-</TabItem>
-<TabItem label="PHP" value="php">
 
 </TabItem>
 </Tabs>
@@ -153,16 +147,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -212,17 +198,10 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ## 订阅消费数据
@@ -276,16 +255,8 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -320,17 +291,10 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ## 指定订阅的 Offset
@@ -390,17 +354,10 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ### 原生连接 
@@ -434,16 +391,8 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -499,18 +448,9 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>
 
 ### 原生连接 
@@ -549,18 +489,9 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>
 
 
@@ -611,16 +542,8 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
@@ -660,16 +583,8 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
@@ -703,7 +618,9 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+```rust
+{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs}}
+```
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -719,16 +636,8 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
@@ -763,7 +672,9 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+```rust
+{{#include docs/examples/rust/nativeexample/examples/subscribe_demo.rs}}
+```
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -776,16 +687,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="R" value="r">
-    
-</TabItem>
-
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>
