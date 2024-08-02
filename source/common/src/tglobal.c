@@ -1596,7 +1596,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     goto _exit;
   }
 
-  if ((code = taosInitLog(logname, logFileNum)) != 0) {
+  if ((code = taosInitLog(logname, logFileNum, tsc)) != 0) {
     printf("failed to init log file since %s\n", tstrerror(code));
     goto _exit;
   }
