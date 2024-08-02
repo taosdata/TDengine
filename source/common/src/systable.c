@@ -442,7 +442,8 @@ static const SSysDbTableSchema usageSchema[] = {
     {.name = "level3_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
     {.name = "s3_size",.bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
     {.name = "estimated_row_data_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
-    {.name = "total size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "total_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "timeseries", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
 };
 
 static const SSysTableMeta infosMeta[] = {

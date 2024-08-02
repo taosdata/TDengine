@@ -1956,6 +1956,11 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   totalSize += walSize;
 
 
+  int64_t timeserial = 100000;
+  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+  code = colDataSetVal(pColInfoData, numOfRows, (char*)&timeserial, false); // totoal size 
+  QUERY_CHECK_CODE(code, lino, _end);
+
   numOfRows +=1;
   pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
   pInfo->pCur = NULL;
