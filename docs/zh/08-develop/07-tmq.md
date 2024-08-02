@@ -46,7 +46,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 下面是各语言连接器创建参数：
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
-Java 连接器创建消费者的参数为 Properties， 可以设置的参数列表请参考 [API 说明](../../reference/connector/java/#消费者)  
+Java 连接器创建消费者的参数为 Properties， 可以设置的参数列表请参考 [消费者参数](../../reference/connector/java/#消费者)  
 其他参数请参考上文通用基础配置项。
 
 
@@ -56,23 +56,42 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 <TabItem label="Go" value="go">
 
+创建消费者支持属性列表：
+
+- `ws.url`：WebSocket 连接地址。
+- `ws.message.channelLen`：WebSocket 消息通道缓存长度，默认 0。
+- `ws.message.timeout`：WebSocket 消息超时时间，默认 5m。
+- `ws.message.writeWait`：WebSocket 写入消息超时时间，默认 10s。
+- `ws.message.enableCompression`：WebSocket 是否启用压缩，默认 false。
+- `ws.autoReconnect`：WebSocket 是否自动重连，默认 false。
+- `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
+- `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
+
+其他参数见上表。
+
 </TabItem>
 <TabItem label="Rust" value="rust">
+Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请参考 [DSN](../../reference/connector/rust/#dsn)  
+其他参数请参考上文通用基础配置项。
 
 </TabItem>
 <TabItem label="Node.js" value="node">
 
 </TabItem>
 <TabItem label="C#" value="csharp">
+创建消费者支持属性列表：
 
-</TabItem>
-<TabItem label="R" value="r">
+- `useSSL`：是否使用 SSL 连接，默认为 false。
+- `token`：连接 TDengine cloud 的 token。
+- `ws.message.enableCompression`：是否启用 WebSocket 压缩，默认为 false。
+- `ws.autoReconnect`：是否自动重连，默认为 false。
+- `ws.reconnect.retry.count`：重连次数，默认为 3。
+- `ws.reconnect.interval.ms`：重连间隔毫秒时间，默认为 2000。
+
+其他参数见上表。
 
 </TabItem>
 <TabItem label="C" value="c">
-
-</TabItem>
-<TabItem label="PHP" value="php">
 
 </TabItem>
 </Tabs>
@@ -97,31 +116,39 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:create_consumer_dsn}}
+```
+
+
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:create_consumer_ac}}
+```
 
 </TabItem>
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_example.js:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -149,28 +176,32 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+```rust
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer_dsn}}
+```
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer_ac}}
+```
 
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ## 订阅消费数据
@@ -197,31 +228,35 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:subscribe}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+消费者可订阅一个或多个 `TOPIC`，一般建议一个消费者只订阅一个 `TOPIC`。  
+TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) 类型，可以使用相应 API 对每个消息进行消费，并通过 `.commit` 进行已消费标记。
 
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:consume}}
+```
 </TabItem>
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_seek_example.js:subscribe}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:subscribe}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -241,28 +276,25 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:subscribe}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+同 Websocket 示例代码
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:subscribe}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ## 指定订阅的 Offset
@@ -275,6 +307,10 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_seek}}
 ```
+1. 使用 consumer.poll 方法轮询数据，直到获取到数据为止。
+2. 对于轮询到的第一批数据，打印第一条数据的内容，并获取当前消费者的分区分配信息。
+3. 使用 consumer.seekToBeginning 方法将所有分区的偏移量重置到开始位置，并打印成功重置的消息。
+4. 再次使用 consumer.poll 方法轮询数据，并打印第一条数据的内容。
 
 </TabItem>
 
@@ -286,32 +322,42 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:seek}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:seek_offset}}
+```
+
+1. 通过调用 consumer.assignments() 方法获取消费者当前的分区分配信息，并记录初始分配状态。  
+2. 遍历每个分区分配信息，对于每个分区：提取主题（topic）、消费组ID（vgroup_id）、当前偏移量（current）、起始偏移量（begin）和结束偏移量（end）。
+记录这些信息。  
+1. 调用 consumer.offset_seek 方法将偏移量设置到起始位置。如果操作失败，记录错误信息和当前分配状态。  
+2. 在所有分区的偏移量调整完成后，再次获取并记录消费者的分区分配信息，以确认偏移量调整后的状态。    
 
 </TabItem>
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_seek_example.js:offset}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:seek}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
 </Tabs>
 
 ### 原生连接 
@@ -330,27 +376,23 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:seek}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+同 Websocket 代码样例。
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:seek}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 </Tabs>
 
@@ -358,6 +400,9 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 ## 提交 Offset
 当消费者读取并处理完消息后，它可以提交 Offset，这表示消费者已经成功处理到这个 Offset 的消息。Offset 提交可以是自动的（根据配置定期提交）或手动的（应用程序控制何时提交）。   
 当创建消费者时，属性 `enable.auto.commit` 为 false 时，可以手动提交 offset。  
+
+**注意**：手工提交消费进度前确保消息正常处理完成，否则处理出错的消息不会被再次消费。自动提交是在本次 `poll` 消息时可能会提交上次消息的消费进度，因此请确保消息处理完毕再进行下一次 `poll` 或消息获取。
+
 ### Websocket 连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -377,33 +422,35 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:commit_offset}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+```rust
+{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs:consumer_commit_manually}}
+```
 
+可以通过 `consumer.commit` 方法来手工提交消费进度。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_example.js:commit}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:commit_offset}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>
 
 ### 原生连接 
@@ -423,11 +470,13 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:commit_offset}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+同 Websocket 代码样例。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -435,21 +484,14 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:commit_offset}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>
 
 
@@ -474,37 +516,40 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:close}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
+```
 
+**注意**：消费者取消订阅后无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_example.js:unsubscribe}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:close}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
 </TabItem>
 
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>
 
 ### 原生连接 
-<Tabs groupId="lang">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
 同 Websocket 代码样例。
@@ -519,11 +564,13 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:close}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+同 Websocket 代码样例。  
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -531,19 +578,13 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:close}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
@@ -571,31 +612,32 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+```rust
+{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs}}
+```
 </TabItem>
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_example.js}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
-</TabItem>
-
-<TabItem label="PHP" value="php">
-
 </TabItem>
 
 </Tabs>
@@ -624,11 +666,15 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-
+```rust
+{{#include docs/examples/rust/nativeexample/examples/subscribe_demo.rs}}
+```
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -636,19 +682,12 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
-</TabItem>
-
-<TabItem label="R" value="r">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs}}
+```
 </TabItem>
 
 <TabItem label="C" value="c">
     
 </TabItem>
-
-<TabItem label="PHP" value="php">
-
-</TabItem>
-
 </Tabs>

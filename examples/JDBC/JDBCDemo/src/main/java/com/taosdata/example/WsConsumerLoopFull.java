@@ -6,10 +6,7 @@ import com.taosdata.jdbc.tmq.*;
 
 import java.sql.*;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.List;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -18,37 +15,39 @@ import java.util.concurrent.TimeUnit;
 public class WsConsumerLoopFull {
     static private Connection connection;
     static private Statement statement;
-    public static TaosConsumer<ResultBean> getConsumer() throws SQLException{
+
+    public static TaosConsumer<ResultBean> getConsumer() throws SQLException {
 // ANCHOR: create_consumer
-Properties config = new Properties();
-config.setProperty("td.connect.type", "ws");
-config.setProperty("bootstrap.servers", "localhost:6041");
-config.setProperty("auto.offset.reset", "latest");
-config.setProperty("msg.with.table.name", "true");
-config.setProperty("enable.auto.commit", "true");
-config.setProperty("auto.commit.interval.ms", "1000");
-config.setProperty("group.id", "group1");
-config.setProperty("client.id", "client1");
-config.setProperty("td.connect.user", "root");
-config.setProperty("td.connect.pass", "taosdata");
-config.setProperty("value.deserializer", "com.taosdata.example.WsConsumerLoopFull$ResultDeserializer");
-config.setProperty("value.deserializer.encoding", "UTF-8");
+        Properties config = new Properties();
+        config.setProperty("td.connect.type", "ws");
+        config.setProperty("bootstrap.servers", "localhost:6041");
+        config.setProperty("auto.offset.reset", "latest");
+        config.setProperty("msg.with.table.name", "true");
+        config.setProperty("enable.auto.commit", "true");
+        config.setProperty("auto.commit.interval.ms", "1000");
+        config.setProperty("group.id", "group1");
+        config.setProperty("client.id", "1");
+        config.setProperty("td.connect.user", "root");
+        config.setProperty("td.connect.pass", "taosdata");
+        config.setProperty("value.deserializer", "com.taosdata.example.WsConsumerLoopFull$ResultDeserializer");
+        config.setProperty("value.deserializer.encoding", "UTF-8");
 
-try {
-        return new TaosConsumer<>(config);
-    } catch (SQLException ex) {
-        // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-        System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-        throw new SQLException("Failed to create consumer", ex);
-    } catch (Exception e) {
-        e.printStackTrace();
-        throw new SQLException("Failed to create consumer", e);
-    }
+        try {
+            return new TaosConsumer<>(config);
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to create consumer", ex);
+        } catch (Exception ex) {
+            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers")
+                    + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to create consumer", ex);
+        }
 // ANCHOR_END: create_consumer
-}
+    }
 
-    public static void pollDataExample() throws SQLException {
-        try (TaosConsumer<ResultBean> consumer = getConsumer()){
+    public static void pollDataExample(TaosConsumer<ResultBean> consumer) throws SQLException {
+        try{
             // subscribe to the topics
             List<String> topics = Collections.singletonList("topic_meters");
 
@@ -70,194 +69,199 @@ try {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to poll data from topic_meters", ex);
+        } catch (Exception ex) {
+            System.out.println("Failed to poll data from topic_meters; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to poll data from topic_meters", ex);
         }
     }
 
-    public static void pollExample() throws SQLException {
+    public static void pollExample(TaosConsumer<ResultBean> consumer) throws SQLException {
 // ANCHOR: poll_data_code_piece
-try (TaosConsumer<ResultBean> consumer = getConsumer()){
-    List<String> topics = Collections.singletonList("topic_meters");
+        try {
+            List<String> topics = Collections.singletonList("topic_meters");
 
-    // subscribe to the topics
-    consumer.subscribe(topics);
-    System.out.println("subscribe topics successfully");
-    for (int i = 0; i < 50; i++) {
-        // poll data
-        ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-        for (ConsumerRecord<ResultBean> record : records) {
-            ResultBean bean = record.value();
-            // process the data here
-            System.out.println("data: " + JSON.toJSONString(bean));
+            // subscribe to the topics
+            consumer.subscribe(topics);
+            System.out.println("subscribe topics successfully");
+            for (int i = 0; i < 50; i++) {
+                // poll data
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ConsumerRecord<ResultBean> record : records) {
+                    ResultBean bean = record.value();
+                    // process the data here
+                    System.out.println("data: " + JSON.toJSONString(bean));
+                }
+            }
+
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to poll data", ex);
+        } catch (Exception ex) {
+            System.out.println("Failed to poll data; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to poll data", ex);
         }
-    }
-
-} catch (SQLException ex) {
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-    throw new SQLException("Failed to poll data", ex);
-}
 // ANCHOR_END: poll_data_code_piece
     }
 
-    public static void seekExample() throws SQLException {
+    public static void seekExample(TaosConsumer<ResultBean> consumer) throws SQLException {
 // ANCHOR: consumer_seek
-try (TaosConsumer<ResultBean> consumer = getConsumer()){
-    List<String> topics = Collections.singletonList("topic_meters");
+        try {
+            List<String> topics = Collections.singletonList("topic_meters");
 
-    // subscribe to the topics
-    consumer.subscribe(topics);
-    System.out.println("subscribe topics successfully");
-    ConsumerRecords<ResultBean> records = ConsumerRecords.emptyRecord();
-    // make sure we have got some data
-    while (records.isEmpty()){
-        records = consumer.poll(Duration.ofMillis(100));
-    }
+            // subscribe to the topics
+            consumer.subscribe(topics);
+            System.out.println("subscribe topics successfully");
+            Set<TopicPartition> assignment = consumer.assignment();
+            System.out.println("now assignment: " + JSON.toJSONString(assignment));
 
-    for (ConsumerRecord<ResultBean> record : records) {
-        System.out.println("first data polled: " + JSON.toJSONString(record.value()));
-        Set<TopicPartition> assignment = consumer.assignment();
-        // seek to the beginning of the all partitions
-        consumer.seekToBeginning(assignment);
-        System.out.println("assignment seek to beginning successfully");
-        break;
-    }
+            ConsumerRecords<ResultBean> records = ConsumerRecords.emptyRecord();
+            // make sure we have got some data
+            while (records.isEmpty()) {
+                records = consumer.poll(Duration.ofMillis(100));
+            }
 
-    // poll data agagin
-    records = consumer.poll(Duration.ofMillis(100));
-    for (ConsumerRecord<ResultBean> record : records) {
-        // process the data here
-        System.out.println("second data polled: " + JSON.toJSONString(record.value()));
-        break;
-    }
-} catch (SQLException ex) {
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-    throw new SQLException("seek example failed", ex);
-}
+            consumer.seekToBeginning(assignment);
+            System.out.println("assignment seek to beginning successfully");
+            System.out.println("beginning assignment: " + JSON.toJSONString(assignment));
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("seek example failed", ex);
+        } catch (Exception ex) {
+            System.out.println("seek example failed; ErrMessage: " + ex.getMessage());
+            throw new SQLException("seek example failed", ex);
+        }
 // ANCHOR_END: consumer_seek
     }
 
 
-    public static void commitExample() throws SQLException {
+    public static void commitExample(TaosConsumer<ResultBean> consumer) throws SQLException {
 // ANCHOR: commit_code_piece
-try (TaosConsumer<ResultBean> consumer = getConsumer()){
-    List<String> topics = Collections.singletonList("topic_meters");
+        try {
+            List<String> topics = Collections.singletonList("topic_meters");
 
-    consumer.subscribe(topics);
-    for (int i = 0; i < 50; i++) {
-        ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-        for (ConsumerRecord<ResultBean> record : records) {
-            ResultBean bean = record.value();
-            // process your data here
-            System.out.println("data: " + JSON.toJSONString(bean));
+            consumer.subscribe(topics);
+            for (int i = 0; i < 50; i++) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ConsumerRecord<ResultBean> record : records) {
+                    ResultBean bean = record.value();
+                    // process your data here
+                    System.out.println("data: " + JSON.toJSONString(bean));
+                }
+                if (!records.isEmpty()) {
+                    // after processing the data, commit the offset manually
+                    consumer.commitSync();
+                }
+            }
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to execute consumer functions. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to execute consumer functions", ex);
+        } catch (Exception ex) {
+            System.out.println("Failed to execute consumer functions. ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to execute consumer functions", ex);
         }
-        if (!records.isEmpty()) {
-            // after processing the data, commit the offset manually
-            consumer.commitSync();
-        }
-    }
-} catch (SQLException ex){
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Failed to execute consumer functions. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-    throw new SQLException("Failed to execute consumer functions", ex);
-}
 // ANCHOR_END: commit_code_piece
     }
-    public static void unsubscribeExample() throws SQLException {
-        TaosConsumer<ResultBean> consumer = getConsumer();
+
+    public static void unsubscribeExample(TaosConsumer<ResultBean> consumer) throws SQLException {
         List<String> topics = Collections.singletonList("topic_meters");
         consumer.subscribe(topics);
 // ANCHOR: unsubscribe_data_code_piece
-try {
-    consumer.unsubscribe();
-} catch (SQLException ex){
-    // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-    System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-    throw new SQLException("Failed to unsubscribe consumer", ex);
-} finally {
-    consumer.close();
-}
+        try {
+            consumer.unsubscribe();
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to unsubscribe consumer", ex);
+        } catch (Exception ex) {
+            System.out.println("Failed to unsubscribe consumer. ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to unsubscribe consumer", ex);
+        }
+        finally {
+            consumer.close();
+        }
 // ANCHOR_END: unsubscribe_data_code_piece
     }
 
-public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+    public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
 
-}
-// use this class to define the data structure of the result record
-public static class ResultBean {
-    private Timestamp ts;
-    private double current;
-    private int voltage;
-    private double phase;
-    private int groupid;
-    private String location;
-
-    public Timestamp getTs() {
-        return ts;
     }
 
-    public void setTs(Timestamp ts) {
-        this.ts = ts;
-    }
+    // use this class to define the data structure of the result record
+    public static class ResultBean {
+        private Timestamp ts;
+        private double current;
+        private int voltage;
+        private double phase;
+        private int groupid;
+        private String location;
 
-    public double getCurrent() {
-        return current;
-    }
-
-    public void setCurrent(double current) {
-        this.current = current;
-    }
-
-    public int getVoltage() {
-        return voltage;
-    }
-
-    public void setVoltage(int voltage) {
-        this.voltage = voltage;
-    }
-
-    public double getPhase() {
-        return phase;
-    }
-
-    public void setPhase(double phase) {
-        this.phase = phase;
-    }
-
-    public int getGroupid() {
-        return groupid;
-    }
-
-    public void setGroupid(int groupid) {
-        this.groupid = groupid;
-    }
-
-    public String getLocation() {
-        return location;
-    }
-
-    public void setLocation(String location) {
-        this.location = location;
-    }
-}
-
-    public static void prepareData() throws SQLException{
-        StringBuilder insertQuery = new StringBuilder();
-        insertQuery.append("INSERT INTO " +
-                "power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') " +
-                "VALUES ");
-        for (int i = 0; i < 10000; i++){
-            insertQuery.append("(NOW + ").append(i).append("a, 10.30000, 219, 0.31000) ");
+        public Timestamp getTs() {
+            return ts;
         }
+
+        public void setTs(Timestamp ts) {
+            this.ts = ts;
+        }
+
+        public double getCurrent() {
+            return current;
+        }
+
+        public void setCurrent(double current) {
+            this.current = current;
+        }
+
+        public int getVoltage() {
+            return voltage;
+        }
+
+        public void setVoltage(int voltage) {
+            this.voltage = voltage;
+        }
+
+        public double getPhase() {
+            return phase;
+        }
+
+        public void setPhase(double phase) {
+            this.phase = phase;
+        }
+
+        public int getGroupid() {
+            return groupid;
+        }
+
+        public void setGroupid(int groupid) {
+            this.groupid = groupid;
+        }
+
+        public String getLocation() {
+            return location;
+        }
+
+        public void setLocation(String location) {
+            this.location = location;
+        }
+    }
+
+    public static void prepareData() throws SQLException, InterruptedException {
         try {
-            int affectedRows = statement.executeUpdate(insertQuery.toString());
-            assert affectedRows == 10000;
+            for (int i = 0; i < 3000; i++) {
+                String insertQuery = "INSERT INTO power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') VALUES (NOW + " + i + "a, 10.30000, 219, 0.31000) ";
+                int affectedRows = statement.executeUpdate(insertQuery);
+                assert affectedRows == 1;
+                Thread.sleep(1);
+            }
         } catch (SQLException ex) {
             System.out.println("Failed to insert data to power.meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to insert data to power.meters", ex);
         }
     }
-    public static void prepareMeta() throws SQLException{
+
+    public static void prepareMeta() throws SQLException {
         try {
             statement.executeUpdate("CREATE DATABASE IF NOT EXISTS power");
             statement.executeUpdate("USE power");
@@ -289,6 +293,7 @@ public static class ResultBean {
         }
         System.out.println("Connection created successfully.");
     }
+
     public static void closeConnection() throws SQLException {
         try {
             if (statement != null) {
@@ -311,7 +316,7 @@ public static class ResultBean {
     }
 
 
-    public static void main(String[] args) throws SQLException {
+    public static void main(String[] args) throws SQLException, InterruptedException {
         initConnection();
         prepareMeta();
 
@@ -322,13 +327,22 @@ public static class ResultBean {
         executor.submit(() -> {
             try {
                 // please use one example at a time
-                pollDataExample();
-//                seekExample();
-//                pollExample();
-//                commitExample();
-                unsubscribeExample();
+                TaosConsumer<ResultBean> consumer = getConsumer();
+
+                pollDataExample(consumer);
+                seekExample(consumer);
+                consumer.unsubscribe();
+                pollExample(consumer);
+                consumer.unsubscribe();
+                commitExample(consumer);
+                consumer.unsubscribe();
+                unsubscribeExample(consumer);
             } catch (SQLException ex) {
                 System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+                return;
+            } catch (Exception ex) {
+                System.out.println("Failed to poll data from topic_meters, ErrMessage: " + ex.getMessage());
+                return;
             }
             System.out.println("pollDataExample executed successfully");
         });
@@ -338,16 +352,16 @@ public static class ResultBean {
 
         System.out.println("Data prepared successfully");
 
-        // 关闭线程池，不再接收新任务
+        // close the executor, which will make the executor reject new tasks
         executor.shutdown();
 
         try {
-            // 等待直到所有任务完成
+            // wait for the executor to terminate
             boolean result = executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
             assert result;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             System.out.println("Wait executor termination failed.");
         }

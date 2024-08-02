@@ -39,27 +39,29 @@ import TabItem from "@theme/TabItem";
     ```
 </TabItem>
 <TabItem label="Go" value="go">
-
+```go
+{{#include docs/examples/go/stmt/ws/main.go}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/restexample/examples/stmt.rs}}
+```
 
 </TabItem>
 <TabItem label="Node.js" value="node">
 
-    ```js
-        {{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
-    ```
+```js
+    {{#include docs/examples/node/websocketexample/stmt_example.js:createConnect}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
-
-</TabItem>
-<TabItem label="R" value="r">
-
+```csharp
+{{#include docs/examples/csharp/wsStmt/Program.cs:main}}
+```
 </TabItem>
 <TabItem label="C" value="c">
-
-</TabItem>
-<TabItem label="PHP" value="php">
 
 </TabItem>
 </Tabs>
@@ -79,22 +81,22 @@ import TabItem from "@theme/TabItem";
 
 </TabItem>
 <TabItem label="Go" value="go">
-
+```go
+{{#include docs/examples/go/stmt/native/main.go}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
-
+除 DSN 不同，其余同 Websocket 代码示例。
 </TabItem>
 <TabItem label="C#" value="csharp">
-
-</TabItem>
-<TabItem label="R" value="r">
-
+```csharp
+{{#include docs/examples/csharp/stmtInsert/Program.cs:main}}
+```
 </TabItem>
 <TabItem label="C" value="c">
-
-</TabItem>
-<TabItem label="PHP" value="php">
-
+```c
+{{#include docs/examples/c/CStmtInsertDemo.c}}
+```
 </TabItem>
 
 </Tabs>

@@ -11,20 +11,21 @@ async fn main() -> anyhow::Result<()> {
     let db = "power";
     // create database
     taos.exec_many([
-        format!("DROP DATABASE IF EXISTS `{db}`"),
-        format!("CREATE DATABASE `{db}`"),
+        format!("CREATE DATABASE IF NOT EXISTS `{db}`"),
         format!("USE `{db}`"),
     ])
     .await?;
+    println!("Create database power successfully.");
 
-    // create table
+    // create super table
     taos.exec_many([
-        // create super table
         "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) \
-         TAGS (`groupid` INT, `location` BINARY(24))",
+            TAGS (`groupid` INT, `location` BINARY(24))",
     ]).await?;
+    println!("Create stable meters successfully.");
+
     // ANCHOR_END: create_db_and_table
-    
+
     // ANCHOR: insert_data
     let inserted = taos.exec("INSERT INTO " +
     "power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') " +
@@ -36,11 +37,12 @@ async fn main() -> anyhow::Result<()> {
     "VALUES " +
     "(NOW + 1a, 10.30000, 218, 0.25000) ").await?;
 
-    println!("inserted: {} rows", inserted);
+    println!("inserted: {} rows to power.meters successfully.", inserted);
     // ANCHOR_END: insert_data
 
     // ANCHOR: query_data
-    let mut result = taos.query("SELECT * FROM power.meters").await?;
+    // query data, make sure the database and table are created before
+    let mut result = taos.query("SELECT ts, current, location FROM power.meters limit 100").await?;
 
     for field in result.fields() {
         println!("got field: {}", field.name());
@@ -60,7 +62,6 @@ async fn main() -> anyhow::Result<()> {
     // ANCHOR_END: query_data
 
     // ANCHOR: query_with_req_id
-    let result = taos.query_with_req_id("SELECT * FROM power.meters", 0).await?;
+    let result = taos.query_with_req_id("SELECT ts, current, location FROM power.meters limit 1", 1).await?;
     // ANCHOR_END: query_with_req_id
-
 }

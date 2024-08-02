@@ -17,8 +17,6 @@ async fn put() -> anyhow::Result<()> {
 
     let db = "power";
 
-    client.exec(format!("drop database if exists {db}")).await?;
-
     client
         .exec(format!("create database if not exists {db}"))
         .await?;
@@ -44,7 +42,7 @@ async fn put() -> anyhow::Result<()> {
 
     // SchemalessProtocol::Telnet
     let data = [
-        "meters.current 1648432611249 10.3 location=California.SanFrancisco group=2",
+        "metric_telnet 1648432611249 10.3 location=California.SanFrancisco group=2",
     ]
     .map(String::from)
     .to_vec();
@@ -60,7 +58,7 @@ async fn put() -> anyhow::Result<()> {
 
     // SchemalessProtocol::Json
     let data = [
-        r#"[{"metric": "meters.current", "timestamp": 1681345954000, "value": 10.3, "tags": {"location": "California.SanFrancisco", "groupid": 2}}, {"metric": "meters.voltage", "timestamp": 1648432611249, "value": 219, "tags": {"location": "California.LosAngeles", "groupid": 1}}, {"metric": "meters.current", "timestamp": 1648432611250, "value": 12.6, "tags": {"location": "California.SanFrancisco", "groupid": 2}}, {"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "California.LosAngeles", "groupid": 1}}]"#
+        r#"[{"metric": "metric_json", "timestamp": 1681345954000, "value": 10.3, "tags": {"location": "California.SanFrancisco", "groupid": 2}}, {"metric": "meters.voltage", "timestamp": 1648432611249, "value": 219, "tags": {"location": "California.LosAngeles", "groupid": 1}}, {"metric": "meters.current", "timestamp": 1648432611250, "value": 12.6, "tags": {"location": "California.SanFrancisco", "groupid": 2}}, {"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "California.LosAngeles", "groupid": 1}}]"#
     ]
     .map(String::from)
     .to_vec();
@@ -73,8 +71,6 @@ async fn put() -> anyhow::Result<()> {
         .req_id(300u64)
         .build()?;
     assert_eq!(client.put(&sml_data).await?, ());
-
-    client.exec(format!("drop database if exists {db}")).await?;
 
     Ok(())
 }

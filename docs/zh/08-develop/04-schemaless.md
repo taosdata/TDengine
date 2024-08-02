@@ -161,7 +161,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 
 ### Websocket 连接
 
-<Tabs defaultValue="java" groupId="schemaless">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
 ```java
@@ -179,16 +179,28 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 <TabItem label="Python" value="python">
 </TabItem>
 <TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/schemaless/ws/main.go}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/restexample/examples/schemaless.rs}}
+```
+
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/line_example.js}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
-</TabItem>
-<TabItem label="R" value="r">
+```csharp
+{{#include docs/examples/csharp/wssml/Program.cs:main}}
+```
 </TabItem>
 <TabItem label="C" value="c">
-</TabItem>
-<TabItem label="PHP" value="php">
 </TabItem>
 </Tabs>
 
@@ -205,21 +217,27 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
 ```
 
-    </TabItem>
-    <TabItem label="Python" value="python">
-   </TabItem>
-    <TabItem label="Go" value="go">
-    </TabItem>
-    <TabItem label="Rust" value="rust">
-    </TabItem>
-    <TabItem label="C#" value="csharp">
-    </TabItem>
-    <TabItem label="R" value="r">
-    </TabItem>
-    <TabItem label="C" value="c">
-    </TabItem>
-    <TabItem label="PHP" value="php">
-    </TabItem>
+</TabItem>
+<TabItem label="Python" value="python">
+</TabItem>
+<TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/schemaless/native/main.go}}
+```
+</TabItem>
+<TabItem label="Rust" value="rust">
+除 DSN 不同，其余同 Websocket 代码示例。  
+</TabItem>
+<TabItem label="C#" value="csharp">
+```csharp
+{{#include docs/examples/csharp/nativesml/Program.cs:main}}
+```
+</TabItem>
+<TabItem label="C" value="c">
+```c
+{{#include docs/examples/c/CSmlInsertDemo.c:schemaless}}
+```
+</TabItem>
 
 </Tabs>
 
@@ -232,16 +250,15 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
     <TabItem label="Python" value="python">
    </TabItem>
     <TabItem label="Go" value="go">
+    不支持
     </TabItem>
     <TabItem label="Rust" value="rust">
+    不支持
     </TabItem>
     <TabItem label="C#" value="csharp">
-    </TabItem>
-    <TabItem label="R" value="r">
+    不支持
     </TabItem>
     <TabItem label="C" value="c">
-    </TabItem>
-    <TabItem label="PHP" value="php">
     </TabItem>
 
 </Tabs>
