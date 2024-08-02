@@ -56,6 +56,19 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 <TabItem label="Go" value="go">
 
+创建消费者支持属性列表：
+
+- `ws.url`：WebSocket 连接地址。
+- `ws.message.channelLen`：WebSocket 消息通道缓存长度，默认 0。
+- `ws.message.timeout`：WebSocket 消息超时时间，默认 5m。
+- `ws.message.writeWait`：WebSocket 写入消息超时时间，默认 10s。
+- `ws.message.enableCompression`：WebSocket 是否启用压缩，默认 false。
+- `ws.autoReconnect`：WebSocket 是否自动重连，默认 false。
+- `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
+- `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
+
+其他参数见上表。
+
 </TabItem>
 <TabItem label="Rust" value="rust">
 Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请参考 [DSN](../../reference/connector/rust/#dsn)  
@@ -66,6 +79,16 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 </TabItem>
 <TabItem label="C#" value="csharp">
+创建消费者支持属性列表：
+
+- `useSSL`：是否使用 SSL 连接，默认为 false。
+- `token`：连接 TDengine cloud 的 token。
+- `ws.message.enableCompression`：是否启用 WebSocket 压缩，默认为 false。
+- `ws.autoReconnect`：是否自动重连，默认为 false。
+- `ws.reconnect.retry.count`：重连次数，默认为 3。
+- `ws.reconnect.interval.ms`：重连间隔毫秒时间，默认为 2000。
+
+其他参数见上表。
 
 </TabItem>
 <TabItem label="R" value="r">
@@ -99,7 +122,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -117,7 +142,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -157,7 +184,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -165,7 +194,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -205,7 +236,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:subscribe}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -217,7 +250,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:subscribe}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -249,7 +284,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:subscribe}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -257,7 +294,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:subscribe}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -294,7 +333,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:seek}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -306,7 +347,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:seek}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -338,7 +381,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:seek}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -346,7 +391,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:seek}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -385,7 +432,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:commit_offset}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -397,7 +446,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:commit_offset}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -431,7 +482,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:commit_offset}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -443,7 +496,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:commit_offset}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -482,7 +537,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go:close}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -494,7 +551,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs:close}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -512,7 +571,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </Tabs>
 
 ### 原生连接 
-<Tabs groupId="lang">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
 同 Websocket 代码样例。
@@ -527,7 +586,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go:close}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -539,7 +600,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs:close}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -579,7 +642,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/ws/main.go}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -591,7 +656,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/wssubscribe/Program.cs}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">
@@ -632,7 +699,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Go" value="go">
-   
+```go
+{{#include docs/examples/go/tmq/native/main.go}}
+```
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -644,7 +713,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="C#" value="csharp">
-    
+```csharp
+{{#include docs/examples/csharp/subscribe/Program.cs}}
+```
 </TabItem>
 
 <TabItem label="R" value="r">

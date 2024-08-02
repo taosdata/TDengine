@@ -179,6 +179,9 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 <TabItem label="Python" value="python">
 </TabItem>
 <TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/schemaless/ws/main.go}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
 
@@ -188,6 +191,9 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 </TabItem>
 <TabItem label="C#" value="csharp">
+```csharp
+{{#include docs/examples/csharp/wssml/Program.cs:main}}
+```
 </TabItem>
 <TabItem label="R" value="r">
 </TabItem>
@@ -210,22 +216,25 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
 ```
 
-    </TabItem>
-    <TabItem label="Python" value="python">
-   </TabItem>
-    <TabItem label="Go" value="go">
-    </TabItem>
-    <TabItem label="Rust" value="rust">
+</TabItem>
+<TabItem label="Python" value="python">
+</TabItem>
+<TabItem label="Go" value="go">
+</TabItem>
+<TabItem label="Rust" value="rust">
 除 DSN 不同，其余同 Websocket 代码示例。  
-    </TabItem>
-    <TabItem label="C#" value="csharp">
-    </TabItem>
-    <TabItem label="R" value="r">
-    </TabItem>
-    <TabItem label="C" value="c">
-    </TabItem>
-    <TabItem label="PHP" value="php">
-    </TabItem>
+</TabItem>
+<TabItem label="C#" value="csharp">
+```csharp
+{{#include docs/examples/csharp/nativesml/Program.cs:main}}
+```
+</TabItem>
+<TabItem label="R" value="r">
+</TabItem>
+<TabItem label="C" value="c">
+</TabItem>
+<TabItem label="PHP" value="php">
+</TabItem>
 
 </Tabs>
 
@@ -238,11 +247,15 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
     <TabItem label="Python" value="python">
    </TabItem>
     <TabItem label="Go" value="go">
+    ```go
+    {{#include docs/examples/go/schemaless/native/main.go}}
+    ```
     </TabItem>
     <TabItem label="Rust" value="rust">
     不支持
     </TabItem>
     <TabItem label="C#" value="csharp">
+    不支持
     </TabItem>
     <TabItem label="R" value="r">
     </TabItem>
