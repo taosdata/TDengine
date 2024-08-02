@@ -39,7 +39,9 @@ import TabItem from "@theme/TabItem";
     ```
 </TabItem>
 <TabItem label="Go" value="go">
-
+```go
+{{#include docs/examples/go/stmt/ws/main.go}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
 
@@ -55,7 +57,9 @@ import TabItem from "@theme/TabItem";
     ```
 </TabItem>
 <TabItem label="C#" value="csharp">
-
+```csharp
+{{#include docs/examples/csharp/wsStmt/Program.cs:main}}
+```
 </TabItem>
 <TabItem label="R" value="r">
 
@@ -83,13 +87,17 @@ import TabItem from "@theme/TabItem";
 
 </TabItem>
 <TabItem label="Go" value="go">
-
+```go
+{{#include docs/examples/go/stmt/native/main.go}}
+```
 </TabItem>
 <TabItem label="Rust" value="rust">
 除 DSN 不同，其余同 Websocket 代码示例。
 </TabItem>
 <TabItem label="C#" value="csharp">
-
+```csharp
+{{#include docs/examples/csharp/stmtInsert/Program.cs:main}}
+```
 </TabItem>
 <TabItem label="R" value="r">
 
