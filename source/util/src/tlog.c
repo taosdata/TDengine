@@ -135,7 +135,6 @@ static int32_t   taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t m
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosInitNormalLog(const char *fn, int32_t maxFileNum);
-static void backUpSlowLog();
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
   (void)taosThreadAttrInit(&threadAttr);
