@@ -249,6 +249,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_seek_example.js:subscribe}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
@@ -346,6 +349,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_seek_example.js:offset}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
@@ -445,6 +451,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_example.js:commit}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
@@ -550,6 +559,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_example.js:unsubscribe}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
@@ -655,6 +667,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_example.js}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
