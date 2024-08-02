@@ -361,18 +361,19 @@ function handleOptions(options, paramsConfig, id) {
     paramsConfig[0].type = 'grouping'
     paramsConfig[0].children = options.params.map((param, index) => {
       const keys = Object.keys(param);
+      let uid = uuid()
       keys.forEach(key => {
         const { display, description, placeholder, required, value, pattern, patternMsg } = param[key]
         param[key] = {
           label: display,
           description,
-          field: key + '_' + index,
+          field: key + '_' + uid,
           placeholder,
           required: !index ? required: false,
           pattern: pattern || null,
           patternMsg,
           defaultValue: value ?? '',
-          value,
+          // value,
         }
         handleHintType(param[key], param[key]?.hint);
       })
@@ -1136,8 +1137,8 @@ export function generateFormInitData(paramsConfig) {
       }
       if (item.type === 'grouping') {
         item.children.forEach(child => {
-          data[item.field][child.host.field]= child.host.value ?? ''
-          data[item.field][child.port.field]= child.port.value ?? ''
+          data[item.field][child.host.field]= child.host.defaultValue ?? ''
+          data[item.field][child.port.field]= child.port.defaultValue ?? ''
         }) 
       }
 
