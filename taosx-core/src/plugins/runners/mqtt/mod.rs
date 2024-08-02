@@ -171,6 +171,9 @@ pub async fn mqtt_to_taos(
         loop {
             // Read a line from stderr
             let bytes_read = reader.read_line(&mut line).await?;
+            if bytes_read == 0 {
+                break;
+            }
             if line.contains("fatal") {
                 use ringbuf::Rb;
                 let mut guard = error_buf_producer.lock().await;
@@ -179,10 +182,8 @@ pub async fn mqtt_to_taos(
             if line.contains(r#""stop server""#) {
                 is_killed_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             }
-            if bytes_read > 0 {
-                // Write the line to log_rotation
-                write!(log_rotation, "{}", line)?;
-            }
+            // Write the line to log_rotation
+            write!(log_rotation, "{}", line)?;
             line.clear();
         }
         #[allow(unreachable_code)]

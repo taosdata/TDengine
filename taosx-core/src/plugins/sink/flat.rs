@@ -31,7 +31,10 @@ use crate::{
     plugins::transform::MessageArrowRecords,
     sink::{consume_flat_record, DEFAULT_MAX_RETRIES_FOR_CONNECTION},
     utils::{
-        sql::values_to_sqls,
+        sql::{
+            describe_table_with_connection_retries, exec_sql_with_connection_retries,
+            values_to_sqls,
+        },
         trace::{RequestID, TraceDataId, TraceStreamId},
     },
     Parser,
@@ -138,38 +141,24 @@ async fn assert_create_stable(
     sql: &str,
     req_id: &RequestID,
 ) -> Result<(), FlatWriteError> {
-    let mut write_retries = 0;
-    loop {
-        if let Err(err) = taos
-            .as_ref()
-            .unwrap()
-            .exec_with_req_id(sql, req_id.next())
-            .await
-        {
+    match exec_sql_with_connection_retries(
+        pool,
+        taos,
+        sql,
+        req_id.next(),
+        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+    )
+    .await
+    {
+        Ok(_) => Ok(()),
+        Err(err) => {
             let code = err.code();
             let errno: i32 = code.into();
-            write_retries += 1;
-            tracing::warn!(sql = sql, "Exec SQL error: {err:#}");
-            if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                // counter!(METRIC_STABLE_CREATED, 1);
-                // TODO: add metrics
-                break Err(err)
-                    .context("Exec SQL error: Retries exceeded")
-                    .map_err(Into::into);
-            }
+            tracing::warn!(sql, "Exec SQL error: {err:#}");
             match errno {
-                0x032C | 0x0603 | 0x03C7 | 0x03D3 | 0x0360 => {
-                    break Ok(());
-                }
-                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
-                    taos.replace(pool.get().await?);
-                }
-                _ => {
-                    break Err(err).context("Create stable error").map_err(Into::into);
-                }
+                0x032C | 0x0603 | 0x03C7 | 0x03D3 | 0x0360 => Ok(()),
+                _ => Err(err).context("Create stable error").map_err(Into::into),
             }
-        } else {
-            break Ok(());
         }
     }
 }
@@ -179,125 +168,49 @@ lazy_static! {
         regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap();
 }
 
-/// TODO: maybe helpful for refactor
-#[allow(dead_code)]
-async fn assert_exec_sql(
-    pool: &TaosPool,
-    taos: &mut Option<TaosConnection>,
-    sql: &str,
-    req_id: &RequestID,
-) -> Result<(), FlatWriteError> {
-    let mut write_retries = 0;
-    loop {
-        if let Err(err) = taos
-            .as_ref()
-            .unwrap()
-            .exec_with_req_id(sql, req_id.next())
-            .await
-        {
-            let code = err.code();
-            let errno: i32 = code.into();
-            write_retries += 1;
-            tracing::warn!(sql = sql, "Exec SQL error: {err:#}");
-            if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                // counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
-                // TODO: add metrics
-                break Err(err)
-                    .context("Exec SQL error: Retries exceeded")
-                    .map_err(Into::into);
-            }
-            match errno {
-                0x2603 | 0x0618 => {
-                    // stable not exists
-                    break Err(FlatWriteError::TableNotExits("unknown".to_string()));
-                }
-                0x2653 => {
-                    // Value too long for column/tag
-                    let message = err.message();
-                    if let Some(caps) = RE_0X2653.captures(&message) {
-                        let field = caps.get(1).unwrap().as_str();
-                        break Err(FlatWriteError::ContainerLengthTooShort(field.to_string()));
-                    }
-                    break Err(err).map_err(Into::into);
-                }
-                // 0x2605 => {
-                //     // container length is too short.
-                //     // break Err(FlatWriteError::ContainerLengthTooShort(err));
-                // }
-                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
-                    taos.replace(pool.get().await?);
-                }
-                _ => {
-                    // counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
-                    // TODO: add metrics
-                    break Err(err)
-                        .context("flat message write sql error")
-                        .map_err(Into::into);
-                }
-            }
-        } else {
-            break Ok(());
-        }
-    }
-}
 async fn write_stable_with_sql(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     req_id: &RequestID,
     records: &Records,
 ) -> Result<usize, FlatWriteError> {
-    let mut write_retries = 0;
     let sql = records.sql();
-    let mut backoff = 1;
-
-    loop {
-        match taos
-            .as_ref()
-            .unwrap()
-            .exec_with_req_id(sql, req_id.next())
-            .await
-        {
-            Ok(n) => break Ok(n),
-            Err(err) => {
-                let code = err.code();
-                let errno: i32 = code.into();
-                write_retries += 1;
-                tracing::warn!(
-                    sql,
-                    "flat message write sql encountered unrecoverable err: {err:#}"
-                );
-                if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                    break Err(err)
-                        .context("Write flat stream with SQL error: Retries exceeded")
-                        .map_err(Into::into);
+    match exec_sql_with_connection_retries(
+        pool,
+        taos,
+        sql,
+        req_id.next(),
+        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+    )
+    .await
+    {
+        Ok(n) => Ok(n),
+        Err(err) => {
+            let code = err.code();
+            let errno: i32 = code.into();
+            tracing::warn!(
+                sql,
+                "flat message write sql encountered unrecoverable err: {err:#}"
+            );
+            match errno {
+                0x2603 | 0x0618 => {
+                    // stable/table not exists
+                    Err(FlatWriteError::TableNotExits(
+                        records.stable.as_deref().unwrap_or("unknown").to_string(),
+                    ))
                 }
-                match errno {
-                    0x2603 | 0x0618 => {
-                        // stable/table not exists
-                        break Err(FlatWriteError::TableNotExits(
-                            records.stable.as_deref().unwrap_or("unknown").to_string(),
-                        ));
+                0x2653 => {
+                    // Value too long for column/tag
+                    let message = err.message();
+                    if let Some(caps) = RE_0X2653.captures(&message) {
+                        let field = caps.get(1).unwrap().as_str();
+                        return Err(FlatWriteError::ContainerLengthTooShort(field.to_string()));
                     }
-                    0x2653 => {
-                        // Value too long for column/tag
-                        let message = err.message();
-                        if let Some(caps) = RE_0X2653.captures(&message) {
-                            let field = caps.get(1).unwrap().as_str();
-                            break Err(FlatWriteError::ContainerLengthTooShort(field.to_string()));
-                        }
-                        break Err(err).map_err(Into::into);
-                    }
-                    0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
-                        tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
-                        backoff *= 2;
-                        taos.replace(pool.get().await?);
-                    }
-                    _ => {
-                        break Err(err)
-                            .context("flat message write sql error")
-                            .map_err(Into::into);
-                    }
+                    Err(err).map_err(Into::into)
                 }
+                _ => Err(err)
+                    .context("flat message write sql error")
+                    .map_err(Into::into),
             }
         }
     }
@@ -468,7 +381,13 @@ pub async fn flat_write_with_raw_block(
                         }
                     }
                     loop {
-                        let res = taos.as_ref().unwrap().describe(&table_name).await;
+                        let res = describe_table_with_connection_retries(
+                            pool,
+                            taos,
+                            &table_name,
+                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                        )
+                        .await;
                         match res {
                             Ok(desc) => {
                                 if let Some(col) = desc
@@ -503,16 +422,12 @@ pub async fn flat_write_with_raw_block(
                             }
                             Err(err) => {
                                 let code: i32 = err.code().into();
-                                if code == 0xE001
-                                    || code == 0xE002
-                                    || code == 0xE003
-                                    || code == 0x000B
-                                {
-                                    tokio::time::sleep(Duration::from_secs(2)).await;
-                                    taos.replace(pool.get().await?);
-                                    continue;
+                                if !matches!(code, 0x0218 | 0x2603 | 0x0618 | 0x0362) {
+                                    Err(err).with_context(|| {
+                                        format!("Get table schema error for `{table_name}`")
+                                    })?;
                                 }
-                                // dbg!(&err);
+                                // Table not exists.
                                 if let Some(sql) = records.stable_sql() {
                                     tracing::debug!("flat message stable sql : {sql}");
                                     match taos
@@ -535,25 +450,32 @@ pub async fn flat_write_with_raw_block(
                                     let sql = records.table_sql();
 
                                     loop {
-                                        match taos
-                                            .as_ref()
-                                            .unwrap()
-                                            .exec_with_req_id(&sql, req_id.next())
-                                            .await
+                                        match exec_sql_with_connection_retries(
+                                            pool,
+                                            taos,
+                                            &sql,
+                                            req_id.next(),
+                                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                        )
+                                        .await
                                         {
                                             Ok(_n) => {
                                                 metrics.add_created_tables(1);
                                             }
                                             Err(err) => {
-                                                if err.to_string().contains("[0x2605]") {
+                                                let code: i32 = err.code().into();
+
+                                                if code == 0x2605 {
                                                     let table =
                                                         records.table.using.as_deref().unwrap();
-                                                    let desc = taos
-                                                        .as_ref()
-                                                        .unwrap()
-                                                        .describe(table)
-                                                        .await
-                                                        .unwrap();
+                                                    let desc =
+                                                        describe_table_with_connection_retries(
+                                                            pool,
+                                                            taos,
+                                                            table,
+                                                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                                        )
+                                                        .await?;
                                                     for f in desc.iter().filter(|f| {
                                                         f.is_tag() && f.ty().is_var_type()
                                                     }) {
@@ -563,14 +485,18 @@ pub async fn flat_write_with_raw_block(
                                                                         f.ty(),
                                                                         f.length() * 2
                                                                     );
-                                                        let _ = taos
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .exec_with_req_id(&sql, req_id.next())
-                                                            .await;
+
+                                                        let _ = exec_sql_with_connection_retries(
+                                                            pool,
+                                                            taos,
+                                                            &sql,
+                                                            req_id.next(),
+                                                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                                        )
+                                                        .await;
                                                         continue;
                                                     }
-                                                } else if err.to_string().contains("[0x260D]") {
+                                                } else if code == 0x260D {
                                                     // Tags number not matched
                                                     // add Tag
                                                     let table =
@@ -578,12 +504,14 @@ pub async fn flat_write_with_raw_block(
                                                     let tags = records.tag_meta().unwrap();
                                                     for tag_meta in tags {
                                                         let mut need_add = true;
-                                                        let res = taos
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .describe(table)
-                                                            .await
-                                                            .unwrap();
+                                                        let res =
+                                                            describe_table_with_connection_retries(
+                                                                pool,
+                                                                taos,
+                                                                table,
+                                                                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                                            )
+                                                            .await?;
                                                         res.into_iter().for_each(|tag_added| {
                                                             if tag_added.is_tag()
                                                                 && tag_added.field()
@@ -599,14 +527,14 @@ pub async fn flat_write_with_raw_block(
                                                                             parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
                                                                         );
                                                             tracing::info!("table {table} add tag sql: {add_tag_sql}");
-                                                            taos.as_ref()
-                                                                .unwrap()
-                                                                .exec_with_req_id(
-                                                                    add_tag_sql,
-                                                                    req_id.next(),
-                                                                )
-                                                                .await
-                                                                .unwrap();
+                                                            exec_sql_with_connection_retries(
+                                                                pool,
+                                                                taos,
+                                                                &add_tag_sql,
+                                                                req_id.next(),
+                                                                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                                            )
+                                                            .await?;
                                                         }
                                                     }
                                                 } else {
@@ -619,26 +547,15 @@ pub async fn flat_write_with_raw_block(
                                     //.inspect_err(|err| tracing::warn!("{}", err))?
                                 } else {
                                     let sql = records.table_sql();
-                                    match taos
-                                        .as_ref()
-                                        .unwrap()
-                                        .exec_with_req_id(&sql, req_id.next())
-                                        .await
-                                    {
-                                        Ok(_) => {
-                                            metrics.add_created_tables(1);
-                                        }
-                                        Err(err) => {
-                                            let code: i32 = err.code().into();
-                                            match code {
-                                                0xE001 | 0xE002 | 0xE003 | 0x000B => {
-                                                    taos.replace(pool.get().await?);
-                                                    continue;
-                                                }
-                                                _ => Err(err)?,
-                                            }
-                                        }
-                                    }
+                                    exec_sql_with_connection_retries(
+                                        pool,
+                                        taos,
+                                        &sql,
+                                        req_id.next(),
+                                        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                    )
+                                    .await
+                                    .inspect(|_| metrics.add_created_tables(1))?;
                                 }
                             }
                         }
@@ -653,7 +570,6 @@ pub async fn flat_write_with_raw_block(
             {
                 let code = err.code();
                 let errno: i32 = code.into();
-                let err_str = err.to_string();
                 write_retries += 1;
                 if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
                     tracing::warn!(
@@ -665,95 +581,113 @@ pub async fn flat_write_with_raw_block(
                     Err(err)?;
                     break;
                 }
-                if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
+                if errno == 0x2603 || errno == 0x0618 {
                     if let Some(sql) = records.stable_sql() {
                         // dbg!(&sql);
-                        match taos
-                            .as_ref()
-                            .unwrap()
-                            .exec_with_req_id(&sql, req_id.next())
-                            .await
+                        match exec_sql_with_connection_retries(
+                            pool,
+                            taos,
+                            &sql,
+                            req_id.next(),
+                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                        )
+                        .await
                         {
                             Ok(_n) => {
                                 metrics.add_created_stables(1);
                             }
                             Err(err) => {
                                 let code: i32 = err.code().into();
-                                let err_str = err.to_string();
-                                if err_str.contains("0x032C") {
-                                    // Object is creating
-                                    tracing::warn!("error code [0x032C] encountered, ignore");
-                                    continue;
-                                } else if matches!(
-                                    code,
-                                    0x0360 | 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3
-                                ) {
-                                    tracing::debug!("error encountered, ignore: {err:#}",);
-                                } else if code != 0x0360 {
-                                    tracing::error!(sql, "create stable error: {err:#}");
-                                    anyhow::bail!("create stable sql err: {}", err_str);
-                                }
-                            }
-                        }
-
-                        let sql = records.table_sql();
-
-                        loop {
-                            match taos
-                                .as_ref()
-                                .unwrap()
-                                .exec_with_req_id(&sql, req_id.next())
-                                .await
-                            {
-                                Ok(_n) => {
-                                    metrics.add_created_tables(1);
-                                }
-                                Err(err) => {
-                                    if err.to_string().contains("[0x2605]") {
-                                        let table = records.table.using.as_deref().unwrap();
-                                        let desc =
-                                            taos.as_ref().unwrap().describe(table).await.unwrap();
-                                        for f in desc
-                                            .iter()
-                                            .filter(|f| f.is_tag() && f.ty().is_var_type())
-                                        {
-                                            let sql = format!(
-                                                "alter table `{table}` modify tag `{}` {}({})",
-                                                f.field(),
-                                                f.ty(),
-                                                f.length() * 2
-                                            );
-                                            let _ = taos.as_ref().unwrap().exec(&sql).await;
-                                            continue;
-                                        }
-                                    } else {
-                                        Err(err)?;
+                                match code {
+                                    0x032C => {
+                                        // Object is creating
+                                        tracing::warn!("error code [0x032C] encountered, ignore");
+                                        continue;
+                                    }
+                                    0x0360 | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
+                                        // Table already exists, do nothing
+                                        tracing::debug!("error encountered, ignore(table already exists): {err:#}",);
+                                    }
+                                    _ => {
+                                        tracing::error!(sql, "create stable error: {err:#}");
+                                        Err(err).context("create stable error")?;
                                     }
                                 }
                             }
-
-                            break;
                         }
-                        //.inspect_err(|err| tracing::warn!("{}", err))?
-                    } else {
+
                         let sql = records.table_sql();
-                        match taos
-                            .as_ref()
-                            .unwrap()
-                            .exec_with_req_id(&sql, req_id.next())
-                            .await
+
+                        match exec_sql_with_connection_retries(
+                            pool,
+                            taos,
+                            &sql,
+                            req_id.next(),
+                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                        )
+                        .await
                         {
                             Ok(_n) => {
                                 metrics.add_created_tables(1);
                             }
-                            Err(err) => return Err(err)?,
+                            Err(err) => {
+                                let code: i32 = err.code().into();
+                                if code == 0x2605 {
+                                    let table = records.table.using.as_deref().unwrap();
+                                    let desc = describe_table_with_connection_retries(
+                                        pool,
+                                        taos,
+                                        table,
+                                        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                    )
+                                    .await?;
+                                    for f in
+                                        desc.iter().filter(|f| f.is_tag() && f.ty().is_var_type())
+                                    {
+                                        let sql = format!(
+                                            "alter table `{table}` modify tag `{}` {}({})",
+                                            f.field(),
+                                            f.ty(),
+                                            f.length() * 2
+                                        );
+                                        let _ = exec_sql_with_connection_retries(
+                                            pool,
+                                            taos,
+                                            &sql,
+                                            req_id.next(),
+                                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                        )
+                                        .await;
+                                    }
+                                } else {
+                                    Err(err)?;
+                                }
+                            }
                         }
+                        //.inspect_err(|err| tracing::warn!("{}", err))?
+                    } else {
+                        let sql = records.table_sql();
+                        exec_sql_with_connection_retries(
+                            pool,
+                            taos,
+                            &sql,
+                            req_id.next(),
+                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                        )
+                        .await
+                        .inspect(|_| metrics.add_created_tables(1))?;
                     }
 
                     continue;
-                } else if err_str.contains("[0x2605]") {
+                } else if errno == 0x2605 {
                     // container length is too short.
-                    let desc = taos.as_ref().unwrap().describe(&table_name).await.unwrap();
+                    let desc = describe_table_with_connection_retries(
+                        pool,
+                        taos,
+                        &table_name,
+                        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                    )
+                    .await?;
                     let table = records.table.using.as_deref().unwrap_or(&table_name);
                     for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type()) {
                         let sql = format!(
@@ -762,20 +696,29 @@ pub async fn flat_write_with_raw_block(
                             f.ty(),
                             f.length() * 2
                         );
-                        let _ = taos
-                            .as_ref()
-                            .unwrap()
-                            .exec_with_req_id(&sql, req_id.next())
-                            .await;
+                        let _ = exec_sql_with_connection_retries(
+                            pool,
+                            taos,
+                            &sql,
+                            req_id.next(),
+                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                        )
+                        .await;
                     }
-                } else if err_str.contains("[0x0118]") {
+                } else if errno == 0x0118 {
                     // Code([0x0118] Unknown or common error)
                     // column or tag not exists
                     let mut index = 0;
                     while index < columns.len() {
                         // let column_view = views.get(index).unwrap();
                         let column_name = columns.get(index).unwrap().as_str();
-                        let desc = taos.as_ref().unwrap().describe(&table_name).await?;
+                        let desc = describe_table_with_connection_retries(
+                            pool,
+                            taos,
+                            &table_name,
+                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                        )
+                        .await?;
                         let mut need_add = true;
                         desc.into_iter().for_each(|column_meta| {
                             if column_meta.field() == column_name {
@@ -798,10 +741,14 @@ pub async fn flat_write_with_raw_block(
                                 ipc_data_type.unwrap(),
                             );
                             tracing::info!("alter table column sql: {}", sql);
-                            taos.as_ref()
-                                .unwrap()
-                                .exec_with_req_id(&sql, req_id.next())
-                                .await?;
+                            exec_sql_with_connection_retries(
+                                pool,
+                                taos,
+                                &sql,
+                                req_id.next(),
+                                DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                            )
+                            .await?;
                         }
                         index += 1;
                     }
@@ -809,7 +756,7 @@ pub async fn flat_write_with_raw_block(
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     taos.replace(pool.get().await?);
                     continue;
-                } else if err_str.contains("[0x2653]") {
+                } else if errno == 0x2653 {
                     // retry with sql
                     let records_copy = MessageArrowRecords {
                         table: records.table.clone(),
@@ -918,6 +865,7 @@ impl FlatSink {
                                     messages,
                                     metrics,
                                 )
+                                .in_current_span()
                                 .await?;
                                 metrics.add_processed_rows(num_of_rows as u64);
                                 written
@@ -932,6 +880,7 @@ impl FlatSink {
                                     messages,
                                     metrics,
                                 )
+                                .in_current_span()
                                 .await?;
                                 metrics.add_processed_rows(num_of_rows as u64);
                                 written
