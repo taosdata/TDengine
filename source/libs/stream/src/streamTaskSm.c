@@ -420,9 +420,9 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
       if (pSM->pActiveTrans != NULL) {
         // not allowed concurrently initialization
         if (event == TASK_EVENT_INIT && pSM->pActiveTrans->event == TASK_EVENT_INIT) {
+          streamMutexUnlock(&pTask->lock);
           stError("s-task:%s already in handling init procedure, handle this init event failed", pTask->id.idStr);
-          code = TSDB_CODE_STREAM_INVALID_STATETRANS;
-          break;
+          return TSDB_CODE_STREAM_INVALID_STATETRANS;
         }
 
         // currently in some state transfer procedure, not auto invoke transfer, abort it
