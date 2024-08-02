@@ -536,7 +536,7 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     </TabItem>
     <TabItem label="Python" value="python">
 ```python
-{{#include docs/examples/python/connect_rest_examples.py:connect}}
+{{#include docs/examples/python/connect_rest_example.py:connect}}
 ```
     </TabItem>
     <TabItem label="Go" value="go">
