@@ -605,10 +605,12 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 
 </TabItem>
 <TabItem label="Python" value="python">
-
+<details>
+<summary>完整 Websocket 连接代码示例</summary> 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
 ```
+</details>
 </TabItem>
 
 <TabItem label="Go" value="go">
@@ -659,10 +661,12 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Python" value="python">
-
+<details>
+<summary>完整原生连接代码示例</summary> 
 ```python
 {{#include docs/examples/python/tmq_native.py}}
 ```
+</details>
 </TabItem>
 
 <TabItem label="Go" value="go">
