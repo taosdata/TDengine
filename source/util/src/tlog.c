@@ -573,7 +573,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 }
 
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
+  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceSufficient()) {
     taosUpdateLogNums(level);
     if (tsAsyncLog) {
       (void)taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
@@ -621,7 +621,7 @@ void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char 
 }
 
 void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
-  if (!osLogSpaceAvailable()) return;
+  if (!osLogSpaceSufficient()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
   char   *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
@@ -656,7 +656,7 @@ static void checkSwitchSlowLogFile(){
   (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
 }
 void taosPrintSlowLog(const char *format, ...) {
-  if (!osLogSpaceAvailable()) return;
+  if (!osLogSpaceSufficient()) return;
 
   char   *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
   int32_t len = taosBuildLogHead(buffer, "");
