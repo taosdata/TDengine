@@ -33,6 +33,10 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
   SArray *pList = taosArrayInit(4, sizeof(SKeyInfo));
   int32_t num = 0;
 
+  if (pList == NULL) {
+    return terrno;
+  }
+
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
     SStreamTransInfo *pEntry = (SStreamTransInfo *)pIter;
 
@@ -59,6 +63,10 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
   int32_t size = taosArrayGetSize(pList);
   for (int32_t i = 0; i < size; ++i) {
     SKeyInfo *pKey = taosArrayGet(pList, i);
+    if (pKey == NULL) {
+      continue;
+    }
+
     int32_t code = taosHashRemove(execInfo.transMgmt.pDBTrans, pKey->pKey, pKey->keyLen);
     if (code != 0) {
       taosArrayDestroy(pList);

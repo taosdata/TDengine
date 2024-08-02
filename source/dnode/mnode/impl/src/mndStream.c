@@ -2833,6 +2833,8 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
   int32_t      code = 0;
   SOrphanTask *pTask = NULL;
   int32_t      i = 0;
+  STrans      *pTrans = NULL;
+  int32_t      numOfTasks = 0;
 
   SMStreamDropOrphanMsg msg = {0};
   code = tDeserializeDropOrphanTaskMsg(pReq->pCont, pReq->contLen, &msg);
@@ -2840,10 +2842,10 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
     return code;
   }
 
-  int32_t numOfTasks = taosArrayGetSize(msg.pList);
+  numOfTasks = taosArrayGetSize(msg.pList);
   if (numOfTasks == 0) {
     mDebug("no orphan tasks to drop, no need to create trans");
-    return code;
+    goto _err;
   }
 
   mDebug("create trans to drop %d orphan tasks", numOfTasks);
@@ -2855,7 +2857,7 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
 
   if (pTask == NULL) {
     mError("failed to extract entry in drop orphan task list, not create trans to drop orphan-task");
-    return TSDB_CODE_SUCCESS;
+    goto _err;
   }
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
@@ -2865,11 +2867,11 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
   }
 
   SStreamObj dummyObj = {.uid = pTask->streamId, .sourceDb = "", .targetSTbName = ""};
-  STrans    *pTrans = NULL;
+
   code = doCreateTrans(pMnode, &dummyObj, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, "drop stream", &pTrans);
   if (pTrans == NULL || code != 0) {
     mError("failed to create trans to drop orphan tasks since %s", terrstr());
-    return code;
+    goto _err;
   }
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pTask->streamId);
@@ -2881,27 +2883,26 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
   // drop all tasks
   if ((code = mndStreamSetDropActionFromList(pMnode, pTrans, msg.pList)) < 0) {
     mError("failed to create trans to drop orphan tasks since %s", terrstr());
-    mndTransDrop(pTrans);
-    return code;
+    goto _err;
   }
 
   // drop stream
   if ((code = mndPersistTransLog(&dummyObj, pTrans, SDB_STATUS_DROPPED)) < 0) {
-    mndTransDrop(pTrans);
-    return code;
+    goto _err;
   }
 
   code = mndTransPrepare(pMnode, pTrans);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return code;
+    goto _err;
   }
+
+_err:
+  tDestroyDropOrphanTaskMsg(&msg);
+  mndTransDrop(pTrans);
 
   if (code == TSDB_CODE_SUCCESS) {
     mDebug("create drop %d orphan tasks trans succ", numOfTasks);
   }
-
-  mndTransDrop(pTrans);
   return code;
 }
