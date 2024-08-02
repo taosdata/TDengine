@@ -21,7 +21,6 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/JdbcCreatDBDemo.java:create_db_and_table}}
 ```
-> **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 power.meters。
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -31,6 +30,11 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:create_db_and_table}}
+```
+
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>
@@ -45,6 +49,7 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 <TabItem label="PHP" value="php">
 </TabItem>
 </Tabs>
+> **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 `power.meters`。
 
 ## 插入数据
 下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
@@ -65,6 +70,11 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:insert_data}}
+```
+
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>
@@ -100,6 +110,11 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:query_data}}
+```
+
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>
@@ -140,6 +155,11 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:query_with_req_id}}
+```
+
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>

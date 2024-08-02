@@ -181,6 +181,11 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+
+```rust
+{{#include docs/examples/rust/restexample/examples/schemaless.rs}}
+```
+
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>
@@ -211,6 +216,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
     <TabItem label="Go" value="go">
     </TabItem>
     <TabItem label="Rust" value="rust">
+除 DSN 不同，其余同 Websocket 代码示例。  
     </TabItem>
     <TabItem label="C#" value="csharp">
     </TabItem>
@@ -234,6 +240,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
     <TabItem label="Go" value="go">
     </TabItem>
     <TabItem label="Rust" value="rust">
+    不支持
     </TabItem>
     <TabItem label="C#" value="csharp">
     </TabItem>

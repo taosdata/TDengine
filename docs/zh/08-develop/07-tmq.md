@@ -46,7 +46,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 下面是各语言连接器创建参数：
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
-Java 连接器创建消费者的参数为 Properties， 可以设置的参数列表请参考 [API 说明](../../reference/connector/java/#消费者)  
+Java 连接器创建消费者的参数为 Properties， 可以设置的参数列表请参考 [消费者参数](../../reference/connector/java/#消费者)  
 其他参数请参考上文通用基础配置项。
 
 
@@ -58,6 +58,8 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 
 </TabItem>
 <TabItem label="Rust" value="rust">
+Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请参考 [DSN](../../reference/connector/rust/#dsn)  
+其他参数请参考上文通用基础配置项。
 
 </TabItem>
 <TabItem label="Node.js" value="node">
@@ -101,6 +103,11 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:create_consumer}}
+```
 
 </TabItem>
 
