@@ -361,6 +361,7 @@ fn build_runtime(
         .rng_seed(tokio::runtime::RngSeed::from_bytes(b"taosx rng seed"))
         .global_queue_interval(61)
         .max_blocking_threads(4096)
+        .disable_lifo_slot()
         .thread_name(thread_name)
         .worker_threads(worker_threads)
         .enable_all()
@@ -377,7 +378,7 @@ fn create_rolling_file_appender(log_dir: &Path) -> RollingFileAppender {
         .expect("failed to initialize rolling file appender")
 }
 
-async fn init_tracing_layers<W>(
+fn init_tracing_layers<W>(
     args: &Args,
     span_events: FmtSpan,
     level_filter: LevelFilter,
@@ -615,20 +616,10 @@ fn main() -> Result<()> {
 
     let _guard = if !args.global.no_async_log {
         let (non_blocking, guard) = tracing_appender::non_blocking(rolling_file_appender);
-        runtime.block_on(init_tracing_layers(
-            &args,
-            span_events,
-            level_filter,
-            non_blocking,
-        ))?;
+        init_tracing_layers(&args, span_events, level_filter, non_blocking)?;
         Some(guard)
     } else {
-        runtime.block_on(init_tracing_layers(
-            &args,
-            span_events,
-            level_filter,
-            rolling_file_appender,
-        ))?;
+        init_tracing_layers(&args, span_events, level_filter, rolling_file_appender)?;
         None
     };
     tracing::info!("taosx version: {version}");

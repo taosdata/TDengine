@@ -1,6 +1,237 @@
+use std::time::Duration;
+
 use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_schema::ArrowError;
 use itertools::Itertools;
+use taos::{
+    taos_query::{common::Describe, Manager},
+    AsyncQueryable, Error as TaosError, RawBlock, TaosBuilder, TaosPool,
+};
+use tracing::Instrument;
+type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
+
+async fn reconnect_with_max_retries(
+    pool: &TaosPool,
+    max_retries: u32,
+) -> Result<TaosConnection, TaosError> {
+    let mut backoff = 1;
+    let mut retries = 0;
+    loop {
+        match pool.get().await {
+            Ok(taos) => {
+                tracing::debug!(retries, "reconnected");
+                break Ok(taos);
+            }
+            Err(err) => {
+                if retries >= max_retries {
+                    break Err(TaosError::new(0x000B, format!("reconnect failed: {}", err)));
+                }
+                retries += 1;
+                tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
+                if backoff < 64 {
+                    backoff *= 2;
+                }
+            }
+        }
+    }
+}
+
+#[tracing::instrument(skip(pool, taos))]
+pub async fn exec_sql_with_connection_retries(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    sql: &str,
+    req_id: u64,
+    max_retries: u32,
+) -> Result<usize, TaosError> {
+    if taos.is_none() {
+        taos.replace(
+            reconnect_with_max_retries(pool, max_retries)
+                .in_current_span()
+                .await?,
+        );
+    }
+
+    match taos
+        .as_ref()
+        .unwrap()
+        .exec_with_req_id(sql, req_id)
+        .in_current_span()
+        .await
+    {
+        Ok(n) => Ok(n),
+        Err(err) => {
+            if max_retries == 0 {
+                return Err(err.context(format!("exec sql `{}`", sql)));
+            }
+            let code = err.code();
+            let errno: i32 = code.into();
+            tracing::debug!(%code, error = format!("{err:#}"), sql, "exec sql error");
+            match errno {
+                0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    taos.replace(
+                        reconnect_with_max_retries(pool, max_retries)
+                            .in_current_span()
+                            .await?,
+                    );
+                    taos.as_ref()
+                        .unwrap()
+                        .exec_with_req_id(sql, req_id)
+                        .in_current_span()
+                        .await
+                }
+                0x032C => {
+                    // Object is creating.
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    taos.as_ref()
+                        .unwrap()
+                        .exec_with_req_id(sql, req_id)
+                        .in_current_span()
+                        .await
+                }
+                _ => Err(err.context(format!("exec sql `{}`", sql))),
+            }
+        }
+    }
+}
+
+#[tracing::instrument(skip(pool, taos, block), fields(table = block.table_name(), rows = block.nrows()))]
+pub async fn write_raw_block_with_connection_retries(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    block: &RawBlock,
+    req_id: u64,
+    max_retries: u32,
+) -> Result<(), TaosError> {
+    if taos.is_none() {
+        taos.replace(
+            reconnect_with_max_retries(pool, max_retries)
+                .in_current_span()
+                .await?,
+        );
+    }
+
+    match taos
+        .as_ref()
+        .unwrap()
+        .write_raw_block_with_req_id(block, req_id)
+        .in_current_span()
+        .await
+    {
+        Ok(n) => Ok(n),
+        Err(err) => {
+            if max_retries == 0 {
+                return Err(err.context(format!("Write block: {}", block.pretty_format())));
+            }
+            let code = err.code();
+            let errno: i32 = code.into();
+            match errno {
+                0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    taos.replace(
+                        reconnect_with_max_retries(pool, max_retries)
+                            .in_current_span()
+                            .await?,
+                    );
+                    taos.as_ref()
+                        .unwrap()
+                        .write_raw_block_with_req_id(block, req_id)
+                        .in_current_span()
+                        .await
+                }
+                _ => Err(err.context(format!("Write block: {}", block.pretty_format()))),
+            }
+        }
+    }
+}
+
+#[tracing::instrument(skip(pool, taos))]
+pub async fn describe_table_with_connection_retries(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    table: &str,
+    max_retries: u32,
+) -> Result<Describe, TaosError> {
+    if taos.is_none() {
+        taos.replace(
+            reconnect_with_max_retries(pool, max_retries)
+                .in_current_span()
+                .await?,
+        );
+    }
+
+    match taos
+        .as_ref()
+        .unwrap()
+        .describe(table)
+        .in_current_span()
+        .await
+    {
+        Ok(n) => Ok(n),
+        Err(err) => {
+            if max_retries == 0 {
+                return Err(err.context(format!("describe `{table}`")));
+            }
+            let code = err.code();
+            let errno: i32 = code.into();
+            match errno {
+                0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    taos.replace(
+                        reconnect_with_max_retries(pool, max_retries)
+                            .in_current_span()
+                            .await?,
+                    );
+                    taos.as_ref()
+                        .unwrap()
+                        .describe(table)
+                        .in_current_span()
+                        .await
+                }
+                _ => Err(err.context(format!("describe `{table}`"))),
+            }
+        }
+    }
+}
+
+pub struct RetriableTaos {
+    pool: TaosPool,
+    taos: Option<TaosConnection>,
+    max_retries: u32,
+}
+
+impl RetriableTaos {
+    pub fn new(pool: TaosPool, max_retries: u32) -> Self {
+        Self {
+            pool,
+            taos: None,
+            max_retries,
+        }
+    }
+
+    pub async fn exec(&mut self, sql: &str, req_id: u64) -> Result<usize, TaosError> {
+        exec_sql_with_connection_retries(&self.pool, &mut self.taos, sql, req_id, self.max_retries)
+            .await
+    }
+
+    pub async fn describe(&mut self, table: &str) -> Result<Describe, TaosError> {
+        describe_table_with_connection_retries(&self.pool, &mut self.taos, table, self.max_retries)
+            .await
+    }
+
+    pub async fn write_raw_block(
+        &mut self,
+        block: &RawBlock,
+        req_id: u64,
+    ) -> Result<(), TaosError> {
+        write_raw_block_with_connection_retries(
+            &self.pool,
+            &mut self.taos,
+            block,
+            req_id,
+            self.max_retries,
+        )
+        .await
+    }
+}
 
 /// Escape a string value for SQL.
 pub fn sql_value_escape(value: &str) -> String {

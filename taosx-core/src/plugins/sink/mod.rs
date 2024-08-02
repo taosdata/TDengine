@@ -2706,9 +2706,9 @@ async fn consume_flat_record(
                         message,
                         metrics,
                     )
+                    .in_current_span()
                     .await?;
                     metrics.add_processed_rows(num_rows as u64);
-                    continue;
                 } else {
                     *count += flat_write_with_raw_block(
                         pool,
@@ -2720,6 +2720,7 @@ async fn consume_flat_record(
                         message,
                         metrics,
                     )
+                    .in_current_span()
                     .await?;
                     metrics.add_processed_rows(num_rows as u64);
                 }
@@ -2948,7 +2949,6 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
 }
 
 #[framed]
-#[instrument(skip_all)]
 async fn ipc_flat_stream_worker(
     pool: &TaosPool,
     stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
@@ -3059,6 +3059,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
         stream_trace_id,
         metrics_arc,
     )
+    .in_current_span()
     .await
 }
 
@@ -4045,8 +4046,8 @@ pub async fn channel_based_transformer(
                         TraceStreamId::new(0),
                         get_metrics_arc_from_i64(task_id).await,
                     )
-                    .await
                     .in_current_span()
+                    .await
                 } => {}
             }
         }
