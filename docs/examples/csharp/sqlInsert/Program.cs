@@ -17,6 +17,7 @@ namespace TDengineExample
                     CreateDatabaseAndTable(client);
                     InsertData(client);
                     QueryData(client);
+                    QueryWithReqId(client);
                 }
             }
             catch (TDengineError e)
@@ -49,13 +50,13 @@ namespace TDengineExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to create db and table; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to create db and table; Err:" + e.Message);
                 throw;
             }
             // ANCHOR_END: create_db_and_table
@@ -76,27 +77,27 @@ namespace TDengineExample
                                   "power.d1002 USING power.meters TAGS(3, 'California.SanFrancisco') " +
                                   "VALUES " +
                                   "(NOW + 1a, 10.30000, 218, 0.25000) ";
-                var affectedRows  = client.Exec(insertQuery);
-                Console.WriteLine("inserted into " + affectedRows + " rows to power.meters successfully.");
+                var affectedRows = client.Exec(insertQuery);
+                Console.WriteLine("insert " + affectedRows + " rows to power.meters successfully.");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to insert data to power.meters; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to insert data to power.meters; Err:" + e.Message);
                 throw;
             }
             // ANCHOR_END: insert_data
         }
-        
+
         private static void QueryData(ITDengineClient client)
         {
-            // ANCHOR: query_data
+            // ANCHOR: select_data
             try
             {
                 // query data
@@ -108,23 +109,59 @@ namespace TDengineExample
                         var ts = (DateTime)rows.GetValue(0);
                         var current = (float)rows.GetValue(1);
                         var location = Encoding.UTF8.GetString((byte[])rows.GetValue(2));
-                        Console.WriteLine($"ts: {ts:yyyy-MM-dd HH:mm:ss.fff}, current: {current}, location: {location}");
+                        Console.WriteLine(
+                            $"ts: {ts:yyyy-MM-dd HH:mm:ss.fff}, current: {current}, location: {location}");
                     }
                 }
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to query data from power.meters; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Failed to query data from power.meters; Err:" + e.Message);
                 throw;
             }
-            // ANCHOR_END: query_data
+            // ANCHOR_END: select_data
+        }
+
+        private static void QueryWithReqId(ITDengineClient client)
+        {
+            // ANCHOR: query_id
+            try
+            {
+                // query data
+                var query = "SELECT ts, current, location FROM power.meters limit 1";
+                // query with request id 3
+                using (var rows = client.Query(query,3))
+                {
+                    while (rows.Read())
+                    {
+                        var ts = (DateTime)rows.GetValue(0);
+                        var current = (float)rows.GetValue(1);
+                        var location = Encoding.UTF8.GetString((byte[])rows.GetValue(2));
+                        Console.WriteLine(
+                            $"ts: {ts:yyyy-MM-dd HH:mm:ss.fff}, current: {current}, location: {location}");
+                    }
+                }
+            }
+            catch (TDengineError e)
+            {
+                // handle TDengine error
+                Console.WriteLine("Failed to execute sql with reqId; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                throw;
+            }
+            catch (Exception e)
+            {
+                // handle other exceptions
+                Console.WriteLine("Failed to execute sql with reqId; Err:" + e.Message);
+                throw;
+            }
+            // ANCHOR_END: query_id
         }
     }
 }

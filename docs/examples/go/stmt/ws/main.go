@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
@@ -18,17 +19,17 @@ func main() {
 	numOfRow := 10
 	db, err := sql.Open("taosRestful", fmt.Sprintf("root:taosdata@http(%s:6041)/", host))
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to connect TDengine, err:", err)
 	}
 	defer db.Close()
 	// prepare database and table
 	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to create database, err:", err)
 	}
 	_, err = db.Exec("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))")
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to create table, err:", err)
 	}
 
 	config := stmt.NewConfig(fmt.Sprintf("ws://%s:6041", host), 0)
@@ -40,17 +41,17 @@ func main() {
 
 	connector, err := stmt.NewConnector(config)
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to create stmt connector, err:", err)
 	}
-	// // prepare statement
+	// prepare statement
 	sql := "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)"
 	stmt, err := connector.Init()
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to init stmt, err:", err)
 	}
 	err = stmt.Prepare(sql)
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to prepare stmt, err:", err)
 	}
 	for i := 1; i <= numOfSubTable; i++ {
 		tableName := fmt.Sprintf("d_bind_%d", i)
@@ -60,12 +61,12 @@ func main() {
 		// set tableName
 		err = stmt.SetTableName(tableName)
 		if err != nil {
-			panic(err)
+			log.Fatal("failed to set table name, err:", err)
 		}
 		// set tags
 		err = stmt.SetTags(tags, tagsType)
 		if err != nil {
-			panic(err)
+			log.Fatal("failed to set tags, err:", err)
 		}
 		// bind column data
 		current := time.Now()
@@ -77,18 +78,18 @@ func main() {
 			columnData[3] = param.NewParam(1).AddFloat(rand.Float32())
 			err = stmt.BindParam(columnData, columnType)
 			if err != nil {
-				panic(err)
+				log.Fatal("failed to bind param, err:", err)
 			}
 		}
 		// add batch
 		err = stmt.AddBatch()
 		if err != nil {
-			panic(err)
+			log.Fatal("failed to add batch, err:", err)
 		}
 		// execute batch
 		err = stmt.Exec()
 		if err != nil {
-			panic(err)
+			log.Fatal("failed to exec stmt, err:", err)
 		}
 		// get affected rows
 		affected := stmt.GetAffectedRows()
@@ -97,6 +98,6 @@ func main() {
 	}
 	err = stmt.Close()
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to close stmt, err:", err)
 	}
 }

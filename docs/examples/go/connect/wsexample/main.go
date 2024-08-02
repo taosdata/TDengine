@@ -16,8 +16,7 @@ func main() {
 	taos, err := sql.Open("taosWS", taosDSN)
 	if err != nil {
 		log.Fatalln("failed to connect TDengine, err:", err)
-		return
 	}
-	fmt.Println("Connected")
+	fmt.Println("Connected to " + taosDSN + " successfully.")
 	defer taos.Close()
 }
