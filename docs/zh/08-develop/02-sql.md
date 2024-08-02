@@ -33,12 +33,22 @@ REST API：通过 `curl` 命令进行数据写入和查询操作。
 
 </TabItem>
 <TabItem label="Python" value="python">
-- Websocket 连接
 
+```python title="Websocket 连接"
+{{#include docs/examples/python/create_db_ws.py}}
+```
+
+```python title="原生连接"
+{{#include docs/examples/python/create_db_native.py}}
+```
+
+```python title="Rest 连接"
+{{#include docs/examples/python/create_db_rest.py}}
+```
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
-{{#include docs/examples/go/queryreqid/main.go:query_id}}
+{{#include docs/examples/go/sqlquery/main.go:create_db_and_table}}
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
@@ -47,6 +57,11 @@ REST API：通过 `curl` 命令进行数据写入和查询操作。
 {{#include docs/examples/rust/nativeexample/examples/query.rs:create_db_and_table}}
 ```
 
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:create_db_and_table}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
@@ -98,10 +113,23 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 
 </TabItem>
 <TabItem label="Python" value="python">
+
+```python title="Websocket 连接"
+{{#include docs/examples/python/insert_ws.py}}
+```
+
+```python title="原生连接"
+{{#include docs/examples/python/insert_native.py}}
+```
+
+```python title="Rest 连接"
+{{#include docs/examples/python/insert_rest.py}}
+```
+
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
-{{#include docs/examples/go/sqlquery/main.go:create_db_and_table}}
+{{#include docs/examples/go/sqlquery/main.go:insert_data}}
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
@@ -110,6 +138,11 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 {{#include docs/examples/rust/nativeexample/examples/query.rs:insert_data}}
 ```
 
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:insertData}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
@@ -154,10 +187,22 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 
 </TabItem>
 <TabItem label="Python" value="python">
+
+```python title="Websocket 连接"
+{{#include docs/examples/python/query_ws.py}}
+```
+
+```python title="原生连接"
+{{#include docs/examples/python/query_native.py}}
+```
+
+```python title="Rest 连接"
+{{#include docs/examples/python/query_rest.py}}
+```
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
-{{#include docs/examples/go/sqlquery/main.go:insert_data}}
+{{#include docs/examples/go/sqlquery/main.go:select_data}}
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
@@ -166,6 +211,11 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 {{#include docs/examples/rust/nativeexample/examples/query.rs:query_data}}
 ```
 
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:queryData}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
@@ -218,7 +268,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
-{{#include docs/examples/go/sqlquery/main.go:select_data}}
+{{#include docs/examples/go/queryreqid/main.go:query_id}}
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
@@ -227,6 +277,11 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 {{#include docs/examples/rust/nativeexample/examples/query.rs:query_with_req_id}}
 ```
 
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:sqlWithReqid}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp

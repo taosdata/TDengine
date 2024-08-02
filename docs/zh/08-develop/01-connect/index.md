@@ -536,19 +536,19 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     </TabItem>
     <TabItem label="Python" value="python">
 ```python
-{{#include docs/examples/python/connect_rest_examples.py:connect}}
+{{#include docs/examples/python/connect_rest_example.py:connect}}
 ```
     </TabItem>
     <TabItem label="Go" value="go">
-    ```go
-    {{#include docs/examples/go/connect/restexample/main.go}}
-    ```
+```go
+{{#include docs/examples/go/connect/restexample/main.go}}
+```
     </TabItem>
     <TabItem label="Rust" value="rust">
-不支持
+        不支持
     </TabItem>
     <TabItem label="C#" value="csharp">
-        C# 只支持 WebSocket 连接与原生连接
+        不支持
     </TabItem>
     <TabItem label="R" value="r">
         <ConnR/>
