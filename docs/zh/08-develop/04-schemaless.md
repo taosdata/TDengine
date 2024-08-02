@@ -182,6 +182,11 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 </TabItem>
 <TabItem label="Rust" value="rust">
 </TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/line_example.js}}
+```
+</TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>
 <TabItem label="R" value="r">

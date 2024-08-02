@@ -46,9 +46,9 @@ import TabItem from "@theme/TabItem";
 </TabItem>
 <TabItem label="Node.js" value="node">
 
-    ```js
-        {{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
-    ```
+```js
+    {{#include docs/examples/node/websocketexample/stmt_example.js:createConnect}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 

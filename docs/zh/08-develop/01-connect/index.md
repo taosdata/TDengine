@@ -424,7 +424,7 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
     </TabItem>
     <TabItem label="Python" value="python">
 ```python
-{{#include docs/examples/python/connect_rest_examples.py:connect}}
+{{#include docs/examples/python/connect_rest_example.py:connect}}
 ```
     </TabItem>
     <TabItem label="Go" value="go">

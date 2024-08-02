@@ -25,12 +25,27 @@ TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL �
 
 </TabItem>
 <TabItem label="Python" value="python">
-- Websocket 连接
 
+```python title="Websocket 连接"
+{{#include docs/examples/python/create_db_ws.py}}
+```
+
+```python title="原生连接"
+{{#include docs/examples/python/create_db_native.py}}
+```
+
+```python title="Rest 连接"
+{{#include docs/examples/python/create_db_rest.py}}
+```
 </TabItem>
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:create_db_and_table}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>
@@ -57,10 +72,28 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 
 </TabItem>
 <TabItem label="Python" value="python">
+
+```python title="Websocket 连接"
+{{#include docs/examples/python/insert_ws.py}}
+```
+
+```python title="原生连接"
+{{#include docs/examples/python/insert_native.py}}
+```
+
+```python title="Rest 连接"
+{{#include docs/examples/python/insert_rest.py}}
+```
+
 </TabItem>
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:insertData}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>
@@ -86,10 +119,27 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 
 </TabItem>
 <TabItem label="Python" value="python">
+
+```python title="Websocket 连接"
+{{#include docs/examples/python/query_ws.py}}
+```
+
+```python title="原生连接"
+{{#include docs/examples/python/query_native.py}}
+```
+
+```python title="Rest 连接"
+{{#include docs/examples/python/query_rest.py}}
+```
 </TabItem>
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:queryData}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>
@@ -127,6 +177,11 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 <TabItem label="Go" value="go">
 </TabItem>
 <TabItem label="Rust" value="rust">
+</TabItem>
+<TabItem label="Node.js" value="node.js">
+```js
+{{#include docs/examples/node/websocketexample/sql_example.js:sqlWithReqid}}
+```
 </TabItem>
 <TabItem label="C#" value="csharp">
 </TabItem>

@@ -1,19 +1,20 @@
+# ANCHOR: connect
 import taosws
 
 def create_connection():
     conn = None
-# ANCHOR: connect
     try:
         conn = taosws.connect(
             user="root",
             password="taosdata",
-            host="192.168.1.98",
+            host="localhost",
             port=6041,
         )
     except Exception as err:
-        print(f'Exception {err}')
-# ANCHOR_END: connect
+        print(err)
+   
     return conn
+ # ANCHOR_END: connect
 
 def create_db_table(conn):
 # ANCHOR: create_db

@@ -7,24 +7,30 @@ const topics = ['power_meters_topic'];
 // ANCHOR: create_consumer
 async function createConsumer() {
     let configMap = new Map([
-        [taos.TMQConstants.GROUP_ID, "gId"],
+        [taos.TMQConstants.GROUP_ID, "group1"],
+        [taos.TMQConstants.CLIENT_ID, 'client1'],
         [taos.TMQConstants.CONNECT_USER, "root"],
         [taos.TMQConstants.CONNECT_PASS, "taosdata"],
         [taos.TMQConstants.AUTO_OFFSET_RESET, "latest"],
-        [taos.TMQConstants.CLIENT_ID, 'test_tmq_client'],
         [taos.TMQConstants.WS_URL, 'ws://localhost:6041'],
         [taos.TMQConstants.ENABLE_AUTO_COMMIT, 'true'],
         [taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS, '1000']
     ]);
-    return await taos.tmqConnect(configMap);
+    try {
+        return await taos.tmqConnect(configMap);
+    }catch (err) {
+        console.log(err);
+        throw err;
+    }
+    
 }
 // ANCHOR_END: create_consumer 
 
 async function prepare() {
     let conf = new taos.WSConfig('ws://localhost:6041');
-    conf.setUser('root')
-    conf.setPwd('taosdata')
-    conf.setDb('power')
+    conf.setUser('root');
+    conf.setPwd('taosdata');
+    conf.setDb('power');
     const createDB = `CREATE DATABASE IF NOT EXISTS POWER ${db} KEEP 3650 DURATION 10 BUFFER 16 WAL_LEVEL 1;`;
     const createStable = `CREATE STABLE IF NOT EXISTS ${db}.${stable} (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);`;
     
