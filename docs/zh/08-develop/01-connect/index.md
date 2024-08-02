@@ -321,7 +321,7 @@ Java 连接器建立连接的参数有 URL 和 Properties。
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`  
 
-URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../../reference/connector/java/#url-规范)
+URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/java/#url-规范)
 
     </TabItem>
     <TabItem label="Python" value="python">
@@ -329,6 +329,16 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
     <TabItem label="Go" value="go">
     </TabItem>
     <TabItem label="Rust" value="rust">
+Rust 连接器使用 DSN 来创建连接， DSN 描述字符串基本结构如下：
+
+```text
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+DSN 的详细说明和如何使用详见 [连接功能](../../reference/connector/rust/#连接功能)
+
     </TabItem>
     <TabItem label="C#" value="csharp">
     </TabItem>
@@ -359,7 +369,9 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
         <ConnGo />
     </TabItem>
     <TabItem label="Rust" value="rust">
-        <ConnRust />
+```rust
+{{#include docs/examples/rust/restexample/examples/connect.rs}}
+```
     </TabItem>
     <TabItem label="Node.js" value="node">
 ```js
@@ -396,7 +408,10 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
         <ConnGo />
     </TabItem>
     <TabItem label="Rust" value="rust">
-        <ConnRust />
+```rust 
+{{#include docs/examples/rust/nativeexample/examples/connect.rs}}
+```
+
     </TabItem>
     <TabItem label="C#" value="csharp">
         <ConnCSNative />
@@ -431,7 +446,7 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
         <ConnGo />
     </TabItem>
     <TabItem label="Rust" value="rust">
-        <ConnRust />
+不支持
     </TabItem>
     <TabItem label="C#" value="csharp">
         <ConnCSNative />
@@ -491,7 +506,33 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
         <ConnGo />
     </TabItem>
     <TabItem label="Rust" value="rust">
-        <ConnRust />
+
+在复杂应用中，建议启用连接池。[taos] 的连接池默认（异步模式）使用 [deadpool] 实现。
+
+如下，可以生成一个默认参数的连接池。
+
+```rust
+let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
+    .unwrap()
+    .pool()
+    .unwrap();
+```
+
+同样可以使用连接池的构造器，对连接池参数进行设置：
+
+```rust
+let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn(self.dsn.clone()).unwrap().0)
+    .max_size(88)  // 最大连接数
+    .build()
+    .unwrap();
+```
+
+在应用代码中，使用 `pool.get()?` 来获取一个连接对象 [Taos]。
+
+```rust
+let taos = pool.get()?;
+```
+
     </TabItem>
     <TabItem label="C#" value="csharp">
         <ConnCSNative />
