@@ -4,14 +4,14 @@ def create_connection():
     # all parameters are optional.
     conn = None
     try:
-        conn = taosws.connect(
+        conn = taos.connect(
             user="root",
             password="taosdata",
-            host="192.168.1.98",
+            host="localhost",
             port=6041,
         )
     except Exception as err:
-        print(f'Exception {err}')
+        print(err)
     finally:
         if conn:
             conn.close()

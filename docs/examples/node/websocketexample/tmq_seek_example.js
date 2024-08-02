@@ -48,8 +48,8 @@ async function prepare() {
     wsSql.Close();
 }
 
+// ANCHOR: subscribe 
 async function subscribe(consumer) {
-    // ANCHOR: commit 
     try {
         await consumer.subscribe(['topic_meters']);
         for (let i = 0; i < 50; i++) {
@@ -57,22 +57,37 @@ async function subscribe(consumer) {
             for (let [key, value] of res) {
                 console.log(key, value);
             }
-            consumer.commit();
         }        
-    } catch (err) {
+    }catch (err) {
         console.error(err.code, err.message);
         throw err;
     }
-    // ANCHOR_END: commit
-}
 
+}
+// ANCHOR_END: subscribe
+
+// ANCHOR: offset 
 async function test() {
-    // ANCHOR: unsubscribe
     let consumer = null;
     try {
         await prepare();
         let consumer = await createConsumer()
-        await subscribe(consumer)      
+        await consumer.subscribe(['topic_meters']);
+        let res = new Map();
+        while (res.size == 0) {
+            res = await consumer.poll(100);
+        }  
+
+        let assignment = await consumer.assignment();
+        for (let i in assignment) {
+            console.log("seek before:", assignment[i]);
+        }
+
+        await consumer.seekToBeginning(assignment);
+        assignment = await consumer.assignment();
+        for (let i in assignment) {
+            console.log("seek after:", assignment[i]);
+        }
         await consumer.unsubscribe();
     }
     catch (err) {
@@ -84,7 +99,6 @@ async function test() {
         }
         taos.destroy();
     }
-    // ANCHOR_END: unsubscribe
 }
-
+// ANCHOR_END: offset 
 test()
