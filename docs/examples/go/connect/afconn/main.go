@@ -13,6 +13,6 @@ func main() {
 	if err != nil {
 		log.Fatalln("failed to connect, err:", err)
 	} else {
-		fmt.Println("connected")
+		fmt.Println("Connected")
 	}
 }

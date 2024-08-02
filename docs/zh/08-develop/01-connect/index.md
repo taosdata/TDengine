@@ -220,7 +220,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 
 编辑项目配置文件中添加 [TDengine.Connector](https://www.nuget.org/packages/TDengine.Connector/) 的引用即可：
 
-```xml title=csharp.csproj {12}
+```xml title=csharp.csproj
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -321,20 +321,120 @@ Java 连接器建立连接的参数有 URL 和 Properties。
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`  
 
-URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../../reference/connector/java/#url-规范)
+URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/java/#url-规范)
 
     </TabItem>
     <TabItem label="Python" value="python">
     </TabItem>
     <TabItem label="Go" value="go">
+
+    数据源名称具有通用格式，例如 [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php)，但没有类型前缀（方括号表示可选）：
+
+    ``` text
+    [username[:password]@][protocol[(address)]]/[dbname][?param1=value1&...&paramN=valueN]
+    ```
+
+    完整形式的 DSN：
+
+    ```text
+    username:password@protocol(address)/dbname?param=value
+    ```
+
+    支持的 DSN 参数如下
+
+    原生连接：
+
+    - `cfg` 指定 taos.cfg 目录
+    - `cgoThread` 指定 cgo 同时执行的数量，默认为系统核数
+    - `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000
+
+    REST 连接：
+
+    - `disableCompression` 是否接受压缩数据，默认为 true 不接受压缩数据，如果传输数据使用 gzip 压缩设置为 false。
+    - `readBufferSize` 读取数据的缓存区大小默认为 4K（4096），当查询结果数据量多时可以适当调大该值。
+    - `token` 连接云服务时使用的 token。
+    - `skipVerify` 是否跳过证书验证，默认为 false 不跳过证书验证，如果连接的是不安全的服务设置为 true。
+
+    WebSocket 连接：
+
+    - `enableCompression` 是否发送压缩数据，默认为 false 不发送压缩数据，如果传输数据使用压缩设置为 true。
+    - `readTimeout` 读取数据的超时时间，默认为 5m。
+    - `writeTimeout` 写入数据的超时时间，默认为 10s。
+
     </TabItem>
     <TabItem label="Rust" value="rust">
+Rust 连接器使用 DSN 来创建连接， DSN 描述字符串基本结构如下：
+
+```text
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+DSN 的详细说明和如何使用详见 [连接功能](../../reference/connector/rust/#连接功能)
+
     </TabItem>
     <TabItem label="C#" value="csharp">
+    ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为参数名，value 为参数值，不同参数之间使用分号 `;` 分割。
+
+    例如：
+
+    ```csharp
+    "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false"
+    ```
+    支持的参数如下：
+
+    - `host`：TDengine 运行实例的地址。
+    - `port`：TDengine 运行实例的端口。
+    - `username`：连接的用户名。
+    - `password`：连接的密码。
+    - `protocol`：连接的协议，可选值为 Native 或 WebSocket，默认为 Native。
+    - `db`：连接的数据库。
+    - `timezone`：时区，默认为本地时区。
+    - `connTimeout`：连接超时时间，默认为 1 分钟。
+
+    WebSocket 连接额外支持以下参数：
+
+    - `readTimeout`：读取超时时间，默认为 5 分钟。
+    - `writeTimeout`：发送超时时间，默认为 10 秒。
+    - `token`：连接 TDengine cloud 的 token。
+    - `useSSL`：是否使用 SSL 连接，默认为 false。
+    - `enableCompression`：是否启用 WebSocket 压缩，默认为 false。
+    - `autoReconnect`：是否自动重连，默认为 false。
+    - `reconnectRetryCount`：重连次数，默认为 3。
+    - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
     </TabItem>
     <TabItem label="R" value="r">
     </TabItem>
     <TabItem label="C" value="c">
+使用客户端驱动访问 TDengine 集群的基本过程为：建立连接、查询和写入、关闭连接、清除资源。
+
+下面为建立连接的示例代码，其中省略了查询和写入部分，展示了如何建立连接、关闭连接以及清除资源。
+
+```c
+  TAOS *taos = taos_connect("localhost:6030", "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
+    exit(1);
+  }
+
+  /* put your code here for read and write */
+
+  taos_close(taos);
+  taos_cleanup();
+```
+
+在上面的示例代码中， `taos_connect()` 建立到客户端程序所在主机的 6030 端口的连接，`taos_close()`关闭当前连接，`taos_cleanup()`清除客户端驱动所申请和使用的资源。
+
+:::note
+
+- 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
+- 所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。
+
+:::
+
+
+
     </TabItem>
     <TabItem label="PHP" value="php">
     </TabItem>
@@ -345,7 +445,7 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 下面是各语言连接器建立 Websocket 连接代码样例。演示了如何使用 Websocket 连接方式连接到 TDengine 数据库，并对连接设定一些参数。整个过程主要涉及到数据库连接的建立和异常处理。
 
 <Tabs defaultValue="java" groupId="lang">
-    <TabItem label="Java" value="java">
+<TabItem label="Java" value="java">
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
 ```
@@ -356,10 +456,14 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 ```
     </TabItem>
     <TabItem label="Go" value="go">
-        <ConnGo />
+```go
+{{#include docs/examples/go/connect/wsexample/main.go}}
+```
     </TabItem>
     <TabItem label="Rust" value="rust">
-        <ConnRust />
+```rust
+{{#include docs/examples/rust/restexample/examples/connect.rs}}
+```
     </TabItem>
     <TabItem label="Node.js" value="node">
 ```js
@@ -367,7 +471,9 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 ```
     </TabItem>
     <TabItem label="C#" value="csharp">
-        <ConnCSNative />
+```csharp
+{{#include docs/examples/csharp/wsConnect/Program.cs:main}}
+```
     </TabItem>
     <TabItem label="R" value="r">
         <ConnR/>
@@ -388,33 +494,39 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java:main}}
 ```
-    </TabItem>
-    <TabItem label="Python" value="python">
-        <ConnPythonNative />
-    </TabItem>
-    <TabItem label="Go" value="go">
-        <ConnGo />
-    </TabItem>
-    <TabItem label="Rust" value="rust">
-        <ConnRust />
-    </TabItem>
-    <TabItem label="C#" value="csharp">
-        <ConnCSNative />
-    </TabItem>
-    <TabItem label="R" value="r">
-        <ConnR/>
-    </TabItem>
-    <TabItem label="C" value="c">
-        <ConnC />
-    </TabItem>
-    <TabItem label="PHP" value="php">
-        <ConnPHP />
-    </TabItem>
+</TabItem>
+<TabItem label="Python" value="python">
+    <ConnPythonNative />
+</TabItem>
+<TabItem label="Go" value="go">
+```go
+{{#include docs/examples/go/connect/cgoexample/main.go}}
+```
+</TabItem>
+<TabItem label="Rust" value="rust">
+```rust 
+{{#include docs/examples/rust/nativeexample/examples/connect.rs}}
+```
+</TabItem>
+<TabItem label="C#" value="csharp">
+```csharp title="WebSocket 连接"
+{{#include docs/examples/csharp/connect/Program.cs:main}}
+```
+</TabItem>
+<TabItem label="R" value="r">
+    <ConnR/>
+</TabItem>
+<TabItem label="C" value="c">
+    <ConnC />
+</TabItem>
+<TabItem label="PHP" value="php">
+    <ConnPHP />
+</TabItem>
 
 </Tabs>
 
 ### REST 连接
-下面是各语言连接器建立 RESt 连接代码样例。演示了如何使用 REST 连接方式连接到 TDengine 数据库。整个过程主要涉及到数据库连接的建立和异常处理。
+下面是各语言连接器建立 REST 连接代码样例。演示了如何使用 REST 连接方式连接到 TDengine 数据库。整个过程主要涉及到数据库连接的建立和异常处理。
  
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
@@ -428,13 +540,15 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
 ```
     </TabItem>
     <TabItem label="Go" value="go">
-        <ConnGo />
+    ```go
+    {{#include docs/examples/go/connect/restexample/main.go}}
+    ```
     </TabItem>
     <TabItem label="Rust" value="rust">
-        <ConnRust />
+不支持
     </TabItem>
     <TabItem label="C#" value="csharp">
-        <ConnCSNative />
+        C# 只支持 WebSocket 连接与原生连接
     </TabItem>
     <TabItem label="R" value="r">
         <ConnR/>
@@ -488,13 +602,45 @@ URL 和 Properties 的详细参数说明和如何使用详见 [API 说明](../..
         <ConnPythonNative />
     </TabItem>
     <TabItem label="Go" value="go">
-        <ConnGo />
+
+使用 `sql.Open` 创建出来的连接已经实现了连接池，可以通过 API 设置连接池参数，样例如下
+
+```go
+{{#include docs/examples/go/connect/connpool/main.go:pool}}
+```
+
     </TabItem>
     <TabItem label="Rust" value="rust">
-        <ConnRust />
+
+在复杂应用中，建议启用连接池。[taos] 的连接池默认（异步模式）使用 [deadpool] 实现。
+
+如下，可以生成一个默认参数的连接池。
+
+```rust
+let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
+    .unwrap()
+    .pool()
+    .unwrap();
+```
+
+同样可以使用连接池的构造器，对连接池参数进行设置：
+
+```rust
+let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn(self.dsn.clone()).unwrap().0)
+    .max_size(88)  // 最大连接数
+    .build()
+    .unwrap();
+```
+
+在应用代码中，使用 `pool.get()?` 来获取一个连接对象 [Taos]。
+
+```rust
+let taos = pool.get()?;
+```
+
     </TabItem>
     <TabItem label="C#" value="csharp">
-        <ConnCSNative />
+        不支持
     </TabItem>
     <TabItem label="R" value="r">
         <ConnR/>

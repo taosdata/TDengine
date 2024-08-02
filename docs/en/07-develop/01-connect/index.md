@@ -172,7 +172,7 @@ npm install @tdengine/rest
 
 Just need to add the reference to [TDengine.Connector](https://www.nuget.org/packages/TDengine.Connector/) in the project configuration file.
 
-```xml title=csharp.csproj {12}
+```xml title=csharp.csproj
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
