@@ -137,7 +137,7 @@ def pre_test(){
         '''
     } else {
         sh '''
-            echo "unmatched reposiotry ${CHANGE_URL}"
+            echo "unmatched repository ${CHANGE_URL}"
         '''
     }
     sh '''
@@ -247,7 +247,7 @@ def pre_test_win(){
             '''
         } else {
             bat '''
-                echo "unmatched reposiotry %CHANGE_URL%"
+                echo "unmatched repository %CHANGE_URL%"
             '''
         }
     }
@@ -309,7 +309,7 @@ def pre_test_build_win() {
         python -m pip install taospy==2.7.13
         python -m pip uninstall taos-ws-py -y 
         python -m pip install taos-ws-py==0.3.1
-	xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
 }

@@ -62,7 +62,7 @@ log_file_path = f"{work_path}/scan_log/scan_{branch_name}_{current_time}/"
 
 os.makedirs(log_file_path, exist_ok=True)
 
-scan_log_file = f"{log_file_path}/scan.log"
+scan_log_file = f"{log_file_path}/scan_log.txt"
 logger.add(scan_log_file, rotation="10MB", retention="7 days", level="DEBUG")
 #if error happens, open this to debug
 # print(self_path,work_path,TD_project_path,log_file_path,change_file_list)
@@ -212,8 +212,8 @@ if __name__ == "__main__":
     # for item in res:
     #     data += item[0] + "," + str(item[1]) + "\n"
     # logger.info("Csv data: %s" % data)
-    write_csv(os.path.join(log_file_path, "scan_res.csv"), res)
-    scan_result_log = f"{log_file_path}/scan_res.csv"
+    write_csv(os.path.join(log_file_path, "scan_res.txt"), res)
+    scan_result_log = f"{log_file_path}/scan_res.txt"
     # delete the first element of res
     res= res[1:]
     logger.info("The result of scan: \n")
