@@ -142,6 +142,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 <TabItem label="Node.js" value="node">
 
+```js
+    {{#include docs/examples/node/websocketexample/tmq_example.js:create_consumer}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
