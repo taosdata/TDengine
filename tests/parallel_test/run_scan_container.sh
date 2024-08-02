@@ -62,28 +62,34 @@ REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
 
 CONTAINER_TESTDIR=/home/TDinternal/community
 
-#scan file log path
-scan_temp="$WORKDIR/log/${branch_name_id}/"
-docker_scan_temp="/home/${branch_name_id}/"
-mkdir -p $scan_temp
-mkdir -p $docker_scan_temp
+#scan change file path
+scan_changefile_temp_path="$WORKDIR/tmp/${branch_name_id}/"
+docker_can_changefile_temp_path="/home/tmp/${branch_name_id}/"
+mkdir -p $scan_changefile_temp_path
+scan_file_name="$docker_can_changefile_temp_path/docs_changed.txt"
+
+#scan log file path
+scan_log_temp_path="$WORKDIR/scan_log/"
+docker_scan_log_temp_path="/home/scan_log/"
+mkdir -p $scan_log_temp_path
 
 
 scan_scripts="$CONTAINER_TESTDIR/tests/ci/scan_file_path.py" 
-scan_file_name="$docker_scan_temp/docs_changed.txt"
 
 ulimit -c unlimited
 cat << EOF
 docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
-    -v $scan_temp:$docker_scan_temp \
+    -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
+    -v $scan_log_temp_path:$docker_scan_log_temp_path \
     --rm --ulimit core=-1 taos_test:v1.0 python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 EOF
 docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
-    -v $scan_temp:$docker_scan_temp \
+    -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
+    -v $scan_log_temp_path:$docker_scan_log_temp_path \
     --rm --ulimit core=-1 taos_test:v1.0 python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 
 

@@ -725,7 +725,7 @@ static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowC
   strcpy(name.dbname, pStmt->dbName);
   strcpy(name.tname, pStmt->viewName);
   char dbFName[TSDB_DB_FNAME_LEN];
-  (void)tNameGetFullDbName(&name, dbFName);
+  tNameGetFullDbName(&name, dbFName);
   int32_t code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->viewName, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->viewName,

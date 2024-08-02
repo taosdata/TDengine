@@ -57,7 +57,9 @@ else:
 
 
 # log file path
-log_file_path = f"{work_path}/{branch_name}/"
+current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+log_file_path = f"{work_path}/scan_log/scan_{branch_name}_{current_time}/"
+
 os.makedirs(log_file_path, exist_ok=True)
 
 scan_log_file = f"{log_file_path}/scan.log"
@@ -175,8 +177,9 @@ if __name__ == "__main__":
     web_path = []
     res.append(["scan_source_file", "scan_result_file", "match_num", "check_result"])
     # create dir
-    current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-    scan_result_path = os.path.join(scan_result_base_path, current_time)
+    # current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+    # scan_result_path = os.path.join(scan_result_base_path, current_time)
+    scan_result_path = scan_result_base_path
     if not os.path.exists(scan_result_path):
         os.makedirs(scan_result_path)
     for file in all_file_path:
