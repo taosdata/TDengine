@@ -2240,7 +2240,7 @@ export function getDataSources(lang) {
               },
               {
                 "name": "client_id",
-                "display": "Client id",
+                "display": "Client ID",
                 "hint": {
                   "type": "str"
                 },
@@ -2620,7 +2620,7 @@ export function getDataSources(lang) {
               },
               {
                 "name": "client_id",
-                "display": "Client id",
+                "display": "Client ID",
                 "hint": {
                   "type": "str"
                 },
@@ -6708,7 +6708,7 @@ export function getDataSources(lang) {
               },
               {
                 "name": "client_id",
-                "display": "Client ID",
+                "display": "客户端 ID",
                 "hint": {
                   "type": "str"
                 },
@@ -7100,7 +7100,7 @@ export function getDataSources(lang) {
               },
               {
                 "name": "client_id",
-                "display": "Client ID",
+                "display": "客户端 ID",
                 "hint": {
                   "type": "str"
                 },
