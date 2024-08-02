@@ -234,6 +234,9 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```
 </TabItem>
 <TabItem label="C" value="c">
+```c
+{{#include docs/examples/c/CSmlInsertDemo.c:schemaless}}
+```
 </TabItem>
 
 </Tabs>

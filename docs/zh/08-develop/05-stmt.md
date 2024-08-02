@@ -94,6 +94,9 @@ import TabItem from "@theme/TabItem";
 ```
 </TabItem>
 <TabItem label="C" value="c">
+```c
+{{#include docs/examples/c/CStmtInsertDemo.c}}
+```
 </TabItem>
 
 </Tabs>
