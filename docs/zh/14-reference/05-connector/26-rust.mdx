@@ -168,7 +168,7 @@ DSN 描述字符串基本结构如下：
 各部分意义见下表：
 
 - **driver**: 必须指定驱动名以便连接器选择何种方式创建连接，支持如下驱动名：
-  - **taos**: 表名使用 TDengine 连接器驱动。
+  - **taos**: 表明使用 TDengine 连接器驱动。
   - **tmq**: 使用 TMQ 订阅数据。
   - **http/ws**: 使用 Websocket 创建连接。
   - **https/wss**: 在 Websocket 连接方式下显示启用 SSL/TLS 连接。
@@ -640,16 +640,16 @@ DSN 描述字符串基本结构如下：
 一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 Websocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
 
 #### TaosBuilder
-TaosBuilder 结构体提供了建立连接，检查连接，以及获取服务端版本号等功能。
+TaosBuilder 结构体主要提供了根据 DSN 构建 Taos 对象的方法，还提供了检查连接，以及获取客户端版本号等功能。
 
 - `fn available_params() -> &'static [&'static str]`
-  - **接口说明**：获取DSN中可用的参数列表。
+  - **接口说明**：获取 DSN 中可用的参数列表。
   - **返回值**：返回静态字符串切片的引用，包含可用的参数名称。
 
 - `fn from_dsn<D: IntoDsn>(dsn: D) -> RawResult<Self>`
-  - **接口说明**：使用DSN字符串创建连接，不检查连接。
+  - **接口说明**：使用 DSN 字符串创建连接，不检查连接。
   - **参数说明**：
-    - `dsn`：DSN字符串或可转换为DSN的类型。
+    - `dsn`：DSN 字符串或可转换为 DSN 的类型。
   - **返回值**：成功时返回自身类型的 `RawResult`，失败时返回错误。
 
 - `fn client_version() -> &'static str`
@@ -664,14 +664,15 @@ TaosBuilder 结构体提供了建立连接，检查连接，以及获取服务�
 
 - `fn ready(&self) -> bool`
   - **接口说明**：检查是否准备好连接。
-  - **返回值**：大多数情况下返回true，表示地址准备好连接。
+  - **返回值**：大多数情况下返回 `true`，表示地址准备好连接。
 
 - `fn build(&self) -> RawResult<Self::Target>`
-  - **接口说明**：从此结构创建新的连接。
+  - **接口说明**：从此结构创建新的 Taos 对象。
   - **返回值**：成功时返回目标连接类型的 `RawResult`，失败时返回错误。
 
 ### 执行 SQL
-执行 SQL 主要涉及到 Taos 结构体，以及结果集 ResultSet 结构体，还有列信息 Field。
+执行 SQL 主要使用 Taos 结构体，获取结果集以及元数据需要使用下节介绍的 ResultSet 结构体 和列信息 Field 结构体。
+
 #### Taos
 Taos 结构体提供了多个数据库操作的 API，包括：执行 SQL，无模式写入，以及一些常用数据库查询的封装（如创建数据库，获取）
 
@@ -684,34 +685,34 @@ Taos 结构体提供了多个数据库操作的 API，包括：执行 SQL，无�
   - **返回值**：如果使用websocket协议，则返回 `true`，否则返回 `false`。
 
 - `fn query<T: AsRef<str>>(&self, sql: T) -> RawResult<Self::ResultSet>`
-  - **接口说明**：执行SQL查询。
+  - **接口说明**：执行 SQL 查询。
   - **参数说明**：
-    - `sql`：要执行的SQL语句。
+    - `sql`：要执行的 SQL 语句。
   - **返回值**：成功时返回结果集 `ResultSet` 的 `RawResult`，失败时返回错误。
 
 - `fn query_with_req_id<T: AsRef<str>>(&self, sql: T, req_id: u64) -> RawResult<Self::ResultSet>`
-  - **接口说明**：带请求ID执行SQL查询。
+  - **接口说明**：带请求 ID 执行 SQL 查询。
   - **参数说明**：
-    - `sql`：要执行的SQL语句。
-    - `req_id`：请求ID。
+    - `sql`：要执行的 SQL 语句。
+    - `req_id`：请求 ID。
   - **返回值**：成功时返回结果集 `ResultSet` 的 `RawResult`，失败时返回错误。
 
 - `fn exec<T: AsRef<str>>(&self, sql: T) -> RawResult<usize>`
-  - **接口说明**：执行SQL语句。
+  - **接口说明**：执行 SQL 语句。
   - **参数说明**：
-    - `sql`：要执行的SQL语句。
+    - `sql`：要执行的 SQL 语句。
   - **返回值**：成功时返回受影响的行数，失败时返回错误。
 
 - `fn exec_many<T: AsRef<str>, I: IntoIterator<Item = T>>(&self, input: I) -> RawResult<usize>`
-  - **接口说明**：批量执行SQL语句。
+  - **接口说明**：批量执行 SQL 语句。
   - **参数说明**：
-    - `input`：要执行的SQL语句集合。
+    - `input`：要执行的 SQL 语句集合。
   - **返回值**：成功时返回总共受影响的行数，失败时返回错误。
 
 - `fn query_one<T: AsRef<str>, O: DeserializeOwned>(&self, sql: T) -> RawResult<Option<O>>`
-  - **接口说明**：执行SQL查询并返回单个结果。
+  - **接口说明**：执行 SQL 查询并返回单个结果。
   - **参数说明**：
-    - `sql`：要执行的SQL语句。
+    - `sql`：要执行的 SQL 语句。
   - **返回值**：成功时返回可选的结果对象，失败时返回错误。
 
 - `fn server_version(&self) -> RawResult<Cow<str>>`
@@ -722,7 +723,7 @@ Taos 结构体提供了多个数据库操作的 API，包括：执行 SQL，无�
   - **接口说明**：创建主题。
   - **参数说明**：
     - `name`：主题名称。
-    - `sql`：关联的SQL语句。
+    - `sql`：关联的 SQ L语句。
   - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
 
 - `fn databases(&self) -> RawResult<Vec<ShowDatabase>>`
@@ -737,7 +738,7 @@ Taos 结构体提供了多个数据库操作的 API，包括：执行 SQL，无�
   - **接口说明**：描述表结构。
   - **参数说明**：
     - `table`：表名称。
-  - **返回值**：成功时返回表描述的 `RawResult`，失败时返回错误。
+  - **返回值**：成功时返回表结构描述的 `RawResult`，失败时返回错误。
 
 - `fn database_exists(&self, name: &str) -> RawResult<bool>`
   - **接口说明**：检查数据库是否存在。
@@ -746,12 +747,43 @@ Taos 结构体提供了多个数据库操作的 API，包括：执行 SQL，无�
   - **返回值**：成功时返回布尔值的 `RawResult`，指示数据库是否存在，失败时返回错误。
 
 - `fn put(&self, data: &SmlData) -> RawResult<()>`
-  - **接口说明**：写入无模式数据。
+  - **接口说明**：写入无模式数据，SmlData 结构介绍见下文。
   - **参数说明**：
     - `data`：无模式数据。
   - **返回值**：成功时返回空的 `RawResult`，失败时返回错误。
 
+### SmlData  
+SmlData 结构体提供了无模式写入的数据结构，以及获取属性的方法。
+- `pub struct SmlData`
+  - **结构体说明**：`SmlData` 结构体用于存储无模式数据及其相关信息。
+  - **字段说明**：
+    - `protocol`：无模式协议，支持 `Line`, `Telnet`, `Json`, 三种。
+    - `precision`：时间戳精度，支持 `Hours`, `Minutes`, `Seconds`, `Millisecond`（默认）, `Microsecond`, `Nanosecond`。
+    - `data`：数据列表。
+    - `ttl`：数据存活时间，单位为秒。
+    - `req_id`：请求 ID。
 
+- `pub fn protocol(&self) -> SchemalessProtocol`
+  - **接口说明**：获取无模式协议。
+  - **返回值**：无模式协议类型，支持 `Line`, `Telnet`, `Json`, 三种。
+
+- `pub fn precision(&self) -> SchemalessPrecision`
+  - **接口说明**：获取时间戳精度。
+  - **返回值**：时间戳精度类型，支持 `Hours`, `Minutes`, `Seconds`, `Millisecond`（默认）, `Microsecond`, `Nanosecond`。
+
+- `pub fn data(&self) -> &Vec<String>`
+  - **接口说明**：获取数据列表。
+  - **返回值**：数据列表的引用。
+
+- `pub fn ttl(&self) -> Option<i32>`
+  - **接口说明**：获取数据存活时间。
+  - **返回值**：数据存活时间（可选），单位为秒。
+
+- `pub fn req_id(&self) -> Option<u64>`
+  - **接口说明**：获取请求 ID。
+  - **返回值**：请求 ID（可选）。
+
+### 结果获取  
 #### ResultSet
 ResultSet 结构体提供了结果集的一些方法，可以用来获取结果集的数据和元数据。
 
@@ -844,16 +876,16 @@ Stmt 结构体提供了参数绑定相关功能，用于实现高效写入。
   - **返回值**：成功时返回初始化的实例，失败时返回错误。
 
 - `fn init_with_req_id(taos: &Q, req_id: u64) -> RawResult<Self>`
-  - **接口说明**：使用请求ID初始化参数绑定实例。
+  - **接口说明**：使用请求 ID 初始化参数绑定实例。
   - **参数说明**：
     - `taos`：数据库连接实例。
-    - `req_id`：请求ID。
+    - `req_id`：请求 ID。
   - **返回值**：成功时返回初始化的实例，失败时返回错误。
 
 - `fn prepare<S: AsRef<str>>(&mut self, sql: S) -> RawResult<&mut Self>`
   - **接口说明**：准备要绑定的 SQL 语句。
   - **参数说明**：
-    - `sql`：要准备的SQL语句。
+    - `sql`：要准备的 SQL 语句。
   - **返回值**：成功时返回自身的可变引用，失败时返回错误。
 
 - `fn set_tbname<S: AsRef<str>>(&mut self, name: S) -> RawResult<&mut Self>`
@@ -921,7 +953,7 @@ Stmt 结构体提供了参数绑定相关功能，用于实现高效写入。
 
 - `fn ready(&self) -> bool`
   - **接口说明**：检查是否准备好连接。
-  - **返回值**：大多数情况下返回true，表示地址准备好连接。
+  - **返回值**：大多数情况下返回 `true`，表示地址准备好连接。
 
 - `fn build(&self) -> RawResult<Self::Target>`
   - **接口说明**：从此结构创建新的连接。
@@ -1002,12 +1034,8 @@ Offset 结构体提供了获取当前消息所属的数据库，主题和分区�
   - **接口说明**：获取当前消息的分区 ID。
   - **返回值**：分区 ID。
 
-其他相关结构体 API 使用说明请移步 Rust 文档托管网页：https://docs.rs/taos。
-
-[taos]: https://github.com/taosdata/rust-connector-taos
-[deadpool]: https://crates.io/crates/deadpool
-[r2d2]: https://crates.io/crates/r2d2
-[TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
-[TaosCfg]: https://docs.rs/taos/latest/taos/struct.TaosCfg.html
-[struct.Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
-[Stmt]: https://docs.rs/taos/latest/taos/struct.Stmt.html
+## 附录  
+- Rust 连接器文档：https://docs.rs/taos
+- Rust 连接器项目地址: https://github.com/taosdata/rust-connector-taos  
+- deadpool 连接池: https://crates.io/crates/deadpool  
+- r2d2 连接池: https://crates.io/crates/r2d2  
