@@ -27,6 +27,10 @@ public static void main(String[] args) throws SQLException {
     } catch (SQLException ex) {
         // handle any errors, please refer to the JDBC specifications for detailed exceptions info
         System.out.println("Failed to connect to " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+        throw ex;
+    } catch (Exception ex){
+        System.out.println("Failed to connect to " + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+        throw ex;
     }
 }
 // ANCHOR_END: main
