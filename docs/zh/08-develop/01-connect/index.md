@@ -380,16 +380,7 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 下面为建立连接的示例代码，其中省略了查询和写入部分，展示了如何建立连接、关闭连接以及清除资源。
 
 ```c
-  TAOS *taos = taos_connect("localhost:6030", "root", "taosdata", NULL, 0);
-  if (taos == NULL) {
-    printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
-    exit(1);
-  }
-
-  /* put your code here for read and write */
-
-  taos_close(taos);
-  taos_cleanup();
+{{#include docs/examples/c/connect_example.c}}
 ```
 
 在上面的示例代码中， `taos_connect()` 建立到客户端程序所在主机的 6030 端口的连接，`taos_close()`关闭当前连接，`taos_cleanup()`清除客户端驱动所申请和使用的资源。
