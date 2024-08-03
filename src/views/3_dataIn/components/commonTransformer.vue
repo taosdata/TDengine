@@ -1868,51 +1868,16 @@ export default {
         console.log(error);
       }
     },
-    // 获取示例数据字符串列表
-    getExampleList() {
-      let demo_string = (this.msgForm.msgbody || "").trim();
-      let demo_string_arr = [];
-      if (demo_string.startsWith("[") && demo_string.endsWith("]")) {
-        let arr_list = demo_string.replace(/\]\s*\[/g, "]&$[").split("&$");
-        let total = 0;
-        for (let i = 0; i < arr_list.length; i++) {
-          try {
-            let item_parsed = JSON.parse(arr_list[i]);
-            total += item_parsed.length;
-          } catch (err) {
-            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
-            throw err;
-          }
-          demo_string_arr.push(arr_list[i]);
-          if (total >= 100) {
-            return demo_string_arr;
-          }
-        }
-      } else if (demo_string.startsWith("{") && demo_string.endsWith("}")) {
-          let obj_list = demo_string.replace(/\}\s*\{/g, "}&${").split("&$");
-          for (let i = 0; i < obj_list.length; i++) {
-            if (i >= 100) {
-              return demo_string_arr;
-            }
-            try {
-              JSON.parse(obj_list[i]);
-            } catch (err) {
-              this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", i + 1).replace("{1}", err.toString()));
-              throw err;
-            }
-            demo_string_arr.push(obj_list[i]);
-          }
-      } else {
-        Message.warning(this.$t("datasource.transformer.jsontip"));
-        throw new Error("Invalid JSON format");
-      }
-      return demo_string_arr;
-    },
+    
     //输出input结果
     generateInput() {
       let demo_list;
       try {
-        demo_list = getExampleList(this.msgForm.msgbody);
+        if (this.parseruleForm.type == "regex") {
+          demo_list = this.msgForm.msgbody.split(/\n+/);
+        } else {
+          demo_list = getExampleList(this.msgForm.msgbody);
+        }
       } catch (err) {
         if (err.lineNumber > 0) {
           this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
@@ -2370,18 +2335,19 @@ export default {
       this.parseruleForm.expression = data
     },
     selectJson() {
-      // this.dialogVisible = true;
+      
+      try {
+        this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
+      } catch (err) {
+        if (err.lineNumber > 0) {
+          this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
+        } else {
+          this.$error(this.$t(err));
+        }
+      }
+      
       if (this.parseruleForm.expression && this.parseruleForm.type == "json") {
         // 回显逻辑
-        try {
-          this.allProperties = extractAllProperties(this.msgForm.msgbody)
-        } catch (err) {
-          if (err.lineNumber > 0) {
-            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
-          } else {
-            this.$error(this.$t(err));
-          }
-        }
         let firstSplitArr = this.parseruleForm.expression.split(',')
         let checkedKey = []
         let checkedObj = {}
@@ -2399,15 +2365,6 @@ export default {
           }
         })
       } else {
-        try {
-          this.allProperties = extractAllProperties(this.msgForm.msgbody)
-        } catch (err) {
-          if (err.lineNumber > 0) {
-            this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
-          } else {
-            this.$error(this.$t(err));
-          }
-        }
         this.allProperties = this.allProperties.map((item,index) => {
           return  {
             defaultValue: item,
@@ -2429,19 +2386,7 @@ export default {
       console.log('this.checkedProperties',this.allProperties);
     },
     handleRename(value) {
-      let inputString = value
-      inputString = inputString.replace(/\$./g, '');
-      // 判断不是嵌套属性 
-      if (!inputString.includes('.')) {
-        inputString = "";
-      }
-      inputString = inputString.replace(/\./g, '_');
-      // 替换所有的中括号为下划线
-      inputString = inputString.replace(/\[/g, '_');
-      inputString = inputString.replace(/\]/g, '');
-      
-
-      return inputString;
+      return value.replaceAll("\"][\"", '_').replace("$[\"", "").replace("\"]", "");
     },
     handleTypeChange() {
       this.parseruleForm.expression = ""

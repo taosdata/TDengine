@@ -1916,10 +1916,10 @@ export default {
       this.parseruleForm.expression = data
     },
     selectJson() {
-      // this.dialogVisible = true;
+      this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
+
       if (this.parseruleForm.expression && this.parseruleForm.type == "json") {
         // 回显逻辑
-        this.allProperties = extractAllProperties(this.msgForm.msgbody)
         let firstSplitArr = this.parseruleForm.expression.split(',')
         let checkedKey = []
         let checkedObj = {}
@@ -1937,7 +1937,7 @@ export default {
           }
         })
       } else {
-        this.allProperties = extractAllProperties(this.msgForm.msgbody)
+        
         this.allProperties = this.allProperties.map((item,index) => {
           return  {
             defaultValue: item,
@@ -1959,19 +1959,7 @@ export default {
       console.log('this.checkedProperties',this.allProperties);
     },
     handleRename(value) {
-      let inputString = value
-      inputString = inputString.replace(/\$./g, '');
-      // 判断不是嵌套属性 
-      if (!inputString.includes('.')) {
-        inputString = "";
-      }
-      inputString = inputString.replace(/\./g, '_');
-      // 替换所有的中括号为下划线
-      inputString = inputString.replace(/\[/g, '_');
-      inputString = inputString.replace(/\]/g, '');
-      
-
-      return inputString;
+      return value.replaceAll("\"][\"", '_').replace("$[\"", "").replace("\"]", "");
     },
     handleTypeChange() {
       this.parseruleForm.expression = ""
