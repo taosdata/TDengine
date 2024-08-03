@@ -6,7 +6,10 @@ import com.taosdata.jdbc.tmq.*;
 
 import java.sql.*;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -15,8 +18,7 @@ import java.util.concurrent.TimeUnit;
 public class ConsumerLoopFull {
     static private Connection connection;
     static private Statement statement;
-
-    static private volatile boolean stopFlag = false;
+    static private volatile boolean stopThread = false;
 
     public static TaosConsumer<ResultBean> getConsumer() throws SQLException {
 // ANCHOR: create_consumer
@@ -38,43 +40,14 @@ public class ConsumerLoopFull {
             return new TaosConsumer<>(config);
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to create jni consumer, host : " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create consumer", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to create jni consumer, host : " + config.getProperty("bootstrap.servers")
+            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers")
                     + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create consumer", ex);
         }
 // ANCHOR_END: create_consumer
-    }
-
-    public static void pollDataExample(TaosConsumer<ResultBean> consumer) throws SQLException {
-        try{
-            // subscribe to the topics
-            List<String> topics = Collections.singletonList("topic_meters");
-
-            consumer.subscribe(topics);
-            System.out.println("subscribe topics successfully");
-            for (int i = 0; i < 50; i++) {
-                // poll data
-                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-                for (ConsumerRecord<ResultBean> record : records) {
-                    ResultBean bean = record.value();
-                    // process the data here
-                    System.out.println("data: " + JSON.toJSONString(bean));
-                }
-            }
-            // unsubscribe the topics
-            consumer.unsubscribe();
-            System.out.println("unsubscribed topics successfully");
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to poll data from topic_meters", ex);
-        } catch (Exception ex) {
-            System.out.println("Failed to poll data from topic_meters; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to poll data from topic_meters", ex);
-        }
     }
 
     public static void pollExample(TaosConsumer<ResultBean> consumer) throws SQLException {
@@ -172,6 +145,7 @@ public class ConsumerLoopFull {
         consumer.subscribe(topics);
 // ANCHOR: unsubscribe_data_code_piece
         try {
+            // unsubscribe the consumer
             consumer.unsubscribe();
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
@@ -182,6 +156,7 @@ public class ConsumerLoopFull {
             throw new SQLException("Failed to unsubscribe consumer", ex);
         }
         finally {
+            // close the consumer
             consumer.close();
         }
 // ANCHOR_END: unsubscribe_data_code_piece
@@ -252,11 +227,11 @@ public class ConsumerLoopFull {
     public static void prepareData() throws SQLException, InterruptedException {
         try {
             int i = 0;
-            while (!stopFlag) {
-                i++;
+            while (!stopThread) {
                 String insertQuery = "INSERT INTO power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') VALUES (NOW + " + i + "a, 10.30000, 219, 0.31000) ";
                 int affectedRows = statement.executeUpdate(insertQuery);
                 assert affectedRows == 1;
+                i++;
                 Thread.sleep(1);
             }
         } catch (SQLException ex) {
@@ -330,26 +305,43 @@ public class ConsumerLoopFull {
         // submit a task
         executor.submit(() -> {
             try {
-                // please use one example at a time
-                TaosConsumer<ResultBean> consumer = getConsumer();
-
-                pollDataExample(consumer);
-                seekExample(consumer);
-                pollExample(consumer);
-                commitExample(consumer);
-                unsubscribeExample(consumer);
-                stopFlag = true;
+                prepareData();
             } catch (SQLException ex) {
-                System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+                System.out.println("Failed to prepare data, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+                return;
+            } catch (Exception ex) {
+                System.out.println("Failed to prepare data, ErrMessage: " + ex.getMessage());
+                return;
             }
             System.out.println("pollDataExample executed successfully");
         });
 
-        prepareData();
-        closeConnection();
+        try {
+            TaosConsumer<ResultBean> consumer = getConsumer();
 
-        System.out.println("Data prepared successfully");
+            pollExample(consumer);
+            System.out.println("pollExample executed successfully");
+            consumer.unsubscribe();
 
+            seekExample(consumer);
+            System.out.println("seekExample executed successfully");
+            consumer.unsubscribe();
+
+            commitExample(consumer);
+            System.out.println("commitExample executed successfully");
+            consumer.unsubscribe();
+
+            unsubscribeExample(consumer);
+            System.out.println("unsubscribeExample executed successfully");
+        } catch (SQLException ex) {
+            System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            return;
+        } catch (Exception ex) {
+            System.out.println("Failed to poll data from topic_meters, ErrMessage: " + ex.getMessage());
+            return;
+        }
+
+        stopThread = true;
         // close the executor, which will make the executor reject new tasks
         executor.shutdown();
 
@@ -364,6 +356,7 @@ public class ConsumerLoopFull {
             System.out.println("Wait executor termination failed.");
         }
 
+        closeConnection();
         System.out.println("program end.");
     }
 }

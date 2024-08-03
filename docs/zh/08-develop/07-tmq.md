@@ -155,7 +155,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 介绍各语言连接器使用原生连接方式创建消费者。指定连接的服务器地址，设置自动提交，从最新消息开始消费，指定 `group.id` 和 `client.id` 等信息。有的语言的连接器还支持反序列化参数。
 
 
-<Tabs groupId="lang">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
 ```java
@@ -391,7 +391,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </Tabs>
 
 ### 原生连接 
-<Tabs groupId="lang">
+<Tabs defaultValue="java" groupId="lang">
 
 <TabItem value="java" label="Java">
 
@@ -486,7 +486,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 
 <TabItem label="Rust" value="rust">
 ```rust
-{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs:consumer_commit_manually}}
+{{#include docs/examples/rust/restexample/examples/tmq.rs:consumer_commit_manually}}
 ```
 
 可以通过 `consumer.commit` 方法来手工提交消费进度。
@@ -507,7 +507,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </Tabs>
 
 ### 原生连接 
-<Tabs groupId="lang">
+<Tabs defaultValue="java" groupId="lang">
 
 <TabItem value="java" label="Java">
 
@@ -532,7 +532,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 
 <TabItem label="Rust" value="rust">
 ```rust
-{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs:consumer_commit_manually}}
+{{#include docs/examples/rust/restexample/examples/tmq.rs:consumer_commit_manually}}
 ```
 
 可以通过 `consumer.commit` 方法来手工提交消费进度。
@@ -679,7 +679,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 
 <TabItem label="Rust" value="rust">
 ```rust
-{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs}}
+{{#include docs/examples/rust/restexample/examples/tmq.rs}}
 ```
 </TabItem>
 
@@ -699,7 +699,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </Tabs>
 
 ### 原生连接 
-<Tabs groupId="lang">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 <details>
 <summary>完整原生连接代码示例</summary> 
@@ -731,7 +731,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 
 <TabItem label="Rust" value="rust">
 ```rust
-{{#include docs/examples/rust/nativeexample/examples/subscribe_demo.rs}}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs}}
 ```
 </TabItem>
 

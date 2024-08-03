@@ -5,7 +5,7 @@ async fn main() -> anyhow::Result<()> {
     let dsn = "taos://localhost:6030";
     let builder = TaosBuilder::from_dsn(dsn)?;
 
-    let taos = builder.build()?;
+    let taos = builder.build().await?;
 
     // ANCHOR: create_db_and_table
     let db = "power";
@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
 
     // create super table
     taos.exec_many([
-        "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) \
+        "CREATE STABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) \
             TAGS (`groupid` INT, `location` BINARY(24))",
     ]).await?;
     println!("Create stable meters successfully.");
@@ -27,15 +27,15 @@ async fn main() -> anyhow::Result<()> {
     // ANCHOR_END: create_db_and_table
 
     // ANCHOR: insert_data
-    let inserted = taos.exec("INSERT INTO " +
-    "power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') " +
-    "VALUES " +
-    "(NOW + 1a, 10.30000, 219, 0.31000) " +
-    "(NOW + 2a, 12.60000, 218, 0.33000) " +
-    "(NOW + 3a, 12.30000, 221, 0.31000) " +
-    "power.d1002 USING power.meters TAGS(3, 'California.SanFrancisco') " +
-    "VALUES " +
-    "(NOW + 1a, 10.30000, 218, 0.25000) ").await?;
+    let inserted = taos.exec(r#"INSERT INTO 
+    power.d1001 USING power.meters TAGS(2,'California.SanFrancisco')  
+    VALUES 
+    (NOW + 1a, 10.30000, 219, 0.31000) 
+    (NOW + 2a, 12.60000, 218, 0.33000) 
+    (NOW + 3a, 12.30000, 221, 0.31000) 
+    power.d1002 USING power.meters TAGS(3, 'California.SanFrancisco') 
+    VALUES 
+    (NOW + 1a, 10.30000, 218, 0.25000) "#).await?;
 
     println!("inserted: {} rows to power.meters successfully.", inserted);
     // ANCHOR_END: insert_data
@@ -63,5 +63,10 @@ async fn main() -> anyhow::Result<()> {
 
     // ANCHOR: query_with_req_id
     let result = taos.query_with_req_id("SELECT ts, current, location FROM power.meters limit 1", 1).await?;
+    for field in result.fields() {
+        println!("got field: {}", field.name());
+    }
+    println!("query with reqId successfully");
     // ANCHOR_END: query_with_req_id
+    Ok(())
 }
