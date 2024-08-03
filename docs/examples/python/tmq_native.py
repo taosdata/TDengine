@@ -1,8 +1,9 @@
 import taos
 
+
 def prepareMeta():
     conn = None
-    try:    
+    try:
         conn = taos.connect(
             host="localhost",
             user="root",
@@ -12,14 +13,14 @@ def prepareMeta():
 
         db = "power"
         topic = "topic_meters"
-        conn.execute(f"CREATE DATABASE IF EXISTS {db}")
+        conn.execute(f"CREATE DATABASE IF NOT EXISTS {db}")
 
         # change database. same as execute "USE db"
         conn.select_db(db)
 
         # create super table
         conn.execute(
-            "CREATE STABLE IF EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)"
+            "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)"
         )
 
         # ANCHOR: create_topic
@@ -37,15 +38,20 @@ def prepareMeta():
                 VALUES (NOW + 1a, 10.30000, 218, 0.25000)
             """
         affectedRows = conn.execute(sql)
-        print("inserted into {affectedRows} rows to power.meters successfully.")
+        print(f"inserted into {affectedRows} rows to power.meters successfully.")
     except Exception as err:
-        print("prepare meta err:{err}") 
-    finally
+        print(f"prepare meta err:{err}")
+        raise err
+    finally:
         if conn:
-            conn.close()      
+            conn.close()
 
-# ANCHOR: create_consumer
+        # ANCHOR: create_consumer
+
+
 from taos.tmq import Consumer
+
+
 def create_consumer():
     try:
         consumer = Consumer(
@@ -55,16 +61,18 @@ def create_consumer():
                 "td.connect.user": "root",
                 "td.connect.pass": "taosdata",
                 "enable.auto.commit": "true",
-                "auto.commit.interval.ms":"1000",
-                "auto.offset.reset": "latest", 
-                "td.connect.ip": "192.168.1.98",
-                "td.connect.port": "6041",
+                "auto.commit.interval.ms": "1000",
+                "auto.offset.reset": "latest",
+                "td.connect.ip": "localhost",
+                "td.connect.port": "6030",
             }
         )
+        return consumer
     except Exception as err:
-        print("Failed to poll data, err:{err}")
-        raise err                   
-# ANCHOR_END: create_consumer
+        print(f"Failed to poll data, err:{err}")
+        raise err
+    # ANCHOR_END: create_consumer
+
 
 # ANCHOR: subscribe
 def subscribe(consumer):
@@ -78,15 +86,17 @@ def subscribe(consumer):
                 if err is not None:
                     print(f"poll data error, {err}")
                     raise err
-                
-                val = res.value()
+
+                val = records.value()
                 if val:
                     for block in val:
-                        print(block.fetchall()) 
+                        print(block.fetchall())
 
     except Exception as err:
-        print("Failed to poll data, err:{err}")
+        print(f"Failed to poll data, err:{err}")
         raise err
+
+
 # ANCHOR_END: subscribe
 
 def commit_offset(consumer):
@@ -101,45 +111,49 @@ def commit_offset(consumer):
                 if err is not None:
                     print(f"poll data error, {err}")
                     raise err
-                
-                val = res.value()
+
+                val = records.value()
                 if val:
                     for block in val:
-                        print(block.fetchall()) 
+                        print(block.fetchall())
 
                 consumer.commit(records)
 
     except Exception as err:
-        print("Failed to poll data, err:{err}")
+        print(f"Failed to poll data, err:{err}")
         raise err
     # ANCHOR_END: commit_offset
+
 
 def seek_offset(consumer):
     # ANCHOR: assignment
     try:
         assignments = consumer.assignment()
-        for partition in assignments:
-            print("first data polled: {partition.offset}")
-            partition.offset = 0
-            consumer.seek(partition)
-            print("assignment seek to beginning successfully");
+        if assignments:
+            for partition in assignments:
+                print(f"first data polled: {partition.offset}")
+                partition.offset = 0
+                consumer.seek(partition)
+                print(f"assignment seek to beginning successfully");
     except Exception as err:
-        print("seek example failed; err:{err}")
+        print(f"seek example failed; err:{err}")
         raise err
     # ANCHOR_END: assignment
+
 
 # ANCHOR: unsubscribe
 def unsubscribe(consumer):
     try:
         consumer.unsubscribe()
     except Exception as err:
-        print("Failed to unsubscribe consumer. err:{err}")
-   
+        print(f"Failed to unsubscribe consumer. err:{err}")
+
+
 # ANCHOR_END: unsubscribe
 
 if __name__ == "__main__":
     consumer = None
-    try: 
+    try:
         prepareMeta()
         consumer = create_consumer()
         subscribe(consumer)
@@ -147,7 +161,7 @@ if __name__ == "__main__":
         commit_offset(consumer)
         unsubscribe(consumer)
     except Exception as err:
-        print("Failed to stmt consumer. err:{err}")
+        print(f"Failed to stmt consumer. err:{err}")
     finally:
         if consumer:
-            consumer.close()    
+            consumer.close()

@@ -8,7 +8,7 @@ def create_connection():
             user="root",
             password="taosdata",
             host="localhost",
-            port=6041,
+            port=6030,
         )
     except Exception as err:
         print(err)

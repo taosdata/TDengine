@@ -15,8 +15,8 @@ try:
         power.d1002 USING power.meters (groupid, location) TAGS(3, 'California.SanFrancisco') 
             VALUES (NOW + 1a, 10.30000, 218, 0.25000)
         """
-    inserted = conn.execute(sql, 1)
-    print("inserted into {affectedRows} rows to power.meters successfully.")
+    affectedRows = conn.execute(sql, 1)
+    print(f"inserted into {affectedRows} rows to power.meters successfully.")
 
     result = conn.query("SELECT ts, current, location FROM power.meters limit 100", 2)
     print(result)
