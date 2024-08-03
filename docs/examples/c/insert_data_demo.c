@@ -14,7 +14,7 @@
  */
 
 // TAOS standard API example. The same syntax as MySQL, but only a subset
-// to compile: gcc -o CInsertDataDemo CInsertDataDemo.c -ltaos
+// to compile: gcc -o insert_data_demo insert_data_demo.c -ltaos
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -31,10 +31,11 @@ const char *password  = "taosdata";
 // connect
 TAOS *taos = taos_connect(ip, user, password, NULL, 0);
 if (taos == NULL) {
-  printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
+  printf("failed to connect to server %s, reason: %s\n", ip, taos_errstr(NULL));
   taos_cleanup();
   return -1;
 }
+printf("success to connect server %s\n", ip);
 
 // use database
 TAOS_RES *result = taos_query(taos, "USE power");
@@ -53,7 +54,7 @@ const char* sql = "INSERT INTO "                                                
 result = taos_query(taos, sql);
 int code = taos_errno(result);
 if (code != 0) {
-  printf("failed to insert rows, reason: %s\n", taos_errstr(result));
+  printf("failed to insert data to power.meters, ip: %s, reason: %s\n", ip, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
@@ -62,7 +63,7 @@ taos_free_result(result);
 
 // you can check affectedRows here
 int rows = taos_affected_rows(result);
-printf("success to insert %d rows\n", rows);
+printf("success to insert %d rows data to power.meters\n", rows);
 
 // close & clean
 taos_close(taos);
