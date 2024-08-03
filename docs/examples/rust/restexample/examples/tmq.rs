@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::str::FromStr;
-
+use chrono::Local;
+use chrono::DateTime;
 use taos::*;
 
 #[tokio::main]
@@ -28,13 +29,6 @@ async fn main() -> anyhow::Result<()> {
     ])
     .await?;
 
-    taos.exec_many([
-        "drop database if exists db2",
-        "create database if not exists db2 wal_retention_period 3600",
-        "use db2",
-    ])
-    .await?;
-
     // ANCHOR: create_topic
     taos.exec_many([
         "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM power.meters",
@@ -58,9 +52,45 @@ async fn main() -> anyhow::Result<()> {
     consumer.subscribe(["topic_meters"]).await?;
     // ANCHOR_END: subscribe
 
+    #[derive(Debug, serde::Deserialize)]
+    #[allow(dead_code)]
+    struct Record {
+        // deserialize timestamp to chrono::DateTime<Local>
+        ts: DateTime<Local>,
+        // float to f32
+        current: Option<f32>,
+        // int to i32
+        voltage: Option<i32>,
+        phase: Option<f32>,
+        groupid: i32,
+        // binary/varchar to String
+        location: String,
+    }
+
     // ANCHOR: consume
-    {
-        consumer
+
+    consumer
+    .stream()
+    .try_for_each(|(offset, message)| async move {
+        let topic = offset.topic();
+        // the vgroup id, like partition id in kafka.
+        let vgroup_id = offset.vgroup_id();
+        println!("* in vgroup id {vgroup_id} of topic {topic}\n");
+
+        if let Some(data) = message.into_data() {
+            while let Some(block) = data.fetch_raw_block().await? {
+                let records: Vec<Record> = block.deserialize().try_collect()?;
+                println!("** read {} records: {:#?}\n", records.len(), records);
+            }
+        }
+        Ok(())
+    })
+    .await?;
+
+    // ANCHOR_END: consume
+
+    // ANCHOR: consumer_commit_manually   
+    consumer
         .stream()
         .try_for_each(|(offset, message)| async {
             let topic = offset.topic();
@@ -74,11 +104,12 @@ async fn main() -> anyhow::Result<()> {
                     println!("** read {} records: {:#?}\n", records.len(), records);
                 }
             }
+            // commit offset manually when you have processed the message.
+            consumer.commit(offset).await?;
             Ok(())
         })
         .await?;
-    }
-    // ANCHOR_END: consume
+    // ANCHOR_END: consumer_commit_manually
 
     // ANCHOR: assignments
     let assignments = consumer.assignments().await.unwrap();
@@ -127,7 +158,6 @@ async fn main() -> anyhow::Result<()> {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     taos.exec_many([
-        "drop database db2",
         "drop topic topic_meters",
         "drop database power",
     ])

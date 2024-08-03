@@ -37,6 +37,7 @@ async fn main() -> anyhow::Result<()> {
     // execute.
     let rows = stmt.execute().await?;
     assert_eq!(rows, NUM_TABLES * NUM_ROWS);
-    
+
+    println!("execute stmt insert successfully");
     Ok(())
 }
