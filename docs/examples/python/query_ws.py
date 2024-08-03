@@ -16,7 +16,7 @@ try:
         print(row)
 
 except Exception as err:
-    print(err)
+    print(f"Failed to query data from power.meters, err:{err}")
 finally:
     if conn:
         conn.close()

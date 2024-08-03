@@ -38,10 +38,10 @@ try:
         currents = []
         voltages = []
         phases = []
-        for j in range(numOfRow):
+        for j in range (numOfRow):
             timestamps.append(current + i)
             currents.append(random.random() * 30)
-            voltages.append(random.randint(100, 300))
+            voltages.append(random.random(100, 300))
             phases.append(random.random())
 
         stmt.bind_param(
@@ -55,12 +55,12 @@ try:
 
         stmt.add_batch()
         rows = stmt.execute()
-        print(f"table {tbname} insert ok.")
-
+        print(f"insert {rows} rows.")
+        
 except Exception as err:
-    print(err)
+    print(f"Failed to insert to table meters using stmt, error: {err}") 
 finally:
     if stmt:
         stmt.close()
-    if conn:
+    if conn:    
         conn.close()

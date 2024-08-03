@@ -3,16 +3,16 @@ import taosrest
 
 def create_connection():
     conn = None
+    url="http://localhost:6041"
     try:
-        conn = taosrest.connect(url="http://localhost:6041",
+        conn = taosrest.connect(url=url,
                                 user="root",
                                 password="taosdata",
                                 timeout=30)
         
-        print("Connection established")
-        
+        print(f"Connected to {url} successfully.");
     except Exception as err:
-        print(err)
+        print(f"Failed to connect to {url} ; Err:{err}")
     finally:
         if conn:
             conn.close() 

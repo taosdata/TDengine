@@ -12,4 +12,4 @@ try:
     print(result)
 
 except Exception as err:
-    print(err)
+    print(f"Failed to execute sql with reqId, err:{err}")

@@ -32,7 +32,7 @@ try:
         jsonDemo, taos.SmlProtocol.JSON_PROTOCOL, taos.SmlPrecision.MILLI_SECONDS
     )
 except Exception as err:
-    print(err)
+    print(f"Failed to insert data with schemaless, err:{err}")
 finally:
     if conn:
         conn.close()
