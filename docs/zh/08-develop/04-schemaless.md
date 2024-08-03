@@ -204,8 +204,6 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 {{#include docs/examples/csharp/wssml/Program.cs:main}}
 ```
 </TabItem>
-<TabItem label="C" value="c">
-</TabItem>
 </Tabs>
 
 ### 原生连接
@@ -248,30 +246,6 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 </TabItem>
 
 </Tabs>
-
-
-### REST 连接
-<Tabs defaultValue="java" groupId="lang">
-    <TabItem label="Java" value="java">
-    不支持
-    </TabItem>
-    <TabItem label="Python" value="python">
-    不支持
-   </TabItem>
-    <TabItem label="Go" value="go">
-    不支持
-    </TabItem>
-    <TabItem label="Rust" value="rust">
-    不支持
-    </TabItem>
-    <TabItem label="C#" value="csharp">
-    不支持
-    </TabItem>
-    <TabItem label="C" value="c">
-    </TabItem>
-
-</Tabs>
-
 
 ## 查询写入的数据
 
