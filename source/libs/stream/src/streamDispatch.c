@@ -819,8 +819,19 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   SArray* pList = pActiveInfo->pReadyMsgList;
   int32_t num = taosArrayGetSize(pList);
 
+  if (pTmrInfo->launchChkptId != pActiveInfo->activeId) {
+    streamMutexUnlock(&pActiveInfo->lock);
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stWarn("s-task:%s vgId:%d ready-msg send tmr launched by previous checkpoint procedure, checkpointId:%" PRId64
+           ", quit, ref:%d",
+           id, vgId, pTmrInfo->launchChkptId, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
   // active checkpoint info is cleared for now
-  if ((pActiveInfo->activeId == 0) && (pActiveInfo->transId == 0) && (num == 0) && (pTask->chkInfo.startTs == 0)) {
+  if ((pActiveInfo->activeId == 0) || (pActiveInfo->transId == 0) || (num == 0) || (pTask->chkInfo.startTs == 0)) {
     streamMutexUnlock(&pActiveInfo->lock);
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from readyMsg send tmr, ref:%d", id, vgId, ref);
