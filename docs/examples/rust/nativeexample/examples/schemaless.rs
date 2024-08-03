@@ -10,7 +10,7 @@ async fn put() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "taos=debug");
     pretty_env_logger::init();
     let dsn =
-        std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
+        std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("taos://localhost:6030".to_string());
     log::debug!("dsn: {:?}", &dsn);
 
     let client = TaosBuilder::from_dsn(dsn)?.build().await?;

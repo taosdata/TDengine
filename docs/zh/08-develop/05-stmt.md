@@ -86,7 +86,11 @@ import TabItem from "@theme/TabItem";
 ```
 </TabItem>
 <TabItem label="Rust" value="rust">
-除 DSN 不同，其余同 Websocket 代码示例。
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/stmt.rs}}
+```
+
 </TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
