@@ -61,9 +61,6 @@ import TabItem from "@theme/TabItem";
 {{#include docs/examples/csharp/wsStmt/Program.cs:main}}
 ```
 </TabItem>
-<TabItem label="C" value="c">
-
-</TabItem>
 </Tabs>
 
 ## 原生连接
