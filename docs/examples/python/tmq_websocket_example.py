@@ -1,24 +1,23 @@
 #!/usr/bin/python3
-from taosws
-
+import taosws
 def prepareMeta():
     conn = None
 
     try:
         conn = taosws.connect(user="root",
-                            password="taosdata",
-                            host="localhost",
-                            port=6041)
+                              password="taosdata",
+                              host="localhost",
+                              port=6041)
 
         db = "power"
         # create database
         rowsAffected = conn.execute(f"CREATE DATABASE IF NOT EXISTS {db}")
         assert rowsAffected == 0
 
-        # change database. 
+        # change database.
         rowsAffected = conn.execute(f"USE {db}")
         assert rowsAffected == 0
-        
+
         # create super table
         rowsAffected = conn.execute(
             "CREATE TABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
@@ -26,7 +25,8 @@ def prepareMeta():
         assert rowsAffected == 0
 
         # create table
-        rowsAffected = conn.execute("CREATE TABLE IF NOT EXISTS `d0` USING `meters` (groupid, location) TAGS(0, 'Los Angles')")
+        rowsAffected = conn.execute(
+            "CREATE TABLE IF NOT EXISTS `d0` USING `meters` (groupid, location) TAGS(0, 'Los Angles')")
         assert rowsAffected == 0
 
         sql = """
@@ -37,15 +37,16 @@ def prepareMeta():
             power.d1002 USING power.meters (groupid, location) TAGS(3, 'California.SanFrancisco') 
                 VALUES (NOW + 1a, 10.30000, 218, 0.25000)
             """
-        inserted = conn.execute(sql)
-        print("inserted into {affectedRows} rows to power.meters successfully.")  
+        affectedRows = conn.execute(sql)
+        print(f"inserted into {affectedRows} rows to power.meters successfully.")
 
     except Exception as err:
-        print(err)
+        print(f"Failed to prepareMeta {err}")
+        raise err
     finally:
         if conn:
             conn.close()
-   
+
 
 # ANCHOR: create_consumer
 def create_consumer():
@@ -55,15 +56,17 @@ def create_consumer():
             "group.id": "group1",
             "client.id": "1",
             "auto.offset.reset": "latest",
-            "td.connect.ip": "192.168.1.98",
+            "td.connect.ip": "localhost",
             "td.connect.port": "6041",
             "enable.auto.commit": "true",
-            "auto.commit.interval.ms":"1000",
+            "auto.commit.interval.ms": "1000",
         })
         return consumer;
     except Exception as err:
         print(f"Failed to create websocket consumer, err:{err}");
         raise err
+
+
 # ANCHOR_END: create_consumer
 
 def seek_offset(consumer):
@@ -74,21 +77,23 @@ def seek_offset(consumer):
             topic = assignment.topic()
             print(f"topic: {topic}")
             for assign in assignment.assignments():
-                print(f"vg_id: {assign.vg_id()}, offset: {assign.offset()}, begin: {assign.begin()}, end: {assign.end()}")
+                print(
+                    f"vg_id: {assign.vg_id()}, offset: {assign.offset()}, begin: {assign.begin()}, end: {assign.end()}")
                 consumer.seek(topic, assign.vg_id(), assign.begin())
                 print("assignment seek to beginning successfully");
-    
+
     except Exception as err:
-        print("seek example failed; err:{err}")
+        print(f"seek example failed; err:{err}")
         raise err
     # ANCHOR_END: assignment
+
 
 # ANCHOR: subscribe
 def subscribe(consumer):
     try:
         consumer.subscribe(["topic_meters"])
         print("subscribe topics successfully")
-        for i in range(50):
+        for i in range(5):
             records = consumer.poll(timeout=1.0)
             if records:
                 for block in records:
@@ -96,16 +101,16 @@ def subscribe(consumer):
                         print(row)
 
     except Exception as err:
-        print("Failed to poll data, err:{err}")
+        print(f"Failed to poll data, err:{err}")
         raise err
+
+
 # ANCHOR_END: subscribe
 
 # ANCHOR: commit_offset
 def commit_offset(consumer):
     try:
-        consumer.subscribe(["topic_meters"])
-        print("subscribe topics successfully")
-        for i in range(50):
+        for i in range(5):
             records = consumer.poll(timeout=1.0)
             if records:
                 for block in records:
@@ -114,22 +119,25 @@ def commit_offset(consumer):
                 consumer.commit(records)
 
     except Exception as err:
-        print("Failed to poll data, err:{err}")
+        print(f"Failed to poll data, err:{err}")
         raise err
-# ANCHOR_END: commit_offset 
-#    
+
+
+# ANCHOR_END: commit_offset
+#
 # ANCHOR: unsubscribe
 def unsubscribe(consumer):
     try:
         consumer.unsubscribe()
     except Exception as err:
         print("Failed to unsubscribe consumer. err:{err}")
-   
+
+
 # ANCHOR_END: unsubscribe
 
 if __name__ == "__main__":
     consumer = None
-    try: 
+    try:
         prepareMeta()
         consumer = create_consumer()
         subscribe(consumer)
@@ -137,7 +145,7 @@ if __name__ == "__main__":
         commit_offset(consumer)
         unsubscribe(consumer)
     except Exception as err:
-        print("Failed to stmt consumer. err:{err}")
+        print(f"Failed to stmt consumer. err:{err}")
     finally:
         if consumer:
-            consumer.close() 
+            consumer.close()

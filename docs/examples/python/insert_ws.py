@@ -16,8 +16,8 @@ try:
         power.d1002 USING power.meters (groupid, location) TAGS(3, 'California.SanFrancisco') 
             VALUES (NOW + 1a, 10.30000, 218, 0.25000)
         """
-    inserted = conn.execute(sql)
-    print("inserted into {affectedRows} rows to power.meters successfully.")
+    affectedRows = conn.execute(sql)
+    print(f"inserted into {affectedRows} rows to power.meters successfully.")
 
 except Exception as err:
     print(err)

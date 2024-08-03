@@ -6,7 +6,7 @@ try:
     conn = taos.connect(user="root",
                           password="taosdata",
                           host="localhost",
-                          port=6041)
+                          port=6030)
 
     sql = """
         INSERT INTO 
@@ -17,7 +17,7 @@ try:
             VALUES (NOW + 1a, 10.30000, 218, 0.25000)
         """
     affectedRows = conn.execute(sql)
-    print("inserted into {affectedRows} rows to power.meters successfully.")
+    print(f"inserted into {affectedRows} rows to power.meters successfully.")
 
 except Exception as err:
     print(err)
