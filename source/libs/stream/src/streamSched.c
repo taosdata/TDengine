@@ -48,14 +48,15 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
   SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
   if (pRunReq == NULL) {
     stError("vgId:%d failed to create msg to start stream task:0x%x exec, type:%d, code:%s", vgId, taskId, execType,
-            terrstr());
-    return TSDB_CODE_OUT_OF_MEMORY;
+            terrstr(terrno));
+    return terrno;
   }
 
   if (streamId != 0) {
-    stDebug("vgId:%d create msg to start stream task:0x%x, exec type:%d", vgId, taskId, execType);
+    stDebug("vgId:%d create msg to for task:0x%x, exec type:%d, %s", vgId, taskId, execType,
+            streamTaskGetExecType(execType));
   } else {
-    stDebug("vgId:%d create msg to exec, type:%d", vgId, execType);
+    stDebug("vgId:%d create msg to exec, type:%d, %s", vgId, execType, streamTaskGetExecType(execType));
   }
 
   pRunReq->head.vgId = vgId;
