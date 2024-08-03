@@ -69,7 +69,7 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c/CCreateDBDemo.c:create_db_and_table}}
+{{#include docs/examples/c/create_db_demo.c:create_db_and_table}}
 ```
 > **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 power.meters。
 </TabItem>
@@ -146,7 +146,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c/CInsertDataDemo.c:insert_data}}
+{{#include docs/examples/c/insert_data_demo.c:insert_data}}
 ```
 
 **Note**
@@ -215,7 +215,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c/CQueryDataDemo.c:query_data}}
+{{#include docs/examples/c/query_data_demo.c:query_data}}
 ```
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -290,7 +290,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c/CWithReqIdDemo.c:with_reqid}}
+{{#include docs/examples/c/with_reqid_demo.c:with_reqid}}
 ```
 </TabItem>
 <TabItem label="REST API" value="rest">
