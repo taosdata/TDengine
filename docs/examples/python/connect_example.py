@@ -3,15 +3,18 @@ import taos
 def create_connection():
     # all parameters are optional.
     conn = None
+    host = "localhost"
+    port = 6030
     try:
         conn = taos.connect(
             user="root",
             password="taosdata",
-            host="localhost",
-            port=6030,
+            host=host,
+            port=port,
         )
+        print(f"Connected to {host}:{port} successfully.");
     except Exception as err:
-        print(err)
+        print(f"Failed to connect to {host}:{port} ; Err:{err}")
     finally:
         if conn:
             conn.close()

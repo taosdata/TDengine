@@ -1,6 +1,5 @@
 import taos
 
-
 def prepareMeta():
     conn = None
     try:
@@ -46,11 +45,8 @@ def prepareMeta():
         if conn:
             conn.close()
 
-        # ANCHOR: create_consumer
-
-
+# ANCHOR: create_consumer
 from taos.tmq import Consumer
-
 
 def create_consumer():
     try:
