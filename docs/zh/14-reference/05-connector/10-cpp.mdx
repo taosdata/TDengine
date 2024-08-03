@@ -29,37 +29,6 @@ TDengine 客户端驱动的动态库位于：
 
 TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一对应的强对应关系，建议使用与 TDengine 服务端完全相同的客户端驱动。虽然低版本的客户端驱动在前三段版本号一致（即仅第四段版本号不同）的情况下也能够与高版本的服务端相兼容，但这并非推荐用法。强烈不建议使用高版本的客户端驱动访问低版本的服务端。
 
-## 安装步骤
-
-TDengine 客户端驱动的安装请参考 [安装指南](../#安装步骤)
-
-## 建立连接
-
-使用客户端驱动访问 TDengine 集群的基本过程为：建立连接、查询和写入、关闭连接、清除资源。
-
-下面为建立连接的示例代码，其中省略了查询和写入部分，展示了如何建立连接、关闭连接以及清除资源。
-
-```c
-  TAOS *taos = taos_connect("localhost:6030", "root", "taosdata", NULL, 0);
-  if (taos == NULL) {
-    printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
-    exit(1);
-  }
-
-  /* put your code here for read and write */
-
-  taos_close(taos);
-  taos_cleanup();
-```
-
-在上面的示例代码中， `taos_connect()` 建立到客户端程序所在主机的 6030 端口的连接，`taos_close()`关闭当前连接，`taos_cleanup()`清除客户端驱动所申请和使用的资源。
-
-:::note
-
-- 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
-- 所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。 [错误码文档](../cpp/error-code)
-
-:::
 ## 错误码
 
 在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。  
