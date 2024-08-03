@@ -375,22 +375,15 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
     </TabItem>
     <TabItem label="C" value="c">
-使用客户端驱动访问 TDengine 集群的基本过程为：建立连接、查询和写入、关闭连接、清除资源。
+C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数据库的连接。其参数详细说明如下：
 
-下面为建立连接的示例代码，其中省略了查询和写入部分，展示了如何建立连接、关闭连接以及清除资源。
+- `host`：要连接的数据库服务器的主机名或IP地址。如果是本地数据库，可以使用 `"localhost"`。
+- `user`：用于登录数据库的用户名。
+- `passwd`：与用户名对应的密码。
+- `db`：连接时默认选择的数据库名。如果不指定数据库，可以传递 `NULL` 或空字符串。
+- `port`：数据库服务器监听的端口号。默认的端口号是 `6030`。
 
-```c
-{{#include docs/examples/c/connect_example.c}}
-```
-
-在上面的示例代码中， `taos_connect()` 建立到客户端程序所在主机的 6030 端口的连接，`taos_close()`关闭当前连接，`taos_cleanup()`清除客户端驱动所申请和使用的资源。
-
-:::note
-
-- 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
-- 所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。
-
-:::
+还提供了 `taos_connect_auth()` 函数用于使用 MD5 加密的密码建立与 TDengine 数据库的连接。此函数与 `taos_connect` 功能相同，不同之处在于密码的处理方式，`taos_connect_auth` 需要的是密码的 MD5 加密字符串。
 
     </TabItem>
 
