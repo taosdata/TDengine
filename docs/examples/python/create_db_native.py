@@ -1,11 +1,13 @@
 import taos
 
 conn = None
+host = "localhost"
+port = 6030
 try:
-    conn = taos.connect(host="localhost",
+    conn = taos.connect(host=host,
+                        port=port,
                         user="root",
-                        password="taosdata",
-                        port=6030)
+                        password="taosdata")
 
     db = "power"
     # create database
@@ -27,7 +29,7 @@ try:
     assert rowsAffected == 0
 
 except Exception as err:
-    print(err) 
+    print(f"Failed to create db and table, db addrr:{host}:{port} err:{err}") 
 finally:
     if conn:
         conn.close()       

@@ -1,8 +1,9 @@
 import taosrest
 
 conn = None
+url = "http://localhost:6041"
 try:
-    conn = taosrest.connect(url="http://localhost:6041",
+    conn = taosrest.connect(url=url,
                    user="root",
                    password="taosdata",
                    timeout=30)
@@ -22,7 +23,7 @@ try:
     assert rowsAffected == 0
 
 except Exception as err:
-    print(err)
+    print(f"Failed to create db and table, url:{url} err:{err}") 
 finally:
     if conn:
         conn.close()

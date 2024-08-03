@@ -42,7 +42,7 @@ try:
         for j in range (numOfRow):
             timestamps.append(current + i)
             currents.append(random.random() * 30)
-            voltages.append(random.randint(100, 300))
+            voltages.append(random.random(100, 300))
             phases.append(random.random())
 
         params = taos.new_bind_params(4)
@@ -52,10 +52,11 @@ try:
         params[3].float(phases)
         stmt.bind_param_batch(params)
         stmt.execute()
-        print(f"table {tbname} insert ok.")
+        affected = stmt.affected_rows()
+        print(f"table {tbname} insert {affected} rows.")
 
 except Exception as err:
-    print(err)
+    print(f"Failed to insert to table meters using stmt, error: {err}") 
 finally:
     if stmt:
         stmt.close()
