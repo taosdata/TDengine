@@ -102,10 +102,12 @@ public class JdbcBasicDemo {
 
                 // print result
                 printResult(tempResultSet);
-            } catch (SQLException e) {
-                System.out.println("ERROR Message: " + e.getMessage());
-                System.out.println("ERROR Code: " + e.getErrorCode());
-                e.printStackTrace();
+            } catch (SQLException ex) {
+                System.out.println("ERROR Message: " + ex.getMessage() + "ERROR Code: " + ex.getErrorCode());
+                ex.printStackTrace();
+            } catch (Exception ex){
+                System.out.println("ERROR Message: " + ex.getMessage());
+                ex.printStackTrace();
             }
 // ANCHOR_END: jdbc_exception
         } catch (SQLException ex) {
