@@ -79,7 +79,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 
 ## 安装连接器
 
-<Tabs groupId="lang">
+<Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
 如果使用 Maven 管理项目，只需在 pom.xml 中加入以下依赖。
@@ -439,9 +439,6 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 {{#include docs/examples/csharp/wsConnect/Program.cs:main}}
 ```
     </TabItem>
-    <TabItem label="C" value="c">
-        <ConnC />
-    </TabItem>
 </Tabs>
 
 ### 原生连接
@@ -496,16 +493,6 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 {{#include docs/examples/go/connect/restexample/main.go}}
 ```
     </TabItem>
-    <TabItem label="Rust" value="rust">
-        不支持
-    </TabItem>
-    <TabItem label="C#" value="csharp">
-        不支持
-    </TabItem>
-    <TabItem label="C" value="c">
-        <ConnC />
-    </TabItem>
-
 </Tabs>
 
 
@@ -585,11 +572,6 @@ let taos = pool.get()?;
 ```
 
     </TabItem>
-    <TabItem label="C#" value="csharp">
-        不支持
-    </TabItem>
-    <TabItem label="C" value="c">
-        <ConnC />
-    </TabItem>
+
 
 </Tabs>

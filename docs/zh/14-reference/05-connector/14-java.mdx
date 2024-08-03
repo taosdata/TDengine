@@ -68,7 +68,7 @@ JDBC 连接器可能报错的错误码包括 4 种：
 - JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间）
 - 原生连接方法的报错（错误码在 0x2351 到 0x2360 之间）
 - 数据订阅的报错（错误码在 0x2371 到 0x2380 之间）
-- TDengine 其他功能模块的报错。
+- TDengine 其他功能模块的报错，请参考 [错误码](../cpp/error-code)  
 
 具体的错误码请参考：
 
@@ -117,7 +117,7 @@ JDBC 连接器可能报错的错误码包括 4 种：
 - [TDengine Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 <!-- - [TDengine_ERROR_CODE](../error-code) -->
 
-## TDengine DataType 和 Java DataType
+## 数据类型映射
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 

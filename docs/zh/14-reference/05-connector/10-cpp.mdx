@@ -57,9 +57,14 @@ TDengine 客户端驱动的安装请参考 [安装指南](../#安装步骤)
 :::note
 
 - 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
-- 所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。<a href="./_01-error-code.md">查看错误代码文档</a>
+- 所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。 [错误码文档](../cpp/error-code)
 
 :::
+## 错误码
+
+在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。  
+所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。   
+详细的错误码说明参考：[错误码](../cpp/error-code)  
 
 ## 示例程序
 
@@ -303,7 +308,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
 
-### 同步查询 API
+### 同步查询
 
 本小节介绍 API 均属于同步接口。应用调用后，会阻塞等待响应，直到获得返回结果或错误信息。
 
@@ -325,7 +330,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
   - **接口说明**：按行获取查询结果集中的数据。
   - **参数说明**：
     - res：[入参] 结果集。
-  - **返回值**：`非NULL`：成功，`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
+  - **返回值**：非 `NULL`：成功，`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
 
 - `int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)`
   - **接口说明**：批量获取查询结果集中的数据。
@@ -356,7 +361,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
   - **接口说明**：获取查询结果集每列数据的属性（列的名称、列的数据类型、列的长度），与 `taos_num_fields()` 配合使用，可用来解析 `taos_fetch_row()` 返回的一个元组(一行)的数据。
   - **参数说明**：
     - res：[入参] 结果集。
-  - **返回值**：`非NULL`：成功，返回一个指向 TAOS_FIELD 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。    
+  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_FIELD 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。    
 
 - `void taos_stop_query(TAOS_RES *res)`
   - **接口说明**：停止当前查询的执行。
@@ -386,7 +391,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
 :::
 
-### 异步查询 API
+### 异步查询
 
 TDengine 还提供性能更高的异步 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2 ～ 4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优势尤为突出。
 
@@ -410,7 +415,7 @@ TDengine 还提供性能更高的异步 API 处理数据插入、查询操作。
 
 TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
-### 参数绑定 API
+### 参数绑定
 
 除了直接调用 `taos_query()` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，风格与 MySQL 类似，目前也仅支持用问号 `?` 来代表待绑定的参数。
 
@@ -434,7 +439,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **接口说明**：初始化一个预编译的 SQL 语句对象。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
-  - **返回值**：`非NULL`：成功，返回一个指向 TAOS_STMT 结构体的指针，该结构体表示预编译的 SQL 语句对象。`NULL`：失败，详情请调用 taos_stmt_errstr() 函数来获取错误提示。
+  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_STMT 结构体的指针，该结构体表示预编译的 SQL 语句对象。`NULL`：失败，详情请调用 taos_stmt_errstr() 函数来获取错误提示。
 
 - `int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
   - **接口说明**：解析一条预编译的 SQL 语句，将解析结果和参数信息绑定到 stmt 上。
@@ -496,7 +501,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
   - **接口说明**：获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result()` 以释放资源。
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
-  - **返回值**：`非NULL`：成功，返回一个指向查询结果集的指针。`NULL`：失败，详情请调用 taos_stmt_errstr() 函数来获取错误提示。
+  - **返回值**：非 `NULL`：成功，返回一个指向查询结果集的指针。`NULL`：失败，详情请调用 taos_stmt_errstr() 函数来获取错误提示。
 
 - `int taos_stmt_close(TAOS_STMT *stmt)`
   - **接口说明**：执行完毕，释放所有资源。
@@ -508,7 +513,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
     - stmt：[入参] 指向一个有效的预编译的 SQL 语句对象指针。
   - **返回值**：返回一个指向包含错误信息的字符串的指针。
 
-### 无模式（schemaless）写入 API
+### 无模式写入
 
 除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](../../reference/schemaless/) 章节，这里介绍与之配套使用的 C/C++ API。
 
@@ -632,7 +637,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - 带_ttl的接口可以传递ttl参数来控制建表的ttl到期时间。
   - 带_reqid的接口可以通过传递reqid参数来追踪整个的调用链。
 
-### 数据订阅 API
+### 数据订阅
 - `const char *tmq_err2str(int32_t code)`
   - **接口说明**：用于将数据订阅的错误码转换为错误信息。
     - code：[入参] 数据订阅的错误码。
@@ -640,7 +645,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 - `tmq_conf_t *tmq_conf_new()`
   - **接口说明**：创建一个新的 TMQ 配置对象。
-  - **返回值**：`非NULL`：成功，返回一个指向 tmq_conf_t 结构体的指针，该结构体用于配置 TMQ 的行为和特性。`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
+  - **返回值**：非 `NULL`：成功，返回一个指向 tmq_conf_t 结构体的指针，该结构体用于配置 TMQ 的行为和特性。`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
 
 - `tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value)`
   - **接口说明**：设置 TMQ 配置对象中的配置项，用于配置消费参数。
@@ -669,7 +674,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 - `tmq_list_t *tmq_list_new()`
   - **接口说明**：用于创建一个 tmq_list_t 结构体，用于存储订阅的 topic。
-  - **返回值**：`非NULL`：成功，返回一个指向 tmq_list_t 结构体的指针。`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
+  - **返回值**：非 `NULL`：成功，返回一个指向 tmq_list_t 结构体的指针。`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
 
 - `int32_t tmq_list_append(tmq_list_t *list, const char* topic)`
   - **接口说明**：用于向 tmq_list_t 结构体中添加一个 topic。
@@ -689,14 +694,14 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `char **tmq_list_to_c_array(const tmq_list_t *list)`
   - **接口说明**：用于将 tmq_list_t 结构体转换为 C 数组，数组每个元素为字符串指针。
     - list：[入参] 指向一个有效的 tmq_list_t 结构体指针，该结构体代表一个 TMQ 列表对象。
-  - **返回值**：`非NULL`：成功，返回 c 数组, 每个元素是字符串指针，代表一个 topic 名称。`NULL`：失败，表示输入参数 list 为 NULL 。
+  - **返回值**：非 `NULL`：成功，返回 c 数组, 每个元素是字符串指针，代表一个 topic 名称。`NULL`：失败，表示输入参数 list 为 NULL 。
 
 - `tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen)`
   - **接口说明**：用于创建一个 tmq_t 结构体，用于消费数据，消费完数据后需调用 tmq_consumer_close 关闭消费者。
     - conf：[入参] 指向一个有效的 tmq_conf_t 结构体指针，该结构体代表一个 TMQ 配置对象。
     - errstr：[出参] 指向一个有效的字符缓冲区指针，用于接收创建过程中可能产生的错误信息。内存的申请/释放由调用者负责。
     - errstrLen：[入参] 指定 errstr 缓冲区的大小（以字节为单位）。
-  - **返回值**：`非NULL`：成功，返回一个指向 tmq_t 结构体的指针，该结构体代表一个 TMQ 消费者对象。。`NULL`：失败，错误信息存储在参数 errstr 中 。
+  - **返回值**：非 `NULL`：成功，返回一个指向 tmq_t 结构体的指针，该结构体代表一个 TMQ 消费者对象。。`NULL`：失败，错误信息存储在参数 errstr 中 。
 
 - `int32_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list)`
   - **接口说明**：用于订阅 topic 列表，消费完数据后，需调用 tmq_subscribe 取消订阅。
@@ -719,7 +724,7 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - **接口说明**：用于轮询消费数据，每一个消费者，只能单线程调用该接口。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
     - timeout：[入参] 轮询的超时时间，单位为毫秒，负数表示默认超时1秒。
-  - **返回值**：`非NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。。`NULL`：失败，表示没有数据。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
+  - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_RES 结构体的指针，该结构体包含了接收到的消息。。`NULL`：失败，表示没有数据。TAOS_RES 结果和 taos_query 返回结果一致，可通过查询的各种接口获取 TAOS_RES 里的信息，比如 schema 等。
 
 - `int32_t tmq_consumer_close(tmq_t *tmq)`
   - **接口说明**：用于关闭 tmq_t 结构体。需与 tmq_consumer_new 配合使用。

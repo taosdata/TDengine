@@ -146,10 +146,6 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/csharp/wssubscribe/Program.cs:create_consumer}}
 ```
 </TabItem>
-
-<TabItem label="C" value="c">
-    
-</TabItem>
 </Tabs>
 
 
@@ -160,11 +156,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 <Tabs groupId="lang">
 <TabItem value="java" label="Java">
 
-
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopFull.java:create_consumer}}
 ```
-
 
 </TabItem>
 
@@ -255,16 +249,19 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```
 </TabItem>
 
-<TabItem label="C" value="c">
-    
-</TabItem>
 </Tabs>
 
 ### 原生连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
-同 Websocket 代码样例。
+```java
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:poll_data_code_piece}}
+```
+
+- `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
+- `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
+- `ResultBean` 是我们自定义的一个内部类，其字段名和数据类型与列的名称和数据类型一一对应，这样根据 `value.deserializer` 属性对应的反序列化类可以反序列化出 `ResultBean` 类型的对象。
 
 </TabItem>
 
@@ -282,7 +279,12 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-同 Websocket 示例代码
+消费者可订阅一个或多个 `TOPIC`，一般建议一个消费者只订阅一个 `TOPIC`。  
+TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) 类型，可以使用相应 API 对每个消息进行消费，并通过 `.commit` 进行已消费标记。
+
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:consume}}
+```
 </TabItem>
 
 <TabItem label="C#" value="csharp">
@@ -353,18 +355,20 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 {{#include docs/examples/csharp/wssubscribe/Program.cs:seek}}
 ```
 </TabItem>
-
-<TabItem label="C" value="c">
-    
-</TabItem>
-
 </Tabs>
 
 ### 原生连接 
 <Tabs groupId="lang">
 
 <TabItem value="java" label="Java">
-同 Websocket 代码样例。
+
+```java
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_seek}}
+```
+1. 使用 consumer.poll 方法轮询数据，直到获取到数据为止。
+2. 对于轮询到的第一批数据，打印第一条数据的内容，并获取当前消费者的分区分配信息。
+3. 使用 consumer.seekToBeginning 方法将所有分区的偏移量重置到开始位置，并打印成功重置的消息。
+4. 再次使用 consumer.poll 方法轮询数据，并打印第一条数据的内容。
 
 </TabItem>
 
@@ -382,7 +386,17 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-同 Websocket 代码样例。
+
+```rust
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:seek_offset}}
+```
+
+1. 通过调用 consumer.assignments() 方法获取消费者当前的分区分配信息，并记录初始分配状态。  
+2. 遍历每个分区分配信息，对于每个分区：提取主题（topic）、消费组ID（vgroup_id）、当前偏移量（current）、起始偏移量（begin）和结束偏移量（end）。
+记录这些信息。  
+1. 调用 consumer.offset_seek 方法将偏移量设置到起始位置。如果操作失败，记录错误信息和当前分配状态。  
+2. 在所有分区的偏移量调整完成后，再次获取并记录消费者的分区分配信息，以确认偏移量调整后的状态。    
+
 </TabItem>
 
 <TabItem label="C#" value="csharp">
@@ -447,10 +461,6 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 {{#include docs/examples/csharp/wssubscribe/Program.cs:commit_offset}}
 ```
 </TabItem>
-
-<TabItem label="C" value="c">
-    
-</TabItem>
 </Tabs>
 
 ### 原生连接 
@@ -458,7 +468,9 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 
 <TabItem value="java" label="Java">
 
-同 Websocket 代码样例。
+```java
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:commit_code_piece}}
+```
 
 </TabItem>
 
@@ -476,7 +488,11 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-同 Websocket 代码样例。
+```rust
+{{#include docs/examples/rust/restexample/examples/subscribe_demo.rs:consumer_commit_manually}}
+```
+
+可以通过 `consumer.commit` 方法来手工提交消费进度。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -541,19 +557,15 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 {{#include docs/examples/csharp/wssubscribe/Program.cs:close}}
 ```
 </TabItem>
-
-<TabItem label="C" value="c">
-    
-</TabItem>
-
 </Tabs>
 
 ### 原生连接 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 
-同 Websocket 代码样例。
-
+```java
+{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
+```
 </TabItem>
 
 <TabItem label="Python" value="python">
@@ -570,7 +582,11 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-同 Websocket 代码样例。  
+```rust
+{{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
+```
+
+**注意**：消费者取消订阅后无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -636,10 +652,6 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 ```csharp
 {{#include docs/examples/csharp/wssubscribe/Program.cs}}
 ```
-</TabItem>
-
-<TabItem label="C" value="c">
-    
 </TabItem>
 
 </Tabs>
