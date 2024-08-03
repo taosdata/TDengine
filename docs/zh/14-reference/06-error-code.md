@@ -1,5 +1,5 @@
 ---
-sidebar_label: 错误码
+sidebar_label: TDengine 错误码
 title: TDengine C/C++ 连接器错误码
 description: C/C++ 连接器的错误码列表和详细说明
 ---
