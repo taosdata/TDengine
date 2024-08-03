@@ -57,8 +57,8 @@ async function prepare() {
             console.log(`d_bind_${i} insert ` + stmt.getLastAffected() + " rows.");
         }
     }
-    catch (e) {
-        console.error(e);
+    catch (err) {
+        console.error("Failed to insert to table meters using stmt, ErrCode:" + err.code + "; ErrMessage: " + err.message);
     }
     finally {
         if (stmt) {
