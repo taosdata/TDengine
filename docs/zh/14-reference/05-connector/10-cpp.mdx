@@ -811,12 +811,12 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `TAOS *tmq_get_connect(tmq_t *tmq)`
   - **接口说明**：从 TMQ 消费者对象中获取与 TDengine 数据库的连接句柄。
     - tmq：[入参] 指向一个有效的 tmq_t 结构体指针，该结构体代表一个 TMQ 消费者对象。
-  - **返回值**：非NULL`：成功，返回一个 TAOS * 类型的指针，指向与 TDengine 数据库的连接句柄。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 TAOS * 类型的指针，指向与 TDengine 数据库的连接句柄。`NULL`：失败，非法的输入参数。
 
 - `const char *tmq_get_table_name(TAOS_RES *res)`
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的的表名。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非NULL`：成功，返回一个 const char * 类型的指针，指向表名字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向表名字符串。`NULL`：失败，非法的输入参数。
 
 - `tmq_res_t tmq_get_res_type(TAOS_RES *res)`
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取消息类型。
@@ -835,9 +835,9 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 - `const char *tmq_get_topic_name(TAOS_RES *res)`
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的 topic 名称。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非NULL`：成功，返回一个 const char * 类型的指针，指向 topic 名称字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向 topic 名称字符串。`NULL`：失败，非法的输入参数。
 
 - `const char *tmq_get_db_name(TAOS_RES *res)`
   - **接口说明**：从 TMQ 消费者获取的消息结果中获取所属的数据库名称。
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
-  - **返回值**：非NULL`：成功，返回一个 const char * 类型的指针，指向数据库名称字符串。`NULL`：失败，非法的输入参数。
+  - **返回值**：非 `NULL`：成功，返回一个 const char * 类型的指针，指向数据库名称字符串。`NULL`：失败，非法的输入参数。
