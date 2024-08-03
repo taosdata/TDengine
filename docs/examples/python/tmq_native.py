@@ -73,6 +73,7 @@ def create_consumer():
 # ANCHOR: subscribe
 def subscribe(consumer):
     try:
+        # subscribe to the topics
         consumer.subscribe(["topic_meters"])
         print("subscribe topics successfully")
         for i in range(50):
@@ -98,8 +99,6 @@ def subscribe(consumer):
 def commit_offset(consumer):
     # ANCHOR: commit_offset
     try:
-        consumer.subscribe(["topic_meters"])
-        print("subscribe topics successfully")
         for i in range(50):
             records = consumer.poll(1)
             if records:
@@ -113,6 +112,7 @@ def commit_offset(consumer):
                     for block in val:
                         print(block.fetchall())
 
+                # after processing the data, commit the offset manually
                 consumer.commit(records)
 
     except Exception as err:
