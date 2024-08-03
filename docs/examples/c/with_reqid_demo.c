@@ -56,7 +56,7 @@ result = taos_query_with_reqid(taos, "USE power", 2L);
 taos_free_result(result);
 
 // query data
-const char* sql = "SELECT * FROM power.meters";
+const char* sql = "SELECT ts, current, location FROM power.meters limit 1";
 result = taos_query_with_reqid(taos, sql, 3L);
 code = taos_errno(result);
 if (code != 0) {
