@@ -116,6 +116,8 @@ def commit_offset(consumer):
                 for block in records:
                     for row in block:
                         print(row)
+                        
+                #  after processing the data, commit the offset manually        
                 consumer.commit(records)
 
     except Exception as err:

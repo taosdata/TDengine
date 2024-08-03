@@ -19,7 +19,7 @@ async function createConsumer() {
     try {
         return await taos.tmqConnect(configMap);
     }catch (err) {
-        console.log(err);
+        console.log("Failed to create websocket consumer, ErrCode:" + err.code + "; ErrMessage: " + err.message);
         throw err;
     }
     
@@ -60,7 +60,7 @@ async function subscribe(consumer) {
             consumer.commit();
         }        
     } catch (err) {
-        console.error(err.code, err.message);
+        console.error("Failed to poll data; err.code, ErrCode:" + err.code + "; ErrMessage: " + err.message);
         throw err;
     }
     // ANCHOR_END: commit
@@ -76,7 +76,7 @@ async function test() {
         await consumer.unsubscribe();
     }
     catch (err) {
-        console.error(err.code, err.message);
+        console.error("Failed to unsubscribe consume, ErrCode:" + err.code + "; ErrMessage: " + err.message);
     }
     finally {
         if (consumer) {

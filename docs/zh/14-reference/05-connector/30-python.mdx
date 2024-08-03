@@ -59,7 +59,7 @@ Python 连接器可能会产生 4 种异常：
 - 原生连接方式的异常
 - websocket 连接方式异常
 - 数据订阅异常
-- TDengine 其他功能模块的异常
+- TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)
 
 |Error Type|Description|Suggested Actions|
 |:--------:|:---------:|:---------------:|
@@ -67,11 +67,11 @@ Python 连接器可能会产生 4 种异常：
 |ConnectionError|数据库链接错误|请检查 TDengine 服务端状态和连接参数|
 |DatabaseError|数据库错误|请检查 TDengine 服务端版本，并将 Python 连接器升级到最新版|
 |OperationalError|操作错误|API 使用错误，请检查代码|
-|ProgrammingError|||
-|StatementError|stmt 相关异常||
-|ResultError|||
-|SchemalessError|schemaless 相关异常||
-|TmqError|tmq 相关异常||
+|ProgrammingError|接口调用错误|请检查提交的数据是否正确|
+|StatementError|stmt 相关异常|请检查绑定参数与 sql 是否匹配|
+|ResultError|操作数据错误|请检查操作的数据与数据库中的数据类型是否匹配|
+|SchemalessError|schemaless 相关异常|请检查数据格式及对应的协议类型是否正确|
+|TmqError|tmq 相关异常|请检查 Topic 及 consumer 配置是否正确|
 
 Python 中通常通过 try-expect 处理异常，异常处理相关请参考 [Python 错误和异常文档](https://docs.python.org/3/tutorial/errors.html)。  
 TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code) 
@@ -540,7 +540,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `RestClient(self, url: str, token: str = None, database: str = None, user: str = "root", password: str = "taosdata", timeout: int = None, convert_timestamp: bool = True, timezone: Union[str, datetime.tzinfo] = None)`
     - **接口说明**：建立 taosAdapter 连接 client。
     - **参数说明**：
-        - `url`: taosAdapter REST 服务的 URL。默认是 \<http://localhost:6041>。
+        - `url`: taosAdapter REST 服务的 URL。
         - `user`: 数据库的用户名。
         - `password`: 数据库的密码。
         - `database`: 数据库名称。

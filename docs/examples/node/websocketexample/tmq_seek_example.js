@@ -59,7 +59,7 @@ async function subscribe(consumer) {
             }
         }        
     }catch (err) {
-        console.error(err.code, err.message);
+        console.error("Failed to poll data; err.code, ErrCode:" + err.code + "; ErrMessage: " + err.message);
         throw err;
     }
 
@@ -91,7 +91,7 @@ async function test() {
         await consumer.unsubscribe();
     }
     catch (err) {
-        console.error(err.code, err.message);
+        console.error("seek example failed, ErrCode:" + err.code + "; ErrMessage: " + err.message);
     }
     finally {
         if (consumer) {
