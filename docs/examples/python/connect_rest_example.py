@@ -8,6 +8,9 @@ def create_connection():
                                 user="root",
                                 password="taosdata",
                                 timeout=30)
+        
+        print("Connection established")
+        
     except Exception as err:
         print(err)
     finally:
