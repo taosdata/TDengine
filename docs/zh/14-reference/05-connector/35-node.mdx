@@ -352,36 +352,36 @@ WSConfig 中的配置如下：
         - `partitions`：一个 `Array<TopicPartition>` 类型的参数，表示要查询的分区集合。
         - `reqId`: 请求 id 非必填，用于问题追踪。
     - **返回值**：`Array<TopicPartition>`，即一组分区最后提交的偏移量。
-    - **异常**：如果在获取提交的偏移量过程中发生错误，将抛出 TDWebSocketClientError 异常。    
+    - **异常**：如果在获取提交的偏移量过程中发生错误，将抛出 `TDWebSocketClientError` 异常。    
 - `async seek(partition:TopicPartition, reqId?:number):Promise<void>`
     - **接口说明**：将给定分区的偏移量设置到指定的位置。
     - **参数说明**：
         - `partition`：一个 `TopicPartition` 类型的参数，表示要操作的分区和要设置的偏移量。
         - `reqId`: 请求 id 非必填，用于问题追踪。
-    - **异常**：如果在设置偏移量过程中发生错误，将抛出 TDWebSocketClientError 异常。
+    - **异常**：如果在设置偏移量过程中发生错误，将抛出 `TDWebSocketClientError` 异常。
 - `async positions(partitions:Array<TopicPartition>, reqId?:number):Promise<Array<TopicPartition>>`
     - **接口说明**：获取给定分区当前的偏移量。
     - **参数说明**：
         - `partitions`：一个 `TopicPartition` 类型的参数，表示要查询的分区。
         - `reqId`: 请求 id 非必填，用于问题追踪。
     - **返回值**：`Array<TopicPartition>`，即一组分区最后提交的偏移量。
-    - **异常**：如果在获取偏移量过程中发生错误，将抛出 TDWebSocketClientError 异常。    
+    - **异常**：如果在获取偏移量过程中发生错误，将抛出 `TDWebSocketClientError` 异常。    
 - `async seekToBeginning(partitions:Array<TopicPartition>):Promise<void>`
     - **接口说明**：将一组分区的偏移量设置到最早的偏移量。
     - **参数说明**：
         - `partitions`：一个 `Array<TopicPartition>` 类型的参数，表示要操作的分区集合。
-    - **异常**：如果在设置偏移量过程中发生错误，将抛出 TDWebSocketClientError 异常。
+    - **异常**：如果在设置偏移量过程中发生错误，将抛出 `TDWebSocketClientError` 异常。
 - `async seekToEnd(partitions:Array<TopicPartition>):Promise<void>`
     - **接口说明**：将一组分区的偏移量设置到最新的偏移量。
     - **参数说明**：
         - `partitions`：一个 `Array<TopicPartition>` 类型的参数，表示要操作的分区集合。
-    - **异常**：如果在设置偏移量过程中发生错误，将抛出 TDWebSocketClientError 异常。
+    - **异常**：如果在设置偏移量过程中发生错误，将抛出 `TDWebSocketClientError` 异常。
 - `async assignment(topics?:string[]):Promise<Array<TopicPartition>>`
     - **接口说明**：获取消费者当前分配的指定的分区或所有分区。
     - **参数说明**：
         - `topics`：需要获取的分区（非必填），不填表示获取全部的分区
     - **返回值**：返回值类型为 `Array<TopicPartition>`，即消费者当前分配的所有分区。
-    - **异常**：如果在获取分配的分区过程中发生错误，将抛出 TDWebSocketClientError 异常。
+    - **异常**：如果在获取分配的分区过程中发生错误，将抛出 `TDWebSocketClientError` 异常。
 - `async close():Promise<void>`
     - **接口说明**：关闭 tmq 连接。
     - **异常**：操作失败抛出 `TDWebSocketClientError` 异常。    

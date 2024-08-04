@@ -608,7 +608,7 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
   - **接口说明**：以指定的协议类型、时间戳类型、TTL（生存时间）和请求 ID 写入多行数据。
   - **参数说明**：
     - `lines`：待写入的数据行数组。
-    - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
+    - `protocolType`：协议类型：支持 InfluxDB `LINE`，OpenTSDB `TELNET`，OpenTSDB `JSON` 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
     - `ttl`：数据的生存时间，单位天。
     - `reqId`：请求 ID。
@@ -617,28 +617,28 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
   - **接口说明**：以指定的协议类型和时间戳类型写入多行数据。
   - **参数说明**：
     - `lines`：待写入的数据行数组。
-    - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
+    - `protocolType`：协议类型：支持 InfluxDB `LINE`，OpenTSDB `TELNET`，OpenTSDB `JSON` 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
   - **异常**：操作失败抛出 SQLException 异常。
 - `void write(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
   - **接口说明**：以指定的协议类型和时间戳类型写入单行数据。
   - **参数说明**：
     - `line`：待写入的数据行。
-    - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
+    - `protocolType`：协议类型：支持 InfluxDB `LINE`，OpenTSDB `TELNET`，OpenTSDB `JSON` 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
   - **异常**：操作失败抛出 SQLException 异常。
 - `void write(List<String> lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
   - **接口说明**：以指定的协议类型和时间戳类型写入多行数据（使用列表）。
   - **参数说明**：
     - `lines`：待写入的数据行列表。
-    - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
+    - `protocolType`：协议类型：支持 InfluxDB `LINE`，OpenTSDB `TELNET`，OpenTSDB `JSON` 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
   - **异常**：操作失败抛出 SQLException 异常。
 - `int writeRaw(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException`
   - **接口说明**：以指定的协议类型和时间戳类型写入多行回车符分割的原始数据，回车符分割，并返回操作结果。
   - **参数说明**：
     - `line`：待写入的原始数据。
-    - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
+    - `protocolType`：协议类型：支持 InfluxDB `LINE`，OpenTSDB `TELNET`，OpenTSDB `JSON` 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
   - **返回值**：操作结果。
   - **异常**：操作失败抛出 SQLException 异常。
@@ -646,7 +646,7 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
   - **接口说明**：以指定的协议类型、时间戳类型、TTL（生存时间）和请求 ID 写入多行回车符分割的原始数据，并返回操作结果。
   - **参数说明**：
     - `line`：待写入的原始数据。
-    - `protocolType`：协议类型：支持 LINE， TELNET， JSON 三种。
+    - `protocolType`：协议类型：支持 InfluxDB `LINE`，OpenTSDB `TELNET`，OpenTSDB `JSON` 三种。
     - `timestampType`：时间戳类型，支持 HOURS，MINUTES，SECONDS，MILLI_SECONDS，MICRO_SECONDS 和 NANO_SECONDS。
     - `ttl`：数据的生存时间，单位天。
     - `reqId`：请求 ID。

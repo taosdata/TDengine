@@ -243,7 +243,7 @@ SmlData 结构体提供了无模式写入的数据结构，以及获取属性的
 - `pub struct SmlData`
   - **结构体说明**：`SmlData` 结构体用于存储无模式数据及其相关信息。
   - **字段说明**：
-    - `protocol`：无模式协议，支持 `Line`, `Telnet`, `Json`, 三种。
+    - `protocol`：无模式协议，支持 InfluxDB `Line`, OpenTSDB `Telnet`, OpenTSDB `Json`, 三种。
     - `precision`：时间戳精度，支持 `Hours`, `Minutes`, `Seconds`, `Millisecond`（默认）, `Microsecond`, `Nanosecond`。
     - `data`：数据列表。
     - `ttl`：数据存活时间，单位为秒。
@@ -251,7 +251,7 @@ SmlData 结构体提供了无模式写入的数据结构，以及获取属性的
 
 - `pub fn protocol(&self) -> SchemalessProtocol`
   - **接口说明**：获取无模式协议。
-  - **返回值**：无模式协议类型，支持 `Line`, `Telnet`, `Json`, 三种。
+  - **返回值**：无模式协议类型，支持 InfluxDB `Line`, OpenTSDB `Telnet`, OpenTSDB `Json`, 三种。
 
 - `pub fn precision(&self) -> SchemalessPrecision`
   - **接口说明**：获取时间戳精度。
