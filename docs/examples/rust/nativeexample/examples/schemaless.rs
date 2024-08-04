@@ -11,8 +11,7 @@ use taos::taos_query;
 async fn main() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "taos=debug");
     pretty_env_logger::init();
-    let dsn =
-        std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("taos://localhost:6030".to_string());
+    let dsn = "taos://localhost:6030".to_string();
     log::debug!("dsn: {:?}", &dsn);
 
     let client = TaosBuilder::from_dsn(dsn)?.build().await?;
