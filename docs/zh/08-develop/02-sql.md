@@ -71,7 +71,6 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 ```c
 {{#include docs/examples/c/create_db_demo.c:create_db_and_table}}
 ```
-> **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 power.meters。
 </TabItem>
 <TabItem label="REST API" value="rest">
 
