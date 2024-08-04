@@ -653,7 +653,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 <details>
-<summary>完整 Websocket 连接代码示例</summary> 
+<summary>完整代码示例</summary> 
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WsConsumerLoopFull.java:consumer_demo}}
 ```
@@ -664,7 +664,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 <TabItem label="Python" value="python">
 <details>
-<summary>完整 Websocket 连接代码示例</summary> 
+<summary>完整代码示例</summary> 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
 ```
@@ -672,28 +672,39 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Go" value="go">
+<details>
+<summary>完整代码示例</summary> 
 ```go
 {{#include docs/examples/go/tmq/ws/main.go}}
 ```
+</details>
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+<details>
+<summary>完整代码示例</summary> 
 ```rust
 {{#include docs/examples/rust/restexample/examples/tmq.rs}}
 ```
+</details>
 </TabItem>
 
 <TabItem label="Node.js" value="node">
-
+<details>
+<summary>完整代码示例</summary> 
 ```js
     {{#include docs/examples/node/websocketexample/tmq_example.js}}
 ```
+</details>
 </TabItem>
 
 <TabItem label="C#" value="csharp">
+<details>
+<summary>完整代码示例</summary> 
 ```csharp
 {{#include docs/examples/csharp/wssubscribe/Program.cs}}
 ```
+</details>
 </TabItem>
 
 </Tabs>
@@ -702,7 +713,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 <details>
-<summary>完整原生连接代码示例</summary> 
+<summary>完整代码示例</summary> 
 ```java
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ConsumerLoopFull.java:consumer_demo}}
 ```
@@ -716,7 +727,7 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 
 <TabItem label="Python" value="python">
 <details>
-<summary>完整原生连接代码示例</summary> 
+<summary>完整代码示例</summary> 
 ```python
 {{#include docs/examples/python/tmq_native.py}}
 ```
@@ -724,26 +735,35 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Go" value="go">
+<details>
+<summary>完整代码示例</summary> 
 ```go
 {{#include docs/examples/go/tmq/native/main.go}}
 ```
+</details>
 </TabItem>
 
 <TabItem label="Rust" value="rust">
+<details>
+<summary>完整代码示例</summary> 
 ```rust
 {{#include docs/examples/rust/nativeexample/examples/tmq.rs}}
 ```
+</details>
 </TabItem>
 
 <TabItem label="C#" value="csharp">
+<details>
+<summary>完整代码示例</summary> 
 ```csharp
 {{#include docs/examples/csharp/subscribe/Program.cs}}
 ```
+</details>
 </TabItem>
 
 <TabItem label="C" value="c">
 <details>
-<summary>完整原生连接代码示例</summary> 
+<summary>完整代码示例</summary> 
 ```c
 {{#include docs/examples/c/tmq_demo.c}}
 ```            
