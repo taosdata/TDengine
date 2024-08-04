@@ -202,6 +202,11 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 {{#include docs/examples/rust/nativeexample/examples/query.rs:query_data}}
 ```
 
+rust 连接器还支持使用 **serde** 进行反序列化行为结构体的结果获取方式：
+```rust
+{{#include docs/examples/rust/nativeexample/examples/query.rs:query_data_2}}
+```
+
 </TabItem>
 <TabItem label="Node.js" value="node.js">
 ```js

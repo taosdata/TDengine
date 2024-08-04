@@ -1,4 +1,6 @@
 use taos::*;
+use chrono::Local;
+use chrono::DateTime;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -60,6 +62,33 @@ async fn main() -> anyhow::Result<()> {
         nrows += 1;
     }
     // ANCHOR_END: query_data
+
+    // ANCHOR: query_data_2
+    // query data, make sure the database and table are created before
+    #[derive(Debug, serde::Deserialize)]
+    #[allow(dead_code)]
+    struct Record {
+        // deserialize timestamp to chrono::DateTime<Local>
+        ts: DateTime<Local>,
+        // float to f32
+        current: Option<f32>,
+        // int to i32
+        voltage: Option<i32>,
+        phase: Option<f32>,
+        groupid: i32,
+        // binary/varchar to String
+        location: String,
+    }
+
+    let records: Vec<Record> = taos
+        .query("select ts, current, voltage, phase, groupid, location from power.meters limit 100")
+        .await?
+        .deserialize()
+        .try_collect()
+        .await?;
+
+    dbg!(records);
+    // ANCHOR_END: query_data_2
 
     // ANCHOR: query_with_req_id
     let result = taos.query_with_req_id("SELECT ts, current, location FROM power.meters limit 1", 1).await?;
