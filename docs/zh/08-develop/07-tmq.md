@@ -52,7 +52,7 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 
 </TabItem>
 <TabItem label="Python" value="python">
-
+提供了 `td.connect.websocket.scheme` 参数来表示协议类型，其他参数同通用基础配置项。
 </TabItem>
 <TabItem label="Go" value="go">
 
@@ -76,7 +76,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 </TabItem>
 <TabItem label="Node.js" value="node">
-
+提供了 `WS_URL` 参数来表示连接到的服务器地址，其他参数同通用基础配置项。
 </TabItem>
 <TabItem label="C#" value="csharp">
 创建消费者支持属性列表：
