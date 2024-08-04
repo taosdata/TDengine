@@ -273,6 +273,12 @@ URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../..
 
     </TabItem>
     <TabItem label="Python" value="python">
+    Python 连接器使用 `connect()` 方法来建立连接，下面是连接参数的具体说明：    
+        - url： `taosAdapter` REST 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
+        - user： TDengine 用户名。默认是 `root`。  
+        - password： TDengine 用户密码。默认是 `taosdata`。  
+        - timeout： HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
+
     </TabItem>
     <TabItem label="Go" value="go">
 
@@ -448,7 +454,7 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 ```
 </TabItem>
 <TabItem label="C#" value="csharp">
-```csharp title="WebSocket 连接"
+```csharp 
 {{#include docs/examples/csharp/connect/Program.cs:main}}
 ```
 </TabItem>
