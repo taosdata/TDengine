@@ -551,6 +551,10 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   pOperator->exprSupp.hasWindowOrGroup = true;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
+  if (pResBlock == NULL) {
+    code = terrno;
+    goto _error;
+  }
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   int32_t    numOfScalarExpr = 0;
@@ -602,6 +606,7 @@ _error:
   if (pInfo != NULL) {
     destroyGroupOperatorInfo(pInfo);
   }
+  destroyOperator(pOperator);
   taosMemoryFreeClear(pOperator);
   return code;
 }

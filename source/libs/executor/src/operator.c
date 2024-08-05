@@ -479,6 +479,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
     code = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname, &ops[i]);
     if (ops[i] == NULL || code != 0) {
+      for (int32_t j = 0; j < i; ++j) {
+        destroyOperator(ops[j]);
+      }
       taosMemoryFree(ops);
       return code;
     }
