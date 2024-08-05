@@ -183,7 +183,8 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
     code = -1;
     goto END;
   }
-  code = validateTopics(pConsumer->assignedTopics, pMnode, pMsg->info.conn.user, false);
+  SCMSubscribeReq subscribe = {.topicNames = pConsumer->assignedTopics, .enableReplay = false, .consumerId = pConsumer->consumerId};
+  code = validateTopics(pTrans, &subscribe, pMnode, pMsg->info.conn.user);
   if (code != 0) {
     goto END;
   }
