@@ -41,9 +41,9 @@ def schemaless_insert():
                               database=db)
 
         conn.schemaless_insert(
-            lines=lineDemo,
-            protocol=taosws.PySchemalessProtocol.Line,
-            precision=taosws.PySchemalessPrecision.Millisecond,
+            lines = lineDemo,
+            protocol = taosws.PySchemalessProtocol.Line,
+            precision = taosws.PySchemalessPrecision.Millisecond,
             ttl=1,
             req_id=1,
         )
