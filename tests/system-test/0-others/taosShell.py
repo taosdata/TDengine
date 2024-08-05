@@ -470,7 +470,7 @@ class TDTestCase:
 
         tdSql.query('drop database %s'%newDbName)
 
-        commands = f"taos -k -c {cfgPath}"
+        commands = f"{buildPath}/taos -k -c {cfgPath}"
         output = self.run_command(commands)
         os.sys
         self.taos_thread_repeat_k(self.run_command, commands, 100, output)
