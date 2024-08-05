@@ -12,7 +12,7 @@ async function createConnect() {
 // ANCHOR_END: createConnect
 
 // ANCHOR: create_db_and_table
-async function createDbAndTable(wsSql) {
+async function createDbAndTable() {
     let wsSql = null;
     try {
         wsSql = await createConnect();
@@ -39,7 +39,7 @@ async function createDbAndTable(wsSql) {
 // ANCHOR_END: create_db_and_table
 
 // ANCHOR: insertData
-async function insertData(wsSql) {
+async function insertData() {
     let wsSql = null;
     try {
         wsSql = await createConnect();
@@ -93,7 +93,7 @@ async function queryData() {
 // ANCHOR_END: queryData
 
 // ANCHOR: sqlWithReqid
-async function sqlWithReqid(wsSql) {
+async function sqlWithReqid() {
 
     let wsRows = null;
     let wsSql = null;
