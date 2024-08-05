@@ -225,6 +225,7 @@ pub async fn flat_write_with_sql(
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
+    notifier: Option<crate::TaskNotifySender>,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     // Split messages into different stales.
@@ -232,7 +233,38 @@ pub async fn flat_write_with_sql(
     let groups = messages
         .into_iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
+
     for (stable, messages) in groups.into_iter() {
+        if let Some(stable) = stable.as_ref() {
+            let describe = taos
+                .as_ref()
+                .unwrap()
+                .describe(&stable)
+                .await
+                .context("Get table meta describe error")?;
+            if let Some(field) = describe
+                .split()
+                .map(|c| c.0)
+                .and_then(|c| c.get(1))
+                .filter(|c| c.is_primary_key())
+                .map(|c| c.field())
+            {
+                if messages
+                    .iter()
+                    .map(|m| m.records.column_by_name(field))
+                    .any(|a| a.is_some_and(|a| a.null_count() > 0))
+                {
+                    if let Some(notifier) = notifier {
+                        let _ = notifier
+                            .send_async(crate::TaskNotify::error(
+                                "Parimary key field contains null value",
+                            ))
+                            .await;
+                    }
+                    bail!("Parimary key field contains null value")
+                }
+            }
+        }
         let sqls = message_to_sql(&messages, target_precision, true, true);
         for records in sqls {
             loop {
@@ -337,6 +369,7 @@ pub async fn flat_write_with_raw_block(
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
+    notifier: Option<crate::TaskNotifySender>,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     for records in messages {
@@ -346,6 +379,36 @@ pub async fn flat_write_with_raw_block(
         metrics.add_processed_rows(records.records.num_rows() as u64);
         if records.records.column(0).null_count() > 0 {
             bail!("Timestamp field contains null or invalid values");
+        }
+        if let Some(stable) = records.stable_name() {
+            let describe = taos
+                .as_ref()
+                .unwrap()
+                .describe(&stable)
+                .await
+                .context("Get table meta describe error")?;
+            if let Some(field) = describe
+                .split()
+                .map(|s| s.0)
+                .and_then(|s| s.get(1))
+                .filter(|s| s.is_primary_key())
+                .map(|s| s.field())
+            {
+                if records
+                    .records
+                    .column_by_name(field)
+                    .is_some_and(|s| s.null_count() > 0)
+                {
+                    if let Some(notifier) = notifier {
+                        let _ = notifier
+                            .send_async(crate::TaskNotify::error(
+                                "Parimary key field contains null value",
+                            ))
+                            .await;
+                    }
+                    bail!("Parimary key field contains null value")
+                }
+            }
         }
         tracing::debug!("Write records with rows {}", records.records.num_rows());
         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
@@ -771,6 +834,7 @@ pub async fn flat_write_with_raw_block(
                         &req_id,
                         retry_messages,
                         metrics,
+                        notifier.clone(),
                     )
                     .await?;
                 } else {
@@ -816,6 +880,7 @@ impl FlatSink {
         parser: Parser,
         target_precision: taos::Precision,
         metrics_arc: Arc<CoreMetrics>,
+        notifier: crate::TaskNotifySender,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -840,6 +905,7 @@ impl FlatSink {
                 let metrics_arc = metrics_arc.clone();
                 let parser = parser.clone();
                 let rx = rx.clone();
+                let notifier = notifier.clone();
                 set.spawn(
                     async move {
                         let metrics = metrics_arc.ipc();
@@ -864,6 +930,7 @@ impl FlatSink {
                                     &req_id,
                                     messages,
                                     metrics,
+                                    Some(notifier.clone()),
                                 )
                                 .in_current_span()
                                 .await?;
@@ -879,6 +946,7 @@ impl FlatSink {
                                     &req_id,
                                     messages,
                                     metrics,
+                                    Some(notifier.clone()),
                                 )
                                 .in_current_span()
                                 .await?;
@@ -1028,6 +1096,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
         parser.clone(),
         target_precision,
         metrics_arc.clone(),
+        notifier.clone(),
     )
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
@@ -1197,6 +1266,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
         parser.clone(),
         target_precision,
         metrics_arc.clone(),
+        notifier.clone(),
     )
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
@@ -1389,6 +1459,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     context.target_precision,
                     data_trace_id,
                     metrics,
+                    Some(notifier.clone()),
                 )
                 .await;
                 worker_written += written;
@@ -1815,6 +1886,7 @@ mod tests {
             &req_id,
             messages,
             &metrics,
+            None,
         )
         .await?;
 

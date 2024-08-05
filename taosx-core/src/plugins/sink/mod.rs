@@ -2745,6 +2745,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
+    notifier: Option<crate::TaskNotifySender>,
 ) -> anyhow::Result<()> {
     if cancel.is_cancelled() {
         tracing::warn!("Task is cancelled");
@@ -2784,6 +2785,7 @@ async fn consume_flat_record(
                         &req_id,
                         message,
                         metrics,
+                        notifier.clone(),
                     )
                     .in_current_span()
                     .await?;
@@ -2798,6 +2800,7 @@ async fn consume_flat_record(
                         &req_id,
                         message,
                         metrics,
+                        notifier.clone(),
                     )
                     .in_current_span()
                     .await?;
@@ -3612,6 +3615,7 @@ impl IpcStreamWorker {
         metrics: &IpcMetrics,
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
+        notifier: Option<crate::TaskNotifySender>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3641,6 +3645,7 @@ impl IpcStreamWorker {
                     self.target_precision,
                     data_trace_id,
                     metrics,
+                    notifier.clone(),
                 )
                 .await?;
                 Ok(count)
