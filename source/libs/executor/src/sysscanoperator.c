@@ -595,7 +595,9 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       void* schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
       if (schema == NULL) {
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&pInfo->pCur->mr.me.stbEntry.schemaRow);
-        QUERY_CHECK_NULL(schemaWrapper, code, lino, _end, terrno);
+        if (pInfo->pCur->mr.me.stbEntry.schemaRow.pSchema) {
+          QUERY_CHECK_NULL(schemaWrapper, code, lino, _end, terrno);
+        }
         code = taosHashPut(pInfo->pSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
@@ -627,7 +629,9 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
           return NULL;
         }
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
-        QUERY_CHECK_NULL(schemaWrapper, code, lino, _end, terrno);
+        if (smrSuperTable.me.stbEntry.schemaRow.pSchema) {
+          QUERY_CHECK_NULL(schemaWrapper, code, lino, _end, terrno);
+        }
         code = taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
