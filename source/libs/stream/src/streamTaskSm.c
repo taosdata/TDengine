@@ -164,6 +164,10 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
   int32_t numOfTrans = taosArrayGetSize(streamTaskSMTrans);
   for (int32_t i = 0; i < numOfTrans; ++i) {
     STaskStateTrans* pTrans = taosArrayGet(streamTaskSMTrans, i);
+    if (pTrans == NULL) {
+      continue;
+    }
+
     if (pTrans->state.state == state && pTrans->event == event) {
       return pTrans;
     }
@@ -187,6 +191,9 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
   ASSERT(taosArrayGetSize(pSM->pWaitingEventList) == 1);
 
   SFutureHandleEventInfo* pEvtInfo = taosArrayGet(pSM->pWaitingEventList, 0);
+  if (pEvtInfo == NULL) {
+    return terrno;
+  }
 
   // OK, let's handle the waiting event, since the task has reached the required status now
   if (pSM->current.state == pEvtInfo->status) {
@@ -227,6 +234,10 @@ static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent eve
   int32_t num = taosArrayGetSize(pSM->pWaitingEventList);
   for (int32_t i = 0; i < num; ++i) {
     SFutureHandleEventInfo* pInfo = taosArrayGet(pSM->pWaitingEventList, i);
+    if (pInfo == NULL) {
+      continue;
+    }
+
     if (pInfo->event == event) {
       taosArrayRemove(pSM->pWaitingEventList, i);
       stDebug("s-task:%s %s event in waiting list not be handled yet, remove it from waiting list, remaining events:%d",

@@ -268,6 +268,10 @@ static SStreamDispatchReq* createDispatchDataReq(SStreamTask* pTask, const SStre
 
     for (int32_t i = 0; i < numOfVgroups; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      if (pVgInfo == NULL) {
+        continue;
+      }
+
       code = tInitStreamDispatchReq(&pReqs[i], pTask, pData->srcVgId, 0, pVgInfo->taskId, pData->type);
       if (code != TSDB_CODE_SUCCESS) {
         destroyDispatchMsg(pReqs, numOfVgroups);
@@ -300,6 +304,10 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
 
   if (pData->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
     SSDataBlock* p = taosArrayGet(pData->blocks, 0);
+    if (p == NULL) {
+      return terrno;
+    }
+
     pTask->msgInfo.checkpointId = p->info.version;
     pTask->msgInfo.transId = p->info.window.ekey;
   }
@@ -313,6 +321,11 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
     for (int32_t i = 0; i < numOfBlocks; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
+      if (pDataBlock == NULL) {
+        destroyDispatchMsg(pReqs, 1);
+        return terrno;
+      }
+
       code = streamAddBlockIntoDispatchMsg(pDataBlock, pReqs);
       if (code != TSDB_CODE_SUCCESS) {
         destroyDispatchMsg(pReqs, 1);
@@ -328,6 +341,10 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
 
     for (int32_t i = 0; i < numOfBlocks; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
+      if (pDataBlock == NULL) {
+        destroyDispatchMsg(pReqs, numOfVgroups);
+        return terrno;
+      }
 
       // TODO: do not use broadcast
       if (pDataBlock->info.type == STREAM_DELETE_RESULT || pDataBlock->info.type == STREAM_CHECKPOINT ||
@@ -342,6 +359,10 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
           // it's a new vnode to receive dispatch msg, so add one
           if (pReqs[j].blockNum == 0) {
             SVgroupInfo* pDstVgroupInfo = taosArrayGet(vgInfo, j);
+            if (pDstVgroupInfo == NULL) {
+              destroyDispatchMsg(pReqs, numOfVgroups);
+              return terrno;
+            }
             addDispatchEntry(&pTask->msgInfo, pDstVgroupInfo->vgId, now, true);
           }
 
@@ -399,6 +420,11 @@ static int32_t sendDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pDispatch
     for (int32_t i = 0; i < numOfVgroups; i++) {
       if (pDispatchMsg[i].blockNum > 0) {
         SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+        if (pVgInfo == NULL) {
+          code = terrno;
+          break;
+        }
+
         stDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to vgId:%d", id, pTask->info.selfChildId,
                 pDispatchMsg[i].blockNum, pVgInfo->vgId);
 
@@ -457,6 +483,10 @@ static void doSendFailedDispatch(SStreamTask* pTask, SDispatchEntry* pEntry, int
   setResendInfo(pEntry, now);
   for (int32_t j = 0; j < numOfVgroups; ++j) {
     SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, j);
+    if (pVgInfo == NULL) {
+      continue;
+    }
+
     if (pVgInfo->vgId == pEntry->nodeId) {
       int32_t code = doSendDispatchMsg(pTask, &pReq[j], pVgInfo->vgId, &pVgInfo->epSet);
       stDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to vgId:%d for %s, msgId:%d, code:%s",
@@ -521,6 +551,10 @@ static void doMonitorDispatchData(void* param, void* tmrId) {
       int32_t numOfRetry = 0;
       for (int32_t i = 0; i < taosArrayGetSize(pTask->msgInfo.pSendInfo); ++i) {
         SDispatchEntry* pEntry = taosArrayGet(pTask->msgInfo.pSendInfo, i);
+        if (pEntry == NULL) {
+          continue;
+        }
+
         if (pEntry->status == TSDB_CODE_SUCCESS && pEntry->rspTs > 0) {
           continue;
         }
@@ -553,14 +587,17 @@ static void doMonitorDispatchData(void* param, void* tmrId) {
       SEpSet* pEpSet = &pTask->outputInfo.fixedDispatcher.epSet;
       int32_t downstreamTaskId = pTask->outputInfo.fixedDispatcher.taskId;
 
-      ASSERT(taosArrayGetSize(pTask->msgInfo.pSendInfo) == 1);
+      int32_t s = taosArrayGetSize(pTask->msgInfo.pSendInfo);
       SDispatchEntry* pEntry = taosArrayGet(pTask->msgInfo.pSendInfo, 0);
+      if (pEntry != NULL) {
+        setResendInfo(pEntry, now);
+        code = doSendDispatchMsg(pTask, pReq, dstVgId, pEpSet);
 
-      setResendInfo(pEntry, now);
-      code = doSendDispatchMsg(pTask, pReq, dstVgId, pEpSet);
-
-      stDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to s-task:0x%x (vgId:%d), msgId:%d, code:%s", id,
-              pTask->info.selfChildId, 1, downstreamTaskId, dstVgId, msgId, tstrerror(code));
+        stDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to s-task:0x%x (vgId:%d), msgId:%d, code:%s", id,
+                pTask->info.selfChildId, 1, downstreamTaskId, dstVgId, msgId, tstrerror(code));
+      } else {
+        stError("s-task:%s invalid index 0, size:%d", id, s);
+      }
     }
   }
 
@@ -637,6 +674,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
 
   for (int32_t j = 0; j < numOfVgroups; j++) {
     SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, j);
+    if (pVgInfo == NULL) {
+      continue;
+    }
 
     if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
       if (streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
@@ -646,7 +686,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
 
       if (pReqs[j].blockNum == 0) {
         SVgroupInfo* pDstVgroupInfo = taosArrayGet(vgInfo, j);
-        addDispatchEntry(&pTask->msgInfo, pDstVgroupInfo->vgId, now, false);
+        if (pDstVgroupInfo != NULL) {
+          addDispatchEntry(&pTask->msgInfo, pDstVgroupInfo->vgId, now, false);
+        }
       }
 
       pReqs[j].blockNum++;
@@ -832,6 +874,10 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
 
   for (int32_t i = 0; i < num; ++i) {
     STaskCheckpointReadyInfo* pInfo = taosArrayGet(pList, i);
+    if (pInfo == NULL) {
+      continue;
+    }
+
     if (pInfo->sendCompleted == 1) {
       continue;
     }
@@ -846,11 +892,18 @@ static void checkpointReadyMsgSendMonitorFn(void* param, void* tmrId) {
   int32_t notRsp = taosArrayGetSize(pNotRspList);
   if (notRsp > 0) {  // send checkpoint-ready msg again
     for (int32_t i = 0; i < taosArrayGetSize(pNotRspList); ++i) {
-      int32_t taskId = *(int32_t*)taosArrayGet(pNotRspList, i);
+      int32_t* pTaskId = taosArrayGet(pNotRspList, i);
+      if (pTaskId == NULL) {
+        continue;
+      }
 
       for (int32_t j = 0; j < num; ++j) {
         STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pList, j);
-        if (taskId == pReadyInfo->upstreamTaskId) {  // send msg again
+        if (pReadyInfo == NULL) {
+          continue;
+        }
+
+        if (*pTaskId == pReadyInfo->upstreamTaskId) {  // send msg again
 
           SRpcMsg msg = {0};
           int32_t code = initCheckpointReadyMsg(pTask, pReadyInfo->upstreamNodeId, pReadyInfo->upstreamTaskId, pReadyInfo->childId,
@@ -902,6 +955,9 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
 
   for (int32_t i = 0; i < num; ++i) {
     STaskCheckpointReadyInfo* pInfo = taosArrayGet(pList, i);
+    if (pInfo == NULL) {
+      continue;
+    }
 
     SRpcMsg msg = {0};
     int32_t code = initCheckpointReadyMsg(pTask, pInfo->upstreamNodeId, pInfo->upstreamTaskId, pInfo->childId,
@@ -945,11 +1001,14 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
   streamMutexLock(&pTask->chkInfo.pActiveInfo->lock);
   if (taosArrayGetSize(pList) == 1) {
     STaskCheckpointReadyInfo* pInfo = taosArrayGet(pList, 0);
-    tmsgSendRsp(&pInfo->msg);
-
-    taosArrayClear(pList);
-    stDebug("s-task:%s level:%d checkpoint-source rsp completed msg sent to mnode", pTask->id.idStr,
-            pTask->info.taskLevel);
+    if (pInfo != NULL) {
+      tmsgSendRsp(&pInfo->msg);
+      taosArrayClear(pList);
+      stDebug("s-task:%s level:%d checkpoint-source rsp completed msg sent to mnode", pTask->id.idStr,
+              pTask->info.taskLevel);
+    } else {
+      // todo
+    }
   } else {
     stDebug("s-task:%s level:%d already send checkpoint-source rsp success to mnode", pTask->id.idStr,
             pTask->info.taskLevel);
@@ -1097,6 +1156,10 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
     ASSERT(size == 1);
 
     STaskCheckpointReadyInfo* pReady = taosArrayGet(pActiveInfo->pReadyMsgList, 0);
+    if (pReady == NULL) {
+      return terrno;
+    }
+
     if (pReady->transId == pReq->transId) {
       stWarn("s-task:%s repeatly recv checkpoint source msg from mnode, checkpointId:%" PRId64 ", ignore",
              pTask->id.idStr, pReq->checkpointId);
@@ -1104,7 +1167,6 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
       stError("s-task:%s checkpointId:%" PRId64 " transId:%d not completed, new transId:%d checkpointId:%" PRId64
               " recv from mnode",
               pTask->id.idStr, pReady->checkpointId, pReady->transId, pReq->transId, pReq->checkpointId);
-      ASSERT(0);  // failed to handle it
     }
   } else {
     (void) taosArrayPush(pActiveInfo->pReadyMsgList, &info);
@@ -1168,7 +1230,9 @@ void streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo) {
 
   for (int i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); i++) {
     STaskCheckpointReadyInfo* pInfo = taosArrayGet(pActiveInfo->pReadyMsgList, i);
-    rpcFreeCont(pInfo->msg.pCont);
+    if (pInfo != NULL) {
+      rpcFreeCont(pInfo->msg.pCont);
+    }
   }
 
   taosArrayClear(pActiveInfo->pReadyMsgList);
@@ -1215,6 +1279,10 @@ static bool setDispatchRspInfo(SDispatchMsgInfo* pMsgInfo, int32_t vgId, int32_t
 
   for(int32_t i = 0; i < numOfDispatchBranch; ++i) {
     SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, i);
+    if (pEntry == NULL) {
+      continue;
+    }
+
     if (pEntry->rspTs != -1) {
       numOfRsp += 1;
     }
@@ -1222,6 +1290,10 @@ static bool setDispatchRspInfo(SDispatchMsgInfo* pMsgInfo, int32_t vgId, int32_t
 
   for (int32_t j = 0; j < numOfDispatchBranch; ++j) {
     SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, j);
+    if (pEntry == NULL) {
+      continue;
+    }
+
     if (pEntry->nodeId == vgId) {
       ASSERT(!alreadySet);
       pEntry->rspTs = now;
@@ -1254,6 +1326,10 @@ int32_t getFailedDispatchInfo(SDispatchMsgInfo* pMsgInfo, int64_t now) {
 
   for (int32_t j = 0; j < taosArrayGetSize(pMsgInfo->pSendInfo); ++j) {
     SDispatchEntry* pEntry = taosArrayGet(pMsgInfo->pSendInfo, j);
+    if (pEntry == NULL) {
+      continue;
+    }
+
     if (pEntry->status != TSDB_CODE_SUCCESS || isDispatchRspTimeout(pEntry, now)) {
       numOfFailed += 1;
     }
