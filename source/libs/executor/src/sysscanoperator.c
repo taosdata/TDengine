@@ -2083,6 +2083,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    lino = __LINE__;   
     goto _error;
   }
 
@@ -2091,9 +2092,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
 
   int32_t num = 0;
   code = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   extractTbnameSlotId(pInfo, pScanNode);
 
@@ -2101,9 +2100,11 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
 
   pInfo->accountId = pScanPhyNode->accountId;
   pInfo->pUser = taosStrdup((void*)pUser);
+  QUERY_CHECK_NULL(pInfo->pUser, code, lino, _error, terrno);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   pInfo->pCondition = pScanNode->node.pConditions;
   code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -2143,7 +2144,7 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -2173,15 +2174,19 @@ void destroySysScanOperator(void* param) {
   (void)tsem_destroy(&pInfo->ready);
   blockDataDestroy(pInfo->pRes);
 
-  const char* name = tNameGetTableName(&pInfo->name);
-  if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
-      strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
-    if (pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
-      pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-    }
+  if (pInfo->name.type == TSDB_TABLE_NAME_T) {
+    const char* name = tNameGetTableName(&pInfo->name);
+    if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
+      if (pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
+        pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      }
 
-    pInfo->pCur = NULL;
+      pInfo->pCur = NULL;
+    }
+  } else {
+    qError("pInfo->name is not initialized");
   }
 
   if (pInfo->pIdx) {
@@ -2694,6 +2699,7 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
   }
 
   pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);
   code = blockDataEnsureCapacity(pInfo->pResBlock, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 

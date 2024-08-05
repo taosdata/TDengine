@@ -1150,6 +1150,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   pInfo->pFillColInfo = createFillColInfo(pExprInfo, numOfExprs, NULL, 0, (SNodeListNode*)pInterpPhyNode->pFillValues);
   pInfo->pLinearInfo = NULL;
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   pInfo->win = pInterpPhyNode->timeRange;
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;

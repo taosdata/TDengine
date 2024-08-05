@@ -73,7 +73,8 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
                                     SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
-  int32_t code = 0;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
   SAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAggOperatorInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -84,6 +85,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   pOperator->exprSupp.hasWindowOrGroup = false;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -91,6 +93,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
 
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
+
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
                                pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
@@ -140,6 +143,9 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   return code;
 
 _error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
@@ -480,6 +486,10 @@ int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, ui
 
   if (taosArrayGetSize(list) == 0) {
     pData = getNewBufPage(pResultBuf, &pageId);
+    if (pData == NULL) {
+      qError("failed to get buffer, code:%s", tstrerror(terrno));
+      return terrno;
+    }
     pData->num = sizeof(SFilePage);
   } else {
     SPageInfo* pi = getLastPageInfo(list);
@@ -496,9 +506,11 @@ int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, ui
       releaseBufPageInfo(pResultBuf, pi);
 
       pData = getNewBufPage(pResultBuf, &pageId);
-      if (pData != NULL) {
-        pData->num = sizeof(SFilePage);
+      if (pData == NULL) {
+        qError("failed to get buffer, code:%s", tstrerror(terrno));
+        return terrno;
       }
+      pData->num = sizeof(SFilePage);
     }
   }
 

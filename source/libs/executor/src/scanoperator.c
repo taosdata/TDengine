@@ -476,17 +476,27 @@ static void freeTableCachedVal(void* param) {
 }
 
 static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
+  QUERY_CHECK_NULL(pVal, code, lino, _end, terrno);
   pVal->pName = taosStrdup(pMetaReader->me.name);
+  QUERY_CHECK_NULL(pVal->pName, code, lino, _end, terrno);
   pVal->pTags = NULL;
 
   // only child table has tag value
   if (pMetaReader->me.type == TSDB_CHILD_TABLE) {
     STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
     pVal->pTags = taosMemoryMalloc(pTag->len);
+    QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
     memcpy(pVal->pTags, pTag, pTag->len);
   }
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    return NULL;
+  }
   return pVal;
 }
 
@@ -581,6 +591,9 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       pHandle->api.metaReaderFn.readerReleaseLock(&mr);
 
       STableCachedVal* pVal = createTableCacheVal(&mr);
+      if(!pVal) {
+        return terrno;
+      }
 
       val = *pVal;
       freeReader = true;
@@ -1356,6 +1369,8 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);
+  
   code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -2485,6 +2500,7 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
     void*    data = colDataGetData(pColPk, i);
     if (IS_VAR_DATA_TYPE(pColPk->info.type)) {
       void* tmq = taosMemoryMalloc(offset->primaryKey.nData + VARSTR_HEADER_SIZE);
+      QUERY_CHECK_NULL(tmq, code, lino, _end, terrno);
       memcpy(varDataVal(tmq), offset->primaryKey.pData, offset->primaryKey.nData);
       varDataLen(tmq) = offset->primaryKey.nData;
       p[i] = (*ts > offset->ts) || (func(data, tmq) > 0);
@@ -2709,6 +2725,7 @@ _end:
 
 static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOffsetVal* offset) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SValue  val = {0};
   if (hasPrimaryKey) {
     code = doBlockDataPrimaryKeyFilter(pBlock, offset);
@@ -2725,6 +2742,7 @@ static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOff
     val.type = pColPk->info.type;
     if (IS_VAR_DATA_TYPE(pColPk->info.type)) {
       val.pData = taosMemoryMalloc(varDataLen(tmp));
+      QUERY_CHECK_NULL(val.pData, code, lino, _end, terrno);
       val.nData = varDataLen(tmp);
       memcpy(val.pData, varDataVal(tmp), varDataLen(tmp));
     } else {
@@ -2732,6 +2750,11 @@ static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOff
     }
   }
   tqOffsetResetToData(offset, pBlock->info.id.uid, pBlock->info.window.ekey, val);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -3990,6 +4013,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   }
 
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   code = createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateRes);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -4384,6 +4408,8 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
       }
       STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
+      QUERY_CHECK_NULL(info.pTagVal, code, lino, _end, terrno);
+
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       void* tmp = taosArrayPush(aUidTags, &info);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);

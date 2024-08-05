@@ -1835,6 +1835,9 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
   }
 
   SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
+  if (!pExprs) {
+    return NULL;
+  }
 
   for (int32_t i = 0; i < (*numOfExprs); ++i) {
     STargetNode* pTargetNode = NULL;
@@ -1937,6 +1940,8 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
         } else {
           char* udfName = pExpr->pExpr->_function.pFunctNode->functionName;
           pCtx->udfName = taosStrdup(udfName);
+          QUERY_CHECK_NULL(pCtx->udfName, code, lino, _end, terrno);
+
           code = fmGetUdafExecFuncs(pCtx->functionId, &pCtx->fpSet);
           QUERY_CHECK_CODE(code, lino, _end);
         }

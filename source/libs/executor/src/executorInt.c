@@ -89,6 +89,10 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
   int32_t pageId = -1;
   if (*currentPageId == -1) {
     pData = getNewBufPage(pResultBuf, &pageId);
+    if (pData == NULL) {
+      qError("failed to get buffer, code:%s", tstrerror(terrno));
+      return NULL;
+    }
     pData->num = sizeof(SFilePage);
   } else {
     pData = getBufPage(pResultBuf, *currentPageId);
@@ -104,9 +108,11 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
       releaseBufPage(pResultBuf, pData);
 
       pData = getNewBufPage(pResultBuf, &pageId);
-      if (pData != NULL) {
-        pData->num = sizeof(SFilePage);
+      if (pData == NULL) {
+        qError("failed to get buffer, code:%s", tstrerror(terrno));
+        return NULL;
       }
+      pData->num = sizeof(SFilePage);
     }
   }
 
