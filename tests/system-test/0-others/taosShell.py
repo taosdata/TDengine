@@ -140,6 +140,7 @@ class TDTestCase:
             # print(f"value: {value}")
             self.taos_output.append(value)
             count += 1
+            
     def taos_thread_repeat_k(self, run_command, commands, threads_num=10, output=[]):
         threads = []
         taos_output = self.taos_output        
