@@ -45,28 +45,40 @@
 
 namespace {
 
-#define MP_PRINTF (void)printf
+#define MPT_PRINTF          (void)printf
+#define MPT_MAX_SESSION_NUM 256
+#define MPT_MAX_JOB_NUM     20000
 
-bool jtErrorRerun = false;
-bool jtInRerun = false;
 threadlocal void* mptThreadPoolHandle = NULL;
 threadlocal void* mptThreadPoolSession = NULL;
 
 
-#define taosEnableMemoryPoolUsage(_pool, _session) do { mptThreadPoolHandle = _pool; mptThreadPoolSession = _session; } while (0) 
-#define taosDisableMemoryPoolUsage() (mptThreadPoolHandle = NULL) 
-#define taosSaveDisableMemoryPoolUsage(_handle) do { (_handle) = mptThreadPoolHandle; mptThreadPoolHandle = NULL; } while (0)
-#define taosRestoreEnableMemoryPoolUsage(_handle) (mptThreadPoolHandle = (_handle))
+#define mptEnableMemoryPoolUsage(_pool, _session) do { mptThreadPoolHandle = _pool; mptThreadPoolSession = _session; } while (0) 
+#define mptDisableMemoryPoolUsage() (mptThreadPoolHandle = NULL) 
+#define mptSaveDisableMemoryPoolUsage(_handle) do { (_handle) = mptThreadPoolHandle; mptThreadPoolHandle = NULL; } while (0)
+#define mptRestoreEnableMemoryPoolUsage(_handle) (mptThreadPoolHandle = (_handle))
 
-#define taosMemoryMalloc(_size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolMalloc(mptThreadPoolHandle, mptThreadPoolSession, _size, __FILE__, __LINE__)) : (taosMemMalloc(_size)))
-#define taosMemoryCalloc(_num, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolCalloc(mptThreadPoolHandle, mptThreadPoolSession, _num, _size, __FILE__, __LINE__)) : (taosMemCalloc(_num, _size)))
-#define taosMemoryRealloc(_ptr, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolRealloc(mptThreadPoolHandle, mptThreadPoolSession, _ptr, _size, __FILE__, __LINE__)) : (taosMemRealloc(_ptr, _size)))
-#define taosStrdup(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolStrdup(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosStrdupi(_ptr)))
-#define taosMemoryFree(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolFree(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosMemFree(_ptr)))
-#define taosMemorySize(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolGetMemorySize(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosMemSize(_ptr)))
-#define taosMemoryTrim(_size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolTrim(mptThreadPoolHandle, mptThreadPoolSession, _size, __FILE__, __LINE__)) : (taosMemTrim(_size)))
-#define taosMemoryMallocAlign(_alignment, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolMallocAlign(mptThreadPoolHandle, mptThreadPoolSession, _alignment, _size, __FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
+#define mptMemoryMalloc(_size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolMalloc(mptThreadPoolHandle, mptThreadPoolSession, _size, __FILE__, __LINE__)) : (taosMemMalloc(_size)))
+#define mptMemoryCalloc(_num, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolCalloc(mptThreadPoolHandle, mptThreadPoolSession, _num, _size, __FILE__, __LINE__)) : (taosMemCalloc(_num, _size)))
+#define mptMemoryRealloc(_ptr, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolRealloc(mptThreadPoolHandle, mptThreadPoolSession, _ptr, _size, __FILE__, __LINE__)) : (taosMemRealloc(_ptr, _size)))
+#define mptStrdup(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolStrdup(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosStrdupi(_ptr)))
+#define mptMemoryFree(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolFree(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosMemFree(_ptr)))
+#define mptMemorySize(_ptr) ((NULL != mptThreadPoolHandle) ? (taosMemPoolGetMemorySize(mptThreadPoolHandle, mptThreadPoolSession, _ptr, __FILE__, __LINE__)) : (taosMemSize(_ptr)))
+#define mptMemoryTrim(_size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolTrim(mptThreadPoolHandle, mptThreadPoolSession, _size, __FILE__, __LINE__)) : (taosMemTrim(_size)))
+#define mptMemoryMallocAlign(_alignment, _size) ((NULL != mptThreadPoolHandle) ? (taosMemPoolMallocAlign(mptThreadPoolHandle, mptThreadPoolSession, _alignment, _size, __FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
 
+typedef enum {
+  MPT_SMALL_MSIZE = 0,
+  MPT_BIG_MSIZE,
+};
+
+typedef struct {
+  int32_t jobNum;
+  int32_t sessionNum;
+  bool    memSize[2];
+  bool    jobQuotaRetire;
+  bool    poolRetire;
+} SMPTCaseParam;
 
 typedef struct SMPTJobInfo {
   int8_t              retired;
@@ -79,23 +91,34 @@ typedef struct SMPTJobInfo {
 typedef struct {
   bool printTestInfo;
   bool printInputRow;
-} SJoinTestCtrl;
+} SMPTestCtrl;
 
+typedef struct {
+  uint64_t       jobId;
+  int32_t        taskNum;
+  int64_t        poolMaxSize;
+  int64_t        npoolSize;
+  void*          pSessions[MPT_MAX_SESSION_NUM];
+  SMPTestTaskCtx taskCtxs[MPT_MAX_SESSION_NUM];
+} SMPTestJobCtx;
+
+typedef struct {
+  int64_t poolMaxSize;
+  int64_t npoolSize;
+  int32_t memActTimes;
+} SMPTestTaskCtx;
 
 typedef struct SMPTestCtx {
-  SHashObj* pJobs;
-  BoundedQueue* pJobQueue;
-  void*        memPoolHandle;
+  uint64_t       qId;
+  uint64_t       tId;
+  int32_t        eId;
+  SHashObj*      pJobs;
+  BoundedQueue*  pJobQueue;
+  void*          memPoolHandle;
+  SMPTestJobCtx  jobCtxs[MPT_MAX_JOB_NUM];
 } SMPTestCtx;
 
 SMPTestCtx mptCtx = {0};
-
-
-void rerunBlockedHere() {
-  while (jtInRerun) {
-    taosSsleep(1);
-  }
-}
 
 
 void joinTestReplaceRetrieveFp() {
@@ -361,6 +384,38 @@ void mptInitPool(int64_t jobQuota, bool autoMaxSize, int64_t maxSize) {
   ASSERT_TRUE(0 == taosMemPoolOpen("SingleThreadTest", &cfg, &mptCtx.memPoolHandle));
 }
 
+void mptMemorySimulate(SMPTestTaskCtx* pCtx) {
+
+}
+
+void mptTaskRun(int32_t idx, uint64_t qId, uint64_t tId, int32_t eId) {
+  ASSERT_TRUE(0 == mptInitSession(qId, tId, eId, &mptCtx.pSessions[idx]));
+
+  mptEnableMemoryPoolUsage(mptCtx.memPoolHandle, mptCtx.pSessions[idx]);
+  mptMemorySimulate(&mptCtx.taskCtxs[idx]);
+  mptDisableMemoryPoolUsage();
+
+}
+
+void* mptThreadFunc(void* param) {
+  int32_t* threadIdx = (int32_t*)param;
+  
+}
+
+void mptStartThreadTest(int32_t threadIdx) {
+  TdThread t1;
+  TdThreadAttr thattr;
+  ASSERT_EQ(0, taosThreadAttrInit(&thattr));
+  ASSERT_EQ(0, taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE));
+  ASSERT_EQ(0, taosThreadCreate(&(t1), &thattr, mptThreadFunc, &threadIdx));
+  ASSERT_EQ(0, taosThreadAttrDestroy(&thattr));
+
+}
+
+void mptRunCase() {
+
+}
+
 }  // namespace
 
 #if 1
@@ -372,7 +427,6 @@ TEST(FuncTest, SingleThreadTest) {
   
   mptInitPool(0, false, 5*1048576UL);
 
-  ASSERT_TRUE(0 == mptInitSession(1, 1, 1, &pSession));
 
   
 }

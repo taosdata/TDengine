@@ -96,8 +96,8 @@ extern threadlocal void* threadPoolHandle;
 extern threadlocal void* threadPoolSession;
 
 
-#define taosEnableMemoryPoolUsage(_pool, _session) do { threadPoolHandle = _pool; threadPoolSession = _session; } while (0) 
-#define taosDisableMemoryPoolUsage() (threadPoolHandle = NULL) 
+#define taosEnableMemoryPoolUsage(_pool, _session) do { threadPoolHandle = _pool; threadPoolSession = _session; tsEnableRandErr = true;} while (0) 
+#define taosDisableMemoryPoolUsage() (threadPoolHandle = NULL, tsEnableRandErr = false) 
 #define taosSaveDisableMemoryPoolUsage(_handle) do { (_handle) = threadPoolHandle; threadPoolHandle = NULL; } while (0)
 #define taosRestoreEnableMemoryPoolUsage(_handle) (threadPoolHandle = (_handle))
 

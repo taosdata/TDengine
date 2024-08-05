@@ -329,6 +329,7 @@ int32_t tsMaxTsmaNum = 3;
 int32_t tsMaxTsmaCalcDelay = 600;
 int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24;  // in ms, default to 1d
 
+
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);           \
@@ -746,6 +747,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "randErrorChance", tsRandErrChance, 0, 10000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
@@ -1226,7 +1228,17 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "charset");
   const char *charset = pItem->str;
 
-  (void)taosSetSystemLocale(locale, charset); // ignore this error temporarily
+  int32_t code = taosSetSystemLocale(locale, charset);
+  if (TSDB_CODE_SUCCESS != code) {
+    uInfo("failed to set locale %s, since: %s", locale, tstrerror(code));
+    char curLocale[TD_LOCALE_LEN] = {0};
+    char curCharset[TD_CHARSET_LEN] = {0};
+    taosGetSystemLocale(curLocale, curCharset);
+    if (0 != strlen(curLocale) && 0 != strlen(curCharset)) {
+      uInfo("current locale: %s, charset: %s", curLocale, curCharset);
+    }
+  }
+
   osSetSystemLocale(locale, charset);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCoreFile");
@@ -1421,6 +1433,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "mqRebalanceInterval");
   tsMqRebalanceInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "randErrorChance");
+  tsRandErrChance = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ttlUnit");
   tsTtlUnit = pItem->i32;
@@ -1692,25 +1707,28 @@ static int32_t cfgInitWrapper(SConfig **pCfg) {
   }
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
+
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc) {
   if (tsCfg != NULL) TAOS_RETURN(TSDB_CODE_SUCCESS);
 
-  TAOS_CHECK_RETURN(cfgInitWrapper(&tsCfg));
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = -1;
+
+  TAOS_CHECK_GOTO(cfgInitWrapper(&tsCfg), &lino, _exit);
 
   if (tsc) {
-    TAOS_CHECK_RETURN(taosAddClientCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosAddClientLogCfg(tsCfg));
+    TAOS_CHECK_GOTO(taosAddClientCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosAddClientLogCfg(tsCfg), &lino, _exit);
   } else {
-    TAOS_CHECK_RETURN(taosAddClientCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosAddServerCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosAddClientLogCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosAddServerLogCfg(tsCfg));
+    TAOS_CHECK_GOTO(taosAddClientCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosAddServerCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosAddClientLogCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosAddServerLogCfg(tsCfg), &lino, _exit);
   }
 
-  TAOS_CHECK_RETURN(taosAddSystemCfg(tsCfg));
+  TAOS_CHECK_GOTO(taosAddSystemCfg(tsCfg), &lino, _exit);
 
-  int32_t code = TSDB_CODE_SUCCESS;
   if ((code = taosLoadCfg(tsCfg, envCmd, cfgDir, envFile, apolloUrl)) != 0) {
     uError("failed to load cfg since %s", tstrerror(code));
     cfgCleanup(tsCfg);
@@ -1726,31 +1744,38 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   }
 
   if (tsc) {
-    TAOS_CHECK_RETURN(taosSetClientCfg(tsCfg));
+    TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
   } else {
-    TAOS_CHECK_RETURN(taosSetClientCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosUpdateServerCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosSetServerCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosSetReleaseCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosSetTfsCfg(tsCfg));
-    TAOS_CHECK_RETURN(taosSetS3Cfg(tsCfg));
+    TAOS_CHECK_GOTO(taosSetClientCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosSetReleaseCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
+    TAOS_CHECK_GOTO(taosSetS3Cfg(tsCfg), &lino, _exit);
   }
 
-  TAOS_CHECK_RETURN(taosSetSystemCfg(tsCfg));
-  TAOS_CHECK_RETURN(taosSetFileHandlesLimit());
+  TAOS_CHECK_GOTO(taosSetSystemCfg(tsCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetFileHandlesLimit(), &lino, _exit);
 
   SConfigItem *pItem = cfgGetItem(tsCfg, "debugFlag");
   if (NULL == pItem) {
     uError("debugFlag not found in cfg");
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
-  TAOS_CHECK_RETURN(taosSetAllDebugFlag(tsCfg, pItem->i32));
+  TAOS_CHECK_GOTO(taosSetAllDebugFlag(tsCfg, pItem->i32), &lino, _exit);
 
   cfgDumpCfg(tsCfg, tsc, false);
 
-  TAOS_CHECK_RETURN(taosCheckGlobalCfg());
+  TAOS_CHECK_GOTO(taosCheckGlobalCfg(), &lino, _exit);
 
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    cfgCleanup(tsCfg);
+    tsCfg = NULL;
+    uError("failed to init cfg at %d since %s", lino, tstrerror(code));
+  }
+
+  TAOS_RETURN(code);
 }
 
 void taosCleanupCfg() {
