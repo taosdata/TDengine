@@ -544,6 +544,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/limit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/logical_operators.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/logical_operators.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py
