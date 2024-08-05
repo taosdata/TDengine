@@ -82,7 +82,11 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
   void *pIter = NULL;
   while ((pIter = taosHashIterate(pTq->pOffset, pIter))) {
     STqOffset* pOffset = (STqOffset*)pIter;
-    tqMetaSaveOffset(pTq, pOffset);
+    code = tqMetaSaveOffset(pTq, pOffset);
+    if(code != 0){
+      taosHashCancelIterate(pTq->pOffset, pIter);
+      goto END;
+    }
   }
 
 END:
