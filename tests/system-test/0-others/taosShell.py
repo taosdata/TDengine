@@ -111,7 +111,7 @@ class TDTestCase:
     updatecfgDict["fqdn"] = hostname
 
     print ("===================: ", updatecfgDict)
-
+    taos_output = []
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -119,7 +119,6 @@ class TDTestCase:
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
-
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
@@ -133,21 +132,17 @@ class TDTestCase:
                     break
         return buildPath
     def run_command(self, commands):
-        self.taos_output = []
+        
         count = 0
         while count < 2:
-            print(f"count: {count}")
+            # print(f"count: {count}")
             value = subprocess.getoutput(f"nohup {commands} &")
-            print(f"value: {value}")
+            # print(f"value: {value}")
             self.taos_output.append(value)
             count += 1
-            return self.taos_output
-
     def taos_thread_repeat_k(self, run_command, commands, threads_num=10, output=[]):
         threads = []
-        taos_output = self.taos_output
-        threads_num =  20
-        
+        taos_output = self.taos_output        
         for id in range(threads_num):
             #threads.append(Process(target=cloud_consumer, args=(id,)))
             threads.append(threading.Thread(target=run_command, args=(commands,)))
@@ -155,11 +150,9 @@ class TDTestCase:
             tr.start()
         for tr in threads:
             tr.join()
-
         for value in taos_output:
             if "crash" in value:
-                print(f"command: {commands} crash") 
-                exit(1)
+                tdLog.exit(f"command: {commands} crash") 
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -479,7 +472,7 @@ class TDTestCase:
         commands = f"taos -k -c {cfgPath}"
         output = self.run_command(commands)
         os.sys
-        self.taos_thread_repeat_k(self.run_command, commands, 10, output)
+        self.taos_thread_repeat_k(self.run_command, commands, 100, output)
         # os.system("python 0-others/repeat_taos_k.py")
 
     def stop(self):
