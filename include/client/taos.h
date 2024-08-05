@@ -217,10 +217,10 @@ typedef struct {
 } TAOS_STMT2_BIND;
 
 typedef struct {
-  int              count;
-  char           **tbnames;
-  TAOS_STMT2_BIND *tags;
-  TAOS_STMT2_BIND *bind_cols;
+  int               count;
+  char            **tbnames;
+  TAOS_STMT2_BIND **tags;
+  TAOS_STMT2_BIND **bind_cols;
 } TAOS_STMT2_BINDV;
 
 DLL_EXPORT TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option);

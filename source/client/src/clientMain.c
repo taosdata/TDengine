@@ -1915,8 +1915,8 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   int32_t code = 0;
   for (int i = 0; i < bindv->count; ++i) {
     char            *tbname = bindv->tbnames[i];
-    TAOS_STMT2_BIND *tags = &bindv->tags[i];
-    TAOS_STMT2_BIND *bind = &bindv->bind_cols[i];
+    TAOS_STMT2_BIND *tags = bindv->tags[i];
+    TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
 
     if (tbname) {
       code = stmtSetTbName2(stmt, tbname);
