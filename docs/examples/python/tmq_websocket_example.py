@@ -1,5 +1,8 @@
 #!/usr/bin/python3
 import taosws
+
+topic = "topic_meters"
+
 def prepareMeta():
     conn = None
 
@@ -28,6 +31,13 @@ def prepareMeta():
         rowsAffected = conn.execute(
             "CREATE TABLE IF NOT EXISTS `d0` USING `meters` (groupid, location) TAGS(0, 'Los Angles')")
         assert rowsAffected == 0
+
+        # ANCHOR: create_topic
+        # create topic
+        conn.execute(
+            f"CREATE TOPIC IF NOT EXISTS {topic} AS SELECT ts, current, voltage, phase, groupid, location FROM meters"
+        )
+        # ANCHOR_END: create_topic
 
         sql = """
             INSERT INTO 
@@ -91,9 +101,9 @@ def seek_offset(consumer):
 # ANCHOR: subscribe
 def subscribe(consumer):
     try:
-        consumer.subscribe(["topic_meters"])
+        consumer.subscribe([topic])
         print("subscribe topics successfully")
-        for i in range(5):
+        for i in range(50):
             records = consumer.poll(timeout=1.0)
             if records:
                 for block in records:
@@ -110,7 +120,7 @@ def subscribe(consumer):
 # ANCHOR: commit_offset
 def commit_offset(consumer):
     try:
-        for i in range(5):
+        for i in range(50):
             records = consumer.poll(timeout=1.0)
             if records:
                 for block in records:
