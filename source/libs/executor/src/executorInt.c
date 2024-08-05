@@ -577,8 +577,10 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
     size_t size = taosArrayGetSize(pColMatchInfo->pList);
     for (int32_t i = 0; i < size; ++i) {
       SColMatchItem* pInfo = taosArrayGet(pColMatchInfo->pList, i);
+      QUERY_CHECK_NULL(pInfo, code, lino, _err, terrno);
       if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pInfo->dstSlotId);
+        QUERY_CHECK_NULL(pColData, code, lino, _err, terrno);
         if (pColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
           code = blockDataUpdateTsWindow(pBlock, pInfo->dstSlotId);
           QUERY_CHECK_CODE(code, lino, _err);
@@ -667,6 +669,7 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
       // expand the result into multiple rows. E.g., _wstart, top(k, 20)
       // the _wstart needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
       for (int32_t k = 0; k < pRow->numOfRows; ++k) {
         code = colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
@@ -1046,6 +1049,10 @@ bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
   if (LIST_LENGTH(pGroupList) == 1) {
     SNode* p = nodesListGetNode(pGroupList, 0);
+    if (!p) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return false;
+    }
     if (p->type == QUERY_NODE_FUNCTION) {
       // partition by tbname/group by tbname
       bytbname = (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0);

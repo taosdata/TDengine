@@ -120,7 +120,8 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
     if (TSDB_CODE_SUCCESS == code) {
       // PK ts col should always at last, see partColOptCreateSort
       if (pSortNode->excludePkCol) taosArrayPop(pGroupIdCalc->pSortColsArr);
-      keyLen = extractKeysLen(pGroupIdCalc->pSortColsArr);
+      code = extractKeysLen(pGroupIdCalc->pSortColsArr, &keyLen);
+      QUERY_CHECK_CODE(code, lino, _error);
     }
     if (TSDB_CODE_SUCCESS == code) {
       pGroupIdCalc->lastKeysLen = 0;
