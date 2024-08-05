@@ -410,12 +410,11 @@ where
                 .add_directive("tokio_tungstenite=warn".parse()?)
                 .add_directive("mio=warn".parse()?)
                 .add_directive("h2=warn".parse()?)
-                .add_directive("sqlx=warn".parse()?)
                 .add_directive("hyper=warn".parse()?)
                 .add_directive("reqwest=warn".parse()?)
                 .add_directive("sled=warn".parse()?)
         } else {
-            event_filter.add_directive("sqlx::query=warn".parse()?)
+            event_filter
         };
         Ok(event_filter)
     }
