@@ -523,7 +523,7 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
 int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq) {
   int32_t                  code = 0;
   SQueryCompactProgressRsp req = {0};
-  if (pReq->code != 0) {
+  if (pReq->code < 0) {
     mError("received wrong compact response, req code is %s", tstrerror(pReq->code));
     TAOS_RETURN(pReq->code);
   }
