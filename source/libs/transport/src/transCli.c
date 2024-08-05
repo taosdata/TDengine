@@ -1598,7 +1598,7 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   int64_t    refId = (int64_t)(pMsg->msg.info.handle);
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), refId);
   if (exh == NULL) {
-    tDebug("%" PRId64 " already released", refId);
+    tDebug("id %" PRId64 " already released", refId);
     destroyCmsg(pMsg);
     return;
   }
@@ -3280,7 +3280,7 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
   }
   pCli->type = FreeById;
 
-  tDebug("release conn By refId %" PRId64 "", transpointId);
+  tDebug("release conn id %" PRId64 "", transpointId);
 
   STransMsg msg = {.info.handle = (void*)transpointId};
   pCli->msg = msg;
