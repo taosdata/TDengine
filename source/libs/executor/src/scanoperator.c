@@ -1303,7 +1303,9 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
 static void destroyTableScanBase(STableScanBase* pBase, TsdReader* pAPI) {
   cleanupQueryTableDataCond(&pBase->cond);
 
-  pAPI->tsdReaderClose(pBase->dataReader);
+  if (pAPI->tsdReaderClose) {
+    pAPI->tsdReaderClose(pBase->dataReader);
+  }
   pBase->dataReader = NULL;
 
   if (pBase->matchInfo.pList != NULL) {
