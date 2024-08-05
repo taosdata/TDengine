@@ -664,7 +664,8 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
 
-  if(taosArrayGetSize(subscribe.topicNames) == 0){
+  bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
+  if(unSubscribe){
     SMqConsumerObj *pConsumerTmp = mndAcquireConsumer(pMnode, subscribe.consumerId);
     if(pConsumerTmp == NULL){
       goto _over;
@@ -677,7 +678,9 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     goto _over;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
+                          unSubscribe ? TRN_CONFLICT_NOTHING : TRN_CONFLICT_DB_INSIDE,
+                          pMsg, "subscribe");
   if (pTrans == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _over;
