@@ -91,14 +91,13 @@ void mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType, SR
   }
 }
 
-static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const char *pUser,
-                              bool enableReplay) {
+static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *pUser) {
   SMqTopicObj *pTopic = NULL;
   int32_t      code = 0;
 
-  int32_t numOfTopics = taosArrayGetSize(pTopicList);
+  int32_t numOfTopics = taosArrayGetSize(subscribe->topicNames);
   for (int32_t i = 0; i < numOfTopics; i++) {
-    char *pOneTopic = taosArrayGetP(pTopicList, i);
+    char *pOneTopic = taosArrayGetP(subscribe->topicNames, i);
     pTopic = mndAcquireTopic(pMnode, pOneTopic);
     if (pTopic == NULL) {  // terrno has been set by callee function
       code = -1;
@@ -116,7 +115,7 @@ static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const ch
       goto FAILED;
     }
 
-    if (enableReplay) {
+    if (subscribe->enableReplay) {
       if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
         code = TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
         goto FAILED;
@@ -133,6 +132,13 @@ static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const ch
         }
         mndReleaseDb(pMnode, pDb);
       }
+    }
+    char  key[32] = {0};
+    (void)snprintf(key, 32, "%"PRIx64, subscribe->consumerId);
+    mndTransSetDbName(pTrans, pTopic->db, key);
+    if(mndTransCheckConflict(pMnode, pTrans) != 0){
+      code = terrno;
+      goto FAILED;
     }
 
     mndReleaseTopic(pMnode, pTopic);
@@ -670,13 +676,13 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     goto _over;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pMsg, "subscribe");
   if (pTrans == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _over;
   }
 
-  code = validateTopics(subscribe.topicNames, pMnode, pMsg->info.conn.user, subscribe.enableReplay);
+  code = validateTopics(pTrans, &subscribe, pMnode, pMsg->info.conn.user);
   if (code != TSDB_CODE_SUCCESS) {
     goto _over;
   }
