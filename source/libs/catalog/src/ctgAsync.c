@@ -2036,10 +2036,12 @@ int32_t ctgLaunchGetTbMetaTask(SCtgTask* pTask) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
-  if (pTask->res) {
-    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
-    return TSDB_CODE_SUCCESS;
+  if (!pTask->subTask) {
+    CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
+    if (pTask->res) {
+      CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   SCtgTbMetaCtx* pCtx = (SCtgTbMetaCtx*)pTask->taskCtx;
@@ -2105,7 +2107,10 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask* pTask) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
-  CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, pCtx->dbFName, &dbCache));
+  if (!pTask->subTask) {
+    CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, pCtx->dbFName, &dbCache));
+  }
+  
   if (NULL != dbCache) {
     CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res));
 
