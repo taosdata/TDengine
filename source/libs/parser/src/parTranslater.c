@@ -14,6 +14,7 @@
  */
 
 #include "parTranslater.h"
+#include <stdint.h>
 #include "parInt.h"
 #include "tdatablock.h"
 
@@ -5046,6 +5047,29 @@ static int32_t translateClausePosition(STranslateContext* pCxt, SNodeList* pProj
   return TSDB_CODE_SUCCESS;
 }
 
+bool static notExsitInList(SNodeList* pList, SFunctionNode* pFunc) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    if (QUERY_NODE_FUNCTION == nodeType(pNode) && 0 == strcmp(((SFunctionNode*)pNode)->functionName, pFunc->functionName)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool validOrderByExpr(SNodeList* pProjectionList, SNode* pNode) {
+  if (QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode)) {
+    SNode* pExpr = ((SOrderByExprNode*)pNode)->pExpr;
+    if(pExpr && QUERY_NODE_FUNCTION == nodeType(pExpr)) {
+      SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+      if (fmIsSelectFunc(pFunc->funcId) && notExsitInList(pProjectionList, pFunc)) {  
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   bool    other;
   int32_t code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
@@ -5060,6 +5084,13 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     pCxt->currClause = SQL_CLAUSE_ORDER_BY;
     code = translateExprList(pCxt, pSelect->pOrderByList);
   }
+  SNode** pNode;
+  FOREACH_FOR_REWRITE(pNode, pSelect->pOrderByList) {
+    if (!validOrderByExpr(pSelect->pProjectionList, *pNode)) {
+      return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
