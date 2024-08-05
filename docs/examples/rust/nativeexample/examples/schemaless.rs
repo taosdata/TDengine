@@ -82,6 +82,6 @@ async fn main() -> anyhow::Result<()> {
         .build()?;
     assert_eq!(client.put(&sml_data).await?, ());
 
-    println!("execute schemaless insert successfully");
+    println!("Inserted data with schemaless successfully.");
     Ok(())
 }
