@@ -144,6 +144,7 @@ int32_t initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap,
 
   void* pData = NULL;
   pGroupResInfo->pRows = taosArrayInit(size, POINTER_BYTES);
+  QUERY_CHECK_NULL(pGroupResInfo->pRows, code, lino, _end, terrno);
 
   size_t  keyLen = 0;
   int32_t iter = 0;
@@ -353,9 +354,15 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
     } else if (pSColumnNode->node.resType.type == TSDB_DATA_TYPE_JSON) {
       int32_t len = ((const STag*)p)->len;
       res->datum.p = taosMemoryCalloc(len + 1, 1);
+      if (NULL == res->datum.p) {
+        return DEAL_RES_ERROR;
+      }
       memcpy(res->datum.p, p, len);
     } else if (IS_VAR_DATA_TYPE(pSColumnNode->node.resType.type)) {
       res->datum.p = taosMemoryCalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1, 1);
+      if (NULL == res->datum.p) {
+        return DEAL_RES_ERROR;
+      }
       memcpy(varDataVal(res->datum.p), tagVal.pData, tagVal.nData);
       varDataSetLen(res->datum.p, tagVal.nData);
     } else {
@@ -378,6 +385,9 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
 
     int32_t len = strlen(mr->me.name);
     res->datum.p = taosMemoryCalloc(len + VARSTR_HEADER_SIZE + 1, 1);
+    if (NULL == res->datum.p) {
+      return DEAL_RES_ERROR;
+    }
     memcpy(varDataVal(res->datum.p), mr->me.name, len);
     varDataSetLen(res->datum.p, len);
     nodesDestroyNode(*pNode);
@@ -856,6 +866,7 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
 
   // remove the duplicates
   SArray* pNewList = taosArrayInit(taosArrayGetSize(pTbList), sizeof(void*));
+  QUERY_CHECK_NULL(pNewList, code, lino, _end, terrno);
   void*   tmp = taosArrayPush(pNewList, taosArrayGet(pTbList, 0));
   QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
@@ -1739,6 +1750,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     int32_t numOfParam = LIST_LENGTH(pFuncNode->pParameterList);
 
     pExp->base.pParam = taosMemoryCalloc(numOfParam, sizeof(SFunctParam));
+    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = numOfParam;
 
     for (int32_t j = 0; j < numOfParam; ++j) {
@@ -1760,6 +1772,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SOperatorNode* pOpNode = (SOperatorNode*)pNode;
 
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = 1;
 
     SDataType* pType = &pOpNode->node.resType;
@@ -1771,6 +1784,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SCaseWhenNode* pCaseNode = (SCaseWhenNode*)pNode;
 
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = 1;
 
     SDataType* pType = &pCaseNode->node.resType;
@@ -1781,9 +1795,8 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
     SLogicConditionNode* pCond = (SLogicConditionNode*)pNode;
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
-    if (!pExp->base.pParam) {
-      code = terrno;
-    }
+    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
+
     if (TSDB_CODE_SUCCESS == code) {
       pExp->base.numOfParams = 1;
       SDataType* pType = &pCond->node.resType;
@@ -1808,6 +1821,9 @@ int32_t createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode) {
 SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
   *numOfExprs = LIST_LENGTH(pNodeList);
   SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
+  if (!pExprs) {
+    return NULL;
+  }
 
   for (int32_t i = 0; i < (*numOfExprs); ++i) {
     SExprInfo* pExp = &pExprs[i];
@@ -2068,6 +2084,9 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
 
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
+  if (!pCond->colList) {
+    return terrno;
+  }
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
   if (pCond->colList == NULL || pCond->pSlotList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -2448,6 +2467,9 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   int32_t size = taosArrayGetSize(pTableListInfo->pTableList);
 
   SArray* pList = taosArrayInit(4, sizeof(int32_t));
+  if (!pList) {
+    return terrno;
+  }
 
   STableKeyInfo* pInfo = taosArrayGet(pTableListInfo->pTableList, 0);
   uint64_t       gid = pInfo->groupId;

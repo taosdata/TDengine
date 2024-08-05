@@ -397,6 +397,9 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
     pInfo->win.ekey = win.skey;
   }
   pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);
+  if (pInfo->p) {
+    return terrno;
+  }
 
   if (pInfo->pFillInfo == NULL || pInfo->p == NULL) {
     taosMemoryFree(pInfo->pFillInfo);

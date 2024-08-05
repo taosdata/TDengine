@@ -666,6 +666,9 @@ static int32_t initGroupKeyKeeper(STimeSliceOperatorInfo* pInfo, SExprSupp* pExp
       pInfo->pPrevGroupKey->type = pExprInfo->base.resSchema.type;
       pInfo->pPrevGroupKey->isNull = false;
       pInfo->pPrevGroupKey->pData = taosMemoryCalloc(1, pInfo->pPrevGroupKey->bytes);
+      if (!pInfo->pPrevGroupKey->pData) {
+        return terrno;
+      }
     }
   }
 
@@ -1168,6 +1171,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
 
     if (IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
       pInfo->prevKey.pks[0].pData = taosMemoryCalloc(1, pInfo->pkCol.bytes);
+      QUERY_CHECK_NULL(pInfo->prevKey.pks[0].pData, code, lino, _error, terrno);
     }
   }
 
