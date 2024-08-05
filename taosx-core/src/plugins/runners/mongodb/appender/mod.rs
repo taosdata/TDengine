@@ -73,7 +73,8 @@ pub fn to_record_batches(
                         payload.insert(key.clone(), json!(v));
                     }
                     Bson::Binary(v) => {
-                        payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                        let value: String = v.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+                        payload.insert(key.clone(), json!(format!("\\x{}", value)));
                     }
                     Bson::ObjectId(v) => {
                         payload.insert(key.clone(), json!(v.to_string()));

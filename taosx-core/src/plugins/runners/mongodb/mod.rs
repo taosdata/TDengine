@@ -298,7 +298,8 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Binary(v) => {
-                    payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                    let value: String = v.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+                    payload.insert(key.clone(), json!(format!("\\x{}", value)));
                 }
                 Bson::ObjectId(v) => {
                     payload.insert(key.clone(), json!(v.to_string()));
@@ -336,7 +337,7 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use mongodb::bson::{doc, oid::ObjectId, Decimal128};
+    use mongodb::bson::{doc, oid::ObjectId, spec::BinarySubtype, Binary, Decimal128};
 
     use super::*;
     use std::str::FromStr;
@@ -601,5 +602,15 @@ mod tests {
         }
         // clear data
         let _ = test_clear_data().await;
+    }
+
+    #[test]
+    fn test_binary() {
+        let binary = Binary {
+            subtype: BinarySubtype::Generic,
+            bytes: vec![1, 2, 3],
+        };
+        let res: String = binary.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+        println!("\\x{}", res);
     }
 }
