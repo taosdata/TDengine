@@ -200,7 +200,9 @@ export default {
     },
   },
   created() {},
-  mounted() {},
+  mounted() {
+    this.$store.state.app.configData = this.configData;
+  },
   methods: {
     add() {
       let item = deepClone(this.config[0]);

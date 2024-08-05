@@ -95,9 +95,11 @@ export default {
         errorMsg.push(valid);
         if (errorMsg.length == validFieldList.length && errorMsg.every(item => !item)) {
           this.activeCollapse = '';
-          this.sourceParent.$refs.form.clearValidate()
           const type = this.sourceParent.sourceForm.type
           const agent = this.sourceParent.sourceForm.agent
+          if (type == 'kafka') {
+            this.sourceParent.$refs.form.clearValidate()
+          }
           const dsn = getDsnData(this.sourceParent.sourceForm.data, this.sourceParent.currentDefinition)
           const param = type === "tmq" ? dsn : type + dsn
           this.getValidateResult(param, agent);
@@ -140,10 +142,10 @@ export default {
         if (val.children) {
           this.getValidFieldList(val.children, result, parent + '.' + val.field);
         } else {
-          if (val.host && val.host.required) {
+          if (val.host) {
             result.push(parent + '.' + val.host.field);
           }
-          if (val.port && val.port.required) {
+          if (val.port) {
             result.push(parent + '.' + val.port.field);
           }
           if (val.required) {
