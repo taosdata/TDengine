@@ -266,8 +266,8 @@ void basic_consume_loop(tmq_t* tmq) {
       // free the message
       taos_free_result(tmqmsg);
     }
-    if (msgCnt > 10) {
-      // consume 10 messages and break
+    if (msgCnt > 50) {
+      // consume 50 messages and break
       break;
     }
   }
@@ -332,8 +332,8 @@ void manual_commit(tmq_t* tmq) {
       // free the message
       taos_free_result(tmqmsg);
     }
-    if (msgCnt > 10) {
-      // consume 10 messages and break
+    if (msgCnt > 50) {
+      // consume 50 messages and break
       break;
     }
   }
