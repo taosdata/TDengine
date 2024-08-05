@@ -805,7 +805,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stError("s-task:%s source task should not start the checkpoint-trigger monitor fn, quit", id, ref);
+    stError("s-task:%s source task should not start the checkpoint-trigger monitor fn, ref:%d quit", id, ref);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     return;
   }
