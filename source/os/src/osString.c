@@ -21,6 +21,8 @@
 #include "iconv.h"
 #endif
 
+#include <tlog.h>
+
 extern int wcwidth(wchar_t c);
 extern int wcswidth(const wchar_t *s, size_t n);
 
@@ -176,16 +178,18 @@ int32_t taosConvInit(void) {
       return terrno;
     }
   }
-
+  uInfo("iconv init success");
   return 0;
 }
 
 void taosConvDestroy() {
   int8_t M2C = 0;
   for (int32_t i = 0; i < gConvMaxNum[M2C]; ++i) {
+    uInfo("iconv close m2c %d, %p", i, gConv[M2C][i].conv);
     (void)iconv_close(gConv[M2C][i].conv);
   }
   for (int32_t i = 0; i < gConvMaxNum[1 - M2C]; ++i) {
+    uInfo("iconv close c2m %d, %p", i, gConv[M2C][i].conv);
     (void)iconv_close(gConv[1 - M2C][i].conv);
   }
   taosMemoryFreeClear(gConv[M2C]);
@@ -202,12 +206,14 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
       if ((iconv_t)-1 == c || (iconv_t)0 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
       }
+      uInfo("iconv open m2c %p", c);
       return c;
     } else {
       iconv_t c = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
       if ((iconv_t)-1 == c || (iconv_t)0 == c) {
         terrno = TAOS_SYSTEM_ERROR(errno);
       }
+      uInfo("iconv open c2m %p", c);
       return c;
     }
   }
@@ -219,7 +225,7 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
       (void)sched_yield();
       continue;
     }
-
+    uInfo("iconv acquire %d, %d", used, gConvMaxNum[type]);
     break;
   }
 
@@ -237,17 +243,20 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type) {
   }
 
   *idx = startId;
+  uInfo("iconv acquire %d, %p", startId, gConv[type][startId].conv);
   return gConv[type][startId].conv;
 }
 
 void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type) {
   if (idx < 0) {
     (void)iconv_close(conv);
+    uInfo("iconv close %d, %p", idx, conv);
     return;
   }
 
   atomic_store_8(&gConv[type][idx].inUse, 0);
   (void)atomic_sub_fetch_32(&convUsed[type], 1);
+  uInfo("iconv release %d, %p, cnt:%d", idx, conv, convUsed[type]);
 }
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len) {
