@@ -1434,7 +1434,12 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
   pNode.suid = suid;
   pNode.uid = suid;
   pNode.tableType = TSDB_SUPER_TABLE;
+
   STableListInfo* pTableListInfo = tableListCreate();
+  if (pTableListInfo == NULL) {
+    return terrno;
+  }
+
   uint8_t         digest[17] = {0};
   int             code =
       getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL,
@@ -2411,11 +2416,10 @@ bool oneTableForEachGroup(const STableListInfo* pTableList) { return pTableList-
 STableListInfo* tableListCreate() {
   STableListInfo* pListInfo = taosMemoryCalloc(1, sizeof(STableListInfo));
   if (pListInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pListInfo->remainGroups = NULL;
 
+  pListInfo->remainGroups = NULL;
   pListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
   if (pListInfo->pTableList == NULL) {
     goto _error;
@@ -2431,7 +2435,6 @@ STableListInfo* tableListCreate() {
 
 _error:
   tableListDestroy(pListInfo);
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;
 }
 

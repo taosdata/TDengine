@@ -2452,7 +2452,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
   return code;
 }
 
-static bool tsortOpenForBufMergeSort(SSortHandle* pHandle) {
+static int32_t tsortOpenForBufMergeSort(SSortHandle* pHandle) {
   int32_t code = createInitialSources(pHandle);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -2479,7 +2479,6 @@ static bool tsortOpenForBufMergeSort(SSortHandle* pHandle) {
   }
 
   code = tMergeTreeCreate(&pHandle->pMergeTree, pHandle->cmpParam.numOfSources, &pHandle->cmpParam, pHandle->comparFn);
-  ASSERT(code != 1);
   return code;
 }
 
