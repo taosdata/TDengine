@@ -666,6 +666,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
   }
 
   destroyThreadLocalGeosCtx();
+  DestoryThreadLocalRegComp();
 
   return NULL;
 }
