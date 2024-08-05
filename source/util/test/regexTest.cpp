@@ -205,10 +205,60 @@ TEST(testCase, regexCacheTest4) {
 
   printf("'%s' and '%s' take place by turn(per %d count) regex(new) %d times:%" PRIu64 " us.\n", s1, s2, count, times, t3 - t2);
 }
-/*
+
+/*  It is not a good idea to test this case, because it will take a long time.
 TEST(testCase, regexCacheTest5) {
   int times = 10000;
   int count = 10000;
+  char    s1[] = "abc%*";
+  char    s2[] = "abc";
+  auto start = std::chrono::high_resolution_clock::now();
+
+  uint64_t t0 = taosGetTimestampUs();
+  for (int i = 0; i < times; i++) {
+    for (int j = 0; j < count; ++j) {
+      UsingRegex** rex = getRegComp(s1);
+    }
+    for (int j = 0; j < count; ++j) {
+      UsingRegex** rex = getRegComp(s2);
+    }
+  }
+  uint64_t t1 = taosGetTimestampUs();
+
+  printf("'%s' and '%s' take place by turn(per %d count) regex(current) %d times:%" PRIu64 " us.\n", s1, s2, count, times, t1 - t0);
+
+  uint64_t t2 = taosGetTimestampUs();
+  for (int i = 0; i < times; i++) {
+    for (int j = 0; j < count; ++j) {
+      regex_t* rex = threadGetRegComp1(s1);
+    }
+    for (int j = 0; j < count; ++j) {
+      regex_t* rex = threadGetRegComp1(s2);
+    }
+  }
+  uint64_t t3 = taosGetTimestampUs();
+
+  printf("'%s' and '%s' take place by turn(per %d count) regex(before) %d times:%" PRIu64 " us.\n", s1, s2, count, times, t3 - t2);
+
+  t2 = taosGetTimestampUs();
+  for (int i = 0; i < times; i++) {
+    for (int j = 0; j < count; ++j) {
+      regex_t* rex = NULL;
+      (void)threadGetRegComp(&rex, s1);
+    }
+    for (int j = 0; j < count; ++j) {
+      regex_t* rex = NULL;
+      (void)threadGetRegComp(&rex, s2);
+    }
+  }
+  t3 = taosGetTimestampUs();
+
+  printf("'%s' and '%s' take place by turn(per %d count) regex(new) %d times:%" PRIu64 " us.\n", s1, s2, count, times, t3 - t2);
+}
+
+TEST(testCase, regexCacheTest6) {
+  int times = 10000;
+  int count = 1000;
   char    s1[] = "abc%*";
   char    s2[] = "abc";
   auto start = std::chrono::high_resolution_clock::now();

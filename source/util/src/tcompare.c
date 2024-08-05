@@ -1296,6 +1296,7 @@ UsingRegex **getRegComp(const char *pPattern) {
     (*ppUsingRegex)->lastUsedTime = taosGetTimestampSec();
     return ppUsingRegex;
   }
+  printf("getRegComp , ...");
   UsingRegex *pUsingRegex = taosMemoryMalloc(sizeof(UsingRegex));
   if (pUsingRegex == NULL) {
     terrno  = TSDB_CODE_OUT_OF_MEMORY;
@@ -1340,12 +1341,15 @@ void releaseRegComp(UsingRegex  **regex){
   taosHashRelease(sRegexCache.regexHash, regex);
 }
 
-static threadlocal UsingRegex ** ppRegex;
+static threadlocal UsingRegex ** ppUsingRegex;
+static threadlocal regex_t * pRegex;
 static threadlocal char    *pOldPattern = NULL;
 void DestoryThreadLocalRegComp() {
   if (NULL != pOldPattern) {
-    releaseRegComp(ppRegex);
+    releaseRegComp(ppUsingRegex);
     taosMemoryFree(pOldPattern);
+    ppUsingRegex = NULL;
+    pRegex = NULL;
     pOldPattern = NULL;
   }
 }
@@ -1353,15 +1357,15 @@ void DestoryThreadLocalRegComp() {
 int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
   if (NULL != pOldPattern) {
     if (strcmp(pOldPattern, pPattern) == 0) {
-      *regex = &(*ppRegex)->pRegex;
+      *regex = pRegex;
       return 0;
     } else {
       DestoryThreadLocalRegComp();
     }
   }
 
-  UsingRegex **pUsingRegex = getRegComp(pPattern);
-  if (pUsingRegex == NULL) {
+  UsingRegex **ppRegex = getRegComp(pPattern);
+  if (ppRegex == NULL) {
     return 1;
   }
   pOldPattern = (char *)taosMemoryMalloc(strlen(pPattern) + 1);
@@ -1370,8 +1374,9 @@ int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pOldPattern, pPattern);
-  ppRegex = pUsingRegex;
-  *regex = &(*pUsingRegex)->pRegex;
+  ppUsingRegex = ppRegex;
+  pRegex  = &((*ppUsingRegex)->pRegex);
+  *regex = &(*ppRegex)->pRegex;
   return 0;
 }
 
