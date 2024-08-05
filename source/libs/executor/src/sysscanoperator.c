@@ -1898,8 +1898,9 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
 
   int64_t          walSize = 1024, totalSize = 0;
   int32_t          numOfCols = 0;
-  SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  pColInfoData = taosArrayGet(p->pDataBlock, 0);
+  //SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
+
+ SColumnInfoData *pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
   code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1947,16 +1948,6 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
   code = colDataSetVal(pColInfoData, numOfRows, (char*)&raw_data_size, false);  // estimate_size
   QUERY_CHECK_CODE(code, lino, _end);
   totalSize += walSize;
-
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&totalSize, false);  // totoal size
-  QUERY_CHECK_CODE(code, lino, _end);
-  totalSize += walSize;
-
-  int64_t timeserial = 100000;
-  pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-  code = colDataSetVal(pColInfoData, numOfRows, (char*)&timeserial, false);  // total size
-  QUERY_CHECK_CODE(code, lino, _end);
 
   numOfRows += 1;
   pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
