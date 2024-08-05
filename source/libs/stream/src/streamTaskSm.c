@@ -98,7 +98,7 @@ static int32_t attachWaitedEvent(SStreamTask* pTask, SFutureHandleEventInfo* pEv
 
 static int32_t stopTaskSuccFn(SStreamTask* pTask) {
   SStreamTaskSM* pSM = pTask->status.pSM;
-  streamFreeTaskState(pTask, pSM->current.state);
+  streamFreeTaskState(pTask,pSM->current.state == TASK_STATUS__DROPPING ? 1 : 0);
   return TSDB_CODE_SUCCESS;
 }
 

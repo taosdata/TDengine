@@ -534,7 +534,7 @@ void    tFreeStreamTask(SStreamTask* pTask);
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver);
-void    streamFreeTaskState(SStreamTask* pTask, ETaskStatus status);
+void    streamFreeTaskState(SStreamTask* pTask, int8_t remove);
 
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo);
 int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId);

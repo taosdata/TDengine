@@ -175,9 +175,10 @@ int32_t streamDataSubmitNew(SPackedData* pData, int32_t type, SStreamDataSubmit*
 }
 
 void streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit) {
-  ASSERT(pDataSubmit->type == STREAM_INPUT__DATA_SUBMIT);
-  taosMemoryFree(pDataSubmit->submit.msgStr);
-  taosFreeQitem(pDataSubmit);
+  if (pDataSubmit != NULL && pDataSubmit->type == STREAM_INPUT__DATA_SUBMIT) {
+    taosMemoryFree(pDataSubmit->submit.msgStr);
+    taosFreeQitem(pDataSubmit);
+  }
 }
 
 int32_t streamMergedSubmitNew(SStreamMergedSubmit** pSubmit) {
