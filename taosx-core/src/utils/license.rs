@@ -256,29 +256,13 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             let source_builder = TaosBuilder::from_dsn(&from)?;
             let sink_builder = TaosBuilder::from_dsn(to)?;
 
-            let source_version = semver::Version::parse(
-                &source_builder
-                    .server_version()
-                    .await
-                    .with_context(source_dsn_context)?
-                    .split('.')
-                    .take(3)
-                    .join("."),
-            )?;
-
-            let sink_version = semver::Version::parse(
-                &sink_builder
-                    .server_version()
-                    .await
-                    .with_context(sink_dsn_context)?
-                    .split('.')
-                    .take(3)
-                    .join("."),
-            )?;
-
-            if source_version >= VERSION_3_3_0 && sink_version < VERSION_3_3_0 {
-                bail!("Source version is 3.3.0 or later, but sink version is earlier than 3.3.0, which is not supported.");
-            }
+            let (source_version, sink_version) = get_valid_taos_version(
+                &source_builder,
+                source_dsn_context,
+                &sink_builder,
+                sink_dsn_context,
+            )
+            .await?;
 
             if from.get("replica").is_some() {
                 if source_version < VERSION_3_3_0 {
@@ -361,7 +345,18 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
 
             let mut to = to.clone();
             to.subject.take();
+
+            let source_builder = TaosBuilder::from_dsn(&from)?;
             let sink_builder = TaosBuilder::from_dsn(&to)?;
+
+            let (_source_version, sink_version) = get_valid_taos_version(
+                &source_builder,
+                source_dsn_context,
+                &sink_builder,
+                sink_dsn_context,
+            )
+            .await?;
+
             let mut conn = sink_builder
                 .build()
                 .await
@@ -387,15 +382,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
             if let Err(err) = edition {
                 return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
             }
-            let sink_version = semver::Version::parse(
-                &sink_builder
-                    .server_version()
-                    .await
-                    .with_context(sink_dsn_context)?
-                    .split('.')
-                    .take(3)
-                    .join("."),
-            )?;
+
             return check_connector_grant_of(&sink_builder, &sink_version, "td2.6")
                 .await
                 .with_context(sink_dsn_context);
@@ -514,6 +501,37 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
         _ => (),
     };
     Ok(LicenseKind::good())
+}
+
+async fn get_valid_taos_version(
+    from: &TaosBuilder,
+    source_dsn_context: impl Fn() -> String,
+    to: &TaosBuilder,
+    sink_dsn_context: impl Fn() -> String,
+) -> anyhow::Result<(Version, Version)> {
+    let source_version = semver::Version::parse(
+        &from
+            .server_version()
+            .await
+            .with_context(source_dsn_context)?
+            .split('.')
+            .take(3)
+            .join("."),
+    )?;
+
+    let sink_version = semver::Version::parse(
+        &to.server_version()
+            .await
+            .with_context(sink_dsn_context)?
+            .split('.')
+            .take(3)
+            .join("."),
+    )?;
+
+    if source_version >= VERSION_3_3_0 && sink_version < VERSION_3_3_0 {
+        bail!("Source version is 3.3.0 or later, but sink version is earlier than 3.3.0, which is not supported.");
+    }
+    Ok((source_version, sink_version))
 }
 
 #[cfg(test)]
