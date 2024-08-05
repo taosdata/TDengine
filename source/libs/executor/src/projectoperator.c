@@ -108,9 +108,13 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
 
   int32_t    lino = 0;
   int32_t    numOfCols = 0;
-  SExprInfo* pExprInfo = createExprInfo(pProjPhyNode->pProjections, NULL, &numOfCols);
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pProjPhyNode->pProjections, NULL, &pExprInfo, &numOfCols);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pProjPhyNode->node.pOutputDataBlockDesc);
+  TSDB_CHECK_NULL(pResBlock, code, lino, _error, terrno);
+
   initLimitInfo(pProjPhyNode->node.pLimit, pProjPhyNode->node.pSlimit, &pInfo->limitInfo);
 
   pInfo->binfo.pRes = pResBlock;
@@ -258,14 +262,13 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
   SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
-
-  SExprSupp*   pSup = &pOperator->exprSupp;
-  SSDataBlock* pRes = pInfo->pRes;
-  SSDataBlock* pFinalRes = pProjectInfo->pFinalRes;
-  int32_t      code = 0;
-  int64_t      st = 0;
-  int32_t      order = pInfo->inputTsOrder;
-  int32_t      scanFlag = 0;
+  SExprSupp*            pSup = &pOperator->exprSupp;
+  SSDataBlock*          pRes = pInfo->pRes;
+  SSDataBlock*          pFinalRes = pProjectInfo->pFinalRes;
+  int32_t               code = 0;
+  int64_t               st = 0;
+  int32_t               order = pInfo->inputTsOrder;
+  int32_t               scanFlag = 0;
 
   blockDataCleanup(pFinalRes);
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -465,11 +468,16 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
 
   int32_t    numOfExpr = 0;
-  SExprInfo* pExprInfo = createExprInfo(pPhyNode->pFuncs, NULL, &numOfExpr);
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pPhyNode->pFuncs, NULL, &pExprInfo, &numOfExpr);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   if (pPhyNode->pExprs != NULL) {
     int32_t    num = 0;
-    SExprInfo* pSExpr = createExprInfo(pPhyNode->pExprs, NULL, &num);
+    SExprInfo* pSExpr = NULL;
+    code = createExprInfo(pPhyNode->pExprs, NULL, &pSExpr, &num);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     code = initExprSupp(&pInfo->scalarSup, pSExpr, num, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
