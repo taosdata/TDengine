@@ -98,6 +98,37 @@ int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, int32_t vLen){
   return code;
 }
 
+int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset) {
+  void*    buf = NULL;
+  int32_t  code = TDB_CODE_SUCCESS;
+  int32_t  vlen;
+  SEncoder encoder;
+  tEncodeSize(tEncodeSTqOffset, pOffset, vlen, code);
+  if (code < 0) {
+    goto END;
+  }
+
+
+  buf = taosMemoryCalloc(1, vlen);
+  if (buf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
+
+  tEncoderInit(&encoder, buf, vlen);
+  code = tEncodeSTqOffset(&encoder, pOffset);
+  if (code < 0) {
+    goto END;
+  }
+
+  TQ_ERR_GO_TO_END(tqMetaSaveInfo(pTq, pTq->pOffsetStore, pOffset->subKey, strlen(pOffset->subKey), buf, vlen));
+
+  END:
+  tEncoderClear(&encoder);
+  taosMemoryFree(buf);
+  return code;
+}
+
 int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen) {
   int32_t code = TDB_CODE_SUCCESS;
   TXN*     txn = NULL;
