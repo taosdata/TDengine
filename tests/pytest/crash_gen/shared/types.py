@@ -108,7 +108,7 @@ class FunctionMap(Enum):
         'strFuncs': ['LENGTH'],
         'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE']
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
         'specialFuncs': [],
         'castFuncs': ['TO_ISO8601'],
         'castTypes': []
@@ -119,7 +119,7 @@ class FunctionMap(Enum):
         'strFuncs': [],
         'timeFuncs': ['NOW', 'TIMEDIFF'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE']
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
         'specialFuncs': [],
         'castFuncs': ['CAST'],
         'castTypes': []
@@ -130,7 +130,7 @@ class FunctionMap(Enum):
         'strFuncs': [],
         'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['ELAPSED', 'SPREAD'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'UNIQUE']
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'UNIQUE'],
         'specialFuncs': [],
         'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
         'castTypes': []
