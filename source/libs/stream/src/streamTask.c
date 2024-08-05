@@ -275,7 +275,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   streamTaskCleanupCheckInfo(&pTask->taskCheckInfo);
-  streamFreeTaskState(pTask, status1);
+  streamFreeTaskState(pTask, pTask->status.removeBackendFiles ? 1 : 0);
 
   if (pTask->pNameMap) {
     tSimpleHashCleanup(pTask->pNameMap);
@@ -296,14 +296,14 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
   pTask->outputInfo.pNodeEpsetUpdateList = NULL;
 
-  if ((pTask->status.removeBackendFiles) && (pTask->pMeta != NULL)) {
-    char* path = taosMemoryCalloc(1, strlen(pTask->pMeta->path) + 128);
-    sprintf(path, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, pTask->id.idStr);
-    taosRemoveDir(path);
+  // if ((pTask->status.removeBackendFiles) && (pTask->pMeta != NULL)) {
+  //   char* path = taosMemoryCalloc(1, strlen(pTask->pMeta->path) + 128);
+  //   sprintf(path, "%s%s%s", pTask->pMeta->path, TD_DIRSEP, pTask->id.idStr);
+  //   taosRemoveDir(path);
 
-    stInfo("s-task:0x%x vgId:%d remove all backend files:%s", taskId, pTask->pMeta->vgId, path);
-    taosMemoryFree(path);
-  }
+  //   stInfo("s-task:0x%x vgId:%d remove all backend files:%s", taskId, pTask->pMeta->vgId, path);
+  //   taosMemoryFree(path);
+  // }
 
   if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);
@@ -316,10 +316,12 @@ void tFreeStreamTask(SStreamTask* pTask) {
   stDebug("s-task:0x%x free task completed", taskId);
 }
 
-void streamFreeTaskState(SStreamTask* pTask, ETaskStatus status) {
+void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
   if (pTask->pState != NULL) {
     stDebug("s-task:0x%x start to free task state", pTask->id.taskId);
-    streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
+    streamStateClose(pTask->pState, remove);
+
+    taskDbSetClearFileFlag(pTask->pBackend);
     taskDbRemoveRef(pTask->pBackend);
     pTask->pBackend = NULL;
     pTask->pState = NULL;
@@ -1151,4 +1153,25 @@ void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);
+}
+
+const char* streamTaskGetExecType(int32_t type) {
+  switch (type) {
+    case STREAM_EXEC_T_EXTRACT_WAL_DATA:
+      return "scan-wal-file";
+    case STREAM_EXEC_T_START_ALL_TASKS:
+      return "start-all-tasks";
+    case STREAM_EXEC_T_START_ONE_TASK:
+      return "start-one-task";
+    case STREAM_EXEC_T_RESTART_ALL_TASKS:
+      return "restart-all-tasks";
+    case STREAM_EXEC_T_STOP_ALL_TASKS:
+      return "stop-all-tasks";
+    case STREAM_EXEC_T_RESUME_TASK:
+      return "resume-task-from-idle";
+    case STREAM_EXEC_T_ADD_FAILED_TASK:
+      return "record-start-failed-task";
+    default:
+      return "invalid-exec-type";
+  }
 }

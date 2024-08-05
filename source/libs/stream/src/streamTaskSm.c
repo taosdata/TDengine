@@ -316,11 +316,10 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
 
   if (pTrans->attachEvent.event != 0) {
     code = attachWaitedEvent(pTask, &pTrans->attachEvent);
+    streamMutexUnlock(&pTask->lock);
     if (code) {
       return code;
     }
-
-    streamMutexUnlock(&pTask->lock);
 
     while (1) {
       // wait for the task to be here
@@ -400,7 +399,7 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
       EStreamTaskEvent evt = pSM->pActiveTrans->event;
       streamMutexUnlock(&pTask->lock);
 
-      stDebug("s-task:%s status:%s handling event:%s by some other thread, wait for 100ms and check if completed",
+      stDebug("s-task:%s status:%s handling event:%s by another thread, wait for 100ms and check if completed",
               pTask->id.idStr, pSM->current.name, GET_EVT_NAME(evt));
       taosMsleep(100);
     } else {
@@ -413,6 +412,13 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
       }
 
       if (pSM->pActiveTrans != NULL) {
+        // not allowed concurrently initialization
+        if (event == TASK_EVENT_INIT && pSM->pActiveTrans->event == TASK_EVENT_INIT) {
+          streamMutexUnlock(&pTask->lock);
+          stError("s-task:%s already in handling init procedure, handle this init event failed", pTask->id.idStr);
+          return TSDB_CODE_STREAM_INVALID_STATETRANS;
+        }
+
         // currently in some state transfer procedure, not auto invoke transfer, abort it
         stDebug("s-task:%s event:%s handle procedure quit, status %s -> %s failed, handle event %s now",
                 pTask->id.idStr, GET_EVT_NAME(pSM->pActiveTrans->event), pSM->current.name,
@@ -551,6 +557,11 @@ ETaskStatus streamTaskGetPrevStatus(const SStreamTask* pTask) {
 }
 
 const char* streamTaskGetStatusStr(ETaskStatus status) {
+  int32_t index = status;
+  if (index < 0 || index > tListLen(StreamTaskStatusList)) {
+    return "";
+  }
+
   return StreamTaskStatusList[status].name;
 }
 

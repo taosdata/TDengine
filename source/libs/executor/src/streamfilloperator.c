@@ -470,6 +470,7 @@ static int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t gr
   SWinKey key = {.groupId = groupId, .ts = ts};
   if (tSimpleHashGet(pFillSup->pResMap, &key, sizeof(SWinKey)) != NULL) {
     (*pRes) = false;
+    goto _end;
   }
   code = tSimpleHashPut(pFillSup->pResMap, &key, sizeof(SWinKey), NULL, 0);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1189,7 +1190,11 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   }
   pFillSup->numOfFillCols = numOfFillCols;
   int32_t    numOfNotFillCols = 0;
-  SExprInfo* noFillExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
+  SExprInfo* noFillExprInfo = NULL;
+
+  code = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &noFillExprInfo, &numOfNotFillCols);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   pFillSup->pAllColInfo = createFillColInfo(pFillExprInfo, pFillSup->numOfFillCols, noFillExprInfo, numOfNotFillCols,
                                             (const SNodeListNode*)(pPhyFillNode->pValues));
   pFillSup->type = convertFillType(pPhyFillNode->mode);
@@ -1200,7 +1205,10 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   code = initResultBuf(pFillSup);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  SExprInfo* noFillExpr = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
+  SExprInfo* noFillExpr = NULL;
+  code = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &noFillExpr, &numOfNotFillCols);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   code = initExprSupp(&pFillSup->notFillExprSup, noFillExpr, numOfNotFillCols, &pAPI->functionStore);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1342,7 +1350,11 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
 
   SInterval* pInterval = &((SStreamIntervalOperatorInfo*)downstream->info)->interval;
   int32_t    numOfFillCols = 0;
-  SExprInfo* pFillExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &numOfFillCols);
+  SExprInfo* pFillExprInfo = NULL;
+
+  code = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pFillExprInfo, &numOfFillCols);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   pInfo->pFillSup = initStreamFillSup(pPhyFillNode, pInterval, pFillExprInfo, numOfFillCols, &pTaskInfo->storageAPI);
   if (!pInfo->pFillSup) {
     code = TSDB_CODE_FAILED;

@@ -94,12 +94,17 @@ int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType, i
 }
 
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
+  if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+    return TSDB_CODE_INVALID_MSG;
+  }
 
   // todo this status may not be set here.
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
   int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
-  ASSERT(code == TSDB_CODE_SUCCESS);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("s-task:%s failed to handle gen-checkpoint event, failed to start checkpoint procedure", pTask->id.idStr);
+    return code;
+  }
 
   pTask->chkInfo.pActiveInfo->transId = pReq->transId;
   pTask->chkInfo.pActiveInfo->activeId = pReq->checkpointId;
@@ -112,7 +117,10 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
 }
 
 int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTriggerRsp* pRsp) {
-  ASSERT(pTask->info.taskLevel != TASK_LEVEL__SOURCE);
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    stError("s-task:%s invalid msg recv, checkpoint-trigger rsp not handled", pTask->id.idStr);
+    return TSDB_CODE_INVALID_MSG;
+  }
 
   if (pRsp->rspCode != TSDB_CODE_SUCCESS) {
     stDebug("s-task:%s retrieve checkpoint-trgger rsp from upstream:0x%x invalid, code:%s", pTask->id.idStr,
@@ -258,7 +266,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
           }
 
           if (p->upstreamTaskId == pBlock->srcTaskId) {
-            ASSERT(p->checkpointId == checkpointId);
             stWarn("s-task:%s repeatly recv checkpoint-source msg from task:0x%x vgId:%d, checkpointId:%" PRId64
                    ", prev recvTs:%" PRId64 " discard",
                    pTask->id.idStr, p->upstreamTaskId, p->upstreamNodeId, p->checkpointId, p->recvTs);
@@ -332,7 +339,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
   } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
-    ASSERT(taosArrayGetSize(pTask->upstreamInfo.pList) > 0);
     if (pTask->chkInfo.startTs == 0) {
       pTask->chkInfo.startTs = taosGetTimestampMs();
       pTask->execInfo.checkpoint += 1;
@@ -367,43 +373,15 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
   return code;
 }
 
-/**
- * All down stream tasks have successfully completed the check point task.
- * Current stream task is allowed to start to do checkpoint things in ASYNC model.
- */
-int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId, int32_t downstreamNodeId,
-                                        int32_t downstreamTaskId) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG);
-  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
-
-  const char* id = pTask->id.idStr;
-  bool        received = false;
-  int32_t     total = streamTaskGetNumOfDownstream(pTask);
-  ASSERT(total > 0);
-
-  // 1. not in checkpoint status now
-  SStreamTaskState pStat = streamTaskGetStatus(pTask);
-  if (pStat.state != TASK_STATUS__CK) {
-    stError("s-task:%s status:%s discard checkpoint-ready msg from task:0x%x", id, pStat.name, downstreamTaskId);
-    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-  }
-
-  // 2. expired checkpoint-ready msg, invalid checkpoint-ready msg
-  if (pTask->chkInfo.checkpointId > checkpointId || pInfo->activeId != checkpointId) {
-    stError("s-task:%s status:%s checkpointId:%" PRId64 " new arrival checkpoint-ready msg (checkpointId:%" PRId64
-            ") from task:0x%x, expired and discard ",
-            id, pStat.name, pTask->chkInfo.checkpointId, checkpointId, downstreamTaskId);
-    return -1;
-  }
-
-  streamMutexLock(&pInfo->lock);
-
-  // only when all downstream tasks are send checkpoint rsp, we can start the checkpoint procedure for the agg task
+// only when all downstream tasks are send checkpoint rsp, we can start the checkpoint procedure for the agg task
+static int32_t processCheckpointReadyHelp(SActiveCheckpointInfo* pInfo, int32_t numOfDownstream,
+                                          int32_t downstreamNodeId, int64_t streamId, int32_t downstreamTaskId,
+                                          const char* id, int32_t* pNotReady, int32_t* pTransId) {
+  bool    received = false;
   int32_t size = taosArrayGetSize(pInfo->pCheckpointReadyRecvList);
   for (int32_t i = 0; i < size; ++i) {
     STaskDownstreamReadyInfo* p = taosArrayGet(pInfo->pCheckpointReadyRecvList, i);
     if (p == NULL) {
-      streamMutexUnlock(&pInfo->lock);
       return TSDB_CODE_INVALID_PARA;
     }
 
@@ -415,27 +393,67 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId
 
   if (received) {
     stDebug("s-task:%s already recv checkpoint-ready msg from downstream:0x%x, ignore. %d/%d downstream not ready", id,
-            downstreamTaskId, (int32_t)(total - taosArrayGetSize(pInfo->pCheckpointReadyRecvList)), total);
+            downstreamTaskId, (int32_t)(numOfDownstream - taosArrayGetSize(pInfo->pCheckpointReadyRecvList)),
+            numOfDownstream);
   } else {
     STaskDownstreamReadyInfo info = {.recvTs = taosGetTimestampMs(),
                                      .downstreamTaskId = downstreamTaskId,
                                      .checkpointId = pInfo->activeId,
                                      .transId = pInfo->transId,
-                                     .streamId = pTask->id.streamId,
+                                     .streamId = streamId,
                                      .downstreamNodeId = downstreamNodeId};
-    (void)taosArrayPush(pInfo->pCheckpointReadyRecvList, &info);
+    void* p = taosArrayPush(pInfo->pCheckpointReadyRecvList, &info);
+    if (p == NULL) {
+      stError("s-task:%s failed to set checkpoint ready recv msg, code:%s", id, tstrerror(terrno));
+      return terrno;
+    }
   }
 
-  int32_t notReady = total - taosArrayGetSize(pInfo->pCheckpointReadyRecvList);
-  int32_t transId = pInfo->transId;
+  *pNotReady = numOfDownstream - taosArrayGetSize(pInfo->pCheckpointReadyRecvList);
+  *pTransId = pInfo->transId;
+  return 0;
+}
+
+/**
+ * All down stream tasks have successfully completed the check point task.
+ * Current stream task is allowed to start to do checkpoint things in ASYNC model.
+ */
+int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId, int32_t downstreamNodeId,
+                                        int32_t downstreamTaskId) {
+  SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
+  const char* id = pTask->id.idStr;
+  int32_t     total = streamTaskGetNumOfDownstream(pTask);
+  int32_t     code = 0;
+  int32_t     notReady = 0;
+  int32_t     transId = 0;
+
+  // 1. not in checkpoint status now
+  SStreamTaskState pStat = streamTaskGetStatus(pTask);
+  if (pStat.state != TASK_STATUS__CK) {
+    stError("s-task:%s status:%s discard checkpoint-ready msg from task:0x%x", id, pStat.name, downstreamTaskId);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
+
+  // 2. expired checkpoint-ready msg, invalid checkpoint-ready msg
+  if (pTask->chkInfo.checkpointId > checkpointId || pInfo->activeId != checkpointId) {
+    stError("s-task:%s status:%s checkpointId:%" PRId64 " new arrival checkpoint-ready msg (checkpointId:%" PRId64
+            ") from task:0x%x, expired and discard",
+            id, pStat.name, pTask->chkInfo.checkpointId, checkpointId, downstreamTaskId);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  streamMutexLock(&pInfo->lock);
+  code = processCheckpointReadyHelp(pInfo, total, downstreamNodeId, pTask->id.streamId, downstreamTaskId, id, &notReady,
+                                    &transId);
   streamMutexUnlock(&pInfo->lock);
 
-  if (notReady == 0) {
+  if ((notReady == 0) && (code == 0)) {
     stDebug("s-task:%s all downstream tasks have completed build checkpoint, do checkpoint for current task", id);
     (void)appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, checkpointId, transId, -1);
   }
 
-  return 0;
+  return code;
 }
 
 int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstreamTaskId, int64_t checkpointId) {
@@ -798,6 +816,13 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
   SStreamTmrInfo* pTmrInfo = &pActiveInfo->chkptTriggerMsgTmr;
 
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stError("s-task:%s source task should not start the checkpoint-trigger monitor fn, ref:%d quit", id, ref);
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
   // check the status every 100ms
   if (streamTaskShouldStop(pTask)) {
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
@@ -842,8 +867,6 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
 
   // send msg to retrieve checkpoint trigger msg
   SArray* pList = pTask->upstreamInfo.pList;
-  ASSERT(pTask->info.taskLevel > TASK_LEVEL__SOURCE);
-
   SArray* pNotSendList = taosArrayInit(4, sizeof(SStreamUpstreamEpInfo));
   if (pNotSendList == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1070,8 +1093,7 @@ int32_t streamTaskGetNumOfConfirmed(SActiveCheckpointInfo* pInfo) {
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
     STaskTriggerSendInfo* p = taosArrayGet(pInfo->pDispatchTriggerList, i);
     if (p == NULL) {
-      streamMutexUnlock(&pInfo->lock);
-      return num;
+      continue;
     }
 
     if (p->recved) {
@@ -1107,10 +1129,12 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
   streamMutexUnlock(&pInfo->lock);
 
   int32_t total = streamTaskGetNumOfDownstream(pTask);
-  stDebug("s-task:%s set downstream:0x%x(vgId:%d) checkpoint-trigger dispatch confirmed, total confirmed:%d/%d",
-          pTask->id.idStr, taskId, vgId, numOfConfirmed, total);
-
-  ASSERT(taskId != 0);
+  if (taskId == 0) {
+    stError("s-task:%s recv invalid trigger-dispatch confirm, vgId:%d", pTask->id.idStr, vgId);
+  } else {
+    stDebug("s-task:%s set downstream:0x%x(vgId:%d) checkpoint-trigger dispatch confirmed, total confirmed:%d/%d",
+            pTask->id.idStr, taskId, vgId, numOfConfirmed, total);
+  }
 }
 
 static int32_t uploadCheckpointToS3(const char* id, const char* path) {

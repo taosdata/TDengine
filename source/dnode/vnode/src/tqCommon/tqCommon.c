@@ -553,8 +553,15 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
     return code;
   }
 
-  tqDebug("vgId:%d s-task:%s received the checkpoint-ready msg from task:0x%x (vgId:%d), handle it", vgId,
-          pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    tqDebug("vgId:%d s-task:%s recv invalid the checkpoint-ready msg from task:0x%x (vgId:%d), discard", vgId,
+            pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_INVALID_MSG;
+  } else {
+    tqDebug("vgId:%d s-task:%s received the checkpoint-ready msg from task:0x%x (vgId:%d), handle it", vgId,
+            pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+  }
 
   code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamTaskId, req.downstreamNodeId);
   streamMetaReleaseTask(pMeta, pTask);

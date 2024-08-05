@@ -96,8 +96,6 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
   int32_t code = 0;
   void*   buf = NULL;
   int32_t sz = taosArrayGetSize(pTask->upstreamInfo.pList);
-  ASSERT(sz > 0);
-
   for (int32_t i = 0; i < sz; i++) {
     req->reqId = tGenIdPI64();
     SStreamUpstreamEpInfo* pEpInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
@@ -107,7 +105,6 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 
     tEncodeSize(tEncodeStreamRetrieveReq, req, len, code);
     if (code != 0) {
-      ASSERT(0);
       return code;
     }
 
@@ -968,8 +965,6 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask) {
   SArray* pList = pTask->chkInfo.pActiveInfo->pReadyMsgList;
 
   streamMutexLock(&pTask->chkInfo.pActiveInfo->lock);
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
-
   if (taosArrayGetSize(pList) == 1) {
     STaskCheckpointReadyInfo* pInfo = taosArrayGet(pList, 0);
     tmsgSendRsp(&pInfo->msg);
@@ -1144,8 +1139,6 @@ int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHa
 
 void initCheckpointReadyInfo(STaskCheckpointReadyInfo* pReadyInfo, int32_t upstreamNodeId, int32_t upstreamTaskId,
                                 int32_t childId, SEpSet* pEpset, int64_t checkpointId) {
-  ASSERT(upstreamTaskId != 0);
-
   pReadyInfo->upstreamTaskId = upstreamTaskId;
   pReadyInfo->upstreamNodeEpset = *pEpset;
   pReadyInfo->upstreamNodeId = upstreamNodeId;

@@ -1822,7 +1822,10 @@ SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
   return pExprs;
 }
 
-SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs) {
+int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs) {
+  QRY_OPTR_CHECK(pExprInfo);
+
+  int32_t code = 0;
   int32_t numOfFuncs = LIST_LENGTH(pNodeList);
   int32_t numOfGroupKeys = 0;
   if (pGroupKeys != NULL) {
@@ -1831,10 +1834,13 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
 
   *numOfExprs = numOfFuncs + numOfGroupKeys;
   if (*numOfExprs == 0) {
-    return NULL;
+    return code;
   }
 
   SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
+  if (pExprs == NULL) {
+    return terrno;
+  }
 
   for (int32_t i = 0; i < (*numOfExprs); ++i) {
     STargetNode* pTargetNode = NULL;
@@ -1845,15 +1851,16 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
     }
 
     SExprInfo* pExp = &pExprs[i];
-    int32_t    code = createExprFromTargetNode(pExp, pTargetNode);
+    code = createExprFromTargetNode(pExp, pTargetNode);
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFreeClear(pExprs);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      return NULL;
+      return code;
     }
   }
 
-  return pExprs;
+  *pExprInfo = pExprs;
+  return code;
 }
 
 // set the output buffer for the selectivity + tag query
@@ -2001,6 +2008,7 @@ _end:
       taosMemoryFree(pFuncCtx[i].input.pData);
       taosMemoryFree(pFuncCtx[i].input.pColumnDataAgg);
     }
+    taosMemoryFreeClear(*rowEntryInfoOffset);
     taosMemoryFreeClear(pFuncCtx);
     return NULL;
   }
