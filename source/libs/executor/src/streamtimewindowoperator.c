@@ -3753,7 +3753,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->order = TSDB_ORDER_ASC;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pStDeleted = tSimpleHashInit(64, hashFn);
-  QUERY_CHECK_NULL(pInfo->pStUpdated, code, lino, _error, terrno);
+  QUERY_CHECK_NULL(pInfo->pStDeleted, code, lino, _error, terrno);
   pInfo->pDelIterator = NULL;
   code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
   QUERY_CHECK_CODE(code, lino, _error);
