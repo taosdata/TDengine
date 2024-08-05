@@ -101,6 +101,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   }
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->binfo.pRes , code, lino, _error, terrno);
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
 
   if (pSortNode->calcGroupId) {
@@ -789,6 +790,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
   QUERY_CHECK_NULL(pOperator->exprSupp.pCtx, code, lino, _error, terrno);
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->binfo.pRes , code, lino, _error, terrno);
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   TSDB_CHECK_CODE(code, lino, _error);
 

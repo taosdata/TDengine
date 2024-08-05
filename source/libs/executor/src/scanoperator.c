@@ -3694,6 +3694,7 @@ int32_t createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo
 
   QRY_OPTR_CHECK(pOptrInfo);
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
   SStreamRawScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamRawScanInfo));
   SOperatorInfo*      pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -3703,6 +3704,7 @@ int32_t createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo
   }
 
   pInfo->pTableListInfo = tableListCreate();
+  QUERY_CHECK_NULL(pInfo->pTableListInfo, code, lino, _end, terrno);
   pInfo->vnode = pHandle->vnode;
   pInfo->pAPI = &pTaskInfo->storageAPI;
 
