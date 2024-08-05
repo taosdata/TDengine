@@ -1692,8 +1692,11 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SDataType* pType = &pColNode->node.resType;
     pExp->base.resSchema =
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pColNode->colName);
+
     pExp->base.pParam[0].pCol =
         createColumn(pColNode->dataBlockId, pColNode->slotId, pColNode->colId, pType, pColNode->colType);
+    QUERY_CHECK_NULL(pExp->base.pParam[0].pCol, code, lino, _end, terrno);
+
     pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
   } else if (type == QUERY_NODE_VALUE) {
     pExp->pExpr->nodeType = QUERY_NODE_VALUE;
@@ -1761,6 +1764,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         pExp->base.pParam[j].type = FUNC_PARAM_TYPE_COLUMN;
         pExp->base.pParam[j].pCol =
             createColumn(pcn->dataBlockId, pcn->slotId, pcn->colId, &pcn->node.resType, pcn->colType);
+        QUERY_CHECK_NULL(pExp->base.pParam[j].pCol, code, lino, _end, terrno);
       } else if (p1->type == QUERY_NODE_VALUE) {
         SValueNode* pvn = (SValueNode*)p1;
         pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
@@ -2437,7 +2441,6 @@ void tableListDestroy(STableListInfo* pTableListInfo) {
   }
 
   taosArrayDestroy(pTableListInfo->pTableList);
-  pTableListInfo->pTableList = NULL;
   taosMemoryFreeClear(pTableListInfo->groupOffset);
 
   taosHashCleanup(pTableListInfo->map);

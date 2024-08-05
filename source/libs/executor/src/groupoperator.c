@@ -1139,8 +1139,8 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
 
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = NULL;
-
   code = createExprInfo(pPartNode->pTargets, NULL, &pExprInfo, &numOfCols);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->pGroupCols = makeColumnArrayFromList(pPartNode->pPartitionKeys);
 
