@@ -1,3 +1,12 @@
+fn upx_expect_version
+end
+
+fn upx_exe
+end
+
+fn upx_arch
+end
+
 fn upx_run
   echo "UPX args: ${1} ${2}"
   fi = set ${1}
@@ -20,23 +29,29 @@ fn upx_run
   os = os_family
   upx = which upx
   upx_dir = get_env "UPX_DIR"
+  use_local_upx = set false
 
   if is_empty ${upx}
     echo "UPX not found, use local upx in ${upx_dir}"
     cm_run_task upx-local
     upx = set "${upx_dir}/upx"
+    use_local_upx = set true
   else
     echo "UPX found: ${upx}"
   end
 
-  output = exec ${upx} --version | grep 'upx 3'
+  output = exec ${upx} --version | grep 'upx 4'
 
   stdout = set ${output.stdout}
 
-  if contains stdout "upx 3"
+  if contains stdout "upx 4"
     echo "Use upx version: ${stdout}"
   else
-    echo "UPX version not 3, use local upx in ${upx_dir}"
+    echo "UPX version not 4, use local upx in ${upx_dir}"
+    if use_local_upx
+      echo "Local upx is not 4.x, remove and update it"
+      rm ${upx}
+    end
     cm_run_task upx-local
     upx = set "${upx_dir}/upx"
   end
