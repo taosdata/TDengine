@@ -2333,7 +2333,9 @@ void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psu
 
 uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
-  ASSERT(pTableList->map != NULL && slot != NULL);
+  if (slot == NULL) {
+    return -1;
+  }
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
   ASSERT(pKeyInfo->uid == tableUid);

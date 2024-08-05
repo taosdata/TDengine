@@ -453,7 +453,8 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pReadyMsgList); ++i) {
     STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pInfo->pReadyMsgList, i);
     if (pReadyInfo == NULL) {
-      stError("s-task:%s invalid index during iterate the checkpoint-ready msg list, index:%d, ignore and continue", i);
+      stError("s-task:%s invalid index during iterate the checkpoint-ready msg list, index:%d, ignore and continue",
+              pTask->id.idStr, i);
       continue;
     }
 
@@ -468,7 +469,8 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pReadyMsgList); ++i) {
     STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pInfo->pReadyMsgList, i);
     if (pReadyInfo == NULL) {
-      stError("s-task:%s invalid index during iterate the checkpoint-ready msg list, index:%d, ignore and continue", i);
+      stError("s-task:%s invalid index during iterate the checkpoint-ready msg list, index:%d, ignore and continue",
+              pTask->id.idStr, i);
       continue;
     }
 
