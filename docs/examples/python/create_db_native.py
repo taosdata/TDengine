@@ -15,8 +15,7 @@ try:
     assert rowsAffected == 0
 
     # change database. same as execute "USE db"
-    rowsAffected = conn.select_db(db)
-    assert rowsAffected == 0
+    conn.select_db(db)
     
     # create super table
     rowsAffected = conn.execute(
