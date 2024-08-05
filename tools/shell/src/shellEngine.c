@@ -1072,6 +1072,7 @@ void shellGetGrantInfo() {
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
+    taos_free_result(tres);
     return;
   }
 
