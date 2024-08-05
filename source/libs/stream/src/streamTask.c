@@ -555,6 +555,9 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
 
     for (int32_t i = 0; i < taosArrayGetSize(pVgs); i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(pVgs, i);
+      if (pVgInfo == NULL) {
+        continue;
+      }
 
       if (pVgInfo->vgId == nodeId) {
         bool isEqual = isEpsetEqual(&pVgInfo->epSet, pEpSet);
@@ -636,6 +639,10 @@ bool streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   bool updated = false;
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
+    if (pInfo == NULL) {
+      continue;
+    }
+
     int32_t code = doUpdateTaskEpset(pTask, pInfo->nodeId, &pInfo->newEp, &updated);
     if (code) {
       stError("s-task:0x%x failed to update the task nodeEp epset, code:%s", pTask->id.taskId, tstrerror(code));
@@ -1013,6 +1020,10 @@ SEpSet* streamTaskGetDownstreamEpInfo(SStreamTask* pTask, int32_t taskId) {
     SArray* pList = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
     for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
       SVgroupInfo* pVgInfo = taosArrayGet(pList, i);
+      if (pVgInfo == NULL) {
+        continue;
+      }
+
       if (pVgInfo->taskId == taskId) {
         return &pVgInfo->epSet;
       }
