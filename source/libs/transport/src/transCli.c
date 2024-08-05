@@ -3283,6 +3283,7 @@ int32_t transFreeConnById(void* shandle, int64_t transpointId) {
   tDebug("release conn By refId %" PRId64 "", transpointId);
 
   STransMsg msg = {.info.handle = (void*)transpointId};
+  pCli->msg = msg;
 
   code = transAsyncSend(pThrd->asyncPool, &pCli->q);
   if (code != 0) {
