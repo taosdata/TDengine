@@ -66,7 +66,6 @@ void taos_cleanup(void) {
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
-  nodesDestroyAllocatorSet();
 
   cleanupTaskQueue();
 
@@ -78,6 +77,8 @@ void taos_cleanup(void) {
   clientConnRefPool = -1;
   taosCloseRef(id);
 
+  nodesDestroyAllocatorSet();
+  cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
 
