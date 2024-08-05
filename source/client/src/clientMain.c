@@ -67,7 +67,6 @@ void taos_cleanup(void) {
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
-  nodesDestroyAllocatorSet();
 
   if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
     tscWarn("failed to cleanup task queue");
@@ -85,6 +84,8 @@ void taos_cleanup(void) {
     tscWarn("failed to close clientReqRefPool");
   }
 
+  nodesDestroyAllocatorSet();
+  cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
 

@@ -82,7 +82,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   taosMemoryFree(pParam);
 
   if (code) {
-    tqError("vgId:%d failed sched task to scan wal", vgId);
+    tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
   }
 }
 
