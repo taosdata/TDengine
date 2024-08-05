@@ -688,7 +688,6 @@ void doDestroyRequest(void *p) {
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->targetTableList);
-
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
   if (pRequest->self) {
@@ -702,12 +701,7 @@ void doDestroyRequest(void *p) {
   }
   taosMemoryFree(pRequest->body.interParam);
 
-  if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
-    qDestroyQuery(pRequest->pQuery);
-    if (TSDB_CODE_SUCCESS != nodesSimReleaseAllocator(pRequest->allocatorRefId)) {
-      tscError("failed to release allocator");
-    }
-  }
+  qDestroyQuery(pRequest->pQuery);
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
   taosMemoryFreeClear(pRequest->effectiveUser);
