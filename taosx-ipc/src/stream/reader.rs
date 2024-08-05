@@ -923,6 +923,31 @@ mod arrow_to_taos {
             }
             crate::prelude::IpcDataType::NChar(_) => ColumnView::from_nchar::<&str, _, _, _>(data),
             crate::prelude::IpcDataType::Json => ColumnView::from_json::<&str, _, _, _>(data),
+            crate::prelude::IpcDataType::VarBinary(_) => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.and_then(|v| {
+                            let v = if v.starts_with("\\x") {
+                                v.get(2..).unwrap()
+                            } else {
+                                v
+                            };
+                            let mut bytes = Vec::new();
+                            let chars: Vec<char> = v.chars().collect();
+                            chars.chunks(2).for_each(|chars| {
+                                let byte_str: String = chars.iter().collect();
+                                match u8::from_str_radix(&byte_str, 16) {
+                                    Ok(byte) => bytes.push(byte),
+                                    Err(_) => tracing::warn!("Invalid byte string: {}", byte_str),
+                                }
+                            });
+                            Some(bytes)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                ColumnView::from_bytes::<Vec<u8>, _, _, _>(v)
+            }
         };
         view
     }
