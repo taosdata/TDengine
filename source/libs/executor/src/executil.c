@@ -1457,7 +1457,7 @@ _end:
     numOfTables = taosArrayGetSize(pUidList);
     for (int i = 0; i < numOfTables; i++) {
       void* tmp = taosArrayGet(pUidList, 0);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+      QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
       STableKeyInfo info = {.uid = *(uint64_t*)tmp, .groupId = 0};
 
       void* p = taosArrayPush(pListInfo->pTableList, &info);
