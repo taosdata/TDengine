@@ -221,55 +221,55 @@ description: TDengine 服务端的错误码列表和详细说明
 
 ## dnode
 
-| 错误描述   | 可能的出错场景或者可能的原因 | 建议用户采取的措施 |
-| ---------- | ---------------------------- | ------------------ |
-| 0x80000408 | Dnode is offline             | 检查节点状态       |
-| 0x80000409 | Mnode already deployed       | 确认操作是否正确   |
-| 0x8000040A | Mnode not found              | 上报issue          |
-| 0x8000040B | Mnode not deployed           | 上报issue          |
-| 0x8000040C | Qnode already deployed       | 确认操作是否正确   |
-| 0x8000040D | Qnode not found              | 上报issue          |
-| 0x8000040E | Qnode not deployed           | 上报issue          |
-| 0x8000040F | Snode already deployed       | 确认操作是否正确   |
-| 0x80000410 | Snode not found              | 上报issue          |
-| 0x80000411 | Snode not deployed           | 确认操作是否正确   |
+| 错误码     | 错误描述               | 可能的出错场景或者可能的原因 | 建议用户采取的措施 |
+| ---------- | ---------------------- | ---------------------------- | ------------------ |
+| 0x80000408 | Dnode is offline       | 不在线                       | 检查节点状态       |
+| 0x80000409 | Mnode already deployed | 已部署                       | 确认操作是否正确   |
+| 0x8000040A | Mnode not found        | 内部错误                     | 上报issue          |
+| 0x8000040B | Mnode not deployed     | 内部错误                     | 上报issue          |
+| 0x8000040C | Qnode already deployed | 已部署                       | 确认操作是否正确   |
+| 0x8000040D | Qnode not found        | 内部错误                     | 上报issue          |
+| 0x8000040E | Qnode not deployed     | 内部错误                     | 上报issue          |
+| 0x8000040F | Snode already deployed | 已部署                       | 确认操作是否正确   |
+| 0x80000410 | Snode not found        | 内部错误                     | 上报issue          |
+| 0x80000411 | Snode not deployed     | 已部署                       | 确认操作是否正确   |
 
 
 ## vnode
 
-| 错误描述   | 可能的出错场景或者可能的原因                       | 建议用户采取的措施 |
-| ---------- | -------------------------------------------------- | ------------------ |
-| 0x80000503 | Invalid vgroup ID                                  | 上报问题           |
-| 0x80000512 | No writing previlege                               | 寻求授权           |
-| 0x80000520 | Vnode does not exist                               | 上报问题           |
-| 0x80000521 | Vnode already exists                               | 上报问题           |
-| 0x80000522 | Hash value of table is not in the vnode hash range | 上报问题           |
-| 0x80000524 | Invalid table operation                            | 上报问题           |
-| 0x80000525 | Column already exists                              | 上报问题           |
-| 0x80000526 | Column does not exists                             | 上报问题           |
-| 0x80000527 | Column is subscribed                               | 上报问题           |
-| 0x80000529 | Vnode is stopped                                   | 上报问题           |
-| 0x80000530 | Duplicate write request                            | 上报问题           |
-| 0x80000531 | Vnode query is busy                                | 上报问题           |
+
+| 错误码     | 错误描述                                           | 可能的出错场景或者可能的原因   | 建议用户采取的措施 |
+| ---------- | -------------------------------------------------- | ------------------------------ | ------------------ |
+| 0x80000503 | Invalid vgroup ID                                  | 老客户端未更新 cache，内部错误 | 上报问题           |
+| 0x80000512 | No writing previlege                               | 无写权限                       | 寻求授权           |
+| 0x80000520 | Vnode does not exist                               | 内部错误                       | 上报问题           |
+| 0x80000521 | Vnode already exists                               | 内部错误                       | 上报问题           |
+| 0x80000522 | Hash value of table is not in the vnode hash range | 表不属于 vnode                 | 上报问题           |
+| 0x80000524 | Invalid table operation                            | 表非法操作                     | 上报问题           |
+| 0x80000525 | Column already exists                              | 修改表是列已存在               | 上报问题           |
+| 0x80000526 | Column does not exists                             | 修改表时，表不存在             | 上报问题           |
+| 0x80000527 | Column is subscribed                               | 列被订阅，不能操作             | 上报问题           |
+| 0x80000529 | Vnode is stopped                                   | Vnode 已经关闭                 | 上报问题           |
+| 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误         | 上报问题           |
+| 0x80000531 | Vnode query is busy                                | 查询忙碌                       | 上报问题           |
 
 
 ## tsdb
 
-| 错误描述   | 可能的出错场景或者可能的原因              | 建议用户采取的措施             |
-| ---------- | ----------------------------------------- | ------------------------------ |
-| 0x80000600 | Invalid table ID to write                 | 重启客户端                     |
-| 0x80000602 | Invalid table schema version              | 无需处理，内部自动更新         |
-| 0x80000603 | Table already exists                      | 上报问题                       |
-| 0x80000604 | Invalid configuration                     | 上报问题                       |
-| 0x80000605 | Init failed                               | 上报问题                       |
-| 0x8000060B | Timestamp is out of range                 | 上报问题，检查应用写入时间逻辑 |
-| 0x8000060C | Submit message is messed up               | 上报问题                       |
-| 0x80000618 | Table does not exists                     | 上报问题                       |
-| 0x80000619 | Super table already exists                | 上报问题                       |
-| 0x8000061A | Super table does not exist                | 上报问题                       |
-| 0x8000061B | Invalid table schema version              | 上报问题                       |
-| 0x8000061D | Table already exists in other super table | 检查写入应用逻辑               |
-
+| 错误码     | 错误描述                                  | 可能的出错场景或者可能的原因               | 建议用户采取的措施             |
+| ---------- | ----------------------------------------- | ------------------------------------------ | ------------------------------ |
+| 0x80000600 | Invalid table ID to write                 | 写表不存在                                 | 重启客户端                     |
+| 0x80000602 | Invalid table schema version              | 表的 schema 版本号过期，内部错误           | 无需处理，内部自动更新         |
+| 0x80000603 | Table already exists                      | 表已存在                                   | 上报问题                       |
+| 0x80000604 | Invalid configuration                     | 内部错误                                   | 上报问题                       |
+| 0x80000605 | Init failed                               | 启动失败                                   | 上报问题                       |
+| 0x8000060B | Timestamp is out of range                 | 写入时间范围越界                           | 上报问题，检查应用写入时间逻辑 |
+| 0x8000060C | Submit message is messed up               | 消息错误，可能由于客户端和服务端不兼容导致 | 上报问题                       |
+| 0x80000618 | Table does not exists                     | 表已经存在                                 | 上报问题                       |
+| 0x80000619 | Super table already exists                | 超级表已经存在                             | 上报问题                       |
+| 0x8000061A | Super table does not exist                | 超级表不存在                               | 上报问题                       |
+| 0x8000061B | Invalid table schema version              | 同 TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION     | 上报问题                       |
+| 0x8000061D | Table already exists in other super table | 表已存在，但属于其他超级表                 | 检查写入应用逻辑               |
 
 ## query
 

@@ -242,12 +242,17 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-消费者可订阅一个或多个 `TOPIC`，一般建议一个消费者只订阅一个 `TOPIC`。  
-TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) 类型，可以使用相应 API 对每个消息进行消费，并通过 `.commit` 进行已消费标记。
 
 ```rust
 {{#include docs/examples/rust/restexample/examples/tmq.rs:consume}}
 ```
+
+- 消费者可订阅一个或多个 `TOPIC`，一般建议一个消费者只订阅一个 `TOPIC`。  
+- TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) 类型，可以使用相应 API 对每个消息进行消费，并通过 `.commit` 进行已消费标记。  
+- `Record` 是我们自定义的一个结构体，其字段名和数据类型与列的名称和数据类型一一对应，这样可以通过 `serde` 反序列化出 `Record` 类型的对象。  
+
+
+
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -296,12 +301,15 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 </TabItem>
 
 <TabItem label="Rust" value="rust">
-消费者可订阅一个或多个 `TOPIC`，一般建议一个消费者只订阅一个 `TOPIC`。  
-TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) 类型，可以使用相应 API 对每个消息进行消费，并通过 `.commit` 进行已消费标记。
 
 ```rust
 {{#include docs/examples/rust/restexample/examples/tmq.rs:consume}}
 ```
+
+- 消费者可订阅一个或多个 `TOPIC`，一般建议一个消费者只订阅一个 `TOPIC`。  
+- TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futures/stream/index.html) 类型，可以使用相应 API 对每个消息进行消费，并通过 `.commit` 进行已消费标记。  
+- `Record` 是我们自定义的一个结构体，其字段名和数据类型与列的名称和数据类型一一对应，这样可以通过 `serde` 反序列化出 `Record` 类型的对象。  
+
 </TabItem>
 
 <TabItem label="C#" value="csharp">
