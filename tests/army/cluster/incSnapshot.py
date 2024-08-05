@@ -15,6 +15,10 @@ from frame import *
 from frame.autogen import *
 # from frame.server.dnodes import *
 # from frame.server.cluster import *
+from util.cluster import *
+sys.path.append("./6-cluster")
+from clusterCommonCreate import *
+from clusterCommonCheck import clusterComCheck
 
 
 class TDTestCase(TBase):
@@ -61,7 +65,7 @@ class TDTestCase(TBase):
         #     if bFinish:
         #         break
         self.snapshotAgg()
-        time.sleep(10)
+        clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=3,db_name=f"{self.db}",count_number=60)        
         sc.dnodeStopAll()
         for i in range(1, 4):
             path = clusterDnodes.getDnodeDir(i)
@@ -75,7 +79,7 @@ class TDTestCase(TBase):
         sc.dnodeStart(2)
         sc.dnodeStart(3)
         sql = "show vnodes;"
-        time.sleep(10)
+        clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=3,db_name=f"{self.db}",count_number=60)
         while True:
             bFinish = True
             param_list = tdSql.query(sql, row_tag=True)
