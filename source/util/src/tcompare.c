@@ -1290,13 +1290,12 @@ int32_t checkRegexPattern(const char *pPattern) {
   return TSDB_CODE_SUCCESS;
 }
 
-static UsingRegex **getRegComp(const char *pPattern) {
+UsingRegex **getRegComp(const char *pPattern) {
   UsingRegex **ppUsingRegex = (UsingRegex **)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
   if (ppUsingRegex != NULL) {
     (*ppUsingRegex)->lastUsedTime = taosGetTimestampSec();
     return ppUsingRegex;
   }
-
   UsingRegex *pUsingRegex = taosMemoryMalloc(sizeof(UsingRegex));
   if (pUsingRegex == NULL) {
     terrno  = TSDB_CODE_OUT_OF_MEMORY;
@@ -1341,20 +1340,56 @@ void releaseRegComp(UsingRegex  **regex){
   taosHashRelease(sRegexCache.regexHash, regex);
 }
 
-static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
-  int32_t ret = 0;
-  char    msgbuf[256] = {0};
+static threadlocal UsingRegex ** ppRegex;
+static threadlocal char    *pOldPattern = NULL;
+void DestoryThreadLocalRegComp() {
+  if (NULL != pOldPattern) {
+    releaseRegComp(ppRegex);
+    taosMemoryFree(pOldPattern);
+    pOldPattern = NULL;
+  }
+}
+
+int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
+  if (NULL != pOldPattern) {
+    if (strcmp(pOldPattern, pPattern) == 0) {
+      *regex = &(*ppRegex)->pRegex;
+      return 0;
+    } else {
+      DestoryThreadLocalRegComp();
+    }
+  }
+
   UsingRegex **pUsingRegex = getRegComp(pPattern);
   if (pUsingRegex == NULL) {
     return 1;
   }
+  pOldPattern = (char *)taosMemoryMalloc(strlen(pPattern) + 1);
+  if (NULL == pOldPattern) {
+    uError("Failed to Malloc when compile regex pattern %s.", pPattern);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pOldPattern, pPattern);
+  ppRegex = pUsingRegex;
+  *regex = &(*pUsingRegex)->pRegex;
+  return 0;
+}
+
+static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
+  int32_t ret = 0;
+  char    msgbuf[256] = {0};
+
+  regex_t *regex = NULL;
+  ret = threadGetRegComp(&regex, pPattern);
+  if (ret != 0) {
+    return ret;
+  }
 
   regmatch_t pmatch[1];
-  ret = regexec(&(*pUsingRegex)->pRegex, pString, 1, pmatch, 0);
-  releaseRegComp(pUsingRegex);
+  ret = regexec(regex, pString, 1, pmatch, 0);
   if (ret != 0 && ret != REG_NOMATCH) {
     terrno =  TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR; 
-    (void)regerror(ret, &(*pUsingRegex)->pRegex, msgbuf, sizeof(msgbuf));
+    (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
     uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
   }
 

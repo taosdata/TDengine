@@ -119,6 +119,13 @@ add_test(
     COMMAND bufferTest
 )
 
+add_executable(regexTest "regexTest.cpp")
+target_link_libraries(regexTest os util gtest_main )
+add_test(
+    NAME regexTest
+    COMMAND regexTest
+)
+
 #add_executable(decompressTest "decompressTest.cpp")
 #target_link_libraries(decompressTest os util common gtest_main)
 #add_test(
