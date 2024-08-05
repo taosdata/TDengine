@@ -25,6 +25,7 @@ public class SchemalessWsTest {
             conn.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.MILLI_SECONDS);
             conn.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
             conn.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
+            System.out.println("Inserted data with schemaless successfully.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to insert data with schemaless, host:" + host + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
