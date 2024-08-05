@@ -150,7 +150,7 @@ static void getDay(char* buf){
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
   if (taosLocalTime(&t, &tmInfo, buf) != NULL) {
-    (void)strftime(buf, sizeof(buf), "%Y-%m-%d", &tmInfo);
+    (void)strftime(buf, LOG_FILE_DAY_LEN, "%Y-%m-%d", &tmInfo);
   }
 }
 static void getFullPathName(char* fullName, const char* logName){
