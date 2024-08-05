@@ -555,6 +555,7 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
 
   SSchemaInfo* pSchemaInfo = taosArrayGet(pTaskInfo->schemaInfos, idx);
   if (!pSchemaInfo) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
   }
 
@@ -881,6 +882,7 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
   for (int32_t i = 0; i < num; ++i) {
     SExchangeOpStopInfo* pStop = taosArrayGet(pTaskInfo->stopInfo.pStopInfo, i);
     if (!pStop) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       continue;
     }
     SExchangeInfo*       pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pStop->refId);

@@ -234,6 +234,7 @@ SArray* createSortInfo(SNodeList* pNodeList) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SOrderByExprNode* pSortKey = (SOrderByExprNode*)nodesListGetNode(pNodeList, i);
     if (!pSortKey) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       taosArrayDestroy(pList);
       pList = NULL;
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -304,12 +305,14 @@ int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) 
   for (int32_t i = 0; i < taosArrayGetSize(pMatchInfo->pList); ++i) {
     SColMatchItem* pItem = taosArrayGet(pMatchInfo->pList, i);
     if (!pItem) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
     }
 
     if (pItem->isPk) {
       SColumnInfoData* pInfoData = taosArrayGet(pDataBlock->pDataBlock, pItem->dstSlotId);
       if (!pInfoData) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         return terrno;
       }
       pBlockInfo->pks[0].type = pInfoData->info.type;
@@ -1025,6 +1028,7 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
       for (int i = 0; i < numOfExisted; i++) {
         STUidTagInfo* pTInfo = taosArrayGet(pExistedUidList, i);
         if (!pTInfo) {
+          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
           return terrno;
         }
         int32_t       tempRes = taosHashPut(uHash, &pTInfo->uid, sizeof(uint64_t), &i, sizeof(i));
@@ -1178,6 +1182,7 @@ static int32_t doSetQualifiedUid(STableListInfo* pListInfo, SArray* pUidList, co
     if (pResultList[i]) {
       STUidTagInfo* tmpTag = (STUidTagInfo*)taosArrayGet(pUidTagList, i);
       if (!tmpTag) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         return terrno;
       }
       uint64_t uid = tmpTag->uid;
@@ -1211,6 +1216,7 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
   for (int32_t i = 0; i < numOfExisted; ++i) {
     uint64_t*    uid = taosArrayGet(pUidList, i);
     if (!uid) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
     }
     STUidTagInfo info = {.uid = *uid};
@@ -2110,6 +2116,7 @@ int32_t relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SAr
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     if (!p) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
     }
     SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, j);
@@ -2390,6 +2397,7 @@ int32_t tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t st
   for (int32_t i = startIndex; i < numOfTables; ++i) {
     STableKeyInfo* p = taosArrayGet(pTableList->pTableList, i);
     if (!p) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return -1;
     }
     if (p->uid == uid) {
