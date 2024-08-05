@@ -153,7 +153,7 @@ void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId);
 void* taskDbAddRef(void* pTaskDb);
 void  taskDbRemoveRef(void* pTaskDb);
 
-void taskDbRemoveAllFiles(void* pTaskDb); 
+void taskDbSetClearFileFlag(void* pTaskDb); 
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);

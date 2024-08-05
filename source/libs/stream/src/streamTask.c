@@ -321,7 +321,7 @@ void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
     stDebug("s-task:0x%x start to free task state", pTask->id.taskId);
     streamStateClose(pTask->pState, remove);
 
-    taskDbRemoveAllFiles(pTask->pBackend);
+    taskDbSetClearFileFlag(pTask->pBackend);
     taskDbRemoveRef(pTask->pBackend);
     pTask->pBackend = NULL;
     pTask->pState = NULL;

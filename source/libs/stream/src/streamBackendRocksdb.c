@@ -2331,7 +2331,7 @@ void taskDbRemoveRef(void* pTaskDb) {
   (void)taosReleaseRef(taskDbWrapperId, pBackend->refId);
 }
 
-void taskDbRemoveAllFiles(void* pTaskDb) {
+void taskDbSetClearFileFlag(void* pTaskDb) {
   if (pTaskDb == NULL) {
     return;
   }
