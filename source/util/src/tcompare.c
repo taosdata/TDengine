@@ -1321,6 +1321,8 @@ UsingRegex **getRegComp(const char *pPattern) {
       uError("Failed to put regex pattern %s into cache, exception internal error.", pPattern);
       terrno = code;
       return NULL;
+    } else if (code == TSDB_CODE_DUP_KEY) {
+      terrno = 0;
     }
     ppUsingRegex = (UsingRegex **)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
     if (ppUsingRegex) {
