@@ -476,17 +476,27 @@ static void freeTableCachedVal(void* param) {
 }
 
 static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
   STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
+  QUERY_CHECK_NULL(pVal, code, lino, _end, terrno);
   pVal->pName = taosStrdup(pMetaReader->me.name);
+  QUERY_CHECK_NULL(pVal->pName, code, lino, _end, terrno);
   pVal->pTags = NULL;
 
   // only child table has tag value
   if (pMetaReader->me.type == TSDB_CHILD_TABLE) {
     STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
     pVal->pTags = taosMemoryMalloc(pTag->len);
+    QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
     memcpy(pVal->pTags, pTag, pTag->len);
   }
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    return NULL;
+  }
   return pVal;
 }
 
@@ -581,6 +591,9 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       pHandle->api.metaReaderFn.readerReleaseLock(&mr);
 
       STableCachedVal* pVal = createTableCacheVal(&mr);
+      if(!pVal) {
+        return terrno;
+      }
 
       val = *pVal;
       freeReader = true;
@@ -1280,6 +1293,9 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
 static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
   SFileBlockLoadRecorder* pRecorder = taosMemoryCalloc(1, sizeof(SFileBlockLoadRecorder));
+  if (!pRecorder) {
+    return terrno;
+  }
   STableScanInfo*         pTableScanInfo = pOptr->info;
   *pRecorder = pTableScanInfo->base.readRecorder;
   *pOptrExplain = pRecorder;
@@ -1290,7 +1306,9 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
 static void destroyTableScanBase(STableScanBase* pBase, TsdReader* pAPI) {
   cleanupQueryTableDataCond(&pBase->cond);
 
-  pAPI->tsdReaderClose(pBase->dataReader);
+  if (pAPI->tsdReaderClose) {
+    pAPI->tsdReaderClose(pBase->dataReader);
+  }
   pBase->dataReader = NULL;
 
   if (pBase->matchInfo.pList != NULL) {
@@ -1344,6 +1362,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
     pSup->pCtx = createSqlFunctionCtx(pSup->pExprInfo, pSup->numOfExprs, &pSup->rowEntryInfoOffset,
                                       &pTaskInfo->storageAPI.functionStore);
+    QUERY_CHECK_NULL(pSup->pCtx, code, lino, _error, terrno);
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
@@ -1359,6 +1378,8 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);
+  
   code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -2488,6 +2509,7 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
     void*    data = colDataGetData(pColPk, i);
     if (IS_VAR_DATA_TYPE(pColPk->info.type)) {
       void* tmq = taosMemoryMalloc(offset->primaryKey.nData + VARSTR_HEADER_SIZE);
+      QUERY_CHECK_NULL(tmq, code, lino, _end, terrno);
       memcpy(varDataVal(tmq), offset->primaryKey.pData, offset->primaryKey.nData);
       varDataLen(tmq) = offset->primaryKey.nData;
       p[i] = (*ts > offset->ts) || (func(data, tmq) > 0);
@@ -2712,6 +2734,7 @@ _end:
 
 static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOffsetVal* offset) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SValue  val = {0};
   if (hasPrimaryKey) {
     code = doBlockDataPrimaryKeyFilter(pBlock, offset);
@@ -2728,6 +2751,7 @@ static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOff
     val.type = pColPk->info.type;
     if (IS_VAR_DATA_TYPE(pColPk->info.type)) {
       val.pData = taosMemoryMalloc(varDataLen(tmp));
+      QUERY_CHECK_NULL(val.pData, code, lino, _end, terrno);
       val.nData = varDataLen(tmp);
       memcpy(val.pData, varDataVal(tmp), varDataLen(tmp));
     } else {
@@ -2735,6 +2759,11 @@ static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOff
     }
   }
   tqOffsetResetToData(offset, pBlock->info.id.uid, pBlock->info.window.ekey, val);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -3010,6 +3039,9 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
   }
 
   void*   pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
+  if (!pUpInfo) {
+    return;
+  }
   int32_t code = pInfo->stateStore.updateInfoDeserialize(buf, tlen, pUpInfo);
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
@@ -3469,6 +3501,7 @@ static int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray**
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SArray* tableIdList = taosArrayInit(4, sizeof(uint64_t));
+  QUERY_CHECK_NULL(tableIdList, code, lino, _end, terrno);
 
   // Transfer the Array of STableKeyInfo into uid list.
   size_t size = tableListGetSize(pTableListInfo);
@@ -3864,6 +3897,8 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->primaryKeyIndex = -1;
   int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
   pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
+  QUERY_CHECK_NULL(pColIds, code, lino, _error, terrno);
+  
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColMatchItem* id = taosArrayGet(pInfo->matchInfo.pList, i);
 
@@ -3992,6 +4027,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   code = createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateRes);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -4386,6 +4422,8 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
       }
       STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
+      QUERY_CHECK_NULL(info.pTagVal, code, lino, _end, terrno);
+
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       void* tmp = taosArrayPush(aUidTags, &info);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
@@ -5292,6 +5330,7 @@ int32_t generateSortByTsPkInfo(SArray* colMatchInfo, int32_t order, SArray** ppS
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SArray*         pSortInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  QUERY_CHECK_NULL(pSortInfo, code, lino, _end, terrno);
   SBlockOrderInfo biTs = {0};
   SBlockOrderInfo biPk = {0};
 
@@ -5380,9 +5419,11 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   STableMergeScanSortSourceParam* param = taosMemoryCalloc(1, sizeof(STableMergeScanSortSourceParam));
+  QUERY_CHECK_NULL(param, code, lino, _end, terrno);
   param->pOperator = pOperator;
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
+  QUERY_CHECK_NULL(ps, code, lino, _end, terrno);
   ps->param = param;
   ps->onlyRef = false;
   code = tsortAddSource(pInfo->pSortHandle, ps);
@@ -5659,6 +5700,9 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
   ASSERT(pOptr != NULL);
   // TODO: merge these two info into one struct
   STableMergeScanExecInfo* execInfo = taosMemoryCalloc(1, sizeof(STableMergeScanExecInfo));
+  if (!execInfo) {
+    return terrno;
+  }
   STableMergeScanInfo*     pInfo = pOptr->info;
   execInfo->blockRecorder = pInfo->base.readRecorder;
   execInfo->sortExecInfo = pInfo->sortExecInfo;
@@ -5705,6 +5749,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
 
     pSup->pCtx = createSqlFunctionCtx(pSup->pExprInfo, pSup->numOfExprs, &pSup->rowEntryInfoOffset,
                                       &pTaskInfo->storageAPI.functionStore);
+    QUERY_CHECK_NULL(pSup->pCtx, code, lino, _error, terrno);
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};

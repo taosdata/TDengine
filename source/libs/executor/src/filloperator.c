@@ -397,6 +397,9 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
     pInfo->win.ekey = win.skey;
   }
   pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);
+  if (!pInfo->p) {
+    return terrno;
+  }
 
   if (pInfo->pFillInfo == NULL || pInfo->p == NULL) {
     taosMemoryFree(pInfo->pFillInfo);
@@ -465,6 +468,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   }
 
   pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   SExprInfo* pExprInfo = NULL;
 
   code = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pExprInfo, &pInfo->numOfExpr);

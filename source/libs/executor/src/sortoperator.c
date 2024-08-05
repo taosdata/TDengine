@@ -93,6 +93,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
 
   pOperator->exprSupp.pCtx =
       createSqlFunctionCtx(pOperator->exprSupp.pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
+  QUERY_CHECK_NULL(pOperator->exprSupp.pCtx, code, lino, _error, terrno);
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -784,6 +785,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset,
                                                   &pTaskInfo->storageAPI.functionStore);
+  QUERY_CHECK_NULL(pOperator->exprSupp.pCtx, code, lino, _error, terrno);
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);

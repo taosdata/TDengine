@@ -276,6 +276,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   QUERY_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pCountWindowNode->window.node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   code = blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 

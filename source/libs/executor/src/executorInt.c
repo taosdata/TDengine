@@ -89,6 +89,10 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
   int32_t pageId = -1;
   if (*currentPageId == -1) {
     pData = getNewBufPage(pResultBuf, &pageId);
+    if (pData == NULL) {
+      qError("failed to get buffer, code:%s", tstrerror(terrno));
+      return NULL;
+    }
     pData->num = sizeof(SFilePage);
   } else {
     pData = getBufPage(pResultBuf, *currentPageId);
@@ -104,9 +108,11 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
       releaseBufPage(pResultBuf, pData);
 
       pData = getNewBufPage(pResultBuf, &pageId);
-      if (pData != NULL) {
-        pData->num = sizeof(SFilePage);
+      if (pData == NULL) {
+        qError("failed to get buffer, code:%s", tstrerror(terrno));
+        return NULL;
       }
+      pData->num = sizeof(SFilePage);
     }
   }
 
@@ -409,6 +415,9 @@ static int32_t doCreateConstantValColumnSMAInfo(SInputColumnInfoData* pInput, SF
   SColumnDataAgg* da = NULL;
   if (pInput->pColumnDataAgg[paramIndex] == NULL) {
     da = taosMemoryCalloc(1, sizeof(SColumnDataAgg));
+    if (!da) {
+      return terrno;
+    }
     pInput->pColumnDataAgg[paramIndex] = da;
     if (da == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
