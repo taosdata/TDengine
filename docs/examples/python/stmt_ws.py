@@ -41,7 +41,7 @@ try:
         for j in range (numOfRow):
             timestamps.append(current + i)
             currents.append(random.random() * 30)
-            voltages.append(random.random(100, 300))
+            voltages.append(random.randint(100, 300))
             phases.append(random.random())
 
         stmt.bind_param(
@@ -54,8 +54,9 @@ try:
         )
 
         stmt.add_batch()
-        rows = stmt.execute()
-        print(f"insert {rows} rows.")
+        stmt.execute()
+        
+        print(f"stmt insert successfully.")
         
 except Exception as err:
     print(f"Failed to insert to table meters using stmt, error: {err}") 
