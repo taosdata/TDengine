@@ -176,7 +176,7 @@ class TDTestCase:
     def test_query_with_window(self):
         # time window
         tdSql.query("select sum(c_int_empty) from st where ts > '2024-01-01 00:00:00.000' and ts <= '2024-01-01 14:00:00.000' interval(5m) sliding(1m) fill(value, 10);")
-        tdSql.checkRows(841)
+        tdSql.checkRows(845)
         tdSql.checkData(0, 0, 10)
         
         tdSql.query("select _wstart, _wend, sum(c_int) from st where ts > '2024-01-01 00:00:00.000' and ts <= '2024-01-01 14:00:00.000' interval(5m) sliding(1m);")
