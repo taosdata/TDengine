@@ -790,7 +790,7 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
   if (!pInfo->pSeDeleted && num > 0) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->pSeDeleted = tSimpleHashInit(64, hashFn);
-    QUERY_CHECK_NULL(pInfo->pSeUpdated, code, lino, _end, terrno);
+    QUERY_CHECK_NULL(pInfo->pSeDeleted, code, lino, _end, terrno);
   }
   for (int32_t i = 0; i < num; i++) {
     SEventWindowInfo curInfo = {0};
@@ -904,7 +904,7 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pSeDeleted = tSimpleHashInit(64, hashFn);
-  QUERY_CHECK_NULL(pInfo->pSeUpdated, code, lino, _error, terrno);
+  QUERY_CHECK_NULL(pInfo->pSeDeleted, code, lino, _error, terrno);
   pInfo->pDelIterator = NULL;
   code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pInfo->pDelRes);
   QUERY_CHECK_CODE(code, lino, _error);
