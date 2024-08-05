@@ -663,6 +663,7 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
     if (plist->list->numOfConn >= pTranInst->connLimitNum) {
       *exceed = true;
     }
+    plist->list->numOfConn++;
     return NULL;
   }
 
@@ -1039,7 +1040,6 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
       list->size--;
     }
   }
-
   conn->list = NULL;
 
   (void)transReleaseExHandle(transGetRefMgt(), conn->refId);
@@ -1079,8 +1079,11 @@ static void cliDestroy(uv_handle_t* handle) {
 
   (void)atomic_sub_fetch_32(&pThrd->connCount, 1);
 
+  if (conn->refId > 0) {
   (void)transReleaseExHandle(transGetRefMgt(), conn->refId);
   (void)transRemoveExHandle(transGetRefMgt(), conn->refId);
+
+  }
   taosMemoryFree(conn->dstAddr);
   taosMemoryFree(conn->stream);
 
