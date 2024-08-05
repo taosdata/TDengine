@@ -859,6 +859,9 @@ _end:
 int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
   size_t   numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   int32_t* offset = taosMemoryCalloc(numOfCols, sizeof(int32_t));
+  if (!offset) {
+    return NULL;
+  }
 
   offset[0] = sizeof(int32_t) +
               sizeof(uint64_t);  // the number of rows in current page, ref to SSDataBlock paged serialization format
@@ -1193,6 +1196,8 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
       blockDataGetCapacityInRow(pInfo->binfo.pRes, getBufPageSize(pInfo->pBuf),
                                 blockDataGetSerialMetaSize(taosArrayGetSize(pInfo->binfo.pRes->pDataBlock)));
   pInfo->columnOffset = setupColumnOffset(pInfo->binfo.pRes, pInfo->rowCapacity);
+  QUERY_CHECK_NULL(pInfo->columnOffset, code, lino, _error, terrno);
+
   code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pInfo->pGroupCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -1427,6 +1432,7 @@ static void doStreamHashPartitionImpl(SStreamPartitionOperatorInfo* pInfo, SSDat
       SPartitionDataInfo newParData = {0};
       newParData.groupId = calcGroupId(pInfo->partitionSup.keyBuf, keyLen);
       newParData.rowIds = taosArrayInit(64, sizeof(int32_t));
+      QUERY_CHECK_NULL(newParData.rowIds, code, lino, _end, terrno);
       void* tmp = taosArrayPush(newParData.rowIds, &i);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
@@ -1590,6 +1596,9 @@ SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (!pBlock) {
+    return NULL;
+  }
   pBlock->info.hasVarCol = false;
   pBlock->info.id.groupId = 0;
   pBlock->info.rows = 0;
@@ -1597,6 +1606,7 @@ SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag) {
   pBlock->info.watermark = INT64_MIN;
 
   pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+  QUERY_CHECK_NULL(pBlock->pDataBlock, code, lino, _end, terrno);
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   if (tbName->numOfExprs > 0) {

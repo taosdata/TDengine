@@ -307,6 +307,9 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo, const 
 
   int32_t len = strlen(id) + 1;
   pInfo->pTaskId = taosMemoryCalloc(1, len);
+  if (!pInfo->pTaskId) {
+    return terrno;
+  }
   strncpy(pInfo->pTaskId, id, len);
   for (int32_t i = 0; i < numOfSources; ++i) {
     SSourceDataInfo dataInfo = {0};
@@ -389,7 +392,9 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
 
   pInfo->pDummyBlock = createDataBlockFromDescNode(pExNode->node.pOutputDataBlockDesc);
   pInfo->pResultBlockList = taosArrayInit(64, POINTER_BYTES);
+  QUERY_CHECK_NULL(pInfo->pResultBlockList, code, lino, _error, terrno);
   pInfo->pRecycledBlocks = taosArrayInit(64, POINTER_BYTES);
+  QUERY_CHECK_NULL(pInfo->pRecycledBlocks, code, lino, _error, terrno);
 
   SExchangeOpStopInfo stopInfo = {QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, pInfo->self};
   code = qAppendTaskStopInfo(pTaskInfo, &stopInfo);

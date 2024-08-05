@@ -244,6 +244,9 @@ static int32_t setSingleOutputTupleBufv1(SResultRowInfo* pResultRowInfo, STimeWi
                                          SExprSupp* pExprSup, SAggSupporter* pAggSup) {
   if (*pResult == NULL) {
     SResultRow* p = taosMemoryCalloc(1, pAggSup->resultRowSize);
+    if (!p) {
+      return terrno;
+    }
     pResultRowInfo->cur = (SResultRowPosition){.pageId = p->pageId, .offset = p->offset};
     *pResult = p;
   }

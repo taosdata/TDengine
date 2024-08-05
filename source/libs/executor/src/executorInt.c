@@ -409,6 +409,9 @@ static int32_t doCreateConstantValColumnSMAInfo(SInputColumnInfoData* pInput, SF
   SColumnDataAgg* da = NULL;
   if (pInput->pColumnDataAgg[paramIndex] == NULL) {
     da = taosMemoryCalloc(1, sizeof(SColumnDataAgg));
+    if (!da) {
+      return terrno;
+    }
     pInput->pColumnDataAgg[paramIndex] = da;
     if (da == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
