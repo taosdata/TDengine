@@ -2,22 +2,21 @@ use taos_query::common::SchemalessPrecision;
 use taos_query::common::SchemalessProtocol;
 use taos_query::common::SmlDataBuilder;
 
-use crate::AsyncQueryable;
-use crate::AsyncTBuilder;
-use crate::TaosBuilder;
+use taos::AsyncQueryable;
+use taos::AsyncTBuilder;
+use taos::TaosBuilder;
+use taos::taos_query;
 
-async fn put() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "taos=debug");
     pretty_env_logger::init();
-    let dsn =
-        std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
+    let dsn = "taos://localhost:6030".to_string();
     log::debug!("dsn: {:?}", &dsn);
 
     let client = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     let db = "power";
-
-    client.exec(format!("drop database if exists {db}")).await?;
 
     client
         .exec(format!("create database if not exists {db}"))
@@ -28,7 +27,7 @@ async fn put() -> anyhow::Result<()> {
 
     // SchemalessProtocol::Line
     let data = [
-        "meters,groupid=2,location=California.SanFrancisco current=10.3000002f64,voltage=219i32,phase=0.31f64 1626006833639000000",
+        "meters,groupid=2,location=California.SanFrancisco current=10.3000002f64,voltage=219i32,phase=0.31f64 1626006833639",
     ]
     .map(String::from)
     .to_vec();
@@ -44,7 +43,7 @@ async fn put() -> anyhow::Result<()> {
 
     // SchemalessProtocol::Telnet
     let data = [
-        "meters.current 1648432611249 10.3 location=California.SanFrancisco group=2",
+        "metric_telnet 1707095283260 4 host=host0 interface=eth0",
     ]
     .map(String::from)
     .to_vec();
@@ -60,7 +59,16 @@ async fn put() -> anyhow::Result<()> {
 
     // SchemalessProtocol::Json
     let data = [
-        r#"[{"metric": "meters.current", "timestamp": 1681345954000, "value": 10.3, "tags": {"location": "California.SanFrancisco", "groupid": 2}}, {"metric": "meters.voltage", "timestamp": 1648432611249, "value": 219, "tags": {"location": "California.LosAngeles", "groupid": 1}}, {"metric": "meters.current", "timestamp": 1648432611250, "value": 12.6, "tags": {"location": "California.SanFrancisco", "groupid": 2}}, {"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "California.LosAngeles", "groupid": 1}}]"#
+        r#"[{
+            "metric": "metric_json",
+            "timestamp": 1626846400,
+            "value": 10.3,
+            "tags": {
+                "groupid": 2,
+                "location": "California.SanFrancisco",
+                "id": "d1001"
+            }
+            }]"#
     ]
     .map(String::from)
     .to_vec();
@@ -74,7 +82,6 @@ async fn put() -> anyhow::Result<()> {
         .build()?;
     assert_eq!(client.put(&sml_data).await?, ());
 
-    client.exec(format!("drop database if exists {db}")).await?;
-
+    println!("Inserted data with schemaless successfully.");
     Ok(())
 }
