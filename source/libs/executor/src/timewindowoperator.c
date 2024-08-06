@@ -614,6 +614,11 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
     ASSERT(!isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
 
     SGroupKeys* pTsKey = taosArrayGet(pInfo->pPrevValues, 0);
+    if (!pTsKey) {
+      pTaskInfo->code = terrno;
+      T_LONG_JMP(pTaskInfo->env, terrno);
+    }
+
     int64_t     prevTs = *(int64_t*)pTsKey->pData;
     if (groupId == pBlock->info.id.groupId) {
       doTimeWindowInterpolation(pInfo->pPrevValues, pBlock->pDataBlock, prevTs, -1, tsCols[startPos], startPos, w.ekey,
@@ -846,6 +851,11 @@ int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo
 
   if (pBlock->pDataBlock != NULL && pBlock->info.dataLoad) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+    if (!pColDataInfo) {
+      pTaskInfo->code = terrno;
+      T_LONG_JMP(pTaskInfo->env, terrno);
+    }
+
     tsCols = (int64_t*)pColDataInfo->pData;
     ASSERT(tsCols[0] != 0);
 
@@ -924,6 +934,10 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   SExprSupp*     pSup = &pOperator->exprSupp;
 
   SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
+  if (!pStateColInfoData) {
+    pTaskInfo->code = terrno;
+    T_LONG_JMP(pTaskInfo->env, terrno);
+  }
   int64_t          gid = pBlock->info.id.groupId;
 
   bool    masterScan = true;
@@ -931,6 +945,10 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   int32_t bytes = pStateColInfoData->info.bytes;
 
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
+  if (!pColInfoData) {
+    pTaskInfo->code = terrno;
+    T_LONG_JMP(pTaskInfo->env, terrno);
+  }
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
 
   SWindowRowsSup* pRowSup = &pInfo->winSup;
@@ -1395,6 +1413,10 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
   SExprSupp*     pSup = &pOperator->exprSupp;
 
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
+  if (!pColInfoData) {
+    pTaskInfo->code = terrno;
+    T_LONG_JMP(pTaskInfo->env, terrno);
+  }
 
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
@@ -1706,9 +1728,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
                     pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->twAggSup.waterMark = pSessionNode->window.watermark;
   pInfo->twAggSup.calTrigger = pSessionNode->window.triggerType;
@@ -1732,15 +1752,11 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar, &pTaskInfo->storageAPI.functionStore);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _error;
-    }
+    QUERY_CHECK_CODE(code, lino, _error);
   }
 
   code = filterInitFromNode((SNode*)pSessionNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   setOperatorInfo(pOperator, "SessionWindowAggOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -1748,9 +1764,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   pOperator->pTaskInfo = pTaskInfo;
   code = appendDownstream(pOperator, &downstream, 1);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
   return code;

@@ -650,7 +650,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     goto END;
   }
 
-  mndTransSetDbName(pTrans, pOutput->pSub->dbName, cgroup);
+  mndTransSetDbName(pTrans, pOutput->pSub->dbName, pOutput->pSub->key);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
 
   // 1. redo action: action to all vg
@@ -1079,10 +1079,10 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     goto END;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "drop-cgroup");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pMsg, "drop-cgroup");
   MND_TMQ_NULL_CHECK(pTrans);
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
-  mndTransSetDbName(pTrans, pSub->dbName, dropReq.cgroup);
+  mndTransSetDbName(pTrans, pSub->dbName, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   MND_TMQ_RETURN_CHECK(sendDeleteSubToVnode(pMnode, pSub, pTrans));
   MND_TMQ_RETURN_CHECK(mndSetDropSubCommitLogs(pMnode, pTrans, pSub));

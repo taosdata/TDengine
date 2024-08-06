@@ -136,8 +136,7 @@ void cleanupQueriedTableScanInfo(void* p) {
 int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   if (pHandle == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
@@ -149,7 +148,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
            GET_TASKID(pTaskInfo));
 
     pAPI->metaReaderFn.clearReader(&mr);
-    return terrno;
+    return code;
   }
 
   SSchemaInfo schemaInfo = {0};
@@ -169,7 +168,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
       pAPI->metaReaderFn.clearReader(&mr);
       taosMemoryFree(schemaInfo.tablename);
       taosMemoryFree(schemaInfo.dbname);
-      return terrno;
+      return code;
     }
 
     schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
