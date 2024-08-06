@@ -43,21 +43,14 @@
               :ruleForm="itemData.splitParams"
             ></SplitExpression>
           </template>
-          <el-popover
-            v-else
-            trigger="click"
-            placement="top-start"
-            :content="$t('datasource.transformer.mutiple')"
-          >
-            <el-input
-              size="small"
-              slot="reference"
-              :placeholder="$t('datasource.transformer.expre_' + ruleForm.filter_name)"
-              v-model="ruleForm.filter_expres"
-              @input="changeExtractExpr"
-              :disabled="isViewable"
-            ></el-input>
-          </el-popover>
+          <el-input v-else
+            size="small"
+            slot="reference"
+            :placeholder="$t('datasource.transformer.expre_' + ruleForm.filter_name)"
+            v-model="ruleForm.filter_expres"
+            @input="changeExtractExpr"
+            :disabled="isViewable"
+          ></el-input>
         </el-form-item>
       </el-form>
 
