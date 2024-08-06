@@ -4745,9 +4745,12 @@ void tsdbReaderClose2(STsdbReader* pReader) {
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
   TARRAY2_DESTROY(&pSupInfo->colAggArray, NULL);
-  for (int32_t i = 0; i < pSupInfo->numOfCols; ++i) {
-    if (pSupInfo->buildBuf[i] != NULL) {
-      taosMemoryFreeClear(pSupInfo->buildBuf[i]);
+
+  if (pSupInfo->buildBuf) {
+    for (int32_t i = 0; i < pSupInfo->numOfCols; ++i) {
+      if (pSupInfo->buildBuf[i] != NULL) {
+        taosMemoryFreeClear(pSupInfo->buildBuf[i]);
+      }
     }
   }
 
