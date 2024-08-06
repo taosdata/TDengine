@@ -14,7 +14,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 ### TDengine 本地实例安装方法
 
-请参考[官网文档](../../get-started)。 
+请参考[官网文档](../../../get-started)。 
 
 ### TDengine Cloud 访问方法
 如果使用 Seeq 连接 TDengine Cloud，请在 https://cloud.taosdata.com 申请帐号并登录查看如何访问 TDengine Cloud。

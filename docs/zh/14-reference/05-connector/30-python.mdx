@@ -19,7 +19,7 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 - **REST 连接**，对应 `taospy` 包的 `taosrest` 模块。通过 taosAdapter 提供的 HTTP 接口连接 TDengine 实例，不支持 schemaless 和数据订阅等特性。
 - **Websocket 连接**，对应 `taos-ws-py` 包，可以选装。通过 taosAdapter 提供的 Websocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。
 
-连接方式的详细介绍请参考：[连接器建立连接的方式](../../develop/connect/#连接器建立连接的方式)
+连接方式的详细介绍请参考：[连接方式](../../../develop/connect/#连接方式)
 
 除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
 
