@@ -1100,6 +1100,11 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
 
       for (int32_t i = 0; i < numOfTables; ++i) {
         STableKeyInfo* pTable = tableListGetInfo(pTableListInfo, i);
+        if (!pTable) {
+          taosArrayDestroy(pDeleterParam->pUidList);
+          taosMemoryFree(pDeleterParam);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         void*          tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
         if (!tmp) {
           taosArrayDestroy(pDeleterParam->pUidList);

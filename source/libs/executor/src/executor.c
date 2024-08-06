@@ -1274,6 +1274,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       if (uid == 0) {
         if (numOfTables != 0) {
           STableKeyInfo* tmp = tableListGetInfo(pTableListInfo, 0);
+          if (!tmp) {
+            qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+            taosRUnLockLatch(&pTaskInfo->lock);
+            return terrno;
+          }
           if (tmp) uid = tmp->uid;
           ts = INT64_MIN;
           pScanInfo->currentTable = 0;
@@ -1403,6 +1408,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       }
 
       STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
+      if (!pList) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        tDeleteSchemaWrapper(mtInfo.schema);
+        return code;
+      }
       int32_t        size = tableListGetSize(pTableListInfo);
 
       code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size,
@@ -1487,6 +1497,7 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
   int32_t numOfTables = tableListGetSize(pTableListInfo);
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableKeyInfo* pKeyInfo = tableListGetInfo(pTableListInfo, i);
+    QUERY_CHECK_NULL(pKeyInfo, code, lino, _end, terrno);
     void*          tmp = taosArrayPush(pUidList, &pKeyInfo->uid);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }

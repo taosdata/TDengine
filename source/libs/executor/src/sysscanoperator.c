@@ -2722,6 +2722,7 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
     pInfo->pTableListInfo = pTableListInfo;
     size_t num = tableListGetSize(pTableListInfo);
     void*  pList = tableListGetInfo(pTableListInfo, 0);
+    QUERY_CHECK_NULL(pList, code, lino, _error, terrno);
 
     code = readHandle->api.tsdReader.tsdReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock,
                                                    (void**)&pInfo->pHandle, pTaskInfo->id.str, NULL);
