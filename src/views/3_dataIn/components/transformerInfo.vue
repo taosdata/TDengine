@@ -867,7 +867,6 @@ export default {
               .filter((f) => !hiddenCols.includes(f[0]))
           );
         });
-        console.log("ddddddddddd==========")
         this.$store.commit("app/SET_TRANS_RESULT_TABLE", tbdata);
         this.$store.commit("app/SET_ACTIVE_COLS", []);
         this.$store.commit("app/SET_RESULT_PAGE", 1);

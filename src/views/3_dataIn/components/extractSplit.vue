@@ -8,7 +8,7 @@
             :placeholder="$t('datasource.transformer.col_select')"
             v-model="ruleForm.col_name"
             @change="selectCol"
-            :disabled="ruleForm.col_name != '' && itemData.columnname != ''"
+            :disabled="ruleForm.col_name != '' && itemData.columnname != '' && !!ruleForm.filter_name"
           >
             <el-option
               v-for="(item, index) in extractColumns"
@@ -32,6 +32,7 @@
               :key="item"
               :label="item"
               :value="item"
+              :disabled="item == 'join' && itemData.value_type !== 'array'"
             ></el-option>
           </el-select>
         </el-form-item>

@@ -1243,11 +1243,12 @@ export default {
           let finalVal = tbdata.map((item) => {
             return item[val.name];
           });
+
           return {
             description: val.name,
             name: val.name,
             show: true,
-            type: "string",
+            type: !val.arrow_type?.List ? "string" : "array",
             localType: val.type,
             value:
               this.$t("datasource.transformer.sampleval") +
@@ -1816,6 +1817,7 @@ export default {
       this.$set(this.columnsArr[ind], "show", false);
       this.extractAddStatus = this.columnsArr.every((item) => !item.show);
       this.$set(this.extractArr[index], "columnname", name);
+      this.$set(this.extractArr[index], "value_type", this.columnsArr[ind].type);
     },
     async getParserData(data) {
       try {
