@@ -1401,12 +1401,11 @@ int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
   if (ppRegex == NULL) {
     return 1;
   }
-  pOldPattern = (char *)taosMemoryMalloc(strlen(pPattern) + 1);
+  pOldPattern = taosStrdup(pPattern);
   if (NULL == pOldPattern) {
     uError("Failed to Malloc when compile regex pattern %s.", pPattern);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pOldPattern, pPattern);
   ppUsingRegex = ppRegex;
   pRegex  = &((*ppUsingRegex)->pRegex);
   *regex = &(*ppRegex)->pRegex;
