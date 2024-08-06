@@ -452,22 +452,25 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   int32_t           code = TSDB_CODE_SUCCESS;
   bool              hasRes = false;
+  SArray*           pRow = NULL;
+  void**            pRes = NULL;
   SCacheRowsReader* pr = pReader;
-  pr->pReadSnap = NULL;
+  int32_t           pkBufLen = 0;
 
-  SArray* pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
+  pr->pReadSnap = NULL;
+  pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
   if (pRow == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
 
-  void** pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
+  pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
   if (pRes == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
 
-  int32_t pkBufLen = (pr->rowKey.numOfPKs > 0) ? pr->pkColumn.bytes : 0;
+  pkBufLen = (pr->rowKey.numOfPKs > 0) ? pr->pkColumn.bytes : 0;
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     int32_t bytes = (slotIds[j] == -1) ? 1 : pr->pSchema->columns[slotIds[j]].bytes;
 
