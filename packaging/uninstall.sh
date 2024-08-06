@@ -176,6 +176,7 @@ remove_plugin_logs() {
     ${csudo}rm -rf ${LOG_DIR}/mqtt-*.log*
     ${csudo}rm -rf ${LOG_DIR}/influxdb-*.log*
     ${csudo}rm -rf ${LOG_DIR}/opc-*.log*
+    ${csudo}rm -rf ${LOG_DIR}/opc.log*
     ${csudo}rm -rf ${LOG_DIR}/opentsdb-*.log*
     ${csudo}rm -rf ${LOG_DIR}/pi-*.log*
 }
@@ -194,6 +195,7 @@ remove_taos_agent() {
     fi
 
     ${csudo}rm -rf ${LOG_DIR}/${AGENT_CONFIG_NAME}.log*
+    remove_plugin_logs
     ${csudo}rm -rf ${CONFIG_DIR}/${AGENT_CONFIG_NAME}.toml
     echo "${agentname} is removed successfully!"
 }
