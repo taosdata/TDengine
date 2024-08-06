@@ -953,7 +953,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
     tscError("tmqSendHbReq asyncSendMsgToServer failed");
   }
 
-  atomic_val_compare_exchange_8(&pollFlag, 1, 0);
+  (void)atomic_val_compare_exchange_8(&pollFlag, 1, 0);
 OVER:
   tDestroySMqHbReq(&req);
   if(tmrId != NULL){
@@ -2394,7 +2394,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     }
   }
 
-  atomic_val_compare_exchange_8(&pollFlag, 0, 1);
+  (void)atomic_val_compare_exchange_8(&pollFlag, 0, 1);
 
   while (1) {
     tmqHandleAllDelayedTask(tmq);
