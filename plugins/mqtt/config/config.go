@@ -25,8 +25,10 @@ type Dump struct {
 
 type Batch struct {
 	/// Timeout in milliseconds
-	BatchTimeout int `toml:"timeout"`
-	BatchSize    int `toml:"size"`
+	BatchTimeout   int `toml:"timeout"`
+	BatchSize      int `toml:"size"`
+	Worker         int `toml:"worker"`
+	ReceiveChanLen int `toml:"receive_chan_len"` // worker receive chan len
 }
 
 type Config struct {

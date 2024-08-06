@@ -16,14 +16,15 @@ type Message struct {
 
 type MessageList struct {
 	list      *list.List
-	lock      sync.RWMutex
+	lock      sync.Mutex
 	c         chan struct{}
 	sent      bool
 	batchSize int
+	id        int
 }
 
-func NewMessageList(batchSize int) *MessageList {
-	m := &MessageList{list: list.New(), c: make(chan struct{}, 1), batchSize: batchSize}
+func NewMessageList(batchSize int, id int) *MessageList {
+	m := &MessageList{list: list.New(), c: make(chan struct{}, 1), batchSize: batchSize, id: id}
 	return m
 }
 
@@ -32,9 +33,12 @@ func (m *MessageList) Add(message *Message) {
 	defer m.lock.Unlock()
 	m.list.PushBack(message)
 	if m.list.Len() >= m.batchSize && !m.sent {
-		log.GetLogger("message").WithField("cap", m.batchSize).WithField("len", m.list.Len()).Debugln("reaches batch size")
-		m.c <- struct{}{}
-		m.sent = true
+		log.GetLogger("message").WithField("id", m.id).WithField("cap", m.batchSize).WithField("len", m.list.Len()).Debugln("reaches batch size")
+		select {
+		case m.c <- struct{}{}:
+			m.sent = true
+		default:
+		}
 	}
 }
 

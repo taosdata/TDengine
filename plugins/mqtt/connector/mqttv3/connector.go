@@ -54,6 +54,10 @@ func (conn *Connector) SubscribeMultiple(topics map[string]int) error {
 }
 
 func (conn *Connector) connect(conf *config.MQTT) {
+	//mqtt.DEBUG = conn.logger
+	//mqtt.ERROR = conn.logger
+	//mqtt.WARN = conn.logger
+	//mqtt.CRITICAL = conn.logger
 	if conn.client != nil && conn.client.IsConnected() {
 		return
 	}
@@ -76,6 +80,7 @@ func (conn *Connector) connect(conf *config.MQTT) {
 	}
 	opts.AddBroker(conf.Address)
 	opts.OnConnect = func(c mqtt.Client) {
+		conn.logger.Info("mqtt connected")
 		if conn.onConnect != nil {
 			conn.onConnect()
 		}
@@ -85,6 +90,9 @@ func (conn *Connector) connect(conf *config.MQTT) {
 		conn.logger.WithError(e).Error("mqtt connection lost")
 		conn.onDisconnected(e)
 	}
+	opts.AutoReconnect = true
+	opts.MaxReconnectInterval = time.Second * 5
+
 	client := mqtt.NewClient(opts)
 	conn.client = client
 
