@@ -1547,13 +1547,19 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   SExprSupp* pExpSup = &pOperator->exprSupp;
   int32_t    numOfExprs = 0;
-  SExprInfo* pExprInfo = createExprInfo(pInterpPhyNode->pFuncs, NULL, &numOfExprs);
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pInterpPhyNode->pFuncs, NULL, &pExprInfo, &numOfExprs);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   code = initExprSupp(pExpSup, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pInterpPhyNode->pExprs != NULL) {
     int32_t    num = 0;
-    SExprInfo* pScalarExprInfo = createExprInfo(pInterpPhyNode->pExprs, NULL, &num);
+    SExprInfo* pScalarExprInfo = NULL;
+    code = createExprInfo(pInterpPhyNode->pExprs, NULL, &pScalarExprInfo, &num);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
