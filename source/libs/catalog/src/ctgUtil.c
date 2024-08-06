@@ -2488,5 +2488,3 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
-=======
->>>>>>> 3a708fae45... fix: db vgroup info clone issue
