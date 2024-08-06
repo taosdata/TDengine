@@ -220,6 +220,7 @@ need_remove_data() {
           fi
           ;;
         *)
+          break
           ;;
       esac
     done
