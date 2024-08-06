@@ -101,4 +101,4 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 ### 9. 创建完成
 
-点击 **提交** 按钮，完成创建 PostgreSQL 到 TDengine 的数据同步任务，回到[数据源列表](../../explorer/#数据写入)页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 PostgreSQL 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
