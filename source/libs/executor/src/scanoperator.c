@@ -4933,7 +4933,6 @@ static int32_t initSubTableInputs(SOperatorInfo* pOperator, STableMergeScanInfo*
     QUERY_CHECK_CODE(code, lino, _end);
 
     STableKeyInfo* keyInfo = tableListGetInfo(pInfo->base.pTableListInfo, i + pInfo->tableStartIndex);
-    QUERY_CHECK_NULL(keyInfo, code, lino, _end, terrno);
     pInput->pKeyInfo = keyInfo;
 
     if (isTaskKilled(pTaskInfo)) {
@@ -5554,7 +5553,6 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   int32_t        numOfTable = tableEndIdx - tableStartIdx + 1;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
-  QUERY_CHECK_NULL(startKeyInfo, code, lino, _end, terrno);
   code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
                                        (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->mSkipTables);
   QUERY_CHECK_CODE(code, lino, _end);
