@@ -215,7 +215,7 @@ need_remove_data() {
           elif [[ "$2" == "false" ]]; then
               return 1
           else
-              echo "Error: --clean-all 参数需要 true 或 false 值"
+              echo "Error: --clean-all requires a true or false value."
               exit 1
           fi
           ;;
