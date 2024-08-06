@@ -481,6 +481,9 @@ struct SFilterInfo {
 #define FILTER_COPY_IDX(dst, src, n)                 \
   do {                                               \
     *(dst) = taosMemoryMalloc(sizeof(uint32_t) * n); \
+    if (NULL == *(dst)) {                            \
+      FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);         \
+    }                                                \
     (void)memcpy(*(dst), src, sizeof(uint32_t) * n); \
   } while (0)
 
