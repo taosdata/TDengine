@@ -1434,7 +1434,12 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
   pNode.suid = suid;
   pNode.uid = suid;
   pNode.tableType = TSDB_SUPER_TABLE;
+
   STableListInfo* pTableListInfo = tableListCreate();
+  if (pTableListInfo == NULL) {
+    return terrno;
+  }
+
   uint8_t         digest[17] = {0};
   int             code =
       getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL,
@@ -1692,8 +1697,11 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SDataType* pType = &pColNode->node.resType;
     pExp->base.resSchema =
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pColNode->colName);
+
     pExp->base.pParam[0].pCol =
         createColumn(pColNode->dataBlockId, pColNode->slotId, pColNode->colId, pType, pColNode->colType);
+    QUERY_CHECK_NULL(pExp->base.pParam[0].pCol, code, lino, _end, terrno);
+
     pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
   } else if (type == QUERY_NODE_VALUE) {
     pExp->pExpr->nodeType = QUERY_NODE_VALUE;
@@ -1761,6 +1769,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         pExp->base.pParam[j].type = FUNC_PARAM_TYPE_COLUMN;
         pExp->base.pParam[j].pCol =
             createColumn(pcn->dataBlockId, pcn->slotId, pcn->colId, &pcn->node.resType, pcn->colType);
+        QUERY_CHECK_NULL(pExp->base.pParam[j].pCol, code, lino, _end, terrno);
       } else if (p1->type == QUERY_NODE_VALUE) {
         SValueNode* pvn = (SValueNode*)p1;
         pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
@@ -2324,7 +2333,9 @@ void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psu
 
 uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
-  ASSERT(pTableList->map != NULL && slot != NULL);
+  if (slot == NULL) {
+    return -1;
+  }
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
   ASSERT(pKeyInfo->uid == tableUid);
@@ -2407,11 +2418,10 @@ bool oneTableForEachGroup(const STableListInfo* pTableList) { return pTableList-
 STableListInfo* tableListCreate() {
   STableListInfo* pListInfo = taosMemoryCalloc(1, sizeof(STableListInfo));
   if (pListInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pListInfo->remainGroups = NULL;
 
+  pListInfo->remainGroups = NULL;
   pListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
   if (pListInfo->pTableList == NULL) {
     goto _error;
@@ -2427,7 +2437,6 @@ STableListInfo* tableListCreate() {
 
 _error:
   tableListDestroy(pListInfo);
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;
 }
 
@@ -2437,7 +2446,6 @@ void tableListDestroy(STableListInfo* pTableListInfo) {
   }
 
   taosArrayDestroy(pTableListInfo->pTableList);
-  pTableListInfo->pTableList = NULL;
   taosMemoryFreeClear(pTableListInfo->groupOffset);
 
   taosHashCleanup(pTableListInfo->map);
