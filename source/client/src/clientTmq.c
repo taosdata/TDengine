@@ -480,7 +480,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncoderInit(&encoder, abuf, len);
   tEncodeMqVgOffset(&encoder, &pOffset);
   tEncoderClear(&encoder);
@@ -2890,7 +2890,7 @@ int64_t getCommittedFromServer(tmq_t *tmq, char* tname, int32_t vgId, SEpSet* ep
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncoderInit(&encoder, abuf, len);
   tEncodeMqVgOffset(&encoder, &pOffset);
   tEncoderClear(&encoder);
