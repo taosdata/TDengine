@@ -23,7 +23,7 @@ TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送�
 1. Linux 操作系统
 2. 已安装 Java 8 和 Maven
 3. 已安装 Git、curl、vi
-4. 已安装并启动 TDengine。如果还没有可参考[安装和卸载](../../get-started/)
+4. 已安装并启动 TDengine。如果还没有可参考[安装和卸载](../../../get-started/)
 
 ## 安装 Kafka
 
@@ -93,7 +93,7 @@ curl http://localhost:8083/connectors
 
 TDengine Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database）， 也可按一定规则生成(见配置参数 connection.database.prefix)。
 
-TDengine Sink Connector 内部使用 TDengine [无模式写入接口](../../connector/cpp/#无模式schemaless写入-api)写数据到 TDengine，目前支持三种格式的数据：[InfluxDB 行协议格式](../../develop/insert-data/influxdb-line)、 [OpenTSDB Telnet 协议格式](../../develop/insert-data/opentsdb-telnet) 和 [OpenTSDB JSON 协议格式](../../develop/insert-data/opentsdb-json)。
+TDengine Sink Connector 内部使用 TDengine [无模式写入接口](../../../develop/schemaless)写数据到 TDengine，目前支持三种格式的数据：InfluxDB 行协议格式，OpenTSDB Telnet 协议格式，和 OpenTSDB JSON 协议格式。
 
 下面的示例将主题 meters 的数据，同步到目标数据库 power。数据格式为 InfluxDB Line 协议格式。
 
@@ -212,7 +212,7 @@ Query OK, 4 row(s) in set (0.004208s)
 
 TDengine Source Connector 的作用是将 TDengine 某个数据库某一时刻之后的数据全部推送到 Kafka。TDengine Source Connector 的实现原理是，先分批拉取历史数据，再用定时查询的策略同步增量数据。同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect, 会从上次中断的位置继续同步。
 
-TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](../../develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](../../develop/insert-data/opentsdb-json)， 然后写入 Kafka。
+TDengine Source Connector 会将 TDengine 数据表中的数据转换成 InfluxDB Line 协议格式 或 OpenTSDB JSON 协议格式然后写入 Kafka。
 
 下面的示例程序同步数据库 test 中的数据到主题 tdengine-test-meters。
 
