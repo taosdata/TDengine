@@ -104,7 +104,7 @@ class FunctionMap(Enum):
     }
     BINARY = {
         'types': ['VARBINARY'],
-        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+        'mathFuncs': [],
         'strFuncs': ['LENGTH'],
         'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
@@ -115,7 +115,7 @@ class FunctionMap(Enum):
     }
     BOOLEAN = {
         'types': ['BOOL'],
-        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+        'mathFuncs': [],
         'strFuncs': [],
         'timeFuncs': ['NOW', 'TIMEDIFF'],
         'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
@@ -126,7 +126,7 @@ class FunctionMap(Enum):
     }
     TIMESTAMP = {
         'types': ['TIMESTAMP'],
-        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+        'mathFuncs': [],
         'strFuncs': [],
         'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
         'aggFuncs': ['ELAPSED', 'SPREAD'],
@@ -135,6 +135,7 @@ class FunctionMap(Enum):
         'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
         'castTypes': []
     }
+    # TODO sysinfoFuncs and geometryFuncs
 
 TdColumns = Dict[str, TdDataType]
 TdTags    = Dict[str, TdDataType]

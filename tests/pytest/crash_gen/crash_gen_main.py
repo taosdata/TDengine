@@ -52,7 +52,7 @@ from .service_manager import ServiceManager, TdeInstance
 from .shared.config import Config
 from .shared.db import DbConn, DbManager, DbConnNative, MyTDSql
 from .shared.misc import Dice, Logging, Helper, Status, CrashGenError, Progress
-from .shared.types import TdDataType, DataBoundary
+from .shared.types import TdDataType, DataBoundary, FunctionMap
 from .shared.common import TDCom
 from util.types import TDSmlProtocolType, TDSmlTimestampType
 
@@ -2438,6 +2438,11 @@ class TdSuperTable:
             # Run the query against the regular table first
             doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
             if not doAggr:  # don't do aggregate query, just simple one
+                query_parts = []
+                for colName, colType in selectItems.items():
+                    for groupKey, group in FunctionMap:
+                        query_parts.append(colName)
+                
                 commonExpr = Dice.choice([
                     '*',
                     'abs(speed)',
