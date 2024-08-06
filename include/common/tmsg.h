@@ -2747,9 +2747,11 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE        1
-#define STREAM_TRIGGER_WINDOW_CLOSE   2
-#define STREAM_TRIGGER_MAX_DELAY      3
+#define STREAM_TRIGGER_AT_ONCE            1
+#define STREAM_TRIGGER_WINDOW_CLOSE       2
+#define STREAM_TRIGGER_MAX_DELAY          3
+#define STREAM_TRIGGER_FORCE_WINDOW_CLOSE 4
+
 #define STREAM_DEFAULT_IGNORE_EXPIRED 1
 #define STREAM_FILL_HISTORY_ON        1
 #define STREAM_FILL_HISTORY_OFF       0
@@ -2812,8 +2814,8 @@ enum {
   TOPIC_SUB_TYPE__COLUMN,
 };
 
-#define DEFAULT_MAX_POLL_INTERVAL      3000000
-#define DEFAULT_SESSION_TIMEOUT        12000
+#define DEFAULT_MAX_POLL_INTERVAL 3000000
+#define DEFAULT_SESSION_TIMEOUT   12000
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic

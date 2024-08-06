@@ -128,10 +128,8 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   pState->pFileState = NULL;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
   pState->parNameMap = tSimpleHashInit(1024, hashFn);
-  if (!pState->parNameMap) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  QUERY_CHECK_NULL(pState->parNameMap, code, lino, _end, terrno);
+
   stInfo("open state %p on backend %p 0x%" PRIx64 "-%d succ", pState, pMeta->streamBackend, pState->streamId,
          pState->taskId);
   return pState;
@@ -201,14 +199,10 @@ _end:
   return code;
 }
 
-// todo refactor
-int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
-  return 0;
-  // return streamStatePut_rocksdb(pState, key, value, vLen);
-}
+int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) { return 0; }
 
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
-  return getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen, pWinCode);
+  return addRowBuffIfNotExist(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen, pWinCode);
 }
 
 bool streamStateCheck(SStreamState* pState, const SWinKey* key) {
@@ -221,33 +215,36 @@ int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal) {
   return code;
 }
 
-// todo refactor
 void streamStateDel(SStreamState* pState, const SWinKey* key) {
   deleteRowBuff(pState->pFileState, key, sizeof(SWinKey));
 }
 
-// todo refactor
 int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
   return streamStateFillPut_rocksdb(pState, key, value, vLen);
 }
 
-// todo refactor
 int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
   if (pState->pFileState) {
-    return getHashSortRowBuff(pState->pFileState, key, pVal, pVLen, pWinCode);
+    return getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen, pWinCode);
   }
   return streamStateFillGet_rocksdb(pState, key, pVal, pVLen);
 }
 
-int32_t streamStateFillGetNext(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
-  return getHashSortNextRow(pState->pFileState, pKey, pResKey, pVal, pVLen, pWinCode); 
+int32_t streamStateFillAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+                                     int32_t* pWinCode) {
+  return getHashSortRowBuff(pState->pFileState, key, pVal, pVLen, pWinCode);
 }
 
-int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
+int32_t streamStateFillGetNext(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
+                               int32_t* pWinCode) {
+  return getHashSortNextRow(pState->pFileState, pKey, pResKey, pVal, pVLen, pWinCode);
+}
+
+int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal, int32_t* pVLen,
+                               int32_t* pWinCode) {
   return getHashSortPrevRow(pState->pFileState, pKey, pResKey, pVal, pVLen, pWinCode);
 }
 
-// todo refactor
 void streamStateFillDel(SStreamState* pState, const SWinKey* key) {
   if (pState->pFileState) {
     deleteHashSortRowBuff(pState->pFileState, key);
@@ -295,7 +292,6 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 }
 
 void streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used) {
-  // todo refactor
   if (!pVal) {
     return;
   }
@@ -458,7 +454,6 @@ int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, 
 
 int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, char* pKeyData, int32_t keyDataLen,
                                       state_key_cmpr_fn fn, void** pVal, int32_t* pVLen, int32_t* pWinCode) {
-  // todo refactor
   return getStateWinResultBuff(pState->pFileState, key, pKeyData, keyDataLen, fn, pVal, pVLen, pWinCode);
 }
 
@@ -555,4 +550,26 @@ int32_t streamStateCountWinAddIfNotExist(SStreamState* pState, SSessionKey* pKey
 
 int32_t streamStateCountWinAdd(SStreamState* pState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
   return createCountWinResultBuff(pState->pFileState, pKey, pVal, pVLen);
+}
+
+int32_t streamStateGroupPut(SStreamState* pState, int64_t groupId, void* value, int32_t vLen) {
+  return streamFileStateGroupPut(pState->pFileState, groupId, value, vLen);
+}
+
+SStreamStateCur* streamStateGroupGetCur(SStreamState* pState) {
+  SStreamStateCur* pCur = createStateCursor(pState->pFileState);
+  pCur->hashIter = 0;
+  pCur->pHashData = NULL;
+  return pCur;
+}
+
+void streamStateGroupCurNext(SStreamStateCur* pCur) {
+  streamFileStateGroupCurNext(pCur);
+}
+
+int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen) {
+  if (pVal != NULL) {
+    return -1;
+  }
+  return streamFileStateGroupGetKVByCur(pCur, pKey, pVal, pVLen);
 }

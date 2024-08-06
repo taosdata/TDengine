@@ -326,6 +326,9 @@ typedef struct {
   int64_t number;
   void*   pStreamFileState;
   int32_t buffIndex;
+  int32_t hashIter;
+  void*   pHashData;
+  int64_t minGpId;
 } SStreamStateCur;
 
 typedef struct SStateStore {
@@ -352,6 +355,8 @@ typedef struct SStateStore {
   int32_t (*streamStateFillPut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
   int32_t (*streamStateFillGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
                                 int32_t* pWinCode);
+  int32_t (*streamStateFillAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
+                                          int32_t* pWinCode);
   void (*streamStateFillDel)(SStreamState* pState, const SWinKey* key);
   int32_t (*streamStateFillGetNext)(SStreamState* pState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
                                     int32_t* pVLen, int32_t* pWinCode);
@@ -417,6 +422,11 @@ typedef struct SStateStore {
   struct SStreamFileState* (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize,
                                                   uint32_t selectRowSize, GetTsFun fp, void* pFile, TSKEY delMark,
                                                   const char* id, int64_t ckId, int8_t type);
+  
+  int32_t (*streamStateGroupPut)(SStreamState* pState, int64_t groupId, void* value, int32_t vLen);
+  SStreamStateCur* (*streamStateGroupGetCur)(SStreamState* pState);
+  void (*streamStateGroupCurNext)(SStreamStateCur* pCur);
+  int32_t (*streamStateGroupGetKVByCur)(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
 
   void (*streamFileStateDestroy)(struct SStreamFileState* pFileState);
   void (*streamFileStateClear)(struct SStreamFileState* pFileState);

@@ -1483,7 +1483,11 @@ static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t grou
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, groupColIndex);
   uint64_t*        groupCol = (uint64_t*)pColInfo->pData;
   ASSERT(rowIndex < pBlock->info.rows);
-  pInfo->groupId = groupCol[rowIndex];
+  if (colDataIsNull_s(pColInfo, rowIndex)) {
+    pInfo->igCheckGroupId = true;
+  } else {
+    pInfo->groupId = groupCol[rowIndex];
+  }
 }
 
 void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint64_t ver) {
@@ -1751,6 +1755,12 @@ static int32_t doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t ts
       continue;
     }
 
+    if (pInfo->igCheckGroupId == true) {
+      pResult->info.calWin = pInfo->updateWin;
+      (*ppRes) = pResult;
+      goto _end;
+    }
+
     if (pInfo->partitionSup.needCalc) {
       SSDataBlock* tmpBlock = NULL;
       code = createOneDataBlock(pResult, true, &tmpBlock);
@@ -1825,10 +1835,10 @@ int32_t appendOneRowToSpecialBlockImpl(SSDataBlock* pBlock, TSKEY* pStartTs, TSK
   code = colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)pEndTs, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = colDataSetVal(pUidCol, pBlock->info.rows, (const char*)pUid, false);
+  code = colDataSetVal(pUidCol, pBlock->info.rows, (const char*)pUid, pUid == NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = colDataSetVal(pGpCol, pBlock->info.rows, (const char*)pGp, false);
+  code = colDataSetVal(pGpCol, pBlock->info.rows, (const char*)pGp, pGp == NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = colDataSetVal(pCalStartCol, pBlock->info.rows, (const char*)pCalStartTs, false);
@@ -2065,8 +2075,8 @@ _end:
   return code;
 }
 
-int32_t getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SInterval* pInterval, TSKEY start, TSKEY end, int64_t groupId,
-                          STimeWindow* pScanRange, STimeWindow* pDelRange) {
+int32_t getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SInterval* pInterval, TSKEY start, TSKEY end,
+                             int64_t groupId, STimeWindow* pScanRange, STimeWindow* pDelRange) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   int32_t        winCode = TSDB_CODE_SUCCESS;
@@ -2161,7 +2171,7 @@ static int32_t generateTimeSliceScanRange(SStreamScanInfo* pInfo, SSDataBlock* p
     STimeWindow delRange = {0};
     ASSERT(mode == STREAM_DELETE_RESULT || mode == STREAM_DELETE_DATA);
     code = getTimeSliceWinRange(pInfo->windowSup.pStreamAggSup, &pInfo->interval, startData[i], endData[i], groupId,
-                         &scanRange, &delRange);
+                                &scanRange, &delRange);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = colDataSetVal(pDestStartCol, i, (const char*)&scanRange.skey, false);
@@ -3157,6 +3167,12 @@ static bool isStreamWindow(SStreamScanInfo* pInfo) {
          isTimeSlice(pInfo);
 }
 
+static int32_t copyGetResultBlock(SSDataBlock* dest, const SSDataBlock* src) {
+  TSKEY start = src->info.window.skey;
+  TSKEY end = src->info.window.ekey;
+  return appendDataToSpecialBlock(dest, &start, &end, NULL, NULL, NULL);
+}
+
 static int32_t doStreamScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   // NOTE: this operator does never check if current status is done or not
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -3380,13 +3396,22 @@ FETCH_NEXT_BLOCK:
           }
         }
       } break;
+      case STREAM_GET_RESULT: {
+        pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+        pInfo->updateResIndex = 0;
+        code = copyGetResultBlock(pInfo->pUpdateRes, pBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pInfo->pUpdateInfo->maxDataVersion = pBlock->info.version;
+        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+      } break;
       case STREAM_CHECKPOINT: {
         qError("stream check point error. msg type: STREAM_INPUT__DATA_BLOCK");
       } break;
       default:
         break;
     }
-    printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "block recv", GET_TASKID(pTaskInfo));
     setStreamOperatorState(&pInfo->basic, pBlock->info.type);
     (*ppRes) = pBlock;
     return code;
@@ -4129,6 +4154,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->windowSup = (SWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
   pInfo->groupId = 0;
+  pInfo->igCheckGroupId = false;
   pInfo->pStreamScanOp = pOperator;
   pInfo->deleteDataIndex = 0;
   code = createSpecialDataBlock(STREAM_DELETE_DATA, &pInfo->pDeleteDataRes);

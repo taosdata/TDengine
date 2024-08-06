@@ -56,6 +56,8 @@ bool              needClearDiskBuff(SStreamFileState* pFileState);
 void              streamFileStateReleaseBuff(SStreamFileState* pFileState, SRowBuffPos* pPos, bool used);
 void              streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
+int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
+                             int32_t* pWinCode);
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen,
                    int32_t* pWinCode);
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
@@ -98,6 +100,7 @@ void         recoverSesssion(SStreamFileState* pFileState, int64_t ckId);
 void sessionWinStateClear(SStreamFileState* pFileState);
 void sessionWinStateCleanup(void* pBuff);
 
+SStreamStateCur* createStateCursor(SStreamFileState* pFileState);
 SStreamStateCur* sessionWinStateSeekKeyCurrentPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyCurrentNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
@@ -135,6 +138,11 @@ int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SW
                            int32_t* pVLen, int32_t* pWinCode);
 int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId);
 void    deleteHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey);
+
+//group
+int32_t streamFileStateGroupPut(SStreamFileState* pFileState, int64_t groupId, void* value, int32_t vLen);
+void streamFileStateGroupCurNext(SStreamStateCur* pCur);
+int32_t streamFileStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** pVal, int32_t* pVLen);
 
 #ifdef __cplusplus
 }

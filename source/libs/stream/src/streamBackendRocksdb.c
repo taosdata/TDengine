@@ -4166,7 +4166,6 @@ _end:
   return res;
 }
 
-#ifdef BUILD_NO_CALL
 //  partag cf
 int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen) {
   int code = 0;
@@ -4174,6 +4173,60 @@ int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, cons
   return code;
 }
 
+void streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t groupId, SStreamStateCur* pCur) {
+  if (pCur == NULL) {
+    return ;
+  }
+  STaskDbWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
+  pCur->number = pState->number;
+  pCur->db = wrapper->db;
+  pCur->iter = streamStateIterCreate(pState, "partag", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
+  int i = streamStateGetCfIdx(pState, "partag");
+  if (i < 0) {
+    stError("streamState failed to put to cf name:%s", "partag");
+    return ;
+  }
+
+  char    buf[128] = {0};
+  int32_t klen = ginitDict[i].enFunc((void*)&groupId, buf);
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, klen)) {
+    streamStateFreeCur(pCur);
+    return ;
+  }
+  // skip ttl expired data
+  while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
+    rocksdb_iter_next(pCur->iter);
+  }
+}
+
+int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal, int32_t* pVLen) {
+  stDebug("streamStateFillGetKVByCur_rocksdb");
+  if (!pCur) {
+    return -1;
+  }
+  SWinKey winKey;
+  if (!rocksdb_iter_valid(pCur->iter) || iterValueIsStale(pCur->iter)) {
+    return -1;
+  }
+
+  size_t klen, vlen;
+  char*  keyStr = (char*)rocksdb_iter_key(pCur->iter, &klen);
+  (void)parKeyDecode(pGroupId, keyStr);
+
+  if (pVal) {
+    const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
+    int32_t     len = valueDecode((void*)valStr, vlen, NULL, (char**)pVal);
+    if (len < 0) {
+      return -1;
+    }
+    if (pVLen != NULL) *pVLen = len;
+  }
+
+  return 0;
+}
+
+#ifdef BUILD_NO_CALL
 int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen) {
   int code = 0;
   STREAM_STATE_GET_ROCKSDB(pState, "partag", &groupId, tagVal, tagLen);

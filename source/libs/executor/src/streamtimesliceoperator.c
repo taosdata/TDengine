@@ -591,7 +591,7 @@ static TSKEY adustEndTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval) {
 }
 static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, TSKEY ts,
                                             int64_t groupId, SSlicePoint* pCurPoint, SSlicePoint* pPrevPoint,
-                                            SSlicePoint* pNextPoint, int32_t* pWinCode) {
+                                            SSlicePoint* pNextPoint) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t tmpRes = TSDB_CODE_SUCCESS;
@@ -605,7 +605,7 @@ static int32_t getLinearResultInfoFromState(SStreamAggSupporter* pAggSup, SStrea
   pCurPoint->key.ts = ts;
   int32_t curVLen = 0;
   code =
-      pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen, pWinCode);
+      pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen, &tmpRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
   setPointBuff(pCurPoint, pFillSup);
@@ -674,7 +674,7 @@ _end:
 
 static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, TSKEY ts,
                                       int64_t groupId, SSlicePoint* pCurPoint, SSlicePoint* pPrevPoint,
-                                      SSlicePoint* pNextPoint, int32_t* pWinCode) {
+                                      SSlicePoint* pNextPoint) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t tmpRes = TSDB_CODE_SUCCESS;
@@ -688,13 +688,16 @@ static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillS
   pCurPoint->key.ts = ts;
   int32_t curVLen = 0;
   code =
-      pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen, pWinCode);
+      pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen, &tmpRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  setPointBuff(pCurPoint, pFillSup);
-
-  pFillSup->cur.key = pCurPoint->pRightRow->key;
-  pFillSup->cur.pRowVal = pCurPoint->pRightRow->pRowVal;
+  if (tmpRes == TSDB_CODE_SUCCESS) {
+    setPointBuff(pCurPoint, pFillSup);
+    pFillSup->cur.key = pCurPoint->pRightRow->key;
+    pFillSup->cur.pRowVal = pCurPoint->pRightRow->pRowVal;
+  } else {
+    pFillSup->cur.key = pCurPoint->key.ts + 1;
+  }
 
   pPrevPoint->key.groupId = groupId;
   int32_t preVLen = 0;
@@ -755,8 +758,8 @@ static int32_t getPointInfoFromStateRight(SStreamAggSupporter* pAggSup, SStreamF
   pNextPoint->key.ts = stw.skey;
 
   int32_t curVLen = 0;
-  code = pAggSup->stateStore.streamStateFillGet(pState, &pNextPoint->key, (void**)&pNextPoint->pResPos, &curVLen,
-                                                pWinCode);
+  code = pAggSup->stateStore.streamStateFillAddIfNotExist(pState, &pNextPoint->key, (void**)&pNextPoint->pResPos,
+                                                          &curVLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
   setPointBuff(pNextPoint, pFillSup);
@@ -800,8 +803,8 @@ static int32_t getPointInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSu
   pCurPoint->key.ts = ts;
 
   int32_t curVLen = 0;
-  code =
-      pAggSup->stateStore.streamStateFillGet(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos, &curVLen, pWinCode);
+  code = pAggSup->stateStore.streamStateFillAddIfNotExist(pState, &pCurPoint->key, (void**)&pCurPoint->pResPos,
+                                                          &curVLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
   setPointBuff(pCurPoint, pFillSup);
@@ -828,8 +831,8 @@ static int32_t getPointInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSu
   } else {
     pNextPoint->key.ts = taosTimeAdd(pCurPoint->key.ts, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                      pFillSup->interval.precision);
-    code = pAggSup->stateStore.streamStateFillGet(pState, &pNextPoint->key, (void**)&pNextPoint->pResPos, &nextVLen,
-                                                  &tmpRes);
+    code = pAggSup->stateStore.streamStateFillAddIfNotExist(pState, &pNextPoint->key, (void**)&pNextPoint->pResPos,
+                                                            &nextVLen, &tmpRes);
     QUERY_CHECK_CODE(code, lino, _end);
     setPointBuff(pNextPoint, pFillSup);
     if (tmpRes != TSDB_CODE_SUCCESS) {
@@ -1021,6 +1024,30 @@ static void transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKE
   pRowVal->key = ts;
 }
 
+static int32_t saveTimeSliceWinResultInfo(SStreamAggSupporter* pAggSup, int8_t trigger, SWinKey* pKey,
+                                          SSHashObj* pUpdatedMap, bool needDel, SSHashObj* pDeletedMap) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (trigger == STREAM_TRIGGER_AT_ONCE) {
+    code = saveTimeSliceWinResult(pKey, pUpdatedMap);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (needDel) {
+      code = saveTimeSliceWinResult(pKey, pDeletedMap);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  } else if (trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+    code = pAggSup->stateStore.streamStateGroupPut(pAggSup->pState, pKey->groupId, NULL, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
@@ -1088,10 +1115,9 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
   right = needAdjustValue(&curPoint, tsCols[startPos], false, pFillSup->type);
   if (right) {
     transBlockToResultRow(pBlock, startPos, tsCols[startPos], curPoint.pRightRow);
-    saveTimeSliceWinResult(&curPoint.key, pInfo->pUpdatedMap);
-    if (pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS) {
-      saveTimeSliceWinResult(&curPoint.key, pInfo->pDeletedMap);
-    }
+    bool needDel = pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS;
+    saveTimeSliceWinResultInfo(pAggSup, pInfo->twAggSup.calTrigger, &curPoint.key, pInfo->pUpdatedMap, needDel,
+                               pInfo->pDeletedMap);
   }
   releaseOutputBuf(pAggSup->pState, curPoint.pResPos, &pAggSup->stateStore);
 
@@ -1103,10 +1129,9 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
     left = needAdjustValue(&nextPoint, tsCols[leftRowId], true, pFillSup->type);
     if (left) {
       transBlockToResultRow(pBlock, leftRowId, tsCols[leftRowId], nextPoint.pLeftRow);
-      saveTimeSliceWinResult(&nextPoint.key, pInfo->pUpdatedMap);
-      if (pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS) {
-        saveTimeSliceWinResult(&curPoint.key, pInfo->pDeletedMap);
-      }
+      bool needDel = pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS;
+      saveTimeSliceWinResultInfo(pAggSup, pInfo->twAggSup.calTrigger, &nextPoint.key, pInfo->pUpdatedMap, needDel,
+                                 pInfo->pDeletedMap);
     }
     releaseOutputBuf(pAggSup->pState, nextPoint.pResPos, &pAggSup->stateStore);
 
@@ -1125,10 +1150,9 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
     right = needAdjustValue(&curPoint, tsCols[startPos], false, pFillSup->type);
     if (right) {
       transBlockToResultRow(pBlock, startPos, tsCols[startPos], curPoint.pRightRow);
-      saveTimeSliceWinResult(&curPoint.key, pInfo->pUpdatedMap);
-      if (pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS) {
-        saveTimeSliceWinResult(&curPoint.key, pInfo->pDeletedMap);
-      }
+      bool needDel = pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS;
+      saveTimeSliceWinResultInfo(pAggSup, pInfo->twAggSup.calTrigger, &curPoint.key, pInfo->pUpdatedMap, needDel,
+                                 pInfo->pDeletedMap);
     }
     releaseOutputBuf(pAggSup->pState, curPoint.pResPos, &pAggSup->stateStore);
   }
@@ -1162,13 +1186,11 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSuppor
     SSlicePoint curPoint = {.key.ts = pKey->ts, .key.groupId = pKey->groupId};
     SSlicePoint prevPoint = {0};
     SSlicePoint nextPoint = {0};
-    int32_t     winCode = TSDB_CODE_SUCCESS;
     if (pFillSup->type != TSDB_FILL_LINEAR) {
-      code = getResultInfoFromState(pAggSup, pFillSup, pKey->ts, pKey->groupId, &curPoint, &prevPoint, &nextPoint,
-                                    &winCode);
+      code = getResultInfoFromState(pAggSup, pFillSup, pKey->ts, pKey->groupId, &curPoint, &prevPoint, &nextPoint);
     } else {
-      code = getLinearResultInfoFromState(pAggSup, pFillSup, pKey->ts, pKey->groupId, &curPoint, &prevPoint, &nextPoint,
-                                          &winCode);
+      code =
+          getLinearResultInfoFromState(pAggSup, pFillSup, pKey->ts, pKey->groupId, &curPoint, &prevPoint, &nextPoint);
     }
     QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1291,6 +1313,28 @@ _end:
   return code;
 }
 
+static int32_t setAllResultKey(SStreamAggSupporter* pAggSup, TSKEY ts, SSHashObj* pUpdatedMap) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  int64_t          groupId = 0;
+  SStreamStateCur* pCur = pAggSup->stateStore.streamStateGroupGetCur(pAggSup->pState);
+  int32_t          winCode = pAggSup->stateStore.streamStateGroupGetKVByCur(pCur, &groupId, NULL, NULL);
+  if (winCode != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+  SWinKey key = {.ts = ts, .groupId = groupId};
+  code = saveTimeSliceWinResult(&key, pUpdatedMap);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pAggSup->stateStore.streamStateGroupCurNext(pCur);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
@@ -1376,6 +1420,10 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
         (*ppRes) = pBlock;
         goto _end;
       } break;
+      case STREAM_GET_RESULT: {
+        setAllResultKey(pAggSup, pBlock->info.window.skey, pInfo->pUpdatedMap);
+        continue;
+      }
       default:
         ASSERTS(false, "invalid SSDataBlock type");
     }

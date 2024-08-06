@@ -32,7 +32,7 @@ int32_t getHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, vo
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  code = getRowBuff(pFileState, (void*)pKey, sizeof(SWinKey), pVal, pVLen, pWinCode);
+  code = addRowBuffIfNotExist(pFileState, (void*)pKey, sizeof(SWinKey), pVal, pVLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
   SArray*    pWinStates = NULL;

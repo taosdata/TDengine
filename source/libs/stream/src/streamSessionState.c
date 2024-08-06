@@ -73,7 +73,7 @@ bool inSessionWindow(SSessionKey* pKey, TSKEY ts, int64_t gap) {
   return false;
 }
 
-SStreamStateCur* createSessionStateCursor(SStreamFileState* pFileState) {
+SStreamStateCur* createStateCursor(SStreamFileState* pFileState) {
   SStreamStateCur* pCur = createStreamStateCursor();
   pCur->pStreamFileState = pFileState;
   return pCur;
@@ -527,7 +527,7 @@ static SStreamStateCur* seekKeyCurrentPrev_buff(SStreamFileState* pFileState, co
   }
 
   if (index >= 0) {
-    pCur = createSessionStateCursor(pFileState);
+    pCur = createStateCursor(pFileState);
     pCur->buffIndex = index;
     if (pIndex) {
       *pIndex = index;
@@ -568,7 +568,7 @@ static void checkAndTransformCursor(SStreamFileState* pFileState, const uint64_t
   if (taosArrayGetSize(pWinStates) > 0 &&
       (code == TSDB_CODE_FAILED || sessionStateKeyCompare(&key, pWinStates, 0) >= 0)) {
     if (!(*ppCur)) {
-      (*ppCur) = createSessionStateCursor(pFileState);
+      (*ppCur) = createStateCursor(pFileState);
     }
     transformCursor(pFileState, *ppCur);
   } else if (*ppCur) {
@@ -628,7 +628,7 @@ SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SS
     }
     pBuffCur->buffIndex = 0;
   } else if (taosArrayGetSize(pWinStates) > 0) {
-    pBuffCur = createSessionStateCursor(pFileState);
+    pBuffCur = createStateCursor(pFileState);
     pBuffCur->buffIndex = 0;
   }
 

@@ -476,6 +476,7 @@ typedef struct SStreamScanInfo {
   STqReader*   tqReader;
 
   uint64_t            groupId;
+  bool                igCheckGroupId;
   struct SUpdateInfo* pUpdateInfo;
 
   EStreamScanMode       scanMode;
