@@ -87,6 +87,10 @@ int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpda
 
   for (int32_t i = 0; i < size; ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pMsg->pNodeList, i);
+    if (pInfo == NULL) {
+      return terrno;
+    }
+
     if (tEncodeI32(pEncoder, pInfo->nodeId) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pInfo->prevEp) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pInfo->newEp) < 0) return -1;
@@ -228,10 +232,14 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
   ASSERT(taosArrayGetSize(pReq->dataLen) == pReq->blockNum);
   for (int32_t i = 0; i < pReq->blockNum; i++) {
-    int32_t len = *(int32_t*)taosArrayGet(pReq->dataLen, i);
-    void*   data = taosArrayGetP(pReq->data, i);
-    if (tEncodeI32(pEncoder, len) < 0) return -1;
-    if (tEncodeBinary(pEncoder, data, len) < 0) return -1;
+    int32_t* pLen = taosArrayGet(pReq->dataLen, i);
+    void*    data = taosArrayGetP(pReq->data, i);
+    if (data == NULL || pLen == NULL) {
+      return terrno;
+    }
+
+    if (tEncodeI32(pEncoder, *pLen) < 0) return -1;
+    if (tEncodeBinary(pEncoder, data, *pLen) < 0) return -1;
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -341,6 +349,10 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
 
   for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
     STaskStatusEntry* ps = taosArrayGet(pReq->pTaskStatus, i);
+    if (ps == NULL) {
+      return terrno;
+    }
+
     if (tEncodeI64(pEncoder, ps->id.streamId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->id.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
@@ -378,6 +390,10 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
 
   for (int j = 0; j < numOfVgs; ++j) {
     int32_t* pVgId = taosArrayGet(pReq->pUpdateNodes, j);
+    if (pVgId == NULL) {
+      return terrno;
+    }
+
     if (tEncodeI32(pEncoder, *pVgId) < 0) return -1;
   }
 

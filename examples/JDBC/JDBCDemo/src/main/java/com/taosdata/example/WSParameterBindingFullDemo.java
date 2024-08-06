@@ -22,21 +22,29 @@ public class WSParameterBindingFullDemo {
     public static void main(String[] args) throws SQLException {
 
         String jdbcUrl = "jdbc:TAOS-RS://" + host + ":6041/?batchfetch=true";
-        Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
 
-        init(conn);
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
 
-        bindInteger(conn);
+            init(conn);
 
-        bindFloat(conn);
+            bindInteger(conn);
 
-        bindBoolean(conn);
+            bindFloat(conn);
 
-        bindBytes(conn);
+            bindBoolean(conn);
 
-        bindString(conn);
+            bindBytes(conn);
 
-        conn.close();
+            bindString(conn);
+
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw ex;
+        } catch (Exception ex){
+            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+            throw ex;
+        }
     }
 
     private static void init(Connection conn) throws SQLException {

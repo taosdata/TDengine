@@ -31,20 +31,27 @@ public class ParameterBindingFullDemo {
     public static void main(String[] args) throws SQLException {
 
         String jdbcUrl = "jdbc:TAOS://" + host + ":6030/";
-        Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
 
-        init(conn);
+            init(conn);
 
-        bindInteger(conn);
-        bindFloat(conn);
-        bindBoolean(conn);
-        bindBytes(conn);
-        bindString(conn);
-        bindVarbinary(conn);
-        bindGeometry(conn);
+            bindInteger(conn);
+            bindFloat(conn);
+            bindBoolean(conn);
+            bindBytes(conn);
+            bindString(conn);
+            bindVarbinary(conn);
+            bindGeometry(conn);
 
-        clean(conn);
-        conn.close();
+            clean(conn);
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw ex;
+        } catch (Exception ex){
+            System.out.println("Failed to insert to table meters using stmt, url: " + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+            throw ex;
+        }
     }
 
     private static void init(Connection conn) throws SQLException {
