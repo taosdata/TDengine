@@ -4004,7 +4004,7 @@ export function getDataSources(lang) {
                 "short_description": "Set whether to trust the server certificate.",
                 "description": "Set whether to trust the server certificate.",
                 "placeholder": "Please select whether to trust the server certificate",
-                "value": "false"
+                "value": "true"
               },
               {
                 "name": "trust_cert_ca",
@@ -8485,7 +8485,7 @@ export function getDataSources(lang) {
                 "short_description": "设置是否信任服务器证书。",
                 "description": "设置是否信任服务器证书。",
                 "placeholder": "请选择是否信任证书",
-                "value": "false"
+                "value": "true"
               },
               {
                 "name": "trust_cert_ca",
