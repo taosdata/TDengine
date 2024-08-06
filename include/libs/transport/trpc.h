@@ -125,6 +125,7 @@ typedef struct SRpcInit {
   int32_t timeToGetConn;
   int8_t  supportBatch;  // 0: no batch, 1. batch
   int32_t batchSize;
+  int8_t notWaitAvaliableConn;  // 1: wait to get, 0: no wait  
   void   *parent;
 } SRpcInit;
 
