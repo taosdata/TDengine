@@ -1428,6 +1428,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
 _error:
   if (pInfo != NULL) {
+    pInfo->base.pTableListInfo = NULL;   // this attribute will be destroy outside of this function
     destroyTableScanOperatorInfo(pInfo);
   }
 
@@ -3898,7 +3899,6 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
 
   if (pInfo == NULL || pOperator == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    tableListDestroy(pTableListInfo);
     goto _error;
   }
 
@@ -3911,7 +3911,6 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   int32_t numOfCols = 0;
   code = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    tableListDestroy(pTableListInfo);
     goto _error;
   }
 
@@ -3942,8 +3941,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   if (pTableScanNode->pSubtable != NULL) {
     SExprInfo* pSubTableExpr = taosMemoryCalloc(1, sizeof(SExprInfo));
     if (pSubTableExpr == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      tableListDestroy(pTableListInfo);
+      code = terrno;
       goto _error;
     }
 
@@ -3952,7 +3950,6 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     QUERY_CHECK_CODE(code, lino, _error);
 
     if (initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1, &pTaskInfo->storageAPI.functionStore) != 0) {
-      tableListDestroy(pTableListInfo);
       goto _error;
     }
   }
@@ -3962,20 +3959,17 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     SExprInfo* pTagExpr = createExpr(pTableScanNode->pTags, &numOfTags);
     if (pTagExpr == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      tableListDestroy(pTableListInfo);
       goto _error;
     }
     if (initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags, &pTaskInfo->storageAPI.functionStore) != 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      tableListDestroy(pTableListInfo);
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
     }
   }
 
   pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedData));
   if (pInfo->pBlockLists == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tableListDestroy(pTableListInfo);
+    code = terrno;
     goto _error;
   }
 
@@ -4671,6 +4665,10 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
   return code;
 
 _error:
+  if (pInfo) {
+    pInfo->pTableListInfo = NULL;
+  }
+
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   return code;
@@ -5916,7 +5914,8 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   return code;
 
 _error:
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  pTaskInfo->code = code;
+  pInfo->base.pTableListInfo = NULL;
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   return code;

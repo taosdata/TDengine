@@ -469,10 +469,10 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
     int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
                                       "sortExternalBuf", tsTempDir);
-    dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+    dBufSetPrintInfo(pHandle->pBuf);
   }
 
   SArray* pPageIdList = taosArrayInit(4, sizeof(int32_t));
@@ -562,10 +562,10 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
 
     code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
                               "sortComparInit", tsTempDir);
-    dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
       return code;
+    } else {
+      dBufSetPrintInfo(pHandle->pBuf);
     }
   }
 
@@ -1111,9 +1111,10 @@ static int32_t createPageBuf(SSortHandle* pHandle) {
 
     int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
                                       "tableBlocksBuf", tsTempDir);
-    dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
+    } else {
+      dBufSetPrintInfo(pHandle->pBuf);
     }
   }
   return 0;

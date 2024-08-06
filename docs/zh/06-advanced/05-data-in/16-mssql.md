@@ -107,4 +107,4 @@ Microsoft SQL Server 是最流行的关系型数据库之一。很多系统都�
 
 ### 9. 创建完成
 
-点击 **提交** 按钮，完成创建  Microsoft SQL Server 到 TDengine 的数据同步任务，回到[数据源列表](../../explorer/#数据写入)页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建  Microsoft SQL Server 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

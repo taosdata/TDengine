@@ -391,6 +391,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
       //pTaskInfo->schemaInfo.qsw = extractQueriedColumnSchema(&pTableScanNode->scan);
       code = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
       code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo, &pOperator);
@@ -411,10 +416,17 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
           qError("failed to getTableList, code: %s", tstrerror(code));
+          tableListDestroy(pTableListInfo);
           return code;
         }
       }
-      code = createTagScanOperatorInfo(pHandle, pTagScanPhyNode, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, &pOperator);
+      code = createTagScanOperatorInfo(pHandle, pTagScanPhyNode, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo,
+                                       &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
       STableListInfo*          pTableListInfo = tableListCreate();
@@ -430,6 +442,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
           taosArrayDestroy(pList);
+          tableListDestroy(pTableListInfo);
           return code;
         }
 
@@ -437,13 +450,14 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         for (int32_t i = 0; i < num; ++i) {
           uint64_t* id = taosArrayGet(pList, i);
           if (id == NULL) {
-            pTaskInfo->code = terrno;
-            return terrno;
+            continue;
           }
 
           code = tableListAddTableInfo(pTableListInfo, *id, 0);
           if (code) {
             pTaskInfo->code = code;
+            tableListDestroy(pTableListInfo);
+            taosArrayDestroy(pList);
             return code;
           }
         }
@@ -453,11 +467,17 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         code = tableListAddTableInfo(pTableListInfo, pBlockNode->uid, 0);
         if (code) {
           pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
           return code;
         }
       }
 
       code = createDataBlockInfoScanOperator(pHandle, pBlockNode, pTableListInfo, pTaskInfo, &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN == type) {
       SLastRowScanPhysiNode* pScanNode = (SLastRowScanPhysiNode*)pPhyNode;
       STableListInfo*        pTableListInfo = tableListCreate();
@@ -467,20 +487,27 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      code = createScanTableListInfo(&pScanNode->scan, pScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                             pTagCond, pTagIndexCond, pTaskInfo);
+      code = createScanTableListInfo(&pScanNode->scan, pScanNode->pGroupTags, true, pHandle, pTableListInfo, pTagCond,
+                                     pTagIndexCond, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
         return code;
       }
 
       code = initQueriedTableSchemaInfo(pHandle, &pScanNode->scan, dbname, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
         return code;
       }
 
       code = createCacherowsScanOperator(pScanNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
+      if (code) {
+        tableListDestroy(pTableListInfo);
+        pTaskInfo->code = code;
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else {
