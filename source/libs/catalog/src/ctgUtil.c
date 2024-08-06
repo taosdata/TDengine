@@ -1974,3 +1974,18 @@ void ctgGetGlobalCacheSize(uint64_t *pSize) {
   }
 }
 
+int32_t ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo) {
+  *ppOut = taosMemoryCalloc(1, sizeof(SUseDbOutput));
+  if (NULL == *ppOut) {
+    CTG_ERR_RET(terrno);
+  }
+
+  int32_t code = cloneDbVgInfo(vgInfo, &(*ppOut)->dbVgroup);
+  if (code) {
+    taosMemoryFreeClear(*ppOut);
+    CTG_RET(code);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
