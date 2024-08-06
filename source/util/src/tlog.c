@@ -68,9 +68,8 @@ typedef struct {
   int32_t       lines;
   int32_t       flag;
   int32_t       openInProgress;
-  int32_t       openInProgressSlowLog;
   int64_t       lastKeepFileSec;
-  char          slowLogDay[LOG_FILE_DAY_LEN];
+  int64_t       timestampToday;
   pid_t         pid;
   char          logName[PATH_MAX];
   char          slowLogName[PATH_MAX];
@@ -136,6 +135,7 @@ static int32_t   taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t m
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosInitNormalLog(const char *fn, int32_t maxFileNum);
+static void      taosWriteLog(SLogBuff *pLogBuf);
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
   (void)taosThreadAttrInit(&threadAttr);
@@ -153,6 +153,18 @@ static void getDay(char* buf){
     (void)strftime(buf, LOG_FILE_DAY_LEN, "%Y-%m-%d", &tmInfo);
   }
 }
+
+static int64_t getTimestampToday() {
+  time_t    t = taosTime(NULL);
+  struct tm tm;
+  (void) taosLocalTime(&t, &tm, NULL);
+  tm.tm_hour = 0;
+  tm.tm_min = 0;
+  tm.tm_sec = 0;
+
+  return (int64_t)taosMktime(&tm);
+}
+
 static void getFullPathName(char* fullName, const char* logName){
   if (strlen(tsLogDir) != 0) {
     char lastC = tsLogDir[strlen(tsLogDir) - 1];
@@ -184,6 +196,7 @@ int32_t taosInitSlowLog() {
   getDay(day);
   (void)snprintf(name, PATH_MAX + LOG_FILE_DAY_LEN, "%s.%s", tsLogObj.slowLogName, day);
 
+  tsLogObj.timestampToday = getTimestampToday();
   tsLogObj.slowHandle = taosLogBuffNew(LOG_SLOW_BUF_SIZE);
   if (tsLogObj.slowHandle == NULL) return terrno;
 
@@ -374,20 +387,31 @@ static int32_t taosOpenNewLogFile() {
   return 0;
 }
 
-static void taosOpenNewSlowLogFile(char* day) {
+static void taosOpenNewSlowLogFile(int64_t today) {
+  (void)taosThreadMutexLock(&tsLogObj.logMutex);
+  if (tsLogObj.timestampToday == today) {
+    uInfo("timestampToday is already equal to today, no need to open new slow log file");
+    (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
+    return;
+  }
+  taosWriteLog(tsLogObj.slowHandle);
+  char day[LOG_FILE_DAY_LEN] = {0};
+  getDay(day);
   TdFilePtr pFile = NULL;
   char name[PATH_MAX + LOG_FILE_DAY_LEN] = {0};
   (void)snprintf(name, PATH_MAX + LOG_FILE_DAY_LEN, "%s.%s", tsLogObj.slowLogName, day);
   pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pFile == NULL) {
     uError("open new log file fail! reason:%s, reuse lastlog", strerror(errno));
+    (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
     return;
   }
 
   TdFilePtr pOldFile = tsLogObj.slowHandle->pFile;
   tsLogObj.slowHandle->pFile = pFile;
   (void)taosCloseFile(&pOldFile);
-  tstrncpy(tsLogObj.slowLogDay, day, LOG_FILE_DAY_LEN);
+  tsLogObj.timestampToday = today;
+  (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
 }
 
 void taosResetLog() {
@@ -456,9 +480,9 @@ static void decideLogFileNameFlag(){
   if (strlen(tsLogObj.logName) < PATH_MAX + 50 - 2) {
     strcpy(name, tsLogObj.logName);
     strcat(name, ".0");
-    log0Exist = taosStatFile(name, NULL, &logstat0_mtime, NULL) >= 0;
+    log0Exist = taosStatFile(name, NULL, &logstat0_mtime, NULL) == 0;
     name[strlen(name) - 1] = '1';
-    log1Exist = taosStatFile(name, NULL, &logstat1_mtime, NULL) >= 0;
+    log1Exist = taosStatFile(name, NULL, &logstat1_mtime, NULL) == 0;
   }
 
   // if none of the log files exist, open 0, if both exists, open the old one
@@ -627,19 +651,13 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   taosMemoryFree(buffer);
 }
 
-static void checkSwitchSlowLogFile(){
-  char day[LOG_FILE_DAY_LEN] = {0};
-  getDay(day);
-  (void)taosThreadMutexLock(&tsLogObj.logMutex);
-  if (strlen(tsLogObj.slowLogDay) == 0) {
-    tstrncpy(tsLogObj.slowLogDay, day, LOG_FILE_DAY_LEN);
-  }else if (strcmp(tsLogObj.slowLogDay, day) != 0) {
-    taosOpenNewSlowLogFile(day);
-  }
-  (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
-}
 void taosPrintSlowLog(const char *format, ...) {
   if (!osLogSpaceSufficient()) return;
+
+  int64_t today = getTimestampToday();
+  if (today != tsLogObj.timestampToday){
+    taosOpenNewSlowLogFile(today);
+  }
 
   char   *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
   int32_t len = taosBuildLogHead(buffer, "");
@@ -656,8 +674,6 @@ void taosPrintSlowLog(const char *format, ...) {
   buffer[len] = 0;
 
   (void)atomic_add_fetch_64(&tsNumOfSlowLogs, 1);
-
-  checkSwitchSlowLogFile();
 
   if (tsAsyncLog) {
     (void)taosPushLogBuffer(tsLogObj.slowHandle, buffer, len);
