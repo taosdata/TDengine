@@ -8,7 +8,7 @@ import (
 )
 
 func TestMessageList(t *testing.T) {
-	messages := NewMessageList(1)
+	messages := NewMessageList(1, 0)
 
 	messages.Add(&Message{Topic: "test", Payload: []byte("hello")})
 	messages.Add(&Message{Topic: "test", Payload: []byte("world")})
