@@ -200,7 +200,7 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 - `to` 查询范围的结束时间
 - `interval` 窗口切分间隔
 
-对于每个查询都建议设置查询范围的起始时间和结束时间，可以有效的减少 TDengine 服务端执行查询扫描的数据量。`internal` 是窗口切分的大小，在 Grafana 11 版本中，其大小为时间间隔和返回点数计算而得。 
+对于每个查询都建议设置查询范围的起始时间和结束时间，可以有效的减少 TDengine 服务端执行查询扫描的数据量。`interval` 是窗口切分的大小，在 Grafana 11 版本中，其大小为时间间隔和返回点数计算而得。 
 除了上述三个常用变量，Grafana 还提供了如 `__timezone`, `__org`, `__user` 等变量，详情请参考 [内置变量](https://grafana.com/docs/grafana/latest/dashboards/variables/add-template-variables/#global-variables)。
 
 ### 自定义变量
@@ -227,6 +227,12 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 4. 还有其他配置不再赘述，完成配置后，点击页面底部的【Apply】（应用）按钮，然后点击右上角的【Save dashboard】保存。
 
 完成以上步骤后，我们就成功在 Dashboard 中添加了一个新的自定义变量 `$interval`。我们可以后面在 Dashboard 的查询中通过 `$interval` 的方式引用这个变量。
+
+:::note
+
+自定义变量和 Grafana 内置变量重名时，会优先引用自定义变量。
+
+:::
 
 ## TDengine 时间序列查询支持
 TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，这些语法能够为时序场景的应用的开发带来极大的便利。
