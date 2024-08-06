@@ -131,10 +131,10 @@ static const int64_t TICK_PER_SECOND[] = {
                  : ((precision) == TSDB_TIME_PRECISION_MICRO ? 1000000LL : 1000000000LL)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
-#define T_APPEND_MEMBER(dst, ptr, type, member)                                     \
-  do {                                                                              \
-    memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member)); \
-    dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));                    \
+#define T_APPEND_MEMBER(dst, ptr, type, member)                                           \
+  do {                                                                                    \
+    (void)memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member)); \
+    dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));                          \
   } while (0)
 #define T_READ_MEMBER(src, type, target)          \
   do {                                            \
@@ -221,6 +221,8 @@ typedef enum ELogicConditionType {
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
+#define TSDB_CLIENT_ID_LEN            256                                // it is a null-terminated string
+#define TSDB_CONSUMER_ID_LEN          32                                 // it is a null-terminated string
 #define TSDB_OFFSET_LEN               64                                 // it is a null-terminated string
 #define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
@@ -556,7 +558,8 @@ typedef struct {
   char name[TSDB_LOG_VAR_LEN];
 } SLogVar;
 
-#define TMQ_SEPARATOR ':'
+#define TMQ_SEPARATOR      ":"
+#define TMQ_SEPARATOR_CHAR ':'
 
 enum {
   SND_WORKER_TYPE__SHARED = 1,

@@ -19,7 +19,8 @@ sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
 sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into ts1 values(1648791213001,1,12,3,1.0);
 sql insert into ts2 values(1648791213001,1,12,3,1.0);
@@ -439,7 +440,8 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 20s into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
 
-sleep 2000
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into ts1 values(1648791211000,1,2,3);
 sql insert into ts1 values(1648791222001,2,2,3);
 sql insert into ts2 values(1648791211000,1,2,3);
@@ -475,7 +477,8 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create stream stream_t3 trigger at_once into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from st interval(10s) ;
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into ts1 values(1648791211000,1,2,3);
 sleep 50
@@ -526,6 +529,8 @@ sql create table ddd using st tags(4,2,2);
 
 
 sql create stream streams1 IGNORE EXPIRED 0 IGNORE UPDATE 0  fill_history 0 watermark 3s into streamst subtable(c) as select  _wstart, c , count(*) c1, last_row(b) c2  from st partition by c interval(1s) ;
+
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into aaa values(1648791221001,2,2,"/a1/aa/aa");
 sql insert into bbb values(1648791221001,2,2,"/a1/aa/aa");

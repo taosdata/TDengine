@@ -20,6 +20,7 @@
 #include "tglobal.h"
 
 #define __COMPARE_ACQUIRED_MAX(i, end, bm, _data, ctx, val, pos) \
+  int32_t code = TSDB_CODE_SUCCESS;                              \
   for (; i < (end); ++i) {                                       \
     if (colDataIsNull_f(bm, i)) {                                \
       continue;                                                  \
@@ -28,12 +29,16 @@
     if ((val) < (_data)[i]) {                                    \
       (val) = (_data)[i];                                        \
       if ((ctx)->subsidiaries.num > 0) {                         \
-        updateTupleData((ctx), i, (ctx)->pSrcBlock, pos);        \
+        code = updateTupleData((ctx), i, (ctx)->pSrcBlock, pos); \
+        if (TSDB_CODE_SUCCESS != code) {                         \
+          return code;                                           \
+        }                                                        \
       }                                                          \
     }                                                            \
   }
 
 #define __COMPARE_ACQUIRED_MIN(i, end, bm, _data, ctx, val, pos) \
+  int32_t code = TSDB_CODE_SUCCESS;                              \
   for (; i < (end); ++i) {                                       \
     if (colDataIsNull_f(bm, i)) {                                \
       continue;                                                  \
@@ -42,7 +47,10 @@
     if ((val) > (_data)[i]) {                                    \
       (val) = (_data)[i];                                        \
       if ((ctx)->subsidiaries.num > 0) {                         \
-        updateTupleData((ctx), i, (ctx)->pSrcBlock, pos);        \
+        code = updateTupleData((ctx), i, (ctx)->pSrcBlock, pos); \
+        if (TSDB_CODE_SUCCESS != code) {                         \
+          return code;                                           \
+        }                                                        \
       }                                                          \
     }                                                            \
   }
@@ -571,7 +579,7 @@ static int32_t findRowIndex(int32_t start, int32_t num, SColumnInfoData* pCol, c
   return -1;
 }
 
-static void doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFunctionCtx* pCtx, SMinmaxResInfo* pBuf,
+static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFunctionCtx* pCtx, SMinmaxResInfo* pBuf,
                          bool isMinFunc) {
   if (isMinFunc) {
     switch (pCol->info.type) {
@@ -700,6 +708,7 @@ static void doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFunct
       }
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t saveRelatedTupleTag(SqlFunctionCtx* pCtx, SInputColumnInfoData* pInput, void* tval) {
@@ -840,7 +849,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           break;
         }
         default:
-          memcpy(&pBuf->v, p, pCol->info.bytes);
+          (void)memcpy(&pBuf->v, p, pCol->info.bytes);
           break;
       }
 
@@ -858,7 +867,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
       goto _over;
     }
 
-    doExtractVal(pCol, i, end, pCtx, pBuf, isMinFunc);
+    code = doExtractVal(pCol, i, end, pCtx, pBuf, isMinFunc);
   } else {
     numOfElems = numOfRows;
 

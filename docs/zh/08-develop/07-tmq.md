@@ -230,6 +230,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py:subscribe}}
 ```
+- `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
+- `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
+- `records` 包含了多个 block 块， 每个块中可能包含多个记录。
 </TabItem>
 
 <TabItem label="Go" value="go">
@@ -286,6 +289,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```python
 {{#include docs/examples/python/tmq_native.py:subscribe}}
 ```
+- `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
+- `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
+- `records` 包含了多个 block 块， 每个块中可能包含多个记录。
 </TabItem>
 
 <TabItem label="Go" value="go">

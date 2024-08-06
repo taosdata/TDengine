@@ -104,7 +104,7 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
   }
 
   taosMemoryFree(pCt);
-  tSkipListDestroyIter(iter);
+  (void)tSkipListDestroyIter(iter);
   return 0;
 }
 static int32_t cacheSearchPrefix(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
@@ -129,6 +129,10 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
   _cache_range_compare cmpFn = idxGetCompare(type);
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  if (pCt == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pCt->colVal = term->colVal;
   pCt->colType = term->colType;
   pCt->version = atomic_load_64(&pCache->version);
@@ -158,7 +162,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
     }
   }
   taosMemoryFree(pCt);
-  tSkipListDestroyIter(iter);
+  (void)tSkipListDestroyIter(iter);
   return TSDB_CODE_SUCCESS;
 }
 static int32_t cacheSearchLessThan(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
@@ -182,6 +186,10 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
   IndexCache* pCache = mem->pCache;
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  if (pCt == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pCt->colVal = term->colVal;
   pCt->version = atomic_load_64(&pCache->version);
 
@@ -214,7 +222,7 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
 
   taosMemoryFree(pCt);
   taosMemoryFree(exBuf);
-  tSkipListDestroyIter(iter);
+  (void)tSkipListDestroyIter(iter);
   return 0;
 
   return TSDB_CODE_SUCCESS;
@@ -321,7 +329,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
 
   taosMemoryFree(pCt);
   taosMemoryFree(exBuf);
-  tSkipListDestroyIter(iter);
+  (void)tSkipListDestroyIter(iter);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -340,15 +348,16 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
 
   cache->mem = idxInternalCacheCreate(type);
   cache->mem->pCache = cache;
-  cache->colName = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? taosStrdup(JSON_COLUMN) : taosStrdup(colName);
+  cache->colName =
+      IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? taosStrdup(JSON_COLUMN) : taosStrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
   cache->suid = suid;
   cache->occupiedMem = 0;
 
-  taosThreadMutexInit(&cache->mtx, NULL);
-  taosThreadCondInit(&cache->finished, NULL);
+  (void)taosThreadMutexInit(&cache->mtx, NULL);
+  (void)taosThreadCondInit(&cache->finished, NULL);
 
   idxCacheRef(cache);
   if (idx != NULL) {
@@ -359,10 +368,10 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
 void idxCacheDebug(IndexCache* cache) {
   MemTable* tbl = NULL;
 
-  taosThreadMutexLock(&cache->mtx);
+  (void)taosThreadMutexLock(&cache->mtx);
   tbl = cache->mem;
   idxMemRef(tbl);
-  taosThreadMutexUnlock(&cache->mtx);
+  (void)taosThreadMutexUnlock(&cache->mtx);
 
   {
     SSkipList*         slt = tbl->mem;
@@ -375,16 +384,16 @@ void idxCacheDebug(IndexCache* cache) {
         indexInfo("{colVal: %s, version: %" PRId64 "} \t", ct->colVal, ct->version);
       }
     }
-    tSkipListDestroyIter(iter);
+    (void)tSkipListDestroyIter(iter);
 
     idxMemUnRef(tbl);
   }
 
   {
-    taosThreadMutexLock(&cache->mtx);
+    (void)taosThreadMutexLock(&cache->mtx);
     tbl = cache->imm;
     idxMemRef(tbl);
-    taosThreadMutexUnlock(&cache->mtx);
+    (void)taosThreadMutexUnlock(&cache->mtx);
     if (tbl != NULL) {
       SSkipList*         slt = tbl->mem;
       SSkipListIterator* iter = tSkipListCreateIter(slt);
@@ -396,7 +405,7 @@ void idxCacheDebug(IndexCache* cache) {
           indexInfo("{colVal: %s, version: %" PRId64 "} \t", ct->colVal, ct->version);
         }
       }
-      tSkipListDestroyIter(iter);
+      (void)tSkipListDestroyIter(iter);
     }
 
     idxMemUnRef(tbl);
@@ -413,29 +422,29 @@ void idxCacheDestroySkiplist(SSkipList* slt) {
       taosMemoryFree(ct);
     }
   }
-  tSkipListDestroyIter(iter);
+  (void)tSkipListDestroyIter(iter);
   tSkipListDestroy(slt);
 }
 void idxCacheBroadcast(void* cache) {
   IndexCache* pCache = cache;
-  taosThreadCondBroadcast(&pCache->finished);
+  (void)taosThreadCondBroadcast(&pCache->finished);
 }
 void idxCacheWait(void* cache) {
   IndexCache* pCache = cache;
-  taosThreadCondWait(&pCache->finished, &pCache->mtx);
+  (void)taosThreadCondWait(&pCache->finished, &pCache->mtx);
 }
 void idxCacheDestroyImm(IndexCache* cache) {
   if (cache == NULL) {
     return;
   }
   MemTable* tbl = NULL;
-  taosThreadMutexLock(&cache->mtx);
+  (void)taosThreadMutexLock(&cache->mtx);
 
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
   idxCacheBroadcast(cache);
 
-  taosThreadMutexUnlock(&cache->mtx);
+  (void)taosThreadMutexUnlock(&cache->mtx);
 
   idxMemUnRef(tbl);
   idxMemUnRef(tbl);
@@ -450,8 +459,8 @@ void idxCacheDestroy(void* cache) {
   idxMemUnRef(pCache->imm);
   taosMemoryFree(pCache->colName);
 
-  taosThreadMutexDestroy(&pCache->mtx);
-  taosThreadCondDestroy(&pCache->finished);
+  (void)taosThreadMutexDestroy(&pCache->mtx);
+  (void)taosThreadCondDestroy(&pCache->finished);
   if (pCache->index != NULL) {
     idxReleaseRef(((SIndex*)pCache->index)->refId);
   }
@@ -466,7 +475,7 @@ Iterate* idxCacheIteratorCreate(IndexCache* cache) {
   if (iter == NULL) {
     return NULL;
   }
-  taosThreadMutexLock(&cache->mtx);
+  (void)taosThreadMutexLock(&cache->mtx);
 
   idxMemRef(cache->imm);
 
@@ -477,7 +486,7 @@ Iterate* idxCacheIteratorCreate(IndexCache* cache) {
   iter->next = idxCacheIteratorNext;
   iter->getValue = idxCacheIteratorGetValue;
 
-  taosThreadMutexUnlock(&cache->mtx);
+  (void)taosThreadMutexUnlock(&cache->mtx);
 
   return iter;
 }
@@ -485,7 +494,7 @@ void idxCacheIteratorDestroy(Iterate* iter) {
   if (iter == NULL) {
     return;
   }
-  tSkipListDestroyIter(iter->iter);
+  (void)tSkipListDestroyIter(iter->iter);
   iterateValueDestroy(&iter->val, true);
   taosMemoryFree(iter);
 }
@@ -499,7 +508,7 @@ int idxCacheSchedToMerge(IndexCache* pCache, bool notify) {
   }
   schedMsg.msg = NULL;
   idxAcquireRef(pCache->index->refId);
-  taosScheduleTask(indexQhandle, &schedMsg);
+  (void)taosScheduleTask(indexQhandle, &schedMsg);
   return 0;
 }
 
@@ -524,7 +533,7 @@ static void idxCacheMakeRoomForWrite(IndexCache* cache) {
       }
       // 1. sched to merge
       // 2. unref cache in bgwork
-      idxCacheSchedToMerge(cache, quit);
+      (void)idxCacheSchedToMerge(cache, quit);
     }
   }
 }
@@ -539,7 +548,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   // encode data
   CacheTerm* ct = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (ct == NULL) {
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   // set up key
   ct->colType = term->colType;
@@ -547,6 +556,10 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
     ct->colVal = idxPackJsonData(term);
   } else {
     ct->colVal = (char*)taosMemoryCalloc(1, sizeof(char) * (term->nColVal + 1));
+    if (ct->colVal == NULL) {
+      taosMemoryFree(ct);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     memcpy(ct->colVal, term->colVal, term->nColVal);
   }
   ct->version = atomic_add_fetch_64(&pCache->version, 1);
@@ -556,15 +569,15 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   // ugly code, refactor later
   int64_t estimate = sizeof(ct) + strlen(ct->colVal);
 
-  taosThreadMutexLock(&pCache->mtx);
+  (void)taosThreadMutexLock(&pCache->mtx);
   pCache->occupiedMem += estimate;
   idxCacheMakeRoomForWrite(pCache);
   MemTable* tbl = pCache->mem;
   idxMemRef(tbl);
-  tSkipListPut(tbl->mem, (char*)ct);
+  (void)tSkipListPut(tbl->mem, (char*)ct);
   idxMemUnRef(tbl);
 
-  taosThreadMutexUnlock(&pCache->mtx);
+  (void)taosThreadMutexUnlock(&pCache->mtx);
   idxCacheUnRef(pCache);
   return 0;
 }
@@ -572,13 +585,13 @@ void idxCacheForceToMerge(void* cache) {
   IndexCache* pCache = cache;
 
   idxCacheRef(pCache);
-  taosThreadMutexLock(&pCache->mtx);
+  (void)taosThreadMutexLock(&pCache->mtx);
 
   indexInfo("%p is forced to merge into tfile", pCache);
   pCache->occupiedMem += MEM_SIGNAL_QUIT;
   idxCacheMakeRoomForWrite(pCache);
 
-  taosThreadMutexUnlock(&pCache->mtx);
+  (void)taosThreadMutexUnlock(&pCache->mtx);
   idxCacheUnRef(pCache);
   return;
 }
@@ -609,12 +622,12 @@ int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STerm
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
-  taosThreadMutexLock(&pCache->mtx);
+  (void)taosThreadMutexLock(&pCache->mtx);
   mem = pCache->mem;
   imm = pCache->imm;
   idxMemRef(mem);
   idxMemRef(imm);
-  taosThreadMutexUnlock(&pCache->mtx);
+  (void)taosThreadMutexUnlock(&pCache->mtx);
 
   int64_t st = taosGetTimestampUs();
 
@@ -750,7 +763,7 @@ static void idxDoMergeWork(SSchedMsg* msg) {
 
   int quit = msg->thandle ? true : false;
   taosMemoryFree(msg->thandle);
-  idxFlushCacheToTFile(sidx, pCache, quit);
+  (void)idxFlushCacheToTFile(sidx, pCache, quit);
 }
 static bool idxCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
@@ -768,7 +781,7 @@ static bool idxCacheIteratorNext(Iterate* itera) {
     iv->type = ct->operaType;
     iv->ver = ct->version;
     iv->colVal = taosStrdup(ct->colVal);
-    taosArrayPush(iv->val, &ct->uid);
+    (void)taosArrayPush(iv->val, &ct->uid);
   }
   return next;
 }

@@ -65,7 +65,7 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #endif
 #define ssize_t int
 #define _SSIZE_T_
-#define bzero(ptr, size) memset((ptr), 0, (size))
+#define bzero(ptr, size) (void)memset((ptr), 0, (size))
 #define strcasecmp       _stricmp
 #define strncasecmp      _strnicmp
 #define wcsncasecmp      _wcsnicmp
@@ -188,9 +188,10 @@ void syslog(int unused, const char *format, ...);
 #define ALIGN8(n) ALIGN_NUM(n, 8)
 
 #undef threadlocal
-#ifdef _ISOC11_SOURCE
-#define threadlocal _Thread_local
-#elif defined(__APPLE__)
+//#ifdef _ISOC11_SOURCE
+//#define threadlocal _Thread_local
+//#elif defined(__APPLE__)
+#if defined(__APPLE__)
 #define threadlocal __thread
 #elif defined(__GNUC__) && !defined(threadlocal)
 #define threadlocal __thread
@@ -220,7 +221,7 @@ void syslog(int unused, const char *format, ...);
 // Linux, length of name must <= 16 (the last '\0' included)
 #define setThreadName(name)     \
   do {                          \
-    prctl(PR_SET_NAME, (name)); \
+    (void)prctl(PR_SET_NAME, (name)); \
   } while (0)
 #define getThreadName(name)     \
   do {                          \
