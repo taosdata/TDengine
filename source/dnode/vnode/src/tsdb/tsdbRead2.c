@@ -164,17 +164,19 @@ static void tRowGetPrimaryKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
 
 static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pCols, const int32_t* pSlotIdList,
                                    int32_t numOfCols) {
+  bool initSucc = true;
+
   pSupInfo->pk.pk = 0;
   pSupInfo->numOfPks = 0;
   pSupInfo->pkSrcSlot = -1;
   pSupInfo->pkDstSlot = -1;
-
   pSupInfo->smaValid = true;
   pSupInfo->numOfCols = numOfCols;
+
   pSupInfo->colId = taosMemoryMalloc(numOfCols * (sizeof(int16_t) * 2 + POINTER_BYTES));
   if (pSupInfo->colId == NULL) {
     taosMemoryFree(pSupInfo->colId);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pSupInfo->slotId = (int16_t*)((char*)pSupInfo->colId + (sizeof(int16_t) * numOfCols));
@@ -187,7 +189,7 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCols[i].bytes);
       if (pSupInfo->buildBuf[i] == NULL) {
         tsdbError("failed to prepare memory for set columnId slot list, size:%d, code:out of memory", pCols[i].bytes);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        initSucc = false;
       }
     } else {
       pSupInfo->buildBuf[i] = NULL;
@@ -201,7 +203,7 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return (initSucc)? TSDB_CODE_SUCCESS:TSDB_CODE_OUT_OF_MEMORY;
 }
 
 static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) {

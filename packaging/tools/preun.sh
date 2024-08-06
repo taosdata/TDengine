@@ -18,6 +18,7 @@ cfg_link_dir="/usr/local/taos/cfg"
 service_config_dir="/etc/systemd/system"
 taos_service_name="taosd"
 taoskeeper_service_name="taoskeeper"
+explorer_service_name="taos-explorer"
 csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo "
@@ -64,6 +65,13 @@ function kill_taoskeeper() {
   fi
 }
 
+function kill_taos-explorer() {
+  pid=$(ps -ef | grep "taos-explorer" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo}kill -9 $pid   || :
+  fi
+}
+
 function clean_service_on_systemd() {
     taosadapter_service_config="${service_config_dir}/taosadapter.service"
     if systemctl is-active --quiet taosadapter; then
@@ -89,6 +97,13 @@ function clean_service_on_systemd() {
         ${csudo}systemctl stop ${taoskeeper_service_name} &> /dev/null || echo &> /dev/null
     fi
     [ -f ${taoskeeper_service_config} ] && ${csudo}rm -f ${taoskeeper_service_config}
+
+    explorer_service_config="${service_config_dir}/${explorer_service_name}.service"
+    if systemctl is-active --quiet ${explorer_service_name}; then
+        echo "TDengine taoskeeper is running, stopping it..."
+        ${csudo}systemctl stop ${explorer_service_name} &> /dev/null || echo &> /dev/null
+    fi
+    [ -f ${explorer_service_config} ] && ${csudo}rm -f ${explorer_service_config}
 }
 
 function clean_service_on_sysvinit() {
@@ -125,6 +140,7 @@ function clean_service() {
         kill_taosadapter
         kill_taosd
         kill_taoskeeper
+        kill_taos-explorer
     fi
 }
 
@@ -137,16 +153,23 @@ ${csudo}rm -f ${bin_link_dir}/taosd      || :
 ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
 ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
 ${csudo}rm -f ${bin_link_dir}/taosdemo   || :
+${csudo}rm -f ${bin_link_dir}/taosdump   || :
 ${csudo}rm -f ${bin_link_dir}/set_core   || :
 ${csudo}rm -f ${bin_link_dir}/taoskeeper  || :
+${csudo}rm -f ${bin_link_dir}/taos-explorer  || :
+${csudo}rm -f ${bin_link_dir}/start-all.sh  || :
+${csudo}rm -f ${bin_link_dir}/stop-all.sh  || :
 ${csudo}rm -f ${cfg_link_dir}/*.new      || :
 ${csudo}rm -f ${inc_link_dir}/taos.h     || :
 ${csudo}rm -f ${inc_link_dir}/taosdef.h  || :
 ${csudo}rm -f ${inc_link_dir}/taoserror.h || :
 ${csudo}rm -f ${inc_link_dir}/tdef.h || :
 ${csudo}rm -f ${inc_link_dir}/taosudf.h || :
+${csudo}rm -f ${inc_link_dir}/taosws.h || :
 ${csudo}rm -f ${lib_link_dir}/libtaos.*   || :
+${csudo}rm -f ${lib_link_dir}/libtaosws.so   || :
 ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
 
 ${csudo}rm -f ${log_link_dir}            || :
 ${csudo}rm -f ${data_link_dir}           || :

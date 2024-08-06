@@ -357,9 +357,13 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     STaskId*     pTaskId = taosArrayGet(pTaskList, i);
+    if (pTaskId == NULL) {
+      continue;
+    }
+
     SStreamTask* pTask = NULL;
     int32_t code = streamMetaAcquireTask(pStreamMeta, pTaskId->streamId, pTaskId->taskId, &pTask);
-    if (pTask == NULL) {
+    if (pTask == NULL || code != 0) {
       continue;
     }
 
