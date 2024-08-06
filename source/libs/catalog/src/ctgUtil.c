@@ -2420,6 +2420,21 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo) {
+  *ppOut = taosMemoryCalloc(1, sizeof(SUseDbOutput));
+  if (NULL == *ppOut) {
+    CTG_ERR_RET(terrno);
+  }
+
+  int32_t code = cloneDbVgInfo(vgInfo, &(*ppOut)->dbVgroup);
+  if (code) {
+    taosMemoryFreeClear(*ppOut);
+    CTG_RET(code);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 uint64_t ctgGetTbTSMACacheSize(STableTSMAInfo* pTsmaInfo) {
   if (!pTsmaInfo) return 0;
   uint64_t size = sizeof(STableTSMAInfo);
