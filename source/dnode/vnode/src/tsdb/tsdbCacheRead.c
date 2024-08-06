@@ -355,7 +355,7 @@ void tsdbCacherowsReaderClose(void* pReader) {
     return;
   }
 
-  if (p->pSchema != NULL) {
+  if (p->pSchema != NULL && p->transferBuf != NULL) {
     for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
       taosMemoryFreeClear(p->transferBuf[i]);
     }
@@ -450,10 +450,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     return TSDB_CODE_INVALID_PARA;
   }
 
+  int32_t           code = TSDB_CODE_SUCCESS;
+  bool              hasRes = false;
   SCacheRowsReader* pr = pReader;
+  pr->pReadSnap = NULL;
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  bool    hasRes = false;
   SArray* pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
   if (pRow == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -690,6 +691,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
 _end:
   tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
+  pr->pReadSnap = NULL;
+
   if (pr->pCurFileSet) {
     pr->pCurFileSet = NULL;
   }

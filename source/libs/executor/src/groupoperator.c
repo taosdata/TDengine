@@ -615,8 +615,12 @@ _error:
   if (pInfo != NULL) {
     destroyGroupOperatorInfo(pInfo);
   }
-  destroyOperator(pOperator);
-  taosMemoryFreeClear(pOperator);
+
+  if (pOperator) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
+
   return code;
 }
 

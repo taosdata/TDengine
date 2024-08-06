@@ -4795,6 +4795,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, true);
+    pReader->pReadSnap = NULL;
   }
 
   (void) tsem_destroy(&pReader->resumeAfterSuspend);
@@ -4877,6 +4878,7 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, false);
+    pReader->pReadSnap = NULL;
   }
 
   if (pReader->bFilesetDelimited) {

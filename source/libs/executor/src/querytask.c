@@ -155,6 +155,11 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
 
   schemaInfo.tablename = taosStrdup(mr.me.name);
   schemaInfo.dbname = taosStrdup(dbName);
+  if (schemaInfo.tablename == NULL || schemaInfo.dbname == NULL) {
+    pAPI->metaReaderFn.clearReader(&mr);
+    cleanupQueriedTableScanInfo(&schemaInfo);
+    return terrno;
+  }
 
   if (mr.me.type == TSDB_SUPER_TABLE) {
     schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
@@ -166,8 +171,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
     code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, suid);
     if (code != TSDB_CODE_SUCCESS) {
       pAPI->metaReaderFn.clearReader(&mr);
-      taosMemoryFree(schemaInfo.tablename);
-      taosMemoryFree(schemaInfo.dbname);
+      cleanupQueriedTableScanInfo(&schemaInfo);
       return code;
     }
 
@@ -177,18 +181,26 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
     schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
   }
 
+  pAPI->metaReaderFn.clearReader(&mr);
+
   if (schemaInfo.sw == NULL) {
+    cleanupQueriedTableScanInfo(&schemaInfo);
     return terrno;
   }
 
-  pAPI->metaReaderFn.clearReader(&mr);
   schemaInfo.qsw = extractQueriedColumnSchema(pScanNode);
   if (schemaInfo.qsw == NULL) {
+    cleanupQueriedTableScanInfo(&schemaInfo);
     return terrno;
   }
 
   void* p = taosArrayPush(pTaskInfo->schemaInfos, &schemaInfo);
-  return (p != NULL)? TSDB_CODE_SUCCESS:TSDB_CODE_OUT_OF_MEMORY;
+  if (p == NULL) {
+    cleanupQueriedTableScanInfo(&schemaInfo);
+    return terrno;
+  }
+
+  return code;
 }
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
