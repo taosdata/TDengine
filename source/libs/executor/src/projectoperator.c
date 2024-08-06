@@ -485,6 +485,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   }
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->node.pOutputDataBlockDesc);
+  TSDB_CHECK_NULL(pResBlock, code, lino, _error, terrno);
 
   // Make sure the size of SSDataBlock will never exceed the size of 2MB.
   int32_t TWOMB = 2 * 1024 * 1024;
