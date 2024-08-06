@@ -838,6 +838,8 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
          GET_TASKID(pTaskInfo), current, total, 0, el / 1000.0);
 
   atomic_store_64(&pTaskInfo->owner, 0);
+  memset(pTaskInfo->env->__jmpbuf, 0, tListLen(pTaskInfo->env->__jmpbuf));
+
   return pTaskInfo->code;
 }
 
