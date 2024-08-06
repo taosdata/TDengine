@@ -623,6 +623,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       SNonSortMergeInfo* pNonSortMerge = &pInfo->nsortMergeInfo;
       pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
       TSDB_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+
       initResultSizeInfo(&pOperator->resultInfo, 1024);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
       TSDB_CHECK_CODE(code, lino, _error);
@@ -633,6 +634,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       SColsMergeInfo* pColsMerge = &pInfo->colsMergeInfo;
       pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
       TSDB_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+
       initResultSizeInfo(&pOperator->resultInfo, 1);
       code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
       TSDB_CHECK_CODE(code, lino, _error);
