@@ -989,6 +989,10 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
     dataInfo.taskId = pExchangeInfo->pTaskId;
     dataInfo.index = pIdx->srcIdx;
     dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
+    if (dataInfo.pSrcUidList == NULL) {
+      return terrno;
+    }
+
     dataInfo.srcOpType = pBasicParam->srcOpType;
     dataInfo.tableSeq = pBasicParam->tableSeq;
 
@@ -1007,6 +1011,10 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
       pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
     }
     pDataInfo->pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
+    if (pDataInfo->pSrcUidList == NULL) {
+      return terrno;
+    }
+
     pDataInfo->srcOpType = pBasicParam->srcOpType;
     pDataInfo->tableSeq = pBasicParam->tableSeq;
   }

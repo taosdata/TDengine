@@ -3414,6 +3414,10 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader, int64_t en
     }
 
     STableBlockScanInfo** pBlockScanInfo = pStatus->pTableIter;
+    if (pBlockScanInfo == NULL || *pBlockScanInfo == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+
     if (pReader->pIgnoreTables &&
         taosHashGet(*pReader->pIgnoreTables, &(*pBlockScanInfo)->uid, sizeof((*pBlockScanInfo)->uid))) {
       bool hasNexTable = moveToNextTable(pUidList, pStatus);

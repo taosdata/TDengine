@@ -1520,7 +1520,7 @@ _end:
   return pUidList;
 }
 
-static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
+static int32_t extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -1528,23 +1528,25 @@ static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pScanInfo = pOperator->info;
     STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
-    void*            tmp = taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
+
+    void* tmp = taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pScanInfo = pOperator->info;
-    void*           tmp = taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
+
+    void* tmp = taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   } else {
     if (pOperator->pDownstream != NULL && pOperator->pDownstream[0] != NULL) {
-      extractTableList(pList, pOperator->pDownstream[0]);
+      code = extractTableList(pList, pOperator->pDownstream[0]);
     }
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, code);
+    qError("%s %s failed at line %d since %s", pTaskInfo->id.str, __func__, lino, tstrerror(code));
   }
+  return code;
 }
 
 int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList) {
@@ -1552,16 +1554,17 @@ int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  *pList = NULL;
   SArray* pArray = taosArrayInit(0, POINTER_BYTES);
   if (pArray == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
-  SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  extractTableList(pArray, pOperator);
-
-  *pList = pArray;
-  return TSDB_CODE_SUCCESS;
+  int32_t code = extractTableList(pArray, pTaskInfo->pRoot);
+  if (code == 0) {
+    *pList = pArray;
+  }
+  return code;
 }
 
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo) {
