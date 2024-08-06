@@ -1228,16 +1228,11 @@ static void checkRegexCache(void* param, void* tmrId) {
     return;
   }
   if(sRegexCache.exit) {
-    code = taosThreadMutexUnlock(&sRegexCache.mutex);
-    if(code != 0) {
-      uError("[regex cache] checkRegexCache, Failed to unlock mutex");
-    }
-    return;
+    goto _exit;
   }
   (void)taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, sRegexCache.regexCacheTmr, &tmrId);
   if (taosHashGetSize(sRegexCache.regexHash) < MAX_REGEX_CACHE_SIZE) {
-    taosThreadMutexUnlock(&sRegexCache.mutex);
-    return;
+    goto _exit;
   }
 
   if (taosHashGetSize(sRegexCache.regexHash) >= MAX_REGEX_CACHE_SIZE) {
@@ -1251,6 +1246,7 @@ static void checkRegexCache(void* param, void* tmrId) {
       ppUsingRegex = taosHashIterate(sRegexCache.regexHash, ppUsingRegex);
     }
   }
+_exit:
   code = taosThreadMutexUnlock(&sRegexCache.mutex);
   if(code != 0) {
     uError("[regex cache] checkRegexCache, Failed to unlock mutex");
@@ -1276,17 +1272,16 @@ int32_t InitRegexCache() {
     return -1;
   }
 
+  sRegexCache.exit = false;
+  if (taosThreadMutexInit(&sRegexCache.mutex, NULL) != 0) {
+    uError("failed to init mutex");
+    return -1;
+  }
   sRegexCache.timer = taosTmrStart(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, NULL, sRegexCache.regexCacheTmr);
   if (sRegexCache.timer == NULL) {
     uError("failed to start regex cache timer");
     return -1;
   }
-
-  if (taosThreadMutexInit(&sRegexCache.mutex, NULL) != 0) {
-    uError("failed to init mutex");
-    return -1;
-  }
-  sRegexCache.exit = false;
 
   return 0;
 }
@@ -1294,12 +1289,12 @@ int32_t InitRegexCache() {
 void DestroyRegexCache(){
   int32_t code = 0;
   uInfo("[regex cache] destory regex cache");
+  (void)taosTmrStopA(&sRegexCache.timer);
   code = taosThreadMutexLock(&sRegexCache.mutex);
   if (code != 0) {
     uError("[regex cache] Failed to lock mutex");
     return;
   }
-  (void)taosTmrStopA(&sRegexCache.timer);
   sRegexCache.exit = true;
   taosHashCleanup(sRegexCache.regexHash);
   taosTmrCleanUp(sRegexCache.regexCacheTmr);
