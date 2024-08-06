@@ -141,6 +141,7 @@ class TDTestCase:
         tdSql.error(f"select * from {dbname}.stb_1 order by top(col1) desc")
         tdSql.error(f"select * from {dbname}.stb_1 order by first(col1) desc")
         tdSql.error(f"select * from {dbname}.stb_1 order by bottom(col1) desc")
+        tdSql.error(f"select *, last(ts) as ts from {dbname}.stb order by ts desc")
         
         tdSql.query(f"select * from {dbname}.stb_1 order by col1 desc")
         tdSql.query(f"select * from {dbname}.stb_1 order by ts desc")
@@ -168,7 +169,9 @@ class TDTestCase:
         tdSql.error(f"select * from {dbname}.stb order by top(col1) desc")
         tdSql.error(f"select * from {dbname}.stb order by first(col1) desc")
         tdSql.error(f"select * from {dbname}.stb order by bottom(col1) desc")
-        
+        tdSql.error(f"select last(col1) from {dbname}.stb order by last(ts) desc")
+        tdSql.error(f"select first(col1) from {dbname}.stb order by first(ts) desc")
+
         tdSql.query(f"select *, last(ts) from {dbname}.stb order by last(ts) desc")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 10)
@@ -187,6 +190,37 @@ class TDTestCase:
         tdSql.query(f"select *, bottom(col1, 3) from {dbname}.stb order by col1 desc")
         tdSql.checkRows(3)
         tdSql.checkData(0, 1, 2)
+        tdSql.query(f"select *, last(ts) as tt from {dbname}.stb order by last(ts) desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+        tdSql.query(f"select *, last(ts) as tt from {dbname}.stb order by tt desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+        tdSql.query(f"select *, last(ts) as ts from {dbname}.stb order by last(ts) desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+        tdSql.query(f"select *, last(ts) from {dbname}.stb order by last(ts) + 2 desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+        tdSql.query(f"select *, last(ts) + 2 from {dbname}.stb order by last(ts) desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+        tdSql.query(f"select *, 2 + last(ts) from {dbname}.stb order by last(ts) + 1 desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+        tdSql.query(f"select *, 2 + last(ts) from {dbname}.stb order by 2 + last(ts) desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+        tdSql.query(f"select *, 2 + last(col1) + 20 from {dbname}.stb order by last(col1) + 1 desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+
+        # Function parameters are not supported for the time being.
+        tdSql.error(f"select *, last(col1 + 2) from {dbname}.stb order by last(col1) desc")
+        # tdSql.query(f"select *, last(col1 + 2) from {dbname}.stb order by last(col1) desc")
+        # tdSql.checkRows(1)
+        # tdSql.checkData(0, 1, 10)
+        
 
     def run(self):
         dbname = "db"

@@ -14,7 +14,6 @@
  */
 
 #include "parTranslater.h"
-#include <stdint.h>
 #include "parInt.h"
 #include "tdatablock.h"
 
@@ -5047,14 +5046,28 @@ static int32_t translateClausePosition(STranslateContext* pCxt, SNodeList* pProj
   return TSDB_CODE_SUCCESS;
 }
 
-bool static notExsitInList(SNodeList* pList, SFunctionNode* pFunc) {
-  SNode* pNode = NULL;
-  FOREACH(pNode, pList) {
-    if (QUERY_NODE_FUNCTION == nodeType(pNode) && 0 == strcmp(((SFunctionNode*)pNode)->functionName, pFunc->functionName)) {
-      return false;
-    }
+typedef struct {
+  SFunctionNode* pFunc;
+  bool exist;
+} SOrderByCheckContext;
+
+static EDealRes checkFunctionExist(SNode** pNode, void* pContext) {
+  SOrderByCheckContext* pOrderbyContext = (SOrderByCheckContext*)pContext;
+  SFunctionNode*        pFunc = pOrderbyContext->pFunc;
+  if (QUERY_NODE_FUNCTION == nodeType(*pNode) && nodesEqualNode(*pNode, (SNode*)pFunc)) {
+    pOrderbyContext->exist = true;
+    return DEAL_RES_END;
   }
-  return true;
+
+  return DEAL_RES_CONTINUE;
+}
+
+bool static funcExsitInList(SNodeList* pList, SFunctionNode* pFunc) {
+  SOrderByCheckContext ctx;
+  ctx.pFunc = pFunc;
+  ctx.exist = false;
+  nodesRewriteExprs(pList, checkFunctionExist, &ctx);
+  return ctx.exist;
 }
 
 static bool validOrderByExpr(SNodeList* pProjectionList, SNode* pNode) {
@@ -5062,7 +5075,7 @@ static bool validOrderByExpr(SNodeList* pProjectionList, SNode* pNode) {
     SNode* pExpr = ((SOrderByExprNode*)pNode)->pExpr;
     if(pExpr && QUERY_NODE_FUNCTION == nodeType(pExpr)) {
       SFunctionNode* pFunc = (SFunctionNode*)pExpr;
-      if (fmIsSelectFunc(pFunc->funcId) && notExsitInList(pProjectionList, pFunc)) {  
+      if (fmIsSelectFunc(pFunc->funcId) && !funcExsitInList(pProjectionList, pFunc)) {
         return false;
       }
     }
