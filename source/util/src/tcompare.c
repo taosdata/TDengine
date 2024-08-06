@@ -1213,14 +1213,30 @@ typedef struct RegexCache {
   SHashObj      *regexHash;
   void          *regexCacheTmr;
   void          *timer;
+  TdThreadMutex mutex;
+  bool          exit;
 } RegexCache;
 static RegexCache sRegexCache;
 #define MAX_REGEX_CACHE_SIZE   20
 #define REGEX_CACHE_CLEAR_TIME 30
 
 static void checkRegexCache(void* param, void* tmrId) {
+  int32_t  code = 0;
+  code = taosThreadMutexLock(&sRegexCache.mutex);
+  if (code != 0) {
+    uError("[regex cache] checkRegexCache, Failed to lock mutex");
+    return;
+  }
+  if(sRegexCache.exit) {
+    code = taosThreadMutexUnlock(&sRegexCache.mutex);
+    if(code != 0) {
+      uError("[regex cache] checkRegexCache, Failed to unlock mutex");
+    }
+    return;
+  }
   (void)taosTmrReset(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, param, sRegexCache.regexCacheTmr, &tmrId);
   if (taosHashGetSize(sRegexCache.regexHash) < MAX_REGEX_CACHE_SIZE) {
+    taosThreadMutexUnlock(&sRegexCache.mutex);
     return;
   }
 
@@ -1234,6 +1250,10 @@ static void checkRegexCache(void* param, void* tmrId) {
       }
       ppUsingRegex = taosHashIterate(sRegexCache.regexHash, ppUsingRegex);
     }
+  }
+  code = taosThreadMutexUnlock(&sRegexCache.mutex);
+  if(code != 0) {
+    uError("[regex cache] checkRegexCache, Failed to unlock mutex");
   }
 }
 
@@ -1262,14 +1282,31 @@ int32_t InitRegexCache() {
     return -1;
   }
 
+  if (taosThreadMutexInit(&sRegexCache.mutex, NULL) != 0) {
+    uError("failed to init mutex");
+    return -1;
+  }
+  sRegexCache.exit = false;
+
   return 0;
 }
 
 void DestroyRegexCache(){
+  int32_t code = 0;
   uInfo("[regex cache] destory regex cache");
+  code = taosThreadMutexLock(&sRegexCache.mutex);
+  if (code != 0) {
+    uError("[regex cache] Failed to lock mutex");
+    return;
+  }
   (void)taosTmrStopA(&sRegexCache.timer);
+  sRegexCache.exit = true;
   taosHashCleanup(sRegexCache.regexHash);
   taosTmrCleanUp(sRegexCache.regexCacheTmr);
+  code  =  taosThreadMutexUnlock(&sRegexCache.mutex);
+  if (code != 0) {
+    uError("[regex cache] Failed to unlock mutex");
+  }
 }
 
 int32_t checkRegexPattern(const char *pPattern) {
@@ -1296,7 +1333,6 @@ UsingRegex **getRegComp(const char *pPattern) {
     (*ppUsingRegex)->lastUsedTime = taosGetTimestampSec();
     return ppUsingRegex;
   }
-  printf("getRegComp , ...");
   UsingRegex *pUsingRegex = taosMemoryMalloc(sizeof(UsingRegex));
   if (pUsingRegex == NULL) {
     terrno  = TSDB_CODE_OUT_OF_MEMORY;
