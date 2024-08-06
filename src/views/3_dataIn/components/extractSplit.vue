@@ -8,7 +8,7 @@
             :placeholder="$t('datasource.transformer.col_select')"
             v-model="ruleForm.col_name"
             @change="selectCol"
-            :disabled="ruleForm.col_name != '' && itemData.columnname != ''"
+            :disabled="ruleForm.col_name != '' && itemData.columnname != '' && !!ruleForm.filter_name"
           >
             <el-option
               v-for="(item, index) in extractColumns"
@@ -32,6 +32,7 @@
               :key="item"
               :label="item"
               :value="item"
+              :disabled="item == 'join' && itemData.value_type !== 'array'"
             ></el-option>
           </el-select>
         </el-form-item>
@@ -329,7 +330,10 @@ export default {
         tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields.map((item, index) => {
-              return [item.name, this.filterEmpty(data[index]) ? data[index].toString() : null];
+              return [item.name, 
+                this.filterEmpty(data[index]) 
+                ? (Array.isArray(data[index]) ? JSON.stringify(data[index]) : data[index].toString()) 
+                : null];
             })
           );
         });

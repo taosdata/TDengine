@@ -852,13 +852,16 @@ export default {
         } else if (this.$store.state.app.currentDBType == "mongodb") {
           hiddenCols = this.mongodbDefaultCols;
         }
+        debugger
         let tbdata = result[0].columns.map((data) => {
           return Object.fromEntries(
             result[0].fields
               .map((item, index) => {
                 return [
                   item.name,
-                  this.filterEmpty(data[index]) ? data[index].toString() : null,
+                  this.filterEmpty(data[index]) 
+                    ? (Array.isArray(data[index]) ? JSON.stringify(data[index]) : data[index].toString()) 
+                    : null
                 ];
               })
               .filter((f) => !hiddenCols.includes(f[0]))
