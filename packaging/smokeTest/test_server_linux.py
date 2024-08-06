@@ -32,6 +32,14 @@ def test_execute_cases(run_command):
         print("STDOUT:", run_command['stdout'])
         print("STDERR:", run_command['stderr'])
         print("Return Code:", run_command['returncode'])
+    else:
+        print(f"Running command: {run_command['command']}")
+        if len(run_command['stdout']) > 500:
+            print("STDOUT:", run_command['stdout'][:500])
+        else:
+            print("STDOUT:", run_command['stdout'])
+        print("STDERR:", run_command['stderr'])
+        print("Return Code:", run_command['returncode'])
 
     assert run_command[
                'returncode'] == 0, f"Command '{run_command['command']}' failed with return code {run_command['returncode']}"
