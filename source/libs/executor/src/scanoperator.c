@@ -127,8 +127,8 @@ static int32_t overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBloc
     }
   } else {
     w = getAlignQueryTimeWindow(pInterval, pBlockInfo->window.ekey);
-    if(w.skey > pBlockInfo->window.skey) {
-      qError("w.skey:%" PRId64 " > pBlockInfo->window.skey:%" PRId64, w.skey, pBlockInfo->window.skey);
+    if(w.skey > pBlockInfo->window.ekey) {
+      qError("w.skey:%" PRId64 " > pBlockInfo->window.skey:%" PRId64, w.skey, pBlockInfo->window.ekey);
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
 
