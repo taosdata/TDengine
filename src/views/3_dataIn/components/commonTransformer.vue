@@ -1637,10 +1637,10 @@ export default {
           Message.warning(this.$t("datasource.transformer.mappingvaildtip"));
           this.isbreak = true;
         }
-        // 不支持 VARBINARY & GEOMETRY
-        if ((item["Type"] == "VARBINARY" || item["Type"] == "GEOMETRY") && item["Expression"]) {
+        // 不支持 GEOMETRY
+        if (item["Type"] == "GEOMETRY" && item["Expression"]) {
           Message.closeAll();
-          Message.warning(this.$t("datasource.transformer.nonsupportTypetip",['VARBINARY/GEOMETRY']))
+          Message.warning(this.$t("datasource.transformer.nonsupportTypetip",['GEOMETRY']))
           this.isbreak = true;
         }
         if (item["Expression"]) {
