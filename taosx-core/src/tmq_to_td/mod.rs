@@ -17,7 +17,7 @@ use taos::*;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<()> {
+async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<bool> {
     let target_desc = to.describe(&table).await?;
     let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
 
@@ -29,28 +29,31 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<(
             if !(target_desc_first.ty() == Ty::Timestamp
                 && desc_first.name() == target_desc_first.field())
             {
-                bail!(
+                tracing::error!(
                     "Mismatch the first field: expect `{:?}`, but got `{:?}`",
                     target_desc_first,
                     desc_first
                 );
+                return Ok(false);
             }
         }
     } else {
-        bail!(
+        tracing::error!(
             "Error data: expect timestamp as first field, but got `{}`",
             desc_first.ty()
         );
+        return Ok(false);
     }
 
     for l in desc {
         if let Some(r) = fields.get(l.name()) {
             // check if the field is equal.
             if r.is_tag() {
-                bail!(
+                tracing::error!(
                     "Target field is not match the source: expect `{}` as column, but got tag",
                     l.name()
                 );
+                return Ok(false);
             }
             if r.ty() != l.ty() {
                 tracing::warn!(
@@ -92,7 +95,7 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<(
             }
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 async fn write_data(
@@ -251,12 +254,16 @@ async fn write_data(
                                 let source_stable_name = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?;
                                 if let Some(mut source_stable_name) = source_stable_name {
                                     if actions.is_empty() {
-                                        migrate_data_schema(
+                                        let result = migrate_data_schema(
                                             &raw.fields(),
                                             &taos,
                                             &source_table_name,
                                         )
                                         .await?;
+                                        // if failed, do not retry again
+                                        if !result {
+                                            return anyhow::Ok(());
+                                        }
                                     } else {
                                         for action in actions {
                                             match action {
@@ -266,16 +273,25 @@ async fn write_data(
                                                 _ => (),
                                             }
                                         }
-                                        migrate_data_schema(
+                                        let result = migrate_data_schema(
                                             &raw.fields(),
                                             &taos,
                                             &source_stable_name,
                                         )
                                         .await?;
+                                        // if failed, do not retry again
+                                        if !result {
+                                            return anyhow::Ok(());
+                                        }
                                     }
                                 } else {
                                     let table = raw.table_name().unwrap();
-                                    migrate_data_schema(&raw.fields(), &taos, table).await?;
+                                    let result =
+                                        migrate_data_schema(&raw.fields(), &taos, table).await?;
+                                    // if failed, do not retry again
+                                    if !result {
+                                        return anyhow::Ok(());
+                                    }
                                 }
                                 taos.write_raw_block(&raw).await.context(
                                     "Write raw block into target error after 0x0118 fix",
