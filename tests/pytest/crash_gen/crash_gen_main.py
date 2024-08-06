@@ -180,7 +180,7 @@ class WorkerThread:
                     dummy = 0
                 else:
                     print("\nCaught programming error. errno=0x{:X}, msg={} ".format(errno, err.msg))
-                    raise
+                    raise CrashGenError("func _doTaskLoop error")
 
             # Fetch a task from the Thread Coordinator
             Logging.debug("[TRD] Worker thread [{}] about to fetch task".format(self._tid))
@@ -384,7 +384,7 @@ class ThreadCoordinator:
                 self._te = None  # Not running any more
                 self._execStats.registerFailure("State transition error: {}".format(err))
             else:
-                raise
+                raise CrashGenError("func _doTransition error")
         # return transitionFailed # Why did we have this??!!
 
         self.resetExecutedTasks()  # clear the tasks after we are done
@@ -958,7 +958,7 @@ class StateMechine:
         except taos.error.ProgrammingError as err:
             Logging.error("Failed to initialized state machine, cannot find current state: {}".format(err))
             traceback.print_stack()
-            raise  # re-throw
+            raise CrashGenError("func StateMechine init error")  # re-throw
 
     # TODO: seems no lnoger used, remove?
     def getCurrentState(self):
@@ -2128,7 +2128,7 @@ class TdSuperTable:
         except taos.error.ProgrammingError as err:
             errno2 = Helper.convertErrno(err.errno)
             Logging.debug("[=] Failed to get tables from super table: errno=0x{:X}, msg: {}".format(errno2, err))
-            raise
+            raise CrashGenError("func getRegTables error")
 
         qr = dbc.getQueryResult()
         return [v[0] for v in
@@ -2442,7 +2442,7 @@ class TdSuperTable:
                 for colName, colType in selectItems.items():
                     for groupKey, group in FunctionMap:
                         query_parts.append(colName)
-                
+
                 commonExpr = Dice.choice([
                     '*',
                     'abs(speed)',
@@ -2953,7 +2953,7 @@ class TaskAddData(StateTransitionTask):
 
             except:  # Any exception at all
                 self._unlockTableIfNeeded(fullTableName)
-                raise
+                raise CrashGenError("func _addData error")
 
             # Now read it back and verify, we might encounter an error if table is dropped
             if Config.getConfig().verify_data:  # only if command line asks for it
@@ -2981,7 +2981,7 @@ class TaskAddData(StateTransitionTask):
                         pass
                     else:
                         # Re-throw otherwise
-                        raise
+                        raise CrashGenError("func _addData error")
                 finally:
                     self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
             # Done with read-back verification, unlock the table now
@@ -3049,7 +3049,7 @@ class TaskAddData(StateTransitionTask):
 
             except:  # Any exception at all
                 self._unlockTableIfNeeded(fullTableName)
-                raise
+                raise CrashGenError("func _addData_n error")
 
             # Now read it back and verify, we might encounter an error if table is dropped
             if Config.getConfig().verify_data:  # only if command line asks for it
@@ -3077,7 +3077,7 @@ class TaskAddData(StateTransitionTask):
                         pass
                     else:
                         # Re-throw otherwise
-                        raise
+                        raise CrashGenError("func _addData error")
                 finally:
                     self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
             # Done with read-back verification, unlock the table now
@@ -3117,7 +3117,7 @@ class TaskAddData(StateTransitionTask):
                 dbc.execute(sql)
                 # Logging.info("Data added: {}".format(sql))
             except:  # Any exception at all
-                raise
+                raise CrashGenError("func _addDataByAutoCreateTable_n error")
 
     def _addDataByMultiTable_n(self, db: Database, dbc):  # implied: NOT in batches
         if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
@@ -3140,7 +3140,7 @@ class TaskAddData(StateTransitionTask):
             dbc.execute(sql)
             Logging.info("Data added: {}".format(sql))
         except:  # Any exception at all
-            raise
+            raise CrashGenError("func _addDataByMultiTable_n error")
 
     def _getStmtBindLines(self, db: Database, dbc):
         if dbc.query("show {}.tables".format(db.getName())) == 0:  # no tables
@@ -3312,7 +3312,7 @@ class TaskAddData(StateTransitionTask):
             lines = f'{stbname},{tagStrs} {colStrs} {ts}'
             dbc.influxdbLineInsert(line=[lines], ts_type=TDSmlTimestampType.MILLI_SECOND.value, dbname=db.getName())
         except:  # Any exception at all
-            raise
+            raise CrashGenError("func _addDataByInfluxdbLine error")
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
@@ -3448,7 +3448,7 @@ class TaskDeleteData(StateTransitionTask):
 
                 except:  # Any exception at all
                     self._unlockTableIfNeeded(fullTableName)
-                    raise
+                    raise CrashGenError("func _deleteData error")
 
                 # Now read it back and verify, we might encounter an error if table is dropped
                 if Config.getConfig().verify_data:  # only if command line asks for it
@@ -3471,7 +3471,7 @@ class TaskDeleteData(StateTransitionTask):
                             pass
                         else:
                             # Re-throw otherwise
-                            raise
+                            raise CrashGenError("func _deleteData error")
                     finally:
                         self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
                 # Done with read-back verification, unlock the table now
@@ -3509,7 +3509,7 @@ class TaskDeleteData(StateTransitionTask):
 
                 except:  # Any exception at all
                     self._unlockTableIfNeeded(fullTableName)
-                    raise
+                    raise CrashGenError("func _deleteData error")
 
                 # Now read it back and verify, we might encounter an error if table is dropped
                 if Config.getConfig().verify_data:  # only if command line asks for it
@@ -3532,7 +3532,7 @@ class TaskDeleteData(StateTransitionTask):
                             pass
                         else:
                             # Re-throw otherwise
-                            raise
+                            raise CrashGenError("func _deleteData error")
                     finally:
                         self._unlockTableIfNeeded(fullTableName)  # Quite ugly, refactor lock/unlock
                 # Done with read-back verification, unlock the table now
