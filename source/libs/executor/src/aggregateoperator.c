@@ -147,12 +147,7 @@ _error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
-
-  if (pOperator != NULL) {
-    cleanupExprSupp(&pOperator->exprSupp);
-  }
-
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }

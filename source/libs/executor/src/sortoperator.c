@@ -164,7 +164,7 @@ _error:
     destroySortOperatorInfo(pInfo);
   }
 
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -824,6 +824,6 @@ _error:
   if (pInfo != NULL) {
     destroyGroupSortOperatorInfo(pInfo);
   }
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   return code;
 }

@@ -247,7 +247,7 @@ _error:
   }
   pInfo->pTableList = NULL;
   destroyCacheScanOperator(pInfo);
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   return code;
 }
 

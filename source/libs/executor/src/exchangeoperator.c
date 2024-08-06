@@ -443,7 +443,7 @@ _error:
     doDestroyExchangeOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }

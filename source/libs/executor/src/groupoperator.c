@@ -1242,7 +1242,7 @@ _error:
     destroyPartitionOperatorInfo(pInfo);
   }
   pTaskInfo->code = code;
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   TAOS_RETURN(code);
 }
 
@@ -1784,8 +1784,8 @@ int32_t createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPart
 
 _error:
   pTaskInfo->code = code;
-  destroyStreamPartitionOperatorInfo(pInfo);
-  taosMemoryFreeClear(pOperator);
+  if (pInfo != NULL) destroyStreamPartitionOperatorInfo(pInfo);
+  destroyOperator(pOperator);
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }

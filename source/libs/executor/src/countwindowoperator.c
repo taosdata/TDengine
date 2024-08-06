@@ -341,7 +341,7 @@ _error:
     destroyCountWindowOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }

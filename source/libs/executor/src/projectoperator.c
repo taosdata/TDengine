@@ -180,7 +180,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
 
 _error:
   destroyProjectOperatorInfo(pInfo);
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -529,7 +529,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
 _error:
   destroyIndefinitOperatorInfo(pInfo);
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
