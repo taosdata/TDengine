@@ -1554,16 +1554,17 @@ int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  *pList = NULL;
   SArray* pArray = taosArrayInit(0, POINTER_BYTES);
   if (pArray == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
-  SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  extractTableList(pArray, pOperator);
-
-  *pList = pArray;
-  return TSDB_CODE_SUCCESS;
+  int32_t code = extractTableList(pArray, pTaskInfo->pRoot);
+  if (code == 0) {
+    *pList = pArray;
+  }
+  return code;
 }
 
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo) {
