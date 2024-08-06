@@ -398,6 +398,17 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
+bool mndDbIsExist(SMnode *pMnode, const char *db) {
+  SDbObj *pDb = mndAcquireDb(pMnode, db);
+  if (pDb == NULL) {
+    return false;
+  } else {
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;
+    return true;
+  }
+}
+
 static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
   char *pos = strstr(dbName, TS_PATH_DELIMITER);
   if (pos == NULL) {
