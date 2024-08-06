@@ -1173,7 +1173,7 @@ int32_t udfdOpenClientRpc() {
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");
-    return -1;
+    return terrno;
   }
   return 0;
 }

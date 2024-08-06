@@ -393,7 +393,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
     dError("failed to init dnode rpc client");
-    return -1;
+    return terrno;
   }
 
   dDebug("dnode rpc client is initialized");
@@ -437,7 +437,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   pTrans->statusRpc = rpcOpen(&rpcInit);
   if (pTrans->statusRpc == NULL) {
     dError("failed to init dnode rpc status client");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   dDebug("dnode rpc status client is initialized");
@@ -482,7 +482,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   pTrans->syncRpc = rpcOpen(&rpcInit);
   if (pTrans->syncRpc == NULL) {
     dError("failed to init dnode rpc sync client");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   dDebug("dnode rpc sync client is initialized");
