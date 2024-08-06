@@ -35,7 +35,7 @@ def test_execute_cases(run_command):
     else:
         print(f"Running command: {run_command['command']}")
         if len(run_command['stdout']) > 500:
-            print("STDOUT:", run_command['stdout'][:500])
+            print("STDOUT:", run_command['stdout'][:500] + "...")
         else:
             print("STDOUT:", run_command['stdout'])
         print("STDERR:", run_command['stderr'])
