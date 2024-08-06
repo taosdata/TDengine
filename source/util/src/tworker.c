@@ -995,7 +995,7 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool) {
 static int32_t tQueryAutoQWorkerBeforeBlocking(void *p) {
   SQueryAutoQWorkerPool *pPool = p;
   if (tQueryAutoQWorkerTrySignalWaitingAfterBlock(p) || tQueryAutoQWorkerTrySignalWaitingBeforeProcess(p) ||
-      tQueryAutoQWorkerTryDecActive(p, 1)) {
+      tQueryAutoQWorkerTryDecActive(p, pPool->num)) {
   } else {
     int32_t code = tQueryAutoQWorkerAddWorker(pPool);
     if (code != TSDB_CODE_SUCCESS) {

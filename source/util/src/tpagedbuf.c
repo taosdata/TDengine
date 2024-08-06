@@ -405,6 +405,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
 
 _error:
   destroyDiskbasedBuf(pPBuf);
+  *pBuf = NULL;
   return TSDB_CODE_OUT_OF_MEMORY;
 }
 
