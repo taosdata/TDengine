@@ -585,7 +585,7 @@ int32_t buildSubmitMsgImpl(SSubmitReq2* pSubmitReq, int32_t vgId, void** pMsg, i
   int32_t len = 0;
   tEncodeSize(tEncodeSubmitReq, pSubmitReq, len, code);
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   len += sizeof(SSubmitReq2Msg);
 
   pBuf = rpcMallocCont(len);
@@ -1196,7 +1196,7 @@ int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* 
     return code;
   }
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
   void*    abuf = POINTER_SHIFT(serializedDeleteReq, sizeof(SMsgHead));
   tEncoderInit(&encoder, abuf, len);

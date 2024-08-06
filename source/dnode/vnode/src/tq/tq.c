@@ -459,7 +459,7 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, len);
   code = tEncodeMqVgOffset(&encoder, &vgOffset);
   tEncoderClear(&encoder);
