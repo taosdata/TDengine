@@ -198,6 +198,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
 SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type,
                                    int32_t numOfCols) {
   SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(taosMemoryCalloc(1, sizeof(SOperatorInfo)));
+  ASSERT(!pOperator);
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
@@ -207,6 +208,7 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   }
 
   SDummyInputInfo* pInfo = (SDummyInputInfo*)taosMemoryCalloc(1, sizeof(SDummyInputInfo));
+  ASSERT(!pInfo);
   pInfo->totalPages = numOfBlocks;
   pInfo->startVal = startVal;
   pInfo->numOfRowsPerPage = rowsPerPage;

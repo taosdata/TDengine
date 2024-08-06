@@ -75,7 +75,7 @@ char *taosCharsetReplace(char *charsetstr) {
  *
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */
-int32_t taosSetSystemLocale(const char *inLocale, const char *inCharSet) {\
+int32_t taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
   if (!taosValidateEncodec(inCharSet)) {
     return terrno;
   }

@@ -182,8 +182,8 @@ static void* tupleGetField(char* t, uint32_t colIdx, uint32_t colNum) {
 }
 
 int32_t tsortGetSortedDataBlock(const SSortHandle* pSortHandle, SSDataBlock** pBlock) {
+  *pBlock = NULL;
   if (pSortHandle->pDataBlock == NULL) {
-    *pBlock = NULL;
     return TSDB_CODE_SUCCESS;
   }
   return createOneDataBlock(pSortHandle->pDataBlock, false, pBlock);
@@ -469,10 +469,10 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
     int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
                                       "sortExternalBuf", tsTempDir);
-    dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+    dBufSetPrintInfo(pHandle->pBuf);
   }
 
   SArray* pPageIdList = taosArrayInit(4, sizeof(int32_t));
@@ -562,10 +562,10 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
 
     code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
                               "sortComparInit", tsTempDir);
-    dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
       return code;
+    } else {
+      dBufSetPrintInfo(pHandle->pBuf);
     }
   }
 
@@ -1111,9 +1111,10 @@ static int32_t createPageBuf(SSortHandle* pHandle) {
 
     int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
                                       "tableBlocksBuf", tsTempDir);
-    dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
+    } else {
+      dBufSetPrintInfo(pHandle->pBuf);
     }
   }
   return 0;
@@ -2452,7 +2453,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
   return code;
 }
 
-static bool tsortOpenForBufMergeSort(SSortHandle* pHandle) {
+static int32_t tsortOpenForBufMergeSort(SSortHandle* pHandle) {
   int32_t code = createInitialSources(pHandle);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -2478,7 +2479,8 @@ static bool tsortOpenForBufMergeSort(SSortHandle* pHandle) {
     return code;
   }
 
-  return tMergeTreeCreate(&pHandle->pMergeTree, pHandle->cmpParam.numOfSources, &pHandle->cmpParam, pHandle->comparFn);
+  code = tMergeTreeCreate(&pHandle->pMergeTree, pHandle->cmpParam.numOfSources, &pHandle->cmpParam, pHandle->comparFn);
+  return code;
 }
 
 void tsortClose(SSortHandle* pHandle) {
@@ -2808,19 +2810,24 @@ static int32_t tsortSingleTableMergeNextTuple(SSortHandle* pHandle, STupleHandle
 }
 
 int32_t tsortOpen(SSortHandle* pHandle) {
+  int32_t code = 0;
   if (pHandle->opened) {
-    return 0;
+    return code;
   }
 
-  if (pHandle->fetchfp == NULL || pHandle->comparFn == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+  if (pHandle == NULL || pHandle->fetchfp == NULL || pHandle->comparFn == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
   }
 
   pHandle->opened = true;
-  if (tsortIsPQSortApplicable(pHandle))
-    return tsortOpenForPQSort(pHandle);
-  else
-    return tsortOpenForBufMergeSort(pHandle);
+  if (tsortIsPQSortApplicable(pHandle)) {
+    code = tsortOpenForPQSort(pHandle);
+  } else {
+    code = tsortOpenForBufMergeSort(pHandle);
+  }
+
+  return code;
 }
 
 int32_t tsortNextTuple(SSortHandle* pHandle, STupleHandle** pTupleHandle) {

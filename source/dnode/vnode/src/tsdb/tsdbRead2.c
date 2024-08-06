@@ -164,17 +164,19 @@ static void tRowGetPrimaryKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
 
 static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pCols, const int32_t* pSlotIdList,
                                    int32_t numOfCols) {
+  bool initSucc = true;
+
   pSupInfo->pk.pk = 0;
   pSupInfo->numOfPks = 0;
   pSupInfo->pkSrcSlot = -1;
   pSupInfo->pkDstSlot = -1;
-
   pSupInfo->smaValid = true;
   pSupInfo->numOfCols = numOfCols;
+
   pSupInfo->colId = taosMemoryMalloc(numOfCols * (sizeof(int16_t) * 2 + POINTER_BYTES));
   if (pSupInfo->colId == NULL) {
     taosMemoryFree(pSupInfo->colId);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pSupInfo->slotId = (int16_t*)((char*)pSupInfo->colId + (sizeof(int16_t) * numOfCols));
@@ -187,7 +189,7 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCols[i].bytes);
       if (pSupInfo->buildBuf[i] == NULL) {
         tsdbError("failed to prepare memory for set columnId slot list, size:%d, code:out of memory", pCols[i].bytes);
-        return TSDB_CODE_OUT_OF_MEMORY;
+        initSucc = false;
       }
     } else {
       pSupInfo->buildBuf[i] = NULL;
@@ -201,7 +203,7 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return (initSucc)? TSDB_CODE_SUCCESS:TSDB_CODE_OUT_OF_MEMORY;
 }
 
 static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) {
@@ -4743,9 +4745,12 @@ void tsdbReaderClose2(STsdbReader* pReader) {
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
   TARRAY2_DESTROY(&pSupInfo->colAggArray, NULL);
-  for (int32_t i = 0; i < pSupInfo->numOfCols; ++i) {
-    if (pSupInfo->buildBuf[i] != NULL) {
-      taosMemoryFreeClear(pSupInfo->buildBuf[i]);
+
+  if (pSupInfo->buildBuf) {
+    for (int32_t i = 0; i < pSupInfo->numOfCols; ++i) {
+      if (pSupInfo->buildBuf[i] != NULL) {
+        taosMemoryFreeClear(pSupInfo->buildBuf[i]);
+      }
     }
   }
 
@@ -5760,6 +5765,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   int32_t        code = 0;
   STsdb*         pTsdb = pReader->pTsdb;
   SVersionRange* pRange = &pReader->info.verRange;
+  *ppSnap = NULL;
 
   // lock
   code = taosThreadMutexLock(&pTsdb->mutex);
@@ -5772,7 +5778,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   STsdbReadSnap* pSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(STsdbReadSnap));
   if (pSnap == NULL) {
     (void) taosThreadMutexUnlock(&pTsdb->mutex);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -5782,7 +5788,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pNode = taosMemoryMalloc(sizeof(*pSnap->pNode));
     if (pSnap->pNode == NULL) {
       (void) taosThreadMutexUnlock(&pTsdb->mutex);
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _exit;
     }
 
@@ -5796,8 +5802,10 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pIMem = pTsdb->imem;
     pSnap->pINode = taosMemoryMalloc(sizeof(*pSnap->pINode));
     if (pSnap->pINode == NULL) {
+      tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
+      code = terrno;
+
       (void) taosThreadMutexUnlock(&pTsdb->mutex);
-      code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
 
@@ -5809,28 +5817,33 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
 
   // fs
   code = tsdbFSCreateRefSnapshotWithoutLock(pTsdb->pFS, &pSnap->pfSetArray);
+  if (code) {
+    if (pSnap->pNode) {
+      tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
+    }
+
+    if (pSnap->pINode) {
+      tsdbUnrefMemTable(pTsdb->imem, pSnap->pINode, true);
+    }
+
+    (void) taosThreadMutexUnlock(&pTsdb->mutex);
+    goto _exit;
+  }
 
   // unlock
   (void) taosThreadMutexUnlock(&pTsdb->mutex);
+  *ppSnap = pSnap;
 
-  if (code == TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, take read snapshot", TD_VID(pTsdb->pVnode));
-  }
+  tsdbTrace("vgId:%d, take read snapshot", TD_VID(pTsdb->pVnode));
+  return code;
 
 _exit:
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d take read snapshot failed, code:%s", TD_VID(pTsdb->pVnode), tstrerror(code));
-
-    *ppSnap = NULL;
-    if (pSnap) {
-      if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
-      if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
-      taosMemoryFree(pSnap);
-    }
-  } else {
-    *ppSnap = pSnap;
+  tsdbError("vgId:%d take read snapshot failed, code:%s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  if (pSnap) {
+    if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
+    if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
+    taosMemoryFree(pSnap);
   }
-
   return code;
 }
 

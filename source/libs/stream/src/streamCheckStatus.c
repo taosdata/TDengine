@@ -74,13 +74,6 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   }
 
   if (pInfo->stage != stage) {
-    streamMutexLock(&pTask->lock);
-    ETaskStatus status = streamTaskGetStatus(pTask).state;
-    if (status == TASK_STATUS__CK) {
-      streamTaskSetFailedCheckpointId(pTask);
-    }
-    streamMutexUnlock(&pTask->lock);
-
     return TASK_UPSTREAM_NEW_STAGE;
   } else if (pTask->status.downstreamReady != 1) {
     stDebug("s-task:%s vgId:%d leader:%d, downstream not ready", id, vgId, (pTask->pMeta->role == NODE_ROLE_LEADER));
@@ -133,6 +126,9 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
 
     for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      if (pVgInfo == NULL) {
+        continue;
+      }
 
       setCheckDownstreamReqInfo(&req, tGenIdPI64(), pVgInfo->taskId, pVgInfo->vgId);
       streamTaskAddReqInfo(&pTask->taskCheckInfo, req.reqId, pVgInfo->taskId, pVgInfo->vgId, idstr);
@@ -370,6 +366,10 @@ void addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
   bool    existed = false;
   for (int i = 0; i < num; ++i) {
     SDownstreamTaskEpset* p = taosArrayGet(pTask->outputInfo.pNodeEpsetUpdateList, i);
+    if (p == NULL) {
+      continue;
+    }
+
     if (p->nodeId == nodeId) {
       existed = true;
       break;
@@ -412,6 +412,10 @@ void findCheckRspStatus(STaskCheckInfo* pInfo, int32_t taskId, SDownstreamStatus
   *pStatusInfo = NULL;
   for (int32_t j = 0; j < taosArrayGetSize(pInfo->pList); ++j) {
     SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, j);
+    if (p == NULL) {
+      continue;
+    }
+
     if (p->taskId == taskId) {
       *pStatusInfo = p;
     }
@@ -546,6 +550,9 @@ void doSendCheckMsg(SStreamTask* pTask, SDownstreamStatusInfo* p) {
 
     for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      if (pVgInfo == NULL) {
+        continue;
+      }
 
       if (p->taskId == pVgInfo->taskId) {
         setCheckDownstreamReqInfo(&req, p->reqId, pVgInfo->taskId, pVgInfo->vgId);
@@ -566,6 +573,10 @@ void getCheckRspStatus(STaskCheckInfo* pInfo, int64_t el, int32_t* numOfReady, i
                        int32_t* numOfNotRsp, SArray* pTimeoutList, SArray* pNotReadyList, const char* id) {
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pList); ++i) {
     SDownstreamStatusInfo* p = taosArrayGet(pInfo->pList, i);
+    if (p == NULL) {
+      continue;
+    }
+
     if (p->status == TASK_DOWNSTREAM_READY) {
       (*numOfReady) += 1;
     } else if (p->status == TASK_UPSTREAM_NEW_STAGE || p->status == TASK_DOWNSTREAM_NOT_LEADER) {
@@ -603,8 +614,12 @@ void handleTimeoutDownstreamTasks(SStreamTask* pTask, SArray* pTimeoutList) {
   pInfo->timeoutStartTs = taosGetTimestampMs();
 
   for (int32_t i = 0; i < numOfTimeout; ++i) {
-    int32_t taskId = *(int32_t*)taosArrayGet(pTimeoutList, i);
+    int32_t* px = taosArrayGet(pTimeoutList, i);
+    if (px == NULL) {
+      continue;
+    }
 
+    int32_t taskId = *px;
     SDownstreamStatusInfo* p = NULL;
     findCheckRspStatus(pInfo, taskId, &p);
     if (p != NULL) {
@@ -620,9 +635,13 @@ void handleTimeoutDownstreamTasks(SStreamTask* pTask, SArray* pTimeoutList) {
     pInfo->timeoutRetryCount = 0;
 
     for (int32_t i = 0; i < numOfTimeout; ++i) {
-      int32_t                taskId = *(int32_t*)taosArrayGet(pTimeoutList, i);
+      int32_t* pTaskId = taosArrayGet(pTimeoutList, i);
+      if (pTaskId == NULL) {
+        continue;
+      }
+
       SDownstreamStatusInfo* p = NULL;
-      findCheckRspStatus(pInfo, taskId, &p);
+      findCheckRspStatus(pInfo, *pTaskId, &p);
       if (p != NULL) {
         addIntoNodeUpdateList(pTask, p->vgId);
         stDebug("s-task:%s vgId:%d downstream task:0x%x (vgId:%d) timeout more than 100sec, add into nodeUpate list",
@@ -647,10 +666,13 @@ void handleNotReadyDownstreamTask(SStreamTask* pTask, SArray* pNotReadyList) {
 
   // reset the info, and send the check msg to failure downstream again
   for (int32_t i = 0; i < numOfNotReady; ++i) {
-    int32_t taskId = *(int32_t*)taosArrayGet(pNotReadyList, i);
+    int32_t* pTaskId = taosArrayGet(pNotReadyList, i);
+    if (pTaskId == NULL) {
+      continue;
+    }
 
     SDownstreamStatusInfo* p = NULL;
-    findCheckRspStatus(pInfo, taskId, &p);
+    findCheckRspStatus(pInfo, *pTaskId, &p);
     if (p != NULL) {
       p->rspTs = 0;
       p->status = -1;

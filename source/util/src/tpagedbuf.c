@@ -352,9 +352,8 @@ static SPageInfo* getPageInfoFromPayload(void* page) {
 
 int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
                            const char* dir) {
-  *pBuf = taosMemoryCalloc(1, sizeof(SDiskbasedBuf));
-
-  SDiskbasedBuf* pPBuf = *pBuf;
+  *pBuf = NULL;
+  SDiskbasedBuf* pPBuf = taosMemoryCalloc(1, sizeof(SDiskbasedBuf));
   if (pPBuf == NULL) {
     goto _error;
   }
@@ -394,13 +393,19 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
 
   pPBuf->prefix = (char*)dir;
   pPBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
+  if (pPBuf->emptyDummyIdList == NULL) {
+    goto _error;
+  }
 
   //  qDebug("QInfo:0x%"PRIx64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
   //  pPBuf->pageSize, pPBuf->inMemPages, pPBuf->path);
 
+  *pBuf = pPBuf;
   return TSDB_CODE_SUCCESS;
+
 _error:
   destroyDiskbasedBuf(pPBuf);
+  *pBuf = NULL;
   return TSDB_CODE_OUT_OF_MEMORY;
 }
 

@@ -910,6 +910,7 @@ void streamBackendCleanup(void* arg) {
 
   if (pHandle->db) {
     rocksdb_close(pHandle->db);
+    pHandle->db = NULL;
   }
   rocksdb_options_destroy(pHandle->dbOpt);
   rocksdb_env_destroy(pHandle->env);
@@ -2331,6 +2332,15 @@ void taskDbRemoveRef(void* pTaskDb) {
   (void)taosReleaseRef(taskDbWrapperId, pBackend->refId);
 }
 
+void taskDbSetClearFileFlag(void* pTaskDb) {
+  if (pTaskDb == NULL) {
+    return;
+  }
+
+  STaskDbWrapper* pBackend = pTaskDb;
+  atomic_store_8(&pBackend->removeAllFiles, 1);
+}
+
 void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_env_t* env = rocksdb_create_default_env();
 
@@ -2499,6 +2509,7 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
     }
 
     rocksdb_close(pTaskDb->db);
+    pTaskDb->db = NULL;
 
     if (cfNames != NULL) {
       rocksdb_list_column_families_destroy(cfNames, nCf);
@@ -2573,8 +2584,7 @@ void taskDbDestroy(void* pDb, bool flush) {
   stDebug("succ to destroy stream backend:%p", wrapper);
 
   int8_t nCf = tListLen(ginitDict);
-
-  if (flush) {
+  if (flush &&  wrapper->removeAllFiles == 0) {
     if (wrapper->db && wrapper->pCf) {
       rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
       rocksdb_flushoptions_set_wait(flushOpt, 1);
@@ -2609,6 +2619,7 @@ void taskDbDestroy(void* pDb, bool flush) {
 
   if (wrapper->db) {
     rocksdb_close(wrapper->db);
+    wrapper->db = NULL;
   }
 
   rocksdb_options_destroy(wrapper->dbOpt);
@@ -2636,6 +2647,11 @@ void taskDbDestroy(void* pDb, bool flush) {
   taskDbDestroyChkpOpt(wrapper);
 
   taosMemoryFree(wrapper->idstr);
+
+  if (wrapper->removeAllFiles) {
+    char* err = NULL;
+    taosRemoveDir(wrapper->path);
+  }
   taosMemoryFree(wrapper->path);
   taosMemoryFree(wrapper);
 
