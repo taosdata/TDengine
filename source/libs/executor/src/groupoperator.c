@@ -616,7 +616,6 @@ _error:
     destroyGroupOperatorInfo(pInfo);
   }
   destroyOperator(pOperator);
-  taosMemoryFreeClear(pOperator);
   return code;
 }
 
