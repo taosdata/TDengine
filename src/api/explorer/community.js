@@ -2658,14 +2658,17 @@ export function getDataSources(lang) {
               },
               {
                 "name": "fetch_max_wait_time",
-                "display": "Maximum time to wait for data",
+                "display": "Waiting Timeout",
                 "hint": {
-                  "type": "str"
+                  "type": "integer",
+                  "min": 0,
+                  "max": 65535
                 },
-                "short_description": "Sets the maximum time in milliseconds to wait for insufficient data to become available when fetching messages.(e.g. fetch_max_wait_time=500ms)",
-                "description": "Sets the maximum time in milliseconds to wait for insufficient data to become available when fetching messages.(e.g. fetch_max_wait_time=500ms)\ndefault is 100ms.\n",
+                "short_description": "A timeout for polling data from the topic.",
+                "description": "A timeout for polling data from the topic.\n\nThe default value `0`: means waiting for valid message without timeout,the unit is ms.\n",
                 "required": false,
-                "placeholder": "100ms"
+                "placeholder": "100ms",
+                "value": 0
               }
             ]
           }
@@ -7138,14 +7141,17 @@ export function getDataSources(lang) {
               },
               {
                 "name": "fetch_max_wait_time",
-                "display": "获取数据的最大时长",
+                "display": "等待超时时间",
                 "hint": {
-                  "type": "str"
+                  "type": "integer",
+                  "min": 0,
+                  "max": 65535
                 },
-                "short_description": "设置获取消息时等待数据不足的最长时间（以毫秒为单位），默认值为 100ms。",
-                "description": "设置获取消息时等待数据不足的最长时间（以毫秒为单位），默认值为 100ms。\n",
+                "short_description": "超时时间范围内没有新增数据，Kafka 任务将自动结束。。",
+                "description": "超时时间范围内没有新增数据，Kafka 任务将自动结束。\n\n默认为 `0`: 表示无超时时间，持续进行订阅，单位为 ms。\n",
                 "required": false,
-                "placeholder": "100ms"
+                "placeholder": "100ms",
+                "value": 0,
               }
             ]
           }
