@@ -409,6 +409,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
 
   pInfo->pDummyBlock = createDataBlockFromDescNode(pExNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pDummyBlock, code, lino, _error, terrno);
+
   pInfo->pResultBlockList = taosArrayInit(64, POINTER_BYTES);
   QUERY_CHECK_NULL(pInfo->pResultBlockList, code, lino, _error, terrno);
   pInfo->pRecycledBlocks = taosArrayInit(64, POINTER_BYTES);

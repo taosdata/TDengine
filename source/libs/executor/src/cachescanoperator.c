@@ -108,7 +108,6 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
 
   if (pInfo == NULL || pOperator == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    tableListDestroy(pTableListInfo);
     goto _error;
   }
 
@@ -245,6 +244,7 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  pInfo->pTableList = NULL;
   destroyCacheScanOperator(pInfo);
   taosMemoryFree(pOperator);
   return code;

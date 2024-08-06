@@ -2811,6 +2811,9 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
   return code;
 
 _error:
+  if (pInfo) {
+    pInfo->pTableListInfo = NULL;
+  }
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
   return code;
