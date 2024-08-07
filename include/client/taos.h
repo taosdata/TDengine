@@ -202,9 +202,11 @@ typedef enum {
 } TAOS_FIELD_T;
 
 typedef struct {
-  int64_t reqId;
-  bool    singleStbInsert;
-  bool    singleTableBindOnce;
+  int64_t           reqId;
+  bool              singleStbInsert;
+  bool              singleTableBindOnce;
+  __taos_async_fn_t asyncExecFn;
+  void             *userdata;
 } TAOS_STMT2_OPTION;
 
 typedef struct {
@@ -226,7 +228,7 @@ typedef struct {
 DLL_EXPORT TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option);
 DLL_EXPORT int         taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 DLL_EXPORT int         taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
-DLL_EXPORT int         taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows /*, __taos_async_fn_t fp, void *param*/);
+DLL_EXPORT int         taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int         taos_stmt2_close(TAOS_STMT2 *stmt);
 DLL_EXPORT int         taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);
 DLL_EXPORT int  taos_stmt2_get_fields(TAOS_STMT2 *stmt, TAOS_FIELD_T field_type, int *count, TAOS_FIELD_E **fields);
