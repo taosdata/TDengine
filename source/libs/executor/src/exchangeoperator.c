@@ -347,8 +347,11 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     return TSDB_CODE_INVALID_PARA;
   }
   pInfo->pFetchRpcHandles = taosArrayInit(numOfSources, sizeof(int64_t));
-  (void)taosArrayReserve(pInfo->pFetchRpcHandles, numOfSources);
   if (!pInfo->pFetchRpcHandles) {
+    return terrno;
+  }
+  void* ret = taosArrayReserve(pInfo->pFetchRpcHandles, numOfSources);
+  if (!ret) {
     return terrno;
   }
 
