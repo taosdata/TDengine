@@ -2257,7 +2257,7 @@ void destroySysScanOperator(void* param) {
     if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
         strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
         strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
-      if (pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
+      if (pInfo->pAPI != NULL && pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
         pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
       }
 
@@ -2739,7 +2739,9 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
-  pDistInfo->readHandle.api.tsdReader.tsdReaderClose(pDistInfo->pHandle);
+  if (pDistInfo->readHandle.api.tsdReader.tsdReaderClose != NULL) {
+    pDistInfo->readHandle.api.tsdReader.tsdReaderClose(pDistInfo->pHandle);
+  }
   tableListDestroy(pDistInfo->pTableListInfo);
   taosMemoryFreeClear(param);
 }

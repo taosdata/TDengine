@@ -3743,7 +3743,7 @@ static void destroyStreamScanOperatorInfo(void* param) {
     destroyOperator(pStreamScan->pTableScanOp);
   }
 
-  if (pStreamScan->tqReader) {
+  if (pStreamScan->tqReader != NULL && pStreamScan->readerFn.tqReaderClose != NULL) {
     pStreamScan->readerFn.tqReaderClose(pStreamScan->tqReader);
   }
   if (pStreamScan->matchInfo.pList) {
@@ -4573,7 +4573,7 @@ static SSDataBlock* doTagScanFromMetaEntry(SOperatorInfo* pOperator) {
 
 static void destroyTagScanOperatorInfo(void* param) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
-  if (pInfo->pCtbCursor != NULL) {
+  if (pInfo->pCtbCursor != NULL && pInfo->pStorageAPI != NULL) {
     pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
   }
   taosHashCleanup(pInfo->filterCtx.colHash);
@@ -5735,8 +5735,10 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
 
   // start one reader variable
-  pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
-  pTableScanInfo->base.dataReader = NULL;
+  if (pTableScanInfo->base.readerAPI.tsdReaderClose != NULL) {
+    pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
+    pTableScanInfo->base.dataReader = NULL;
+  }
 
   for (int32_t i = 0; i < pTableScanInfo->numNextDurationBlocks; ++i) {
     if (pTableScanInfo->nextDurationBlocks[i] != NULL) {
