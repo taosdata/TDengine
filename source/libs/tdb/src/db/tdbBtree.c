@@ -1881,7 +1881,6 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
     if (cd.vLen > 0) {
       pVal = tdbRealloc(*ppVal, cd.vLen);
       if (pVal == NULL) {
-        tdbFree(pKey);
         return terrno;
       }
 
