@@ -1436,8 +1436,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
         let batch_counter = batch_counter.clone();
         let cancel = cancel.clone();
         writer_set.spawn(async move {
-            let taos = context.pool.get().await?;
-            let mut taos = Some(taos);
+            let mut taos = None;
             let metrics = metrics_arc.ipc();
             let mut worker_written = 0;
             while let Ok(record) = msg_rx.recv_async().await {
