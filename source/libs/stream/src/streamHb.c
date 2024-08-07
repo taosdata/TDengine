@@ -293,7 +293,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   streamMetaRLock(pMeta);
   code = streamMetaSendHbHelper(pMeta);
   if (code) {
-    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, strerror(code));
+    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
   }
 
   streamMetaRUnLock(pMeta);
