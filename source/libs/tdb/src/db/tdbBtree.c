@@ -1660,12 +1660,14 @@ int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn) {
   if (pTxn == NULL) {
     TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
     if (!pTxn) {
+      pBtc->pTxn = NULL;
       return terrno;
     }
 
     int32_t ret = tdbTxnOpen(pTxn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
     if (ret < 0) {
       tdbOsFree(pTxn);
+      pBtc->pTxn = NULL;
       return ret;
     }
 
