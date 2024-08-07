@@ -763,7 +763,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     }
 
     if (code != 0) {
-      stError("failed to start stream backend at %s, restart from default defaultPath:%s, reason:%s", checkpointPath,
+      stError("failed to start stream backend at %s, restart from defaultPath:%s, reason:%s", checkpointPath,
               defaultPath, tstrerror(code));
       code = 0;  // reset the error code
     }
