@@ -137,40 +137,6 @@ typedef struct SMPStatInput {
   int32_t  line;
 } SMPStatInput;
 
-typedef struct SMPStatItem {
-  int64_t  inErr;
-  int64_t  exec;
-  int64_t  succ;
-  int64_t  fail;
-} SMPStatItem;
-
-typedef struct SMPStatItemExt {
-  int64_t  inErr;
-  int64_t  exec;
-  int64_t  succ;
-  int64_t  fail;
-  int64_t  origExec;
-  int64_t  origSucc;
-  int64_t  origFail;
-} SMPStatItemExt;
-
-typedef struct SMPMemoryStat {
-  SMPStatItem    memMalloc;
-  SMPStatItem    memCalloc;
-  SMPStatItemExt memRealloc;
-  SMPStatItem    strdup;
-  SMPStatItem    memFree;
-
-  SMPStatItem    chunkMalloc;
-  SMPStatItem    chunkRecycle;
-  SMPStatItem    chunkReUse;
-  SMPStatItem    chunkFree;
-} SMPMemoryStat;
-
-typedef struct SMPStatDetail {
-  SMPMemoryStat times;
-  SMPMemoryStat bytes;
-} SMPStatDetail;
 
 typedef struct SMPCtrlInfo {
   int64_t  statFlags;

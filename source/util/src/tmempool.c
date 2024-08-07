@@ -429,40 +429,7 @@ void mpPrintSessionStat(SMPCtrlInfo* pCtrl, SMPStatSession* pSessStat, char* det
   uInfo("session destroyed num: %" PRId64, pSessStat->destroyNum);
 }
 
-void mpPrintStat(SMemPool* pPool, SMPSession* pSession, char* procName) {
-  char detailName[128];
 
-  if (NULL != pSession) {
-    snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "Session");
-    detailName[sizeof(detailName) - 1] = 0;
-    mpPrintStatDetail(&pSession->ctrlInfo, &pSession->stat.statDetail, detailName, pSession->maxAllocMemSize);
-
-    snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "SessionFile");
-    detailName[sizeof(detailName) - 1] = 0;
-    mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.fileStat, detailName);
-
-    snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "SessionFileLine");
-    detailName[sizeof(detailName) - 1] = 0;
-    mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.lineStat, detailName);
-  }
-
-  snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, pPool->name);
-  detailName[sizeof(detailName) - 1] = 0;
-  mpPrintSessionStat(&pPool->ctrlInfo, &pPool->stat.statSession, detailName);
-  mpPrintStatDetail(&pPool->ctrlInfo, &pPool->stat.statDetail, detailName, pPool->maxAllocMemSize);
-
-  snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolNode");
-  detailName[sizeof(detailName) - 1] = 0;
-  mpPrintNodeStat(&pSession->ctrlInfo, pSession->stat.nodeStat, detailName);
-  
-  snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolFile");
-  detailName[sizeof(detailName) - 1] = 0;
-  mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.fileStat, detailName);
-  
-  snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolFileLine");
-  detailName[sizeof(detailName) - 1] = 0;
-  mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.lineStat, detailName);
-}
 
 void mpLogStatDetail(SMPStatDetail* pDetail, EMPStatLogItem item, SMPStatInput* pInput) {
   switch (item) {
@@ -653,6 +620,44 @@ _return:
   gMPMgmt.code = code;
 }
 
+void taosMemPoolPrintStat(void* poolHandle, void* session, char* procName) {
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  SMPSession* pSession = (SMPSession*)session;
+  char detailName[128];
+
+  if (NULL != pSession) {
+    snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "Session");
+    detailName[sizeof(detailName) - 1] = 0;
+    mpPrintStatDetail(&pSession->ctrlInfo, &pSession->stat.statDetail, detailName, pSession->maxAllocMemSize);
+
+    snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "SessionFile");
+    detailName[sizeof(detailName) - 1] = 0;
+    mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.fileStat, detailName);
+
+    snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "SessionFileLine");
+    detailName[sizeof(detailName) - 1] = 0;
+    mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.lineStat, detailName);
+  }
+
+  snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, pPool->name);
+  detailName[sizeof(detailName) - 1] = 0;
+  mpPrintSessionStat(&pPool->ctrlInfo, &pPool->stat.statSession, detailName);
+  mpPrintStatDetail(&pPool->ctrlInfo, &pPool->stat.statDetail, detailName, pPool->maxAllocMemSize);
+
+  snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolNode");
+  detailName[sizeof(detailName) - 1] = 0;
+  mpPrintNodeStat(&pSession->ctrlInfo, pSession->stat.nodeStat, detailName);
+  
+  snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolFile");
+  detailName[sizeof(detailName) - 1] = 0;
+  mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.fileStat, detailName);
+  
+  snprintf(detailName, sizeof(detailName) - 1, "%s - %s", procName, "MemPoolFileLine");
+  detailName[sizeof(detailName) - 1] = 0;
+  mpPrintFileLineStat(&pSession->ctrlInfo, pSession->stat.lineStat, detailName);
+}
+
+
 int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMemPool* pPool = NULL;
@@ -714,7 +719,7 @@ void taosMemPoolDestroySession(void* poolHandle, void* session) {
 
   (void)atomic_add_fetch_64(&pPool->stat.statSession.destroyNum, 1);
 
-  mpPrintStat(pPool, pSession, "DestroySession");
+  taosMemPoolPrintStat(pPool, pSession, "DestroySession");
 
   TAOS_MEMSET(pSession, 0, sizeof(*pSession));
 

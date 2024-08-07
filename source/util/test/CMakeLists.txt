@@ -140,4 +140,13 @@ if (${TD_LINUX})
     add_custom_command(TARGET terrorTest POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ERR_TBL_FILE} $<TARGET_FILE_DIR:terrorTest>
     )
+
+    # memPoolTest
+    add_executable(memPoolTest "memPoolTest.cpp")
+    target_link_libraries(memPoolTest os util common gtest_main)
+    add_test(
+        NAME memPoolTest
+        COMMAND memPoolTest
+    )
+
 endif ()
