@@ -1,6 +1,6 @@
 import pytest
 
-# python3 -m pytest -sv -k linux --html=report.html --json-report --json-report-file="report.json"
+# python3 -m pytest -v -k linux --html=/var/www/html/report.html --json-report --json-report-file="report.json" --timeout=60
 
 # pytest.main(["-s", "-v"])
 import pytest

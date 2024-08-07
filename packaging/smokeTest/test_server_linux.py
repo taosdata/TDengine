@@ -8,10 +8,23 @@ with open("%s/test_server_linux.txt" % current_path) as f:
     cases = f.read().splitlines()
 
 
+@pytest.fixture(scope='session')
+def setup_and_teardown_session(request):
+    # Setup code before session
+    print("\nSetup before session")
+
+    yield
+
+    # Teardown code after session
+    print("\nTeardown after session")
+
+
 # use pytest fixture to exec case
 @pytest.fixture(params=cases)
 def run_command(request):
     commands = request.param
+    if commands.strip().startswith("#"):
+        pytest.skip("This case has been marked as skipped")
     d, command = commands.strip().split(",")
     print("cd %s/../../tests/%s&&sudo %s" % (current_path, d, command))
     result = subprocess.run("cd %s/../../tests/%s&&sudo %s" % (current_path, d, command), capture_output=True,
@@ -24,22 +37,22 @@ def run_command(request):
     }
 
 
-# define function，use fixture
-def test_execute_cases(run_command):
-    # assert the result
-    if run_command['returncode'] != 0:
-        print(f"Running command: {run_command['command']}")
-        print("STDOUT:", run_command['stdout'])
-        print("STDERR:", run_command['stderr'])
-        print("Return Code:", run_command['returncode'])
-    else:
-        print(f"Running command: {run_command['command']}")
-        if len(run_command['stdout']) > 500:
-            print("STDOUT:", run_command['stdout'][:500] + "...")
-        else:
+class TestServerLinux:
+    def test_execute_cases(self, run_command):
+        # assert the result
+        if run_command['returncode'] != 0:
+            print(f"Running command: {run_command['command']}")
             print("STDOUT:", run_command['stdout'])
-        print("STDERR:", run_command['stderr'])
-        print("Return Code:", run_command['returncode'])
+            print("STDERR:", run_command['stderr'])
+            print("Return Code:", run_command['returncode'])
+        else:
+            print(f"Running command: {run_command['command']}")
+            if len(run_command['stdout']) > 1000:
+                print("STDOUT:", run_command['stdout'][:1000] + "...")
+            else:
+                print("STDOUT:", run_command['stdout'])
+            print("STDERR:", run_command['stderr'])
+            print("Return Code:", run_command['returncode'])
 
-    assert run_command[
-               'returncode'] == 0, f"Command '{run_command['command']}' failed with return code {run_command['returncode']}"
+        assert run_command[
+                   'returncode'] == 0, f"Command '{run_command['command']}' failed with return code {run_command['returncode']}"
