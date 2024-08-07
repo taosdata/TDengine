@@ -1940,7 +1940,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       }
 
       int32_t insert = 0;
-      stmtIsInsert(stmt, &insert);
+      (void)stmtIsInsert(stmt, &insert);
       if (0 == insert && bind->num > 1) {
         tscError("only one row data allowed for query");
         terrno = TSDB_CODE_INVALID_PARA;
