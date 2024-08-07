@@ -28,7 +28,7 @@ int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t num
 
   SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(1, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pLoadInfo->blockData[0].sttBlockIndex = -1;
@@ -50,9 +50,8 @@ int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t num
 
   pLoadInfo->aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
   if (pLoadInfo->aSttBlk == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFreeClear(pLoadInfo);
-    return code;
+    return terrno;
   }
 
   pLoadInfo->pSchema = pSchema;
@@ -358,7 +357,7 @@ static int32_t tValueDupPayload(SValue *pVal) {
     char *p = (char *)pVal->pData;
     char *pBuf = taosMemoryMalloc(pVal->nData);
     if (pBuf == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     memcpy(pBuf, p, pVal->nData);
