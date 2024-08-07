@@ -615,7 +615,12 @@ _error:
   if (pInfo != NULL) {
     destroyGroupOperatorInfo(pInfo);
   }
-  destroyOperator(pOperator);
+
+  if (pOperator) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
+
   return code;
 }
 
@@ -1241,7 +1246,7 @@ _error:
     destroyPartitionOperatorInfo(pInfo);
   }
   pTaskInfo->code = code;
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   TAOS_RETURN(code);
 }
 
@@ -1253,6 +1258,9 @@ int32_t setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo,
 
   SResultRow* pResultRow = doSetResultOutBufByKey(pBuf, pResultRowInfo, (char*)pData, bytes, true, groupId, pTaskInfo,
                                                   false, pAggSup, false);
+  if (pResultRow == NULL || pTaskInfo->code != 0) {
+    return pTaskInfo->code;
+  }
 
   return setResultRowInitCtx(pResultRow, pCtx, numOfCols, pOperator->exprSupp.rowEntryInfoOffset);
 }
@@ -1783,8 +1791,8 @@ int32_t createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPart
 
 _error:
   pTaskInfo->code = code;
-  destroyStreamPartitionOperatorInfo(pInfo);
-  taosMemoryFreeClear(pOperator);
+  if (pInfo != NULL) destroyStreamPartitionOperatorInfo(pInfo);
+  destroyOperator(pOperator);
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }

@@ -567,7 +567,7 @@ _error:
   }
 
   pTaskInfo->code = code;
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   return code;
 }
 

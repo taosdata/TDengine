@@ -75,9 +75,9 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
                                                   masterscan, tableGroupId, pTaskInfo, true, pAggSup, true);
 
-  if (pResultRow == NULL) {
+  if (pResultRow == NULL || pTaskInfo->code != 0) {
     *pResult = NULL;
-    return TSDB_CODE_SUCCESS;
+    return pTaskInfo->code;
   }
 
   // set time window for current result
@@ -1402,7 +1402,7 @@ _error:
   if (pInfo != NULL) {
     destroyIntervalOperatorInfo(pInfo);
   }
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -1678,7 +1678,7 @@ _error:
     destroyStateWindowOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -1770,8 +1770,8 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
   return code;
 
 _error:
-  destroySWindowOperatorInfo(pInfo);
-  taosMemoryFreeClear(pOperator);
+  if (pInfo != NULL) destroySWindowOperatorInfo(pInfo);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -2083,7 +2083,7 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
 
 _error:
   destroyMAIOperatorInfo(miaInfo);
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -2415,7 +2415,7 @@ _error:
     destroyMergeIntervalOperatorInfo(pMergeIntervalInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }

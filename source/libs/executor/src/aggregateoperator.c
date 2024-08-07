@@ -147,12 +147,7 @@ _error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
-
-  if (pOperator != NULL) {
-    cleanupExprSupp(&pOperator->exprSupp);
-  }
-
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -180,11 +175,11 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
-  if (pOperator->blocking && pAggInfo->hasValidBlock) return false;
+  if (pOperator->blocking && pAggInfo->hasValidBlock) {
+    return false;
+  }
 
-  SExprSupp*     pSup = &pOperator->exprSupp;
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
-
+  SExprSupp*   pSup = &pOperator->exprSupp;
   int64_t      st = taosGetTimestampUs();
   int32_t      order = pAggInfo->binfo.inputTsOrder;
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
@@ -458,7 +453,7 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
    */
-  if (pResultRow->pageId == -1) {
+  if (pResultRow == NULL || pResultRow->pageId == -1) {
     int32_t ret = addNewResultRowBuf(pResultRow, pAggInfo->aggSup.pResultBuf, pAggInfo->binfo.pRes->info.rowSize);
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, terrno);

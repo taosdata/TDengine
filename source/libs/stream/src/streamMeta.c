@@ -1277,10 +1277,13 @@ static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64
   if (pMeta->closeFlag) {
     streamMetaWUnLock(pMeta);
     stError("vgId:%d vnode is closed, not start check task(s) downstream status", pMeta->vgId);
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
   *pList = taosArrayDup(pMeta->pTaskList, NULL);
+  if (*pList == NULL) {
+    return terrno;
+  }
 
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   taosHashClear(pMeta->startInfo.pFailedTaskSet);
