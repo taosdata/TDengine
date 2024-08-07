@@ -22,7 +22,6 @@ use crate::{core_metrics::get_metrics_arc_from_i64, utils::trace::TraceStreamId}
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
-    utils::{get_main_version_from_server_version, get_server_version},
 };
 use crate::{
     utils::{
@@ -44,7 +43,6 @@ use arrow_schema::{ArrowError, Field};
 use arrow_schema::{DataType, TimeUnit};
 use async_backtrace::framed;
 use bytes::Bytes;
-use deadpool::managed::Timeouts;
 use faststr::FastStr;
 use futures_util::{Sink, Stream, StreamExt};
 use rhai::{Dynamic, Engine, Scope};
@@ -3204,7 +3202,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     const MAX_RETRIES: usize = 10;
     let mut retries = 0;
     let taos = loop {
-        match pool.timeout_get(&Timeouts::wait_millis(5000)).await {
+        match pool.get().await {
             Ok(obj) => break obj,
             Err(err) => {
                 if retries < MAX_RETRIES {
@@ -3220,43 +3218,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     };
     let target_precision = get_current_precision(&taos).await?;
 
-    let license: Option<ConnectorLicense> = if let Some(connector) = connector {
-        // get tdengine server version and handle compatibility
-        let server_version = get_server_version(&taos).await?;
-        let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
-        let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-            format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
-        } else {
-            format!("select `{connector}` from information_schema.ins_grants")
-        };
-
-        #[cfg(feature = "disable-enterprise-connector-validation")]
-        let license: Option<ConnectorLicense> = None;
-        #[cfg(not(feature = "disable-enterprise-connector-validation"))]
-        let license: Option<ConnectorLicense> = {
-            taos.query_one::<_, String>(&grants_sql)
-                .await
-                .unwrap_or(None)
-                .and_then(|s| serde_json::from_str(&s).ok())
-        };
-
-        if let Some(license) = license {
-            if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-                if license.is_expired_second() {
-                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
-                }
-            } else {
-                if license.is_expired_day() {
-                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
-                }
-            }
-            None
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    let license: Option<ConnectorLicense> = None;
 
     let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
     let metadata = ipc_reader.metadata();
