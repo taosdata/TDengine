@@ -11,7 +11,7 @@ TDinsight 是使用 [Grafana] 对 TDengine 进行监控的解决方案。
 
 TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入指定数据库。通过 Grafana 和 TDengine 数据源插件，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，为开发者实时监控 TDengine 集群运行状态提供了便利。本文将指导用户安装 TDengine 数据源插件及部署 TDinsight 可视化面板。
 
-## 前置要求
+## 前置条件
 
 首先检查下面服务：
 - TDengine 已经安装并正常运行，此仪表盘需要 TDengine 3.0.0.0 及以上，并开启监控上报配置，具体配置请参考：[TDengine 监控配置](../taosd/#监控相关)。
