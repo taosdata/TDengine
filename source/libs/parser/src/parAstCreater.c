@@ -325,6 +325,8 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
         sprintf(p, "%02x", ctx.digest[i]);
         p += 2;
       }
+      uint64_t a = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
+      sprintf(pExpr->aliasName, "%"PRIu64, a);
       strncpy(pExpr->userAlias, pRawExpr->p, len);
       pExpr->userAlias[len] = '\0';
     }
