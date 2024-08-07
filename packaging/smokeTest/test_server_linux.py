@@ -8,15 +8,13 @@ with open("%s/test_server_linux.txt" % current_path) as f:
     cases = f.read().splitlines()
 
 
-@pytest.fixture(scope='session')
-def setup_and_teardown_session(request):
-    # Setup code before session
-    print("\nSetup before session")
-
+@pytest.fixture(scope="module")
+def setup_module():
+    # setup before module tests
+    print("\nSetup for module")
     yield
-
-    # Teardown code after session
-    print("\nTeardown after session")
+    # teardown after module tests
+    print("\nTeardown for module")
 
 
 # use pytest fixture to exec case
@@ -38,7 +36,7 @@ def run_command(request):
 
 
 class TestServerLinux:
-    def test_execute_cases(self, run_command):
+    def test_execute_cases(self, setup_module, run_command):
         # assert the result
         if run_command['returncode'] != 0:
             print(f"Running command: {run_command['command']}")
