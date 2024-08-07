@@ -41,7 +41,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 3. 使用 Websocket 连接，用户也无需安装客户端驱动程序 taosc。
 4. 连接云服务实例，必须使用 REST 连接 或 Websocket 连接。
 
-一般我们建议使用 **Websocket 连接**。
+**推荐使用 WebSocket 连接**
 
 ## 安装客户端驱动 taosc
 
