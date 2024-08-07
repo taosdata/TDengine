@@ -250,6 +250,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         if (totalMetaRows > 0) {
           tqOffsetResetToLog(&btMetaRsp.rspOffset, fetchVer);
+          totalMetaRows = 0;
           code = tqSendBatchMetaPollRsp(pHandle, pMsg, pRequest, &btMetaRsp, vgId);
           ASSERT(totalRows == 0);
           goto END;
@@ -347,6 +348,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
           goto END;
         }
+        totalMetaRows++;
         if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) || (taosGetTimestampMs() - st > 1000)) {
           tqOffsetResetToLog(&btMetaRsp.rspOffset, fetchVer);
           code = tqSendBatchMetaPollRsp(pHandle, pMsg, pRequest, &btMetaRsp, vgId);
