@@ -45,7 +45,6 @@
           </template>
           <el-input v-else
             size="small"
-            slot="reference"
             :placeholder="$t('datasource.transformer.expre_' + ruleForm.filter_name)"
             v-model="ruleForm.filter_expres"
             @input="changeExtractExpr"
