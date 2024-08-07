@@ -4279,11 +4279,12 @@ static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray*
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t numOfTables = taosArrayGetSize(aUidTags);
+  SArray* pBlockList = NULL;
 
   SSDataBlock* pResBlock = createTagValBlockForFilter(pInfo->filterCtx.cInfoList, numOfTables, aUidTags, pVnode, pAPI);
   QUERY_CHECK_NULL(pResBlock, code, lino, _end, terrno);
 
-  SArray* pBlockList = taosArrayInit(1, POINTER_BYTES);
+  pBlockList = taosArrayInit(1, POINTER_BYTES);
   QUERY_CHECK_NULL(pBlockList, code, lino, _end, terrno);
 
   void* tmp = taosArrayPush(pBlockList, &pResBlock);

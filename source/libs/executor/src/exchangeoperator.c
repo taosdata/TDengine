@@ -688,6 +688,7 @@ void updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SSDataBlock* pBlock = NULL;
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
     code = blockDecode(pRes, pData, (const char**) pNextStart);
@@ -710,7 +711,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       pStart += sizeof(SSysTableSchema);
     }
 
-    SSDataBlock* pBlock = NULL;
+    pBlock = NULL;
     code = createDataBlock(&pBlock);
     QUERY_CHECK_CODE(code, lino, _end);
 
@@ -739,6 +740,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;

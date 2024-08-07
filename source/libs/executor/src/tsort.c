@@ -1698,6 +1698,7 @@ static int32_t initRowIdSort(SSortHandle* pHandle) {
   biTs.compFn = getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, biTs.order);
   void* p = taosArrayPush(pOrderInfoList, &biTs);
   if (p == NULL) {
+    taosArrayDestroy(pOrderInfoList);
     return terrno;
   }
 
@@ -1710,6 +1711,7 @@ static int32_t initRowIdSort(SSortHandle* pHandle) {
 
     void* px = taosArrayPush(pOrderInfoList, &biPk);
     if (px == NULL) {
+      taosArrayDestroy(pOrderInfoList);
       return terrno;
     }
   }
