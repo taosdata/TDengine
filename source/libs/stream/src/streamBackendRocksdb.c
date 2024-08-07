@@ -1144,6 +1144,8 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
     int64_t id = *(int64_t*)taosArrayGet(chkpDel, i);
     char    tbuf[256] = {0};
     sprintf(tbuf, "%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, id);
+
+    stInfo("backend remove obsolete checkpoint: %s", tbuf);
     if (taosIsDir(tbuf)) {
       taosRemoveDir(tbuf);
     }
@@ -2661,6 +2663,7 @@ void taskDbDestroy(void* pDb, bool flush) {
 
   if (wrapper->removeAllFiles) {
     char* err = NULL;
+    stInfo("drop task remove backend dat:%s", wrapper->path);
     taosRemoveDir(wrapper->path);
   }
   taosMemoryFree(wrapper->path);
