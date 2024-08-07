@@ -17,6 +17,8 @@ async fn main() -> anyhow::Result<()> {
     for i in 0..NUM_TABLES {
         let table_name = format!("d{}", i);
         let tags = vec![Value::VarChar("California.SanFransico".into()), Value::Int(2)];
+
+        // set table name and tags for the prepared statement.
         stmt.set_tbname_tags(&table_name, &tags).await?;
         for j in 0..NUM_ROWS {
             let values = vec![
@@ -25,13 +27,17 @@ async fn main() -> anyhow::Result<()> {
                 ColumnView::from_ints(vec![219 + j as i32]),
                 ColumnView::from_floats(vec![0.31 + j as f32]),
             ];
+            // bind values to the prepared statement.    
             stmt.bind(&values).await?;
         }
+
         stmt.add_batch().await?;
     }
 
     // execute.
     let rows = stmt.execute().await?;
     assert_eq!(rows, NUM_TABLES * NUM_ROWS);
+
+    println!("execute stmt insert successfully");
     Ok(())
 }

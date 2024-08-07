@@ -87,19 +87,18 @@ END:
   return code;
 }
 
-static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const char *pUser,
-                              bool enableReplay) {
+static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *pUser) {
   SMqTopicObj *pTopic = NULL;
   int32_t      code = 0;
 
-  int32_t numOfTopics = taosArrayGetSize(pTopicList);
+  int32_t numOfTopics = taosArrayGetSize(subscribe->topicNames);
   for (int32_t i = 0; i < numOfTopics; i++) {
-    char *pOneTopic = taosArrayGetP(pTopicList, i);
+    char *pOneTopic = taosArrayGetP(subscribe->topicNames, i);
     MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, pOneTopic, &pTopic));
     MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic));
     MND_TMQ_RETURN_CHECK(grantCheckExpire(TSDB_GRANT_SUBSCRIPTION));
 
-    if (enableReplay) {
+    if (subscribe->enableReplay) {
       if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
         code = TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
         goto END;
@@ -117,6 +116,10 @@ static int32_t validateTopics(const SArray *pTopicList, SMnode *pMnode, const ch
         mndReleaseDb(pMnode, pDb);
       }
     }
+    char  key[TSDB_CONSUMER_ID_LEN] = {0};
+    (void)snprintf(key, TSDB_CONSUMER_ID_LEN, "%"PRIx64, subscribe->consumerId);
+    mndTransSetDbName(pTrans, pTopic->db, key);
+    MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
     mndReleaseTopic(pMnode, pTopic);
   }
   return 0;
@@ -128,7 +131,6 @@ END:
 
 static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   int32_t              code = 0;
-  int32_t              lino = 0;
   SMnode              *pMnode = pMsg->info.node;
   SMqConsumerClearMsg *pClearMsg = pMsg->pCont;
   SMqConsumerObj      *pConsumerNew = NULL;
@@ -563,16 +565,19 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
-  if(taosArrayGetSize(subscribe.topicNames) == 0){
+  bool ubSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
+  if(ubSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
     mndReleaseConsumer(pMnode, pConsumerTmp);
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
+                          (ubSubscribe ? TRN_CONFLICT_NOTHING :TRN_CONFLICT_DB_INSIDE),
+                          pMsg, "subscribe");
   MND_TMQ_NULL_CHECK(pTrans);
 
-  MND_TMQ_RETURN_CHECK(validateTopics(subscribe.topicNames, pMnode, pMsg->info.conn.user, subscribe.enableReplay));
+  MND_TMQ_RETURN_CHECK(validateTopics(pTrans, &subscribe, pMnode, pMsg->info.conn.user));
   MND_TMQ_RETURN_CHECK(buildSubConsumer(pMnode, &subscribe, &pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndSetConsumerCommitLogs(pTrans, pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));

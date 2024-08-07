@@ -95,11 +95,12 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
       tsize = (newSize == tsize) ? (tsize + 2) : newSize;
     }
 
-    pArray->pData = taosMemoryRealloc(pArray->pData, tsize * pArray->elemSize);
-    if (pArray->pData == NULL) {
+    char* p = taosMemoryRealloc(pArray->pData, tsize * pArray->elemSize);
+    if (p == NULL) {
       return terrno;
     }
 
+    pArray->pData = p;
     pArray->capacity = tsize;
   }
   return 0;

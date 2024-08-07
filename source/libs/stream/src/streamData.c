@@ -36,8 +36,8 @@ int32_t createStreamBlockFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t
   ASSERT((pReq->blockNum == taosArrayGetSize(pReq->data)) && (pReq->blockNum == taosArrayGetSize(pReq->dataLen)));
   for (int32_t i = 0; i < blockNum; i++) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pReq->data, i);
-    SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
-    if (pDataBlock == NULL) {
+    SSDataBlock* pDataBlock = taosArrayGet(pArray, i);
+    if (pDataBlock == NULL || pRetrieve == NULL) {
       return terrno;
     }
 

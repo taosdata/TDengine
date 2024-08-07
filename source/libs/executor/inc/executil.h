@@ -26,7 +26,7 @@
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
-    ASSERT((_c) != 1);      \
+    ASSERT(1);               \
     longjmp((_obj), (_c));   \
   } while (0)
 
@@ -218,6 +218,6 @@ uint64_t calcGroupId(char* pData, int32_t len);
 
 SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
 
-int32_t extractKeysLen(const SArray* keys);
+int32_t extractKeysLen(const SArray* keys, int32_t* pLen);
 
 #endif  // TDENGINE_EXECUTIL_H

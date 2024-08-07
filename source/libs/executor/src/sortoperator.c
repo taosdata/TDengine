@@ -93,6 +93,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
 
   pOperator->exprSupp.pCtx =
       createSqlFunctionCtx(pOperator->exprSupp.pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
+  QUERY_CHECK_NULL(pOperator->exprSupp.pCtx, code, lino, _error, terrno);
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -100,7 +101,10 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   }
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
+  TSDB_CHECK_NULL(pInfo->pSortInfo, code, lino, _error, terrno);
 
   if (pSortNode->calcGroupId) {
     int32_t keyLen;
@@ -119,13 +123,14 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
     if (TSDB_CODE_SUCCESS == code) {
       // PK ts col should always at last, see partColOptCreateSort
       if (pSortNode->excludePkCol) taosArrayPop(pGroupIdCalc->pSortColsArr);
-      keyLen = extractKeysLen(pGroupIdCalc->pSortColsArr);
+      code = extractKeysLen(pGroupIdCalc->pSortColsArr, &keyLen);
+      QUERY_CHECK_CODE(code, lino, _error);
     }
     if (TSDB_CODE_SUCCESS == code) {
       pGroupIdCalc->lastKeysLen = 0;
       pGroupIdCalc->keyBuf = taosMemoryCalloc(1, keyLen);
       if (!pGroupIdCalc->keyBuf) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
       }
     }
   }
@@ -159,7 +164,7 @@ _error:
     destroySortOperatorInfo(pInfo);
   }
 
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -365,8 +370,13 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
+  if (ps == NULL) {
+    return terrno;
+  }
+
   ps->param = pOperator->pDownstream[0];
   ps->onlyRef = true;
+
   code = tsortAddSource(pInfo->pSortHandle, ps);
   if (code) {
     taosMemoryFree(ps);
@@ -459,6 +469,9 @@ void destroySortOperatorInfo(void* param) {
 
 int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
   SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
+  if (pInfo == NULL) {
+    return terrno;
+  }
 
   SSortOperatorInfo* pOperatorInfo = (SSortOperatorInfo*)pOptr->info;
 
@@ -633,6 +646,10 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
 
   SSortSource*           ps = taosMemoryCalloc(1, sizeof(SSortSource));
   SGroupSortSourceParam* param = taosMemoryCalloc(1, sizeof(SGroupSortSourceParam));
+  if (ps == NULL || param == NULL) {
+    T_LONG_JMP(pTaskInfo->env, terrno);
+  }
+
   param->childOpInfo = pOperator->pDownstream[0];
   param->grpSortOpInfo = pInfo;
   ps->param = param;
@@ -784,8 +801,11 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset,
                                                   &pTaskInfo->storageAPI.functionStore);
+  QUERY_CHECK_NULL(pOperator->exprSupp.pCtx, code, lino, _error, terrno);
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -816,6 +836,6 @@ _error:
   if (pInfo != NULL) {
     destroyGroupSortOperatorInfo(pInfo);
   }
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   return code;
 }

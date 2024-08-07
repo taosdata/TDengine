@@ -666,6 +666,9 @@ static int32_t initGroupKeyKeeper(STimeSliceOperatorInfo* pInfo, SExprSupp* pExp
       pInfo->pPrevGroupKey->type = pExprInfo->base.resSchema.type;
       pInfo->pPrevGroupKey->isNull = false;
       pInfo->pPrevGroupKey->pData = taosMemoryCalloc(1, pInfo->pPrevGroupKey->bytes);
+      if (!pInfo->pPrevGroupKey->pData) {
+        return terrno;
+      }
     }
   }
 
@@ -1156,6 +1159,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   pInfo->pFillColInfo = createFillColInfo(pExprInfo, numOfExprs, NULL, 0, (SNodeListNode*)pInterpPhyNode->pFillValues);
   pInfo->pLinearInfo = NULL;
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   pInfo->win = pInterpPhyNode->timeRange;
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;
@@ -1174,6 +1178,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
 
     if (IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
       pInfo->prevKey.pks[0].pData = taosMemoryCalloc(1, pInfo->pkCol.bytes);
+      QUERY_CHECK_NULL(pInfo->prevKey.pks[0].pData, code, lino, _error, terrno);
     }
   }
 
@@ -1202,8 +1207,8 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  taosMemoryFree(pInfo);
-  taosMemoryFree(pOperator);
+  if (pInfo != NULL) destroyTimeSliceOperatorInfo(pInfo);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }

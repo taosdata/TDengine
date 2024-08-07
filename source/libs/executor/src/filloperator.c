@@ -58,7 +58,7 @@ typedef struct SFillOperatorInfo {
 static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t order);
 static void destroyFillOperatorInfo(void* param);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
-static void fillResetPrevForNewGroup(SFillInfo* pFillInfo);
+static int32_t fillResetPrevForNewGroup(SFillInfo* pFillInfo);
 static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order);
 
 static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOperatorInfo* pInfo,
@@ -83,7 +83,11 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
 
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
   if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
-    fillResetPrevForNewGroup(pInfo->pFillInfo);
+    int32_t code = fillResetPrevForNewGroup(pInfo->pFillInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
   }
 
   int32_t numOfResultRows = pResultInfo->capacity - pResBlock->info.rows;
@@ -146,13 +150,22 @@ _end:
   }
 }
 
-static void fillResetPrevForNewGroup(SFillInfo* pFillInfo) {
+static int32_t fillResetPrevForNewGroup(SFillInfo* pFillInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   for (int32_t colIdx = 0; colIdx < pFillInfo->numOfCols; ++colIdx) {
     if (!pFillInfo->pFillCol[colIdx].notFillCol) {
       SGroupKeys* key = taosArrayGet(pFillInfo->prev.pRowVal, colIdx);
+      QUERY_CHECK_NULL(key, code, lino, _end, terrno);
       key->isNull = true;
     }
   }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 // todo refactor: decide the start key according to the query time range.
@@ -397,6 +410,9 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
     pInfo->win.ekey = win.skey;
   }
   pInfo->p = taosMemoryCalloc(numOfCols, POINTER_BYTES);
+  if (!pInfo->p) {
+    return terrno;
+  }
 
   if (pInfo->pFillInfo == NULL || pInfo->p == NULL) {
     taosMemoryFree(pInfo->pFillInfo);
@@ -465,6 +481,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   }
 
   pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   SExprInfo* pExprInfo = NULL;
 
   code = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pExprInfo, &pInfo->numOfExpr);
@@ -550,7 +567,7 @@ _error:
   }
 
   pTaskInfo->code = code;
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   return code;
 }
 

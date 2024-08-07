@@ -65,6 +65,9 @@ static void clearWinStateBuff(SCountWindowResult* pBuff) { pBuff->winRows = 0; }
 
 static SCountWindowResult* getCountWinStateInfo(SCountWindowSupp* pCountSup) {
   SCountWindowResult* pBuffInfo = taosArrayGet(pCountSup->pWinStates, pCountSup->stateIndex);
+  if (!pBuffInfo) {
+    return NULL;
+  }
   int32_t             size = taosArrayGetSize(pCountSup->pWinStates);
   // coverity scan
   ASSERTS(size > 0, "WinStates is empty");
@@ -79,9 +82,15 @@ static int32_t setCountWindowOutputBuff(SExprSupp* pExprSup, SCountWindowSupp* p
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SCountWindowResult* pBuff = getCountWinStateInfo(pCountSup);
+  QUERY_CHECK_NULL(pBuff, code, lino, _end, terrno);
   (*pResult) = &pBuff->row;
   code = setResultRowInitCtx(*pResult, pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
   (*ppResBuff) = pBuff;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -99,7 +108,8 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SCountWindowOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*              pRes = pInfo->binfo.pRes;
   SColumnInfoData*          pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
-  TSKEY*                    tsCols = (TSKEY*)pColInfoData->pData;
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  TSKEY* tsCols = (TSKEY*)pColInfoData->pData;
 
   for (int32_t i = 0; i < pBlock->info.rows;) {
     SCountWindowResult* pBuffInfo = NULL;
@@ -139,6 +149,13 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
     }
     i += step;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 }
 
@@ -276,6 +293,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   QUERY_CHECK_CODE(code, lino, _error);
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pCountWindowNode->window.node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   code = blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -323,7 +341,7 @@ _error:
     destroyCountWindowOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }

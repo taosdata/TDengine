@@ -650,7 +650,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     goto END;
   }
 
-  mndTransSetDbName(pTrans, pOutput->pSub->dbName, cgroup);
+  mndTransSetDbName(pTrans, pOutput->pSub->dbName, pOutput->pSub->key);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
 
   // 1. redo action: action to all vg
@@ -1018,37 +1018,37 @@ END:
   return code;
 }
 
-//static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic) {
-//  void           *pIter = NULL;
-//  SMqConsumerObj *pConsumer = NULL;
-//  int             code = 0;
-//  while (1) {
-//    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
-//    if (pIter == NULL) {
-//      break;
-//    }
-//
-//    // drop consumer in lost status, other consumers not in lost status already deleted by rebalance
-//    if (pConsumer->status != MQ_CONSUMER_STATUS_LOST || strcmp(cgroup, pConsumer->cgroup) != 0) {
-//      sdbRelease(pMnode->pSdb, pConsumer);
-//      continue;
-//    }
-//    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
-//    for (int32_t i = 0; i < sz; i++) {
-//      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
-//      if (name && strcmp(topic, name) == 0) {
-//        MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumer));
-//      }
-//    }
-//
-//    sdbRelease(pMnode->pSdb, pConsumer);
-//  }
-//
-//END:
-//  sdbRelease(pMnode->pSdb, pConsumer);
-//  sdbCancelFetch(pMnode->pSdb, pIter);
-//  return code;
-//}
+static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic) {
+  void           *pIter = NULL;
+  SMqConsumerObj *pConsumer = NULL;
+  int             code = 0;
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (strcmp(cgroup, pConsumer->cgroup) != 0) {
+      sdbRelease(pMnode->pSdb, pConsumer);
+      continue;
+    }
+
+    bool found = checkTopic(pConsumer->assignedTopics, topic);
+    if (found){
+      mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
+             topic, pConsumer->consumerId, pConsumer->cgroup);
+      code = TSDB_CODE_MND_CGROUP_USED;
+      goto END;
+    }
+
+    sdbRelease(pMnode->pSdb, pConsumer);
+  }
+
+END:
+  sdbRelease(pMnode->pSdb, pConsumer);
+  sdbCancelFetch(pMnode->pSdb, pIter);
+  return code;
+}
 
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   SMnode         *pMnode = pMsg->info.node;
@@ -1079,12 +1079,13 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     goto END;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "drop-cgroup");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pMsg, "drop-cgroup");
   MND_TMQ_NULL_CHECK(pTrans);
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
-  mndTransSetDbName(pTrans, pSub->dbName, dropReq.cgroup);
+  mndTransSetDbName(pTrans, pSub->dbName, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   MND_TMQ_RETURN_CHECK(sendDeleteSubToVnode(pMnode, pSub, pTrans));
+  MND_TMQ_RETURN_CHECK(mndCheckConsumerByGroup(pMnode, pTrans, dropReq.cgroup, dropReq.topic));
   MND_TMQ_RETURN_CHECK(mndSetDropSubCommitLogs(pMnode, pTrans, pSub));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
 

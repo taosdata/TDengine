@@ -943,7 +943,7 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
   if (*ppMemDelData == NULL) {
     *ppMemDelData = taosArrayInit(4, sizeof(SDelData));
     if (*ppMemDelData == NULL) {
-      return TSDB_CODE_SUCCESS;
+      return terrno;
     }
   }
 
@@ -957,7 +957,7 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
       if (p->version <= ver) {
         void* px = taosArrayPush(pMemDelData, p);
         if (px == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
 
@@ -972,7 +972,7 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
       if (p->version <= ver) {
         void* px = taosArrayPush(pMemDelData, p);
         if (px == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
       p = p->pNext;
