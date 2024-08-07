@@ -511,7 +511,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncoderInit(&encoder, abuf, len);
   if(tEncodeMqVgOffset(&encoder, &pOffset) < 0) {
     tEncoderClear(&encoder);
@@ -953,7 +953,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
     tscError("tmqSendHbReq asyncSendMsgToServer failed");
   }
 
-  atomic_val_compare_exchange_8(&pollFlag, 1, 0);
+  (void)atomic_val_compare_exchange_8(&pollFlag, 1, 0);
 OVER:
   tDestroySMqHbReq(&req);
   if(tmrId != NULL){
@@ -2394,7 +2394,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     }
   }
 
-  atomic_val_compare_exchange_8(&pollFlag, 0, 1);
+  (void)atomic_val_compare_exchange_8(&pollFlag, 0, 1);
 
   while (1) {
     tmqHandleAllDelayedTask(tmq);
@@ -3133,7 +3133,7 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncoderInit(&encoder, abuf, len);
   code = tEncodeMqVgOffset(&encoder, &pOffset);
   if (code < 0) {
