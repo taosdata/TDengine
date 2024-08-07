@@ -1411,6 +1411,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     if (IS_LAST_KEY(idxKey->key)) {
       if (NULL == lastTmpIndexArray) {
         lastTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
+        if (!lastTmpIndexArray) {
+          taosArrayDestroy(lastrowTmpIndexArray);
+
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
       }
       (void)taosArrayPush(lastTmpIndexArray, &(i));
       lastColIds[lastIndex] = idxKey->key.cid;
@@ -1419,6 +1424,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     } else {
       if (NULL == lastrowTmpIndexArray) {
         lastrowTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
+        if (!lastrowTmpIndexArray) {
+          taosArrayDestroy(lastTmpIndexArray);
+
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
       }
       (void)taosArrayPush(lastrowTmpIndexArray, &(i));
       lastrowColIds[lastrowIndex] = idxKey->key.cid;
@@ -1428,6 +1438,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   }
 
   pTmpColArray = taosArrayInit(lastIndex + lastrowIndex, sizeof(SLastCol));
+  if (!pTmpColArray) {
+    taosArrayDestroy(lastrowTmpIndexArray);
+    taosArrayDestroy(lastTmpIndexArray);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   if (lastTmpIndexArray != NULL) {
     (void)mergeLastCid(uid, pTsdb, &lastTmpColArray, pr, lastColIds, lastIndex, lastSlotIds);
