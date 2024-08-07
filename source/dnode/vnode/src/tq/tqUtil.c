@@ -250,7 +250,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         if (totalMetaRows > 0) {
           tqOffsetResetToLog(&btMetaRsp.rspOffset, fetchVer);
-          totalMetaRows = 0;
           code = tqSendBatchMetaPollRsp(pHandle, pMsg, pRequest, &btMetaRsp, vgId);
           ASSERT(totalRows == 0);
           goto END;
