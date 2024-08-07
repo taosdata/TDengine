@@ -1,5 +1,4 @@
 ---
-sidebar_label: 高级功能
 title: TDengine 高级功能
 toc_max_heading_level: 4
 ---
