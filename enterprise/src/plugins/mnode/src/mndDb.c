@@ -130,13 +130,12 @@ static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWin
     void   *pRsp = NULL;
     compactRsp.compactId = 0;
     compactRsp.bAccepted = false;
-    TAOS_CHECK_GOTO(mndBuildCompactDbRsp(&compactRsp, &rspLen, &pRsp, true), NULL, _OVER);
+    TAOS_CHECK_RETURN(mndBuildCompactDbRsp(&compactRsp, &rspLen, &pRsp, true));
 
     pReq->info.rsp = pRsp;
     pReq->info.rspLen = rspLen;
 
-    // TODO why return -1 here
-    return -1;
+    return TSDB_CODE_MND_COMPACT_ALREADY_EXIST;
   }
 
   int64_t compactTs = taosGetTimestampMs();
