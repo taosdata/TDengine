@@ -21,6 +21,7 @@
         size="mini"
         :placeholder="$t('pInName')"
         class="mb10"
+        @keyup.enter.native="next"
       ></el-input>
       <p
         v-if="nameValid()"
@@ -270,6 +271,7 @@ export default {
         this.close()
       }
       if(this.active==2){
+        if (this.nextButton) return
         this.submit();
       }
       else{

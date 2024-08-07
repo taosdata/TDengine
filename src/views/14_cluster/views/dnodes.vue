@@ -72,13 +72,14 @@
         size="mini"
         label-width="auto"
         class="demo-ruleForm"
+        @submit.native.prevent
       >
         <el-form-item
           :label="$t('taoscluster.endpoint')"
           prop="endpoint"
           required
         >
-          <el-input v-model.trim="ruleForm.endpoint" ref="endinput"></el-input>
+          <el-input v-model.trim="ruleForm.endpoint" ref="endinput" @keyup.enter.native="addDnodes"></el-input>
         </el-form-item>
       </el-form>
 
@@ -160,7 +161,7 @@ export default {
     },
     async addDnodes() {
       try {
-
+        if (this.confirmStatus) return
         return await sendSQLReq(
           `create dnode \`${this.ruleForm.endpoint}\`;`
         ).then((res) => {

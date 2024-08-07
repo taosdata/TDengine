@@ -142,16 +142,17 @@
         :label-width="getlabelWidth"
         class="demo-ruleForm"
         label-position="left"
+        @submit.native.prevent
       >
         <el-form-item :label="$t('taosuser.activeCode')" prop="active_code">
-          <el-input v-model.trim="ruleForm.active_code"></el-input>
+          <el-input v-model.trim="ruleForm.active_code" @keyup.enter.native="submit"></el-input>
         </el-form-item>
         <el-form-item
           :label="$t('taosuser.cActiveCode')"
           prop="c_active_code"
           v-if="version_no_later_than_3230"
         >
-          <el-input v-model.trim="ruleForm.c_active_code"></el-input>
+          <el-input v-model.trim="ruleForm.c_active_code" @keyup.enter.native="submit"></el-input>
         </el-form-item>
       </el-form>
 
@@ -364,6 +365,7 @@ export default {
     },
     async submit() {
       try {
+        if (this.confirmStatus) return
         await activeLicence(this.ruleForm).then((res) => {
           if (res && res.code == 0) {
             this.$message.success(this.$t("operateSucc"));
