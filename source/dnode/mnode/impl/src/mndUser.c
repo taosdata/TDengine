@@ -3149,8 +3149,8 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
         (void)memcpy(rsp.user, pUsers[i].user, TSDB_USER_LEN);
         (void)taosArrayPush(batchRsp.pArray, &rsp);
       }
-      mError("user:%s, failed to auth user since %s", pUsers[i].user, terrstr());
-      code = 0;  // reset since it is not an error
+      mError("user:%s, failed to auth user since %s", pUsers[i].user, tstrerror(code));
+      code = 0;
       continue;
     }
 
