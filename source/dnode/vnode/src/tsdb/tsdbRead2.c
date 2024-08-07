@@ -2434,21 +2434,25 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
 
   SSttDataInfoForTable info = {.pKeyRangeList = taosArrayInit(4, sizeof(SSttKeyRange))};
   if (info.pKeyRangeList == NULL) {
+    pReader->code = terrno;
     return false;
   }
 
   int32_t code = tMergeTreeOpen2(&pSttBlockReader->mergeTree, &conf, &info);
   if (code != TSDB_CODE_SUCCESS) {
+    pReader->code = code;
     return false;
   }
 
   code = initMemDataIterator(pScanInfo, pReader);
   if (code != TSDB_CODE_SUCCESS) {
+    pReader->code = code;
     return false;
   }
 
   code = initDelSkylineIterator(pScanInfo, pReader->info.order, &pReader->cost);
   if (code != TSDB_CODE_SUCCESS) {
+    pReader->code = code;
     return code;
   }
 
@@ -2461,7 +2465,7 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
       for (int32_t i = 0; i < taosArrayGetSize(info.pKeyRangeList); ++i) {
         SSttKeyRange* pKeyRange = taosArrayGet(info.pKeyRangeList, i);
         if (pKeyRange == NULL) {
-          return TSDB_CODE_INVALID_PARA;
+          continue;
         }
 
         if (pkCompEx(&pScanInfo->sttRange.skey, &pKeyRange->skey) > 0) {
@@ -2766,6 +2770,10 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
   SBlockData* pBlockData = &pReader->status.fileBlockData;
   (void) initSttBlockReader(pSttBlockReader, pBlockScanInfo, pReader);
+  if (pReader->code != 0) {
+    code = pReader->code;
+    goto _end;
+  }
 
   while (1) {
     bool hasBlockData = false;
@@ -3180,6 +3188,10 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
     }
 
     bool hasDataInSttFile = initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
+    if (pReader->code != TSDB_CODE_SUCCESS) {
+      return pReader->code;
+    }
+    
     if (!hasDataInSttFile) {
       bool hasNexTable = moveToNextTable(pUidList, pStatus);
       if (!hasNexTable) {
@@ -3273,6 +3285,9 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
   if (pScanInfo->sttKeyInfo.status == STT_FILE_READER_UNINIT) {
     (void) initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
+    if (pReader->code != 0) {
+      return pReader->code;
+    }
   }
 
   TSDBKEY keyInBuf = getCurrentKeyInBuf(pScanInfo, pReader);
@@ -3314,6 +3329,9 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
       // let's load data from stt files, make sure clear the cleanStt block flag before load the data from stt files
       (void) initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
+      if (pReader->code != 0) {
+        return pReader->code;
+      }
 
       // no data in stt block, no need to proceed.
       while (hasDataInSttBlock(pScanInfo)) {
@@ -4795,6 +4813,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, true);
+    pReader->pReadSnap = NULL;
   }
 
   (void) tsem_destroy(&pReader->resumeAfterSuspend);
@@ -4877,6 +4896,7 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, false);
+    pReader->pReadSnap = NULL;
   }
 
   if (pReader->bFilesetDelimited) {

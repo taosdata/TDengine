@@ -615,8 +615,12 @@ _error:
   if (pInfo != NULL) {
     destroyGroupOperatorInfo(pInfo);
   }
-  destroyOperator(pOperator);
-  taosMemoryFreeClear(pOperator);
+
+  if (pOperator) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
+
   return code;
 }
 
@@ -1254,6 +1258,9 @@ int32_t setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo,
 
   SResultRow* pResultRow = doSetResultOutBufByKey(pBuf, pResultRowInfo, (char*)pData, bytes, true, groupId, pTaskInfo,
                                                   false, pAggSup, false);
+  if (pResultRow == NULL || pTaskInfo->code != 0) {
+    return pTaskInfo->code;
+  }
 
   return setResultRowInitCtx(pResultRow, pCtx, numOfCols, pOperator->exprSupp.rowEntryInfoOffset);
 }

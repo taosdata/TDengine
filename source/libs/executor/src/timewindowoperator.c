@@ -75,9 +75,9 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
                                                   masterscan, tableGroupId, pTaskInfo, true, pAggSup, true);
 
-  if (pResultRow == NULL) {
+  if (pResultRow == NULL || pTaskInfo->code != 0) {
     *pResult = NULL;
-    return TSDB_CODE_SUCCESS;
+    return pTaskInfo->code;
   }
 
   // set time window for current result
