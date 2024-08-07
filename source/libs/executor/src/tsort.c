@@ -152,8 +152,10 @@ static void destoryAllocatedTuple(void* t) { taosMemoryFree(t); }
  * @param colIndex the columnIndex, for setting null bitmap
  * @return the next offset to add field
  * */
-static inline size_t tupleAddField(char** t, uint32_t colNum, uint32_t offset, uint32_t colIdx, void* data,
-                                   size_t length, bool isNull, uint32_t tupleLen) {
+static inline int32_t tupleAddField(char** t, uint32_t colNum, uint32_t offset, uint32_t colIdx, void* data,
+                                   size_t length, bool isNull, uint32_t tupleLen, uint32_t* pOffset) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   tupleSetOffset(*t, colIdx, offset);
 
   if (isNull) {
@@ -161,16 +163,20 @@ static inline size_t tupleAddField(char** t, uint32_t colNum, uint32_t offset, u
   } else {
     if (offset + length > tupleLen + tupleGetDataStartOffset(colNum)) {
       void* px = taosMemoryRealloc(*t, offset + length);
-      if (px == NULL) {
-        return terrno;
-      }
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
 
       *t = px;
     }
     tupleSetData(*t, offset, data, length);
   }
 
-  return offset + length;
+  (*pOffset) = offset + length;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void* tupleGetField(char* t, uint32_t colIdx, uint32_t colNum) {
@@ -200,6 +206,7 @@ typedef struct ReferencedTuple {
 } ReferencedTuple;
 
 static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t tupleLen, size_t rowIdx, TupleDesc** pDesc) {
+  int32_t    code = TSDB_CODE_SUCCESS;
   TupleDesc* t = taosMemoryCalloc(1, sizeof(TupleDesc));
   if (t == NULL) {
     return terrno;
@@ -216,15 +223,20 @@ static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t
   for (size_t colIdx = 0; colIdx < colNum; ++colIdx) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
     if (pCol == NULL) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
     }
 
     if (colDataIsNull_s(pCol, rowIdx)) {
-      offset = tupleAddField((char**)&pTuple, colNum, offset, colIdx, 0, 0, true, tupleLen);
+      code = tupleAddField((char**)&pTuple, colNum, offset, colIdx, 0, 0, true, tupleLen, &offset);
     } else {
       colLen = colDataGetRowLength(pCol, rowIdx);
-      offset =
-          tupleAddField((char**)&pTuple, colNum, offset, colIdx, colDataGetData(pCol, rowIdx), colLen, false, tupleLen);
+      code =
+          tupleAddField((char**)&pTuple, colNum, offset, colIdx, colDataGetData(pCol, rowIdx), colLen, false, tupleLen, &offset);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      return code;
     }
   }
 
@@ -232,7 +244,7 @@ static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t
   t->data = pTuple;
 
   *pDesc = t;
-  return 0;
+  return code;
 }
 
 int32_t tupleDescGetField(const TupleDesc* pDesc, int32_t colIdx, uint32_t colNum, void** pResult) {
@@ -259,7 +271,7 @@ int32_t tupleDescGetField(const TupleDesc* pDesc, int32_t colIdx, uint32_t colNu
 
 void destroyTuple(void* t) {
   TupleDesc* pDesc = t;
-  if (pDesc->type == AllocatedTupleType) {
+  if (pDesc != NULL && pDesc->type == AllocatedTupleType) {
     destoryAllocatedTuple(pDesc->data);
     taosMemoryFree(pDesc);
   }
@@ -2713,7 +2725,7 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
       pqNode.data = &refTuple;
       PriorityQueueNode* pPushedNode = taosBQPush(pHandle->pBoundedQueue, &pqNode);
       if (!pPushedNode) {
-        // do nothing if push failed
+        return terrno;
       } else {
         pPushedNode->data = NULL;
         int32_t code = createAllocatedTuple(pBlock, colNum, tupleLen, rowIdx, (TupleDesc**)&pPushedNode->data);
