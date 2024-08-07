@@ -496,6 +496,43 @@ class TDTestCase:
             consumer.close()
         print("consume_ts_4551 ok")
 
+    def consume_td_31283(self):
+        tdSql.execute(f'create database if not exists d31283')
+        tdSql.execute(f'use d31283')
+
+        tdSql.execute(f'create topic topic_31283 with meta as database d31283')
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+            "experimental.snapshot.enable": "true",
+            # "msg.enable.batchmeta": "true"
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["topic_31283"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdSql.execute(f'create table stt(ts timestamp, i int) tags(t int)')
+
+        hasData = False
+        try:
+            while True:
+                res = consumer.poll(1)
+                if not res:
+                    break
+                hasData = True
+        finally:
+            consumer.close()
+
+        if not hasData:
+            tdLog.exit(f"consume_td_31283 error")
+
+        print("consume_td_31283 ok")
+
     def consume_TS_5067_Test(self):
         tdSql.execute(f'create database if not exists d1 vgroups 1')
         tdSql.execute(f'use d1')
@@ -632,6 +669,7 @@ class TDTestCase:
         self.consume_ts_4544()
         self.consume_ts_4551()
         self.consume_TS_4540_Test()
+        self.consume_td_31283()
 
         tdSql.prepare()
         self.checkWal1VgroupOnlyMeta()
