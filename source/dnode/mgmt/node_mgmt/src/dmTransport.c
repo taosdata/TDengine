@@ -109,7 +109,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t svrVer = 0;
   (void)taosVersionStrToInt(version, &svrVer);
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
-    dError("Version not compatible, cli ver: %d, svr ver: %d", pRpc->info.cliVer, svrVer);
+    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer, pRpc->info.conn.clientIp);
     goto _OVER;
   }
 
