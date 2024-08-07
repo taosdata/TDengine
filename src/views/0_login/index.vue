@@ -108,9 +108,9 @@
       <span>{{ $t("copyright") }}</span>
     </div>
     <el-dialog :title="$t('register.imageVerificationCode')" :visible.sync="visible" width="400px" center :close-on-click-modal="false">
-      <el-form ref="captchaForm" :model="captchaForm" :rules="captchaRulus">
+      <el-form ref="captchaForm" :model="captchaForm" :rules="captchaRulus" @submit.native.prevent>
         <el-form-item label="">
-          <el-input v-model="captchaForm.captchaCode" ref="captcha" class="captcha-input" @keyup.enter.prevent="handlerVerificationCode" autocomplete="off">
+          <el-input v-model="captchaForm.captchaCode" ref="captcha" class="captcha-input" @keyup.enter.native="handlerVerificationCode" autocomplete="off">
             <div slot="append" class="captcha-img-box">
               <img height="40px" @click="handlerCaptcha" :src="imageUrl" />
             </div>
