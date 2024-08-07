@@ -683,7 +683,7 @@ static int32_t rebuildFromLocalCheckpoint(const char* pTaskIdStr, const char* ch
              defaultPath);
     }
   } else {
-    code = TSDB_CODE_FAILED;
+    code = terrno;
     stError("%s no valid data for checkpointId:%" PRId64 " in %s", pTaskIdStr, checkpointId, checkpointPath);
   }
 
