@@ -18,14 +18,15 @@
         <span v-if="config.type !== 'dataset'" style="padding-right: 10px">{{ labelText }}:</span>
         <span v-if="!inputType.includes(config.type)">{{ data[field] }}</span>
         <span v-if="config.type == 'select'">
-          <span v-if="Array.isArray(getOptions(data[field]))" class="flexWrap">
-            <span v-for="option in getOptions(data[field])" :key="option">{{ option }}</span>
+          <span v-if="Array.isArray(getOptions())" class="flexWrap">
+            <span v-for="(option,index) in getOptions()" :key="option">{{ option }}
+              <span v-if="getOptions().length > 1 && index != getOptions().length -1">,</span>
+            </span>
           </span>
-          <span v-else>{{ getOptions(data[field]) }}</span>
         </span>
         <a v-if="config.type == 'file' || config.type == 'dataset'" @click="handleDownloadFile(data[field])">{{ getFile(data[field]) }}</a>
         <span v-if="config.type == 'composeAppend'">{{ data[field] ? data[field] + data[field + '_type'] : ''}}</span>
-        <span v-if="config.type == 'password'">****</span>
+        <span v-if="config.type == 'password'">{{ data[field]? '****': ''}}</span>
       </template>
       <div v-if="config.info" slot="label">
         {{ config.label }}
@@ -128,22 +129,24 @@ export default {
         this.$emit("csv-enable", this.data[this.field]);
       }
     },
-    getOptions(val) {
+    getOptions() {
       let result = []
-      if (typeof this.config.options === "function") {
-        this.config.options(this).filter(item => {
-          if (val.includes(item.value)) {
-            result.push(item.label)
+      const val = [].concat(this.data[this.field])
+      const options = typeof this.config.options === "function" 
+        ? this.config.options(this) 
+        : this.config.options;
+
+      if (options.length > 0) {
+        const labels = val.map(id => {
+          const matchedObject = options.find(obj => obj.value === id);
+          if (matchedObject) {
+            result.push(matchedObject.label)
           }
-        })
-        return result.length > 1 ? result : result.join();
+        });
+      } else {
+        result = val;
       }
-      this.config.options.filter(item => {
-        if (val.includes(item.value)) {
-          result.push(item.label)
-        }
-      })
-      return result.length > 1 ? result : result.join();
+      return result;
     },
     getFile(val) {
       return val?.substr(val.lastIndexOf("/") + 1)
