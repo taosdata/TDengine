@@ -1,5 +1,6 @@
 ---
 title: 快速入门
+description: TDengine 基本功能
 ---
 
 本章主要介绍 TDengine 的数据模型以及基本的写入和查询功能。
