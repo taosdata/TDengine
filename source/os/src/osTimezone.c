@@ -826,7 +826,7 @@ int32_t taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, i
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-  
+
   tzset();
   int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
   *tsTimezone = tz;

@@ -602,7 +602,7 @@ END:
   return code;
 }
 
-static bool checkTopic(SArray *topics, char *topicName){
+bool checkTopic(SArray *topics, char *topicName){
   int32_t sz = taosArrayGetSize(topics);
   for (int32_t i = 0; i < sz; i++) {
     char *name = taosArrayGetP(topics, i);
@@ -613,44 +613,33 @@ static bool checkTopic(SArray *topics, char *topicName){
   return false;
 }
 
-//static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName){
-//  int32_t         code = 0;
-//  SSdb           *pSdb    = pMnode->pSdb;
-//  void           *pIter = NULL;
-//  SMqConsumerObj *pConsumer = NULL;
-//  while (1) {
-//    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
-//    if (pIter == NULL) {
-//      break;
-//    }
-//
-//    bool found = checkTopic(pConsumer->assignedTopics, topicName);
-//    if (found){
-//      if (pConsumer->status == MQ_CONSUMER_STATUS_LOST) {
-//        MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumer));
-//        sdbRelease(pSdb, pConsumer);
-//        continue;
-//      }
-//      mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
-//             topicName, pConsumer->consumerId, pConsumer->cgroup);
-//      code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-//      goto END;
-//    }
-//
-//    if (checkTopic(pConsumer->rebNewTopics, topicName) || checkTopic(pConsumer->rebRemovedTopics, topicName))  {
-//      code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-//      mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb new)",
-//             topicName, pConsumer->consumerId, pConsumer->cgroup);
-//      goto END;
-//    }
-//    sdbRelease(pSdb, pConsumer);
-//  }
-//
-//END:
-//  sdbRelease(pSdb, pConsumer);
-//  sdbCancelFetch(pSdb, pIter);
-//  return code;
-//}
+static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName){
+  int32_t         code = 0;
+  SSdb           *pSdb    = pMnode->pSdb;
+  void           *pIter = NULL;
+  SMqConsumerObj *pConsumer = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    if (pIter == NULL) {
+      break;
+    }
+
+    bool found = checkTopic(pConsumer->assignedTopics, topicName);
+    if (found){
+      mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
+             topicName, pConsumer->consumerId, pConsumer->cgroup);
+      code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+      goto END;
+    }
+
+    sdbRelease(pSdb, pConsumer);
+  }
+
+END:
+  sdbRelease(pSdb, pConsumer);
+  sdbCancelFetch(pSdb, pIter);
+  return code;
+}
 
 static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic){
   // broadcast to all vnode
@@ -725,7 +714,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
   MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));
-//  MND_TMQ_RETURN_CHECK(mndDropConsumerByTopic(pMnode, pTrans, dropReq.name));
+  MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name));
   MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name));
 
   if (pTopic->ntbUid != 0) {
