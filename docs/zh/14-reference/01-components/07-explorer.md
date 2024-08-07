@@ -4,27 +4,27 @@ sidebar_label: taosExplorer
 toc_max_heading_level: 4
 ---
 
-taos-explorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以考高级功能和运维指南中的相关内容。
+taosExplorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以考高级功能和运维指南中的相关内容。
 
 ## 安装
 
-taos-explorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着 TDengine Enterprise Server 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。
+taosEexplorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着 TDengine Enterprise Server 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。
 
 ## 配置
 
-在启动 Explorer 之前，请确保配置文件中的内容正确。
+在启动 taosExplorer 之前，请确保配置文件中的内容正确。
 
 ```TOML
-# Explorer listen port
+# listen port
 port = 6060
 
-# Explorer listen address for IPv4
+# listen address for IPv4
 addr = "0.0.0.0"
 
-# Explorer listen address for IPv4
+# listen address for IPv4
 #ipv6 = "::1"
 
-# Explorer log level. Possible: error,warn,info,debug,trace
+# log level. Possible: error,warn,info,debug,trace
 log_level = "info"
 
 # taosAdapter address.
@@ -49,9 +49,9 @@ cors = false
 
 说明：
 
-- `port`：Explorer 服务绑定的端口。
-- `addr`：Explorer 服务绑定的 IPv4 地址，默认为 `0.0.0.0`。如需修改，请配置为 `localhost` 之外的地址以对外提供服务。
-- `ipv6`：Explorer 服务绑定的 IPv6 地址，默认不绑定 IPv6 地址。
+- `port`：taosExplorer 服务绑定的端口。
+- `addr`：taosExplorer 服务绑定的 IPv4 地址，默认为 `0.0.0.0`。如需修改，请配置为 `localhost` 之外的地址以对外提供服务。
+- `ipv6`：taosExplorer 服务绑定的 IPv6 地址，默认不绑定 IPv6 地址。
 - `log_level`：日志级别，可选值为 "error", "warn", "info", "debug", "trace"。
 - `cluster`：TDengine 集群的 taosAdapter 地址。
 - `x_api`：taosX 的 gRPC 地址。
@@ -62,7 +62,7 @@ cors = false
 
 ## 启动停止
 
-然后启动 Explorer，可以直接在命令行执行 taos-explorer 或者使用 systemctl 命令：
+然后启动 taosExplorer，可以直接在命令行执行 taos-explorer 或者使用 systemctl 命令：
 
 ```bash
 systemctl start taos-explorer  # Linux
@@ -78,7 +78,7 @@ sc.exe stop taos-explorer # Windows
 ## 问题排查
 
 1. 当通过浏览器打开 Explorer 站点遇到“无法访问此网站”的错误信息时，请通过命令行登录 taosExplorer 所在机器，并使用命令 `systemctl status taos-explorer` 检查服务的状态，如果返回的状态是 `inactive`，请使用命令`systemctl start taos-explorer` 启动服务。
-2. 如果需要获取 Explorer 的详细日志，可通过命令 `journalctl -u taos-explorer`。
+2. 如果需要获取 taosExplorer 的详细日志，可通过命令 `journalctl -u taos-explorer`。
 3. 当使用 Nginx 或其他工具进行转发时，注意进行 CORS 设置或在配置文件中使用 `cors = true`。
 
     这是一个 Nginx 配置文件 CORS 设置的例子：
