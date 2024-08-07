@@ -449,11 +449,14 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
   SResultRow* pResultRow =
       doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId, sizeof(groupId), true,
                              groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
+  if (pResultRow == NULL || pTaskInfo->code != 0) {
+    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+  }
   /*
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
    */
-  if (pResultRow == NULL || pResultRow->pageId == -1) {
+  if (pResultRow->pageId == -1) {
     int32_t ret = addNewResultRowBuf(pResultRow, pAggInfo->aggSup.pResultBuf, pAggInfo->binfo.pRes->info.rowSize);
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, terrno);

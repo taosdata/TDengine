@@ -454,7 +454,7 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   taos_free_result(pRes);
 #else
   pRes = taos_query(pConn,
-                    "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 into meters_summary as select "
+                    "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 fill_history 1 into meters_summary as select "
                     "_wstart, max(current) as current, "
                     "groupid, location from meters partition by groupid, location interval(10m)");
   if (taos_errno(pRes) != 0) {

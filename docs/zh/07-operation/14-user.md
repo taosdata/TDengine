@@ -4,7 +4,7 @@ title: 用户和权限管理
 toc_max_heading_level: 4
 ---
 
-TDengine 默认仅配置了一个 root 用户，该用户拥有最高权限。TDengine 支持对系统资源、库、表、视图和主题的访问权限控制。root 用户可以为每个用户针对不同的资源设置不同的访问权限。本节介绍 TDengine 中的用户和权限管理。
+TDengine 默认仅配置了一个 root 用户，该用户拥有最高权限。TDengine 支持对系统资源、库、表、视图和主题的访问权限控制。root 用户可以为每个用户针对不同的资源设置不同的访问权限。本节介绍 TDengine 中的用户和权限管理。用户和权限管理是 TDengine Enterprise 特有功能。
 
 ## 用户管理
 

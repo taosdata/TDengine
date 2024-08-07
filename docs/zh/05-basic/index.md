@@ -1,9 +1,9 @@
 ---
 title: 快速入门
-toc_max_heading_level: 4
+description: 'TDengine 基本功能'
 ---
 
-本章主要介绍 TDengine 的数据模型以及基本的写入和查询功能。
+本章主要介绍 TDengine 的数据模型以及写入和查询功能。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

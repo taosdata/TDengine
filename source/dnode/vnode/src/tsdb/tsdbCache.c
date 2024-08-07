@@ -484,6 +484,7 @@ static void tsdbCachePutBatch(SLastCol *pLastCol, const void *key, size_t klen, 
   code = tsdbCacheSerialize(pLastCol, &rocks_value, &vlen);
   if (code) {
     tsdbError("tsdb/cache: vgId:%d, serialize failed since %s.", TD_VID(pTsdb->pVnode), tstrerror(code));
+    return;
   }
 
   (void)taosThreadMutexLock(&rCache->rMutex);
@@ -1143,13 +1144,13 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
         code = tsdbCacheSerialize(&lastColTmp, &value, &vlen);
         if (code) {
           tsdbError("tsdb/cache: vgId:%d, serialize failed since %s.", TD_VID(pTsdb->pVnode), tstrerror(code));
+        } else {
+          (void)taosThreadMutexLock(&pTsdb->rCache.rMutex);
+
+          rocksdb_writebatch_put(wb, (char *)&idxKey->key, ROCKS_KEY_LEN, value, vlen);
+
+          (void)taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
         }
-
-        (void)taosThreadMutexLock(&pTsdb->rCache.rMutex);
-
-        rocksdb_writebatch_put(wb, (char *)&idxKey->key, ROCKS_KEY_LEN, value, vlen);
-
-        (void)taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
 
         pLastCol = &lastColTmp;
         SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
@@ -1411,6 +1412,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     if (IS_LAST_KEY(idxKey->key)) {
       if (NULL == lastTmpIndexArray) {
         lastTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
+        if (!lastTmpIndexArray) {
+          taosArrayDestroy(lastrowTmpIndexArray);
+
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
       }
       (void)taosArrayPush(lastTmpIndexArray, &(i));
       lastColIds[lastIndex] = idxKey->key.cid;
@@ -1419,6 +1425,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     } else {
       if (NULL == lastrowTmpIndexArray) {
         lastrowTmpIndexArray = taosArrayInit(num_keys, sizeof(int32_t));
+        if (!lastrowTmpIndexArray) {
+          taosArrayDestroy(lastTmpIndexArray);
+
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
       }
       (void)taosArrayPush(lastrowTmpIndexArray, &(i));
       lastrowColIds[lastrowIndex] = idxKey->key.cid;
@@ -1428,6 +1439,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   }
 
   pTmpColArray = taosArrayInit(lastIndex + lastrowIndex, sizeof(SLastCol));
+  if (!pTmpColArray) {
+    taosArrayDestroy(lastrowTmpIndexArray);
+    taosArrayDestroy(lastTmpIndexArray);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   if (lastTmpIndexArray != NULL) {
     (void)mergeLastCid(uid, pTsdb, &lastTmpColArray, pr, lastColIds, lastIndex, lastSlotIds);
@@ -1510,12 +1526,12 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     code = tsdbCacheSerialize(pLastCol, &value, &vlen);
     if (code) {
       tsdbError("tsdb/cache: vgId:%d, serialize failed since %s.", TD_VID(pTsdb->pVnode), tstrerror(code));
+    } else {
+      SLastKey *key = &idxKey->key;
+      size_t    klen = ROCKS_KEY_LEN;
+      rocksdb_writebatch_put(wb, (char *)key, klen, value, vlen);
+      taosMemoryFree(value);
     }
-
-    SLastKey *key = &idxKey->key;
-    size_t    klen = ROCKS_KEY_LEN;
-    rocksdb_writebatch_put(wb, (char *)key, klen, value, vlen);
-    taosMemoryFree(value);
   }
 
   if (wb) {
