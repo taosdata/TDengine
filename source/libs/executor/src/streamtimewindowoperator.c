@@ -1533,11 +1533,21 @@ void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
   taosMemoryFreeClear(pSup->pDummyCtx);
 }
 
+void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
+  if (pGroupResInfo->freeItem) {
+    pGroupResInfo->freeItem = false;
+  }
+  taosArrayDestroy(pGroupResInfo->pRows);
+  pGroupResInfo->pRows = NULL;
+  pGroupResInfo->index = 0;
+}
+
 void destroyStreamSessionAggOperatorInfo(void* param) {
   SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
+  clearGroupResInfo(&pInfo->groupResInfo);
 
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -1553,6 +1563,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pWinBlock);
   tSimpleHashCleanup(pInfo->pStUpdated);
   tSimpleHashCleanup(pInfo->pStDeleted);
+  cleanupGroupResInfo(&pInfo->groupResInfo);
   pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
 
   taosArrayDestroy(pInfo->historyWins);
