@@ -2669,6 +2669,9 @@ async fn consume_flat_record(
         tracing::warn!("Task is cancelled");
         return Ok(());
     }
+    if taos.is_none() {
+        taos.replace(pool.get().await?);
+    }
 
     // let stmt = Stmt::init(taos.as_ref().unwrap())?;
     let mut max_lengths = HashMap::new();
