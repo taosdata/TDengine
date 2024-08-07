@@ -1919,9 +1919,9 @@ export default {
       this.parseruleForm.expression = data
     },
     selectJson() {
-      this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
-
       if (this.parseruleForm.expression && this.parseruleForm.type == "json") {
+        this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
+
         // 回显逻辑
         let firstSplitArr = this.parseruleForm.expression.split(',')
         let checkedKey = []

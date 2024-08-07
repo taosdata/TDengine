@@ -2341,7 +2341,9 @@ export default {
     selectJson() {
       
       try {
-        this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
+        if (this.parseruleForm.type == 'json') {
+          this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
+        }
       } catch (err) {
         if (err.lineNumber > 0) {
           this.$error(this.$t("datasource.transformer.jsonDemoError").replace("{0}", err.lineNumber).replace("{1}", err.message));
