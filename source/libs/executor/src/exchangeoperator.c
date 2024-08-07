@@ -298,13 +298,13 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  (*ppRes) =  NULL;
+  (*ppRes) = NULL;
   return code;
 }
 
 static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = NULL;
-  int32_t code = loadRemoteDataNext(pOperator, &pRes);
+  int32_t      code = loadRemoteDataNext(pOperator, &pRes);
   return pRes;
 }
 
@@ -346,6 +346,14 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     qError("%s invalid number: %d of sources in exchange operator", id, (int32_t)numOfSources);
     return TSDB_CODE_INVALID_PARA;
   }
+  pInfo->pFetchRpcHandles = taosArrayInit(numOfSources, sizeof(int64_t));
+  if (!pInfo->pFetchRpcHandles) {
+    return terrno;
+  }
+  void* ret = taosArrayReserve(pInfo->pFetchRpcHandles, numOfSources);
+  if (!ret) {
+    return terrno;
+  }
 
   pInfo->pSources = taosArrayInit(numOfSources, sizeof(SDownstreamSourceNode));
   if (pInfo->pSources == NULL) {
@@ -384,6 +392,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   initLimitInfo(pExNode->node.pLimit, pExNode->node.pSlimit, &pInfo->limitInfo);
   pInfo->self = taosAddRef(exchangeObjRefPool, pInfo);
 
+
   return initDataSource(numOfSources, pInfo, id);
 }
 
@@ -391,7 +400,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
                                    SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
-  int32_t code = 0;
+  int32_t        code = 0;
   int32_t        lino = 0;
   SExchangeInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -468,6 +477,14 @@ void freeSourceDataInfo(void* p) {
 
 void doDestroyExchangeOperatorInfo(void* param) {
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
+  for (int32_t i = 0; i < pExInfo->pFetchRpcHandles->size; ++i) {
+    int64_t* pRpcHandle = taosArrayGet(pExInfo->pFetchRpcHandles, i);
+    if (*pRpcHandle > 0) {
+      SDownstreamSourceNode* pSource = taosArrayGet(pExInfo->pSources, i);
+      (void)asyncFreeConnById(pExInfo->pTransporter, *pRpcHandle);
+    }
+  }
+  taosArrayDestroy(pExInfo->pFetchRpcHandles);
 
   taosArrayDestroy(pExInfo->pSources);
   taosArrayDestroyEx(pExInfo->pSourceDataInfo, freeSourceDataInfo);
@@ -495,6 +512,8 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   int32_t          index = pWrapper->sourceIndex;
+  int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
+  *pRpcHandle = -1;
   SSourceDataInfo* pSourceDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, index);
   if (!pSourceDataInfo) {
     return terrno;
@@ -668,6 +687,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     int64_t transporterId = 0;
     code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
     QUERY_CHECK_CODE(code, lino, _end);
+    int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, sourceIndex);
+    *pRpcHandle = transporterId;
   }
 
 _end:
@@ -690,7 +711,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
   int32_t lino = 0;
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
-    code = blockDecode(pRes, pData, (const char**) pNextStart);
+    code = blockDecode(pRes, pData, (const char**)pNextStart);
     if (code) {
       return code;
     }

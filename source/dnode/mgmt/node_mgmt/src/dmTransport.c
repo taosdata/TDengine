@@ -387,6 +387,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.notWaitAvaliableConn = 1;
 
   (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
