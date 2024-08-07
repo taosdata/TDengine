@@ -1208,12 +1208,13 @@ typedef struct UsingRegex {
   regex_t pRegex;
   int32_t lastUsedTime;
 } UsingRegex;
+typedef UsingRegex* HashRegexPtr;
 
 typedef struct RegexCache {
   SHashObj      *regexHash;
   void          *regexCacheTmr;
   void          *timer;
-  TdThreadMutex mutex;
+  SRWLatch      mutex;
   bool          exit;
 } RegexCache;
 static RegexCache sRegexCache;
@@ -1222,11 +1223,7 @@ static RegexCache sRegexCache;
 
 static void checkRegexCache(void* param, void* tmrId) {
   int32_t  code = 0;
-  code = taosThreadMutexLock(&sRegexCache.mutex);
-  if (code != 0) {
-    uError("[regex cache] checkRegexCache, Failed to lock mutex");
-    return;
-  }
+  taosRLockLatch(&sRegexCache.mutex);
   if(sRegexCache.exit) {
     goto _exit;
   }
@@ -1247,10 +1244,7 @@ static void checkRegexCache(void* param, void* tmrId) {
     }
   }
 _exit:
-  code = taosThreadMutexUnlock(&sRegexCache.mutex);
-  if(code != 0) {
-    uError("[regex cache] checkRegexCache, Failed to unlock mutex");
-  }
+  taosRUnLockLatch(&sRegexCache.mutex);
 }
 
 void regexCacheFree(void *ppUsingRegex) {
@@ -1273,10 +1267,7 @@ int32_t InitRegexCache() {
   }
 
   sRegexCache.exit = false;
-  if (taosThreadMutexInit(&sRegexCache.mutex, NULL) != 0) {
-    uError("failed to init mutex");
-    return -1;
-  }
+  taosInitRWLatch(&sRegexCache.mutex);
   sRegexCache.timer = taosTmrStart(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, NULL, sRegexCache.regexCacheTmr);
   if (sRegexCache.timer == NULL) {
     uError("failed to start regex cache timer");
@@ -1290,18 +1281,11 @@ void DestroyRegexCache(){
   int32_t code = 0;
   uInfo("[regex cache] destory regex cache");
   (void)taosTmrStopA(&sRegexCache.timer);
-  code = taosThreadMutexLock(&sRegexCache.mutex);
-  if (code != 0) {
-    uError("[regex cache] Failed to lock mutex");
-    return;
-  }
+  taosWLockLatch(&sRegexCache.mutex);
   sRegexCache.exit = true;
   taosHashCleanup(sRegexCache.regexHash);
   taosTmrCleanUp(sRegexCache.regexCacheTmr);
-  code  =  taosThreadMutexUnlock(&sRegexCache.mutex);
-  if (code != 0) {
-    uError("[regex cache] Failed to unlock mutex");
-  }
+  taosWUnLockLatch(&sRegexCache.mutex);
 }
 
 int32_t checkRegexPattern(const char *pPattern) {
@@ -1322,17 +1306,17 @@ int32_t checkRegexPattern(const char *pPattern) {
   return TSDB_CODE_SUCCESS;
 }
 
-UsingRegex **getRegComp(const char *pPattern) {
-  UsingRegex **ppUsingRegex = (UsingRegex **)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
+int32_t getRegComp(const char *pPattern, HashRegexPtr **regexRet) {
+  HashRegexPtr* ppUsingRegex = (HashRegexPtr*)taosHashAcquire(sRegexCache.regexHash, pPattern, strlen(pPattern));
   if (ppUsingRegex != NULL) {
     (*ppUsingRegex)->lastUsedTime = taosGetTimestampSec();
-    return ppUsingRegex;
+    *regexRet = ppUsingRegex;
+    return TSDB_CODE_SUCCESS;
   }
   UsingRegex *pUsingRegex = taosMemoryMalloc(sizeof(UsingRegex));
   if (pUsingRegex == NULL) {
-    terrno  = TSDB_CODE_OUT_OF_MEMORY;
     uError("Failed to Malloc when compile regex pattern %s.", pPattern);
-    return NULL;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   int32_t cflags = REG_EXTENDED;
   int32_t ret = regcomp(&pUsingRegex->pRegex, pPattern, cflags);
@@ -1341,8 +1325,7 @@ UsingRegex **getRegComp(const char *pPattern) {
     (void)regerror(ret, &pUsingRegex->pRegex, msgbuf, tListLen(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
     taosMemoryFree(pUsingRegex);
-    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-    return NULL;
+    return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
   }
 
   while (true) {
@@ -1350,8 +1333,7 @@ UsingRegex **getRegComp(const char *pPattern) {
     if (code != 0 && code != TSDB_CODE_DUP_KEY) {
       regexCacheFree(&pUsingRegex);
       uError("Failed to put regex pattern %s into cache, exception internal error.", pPattern);
-      terrno = code;
-      return NULL;
+      return code;
     } else if (code == TSDB_CODE_DUP_KEY) {
       terrno = 0;
     }
@@ -1367,7 +1349,8 @@ UsingRegex **getRegComp(const char *pPattern) {
     }
   }
   pUsingRegex->lastUsedTime = taosGetTimestampSec();
-  return ppUsingRegex;
+  *regexRet = ppUsingRegex;
+  return TSDB_CODE_SUCCESS;
 }
 
 void releaseRegComp(UsingRegex  **regex){
@@ -1397,14 +1380,15 @@ int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
     }
   }
 
-  UsingRegex **ppRegex = getRegComp(pPattern);
-  if (ppRegex == NULL) {
-    return 1;
+  HashRegexPtr *ppRegex = NULL;
+  int32_t code = getRegComp(pPattern, &ppRegex);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
   pOldPattern = taosStrdup(pPattern);
   if (NULL == pOldPattern) {
     uError("Failed to Malloc when compile regex pattern %s.", pPattern);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   ppUsingRegex = ppRegex;
   pRegex  = &((*ppUsingRegex)->pRegex);

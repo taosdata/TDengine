@@ -12,7 +12,8 @@
 
 extern "C" {
   typedef struct UsingRegex UsingRegex;
-  UsingRegex** getRegComp(const char *pPattern);
+  typedef struct HashRegexPtr HashRegexPtr;
+  int32_t getRegComp(const char *pPattern, HashRegexPtr **regexRet);
   int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 }
 
@@ -66,8 +67,12 @@ TEST(testCase, regexCacheTest1) {
   auto start = std::chrono::high_resolution_clock::now();
 
   uint64_t t0 = taosGetTimestampUs();
-  for(int i = 0; i < times; i++) {
-    UsingRegex** rex = getRegComp(s1);
+  for (int i = 0; i < times; i++) {
+    HashRegexPtr* ret = NULL;
+    int32_t       code = getRegComp(s1, &ret);
+    if (code != 0) {
+      FAIL() << "Failed to compile regex pattern " << s1;
+    }
   }
   uint64_t t1 = taosGetTimestampUs();
 
@@ -97,8 +102,12 @@ TEST(testCase, regexCacheTest2) {
   auto start = std::chrono::high_resolution_clock::now();
 
   uint64_t t0 = taosGetTimestampUs();
-  for(int i = 0; i < times; i++) {
-    UsingRegex** rex = getRegComp(s1);
+  for (int i = 0; i < times; i++) {
+    HashRegexPtr* ret = NULL;
+    int32_t       code = getRegComp(s1, &ret);
+    if (code != 0) {
+      FAIL() << "Failed to compile regex pattern " << s1;
+    }
   }
   uint64_t t1 = taosGetTimestampUs();
 
@@ -129,9 +138,12 @@ TEST(testCase, regexCacheTest3) {
   auto start = std::chrono::high_resolution_clock::now();
 
   uint64_t t0 = taosGetTimestampUs();
-  for(int i = 0; i < times; i++) {
-    UsingRegex** rex = getRegComp(s1);
-    rex = getRegComp(s2);
+  for (int i = 0; i < times; i++) {
+    HashRegexPtr* ret = NULL;
+    int32_t       code = getRegComp(s1, &ret);
+    if (code != 0) {
+      FAIL() << "Failed to compile regex pattern " << s1;
+    }
   }
   uint64_t t1 = taosGetTimestampUs();
 
@@ -167,10 +179,18 @@ TEST(testCase, regexCacheTest4) {
   uint64_t t0 = taosGetTimestampUs();
   for (int i = 0; i < times; i++) {
     for (int j = 0; j < count; ++j) {
-      UsingRegex** rex = getRegComp(s1);
+      HashRegexPtr* ret = NULL;
+      int32_t       code = getRegComp(s1, &ret);
+      if (code != 0) {
+        FAIL() << "Failed to compile regex pattern " << s1;
+      }
     }
     for (int j = 0; j < count; ++j) {
-      UsingRegex** rex = getRegComp(s2);
+      HashRegexPtr* ret = NULL;
+      int32_t       code = getRegComp(s2, &ret);
+      if (code != 0) {
+        FAIL() << "Failed to compile regex pattern " << s2;
+      }
     }
   }
   uint64_t t1 = taosGetTimestampUs();
@@ -206,7 +226,8 @@ TEST(testCase, regexCacheTest4) {
   printf("'%s' and '%s' take place by turn(per %d count) regex(new) %d times:%" PRIu64 " us.\n", s1, s2, count, times, t3 - t2);
 }
 
-/*  It is not a good idea to test this case, because it will take a long time.
+//  It is not a good idea to test this case, because it will take a long time.
+/*
 TEST(testCase, regexCacheTest5) {
   int times = 10000;
   int count = 10000;
@@ -217,10 +238,18 @@ TEST(testCase, regexCacheTest5) {
   uint64_t t0 = taosGetTimestampUs();
   for (int i = 0; i < times; i++) {
     for (int j = 0; j < count; ++j) {
-      UsingRegex** rex = getRegComp(s1);
+      HashRegexPtr* ret = NULL;
+      int32_t       code = getRegComp(s1, &ret);
+      if (code != 0) {
+        FAIL() << "Failed to compile regex pattern " << s1;
+      }
     }
     for (int j = 0; j < count; ++j) {
-      UsingRegex** rex = getRegComp(s2);
+      HashRegexPtr* ret = NULL;
+      int32_t       code = getRegComp(s2, &ret);
+      if (code != 0) {
+        FAIL() << "Failed to compile regex pattern " << s2;
+      }
     }
   }
   uint64_t t1 = taosGetTimestampUs();
@@ -257,19 +286,27 @@ TEST(testCase, regexCacheTest5) {
 }
 
 TEST(testCase, regexCacheTest6) {
-  int times = 10000;
-  int count = 1000;
-  char    s1[] = "abc%*";
-  char    s2[] = "abc";
+  int  times = 10000;
+  int  count = 1000;
+  char s1[] = "abc%*";
+  char s2[] = "abc";
   auto start = std::chrono::high_resolution_clock::now();
 
   uint64_t t0 = taosGetTimestampUs();
   for (int i = 0; i < times; i++) {
     for (int j = 0; j < count; ++j) {
-      UsingRegex** rex = getRegComp(s1);
+      HashRegexPtr* ret = NULL;
+      int32_t       code = getRegComp(s1, &ret);
+      if (code != 0) {
+        FAIL() << "Failed to compile regex pattern " << s1;
+      }
     }
     for (int j = 0; j < count; ++j) {
-      UsingRegex** rex = getRegComp(s2);
+      HashRegexPtr* ret = NULL;
+      int32_t       code = getRegComp(s2, &ret);
+      if (code != 0) {
+        FAIL() << "Failed to compile regex pattern " << s2;
+      }
     }
   }
   uint64_t t1 = taosGetTimestampUs();
