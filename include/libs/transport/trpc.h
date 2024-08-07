@@ -37,7 +37,6 @@ typedef struct {
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
-
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -63,7 +62,7 @@ typedef struct SRpcHandleInfo {
   SRpcConnInfo conn;
   int8_t       forbiddenIp;
   int8_t       notFreeAhandle;
-
+  int8_t       compressed;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -78,6 +77,7 @@ typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcFFfp)(tmsg_t msgType);
+typedef bool (*RpcNoDelayfp)(tmsg_t msgType);
 typedef void (*RpcDfp)(void *ahandle);
 
 typedef struct SRpcInit {
@@ -117,6 +117,8 @@ typedef struct SRpcInit {
   RpcDfp dfp;
   // fail fast fp
   RpcFFfp ffp;
+
+  RpcNoDelayfp noDelayFp;
 
   int32_t connLimitNum;
   int32_t connLimitLock;
@@ -162,13 +164,13 @@ int rpcRegisterBrokenLinkArg(SRpcMsg *msg);
 int rpcReleaseHandle(void *handle, int8_t type);  // just release conn to rpc instance, no close sock
 
 // These functions will not be called in the child process
-int   rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
-int   rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
-int   rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int8_t *epUpdated,
-                             int32_t timeoutMs);
-int   rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
-void *rpcAllocHandle();
-void  rpcSetIpWhite(void *thandl, void *arg);
+int     rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
+int     rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+int     rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int8_t *epUpdated,
+                               int32_t timeoutMs);
+int     rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
+void   *rpcAllocHandle();
+int32_t rpcSetIpWhite(void *thandl, void *arg);
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 

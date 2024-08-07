@@ -115,6 +115,8 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderSeek = tqReaderSeek;
   pTq->tqRetrieveBlock = tqRetrieveDataBlock;
 
+  pTq->tqGetTablePrimaryKey = tqGetTablePrimaryKey;
+  pTq->tqSetTablePrimaryKey = tqSetTablePrimaryKey;
   pTq->tqReaderNextBlockInWal = tqNextBlockInWal;
 
   pTq->tqNextBlockImpl = tqNextBlockImpl;  // todo remove it
@@ -127,17 +129,17 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderIsQueriedTable = tqReaderIsQueriedTable;
   pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
 
-  pTq->tqReaderGetWalReader = tqGetWalReader;              // todo remove it
-//  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
+  pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
+  //  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
   pTq->tqGetResultBlock = tqGetResultBlock;
 
-//  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
+  //  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 
   pTq->tqGetStreamExecProgress = tqGetStreamExecInfo;
-  }
+}
 
 void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateInit = streamFileStateInit;
@@ -258,6 +260,8 @@ void initCacheFn(SStoreCacheReader* pCache) {
 }
 
 void initSnapshotFn(SStoreSnapshotFn* pSnapshot) {
+  pSnapshot->taosXGetTablePrimaryKey = taosXGetTablePrimaryKey;
+  pSnapshot->taosXSetTablePrimaryKey = taosXSetTablePrimaryKey;
   pSnapshot->setForSnapShot = setForSnapShot;
   pSnapshot->destroySnapshot = destroySnapContext;
   pSnapshot->getMetaTableInfoFromSnapshot = getMetaTableInfoFromSnapshot;

@@ -15,6 +15,7 @@
 
 #include "tsdbFile2.h"
 #include "cos.h"
+#include "vnd.h"
 
 // to_json
 static int32_t head_to_json(const STFile *file, cJSON *json);
@@ -42,24 +43,9 @@ static const struct {
     [TSDB_FTYPE_STT] = {"stt", stt_to_json, stt_from_json},
 };
 
-void remove_file(const char *fname, bool last_level) {
-  int32_t code = taosRemoveFile(fname);
-  if (code) {
-    if (tsS3Enabled && last_level) {
-      const char *object_name = taosDirEntryBaseName((char *)fname);
-      long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
-      if (!strncmp(fname + strlen(fname) - 5, ".data", 5) && s3_size > 0) {
-        s3DeleteObjects(&object_name, 1);
-        tsdbInfo("file:%s is removed from s3", fname);
-      } else {
-        tsdbError("file:%s remove failed", fname);
-      }
-    } else {
-      tsdbError("file:%s remove failed", fname);
-    }
-  } else {
-    tsdbInfo("file:%s is removed", fname);
-  }
+void remove_file(const char *fname) {
+  (void)taosRemoveFile(fname);
+  tsdbInfo("file:%s is removed", fname);
 }
 
 static int32_t tfile_to_json(const STFile *file, cJSON *json) {
@@ -70,6 +56,11 @@ static int32_t tfile_to_json(const STFile *file, cJSON *json) {
 
   /* did.id */
   if (cJSON_AddNumberToObject(json, "did.id", file->did.id) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  /* lcn - last chunk number */
+  if (cJSON_AddNumberToObject(json, "lcn", file->lcn) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -121,6 +112,14 @@ static int32_t tfile_from_json(const cJSON *json, STFile *file) {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
+  /* lcn */
+  item = cJSON_GetObjectItem(json, "lcn");
+  if (cJSON_IsNumber(item)) {
+    file->lcn = item->valuedouble;
+  } else {
+    // return TSDB_CODE_FILE_CORRUPTED;
+  }
+
   /* fid */
   item = cJSON_GetObjectItem(json, "fid");
   if (cJSON_IsNumber(item)) {
@@ -166,8 +165,7 @@ static int32_t data_to_json(const STFile *file, cJSON *json) { return tfile_to_j
 static int32_t sma_to_json(const STFile *file, cJSON *json) { return tfile_to_json(file, json); }
 static int32_t tomb_to_json(const STFile *file, cJSON *json) { return tfile_to_json(file, json); }
 static int32_t stt_to_json(const STFile *file, cJSON *json) {
-  int32_t code = tfile_to_json(file, json);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tfile_to_json(file, json));
 
   /* lvl */
   if (cJSON_AddNumberToObject(json, "level", file->stt->level) == NULL) {
@@ -182,8 +180,7 @@ static int32_t data_from_json(const cJSON *json, STFile *file) { return tfile_fr
 static int32_t sma_from_json(const cJSON *json, STFile *file) { return tfile_from_json(json, file); }
 static int32_t tomb_from_json(const cJSON *json, STFile *file) { return tfile_from_json(json, file); }
 static int32_t stt_from_json(const cJSON *json, STFile *file) {
-  int32_t code = tfile_from_json(json, file);
-  if (code) return code;
+  TAOS_CHECK_RETURN(tfile_from_json(json, file));
 
   const cJSON *item;
 
@@ -203,7 +200,9 @@ int32_t tsdbTFileToJson(const STFile *file, cJSON *json) {
     return g_tfile_info[file->type].to_json(file, json);
   } else {
     cJSON *item = cJSON_AddObjectToObject(json, g_tfile_info[file->type].suffix);
-    if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    if (item == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     return g_tfile_info[file->type].to_json(file, item);
   }
 }
@@ -212,13 +211,11 @@ int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f) {
   f[0] = (STFile){.type = ftype};
 
   if (ftype == TSDB_FTYPE_STT) {
-    int32_t code = g_tfile_info[ftype].from_json(json, f);
-    if (code) return code;
+    TAOS_CHECK_RETURN(g_tfile_info[ftype].from_json(json, f));
   } else {
     const cJSON *item = cJSON_GetObjectItem(json, g_tfile_info[ftype].suffix);
     if (cJSON_IsObject(item)) {
-      int32_t code = g_tfile_info[ftype].from_json(item, f);
-      if (code) return code;
+      TAOS_CHECK_RETURN(g_tfile_info[ftype].from_json(item, f));
     } else {
       return TSDB_CODE_NOT_FOUND;
     }
@@ -229,36 +226,39 @@ int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f) {
 
 int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0] = taosMemoryMalloc(sizeof(*fobj[0]));
-  if (!fobj[0]) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!fobj[0]) {
+    return terrno;
+  }
 
-  taosThreadMutexInit(&fobj[0]->mutex, NULL);
+  (void)taosThreadMutexInit(&fobj[0]->mutex, NULL);
   fobj[0]->f[0] = f[0];
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
-  tsdbTFileName(pTsdb, f, fobj[0]->fname);
-  fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
+  (void)tsdbTFileName(pTsdb, f, fobj[0]->fname);
+  // fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
+  fobj[0]->nlevel = vnodeNodeId(pTsdb->pVnode);
   return 0;
 }
 
 int32_t tsdbTFileObjRef(STFileObj *fobj) {
   int32_t nRef;
-  taosThreadMutexLock(&fobj->mutex);
+  (void)(void)taosThreadMutexLock(&fobj->mutex);
   ASSERT(fobj->ref > 0 && fobj->state == TSDB_FSTATE_LIVE);
   nRef = ++fobj->ref;
-  taosThreadMutexUnlock(&fobj->mutex);
+  (void)(void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   return 0;
 }
 
 int32_t tsdbTFileObjUnref(STFileObj *fobj) {
-  taosThreadMutexLock(&fobj->mutex);
+  (void)(void)taosThreadMutexLock(&fobj->mutex);
   int32_t nRef = --fobj->ref;
-  taosThreadMutexUnlock(&fobj->mutex);
+  (void)(void)taosThreadMutexUnlock(&fobj->mutex);
   ASSERT(nRef >= 0);
   tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
-      remove_file(fobj->fname, fobj->nlevel > 1 && fobj->f->did.level == fobj->nlevel - 1);
+      remove_file(fobj->fname);
     }
     taosMemoryFree(fobj);
   }
@@ -266,15 +266,80 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   return 0;
 }
 
+static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
+  if (fobj->f->type != TSDB_FTYPE_DATA || fobj->f->lcn < 1) {
+    remove_file(fobj->fname);
+    return;
+  }
+
+  if (!remove_all) {
+    // remove local last chunk file
+    char lc_path[TSDB_FILENAME_LEN];
+    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
+
+    char *dot = strrchr(lc_path, '.');
+    if (!dot) {
+      tsdbError("unexpected path: %s", lc_path);
+      return;
+    }
+    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
+
+    remove_file(lc_path);
+
+  } else {
+    // delete by data file prefix
+    char lc_path[TSDB_FILENAME_LEN];
+    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
+
+    char   *object_name = taosDirEntryBaseName(lc_path);
+    int32_t node_id = fobj->nlevel;
+    char    object_name_prefix[TSDB_FILENAME_LEN];
+    snprintf(object_name_prefix, TSDB_FQDN_LEN, "%d/%s", node_id, object_name);
+
+    char *dot = strrchr(object_name_prefix, '.');
+    if (!dot) {
+      tsdbError("unexpected path: %s", object_name_prefix);
+      return;
+    }
+    *(dot + 1) = 0;
+
+    s3DeleteObjectsByPrefix(object_name_prefix);
+
+    // remove local last chunk file
+    dot = strrchr(lc_path, '.');
+    if (!dot) {
+      tsdbError("unexpected path: %s", lc_path);
+      return;
+    }
+    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
+
+    remove_file(lc_path);
+  }
+}
+
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {
-  taosThreadMutexLock(&fobj->mutex);
+  (void)taosThreadMutexLock(&fobj->mutex);
   ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
-  taosThreadMutexUnlock(&fobj->mutex);
+  (void)taosThreadMutexUnlock(&fobj->mutex);
   tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
-    remove_file(fobj->fname, fobj->nlevel > 1 && fobj->f->did.level == fobj->nlevel - 1);
+    tsdbTFileObjRemoveLC(fobj, true);
+    taosMemoryFree(fobj);
+  }
+  return 0;
+}
+
+int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
+  (void)taosThreadMutexLock(&fobj->mutex);
+  ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
+  fobj->state = TSDB_FSTATE_DEAD;
+  int32_t nRef = --fobj->ref;
+  (void)taosThreadMutexUnlock(&fobj->mutex);
+  tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  if (nRef == 0) {
+    tsdbTFileObjRemoveLC(fobj, false);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -310,13 +375,45 @@ int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   return 0;
 }
 
+int32_t tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
+  SVnode *pVnode = pTsdb->pVnode;
+  STfs   *pTfs = pVnode->pTfs;
+
+  if (pTfs) {
+    snprintf(fname,                                 //
+             TSDB_FILENAME_LEN,                     //
+             "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
+             tfsGetDiskPath(pTfs, f->did),          //
+             TD_DIRSEP,                             //
+             pTsdb->path,                           //
+             TD_DIRSEP,                             //
+             TD_VID(pVnode),                        //
+             f->fid,                                //
+             f->cid,                                //
+             f->lcn,                                //
+             g_tfile_info[f->type].suffix);
+  } else {
+    snprintf(fname,                             //
+             TSDB_FILENAME_LEN,                 //
+             "%s%sv%df%dver%" PRId64 ".%d.%s",  //
+             pTsdb->path,                       //
+             TD_DIRSEP,                         //
+             TD_VID(pVnode),                    //
+             f->fid,                            //
+             f->cid,                            //
+             f->lcn,                            //
+             g_tfile_info[f->type].suffix);
+  }
+  return 0;
+}
+
 bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
   if (f1->type != f2->type) return false;
   if (f1->did.level != f2->did.level) return false;
   if (f1->did.id != f2->did.id) return false;
   if (f1->fid != f2->fid) return false;
   if (f1->cid != f2->cid) return false;
-  if (f1->s3flag != f2->s3flag) return false;
+  if (f1->lcn != f2->lcn) return false;
   return true;
 }
 

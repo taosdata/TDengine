@@ -311,7 +311,7 @@ static void shellInitArgs(int argc, char *argv[]) {
       if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
-        if (scanf("%20s", shell.args.password) > 1) {
+        if (scanf("%128s", shell.args.password) > 1) {
           fprintf(stderr, "password reading error\n");
         }
         taosSetConsoleEcho(true);
@@ -435,12 +435,12 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "version: %s compatible_version: %s\ngitinfo: %s\ngitinfoOfInternal: %s\nbuildInfo: %s", version,
-           compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
+           "%s\ntaos version: %s compatible_version: %s\ngit: %s\ngitOfInternal: %s\nbuild: %s", TD_PRODUCT_NAME,
+           version, compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
 #else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
-           buildinfo);
+           "%s\ntaos version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, version,
+           compatible_version, gitinfo, buildinfo);
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)

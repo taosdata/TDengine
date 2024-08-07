@@ -29,6 +29,8 @@ void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
 int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
 int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
 bool    mndIsDbReady(SMnode *pMnode, SDbObj *pDb);
+void    mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
+bool    mndDbIsExist(SMnode *pMnode, const char *db);
 
 SSdbRaw    *mndDbActionEncode(SDbObj *pDb);
 const char *mndGetDbStr(const char *src);

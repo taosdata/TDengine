@@ -19,6 +19,7 @@
 #include "os.h"
 #include "talgo.h"
 #include "tarray.h"
+#include "tbuffer.h"
 #include "tencode.h"
 #include "ttypes.h"
 #include "tutil.h"
@@ -27,18 +28,21 @@
 extern "C" {
 #endif
 
-typedef struct SBuffer  SBuffer;
-typedef struct SSchema  SSchema;
-typedef struct SSchema2 SSchema2;
-typedef struct STColumn STColumn;
-typedef struct STSchema STSchema;
-typedef struct SValue   SValue;
-typedef struct SColVal  SColVal;
-typedef struct SRow     SRow;
-typedef struct SRowIter SRowIter;
-typedef struct STagVal  STagVal;
-typedef struct STag     STag;
-typedef struct SColData SColData;
+typedef struct SSchema    SSchema;
+typedef struct SSchema2   SSchema2;
+typedef struct SSchemaExt SSchemaExt;
+typedef struct STColumn   STColumn;
+typedef struct STSchema   STSchema;
+typedef struct SValue     SValue;
+typedef struct SColVal    SColVal;
+typedef struct SRow       SRow;
+typedef struct SRowIter   SRowIter;
+typedef struct STagVal    STagVal;
+typedef struct STag       STag;
+typedef struct SColData   SColData;
+
+typedef struct SRowKey      SRowKey;
+typedef struct SValueColumn SValueColumn;
 
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
@@ -78,31 +82,50 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
   } while (0)
 #define GET_BIT2(p, i) (((p)[DIV_4(i)] >> MOD_4_TIME_2(i)) & THREE)
 
-// SBuffer ================================
-struct SBuffer {
-  int64_t  nBuf;
-  uint8_t *pBuf;
-};
-
-#define tBufferCreate() \
-  (SBuffer) { .nBuf = 0, .pBuf = NULL }
-void    tBufferDestroy(SBuffer *pBuffer);
-int32_t tBufferInit(SBuffer *pBuffer, int64_t size);
-int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
-int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
-
 // SColVal ================================
 #define CV_FLAG_VALUE ((int8_t)0x0)
 #define CV_FLAG_NONE  ((int8_t)0x1)
 #define CV_FLAG_NULL  ((int8_t)0x2)
 
-#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NONE})
-#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NULL})
-#define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
+#define COL_VAL_NONE(CID, TYPE) ((SColVal){.cid = (CID), .flag = CV_FLAG_NONE, .value = {.type = (TYPE)}})
+#define COL_VAL_NULL(CID, TYPE) ((SColVal){.cid = (CID), .flag = CV_FLAG_NULL, .value = {.type = (TYPE)}})
+#define COL_VAL_VALUE(CID, V)   ((SColVal){.cid = (CID), .flag = CV_FLAG_VALUE, .value = (V)})
 
 #define COL_VAL_IS_NONE(CV)  ((CV)->flag == CV_FLAG_NONE)
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
+
+#define tRowGetKey(_pRow, _pKey)           \
+  do {                                     \
+    (_pKey)->ts = (_pRow)->ts;             \
+    (_pKey)->numOfPKs = 0;                 \
+    if ((_pRow)->numOfPKs > 0) {           \
+      tRowGetPrimaryKey((_pRow), (_pKey)); \
+    }                                      \
+  } while (0)
+
+// SValueColumn ================================
+typedef struct {
+  int8_t  cmprAlg;  // filled by caller
+  int8_t  type;
+  int32_t dataOriginalSize;
+  int32_t dataCompressedSize;
+  int32_t offsetOriginalSize;
+  int32_t offsetCompressedSize;
+} SValueColumnCompressInfo;
+
+int32_t tValueColumnInit(SValueColumn *valCol);
+int32_t tValueColumnDestroy(SValueColumn *valCol);
+int32_t tValueColumnClear(SValueColumn *valCol);
+int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
+int32_t tValueColumnUpdate(SValueColumn *valCol, int32_t idx, const SValue *value);
+int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value);
+int32_t tValueColumnCompress(SValueColumn *valCol, SValueColumnCompressInfo *info, SBuffer *output, SBuffer *assist);
+int32_t tValueColumnDecompress(void *input, const SValueColumnCompressInfo *compressInfo, SValueColumn *valCol,
+                               SBuffer *buffer);
+int32_t tValueColumnCompressInfoEncode(const SValueColumnCompressInfo *compressInfo, SBuffer *buffer);
+int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompressInfo *compressInfo);
+int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 
 // SRow ================================
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
@@ -111,6 +134,9 @@ void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
+void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
+int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
+void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -132,9 +158,25 @@ void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remov
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
 
 // SColData ================================
+typedef struct {
+  uint32_t cmprAlg;  // filled by caller
+  int8_t   columnFlag;
+  int8_t   flag;
+  int8_t   dataType;
+  int16_t  columnId;
+  int32_t  numOfData;
+  int32_t  bitmapOriginalSize;
+  int32_t  bitmapCompressedSize;
+  int32_t  offsetOriginalSize;
+  int32_t  offsetCompressedSize;
+  int32_t  dataOriginalSize;
+  int32_t  dataCompressedSize;
+} SColDataCompressInfo;
+
 typedef void *(*xMallocFn)(void *, int32_t);
+
 void    tColDataDestroy(void *ph);
-void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
+void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
 void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
@@ -142,7 +184,12 @@ int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
 void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
+void    tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key);
+
 extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
+
+int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer *output, SBuffer *assist);
+int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *colData, SBuffer *assist);
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
@@ -152,8 +199,8 @@ void    tColDataSortMerge(SArray *colDataArr);
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data);
 // for encode/decode
-int32_t tPutColData(uint8_t *pBuf, SColData *pColData);
-int32_t tGetColData(uint8_t *pBuf, SColData *pColData);
+int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
+int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
 
 // STRUCT ================================
 struct STColumn {
@@ -172,28 +219,47 @@ struct STSchema {
   STColumn columns[];
 };
 
+/*
+ * 1. Tuple format:
+ *      SRow + [(type, offset) * numOfPKs +] [bit map +] fix-length data + [var-length data]
+ *
+ * 2. K-V format:
+ *      SRow + [(type, offset) * numOfPKs +] offset array + ([-]cid [+ data]) * numColsNotNone
+ */
 struct SRow {
   uint8_t  flag;
-  uint8_t  rsv;
+  uint8_t  numOfPKs;
   uint16_t sver;
   uint32_t len;
   TSKEY    ts;
   uint8_t  data[];
 };
 
+typedef struct {
+  int8_t   type;
+  uint32_t offset;
+} SPrimaryKeyIndex;
+
 struct SValue {
+  int8_t type;
   union {
     int64_t val;
     struct {
-      uint32_t nData;
       uint8_t *pData;
+      uint32_t nData;
     };
   };
 };
 
+#define TD_MAX_PK_COLS 2
+struct SRowKey {
+  TSKEY   ts;
+  uint8_t numOfPKs;
+  SValue  pks[TD_MAX_PK_COLS];
+};
+
 struct SColVal {
   int16_t cid;
-  int8_t  type;
   int8_t  flag;
   SValue  value;
 };
@@ -201,7 +267,7 @@ struct SColVal {
 struct SColData {
   int16_t  cid;
   int8_t   type;
-  int8_t   smaOn;
+  int8_t   cflag;
   int32_t  numOfNone;   // # of none
   int32_t  numOfNull;   // # of null
   int32_t  numOfValue;  // # of vale
@@ -249,7 +315,7 @@ struct STag {
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
     *(VarDataLenT *)(x) = __len;                  \
-    memcpy(varDataVal(x), (str), __len);          \
+    (void)memcpy(varDataVal(x), (str), __len);    \
   } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
@@ -258,10 +324,10 @@ struct STag {
     varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));                      \
   } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)  \
-  do {                                          \
-    *(VarDataLenT *)(x) = (VarDataLenT)(_size); \
-    memcpy(varDataVal(x), (str), (_size));      \
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)   \
+  do {                                           \
+    *(VarDataLenT *)(x) = (VarDataLenT)(_size);  \
+    (void)memcpy(varDataVal(x), (str), (_size)); \
   } while (0);
 
 // STSchema ================================
@@ -273,6 +339,44 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
       pTSchema = NULL;            \
     }                             \
   } while (0)
+const STColumn *tTSchemaSearchColumn(const STSchema *pTSchema, int16_t cid);
+
+struct SValueColumn {
+  int8_t   type;
+  uint32_t numOfValues;
+  SBuffer  data;
+  SBuffer  offsets;
+};
+
+typedef struct {
+  int32_t  dataType;      // filled by caller
+  uint32_t cmprAlg;       // filled by caller
+  int32_t  originalSize;  // filled by caller
+  int32_t  compressedSize;
+} SCompressInfo;
+
+int32_t tCompressData(void          *input,       // input
+                      SCompressInfo *info,        // compress info
+                      void          *output,      // output
+                      int32_t        outputSize,  // output size
+                      SBuffer       *buffer       // assistant buffer provided by caller, can be NULL
+);
+int32_t tDecompressData(void                *input,       // input
+                        const SCompressInfo *info,        // compress info
+                        void                *output,      // output
+                        int32_t              outputSize,  // output size
+                        SBuffer             *buffer       // assistant buffer provided by caller, can be NULL
+);
+int32_t tCompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
+int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
+
+typedef struct {
+  int32_t          columnId;
+  int32_t          type;
+  TAOS_MULTI_BIND *bind;
+} SBindInfo;
+int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                          SArray *rowArray);
 
 #endif
 

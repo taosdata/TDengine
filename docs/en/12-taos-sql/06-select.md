@@ -24,7 +24,7 @@ SELECT [hints] [DISTINCT] [TAGS] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARA_TABLES_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARA_TABLES_SORT | PARTITION_FIRST | SMALLDATA_TS_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -39,7 +39,7 @@ select_expr: {
 
 from_clause: {
     table_reference [, table_reference] ...
-  | join_clause [, join_clause] ...
+  | table_reference join_clause [, join_clause] ...
 }
 
 table_reference:
@@ -52,21 +52,29 @@ table_expr: {
 }
 
 join_clause:
-    table_reference [INNER] JOIN table_reference ON condition
+    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
 
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | COUNT_WINDOW(count_val[, sliding_val])
 
 interp_clause:
     RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
-    PARTITION BY expr [, expr] ...
+    PARTITION BY partition_by_expr [, partition_by_expr] ...
+
+partition_by_expr:
+    {expr | position | c_alias}
 
 group_by_clause:
-    GROUP BY expr [, expr] ... HAVING condition
+    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
+                                                    
+group_by_expr:
+    {expr | position | c_alias}
 
 order_by_clasue:
     ORDER BY order_expr [, order_expr] ...
@@ -94,6 +102,8 @@ The list of currently supported Hints is as follows:
 | SORT_FOR_GROUP| None           | Use sort for partition, conflict with PARTITION_FIRST     | With normal column in partition by list |
 | PARTITION_FIRST| None          | Use Partition before aggregate, conflict with SORT_FOR_GROUP | With normal column in partition by list |
 | PARA_TABLES_SORT| None         | When sorting the supertable rows by timestamp, No temporary disk space is used. When there are numerous tables, each with long rows, the corresponding algorithm associated with this prompt may consume a substantial amount of memory, potentially leading to an Out Of Memory (OOM) situation. | Sorting the supertable rows by timestamp  |
+| SMALLDATA_TS_SORT| None             | When sorting the supertable rows by timestamp, if the length of query columns >= 256, and there are relatively few rows, this hint can improve performance. | Sorting the supertable rows by timestamp  |
+| SKIP_TSMA| None| To explicitly disable tsma optimization for select query|Select query with agg funcs|
 
 For example:
 
@@ -102,6 +112,7 @@ SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 ```
 
 ## Lists
@@ -142,6 +153,11 @@ You can query tag columns in supertables and subtables and receive results in th
 ```sql
 SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
+
+### Alias Name
+
+The naming rules for aliases are the same as those for columns, and it supports directly specifying Chinese aliases in UTF-8 encoding format.
+
 
 ### Distinct Values
 
@@ -264,7 +280,13 @@ If you use a GROUP BY clause, the SELECT list can only include the following ite
 
 The GROUP BY clause groups each row of data by the value of the expression following the clause and returns a combined result for each group.
 
-The expressions in a GROUP BY clause can include any column in any table or view. It is not necessary that the expressions appear in the SELECT list.
+In the GROUP BY clause, columns from a table or view can be grouped by specifying the column name. These columns do not need to be included in the SELECT list.
+
+You can specify integers in GROUP BY expression to indicate the expressions in the select list used for grouping. For example, 1 indicates the first item in the select list.
+
+You can specify column names in result set to indicate the expressions in the select list used for grouping.
+
+When using position and result set column names for grouping in the GROUP BY clause, the corresponding expressions in the select list must not be aggregate functions.
 
 The GROUP BY clause does not guarantee that the results are ordered. If you want to ensure that grouped data is ordered, use the ORDER BY clause.
 
@@ -273,7 +295,7 @@ The GROUP BY clause does not guarantee that the results are ordered. If you want
 
 The PARTITION BY clause is a TDengine-specific extension to standard SQL introduced in TDengine 3.0. This clause partitions data based on the part_list and performs computations per partition.
 
-PARTITION BY and GROUP BY have similar meanings. They both group data according to a specified list and then perform calculations. The difference is that PARTITION BY does not have various restrictions on the SELECT list of the GROUP BY clause. Any operation can be performed within the group (constants, aggregations, scalars, expressions, etc.). Therefore, PARTITION BY is fully compatible with GROUP BY in terms of usage. All places that use the GROUP BY clause can be replaced with PARTITION BY.
+PARTITION BY and GROUP BY have similar meanings. They both group data according to a specified list and then perform calculations. The difference is that PARTITION BY does not have various restrictions on the SELECT list of the GROUP BY clause. Any operation can be performed within the group (constants, aggregations, scalars, expressions, etc.). Therefore, PARTITION BY is fully compatible with GROUP BY in terms of usage. All places that use the GROUP BY clause can be replaced with PARTITION BY, there may be differences in the query results while no aggregation function in the query.
 
 Because PARTITION BY does not require returning a row of aggregated data, it can also support various window operations after grouping slices. All window operations that need to be grouped can only use the PARTITION BY clause.
 
@@ -406,9 +428,11 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN
 
-TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables, primary key and other conditions must be combined with `AND` operator.
+Before the 3.3.0.0 version, TDengine only supported Inner Join queries. Since the 3.3.0.0 version, TDengine supports a wider range of JOIN types, including LEFT JOIN, RIGHT JOIN, FULL JOIN, SEMI JOIN, ANTI-SEMI JOIN in traditional databases, as well as ASOF JOIN and WINDOW JOIN in time series databases. JOIN operations are supported between subtables, normal tables, super tables, and subqueries.
 
-For standard tables:
+### Examples
+
+INNER JOIN between normal tables:
 
 ```sql
 SELECT *
@@ -416,23 +440,23 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-For supertables:
+LEFT JOIN between super tables:
 
 ```sql
 SELECT *
-FROM temp_stable t1, temp_stable t2
-WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_stable t1 LEFT JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-For sub-table and super table:
+LEFT ASOF JOIN between child table and super table:
 
 ```sql
 SELECT *
-FROM temp_ctable t1, temp_stable t2
-WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-Similarly, join operations can be performed on the result sets of multiple subqueries.
+For more information about JOIN operations, please refer to the page [TDengine Join](../join).
 
 ## Nested Query
 
@@ -447,6 +471,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 :::info
 
 - The result of a nested query is returned as a virtual table used by the outer query. It's recommended to give an alias to this table for the convenience of using it in the outer query.
+- Outer queries support directly referencing columns or pseudo-columns of inner queries in the form of column names or \`column names\`.
 - JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
 - The features that can be used in the inner query are the same as those that can be used in a non-nested query.
   - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.

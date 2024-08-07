@@ -31,7 +31,7 @@
 #define SL_MOVE_BACKWARD 0x1
 #define SL_MOVE_FROM_POS 0x2
 
-static void    tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *pKey, int32_t flags);
+static void    tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, STsdbRowKey *pKey, int32_t flags);
 static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
 static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
                                         SSubmitTbData *pSubmitTbData, int32_t *affectedRows);
@@ -54,7 +54,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
 
   pMemTable = (SMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
   if (pMemTable == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   taosInitRWLatch(&pMemTable->latch);
@@ -71,7 +71,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   pMemTable->nBucket = MEM_MIN_HASH;
   pMemTable->aBucket = (STbData **)taosMemoryCalloc(pMemTable->nBucket, sizeof(STbData *));
   if (pMemTable->aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     taosMemoryFree(pMemTable);
     goto _err;
   }
@@ -174,7 +174,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   // do delete
   SDelData *pDelData = (SDelData *)vnodeBufPoolMalloc(pPool, sizeof(*pDelData));
   if (pDelData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _err;
   }
   pDelData->version = version;
@@ -194,18 +194,8 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pMemTable->nDel++;
   pMemTable->minVer = TMIN(pMemTable->minVer, version);
   pMemTable->maxVer = TMAX(pMemTable->maxVer, version);
-  /*
-  if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
-    tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid, eKey);
-  }
 
-  if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheDeleteLast(pTsdb->lruCache, pTbData->uid, eKey);
-  }
-  */
-  // if (eKey >= pTbData->maxKey && sKey <= pTbData->maxKey) {
-  tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
-  //}
+  TAOS_UNUSED(tsdbCacheDel(pTsdb, suid, uid, sKey, eKey));
 
   tsdbTrace("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
             " at version %" PRId64,
@@ -219,12 +209,12 @@ _err:
   return code;
 }
 
-int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter) {
+int32_t tsdbTbDataIterCreate(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter **ppIter) {
   int32_t code = 0;
 
   (*ppIter) = (STbDataIter *)taosMemoryCalloc(1, sizeof(STbDataIter));
   if ((*ppIter) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -241,7 +231,7 @@ void *tsdbTbDataIterDestroy(STbDataIter *pIter) {
   return NULL;
 }
 
-void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter) {
+void tsdbTbDataIterOpen(STbData *pTbData, STsdbRowKey *pFrom, int8_t backward, STbDataIter *pIter) {
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   SMemSkipListNode *pHead;
   SMemSkipListNode *pTail;
@@ -339,7 +329,7 @@ static int32_t tsdbMemTableRehash(SMemTable *pMemTable) {
   int32_t   nBucket = pMemTable->nBucket * 2;
   STbData **aBucket = (STbData **)taosMemoryCalloc(nBucket, sizeof(STbData *));
   if (aBucket == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -379,8 +369,8 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   ASSERT(pPool != NULL);
   pTbData = vnodeBufPoolMallocAligned(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
   if (pTbData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    code = terrno;
+    goto _exit;
   }
   pTbData->suid = suid;
   pTbData->uid = uid;
@@ -411,7 +401,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
     code = tsdbMemTableRehash(pMemTable);
     if (code) {
       taosWUnLockLatch(&pMemTable->latch);
-      goto _err;
+      goto _exit;
     }
   }
 
@@ -420,23 +410,23 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pMemTable->aBucket[idx] = pTbData;
   pMemTable->nTbData++;
 
-  tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
+  (void)tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
 
   taosWUnLockLatch(&pMemTable->latch);
 
 _exit:
-  *ppTbData = pTbData;
-  return code;
-
-_err:
-  *ppTbData = NULL;
+  if (code) {
+    *ppTbData = NULL;
+  } else {
+    *ppTbData = pTbData;
+  }
   return code;
 }
 
-static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *pKey, int32_t flags) {
+static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, STsdbRowKey *pKey, int32_t flags) {
   SMemSkipListNode *px;
   SMemSkipListNode *pn;
-  TSDBKEY           tKey = {0};
+  STsdbRowKey       tKey;
   int32_t           backward = flags & SL_MOVE_BACKWARD;
   int32_t           fromPos = flags & SL_MOVE_FROM_POS;
 
@@ -455,15 +445,9 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
       for (int8_t iLevel = pTbData->sl.level - 1; iLevel >= 0; iLevel--) {
         pn = SL_GET_NODE_BACKWARD(px, iLevel);
         while (pn != pTbData->sl.pHead) {
-          if (pn->flag == TSDBROW_ROW_FMT) {
-            tKey.version = pn->version;
-            tKey.ts = ((SRow *)pn->pData)->ts;
-          } else if (pn->flag == TSDBROW_COL_FMT) {
-            tKey.version = ((SBlockData *)pn->pData)->aVersion[pn->iRow];
-            tKey.ts = ((SBlockData *)pn->pData)->aTSKEY[pn->iRow];
-          }
+          tsdbRowGetKey(&pn->row, &tKey);
 
-          int32_t c = tsdbKeyCmprFn(&tKey, pKey);
+          int32_t c = tsdbRowKeyCmpr(&tKey, pKey);
           if (c <= 0) {
             break;
           } else {
@@ -490,15 +474,9 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
       for (int8_t iLevel = pTbData->sl.level - 1; iLevel >= 0; iLevel--) {
         pn = SL_GET_NODE_FORWARD(px, iLevel);
         while (pn != pTbData->sl.pTail) {
-          if (pn->flag == TSDBROW_ROW_FMT) {
-            tKey.version = pn->version;
-            tKey.ts = ((SRow *)pn->pData)->ts;
-          } else if (pn->flag == TSDBROW_COL_FMT) {
-            tKey.version = ((SBlockData *)pn->pData)->aVersion[pn->iRow];
-            tKey.ts = ((SBlockData *)pn->pData)->aTSKEY[pn->iRow];
-          }
+          tsdbRowGetKey(&pn->row, &tKey);
 
-          int32_t c = tsdbKeyCmprFn(&tKey, pKey);
+          int32_t c = tsdbRowKeyCmpr(&tKey, pKey);
           if (c >= 0) {
             break;
           } else {
@@ -542,21 +520,15 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
     ASSERT(0);
   }
   if (pNode == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
   pNode->level = level;
-  pNode->flag = pRow->type;
+  pNode->row = *pRow;
   if (pRow->type == TSDBROW_ROW_FMT) {
-    pNode->version = pRow->version;
-    pNode->pData = (char *)pNode + nSize;
-    memcpy(pNode->pData, pRow->pTSRow, pRow->pTSRow->len);
-  } else if (pRow->type == TSDBROW_COL_FMT) {
-    pNode->iRow = pRow->iRow;
-    pNode->pData = pRow->pBlockData;
-  } else {
-    ASSERT(0);
+    pNode->row.pTSRow = (SRow *)((char *)pNode + nSize);
+    memcpy(pNode->row.pTSRow, pRow->pTSRow, pRow->pTSRow->len);
   }
 
   // set node
@@ -617,7 +589,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   // copy and construct block data
   SBlockData *pBlockData = vnodeBufPoolMalloc(pPool, sizeof(*pBlockData));
   if (pBlockData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -627,7 +599,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   pBlockData->aUid = NULL;
   pBlockData->aVersion = vnodeBufPoolMalloc(pPool, aColData[0].nData);
   if (pBlockData->aVersion == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   for (int32_t i = 0; i < pBlockData->nRow; i++) {  // todo: here can be optimized
@@ -636,7 +608,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   pBlockData->aTSKEY = vnodeBufPoolMalloc(pPool, aColData[0].nData);
   if (pBlockData->aTSKEY == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
   memcpy(pBlockData->aTSKEY, aColData[0].pData, aColData[0].nData);
@@ -644,7 +616,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   pBlockData->nColData = nColData - 1;
   pBlockData->aColData = vnodeBufPoolMalloc(pPool, sizeof(SColData) * pBlockData->nColData);
   if (pBlockData->aColData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
     goto _exit;
   }
 
@@ -656,14 +628,13 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   // loop to add each row to the skiplist
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           tRow = tsdbRowFromBlockData(pBlockData, 0);
-  TSDBKEY           key = {.version = version, .ts = pBlockData->aTSKEY[0]};
-  TSDBROW           lRow;  // last row
+  STsdbRowKey       key;
 
   // first row
+  tsdbRowGetKey(&tRow, &key);
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
   if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0))) goto _exit;
-  pTbData->minKey = TMIN(pTbData->minKey, key.ts);
-  lRow = tRow;
+  pTbData->minKey = TMIN(pTbData->minKey, key.key.ts);
 
   // remain row
   ++tRow.iRow;
@@ -673,25 +644,24 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
     }
 
     while (tRow.iRow < pBlockData->nRow) {
-      key.ts = pBlockData->aTSKEY[tRow.iRow];
+      tsdbRowGetKey(&tRow, &key);
 
       if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
         tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
       }
 
       if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 1))) goto _exit;
-      lRow = tRow;
 
       ++tRow.iRow;
     }
   }
 
-  if (key.ts >= pTbData->maxKey) {
-    pTbData->maxKey = key.ts;
+  if (key.key.ts >= pTbData->maxKey) {
+    pTbData->maxKey = key.key.ts;
   }
 
   if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+    TAOS_UNUSED(tsdbCacheColFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, pBlockData));
   }
 
   // SMemTable
@@ -711,21 +681,19 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   int32_t           nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
   SRow            **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
-  TSDBKEY           key = {.version = version};
+  STsdbRowKey       key;
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           tRow = {.type = TSDBROW_ROW_FMT, .version = version};
   int32_t           iRow = 0;
-  TSDBROW           lRow;
 
   // backward put first data
   tRow.pTSRow = aRow[iRow++];
-  key.ts = tRow.pTSRow->ts;
+  tsdbRowGetKey(&tRow, &key);
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);
   code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);
   if (code) goto _exit;
-  lRow = tRow;
 
-  pTbData->minKey = TMIN(pTbData->minKey, key.ts);
+  pTbData->minKey = TMIN(pTbData->minKey, key.key.ts);
 
   // forward put rest data
   if (iRow < nRow) {
@@ -735,7 +703,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
     while (iRow < nRow) {
       tRow.pTSRow = aRow[iRow];
-      key.ts = tRow.pTSRow->ts;
+      tsdbRowGetKey(&tRow, &key);
 
       if (SL_NODE_FORWARD(pos[0], 0) != pTbData->sl.pTail) {
         tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
@@ -744,17 +712,15 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
       code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 1);
       if (code) goto _exit;
 
-      lRow = tRow;
-
       iRow++;
     }
   }
 
-  if (key.ts >= pTbData->maxKey) {
-    pTbData->maxKey = key.ts;
+  if (key.key.ts >= pTbData->maxKey) {
+    pTbData->maxKey = key.key.ts;
   }
   if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+    TAOS_UNUSED(tsdbCacheRowFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, version, nRow, aRow));
   }
 
   // SMemTable
@@ -776,7 +742,7 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode) {
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
   ASSERT(nRef > 0);
 
-  vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
+  (void)vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
 
 _exit:
   return code;
@@ -813,23 +779,4 @@ static FORCE_INLINE int32_t tbDataPCmprFn(const void *p1, const void *p2) {
   }
 
   return 0;
-}
-
-SArray *tsdbMemTableGetTbDataArray(SMemTable *pMemTable) {
-  SArray *aTbDataP = taosArrayInit(pMemTable->nTbData, sizeof(STbData *));
-  if (aTbDataP == NULL) goto _exit;
-
-  for (int32_t iBucket = 0; iBucket < pMemTable->nBucket; iBucket++) {
-    STbData *pTbData = pMemTable->aBucket[iBucket];
-
-    while (pTbData) {
-      taosArrayPush(aTbDataP, &pTbData);
-      pTbData = pTbData->next;
-    }
-  }
-
-  taosArraySort(aTbDataP, tbDataPCmprFn);
-
-_exit:
-  return aTbDataP;
 }

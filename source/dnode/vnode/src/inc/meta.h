@@ -39,9 +39,9 @@ typedef struct SMetaCache SMetaCache;
 // clang-format on
 
 // metaOpen ==================
-int32_t metaRLock(SMeta* pMeta);
-int32_t metaWLock(SMeta* pMeta);
-int32_t metaULock(SMeta* pMeta);
+void metaRLock(SMeta* pMeta);
+void metaWLock(SMeta* pMeta);
+void metaULock(SMeta* pMeta);
 
 // metaEntry ==================
 int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);
@@ -160,11 +160,12 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_
                         STagIdxKey** ppTagIdxKey, int32_t* nTagIdxKey);
 
 // TODO, refactor later
-int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *param, SArray *results);
-int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *parm, SArray *pUids);
-int32_t metaFilterTableName(void *pVnode, SMetaFltParam *param, SArray *pUids);
-int32_t metaFilterTtl(void *pVnode, SMetaFltParam *param, SArray *pUids);
+int32_t metaFilterTableIds(void* pVnode, SMetaFltParam* param, SArray* results);
+int32_t metaFilterCreateTime(void* pVnode, SMetaFltParam* parm, SArray* pUids);
+int32_t metaFilterTableName(void* pVnode, SMetaFltParam* param, SArray* pUids);
+int32_t metaFilterTtl(void* pVnode, SMetaFltParam* param, SArray* pUids);
 
+int32_t metaGetColCmpr(SMeta* pMeta, tb_uid_t uid, SHashObj** colCmprObj);
 #ifndef META_REFACT
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);

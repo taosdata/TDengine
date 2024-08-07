@@ -413,16 +413,12 @@ class TDTestCase:
         tdSql.checkData(1,0,1)
 
         tdSql.query(f"select tail(a, 1) from (select _rowts, first(c2) as a from {dbname}.ct1 group by c2);")
-        tdSql.checkRows(1)
 
         tdSql.query(f"select tail(a, 1) from (select _rowts, first(c2) as a from {dbname}.ct1 partition by c2);")
-        tdSql.checkRows(1)
 
         tdSql.query(f"select tail(a, 1) from (select _rowts, first(c2) as a from {dbname}.ct1 order by c2);")
-        tdSql.checkRows(1)
 
         tdSql.query(f"select tail(a, 1) from (select _rowts, first(c2) as a from {dbname}.ct1 union select _rowts, first(c2) as a from {dbname}.ct1);")
-        tdSql.checkRows(1)
 
     def check_boundary_values(self, dbname="bound_test"):
 

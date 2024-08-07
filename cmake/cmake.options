@@ -47,27 +47,20 @@ IF(${TD_WINDOWS})
 
     MESSAGE("build wingetopt Win32")
     option(
-            BUILD_WINGETOPT 
+            BUILD_WINGETOPT
                 "If build wingetopt on Windows"
             ON
         )
-    
+
     option(
             TDENGINE_3
             "TDengine 3.x for taos-tools"
             ON
         )
-    
+
     option(
             BUILD_CRASHDUMP
-            "If build crashdump on Windows" 
-            ON
-        )
-
-    MESSAGE("build geos Win32")
-    option(
-            BUILD_GEOS
-            "If build geos on Windows"
+            "If build crashdump on Windows"
             ON
         )
 
@@ -79,7 +72,7 @@ ENDIF ()
 
 option(
         BUILD_GEOS
-        "If build geos on Windows"
+        "If build with geos"
         ON
     )
 
@@ -94,6 +87,12 @@ option(
     "If build with rust-bindings"
     ON
     )
+
+option(
+    BUILD_PCRE2
+    "If build with pcre2"
+    ON
+)
 
 option(
     JEMALLOC_ENABLED
@@ -114,14 +113,14 @@ option(
     )
 
 option(
-    BUILD_WITH_LEVELDB 
-    "If build with leveldb" 
+    BUILD_WITH_LEVELDB
+    "If build with leveldb"
     OFF
 )
 
 option(
-    BUILD_WITH_ROCKSDB 
-    "If build with rocksdb" 
+    BUILD_WITH_ROCKSDB
+    "If build with rocksdb"
     ON
 )
 
@@ -147,6 +146,13 @@ option(
 
 ENDIF ()
 
+IF(NOT TD_ENTERPRISE)
+MESSAGE("switch s3 off with community version")
+set(BUILD_S3 OFF)
+set(BUILD_WITH_S3 OFF)
+set(BUILD_WITH_COS OFF)
+ENDIF ()
+
 IF(${BUILD_S3})
 
 IF(${BUILD_WITH_S3})
@@ -170,46 +176,46 @@ ENDIF ()
 
 option(
     BUILD_WITH_SQLITE
-    "If build with sqlite" 
+    "If build with sqlite"
     OFF
 )
 
 option(
     BUILD_WITH_BDB
-    "If build with BDB" 
+    "If build with BDB"
     OFF
 )
 
 option(
-    BUILD_WITH_LUCENE 
-    "If build with lucene" 
-    off 
+    BUILD_WITH_LUCENE
+    "If build with lucene"
+    off
 )
 
 
 option(
     BUILD_WITH_NURAFT
-    "If build with NuRaft" 
+    "If build with NuRaft"
     OFF
 )
 
 option(
     BUILD_WITH_UV
-    "If build with libuv" 
-    ON  
+    "If build with libuv"
+    ON
 )
 
 option(
     BUILD_WITH_UV_TRANS
-    "If build with libuv_trans " 
-    ON 
+    "If build with libuv_trans "
+    ON
 )
 
 IF(${TD_LINUX} MATCHES TRUE)
 
 option(
-    BUILD_DEPENDENCY_TESTS 
-    "If build dependency tests" 
+    BUILD_DEPENDENCY_TESTS
+    "If build dependency tests"
     ON
 )
 
@@ -217,14 +223,14 @@ ENDIF ()
 
 option(
     BUILD_DOCS
-    "If use doxygen build documents" 
+    "If use doxygen build documents"
     OFF
 )
 
 option(
    BUILD_WITH_INVERTEDINDEX
-   "If use invertedIndex" 
-   ON 
+   "If use invertedIndex"
+   ON
 )
 
 option(

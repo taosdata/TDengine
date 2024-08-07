@@ -15,11 +15,13 @@
 
 #include "functionMgt.h"
 #include "planInt.h"
+#include "scalar.h"
+#include "filter.h"
 
 static char* getUsageErrFormat(int32_t errCode) {
   switch (errCode) {
     case TSDB_CODE_PLAN_EXPECTED_TS_EQUAL:
-      return "left.ts = right.ts is expected in join expression";
+      return "primary timestamp equal condition is expected in join conditions";
     case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
       return "not support cross join";
     case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
@@ -33,7 +35,7 @@ static char* getUsageErrFormat(int32_t errCode) {
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...) {
   va_list vArgList;
   va_start(vArgList, errCode);
-  vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
+  (void)vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
   va_end(vArgList);
   return errCode;
 }
@@ -47,7 +49,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
   SCreateColumnCxt* pCxt = (SCreateColumnCxt*)pContext;
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN: {
-      SNode* pCol = nodesCloneNode(pNode);
+      SNode* pCol = NULL;
+      pCxt->errCode = nodesCloneNode(pNode, &pCol);
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
@@ -59,7 +62,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     case QUERY_NODE_FUNCTION:
     case QUERY_NODE_CASE_WHEN: {
       SExprNode*   pExpr = (SExprNode*)pNode;
-      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      SColumnNode* pCol = NULL;
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
@@ -86,9 +90,12 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
 }
 
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
-  if (NULL == cxt.pList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
+  if (!cxt.pList) {
+    int32_t code = nodesMakeList(&cxt.pList);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   nodesWalkExprs(pExprs, doCreateColumn, &cxt);
@@ -103,9 +110,12 @@ int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
 }
 
 int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
-  if (NULL == cxt.pList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
+  if (!cxt.pList) {
+    int32_t code = nodesMakeList(&cxt.pList);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   nodesWalkExpr(pExpr, doCreateColumn, &cxt);
@@ -466,7 +476,7 @@ bool getOptHint(SNodeList* pList, EHintOption hint) {
   return false;
 }
 
-bool getparaTablesSortOptHint(SNodeList* pList) {
+bool getParaTablesSortOptHint(SNodeList* pList) {
   if (!pList) return false;
   SNode* pNode;
   FOREACH(pNode, pList) {
@@ -477,6 +487,31 @@ bool getparaTablesSortOptHint(SNodeList* pList) {
   }
   return false;
 }
+
+bool getSmallDataTsSortOptHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_SMALLDATA_TS_SORT) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool getHashJoinOptHint(SNodeList* pList) {
+  if (!pList) return false;
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_HASH_JOIN) {
+      return true;
+    }
+  }
+  return false;
+}
+
 
 int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -490,17 +525,26 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       }
     }
 
-    tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
-  }
-  
-  FOREACH(pNode, pCurr->pChildren) {
-    code = collectTableAliasFromNodes(pNode, ppRes);
+    code = tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
-      return code;
+      break;
     }
   }
   
-  return TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    FOREACH(pNode, pCurr->pChildren) {
+      code = collectTableAliasFromNodes(pNode, ppRes);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(*ppRes);
+    *ppRes = NULL;
+  }
+
+  return code;
 }
 
 bool isPartTagAgg(SAggLogicNode* pAgg) {
@@ -518,25 +562,35 @@ bool isPartTableWinodw(SWindowLogicNode* pWindow) {
   return pWindow->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
-bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat) {
-  SLimitNode* pLimit;
-  bool cloned = false;
+int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {
+  SLimitNode* pLimit = NULL, *pSlimit = NULL;
+  int32_t     code = 0;
+  bool        cloned = false;
   if (pParent->pLimit && (cloneWhat & CLONE_LIMIT)) {
-    pChild->pLimit = nodesCloneNode(pParent->pLimit);
-    pLimit = (SLimitNode*)pChild->pLimit;
-    pLimit->limit += pLimit->offset;
-    pLimit->offset = 0;
-    cloned = true;
+    code = nodesCloneNode(pParent->pLimit, (SNode**)&pLimit);
+    if (TSDB_CODE_SUCCESS == code) {
+      pLimit->limit += pLimit->offset;
+      pLimit->offset = 0;
+      cloned = true;
+    }
   }
 
   if (pParent->pSlimit && (cloneWhat & CLONE_SLIMIT)) {
-    pChild->pSlimit = nodesCloneNode(pParent->pSlimit);
-    pLimit = (SLimitNode*)pChild->pSlimit;
-    pLimit->limit += pLimit->offset;
-    pLimit->offset = 0;
-    cloned = true;
+    code = nodesCloneNode(pParent->pSlimit, (SNode**)&pSlimit);
+    if (TSDB_CODE_SUCCESS == code) {
+      pSlimit->limit += pSlimit->offset;
+      pSlimit->offset = 0;
+      cloned = true;
+    }
   }
-  return cloned;
+  if (TSDB_CODE_SUCCESS == code) {
+    pChild->pLimit = (SNode*)pLimit;
+    pChild->pSlimit = (SNode*)pSlimit;
+    *pCloned = cloned;
+  } else {
+    nodesDestroyNode((SNode*)pLimit);
+  }
+  return code;
 }
 
 static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
@@ -554,3 +608,113 @@ bool keysHasCol(SNodeList* pKeys) {
   nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
   return hasCol;
 }
+
+SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
+  SFunctionNode* pFunc = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (pFunc) {
+    strcpy(pFunc->functionName, "_group_key");
+    strcpy(pFunc->node.aliasName, pGroupCol->node.aliasName);
+    strcpy(pFunc->node.userAlias, pGroupCol->node.userAlias);
+    SNode* pNew = NULL;
+    code = nodesCloneNode((SNode*)pGroupCol, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNew);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = fmGetFuncInfo(pFunc, NULL, 0);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pFunc);
+      pFunc = NULL;
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
+      int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+      (void)taosCreateMD5Hash(name, len);
+      strncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    nodesDestroyNode((SNode*)pFunc);
+    pFunc = NULL;
+  }
+  return pFunc;
+}
+
+int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict) {
+  SNode*  pNew = NULL;
+  int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPrimaryKeyCond = pNew;
+    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+  }
+  return code;
+}
+
+
+static EDealRes tagScanNodeHasTbnameFunc(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType ||
+        (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool tagScanNodeListHasTbname(SNodeList* pCols) {
+  bool hasTbname = false;
+  nodesWalkExprs(pCols, tagScanNodeHasTbnameFunc, &hasTbname);
+  return hasTbname;
+}
+
+static bool tagScanNodeHasTbname(SNode* pKeys) {
+  bool hasTbname = false;
+  nodesWalkExpr(pKeys, tagScanNodeHasTbnameFunc, &hasTbname);
+  return hasTbname;
+}
+
+
+
+int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
+  pScan->onlyMetaCtbIdx = false;
+
+  if (pScan->tableType == TSDB_CHILD_TABLE) {
+    pScan->onlyMetaCtbIdx = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (tagScanNodeListHasTbname(pScan->pScanPseudoCols)) {
+    pScan->onlyMetaCtbIdx = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pScan->node.pConditions == NULL) {
+    pScan->onlyMetaCtbIdx = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pCond = NULL;
+  int32_t code = nodesCloneNode(pScan->node.pConditions, &pCond);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  SNode* pTagCond = NULL;
+  SNode* pTagIndexCond = NULL;
+  code = filterPartitionCond(&pCond, NULL, &pTagIndexCond, &pTagCond, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pTagIndexCond || tagScanNodeHasTbname(pTagCond)) {
+      pScan->onlyMetaCtbIdx = false;
+    } else {
+      pScan->onlyMetaCtbIdx = true;
+    }
+  }
+  nodesDestroyNode(pCond);
+  nodesDestroyNode(pTagIndexCond);
+  nodesDestroyNode(pTagCond);
+  return TSDB_CODE_SUCCESS;
+}
+
+
+

@@ -31,6 +31,15 @@ enum {
   FLT_OPTION_NEED_UNIQE = 4,
 };
 
+
+typedef enum EConditionType {
+  COND_TYPE_PRIMARY_KEY = 1,
+  COND_TYPE_TAG_INDEX,
+  COND_TYPE_TAG,
+  COND_TYPE_NORMAL
+} EConditionType;
+
+
 #define FILTER_RESULT_ALL_QUALIFIED     0x1
 #define FILTER_RESULT_NONE_QUALIFIED    0x2
 #define FILTER_RESULT_PARTIAL_QUALIFIED 0x3
@@ -49,11 +58,14 @@ extern int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict
 extern int32_t filterConverNcharColumns(SFilterInfo *pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo *pFilterInfo);
 extern void    filterFreeInfo(SFilterInfo *info);
-extern bool    filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pColsAgg, int32_t numOfCols, int32_t numOfRows);
+extern int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
+                                  bool *keep);
 
 /* condition split interface */
 int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode **pTagIndexCond, SNode **pTagCond,
                             SNode **pOtherCond);
+int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res);
+EConditionType filterClassifyCondition(SNode *pNode);
 
 #ifdef __cplusplus
 }

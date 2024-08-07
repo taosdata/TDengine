@@ -20,6 +20,7 @@
 #include <tglobal.h>
 #include <tmsg.h>
 #include <iostream>
+#include <tdatablock.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -143,73 +144,73 @@ static int32_t genTestData(const char **data, int16_t nCols, SArray **pArray) {
     }
     switch (i) {
       case 0:
-        colVal.type = TSDB_DATA_TYPE_TIMESTAMP;
+        colVal.value.type = TSDB_DATA_TYPE_TIMESTAMP;
         sscanf(data[i], "%" PRIi64, &colVal.value.val);
         break;
       case 1:
-        colVal.type = TSDB_DATA_TYPE_INT;
+        colVal.value.type = TSDB_DATA_TYPE_INT;
         sscanf(data[i], "%" PRIi32, (int32_t *)&colVal.value.val);
         break;
       case 2:
-        colVal.type = TSDB_DATA_TYPE_BIGINT;
+        colVal.value.type = TSDB_DATA_TYPE_BIGINT;
         sscanf(data[i], "%" PRIi64, &colVal.value.val);
         break;
       case 3:
-        colVal.type = TSDB_DATA_TYPE_FLOAT;
+        colVal.value.type = TSDB_DATA_TYPE_FLOAT;
         sscanf(data[i], "%f", (float *)&colVal.value.val);
         break;
       case 4:
-        colVal.type = TSDB_DATA_TYPE_DOUBLE;
+        colVal.value.type = TSDB_DATA_TYPE_DOUBLE;
         sscanf(data[i], "%lf", (double *)&colVal.value.val);
         break;
       case 5: {
-        colVal.type = TSDB_DATA_TYPE_BINARY;
+        colVal.value.type = TSDB_DATA_TYPE_BINARY;
         int16_t dataLen = strlen(data[i]) + 1;
         colVal.value.nData = dataLen < 10 ? dataLen : 10;
         colVal.value.pData = (uint8_t *)data[i];
       } break;
       case 6: {
-        colVal.type = TSDB_DATA_TYPE_NCHAR;
+        colVal.value.type = TSDB_DATA_TYPE_NCHAR;
         int16_t dataLen = strlen(data[i]) + 1;
         colVal.value.nData = dataLen < 40 ? dataLen : 40;
         colVal.value.pData = (uint8_t *)data[i];  // just for test, not real nchar
       } break;
       case 7: {
-        colVal.type = TSDB_DATA_TYPE_TINYINT;
+        colVal.value.type = TSDB_DATA_TYPE_TINYINT;
         int32_t d8;
         sscanf(data[i], "%" PRId32, &d8);
         colVal.value.val = (int8_t)d8;
       }
       case 8: {
-        colVal.type = TSDB_DATA_TYPE_SMALLINT;
+        colVal.value.type = TSDB_DATA_TYPE_SMALLINT;
         int32_t d16;
         sscanf(data[i], "%" PRId32, &d16);
         colVal.value.val = (int16_t)d16;
       } break;
       case 9: {
-        colVal.type = TSDB_DATA_TYPE_BOOL;
+        colVal.value.type = TSDB_DATA_TYPE_BOOL;
         int32_t d8;
         sscanf(data[i], "%" PRId32, &d8);
         colVal.value.val = (int8_t)d8;
       } break;
       case 10: {
-        colVal.type = TSDB_DATA_TYPE_UTINYINT;
+        colVal.value.type = TSDB_DATA_TYPE_UTINYINT;
         uint32_t u8;
         sscanf(data[i], "%" PRId32, &u8);
         colVal.value.val = (uint8_t)u8;
       } break;
       case 11: {
-        colVal.type = TSDB_DATA_TYPE_USMALLINT;
+        colVal.value.type = TSDB_DATA_TYPE_USMALLINT;
         uint32_t u16;
         sscanf(data[i], "%" PRId32, &u16);
         colVal.value.val = (uint16_t)u16;
       } break;
       case 12: {
-        colVal.type = TSDB_DATA_TYPE_UINT;
+        colVal.value.type = TSDB_DATA_TYPE_UINT;
         sscanf(data[i], "%" PRIu32, (uint32_t *)&colVal.value.val);
       } break;
       case 13: {
-        colVal.type = TSDB_DATA_TYPE_UBIGINT;
+        colVal.value.type = TSDB_DATA_TYPE_UBIGINT;
         sscanf(data[i], "%" PRIu64, (uint64_t *)&colVal.value.val);
       } break;
       default:
@@ -430,7 +431,7 @@ static void checkTSRow(const char **data, STSRow *row, STSchema *pTSchema) {
     }
 
     colVal.cid = pCol->colId;
-    colVal.type = pCol->type;
+    colVal.value.type = pCol->type;
     if (tdValTypeIsNone(cv.valType)) {
       colVal.flag = CV_FLAG_NONE;
     } else if (tdValTypeIsNull(cv.valType)) {
@@ -473,6 +474,45 @@ TEST(testCase, AllNormTest) {
   taosMemoryFreeClear(row);
   taosArrayDestroy(pArray);
   taosMemoryFree(pTSchema);
+}
+
+TEST(testCase, StreamAllNormTest) {
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(NULL, ctbName, groupId);
+
+  ASSERT_STREQ("_12345", ctbName);
+}
+
+TEST(testCase, StreamWithStbName) {
+  char stbName[] = "1.table.stb";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId);
+
+  ASSERT_STREQ("_stb_12345", ctbName);
+}
+
+TEST(testCase, StreamWithoutDotInStbName) {
+  char stbName[] = "table";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId);
+
+  ASSERT_STREQ("_table_12345", ctbName);
+}
+
+TEST(testCase, StreamWithoutDotInStbName2) {
+  char stbName[] = "";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId);
+
+  ASSERT_STREQ("__12345", ctbName);
 }
 
 #if 1

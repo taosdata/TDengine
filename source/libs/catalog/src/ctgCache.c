@@ -32,6 +32,8 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_DROP_TB_INDEX, "drop tbIndex", ctgOpDropTbIndex},
                                                 {CTG_OP_UPDATE_VIEW_META, "update viewMeta", ctgOpUpdateViewMeta},
                                                 {CTG_OP_DROP_VIEW_META, "drop viewMeta", ctgOpDropViewMeta},
+                                                {CTG_OP_UPDATE_TB_TSMA, "update tbTSMA", ctgOpUpdateTbTSMA},
+                                                {CTG_OP_DROP_TB_TSMA, "drop tbTSMA", ctgOpDropTbTSMA},
                                                 {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache}};
 
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
@@ -52,6 +54,7 @@ SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"TblTag    ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_TBL_TAG,
     {"IndexInfo ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_INDEX_INFO,
     {"viewMeta  ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_VIEW,
+    {"TblTSMA   ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_TBL_TSMA
     {"User      ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_USER,
     {"UDF       ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_UDF,
     {"SvrVer    ", CTG_CI_FLAG_LEVEL_CLUSTER}  //CTG_CI_SVR_VER,
@@ -209,16 +212,28 @@ void ctgReleaseVgMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *
   }
 }
 
+void ctgReleaseTSMAToCache(SCatalog* pCtg, SCtgDBCache* dbCache, SCtgTSMACache* pCache) {
+  if (pCache && dbCache) {
+    CTG_UNLOCK(CTG_READ, &pCache->tsmaLock);
+    taosHashRelease(dbCache->tsmaCache, pCache);
+  }
+
+  if (dbCache) {
+    ctgReleaseDBCache(pCtg, dbCache);
+  }
+}
+
 int32_t ctgAcquireVgInfoFromCache(SCatalog *pCtg, const char *dbFName, SCtgDBCache **pCache) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SCtgDBCache *dbCache = NULL;
-  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  CTG_ERR_JRET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     goto _return;
   }
 
   bool inCache = false;
-  ctgRLockVgInfo(pCtg, dbCache, &inCache);
+  CTG_ERR_JRET(ctgRLockVgInfo(pCtg, dbCache, &inCache));
   if (!inCache) {
     ctgDebug("vgInfo of db %s not in cache", dbFName);
     goto _return;
@@ -242,13 +257,15 @@ _return:
 
   CTG_CACHE_NHIT_INC(CTG_CI_DB_VGROUP, 1);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
-int32_t ctgAcquireTbMetaFromCache(SCatalog *pCtg, char *dbFName, char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb) {
+int32_t ctgAcquireTbMetaFromCache(SCatalog *pCtg, const char *dbFName, const char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *pCache = NULL;
-  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  CTG_ERR_JRET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     goto _return;
@@ -289,15 +306,16 @@ int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const cha
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
   bool         vgInCache = false;
+  int32_t      code = TSDB_CODE_SUCCESS;
 
-  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  CTG_ERR_JRET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     CTG_CACHE_NHIT_INC(CTG_CI_DB_VGROUP, 1);
     goto _return;
   }
 
-  ctgRLockVgInfo(pCtg, dbCache, &vgInCache);
+  CTG_ERR_JRET(ctgRLockVgInfo(pCtg, dbCache, &vgInCache));
   if (!vgInCache) {
     ctgDebug("vgInfo of db %s not in cache", dbFName);
     CTG_CACHE_NHIT_INC(CTG_CI_DB_VGROUP, 1);
@@ -452,7 +470,9 @@ _return:
 int32_t ctgAcquireTbIndexFromCache(SCatalog *pCtg, char *dbFName, char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *pCache = NULL;
-  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  int32_t      code = TSDB_CODE_SUCCESS;
+  
+  CTG_ERR_JRET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     goto _return;
@@ -489,10 +509,11 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgTbMetaExistInCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *exist) {
+int32_t ctgTbMetaExistInCache(SCatalog *pCtg, const char *dbFName, const char *tbName, int32_t *exist) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
-  ctgAcquireTbMetaFromCache(pCtg, dbFName, tbName, &dbCache, &tbCache);
+  
+  CTG_ERR_RET(ctgAcquireTbMetaFromCache(pCtg, dbFName, tbName, &dbCache, &tbCache));
   if (NULL == tbCache) {
     ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 
@@ -517,13 +538,23 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   ctx->tbInfo.tbType = tbMeta->tableType;
 
   if (tbMeta->tableType != TSDB_CHILD_TABLE) {
+    int32_t schemaExtSize = 0;
     int32_t metaSize = CTG_META_SIZE(tbMeta);
-    *pTableMeta = taosMemoryCalloc(1, metaSize);
+    if (tbMeta->schemaExt != NULL) {
+      schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+    }
+    *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
     if (NULL == *pTableMeta) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    memcpy(*pTableMeta, tbMeta, metaSize);
+    TAOS_MEMCPY(*pTableMeta, tbMeta, metaSize);
+    if (tbMeta->schemaExt != NULL) {
+      (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)*pTableMeta + metaSize);
+      TAOS_MEMCPY((*pTableMeta)->schemaExt, tbMeta->schemaExt, schemaExtSize);
+    } else {
+      (*pTableMeta)->schemaExt = NULL;
+    }
 
     ctgDebug("Got tb %s meta from cache, type:%d, dbFName:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
     return TSDB_CODE_SUCCESS;
@@ -537,7 +568,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  memcpy(*pTableMeta, tbMeta, metaSize);
+  TAOS_MEMCPY(*pTableMeta, tbMeta, metaSize);
 
   // ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 
@@ -548,7 +579,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   ctgDebug("Got ctb %s meta from cache, will continue to get its stb meta, type:%d, dbFName:%s", ctx->pName->tname,
            ctx->tbInfo.tbType, dbFName);
 
-  ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
+  CTG_ERR_RET(ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache));
   if (NULL == tbCache) {
     taosMemoryFreeClear(*pTableMeta);
     *pDb = NULL;
@@ -571,7 +602,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  memcpy(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
+  TAOS_MEMCPY(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
+  (*pTableMeta)->schemaExt =  NULL;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -584,12 +616,12 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
-    strcpy(dbFName, ctx->pName->dbname);
+    TAOS_STRCPY(dbFName, ctx->pName->dbname);
   } else {
-    tNameGetFullDbName(ctx->pName, dbFName);
+    (void)tNameGetFullDbName(ctx->pName, dbFName);
   }
 
-  ctgAcquireTbMetaFromCache(pCtg, dbFName, ctx->pName->tname, &dbCache, &tbCache);
+  CTG_ERR_JRET(ctgAcquireTbMetaFromCache(pCtg, dbFName, ctx->pName->tname, &dbCache, &tbCache));
   if (NULL == tbCache) {
     ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
     return TSDB_CODE_SUCCESS;
@@ -620,9 +652,9 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
   char         dbFName[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(pTableName, dbFName);
+  (void)tNameGetFullDbName(pTableName, dbFName);
 
-  ctgAcquireTbMetaFromCache(pCtg, dbFName, pTableName->tname, &dbCache, &tbCache);
+  CTG_ERR_RET(ctgAcquireTbMetaFromCache(pCtg, dbFName, pTableName->tname, &dbCache, &tbCache));
   if (NULL == tbCache) {
     ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
     return TSDB_CODE_SUCCESS;
@@ -653,7 +685,7 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
 
   ctgDebug("Got ctb %s ver from cache, will continue to get its stb ver, dbFName:%s", pTableName->tname, dbFName);
 
-  ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, *suid, &tbCache);
+  CTG_ERR_RET(ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, *suid, &tbCache));
   if (NULL == tbCache) {
     // ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
     ctgDebug("stb 0x%" PRIx64 " meta not in cache", *suid);
@@ -670,7 +702,7 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
   size_t nameLen = 0;
   char  *name = taosHashGetKey(tbCache, &nameLen);
 
-  strncpy(stbName, name, nameLen);
+  TAOS_STRNCPY(stbName, name, nameLen);
   stbName[nameLen] = 0;
 
   *sver = stbMeta->sversion;
@@ -706,11 +738,11 @@ int32_t ctgReadTbIndexFromCache(SCatalog *pCtg, SName *pTableName, SArray **pRes
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
   char         dbFName[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(pTableName, dbFName);
+  (void)tNameGetFullDbName(pTableName, dbFName);
 
   *pRes = NULL;
 
-  ctgAcquireTbIndexFromCache(pCtg, dbFName, pTableName->tname, &dbCache, &tbCache);
+  CTG_ERR_RET(ctgAcquireTbIndexFromCache(pCtg, dbFName, pTableName->tname, &dbCache, &tbCache));
   if (NULL == tbCache) {
     ctgReleaseTbIndexToCache(pCtg, dbCache, tbCache);
     return TSDB_CODE_SUCCESS;
@@ -728,7 +760,8 @@ _return:
 int32_t ctgReadDBCfgFromCache(SCatalog *pCtg, const char* dbFName, SDbCfgInfo* pDbCfg) {
   int32_t code = 0;
   SCtgDBCache *dbCache = NULL;
-  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  
+  CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     pDbCfg->cfgVersion = -1;
@@ -739,12 +772,10 @@ int32_t ctgReadDBCfgFromCache(SCatalog *pCtg, const char* dbFName, SDbCfgInfo* p
   CTG_LOCK(CTG_READ, &dbCache->cfgCache.cfgLock);
 
   if (dbCache->cfgCache.cfgInfo) {
-    SDbCfgInfo *pInfo = ctgCloneDbCfgInfo(dbCache->cfgCache.cfgInfo);
-    if (NULL == pInfo) {
-      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-    }
+    SDbCfgInfo *pInfo = NULL;
+    CTG_ERR_JRET(ctgCloneDbCfgInfo(dbCache->cfgCache.cfgInfo, &pInfo));
     
-    memcpy(pDbCfg, pInfo, sizeof(*pInfo));
+    TAOS_MEMCPY(pDbCfg, pInfo, sizeof(*pInfo));
     taosMemoryFree(pInfo);
     CTG_CACHE_HIT_INC(CTG_CI_DB_CFG, 1);
   } else {
@@ -763,10 +794,11 @@ _return:
 }
 
 int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName) {
+  int32_t code = TSDB_CODE_SUCCESS;
   *stbName = NULL;
 
   SCtgDBCache *dbCache = NULL;
-  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     return TSDB_CODE_SUCCESS;
@@ -780,11 +812,14 @@ int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid
   }
 
   *stbName = taosStrdup(stb);
+  if (NULL == *stbName) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   taosHashRelease(dbCache->stbCache, stb);
   ctgReleaseDBCache(pCtg, dbCache);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 
@@ -808,7 +843,7 @@ int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool tbNotExist
   req.tbNotExists = tbNotExists;
 
   CTG_LOCK(CTG_READ, &pUser->lock);
-  memcpy(&req.authInfo, &pUser->userAuth, sizeof(pUser->userAuth));
+  TAOS_MEMCPY(&req.authInfo, &pUser->userAuth, sizeof(pUser->userAuth));
   code = ctgChkSetAuthRes(pCtg, &req, pRes);
   CTG_UNLOCK(CTG_READ, &pUser->lock);
   CTG_ERR_JRET(code);
@@ -842,6 +877,7 @@ void ctgDequeue(SCtgCacheOperation **op) {
 }
 
 int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SCtgQNode *node = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == node) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgQNode));
@@ -850,13 +886,19 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
     CTG_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
+  node->op = operation;
+
   bool  syncOp = operation->syncOp;
   char *opName = gCtgCacheOperation[operation->opId].name;
   if (operation->syncOp) {
-    tsem_init(&operation->rspSem, 0, 0);
+    code = tsem_init(&operation->rspSem, 0, 0);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("tsem_init failed, code:%x", code);
+      ctgFreeQNode(node);
+      CTG_RET(code);
+    }
   }
 
-  node->op = operation;
 
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
 
@@ -878,25 +920,34 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   CTG_QUEUE_INC();
   CTG_STAT_RT_INC(numOfOpEnqueue, 1);
 
-  tsem_post(&gCtgMgmt.queue.reqSem);
+  code = tsem_post(&gCtgMgmt.queue.reqSem);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("tsem_post failed, code:%x", code);
+    CTG_RET(code);
+  }
 
   if (syncOp) {
     if (!operation->unLocked) {
       CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
     }
-    tsem_wait(&operation->rspSem);
+    code = tsem_wait(&operation->rspSem);
     if (!operation->unLocked) {
       CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
     }
     taosMemoryFree(operation);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t ctgDropDbCacheEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
   op->opId = CTG_OP_DROP_DB_CACHE;
   op->syncOp = true;
 
@@ -930,6 +981,11 @@ _return:
 int32_t ctgDropDbVgroupEnqueue(SCatalog *pCtg, const char *dbFName, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_DROP_DB_VGROUP;
   op->syncOp = syncOp;
 
@@ -963,6 +1019,11 @@ int32_t ctgDropStbMetaEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId,
                               bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_DROP_STB_META;
   op->syncOp = syncOp;
 
@@ -993,6 +1054,11 @@ _return:
 int32_t ctgDropTbMetaEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_DROP_TB_META;
   op->syncOp = syncOp;
 
@@ -1022,6 +1088,11 @@ _return:
 int32_t ctgUpdateVgroupEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId, SDBVgInfo *dbInfo, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_UPDATE_VGROUP;
   op->syncOp = syncOp;
 
@@ -1067,6 +1138,11 @@ _return:
 int32_t ctgUpdateDbCfgEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId, SDbCfgInfo *cfgInfo, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_UPDATE_DB_CFG;
   op->syncOp = syncOp;
 
@@ -1104,6 +1180,11 @@ _return:
 int32_t ctgUpdateTbMetaEnqueue(SCatalog *pCtg, STableMetaOutput *output, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_UPDATE_TB_META;
   op->syncOp = syncOp;
 
@@ -1117,7 +1198,7 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog *pCtg, STableMetaOutput *output, bool sy
   char *p = strchr(output->dbFName, '.');
   if (p && IS_SYS_DBNAME(p + 1)) {
     int32_t len = strlen(p + 1);
-    memmove(output->dbFName, p + 1, len >= TSDB_DB_FNAME_LEN ? TSDB_DB_FNAME_LEN - 1 : len);
+    TAOS_MEMMOVE(output->dbFName, p + 1, len >= TSDB_DB_FNAME_LEN ? TSDB_DB_FNAME_LEN - 1 : len);
   }
 
   msg->pCtg = pCtg;
@@ -1142,6 +1223,11 @@ _return:
 int32_t ctgUpdateVgEpsetEnqueue(SCatalog *pCtg, char *dbFName, int32_t vgId, SEpSet *pEpSet) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_UPDATE_VG_EPSET;
 
   SCtgUpdateEpsetMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateEpsetMsg));
@@ -1170,6 +1256,11 @@ _return:
 int32_t ctgUpdateUserEnqueue(SCatalog *pCtg, SGetUserAuthRsp *pAuth, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_UPDATE_USER;
   op->syncOp = syncOp;
 
@@ -1199,6 +1290,11 @@ _return:
 int32_t ctgUpdateTbIndexEnqueue(SCatalog *pCtg, STableIndex **pIndex, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_UPDATE_TB_INDEX;
   op->syncOp = syncOp;
 
@@ -1230,6 +1326,11 @@ _return:
 int32_t ctgDropTbIndexEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_DROP_TB_INDEX;
   op->syncOp = syncOp;
 
@@ -1241,8 +1342,8 @@ int32_t ctgDropTbIndexEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   }
 
   msg->pCtg = pCtg;
-  tNameGetFullDbName(pName, msg->dbFName);
-  strcpy(msg->tbName, pName->tname);
+  (void)tNameGetFullDbName(pName, msg->dbFName);
+  TAOS_STRCPY(msg->tbName, pName->tname);
 
   op->data = msg;
 
@@ -1258,6 +1359,11 @@ _return:
 int32_t ctgClearCacheEnqueue(SCatalog *pCtg, bool clearMeta, bool freeCtg, bool stopQueue, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
   op->opId = CTG_OP_CLEAR_CACHE;
   op->syncOp = syncOp;
   op->stopQueue = stopQueue;
@@ -1287,6 +1393,11 @@ _return:
 int32_t ctgUpdateViewMetaEnqueue(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_UPDATE_VIEW_META;
   op->syncOp = syncOp;
 
@@ -1300,7 +1411,7 @@ int32_t ctgUpdateViewMetaEnqueue(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncOp
   char *p = strchr(pRsp->dbFName, '.');
   if (p && IS_SYS_DBNAME(p + 1)) {
     int32_t len = strlen(p + 1);
-    memmove(pRsp->dbFName, p + 1, len >= TSDB_DB_FNAME_LEN ? TSDB_DB_FNAME_LEN - 1 : len);
+    TAOS_MEMMOVE(pRsp->dbFName, p + 1, len >= TSDB_DB_FNAME_LEN ? TSDB_DB_FNAME_LEN - 1 : len);
   }
 
   msg->pCtg = pCtg;
@@ -1326,6 +1437,11 @@ _return:
 int32_t ctgDropViewMetaEnqueue(SCatalog *pCtg, const char *dbFName, uint64_t dbId, const char *viewName, uint64_t viewId, bool syncOp) {
   int32_t             code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   op->opId = CTG_OP_DROP_VIEW_META;
   op->syncOp = syncOp;
 
@@ -1350,6 +1466,165 @@ int32_t ctgDropViewMetaEnqueue(SCatalog *pCtg, const char *dbFName, uint64_t dbI
 
 _return:
 
+  CTG_RET(code);
+}
+
+int32_t ctgUpdateTbTSMAEnqueue(SCatalog *pCtg, STSMACache **pTsma, int32_t tsmaVersion, bool syncOp) {
+  int32_t             code = 0;
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  op->opId = CTG_OP_UPDATE_TB_TSMA;
+  op->syncOp = syncOp;
+
+  SCtgUpdateTbTSMAMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateTbTSMAMsg));
+  if (NULL == msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTbTSMAMsg));
+    taosMemoryFree(op);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  msg->pCtg = pCtg;
+  msg->pTsma = *pTsma;
+  msg->dbTsmaVersion = tsmaVersion;
+  msg->dbId = (*pTsma)->dbId;
+
+  op->data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
+
+  *pTsma = NULL;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  CTG_RET(code);
+}
+
+int32_t  ctgDropTbTSMAEnqueue(SCatalog* pCtg, const STSMACache* pTsma, bool syncOp) {
+  int32_t code = 0;
+  SCtgCacheOperation* op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == op) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  op->opId = CTG_OP_DROP_TB_TSMA;
+  op->syncOp = syncOp;
+
+  SCtgDropTbTSMAMsg* msg = taosMemoryCalloc(1, sizeof(SCtgDropTbTSMAMsg));
+  if (!msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropTbTSMAMsg));
+    taosMemoryFree(op);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  msg->pCtg = pCtg;
+  msg->dbId = pTsma->dbId;
+  msg->tbId = pTsma->suid;
+  msg->tsmaId = pTsma->tsmaId;
+  tstrncpy(msg->dbFName, pTsma->dbFName, TSDB_DB_FNAME_LEN);
+  tstrncpy(msg->tbName, pTsma->tb, TSDB_TABLE_NAME_LEN);
+  tstrncpy(msg->tsmaName, pTsma->name, TSDB_TABLE_NAME_LEN);
+
+  op->data = msg;
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
+  
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+
+  CTG_RET(code);
+}
+
+
+static int32_t createDropAllTbTsmaCtgCacheOp(SCatalog* pCtg, const STSMACache* pCache, bool syncOp, SCtgCacheOperation** ppOp) {
+  SCtgCacheOperation* pOp = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  if (NULL == pOp) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgCacheOperation));
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  SCtgDropTbTSMAMsg* pMsg = taosMemoryCalloc(1, sizeof(SCtgDropTbTSMAMsg));
+  if (NULL == pMsg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropTbTSMAMsg));
+    taosMemoryFree(pOp);
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
+  pOp->opId = CTG_OP_DROP_TB_TSMA;
+  pOp->syncOp = syncOp;
+  pMsg->pCtg = pCtg;
+  pMsg->dbId = pCache->dbId;
+  pMsg->tbId = pCache->suid;
+  pMsg->tsmaId = pCache->tsmaId;
+  pMsg->dropAllForTb = true;
+  tstrncpy(pMsg->tsmaName, pCache->name, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pMsg->dbFName, pCache->dbFName, TSDB_DB_FNAME_LEN);
+  tstrncpy(pMsg->tbName, pCache->tb, TSDB_TABLE_NAME_LEN);
+  pOp->data = pMsg;
+
+  *ppOp = pOp;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
+  ctgDebug("drop tsma meta for tb: %s.%s", pName->dbname, pName->tname);
+  
+  int32_t             code = 0;
+  SCtgDBCache        *pDbCache = NULL;
+  SCtgCacheOperation *pOp = NULL;
+  char                dbFName[TSDB_DB_FNAME_LEN];
+  SCtgTSMACache      *pCtgCache = NULL;
+  (void)tNameGetFullDbName(pName, dbFName);
+  
+  CTG_ERR_JRET(ctgGetDBCache(pCtg, dbFName, &pDbCache));
+  if (NULL == pDbCache || !pDbCache->tsmaCache) {
+    goto _return;
+  }
+
+  pCtgCache = taosHashAcquire(pDbCache->tsmaCache, pName->tname, strlen(pName->tname));
+  if (!pCtgCache) {
+    goto _return;
+  }
+
+  CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
+  if (!pCtgCache->pTsmas || pCtgCache->pTsmas->size == 0) {
+    CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
+    goto _return;
+  }
+  
+  STSMACache *pCache = taosArrayGetP(pCtgCache->pTsmas, 0);
+  if (NULL == pCache) {
+    ctgError("fail to get the 0th STSMACache, total:%d", (int32_t)pCtgCache->pTsmas->size);
+    code = TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createDropAllTbTsmaCtgCacheOp(pCtg, pCache, syncOp, &pOp);
+  }
+  CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
+
+  CTG_ERR_JRET(code);
+  
+  CTG_ERR_JRET(ctgEnqueue(pCtg, pOp));
+  taosHashRelease(pDbCache->tsmaCache, pCtgCache);
+  
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  if (pCtgCache) {
+    taosHashRelease(pDbCache->tsmaCache, pCtgCache);
+  }
+  if (pOp) {
+    taosMemoryFree(pOp->data);
+    taosMemoryFree(pOp);
+  }
+  
   CTG_RET(code);
 }
 
@@ -1381,6 +1656,13 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
+  newDBCache.tsmaCache = taosHashInit(gCtgMgmt.cfg.maxTSMACacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+                                      true, HASH_ENTRY_LOCK);
+  if (!newDBCache.tsmaCache) {
+    ctgError("taosHashInit %d tsmaCache failed", gCtgMgmt.cfg.maxTSMACacheNum);
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   code = taosHashPut(pCtg->dbCache, dbFName, strlen(dbFName), &newDBCache, sizeof(SCtgDBCache));
   if (code) {
     if (HASH_NODE_EXIST(code)) {
@@ -1394,7 +1676,7 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
 
   CTG_CACHE_NUM_INC(CTG_CI_DB, 1);
 
-  SDbCacheInfo dbCacheInfo = {.dbId = newDBCache.dbId, .vgVersion = -1, .stateTs = 0, .cfgVersion = -1};
+  SDbCacheInfo dbCacheInfo = {.dbId = newDBCache.dbId, .vgVersion = -1, .stateTs = 0, .cfgVersion = -1, .tsmaVersion = -1};
   tstrncpy(dbCacheInfo.dbFName, dbFName, sizeof(dbCacheInfo.dbFName));
 
   ctgDebug("db added to cache, dbFName:%s, dbId:0x%" PRIx64, dbFName, dbId);
@@ -1424,6 +1706,7 @@ int32_t ctgRemoveDBFromCache(SCatalog *pCtg, SCtgDBCache *dbCache, const char *d
   atomic_store_8(&dbCache->deleted, 1);
   ctgRemoveStbRent(pCtg, dbCache);
   ctgRemoveViewRent(pCtg, dbCache);
+  ctgRemoveTSMARent(pCtg, dbCache);
   ctgFreeDbCache(dbCache);
 
   CTG_UNLOCK(CTG_WRITE, &dbCache->dbLock);
@@ -1445,7 +1728,7 @@ int32_t ctgRemoveDBFromCache(SCatalog *pCtg, SCtgDBCache *dbCache, const char *d
 int32_t ctgGetAddDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCtgDBCache **pCache) {
   int32_t      code = 0;
   SCtgDBCache *dbCache = NULL;
-  ctgGetDBCache(pCtg, dbFName, &dbCache);
+  CTG_ERR_RET(ctgGetDBCache(pCtg, dbFName, &dbCache));
 
   if (dbCache) {
     // TODO OPEN IT
@@ -1476,7 +1759,7 @@ int32_t ctgGetAddDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCt
 
   CTG_ERR_RET(ctgAddNewDBCache(pCtg, dbFName, dbId));
 
-  ctgGetDBCache(pCtg, dbFName, &dbCache);
+  CTG_ERR_RET(ctgGetDBCache(pCtg, dbFName, &dbCache));
 
   *pCache = dbCache;
 
@@ -1484,7 +1767,7 @@ int32_t ctgGetAddDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCt
 }
 
 int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, uint64_t dbId, char *tbName,
-                              STableMeta *meta, int32_t metaSize) {
+                              STableMeta *meta) {
   if (NULL == dbCache->tbCache || NULL == dbCache->stbCache) {
     taosMemoryFree(meta);
     ctgError("db is dropping, dbId:0x%" PRIx64, dbCache->dbId);
@@ -1514,7 +1797,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
           ctgError("stb not exist in stbCache, dbFName:%s, stb:%s, suid:0x%" PRIx64, dbFName, tbName, orig->suid);
         } else {
           ctgDebug("stb removed from stbCache, dbFName:%s, stb:%s, suid:0x%" PRIx64, dbFName, tbName, orig->suid);
-          atomic_sub_fetch_64(&dbCache->dbCacheSize, metaSize);
+          (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, metaSize);
         }
       }
     }
@@ -1529,16 +1812,19 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    atomic_add_fetch_64(&dbCache->dbCacheSize, strlen(tbName) + sizeof(SCtgTbCache) + ctgGetTbMetaCacheSize(meta));
+    (void)atomic_add_fetch_64(&dbCache->dbCacheSize, strlen(tbName) + sizeof(SCtgTbCache) + ctgGetTbMetaCacheSize(meta));
 
     pCache = taosHashGet(dbCache->tbCache, tbName, strlen(tbName));
+    if (NULL == pCache) {
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
   } else {
     CTG_LOCK(CTG_WRITE, &pCache->metaLock);
     if (orig) {
       CTG_META_NUM_DEC(origType);
     }
 
-    atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetTbMetaCacheSize(meta) - ctgGetTbMetaCacheSize(pCache->pMeta));
+    (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetTbMetaCacheSize(meta) - ctgGetTbMetaCacheSize(pCache->pMeta));
 
     taosMemoryFree(pCache->pMeta);
     pCache->pMeta = meta;
@@ -1560,7 +1846,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  atomic_add_fetch_64(&dbCache->dbCacheSize, sizeof(meta->suid) + strlen(tbName) + 1);
+  (void)atomic_add_fetch_64(&dbCache->dbCacheSize, sizeof(meta->suid) + strlen(tbName) + 1);
 
   ctgDebug("stb 0x%" PRIx64 " updated to cache, dbFName:%s, tbName:%s, tbType:%d", meta->suid, dbFName, tbName,
            meta->tableType);
@@ -1592,7 +1878,7 @@ int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNa
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    atomic_add_fetch_64(&dbCache->dbCacheSize, strlen(tbName) + sizeof(SCtgTbCache) + ctgGetTbIndexCacheSize(pIndex));
+    (void)atomic_add_fetch_64(&dbCache->dbCacheSize, strlen(tbName) + sizeof(SCtgTbCache) + ctgGetTbIndexCacheSize(pIndex));
 
     CTG_DB_NUM_INC(CTG_CI_TBL_SMA);
 
@@ -1610,7 +1896,7 @@ int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNa
   CTG_LOCK(CTG_WRITE, &pCache->indexLock);
 
   if (pCache->pIndex) {
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetTbIndexCacheSize(pCache->pIndex));
+    (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetTbIndexCacheSize(pCache->pIndex));
     if (0 == suid) {
       suid = pCache->pIndex->suid;
     }
@@ -1621,7 +1907,7 @@ int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNa
   pCache->pIndex = pIndex;
   CTG_UNLOCK(CTG_WRITE, &pCache->indexLock);
 
-  atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetTbIndexCacheSize(pIndex));
+  (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetTbIndexCacheSize(pIndex));
 
   *index = NULL;
 
@@ -1652,7 +1938,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    atomic_add_fetch_64(&dbCache->dbCacheSize, strlen(viewName) + sizeof(SCtgViewCache) + ctgGetViewMetaCacheSize(pMeta));
+    (void)atomic_add_fetch_64(&dbCache->dbCacheSize, strlen(viewName) + sizeof(SCtgViewCache) + ctgGetViewMetaCacheSize(pMeta));
 
     CTG_DB_NUM_INC(CTG_CI_VIEW);
 
@@ -1667,7 +1953,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
   CTG_LOCK(CTG_WRITE, &pCache->viewLock);
 
   if (pCache->pMeta) {
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pCache->pMeta));
+    (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pCache->pMeta));
     ctgFreeSViewMeta(pCache->pMeta);
     taosMemoryFree(pCache->pMeta);
   }
@@ -1675,7 +1961,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
   pCache->pMeta = pMeta;
   CTG_UNLOCK(CTG_WRITE, &pCache->viewLock);
 
-  atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pMeta));
+  (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pMeta));
 
   ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
     viewName, pMeta->viewId, pMeta->version, pMeta->user, pMeta->querySql);
@@ -1761,6 +2047,103 @@ int32_t ctgVgInfoIdComp(void const *lp, void const *rp) {
   return 0;
 }
 
+
+
+
+int32_t ctgWriteTbTSMAToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, char *tbName,
+                              STSMACache **ppTsmaCache) {
+  if (NULL == dbCache->tsmaCache) {
+    ctgError("db is dropping, dbId:0x%" PRIx64, dbCache->dbId);
+    CTG_ERR_RET(TSDB_CODE_CTG_DB_DROPPED);
+  }
+
+  STSMACache *pTsmaCache = *ppTsmaCache;
+  int32_t     code = TSDB_CODE_SUCCESS;
+
+  SCtgTSMACache* pCache = taosHashGet(dbCache->tsmaCache, tbName, strlen(tbName));
+  if (!pCache) {
+    SCtgTSMACache cache = {0};
+    cache.pTsmas = taosArrayInit(4, sizeof(POINTER_BYTES));
+    if (NULL == cache.pTsmas) {
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
+    if (NULL == taosArrayPush(cache.pTsmas, &pTsmaCache)) {
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
+    if (taosHashPut(dbCache->tsmaCache, tbName, strlen(tbName), &cache, sizeof(cache))) {
+      ctgError("taosHashPut new tsmacache for tb: %s.%s failed", dbFName, tbName);
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
+    (void)atomic_add_fetch_64(&dbCache->dbCacheSize, strlen(tbName) + sizeof(STSMACache) + ctgGetTbTSMACacheSize(pTsmaCache));
+    
+    CTG_DB_NUM_INC(CTG_CI_TBL_TSMA);
+    ctgDebug("tb %s tsma updated to cache, name: %s", tbName, pTsmaCache->name);
+    
+    CTG_ERR_JRET(ctgUpdateRentTSMAVersion(pCtg, dbFName, pTsmaCache));
+    *ppTsmaCache = NULL;
+    
+    goto _return;
+  }
+
+  CTG_LOCK(CTG_WRITE, &pCache->tsmaLock);
+
+  if (pCache->pTsmas) {
+    uint64_t cacheSize = 0;
+    for (int32_t i = 0; i < pCache->pTsmas->size; ++i) {
+      STableTSMAInfo* pInfo = taosArrayGetP(pCache->pTsmas, i);
+      if (NULL == pInfo) {
+        ctgError("fail to get the %dth STableTSMAInfo, total:%d", i, (int32_t)pCache->pTsmas->size);
+        CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      }
+      
+      if (pInfo->tsmaId == pTsmaCache->tsmaId) {
+        ctgDebug("tsma: %s removed from cache, history from %d to %d, reqTs from %" PRId64 " to %" PRId64
+                 "rspTs from %" PRId64 " to %" PRId64 " delay from %" PRId64 " to %" PRId64,
+                 pInfo->name, pInfo->fillHistoryFinished, pTsmaCache->fillHistoryFinished, pInfo->reqTs,
+                 pTsmaCache->reqTs, pInfo->rspTs, pTsmaCache->rspTs, pInfo->delayDuration, pTsmaCache->delayDuration);
+                 
+        cacheSize = ctgGetTbTSMACacheSize(pInfo);
+        taosArrayRemove(pCache->pTsmas, i);
+        (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
+        
+        tFreeTableTSMAInfo(pInfo);
+        taosMemoryFreeClear(pInfo);
+        
+        break;
+      }
+    }
+  } else {
+    pCache->pTsmas = taosArrayInit(4, sizeof(POINTER_BYTES));
+    if (!pCache->pTsmas) {
+      CTG_UNLOCK(CTG_WRITE, &pCache->tsmaLock);
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
+  
+  // push the new cache
+  if (NULL == taosArrayPush(pCache->pTsmas, &pTsmaCache)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    *ppTsmaCache = NULL;
+
+    (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetTbTSMACacheSize(pTsmaCache));
+    
+    CTG_ERR_RET(ctgUpdateRentTSMAVersion(pCtg, dbFName, pTsmaCache));
+
+    ctgDebug("table %s tsma updated to cache, tsma: %s", tbName, pTsmaCache->name);
+  }
+
+  CTG_UNLOCK(CTG_WRITE, &pCache->tsmaLock);
+  
+_return:
+
+  CTG_RET(code);
+}
+
+
 int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
   int32_t          code = 0;
   SCtgUpdateVgMsg *msg = operation->data;
@@ -1780,7 +2163,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
   bool         newAdded = false;
   SDbCacheInfo dbCacheInfo = {
-      .dbId = msg->dbId, .vgVersion = dbInfo->vgVersion, .cfgVersion = -1, .numOfTable = dbInfo->numOfTable, .stateTs = dbInfo->stateTs};
+      .dbId = msg->dbId, .vgVersion = dbInfo->vgVersion, .cfgVersion = -1, .numOfTable = dbInfo->numOfTable, .stateTs = dbInfo->stateTs, .tsmaVersion = -1};
 
   SCtgDBCache *dbCache = NULL;
   CTG_ERR_JRET(ctgGetAddDBCache(msg->pCtg, dbFName, msg->dbId, &dbCache));
@@ -1816,7 +2199,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
     uint64_t groupCacheSize = ctgGetDbVgroupCacheSize(vgCache->vgInfo);
     ctgDebug("sub dbGroupCacheSize %" PRIu64 " from db, dbFName:%s", groupCacheSize, dbFName);
 
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, groupCacheSize);
+    (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, groupCacheSize);
     
     freeVgInfo(vgInfo);
     CTG_DB_NUM_RESET(CTG_CI_DB_VGROUP);
@@ -1824,6 +2207,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
   if (dbCache->cfgCache.cfgInfo) {
     dbCacheInfo.cfgVersion = dbCache->cfgCache.cfgInfo->cfgVersion;
+    dbCacheInfo.tsmaVersion = dbCache->tsmaVersion;
   }
 
   vgCache->vgInfo = dbInfo;
@@ -1836,7 +2220,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
   ctgWUnlockVgInfo(dbCache);
 
   uint64_t groupCacheSize = ctgGetDbVgroupCacheSize(vgCache->vgInfo);
-  atomic_add_fetch_64(&dbCache->dbCacheSize, groupCacheSize);
+  (void)atomic_add_fetch_64(&dbCache->dbCacheSize, groupCacheSize);
   ctgDebug("add dbGroupCacheSize %" PRIu64 " from db, dbFName:%s", groupCacheSize, dbFName);
 
   dbCache = NULL;
@@ -1891,6 +2275,7 @@ int32_t ctgOpUpdateDbCfg(SCtgCacheOperation *operation) {
   } else {
     cacheInfo.vgVersion = -1;
   }
+  cacheInfo.tsmaVersion = dbCache->tsmaVersion;
 
   ctgWLockDbCfgInfo(dbCache);
 
@@ -1926,7 +2311,7 @@ int32_t ctgOpDropDbCache(SCtgCacheOperation *operation) {
   }
 
   SCtgDBCache *dbCache = NULL;
-  ctgGetDBCache(msg->pCtg, msg->dbFName, &dbCache);
+  CTG_ERR_RET(ctgGetDBCache(msg->pCtg, msg->dbFName, &dbCache));
   if (NULL == dbCache) {
     goto _return;
   }
@@ -1956,14 +2341,14 @@ int32_t ctgOpDropDbVgroup(SCtgCacheOperation *operation) {
   }
 
   SCtgDBCache *dbCache = NULL;
-  ctgGetDBCache(msg->pCtg, msg->dbFName, &dbCache);
+  CTG_ERR_RET(ctgGetDBCache(msg->pCtg, msg->dbFName, &dbCache));
   if (NULL == dbCache) {
     goto _return;
   }
 
   CTG_ERR_JRET(ctgWLockVgInfo(pCtg, dbCache));
 
-  atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetDbVgroupCacheSize(dbCache->vgCache.vgInfo));
+  (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetDbVgroupCacheSize(dbCache->vgCache.vgInfo));
 
   freeVgInfo(dbCache->vgCache.vgInfo);
   dbCache->vgCache.vgInfo = NULL;
@@ -2008,8 +2393,7 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
   }
 
   if (CTG_IS_META_TABLE(pMeta->metaType) || CTG_IS_META_BOTH(pMeta->metaType)) {
-    int32_t metaSize = CTG_META_SIZE(pMeta->tbMeta);
-    code = ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->tbName, pMeta->tbMeta, metaSize);
+    code = ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->tbName, pMeta->tbMeta);
     pMeta->tbMeta = NULL;
     CTG_ERR_JRET(code);
   }
@@ -2019,9 +2403,9 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
     if (NULL == ctbMeta) {
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
-    memcpy(ctbMeta, &pMeta->ctbMeta, sizeof(SCTableMeta));
+    TAOS_MEMCPY(ctbMeta, &pMeta->ctbMeta, sizeof(SCTableMeta));
     CTG_ERR_JRET(ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->ctbName,
-                                       (STableMeta *)ctbMeta, sizeof(SCTableMeta)));
+                                       (STableMeta *)ctbMeta));
   }
 
 _return:
@@ -2045,7 +2429,7 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
   }
 
   SCtgDBCache *dbCache = NULL;
-  ctgGetDBCache(pCtg, msg->dbFName, &dbCache);
+  CTG_ERR_JRET(ctgGetDBCache(pCtg, msg->dbFName, &dbCache));
   if (NULL == dbCache) {
     goto _return;
   }
@@ -2063,7 +2447,7 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
       ctgDebug("stb not exist in stbCache, may be removed, dbFName:%s, stb:%s, suid:0x%" PRIx64, msg->dbFName,
                msg->stbName, msg->suid);
     } else {
-      atomic_sub_fetch_64(&dbCache->dbCacheSize, metaSize);
+      (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, metaSize);
     }
   }
   
@@ -2074,14 +2458,15 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
   }
 
   tblType = pTbCache->pMeta->tableType;
-  atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetTbMetaCacheSize(pTbCache->pMeta) + ctgGetTbIndexCacheSize(pTbCache->pIndex));
+  (void)atomic_sub_fetch_64(&dbCache->dbCacheSize,
+                      ctgGetTbMetaCacheSize(pTbCache->pMeta) + ctgGetTbIndexCacheSize(pTbCache->pIndex));
   ctgFreeTbCacheImpl(pTbCache, true);
 
   if (taosHashRemove(dbCache->tbCache, msg->stbName, strlen(msg->stbName))) {
     ctgError("stb not exist in cache, dbFName:%s, stb:%s, suid:0x%" PRIx64, msg->dbFName, msg->stbName, msg->suid);
   } else {
     CTG_META_NUM_DEC(tblType);
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(*pTbCache) + strlen(msg->stbName));
+    (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(*pTbCache) + strlen(msg->stbName));
   }
 
   ctgInfo("stb removed from cache, dbFName:%s, stbName:%s, suid:0x%" PRIx64, msg->dbFName, msg->stbName, msg->suid);
@@ -2108,7 +2493,7 @@ int32_t ctgOpDropTbMeta(SCtgCacheOperation *operation) {
   }
 
   SCtgDBCache *dbCache = NULL;
-  ctgGetDBCache(pCtg, msg->dbFName, &dbCache);
+  CTG_ERR_JRET(ctgGetDBCache(pCtg, msg->dbFName, &dbCache));
   if (NULL == dbCache) {
     goto _return;
   }
@@ -2126,14 +2511,15 @@ int32_t ctgOpDropTbMeta(SCtgCacheOperation *operation) {
   }
 
   tblType = pTbCache->pMeta->tableType;
-  atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetTbMetaCacheSize(pTbCache->pMeta) + ctgGetTbIndexCacheSize(pTbCache->pIndex));
+  (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetTbMetaCacheSize(pTbCache->pMeta) +
+                                                 ctgGetTbIndexCacheSize(pTbCache->pIndex));
   ctgFreeTbCacheImpl(pTbCache, true);
 
   if (taosHashRemove(dbCache->tbCache, msg->tbName, strlen(msg->tbName))) {
     ctgError("tb %s not exist in cache, dbFName:%s", msg->tbName, msg->dbFName);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   } else {
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(*pTbCache) + strlen(msg->tbName));
+    (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(*pTbCache) + strlen(msg->tbName));
     CTG_META_NUM_DEC(tblType);
   }
 
@@ -2163,7 +2549,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
 
     SCtgUserAuth userAuth = {0};
 
-    memcpy(&userAuth.userAuth, &msg->userAuth, sizeof(msg->userAuth));
+    TAOS_MEMCPY(&userAuth.userAuth, &msg->userAuth, sizeof(msg->userAuth));
     userAuth.userCacheSize = ctgGetUserCacheSize(&userAuth.userAuth);
 
     if (taosHashPut(pCtg->userCache, msg->userAuth.user, strlen(msg->userAuth.user), &userAuth, sizeof(userAuth))) {
@@ -2196,7 +2582,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   taosHashCleanup(pUser->userAuth.alterViews);
   taosHashCleanup(pUser->userAuth.useDbs);
 
-  memcpy(&pUser->userAuth, &msg->userAuth, sizeof(msg->userAuth));
+  TAOS_MEMCPY(&pUser->userAuth, &msg->userAuth, sizeof(msg->userAuth));
 
   msg->userAuth.createdDbs = NULL;
   msg->userAuth.readDbs = NULL;
@@ -2211,7 +2597,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
 
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);
   
-  atomic_store_64(&pUser->userCacheSize, ctgGetUserCacheSize(&pUser->userAuth));
+  (void)atomic_store_64(&pUser->userCacheSize, ctgGetUserCacheSize(&pUser->userAuth));
 
 _return:
 
@@ -2333,8 +2719,8 @@ int32_t ctgOpDropTbIndex(SCtgCacheOperation *operation) {
   if (NULL == pIndex) {
     CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  strcpy(pIndex->tbName, msg->tbName);
-  strcpy(pIndex->dbFName, msg->dbFName);
+  TAOS_STRCPY(pIndex->tbName, msg->tbName);
+  TAOS_STRCPY(pIndex->dbFName, msg->dbFName);
   pIndex->version = -1;
 
   CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, pIndex->dbFName, pIndex->tbName, &pIndex));
@@ -2403,7 +2789,7 @@ int32_t ctgOpDropViewMeta(SCtgCacheOperation *operation) {
   }
 
   SCtgDBCache *dbCache = NULL;
-  ctgGetDBCache(pCtg, msg->dbFName, &dbCache);
+  CTG_ERR_JRET(ctgGetDBCache(pCtg, msg->dbFName, &dbCache));
   if (NULL == dbCache) {
     goto _return;
   }
@@ -2426,14 +2812,14 @@ int32_t ctgOpDropViewMeta(SCtgCacheOperation *operation) {
     goto _return;
   }
   
-  atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pViewCache->pMeta));
+  (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pViewCache->pMeta));
   ctgFreeViewCacheImpl(pViewCache, true);
 
   if (taosHashRemove(dbCache->viewCache, msg->viewName, strlen(msg->viewName))) {
     ctgError("view %s not exist in cache, dbFName:%s", msg->viewName, msg->dbFName);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   } else {
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(SCtgViewCache) + strlen(msg->viewName));
+    (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, sizeof(SCtgViewCache) + strlen(msg->viewName));
     CTG_DB_NUM_DEC(CTG_CI_VIEW);
   }
 
@@ -2493,21 +2879,21 @@ void ctgClearMetaCache(SCtgCacheOperation *operation) {
   
   if (CTG_CACHE_LOW(remainSize, cacheMaxSize)) {
     qDebug("catalog finish meta clear, remainSize:%" PRId64 ", cacheMaxSize:%dMB", remainSize, cacheMaxSize);
-    taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+    (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
     return;
   }
 
   if (!roundDone) {
     qDebug("catalog all meta cleared, remainSize:%" PRId64 ", cacheMaxSize:%dMB, to clear handle", remainSize, cacheMaxSize);
     ctgClearFreeCache(operation);
-    taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+    (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
     return;
   }
   
   int32_t code = ctgClearCacheEnqueue(NULL, true, false, false, false);
   if (code) {
     qError("clear cache enqueue failed, error:%s", tstrerror(code));
-    taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
+    (void)taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
   }
 }
 
@@ -2527,6 +2913,150 @@ _return:
 
   CTG_RET(code);
 }
+
+
+int32_t ctgOpDropTbTSMA(SCtgCacheOperation *operation) {
+  int32_t             code = 0;
+  SCtgDropTbTSMAMsg * msg = operation->data;
+  SCatalog           *pCtg = msg->pCtg;
+  SCtgDBCache        *dbCache = NULL;
+
+  if (pCtg->stopUpdate) {
+    goto _return;
+  }
+
+  CTG_ERR_JRET(ctgGetDBCache(pCtg, msg->dbFName, &dbCache));
+  if (NULL == dbCache || !dbCache->tsmaCache || (msg->dbId != dbCache->dbId && msg->dbId != 0)) {
+    goto _return;
+  }
+
+  SCtgTSMACache* pCtgCache = taosHashGet(dbCache->tsmaCache, msg->tbName, strlen(msg->tbName));
+  if (!pCtgCache || !pCtgCache->pTsmas || pCtgCache->pTsmas->size == 0) {
+    goto _return;
+  }
+
+  uint64_t    cacheSize = 0;
+  STSMACache *pCache = NULL;
+  if (msg->dropAllForTb) {
+    CTG_LOCK(CTG_WRITE, &pCtgCache->tsmaLock);
+    
+    for (int32_t i = 0; i < pCtgCache->pTsmas->size; ++i) {
+      pCache = taosArrayGetP(pCtgCache->pTsmas, i);
+      if (NULL == pCache) {
+        ctgError("fail to the %dth tsma in pTsmas, total:%d", i, (int32_t)pCtgCache->pTsmas->size);
+        continue;
+      }
+      
+      cacheSize += ctgGetTbTSMACacheSize(pCache);
+      (void)ctgMetaRentRemove(&msg->pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSearchCompare, ctgTSMAVersionSearchCompare);
+      
+      CTG_DB_NUM_DEC(CTG_CI_TBL_TSMA);
+    }
+    
+    taosArrayDestroyP(pCtgCache->pTsmas, tFreeAndClearTableTSMAInfo);
+    pCtgCache->pTsmas = NULL;
+    
+    ctgDebug("all tsmas for table dropped: %s.%s", msg->dbFName, msg->tbName);
+    (void)taosHashRemove(dbCache->tsmaCache, msg->tbName, TSDB_TABLE_NAME_LEN);
+    
+    CTG_UNLOCK(CTG_WRITE, &pCtgCache->tsmaLock);
+  } else {
+    CTG_LOCK(CTG_WRITE, &pCtgCache->tsmaLock);
+    
+    pCache = taosArrayGetP(pCtgCache->pTsmas, 0);
+    if (NULL == pCache) {
+      ctgError("fail to the 0th tsma in pTsmas, total:%d", (int32_t)pCtgCache->pTsmas->size);
+      code = TSDB_CODE_CTG_INTERNAL_ERROR;
+    } else {
+      if (msg->tbId != 0 && pCache->suid != msg->tbId) {
+        // table id mismatch, skip drops
+        CTG_UNLOCK(CTG_WRITE, &pCtgCache->tsmaLock);
+        goto _return;
+      }
+      
+      for (int32_t i = 0; i < pCtgCache->pTsmas->size; ++i) {
+        pCache = taosArrayGetP(pCtgCache->pTsmas, i);
+        if (NULL == pCache) {
+          ctgError("fail to the %dth tsma in pTsmas, total:%d", i, (int32_t)pCtgCache->pTsmas->size);
+          code = TSDB_CODE_CTG_INTERNAL_ERROR;
+          continue;
+        }
+
+        if (pCache->tsmaId != msg->tsmaId) {
+          continue;
+        }
+        
+        cacheSize = ctgGetTbTSMACacheSize(pCache);
+        (void)ctgMetaRentRemove(&msg->pCtg->tsmaRent, pCache->tsmaId, ctgTSMAVersionSearchCompare, ctgTSMAVersionSearchCompare);
+        
+        taosArrayRemove(pCtgCache->pTsmas, i);
+        tFreeAndClearTableTSMAInfo(pCache);
+        
+        CTG_DB_NUM_DEC(CTG_CI_TBL_TSMA);
+        
+        break;
+      }
+    }
+    
+    CTG_UNLOCK(CTG_WRITE, &pCtgCache->tsmaLock);
+  }
+  
+  (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
+
+_return:
+
+  taosMemoryFreeClear(msg);
+  
+  CTG_RET(code);
+}
+
+int32_t ctgOpUpdateTbTSMA(SCtgCacheOperation *operation) {
+  int32_t              code = 0;
+  SCtgUpdateTbTSMAMsg *msg = operation->data;
+  SCatalog *           pCtg = msg->pCtg;
+  STableTSMAInfo *     pTsmaInfo = msg->pTsma;
+  SCtgDBCache *        dbCache = NULL;
+
+  if (pCtg->stopUpdate) {
+    goto _return;
+  }
+
+  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pTsmaInfo->dbFName, pTsmaInfo->dbId, &dbCache));
+  CTG_ERR_JRET(ctgWriteTbTSMAToCache(pCtg, dbCache, pTsmaInfo->dbFName, pTsmaInfo->tb, &pTsmaInfo));
+  
+  if (dbCache && msg->dbTsmaVersion > 0) {
+    dbCache->tsmaVersion = msg->dbTsmaVersion;
+    SDbCacheInfo cacheInfo = {0};
+    cacheInfo.dbId = dbCache->dbId;
+    
+    if (dbCache->cfgCache.cfgInfo) {
+      cacheInfo.cfgVersion = dbCache->cfgCache.cfgInfo->cfgVersion;
+      tstrncpy(cacheInfo.dbFName, dbCache->cfgCache.cfgInfo->db, TSDB_DB_FNAME_LEN);
+    }
+    
+    if (dbCache->vgCache.vgInfo) {
+      cacheInfo.vgVersion = dbCache->vgCache.vgInfo->vgVersion;
+      cacheInfo.numOfTable = dbCache->vgCache.vgInfo->numOfTable;
+      cacheInfo.stateTs = dbCache->vgCache.vgInfo->stateTs;
+    }
+    
+    cacheInfo.tsmaVersion = dbCache->tsmaVersion;
+    CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &cacheInfo, cacheInfo.dbId, sizeof(SDbCacheInfo),
+                                   ctgDbCacheInfoSortCompare, ctgDbCacheInfoSearchCompare));
+  }
+
+_return:
+
+  if (pTsmaInfo) {
+    tFreeTableTSMAInfo(pTsmaInfo);
+    taosMemoryFreeClear(pTsmaInfo);
+  }
+
+  taosMemoryFreeClear(msg);
+  
+  CTG_RET(code);
+}
+
 
 void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
   if (NULL == op || NULL == op->data) {
@@ -2554,6 +3084,7 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
     case CTG_OP_UPDATE_VG_EPSET:
     case CTG_OP_DROP_TB_INDEX:
     case CTG_OP_DROP_VIEW_META:
+    case CTG_OP_DROP_TB_TSMA:
     case CTG_OP_CLEAR_CACHE: {
       taosMemoryFreeClear(op->data);
       break;
@@ -2582,6 +3113,14 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
       taosMemoryFreeClear(op->data);
       break;
     }
+    case CTG_OP_UPDATE_TB_TSMA: {
+      SCtgUpdateTbTSMAMsg *msg = op->data;
+      if (msg->pTsma) {
+        tFreeTableTSMAInfo(msg->pTsma);
+        taosMemoryFreeClear(msg->pTsma);
+      }
+      break;
+    }
     default: {
       qError("invalid cache op id:%d", op->opId);
       break;
@@ -2603,7 +3142,7 @@ void ctgCleanupCacheQueue(void) {
         if (op->stopQueue) {
           SCatalog *pCtg = ((SCtgUpdateMsgHeader *)op->data)->pCtg;
           ctgDebug("process [%s] operation", gCtgCacheOperation[op->opId].name);
-          (*gCtgCacheOperation[op->opId].func)(op);
+          (void)(*gCtgCacheOperation[op->opId].func)(op); // ignore any error
           stopQueue = true;
           CTG_STAT_RT_INC(numOfOpDequeue, 1);
         } else {
@@ -2612,7 +3151,7 @@ void ctgCleanupCacheQueue(void) {
         }
 
         if (op->syncOp) {
-          tsem_post(&op->rspSem);
+          (void)tsem_post(&op->rspSem);
         } else {
           taosMemoryFree(op);
         }
@@ -2656,18 +3195,18 @@ void *ctgUpdateThreadFunc(void *param) {
 
     ctgDebug("process [%s] operation", gCtgCacheOperation[operation->opId].name);
 
-    (*gCtgCacheOperation[operation->opId].func)(operation);
+    (void)(*gCtgCacheOperation[operation->opId].func)(operation); // ignore any error
 
     if (operation->syncOp) {
-      tsem_post(&operation->rspSem);
+      (void)tsem_post(&operation->rspSem);
     } else {
       taosMemoryFreeClear(operation);
     }
 
     CTG_STAT_RT_INC(numOfOpDequeue, 1);
 
-    ctgdShowCacheInfo();
-    ctgdShowStatInfo();
+    (void)ctgdShowCacheInfo();
+    (void)ctgdShowStatInfo();
   }
 
   qInfo("catalog update thread stopped");
@@ -2676,16 +3215,25 @@ void *ctgUpdateThreadFunc(void *param) {
 }
 
 int32_t ctgStartUpdateThread() {
+  int32_t code = TSDB_CODE_SUCCESS;
   TdThreadAttr thAttr;
-  taosThreadAttrInit(&thAttr);
-  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  CTG_ERR_JRET(taosThreadAttrInit(&thAttr));
+  CTG_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
 
   if (taosThreadCreate(&gCtgMgmt.updateThread, &thAttr, ctgUpdateThreadFunc, NULL) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     CTG_ERR_RET(terrno);
   }
 
-  taosThreadAttrDestroy(&thAttr);
+  (void)taosThreadAttrDestroy(&thAttr);
+
+_return:
+
+  if (code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    CTG_ERR_RET(terrno);
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2773,28 +3321,35 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
 int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMetasCtx *ctx, int32_t dbIdx,
                                int32_t *fetchIdx, int32_t baseResIdx, SArray *pList) {
   int32_t     tbNum = taosArrayGetSize(pList);
-  SName      *pName = taosArrayGet(pList, 0);
   char        dbFName[TSDB_DB_FNAME_LEN] = {0};
   int32_t     flag = CTG_FLAG_UNKNOWN_STB;
+  int32_t     code = TSDB_CODE_SUCCESS;
   uint64_t    lastSuid = 0;
   STableMeta *lastTableMeta = NULL;
-
+  SName      *pName = taosArrayGet(pList, 0);
+  if (NULL == pName) {
+    ctgError("fail to get the 0th SName from tableList, tableNum:%d", (int32_t)taosArrayGetSize(pList));
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+  
   if (IS_SYS_DBNAME(pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(flag);
-    strcpy(dbFName, pName->dbname);
+    TAOS_STRCPY(dbFName, pName->dbname);
   } else {
-    tNameGetFullDbName(pName, dbFName);
+    (void)tNameGetFullDbName(pName, dbFName);
   }
 
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *pCache = NULL;
-  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
 
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     for (int32_t i = 0; i < tbNum; ++i) {
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaData){0});
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
 
     return TSDB_CODE_SUCCESS;
@@ -2802,12 +3357,19 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
   for (int32_t i = 0; i < tbNum; ++i) {
     pName = taosArrayGet(pList, i);
+    if (NULL == pName) {
+      ctgError("fail to get the %dth SName from tableList, tableNum:%d", i, (int32_t)taosArrayGetSize(pList));
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
 
     pCache = taosHashAcquire(dbCache->tbCache, pName->tname, strlen(pName->tname));
     if (NULL == pCache) {
       ctgDebug("tb %s not in cache, dbFName:%s", pName->tname, dbFName);
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaRes){0});
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
       CTG_META_NHIT_INC();
 
       continue;
@@ -2817,9 +3379,14 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     if (NULL == pCache->pMeta) {
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
+      
       ctgDebug("tb %s meta not in cache, dbFName:%s", pName->tname, dbFName);
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaRes){0});
+      
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
       CTG_META_NHIT_INC();
 
       continue;
@@ -2839,14 +3406,25 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     SMetaRes    res = {0};
     STableMeta *pTableMeta = NULL;
     if (tbMeta->tableType != TSDB_CHILD_TABLE) {
+      int32_t schemaExtSize = 0;
       int32_t metaSize = CTG_META_SIZE(tbMeta);
-      pTableMeta = taosMemoryCalloc(1, metaSize);
+      if (tbMeta->schemaExt != NULL) {
+        schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+      }
+      
+      pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
       if (NULL == pTableMeta) {
         ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
         CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
-      memcpy(pTableMeta, tbMeta, metaSize);
+      TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
+      if (tbMeta->schemaExt != NULL) {
+        pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+        TAOS_MEMCPY(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
+      } else {
+        pTableMeta->schemaExt = NULL;
+      }
 
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
@@ -2854,7 +3432,9 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       ctgDebug("Got tb %s meta from cache, type:%d, dbFName:%s", pName->tname, pTableMeta->tableType, dbFName);
 
       res.pRes = pTableMeta;
-      taosArrayPush(ctx->pResList, &res);
+      if (NULL == taosArrayPush(ctx->pResList, &res)) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
 
       continue;
     }
@@ -2862,8 +3442,14 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     // PROCESS FOR CHILD TABLE
 
     if (lastSuid && tbMeta->suid == lastSuid && lastTableMeta) {
-      cloneTableMeta(lastTableMeta, &pTableMeta);
-      memcpy(pTableMeta, tbMeta, sizeof(SCTableMeta));
+      code = cloneTableMeta(lastTableMeta, &pTableMeta);
+      if (code) {
+        CTG_UNLOCK(CTG_READ, &pCache->metaLock);
+        taosHashRelease(dbCache->tbCache, pCache);
+        CTG_ERR_JRET(code);
+      }
+      
+      TAOS_MEMCPY(pTableMeta, tbMeta, sizeof(SCTableMeta));
 
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
@@ -2871,7 +3457,9 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       ctgDebug("Got tb %s meta from cache, type:%d, dbFName:%s", pName->tname, pTableMeta->tableType, dbFName);
 
       res.pRes = pTableMeta;
-      taosArrayPush(ctx->pResList, &res);
+      if (NULL == taosArrayPush(ctx->pResList, &res)) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
 
       continue;
     }
@@ -2883,7 +3471,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    memcpy(pTableMeta, tbMeta, metaSize);
+    TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
 
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
     taosHashRelease(dbCache->tbCache, pCache);
@@ -2894,8 +3482,10 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     char *stName = taosHashAcquire(dbCache->stbCache, &pTableMeta->suid, sizeof(pTableMeta->suid));
     if (NULL == stName) {
       ctgDebug("stb 0x%" PRIx64 " not in cache, dbFName:%s", pTableMeta->suid, dbFName);
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaRes){0});
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
       taosMemoryFreeClear(pTableMeta);
 
       CTG_META_NHIT_INC();
@@ -2907,11 +3497,14 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       ctgDebug("stb 0x%" PRIx64 " name %s not in cache, dbFName:%s", pTableMeta->suid, stName, dbFName);
       taosHashRelease(dbCache->stbCache, stName);
 
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaRes){0});
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
       taosMemoryFreeClear(pTableMeta);
 
       CTG_META_NHIT_INC();
+      
       continue;
     }
 
@@ -2923,8 +3516,11 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
 
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaRes){0});
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
       taosMemoryFreeClear(pTableMeta);
 
       CTG_META_NHIT_INC();
@@ -2939,22 +3535,34 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       ctgError("stb suid 0x%" PRIx64 " in stbCache mis-match, expected suid 0x%" PRIx64, stbMeta->suid,
                nctx.tbInfo.suid);
 
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaRes){0});
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
       taosMemoryFreeClear(pTableMeta);
 
       CTG_META_NHIT_INC();
       continue;
     }
 
+    int32_t schemaExtSize = 0;
+    if (stbMeta->schemaExt != NULL) {
+      schemaExtSize = stbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+    }
     metaSize = CTG_META_SIZE(stbMeta);
-    pTableMeta = taosMemoryRealloc(pTableMeta, metaSize);
+    pTableMeta = taosMemoryRealloc(pTableMeta, metaSize + schemaExtSize);
     if (NULL == pTableMeta) {
       ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    memcpy(&pTableMeta->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
+    TAOS_MEMCPY(&pTableMeta->sversion, &stbMeta->sversion, metaSize + schemaExtSize - sizeof(SCTableMeta));
+    if (stbMeta->schemaExt != NULL) {
+      pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+    } else {
+      pTableMeta->schemaExt = NULL;
+    }
 
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
     taosHashRelease(dbCache->tbCache, pCache);
@@ -2962,15 +3570,19 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     CTG_META_HIT_INC(pTableMeta->tableType);
 
     res.pRes = pTableMeta;
-    taosArrayPush(ctx->pResList, &res);
+    if (NULL == taosArrayPush(ctx->pResList, &res)) {
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
 
     lastSuid = pTableMeta->suid;
     lastTableMeta = pTableMeta;
   }
 
+_return:
+
   ctgReleaseDBCache(pCtg, dbCache);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog *pCtg, SName *pTableName, bool syncReq) {
@@ -2982,19 +3594,20 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog *pCtg, SName *pTableName, bool syncReq
 
   CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &tbCtx, &tblMeta));
 
-  if (NULL == tblMeta) {
-    ctgDebug("table already not in cache, db:%s, tblName:%s", pTableName->dbname, pTableName->tname);
-    return TSDB_CODE_SUCCESS;
-  }
+  if (NULL != tblMeta) {
+    char dbFName[TSDB_DB_FNAME_LEN];
+    (void)tNameGetFullDbName(pTableName, dbFName);
 
-  char dbFName[TSDB_DB_FNAME_LEN];
-  tNameGetFullDbName(pTableName, dbFName);
-
-  if (TSDB_SUPER_TABLE == tblMeta->tableType) {
-    CTG_ERR_JRET(ctgDropStbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, tblMeta->suid, syncReq));
+    if (TSDB_SUPER_TABLE == tblMeta->tableType) {
+      CTG_ERR_JRET(ctgDropStbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, tblMeta->suid, syncReq));
+    } else {
+      CTG_ERR_JRET(ctgDropTbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, syncReq));
+    }
   } else {
-    CTG_ERR_JRET(ctgDropTbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, syncReq));
+    ctgDebug("table already not in cache, db:%s, tblName:%s", pTableName->dbname, pTableName->tname);
   }
+
+  CTG_ERR_JRET(ctgDropTSMAForTbEnqueue(pCtg, pTableName, syncReq));
 
 _return:
 
@@ -3012,7 +3625,7 @@ int32_t ctgGetTbHashVgroupFromCache(SCatalog *pCtg, const SName *pTableName, SVg
   SCtgDBCache *dbCache = NULL;
   int32_t      code = 0;
   char         dbFName[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(pTableName, dbFName);
+  (void)tNameGetFullDbName(pTableName, dbFName);
 
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, &dbCache));
 
@@ -3041,28 +3654,35 @@ _return:
 int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsCtx *ctx, int32_t dbIdx,
                                int32_t *fetchIdx, int32_t baseResIdx, SArray *pList) {
   int32_t     tbNum = taosArrayGetSize(pList);
-  SName      *pName = taosArrayGet(pList, 0);
   char        dbFName[TSDB_DB_FNAME_LEN] = {0};
   int32_t     flag = CTG_FLAG_UNKNOWN_STB;
   uint64_t    lastSuid = 0;
   STableMeta *lastTableMeta = NULL;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SName      *pName = taosArrayGet(pList, 0);
+  if (NULL == pName) {
+    ctgError("fail to get the 0th SName from viewList, viewNum:%d", (int32_t)taosArrayGetSize(pList));
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
 
   if (IS_SYS_DBNAME(pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(flag);
-    strcpy(dbFName, pName->dbname);
+    TAOS_STRCPY(dbFName, pName->dbname);
   } else {
-    tNameGetFullDbName(pName, dbFName);
+    (void)tNameGetFullDbName(pName, dbFName);
   }
 
   SCtgDBCache *dbCache = NULL;
   SCtgViewCache *pCache = NULL;
-  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
 
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     for (int32_t i = 0; i < tbNum; ++i) {
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaData){0});
+      CTG_ERR_RET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
+        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
 
     return TSDB_CODE_SUCCESS;
@@ -3070,12 +3690,18 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
 
   for (int32_t i = 0; i < tbNum; ++i) {
     pName = taosArrayGet(pList, i);
+    if (NULL == pName) {
+      ctgError("fail to get the %dth SName from viewList, viewNum:%d", i, (int32_t)taosArrayGetSize(pList));
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
 
     pCache = taosHashAcquire(dbCache->viewCache, pName->tname, strlen(pName->tname));
     if (NULL == pCache) {
       ctgDebug("view %s not in cache, dbFName:%s", pName->tname, dbFName);
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaRes){0});
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
       CTG_CACHE_NHIT_INC(CTG_CI_VIEW, 1);
 
       continue;
@@ -3086,8 +3712,10 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
       CTG_UNLOCK(CTG_READ, &pCache->viewLock);
       taosHashRelease(dbCache->viewCache, pCache);
       ctgDebug("view %s meta not in cache, dbFName:%s", pName->tname, dbFName);
-      ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
-      taosArrayPush(ctx->pResList, &(SMetaRes){0});
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
       CTG_CACHE_NHIT_INC(CTG_CI_VIEW, 1);
 
       continue;
@@ -3102,7 +3730,7 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    memcpy(pViewMeta, pCache->pMeta, sizeof(*pViewMeta));
+    TAOS_MEMCPY(pViewMeta, pCache->pMeta, sizeof(*pViewMeta));
     pViewMeta->querySql = tstrdup(pCache->pMeta->querySql);
     pViewMeta->user = tstrdup(pCache->pMeta->user);
     if (NULL == pViewMeta->querySql || NULL == pViewMeta->user) {
@@ -3120,7 +3748,7 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
       taosMemoryFree(pViewMeta);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
-    memcpy(pViewMeta->pSchema, pCache->pMeta->pSchema, pViewMeta->numOfCols * sizeof(SSchema));
+    TAOS_MEMCPY(pViewMeta->pSchema, pCache->pMeta->pSchema, pViewMeta->numOfCols * sizeof(SSchema));
 
     CTG_UNLOCK(CTG_READ, &pCache->viewLock);
     taosHashRelease(dbCache->viewCache, pCache);
@@ -3128,13 +3756,264 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
     ctgDebug("Got view %s meta from cache, dbFName:%s", pName->tname, dbFName);
 
     res.pRes = pViewMeta;
-    taosArrayPush(ctx->pResList, &res);
+    if (NULL == taosArrayPush(ctx->pResList, &res)) {
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
   }
+
+_return:
 
   ctgReleaseDBCache(pCtg, dbCache);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
+int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx, int32_t* fetchIdx, int32_t baseResIdx,
+                              SArray* pList) {
+  int32_t        code = 0;
+  SCtgDBCache *  dbCache = NULL;
+  SCtgTSMACache *pCache = NULL;
+  char           dbFName[TSDB_DB_FNAME_LEN] = {0};
+  int32_t        flag = CTG_FLAG_UNKNOWN_STB;
+  uint64_t       lastSuid = 0;
+  STableMeta *   pTableMeta = NULL;
+  int32_t        tbNum = taosArrayGetSize(pList);
+  SCtgTbCache *  pTbCache = NULL;
+  SName *        pName = taosArrayGet(pList, 0);
+  if (NULL == pName) {
+    ctgError("fail to get the 0th SName from tbTSMAList, num:%d", (int32_t)taosArrayGetSize(pList));
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
 
+  if (IS_SYS_DBNAME(pName->dbname)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  (void)tNameGetFullDbName(pName, dbFName);
+
+  // get db cache
+  CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &dbCache));
+  if (!dbCache) {
+    ctgDebug("DB %s not in cache", dbFName);
+    for (int32_t i = 0; i < tbNum; ++i) {
+      CTG_ERR_RET(ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TSMA_SOURCE_TB_META, NULL));
+      if (NULL == taosArrayPush(pCtx->pResList, &(SMetaData){0})) {
+        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    }
+    
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < tbNum; ++i) {
+    // get tb cache
+    pName = taosArrayGet(pList, i);
+    if (NULL == pName) {
+      ctgError("fail to get the %dth SName from tbTSMAList, num:%d", i, (int32_t)taosArrayGetSize(pList));
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+    
+    pTbCache = taosHashAcquire(dbCache->tbCache, pName->tname, strlen(pName->tname));
+    if (!pTbCache) {
+      ctgDebug("tb: %s.%s not in cache", dbFName, pName->tname);
+      CTG_ERR_JRET(ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TSMA_SOURCE_TB_META, NULL));
+      if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
+      continue;
+    }
+    
+    CTG_LOCK(CTG_READ, &pTbCache->metaLock);
+    if (!pTbCache->pMeta) {
+      CTG_UNLOCK(CTG_READ, &pTbCache->metaLock);
+      ctgDebug("tb: %s.%s not in cache", dbFName, pName->tname);
+      
+      CTG_ERR_JRET(ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TSMA_SOURCE_TB_META, NULL));
+      if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
+      taosHashRelease(dbCache->tbCache, pTbCache);
+      
+      continue;
+    }
+    uint64_t suid = pTbCache->pMeta->suid;
+    int8_t   tbType = pTbCache->pMeta->tableType;
+    CTG_UNLOCK(CTG_READ, &pTbCache->metaLock);
+    
+    taosHashRelease(dbCache->tbCache, pTbCache);
+    SName tsmaSourceTbName = *pName;
+
+    // if child table, get stable name
+    if (tbType == TSDB_CHILD_TABLE) {
+      char* stbName = taosHashAcquire(dbCache->stbCache, &suid, sizeof(uint64_t));
+      if (stbName) {
+        (void)snprintf(tsmaSourceTbName.tname, TMIN(TSDB_TABLE_NAME_LEN, strlen(stbName) + 1), "%s", stbName);
+        taosHashRelease(dbCache->stbCache, stbName);
+      } else {
+        ctgDebug("stb in db: %s, uid: %" PRId64 " not in cache", dbFName, suid);
+        
+        CTG_ERR_JRET(ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TSMA_SOURCE_TB_META, NULL));
+        if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
+          CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        }
+        
+        continue;
+      }
+    }
+
+    // get tsma cache
+    pCache = taosHashAcquire(dbCache->tsmaCache, tsmaSourceTbName.tname, strlen(tsmaSourceTbName.tname));
+    if (!pCache || !pCache->pTsmas || pCache->pTsmas->size == 0) {
+      if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
+        ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
+        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
+      continue;
+    }
+
+    CTG_LOCK(CTG_READ, &pCache->tsmaLock);
+    if (hasOutOfDateTSMACache(pCache->pTsmas)) {
+      CTG_UNLOCK(CTG_READ, &pCache->tsmaLock);
+      taosHashRelease(dbCache->tsmaCache, pCache);
+      
+      ctgDebug("tsma for tb: %s.%s not in cache", tsmaSourceTbName.tname, dbFName);
+      
+      CTG_ERR_JRET(ctgAddTSMAFetch(&pCtx->pFetches, dbIdx, i, fetchIdx, baseResIdx + i, flag, FETCH_TB_TSMA, &tsmaSourceTbName));
+      if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
+        CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      
+      CTG_CACHE_NHIT_INC(CTG_CI_TBL_TSMA, 1);
+      continue;
+    }
+
+    CTG_CACHE_HIT_INC(CTG_CI_TBL_TSMA, 1);
+
+    STableTSMAInfoRsp *pRsp = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
+    if (!pRsp) {
+      ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
+    pRsp->pTsmas = taosArrayInit(pCache->pTsmas->size, POINTER_BYTES);
+    if (!pRsp->pTsmas) {
+      ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
+      taosMemoryFreeClear(pRsp);
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
+    SMetaRes res = {0};
+    for (int32_t i = 0; i < pCache->pTsmas->size; ++i) {
+      STSMACache *pTsmaOut = NULL;
+      STSMACache *pTsmaCache = taosArrayGetP(pCache->pTsmas, i);
+      code = tCloneTbTSMAInfo(pTsmaCache, &pTsmaOut);
+      if (TSDB_CODE_SUCCESS != code) {
+        ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
+        tFreeTableTSMAInfoRsp(pRsp);
+        taosMemoryFreeClear(pRsp);
+        CTG_ERR_RET(code);
+      }
+      
+      if (NULL == taosArrayPush(pRsp->pTsmas, &pTsmaOut)) {
+        ctgReleaseTSMAToCache(pCtg, dbCache, pCache);
+        tFreeTableTSMAInfoRsp(pRsp);
+        taosMemoryFreeClear(pRsp);
+        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    }
+    res.pRes = pRsp;
+    CTG_UNLOCK(CTG_READ, &pCache->tsmaLock);
+    taosHashRelease(dbCache->tsmaCache, pCache);
+    if (NULL == taosArrayPush(pCtx->pResList, &res)) {
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
+
+_return:
+  
+  ctgReleaseDBCache(pCtg, dbCache);
+  
+  CTG_RET(code);
+}
+
+int32_t ctgGetTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, SName* pTsmaName) {
+  char         dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SCtgDBCache *pDbCache = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SMetaRes     res = {0};
+  bool         found = false;
+  STSMACache * pTsmaOut = NULL;
+
+  (void)tNameGetFullDbName(pTsmaName, dbFName);
+
+  CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &pDbCache));
+  if (!pDbCache) {
+    ctgDebug("DB %s not in cache", dbFName);
+    CTG_RET(code);
+  }
+
+  void *pIter = taosHashIterate(pDbCache->tsmaCache, NULL);
+
+  while (pIter && !found) {
+    SCtgTSMACache* pCtgCache = pIter;
+    
+    CTG_LOCK(CTG_READ, &pCtgCache->tsmaLock);
+    int32_t size = pCtgCache ?  (pCtgCache->pTsmas ? pCtgCache->pTsmas->size : 0) : 0;
+    for (int32_t i = 0; i < size; ++i) {
+      STSMACache* pCache = taosArrayGetP(pCtgCache->pTsmas, i);
+      if (NULL == pCache) {
+        ctgError("fail to the %dth tsma in pTsmas, total:%d", i, size);
+        code = TSDB_CODE_CTG_INTERNAL_ERROR;
+        break;
+      }
+      if (memcmp(pCache->name, pTsmaName->tname, TSDB_TABLE_NAME_LEN) == 0) {
+        found = true;
+        CTG_CACHE_NHIT_INC(CTG_CI_TBL_TSMA, 1);
+        code = tCloneTbTSMAInfo(pCache, &pTsmaOut);
+        break;
+      }
+    }
+    CTG_UNLOCK(CTG_READ, &pCtgCache->tsmaLock);
+
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    
+    pIter = taosHashIterate(pDbCache->tsmaCache, pIter);
+  }
+  
+  taosHashCancelIterate(pDbCache->tsmaCache, pIter);
+  
+  if (found && code == TSDB_CODE_SUCCESS) {
+    res.pRes = taosMemoryCalloc(1, sizeof(STableTSMAInfoRsp));
+    if (!res.pRes) {
+      tFreeAndClearTableTSMAInfo(pTsmaOut);
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
+    STableTSMAInfoRsp* pRsp = res.pRes;
+    pRsp->pTsmas = taosArrayInit(1, POINTER_BYTES);
+    if (!pRsp->pTsmas) {
+      tFreeAndClearTableTSMAInfo(pTsmaOut);
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    if (NULL == taosArrayPush(pRsp->pTsmas, &pTsmaOut)) {
+      tFreeAndClearTableTSMAInfo(pTsmaOut);
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
+    if (NULL == taosArrayPush(pCtx->pResList, &res)) {
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
+
+_return:
+
+  ctgReleaseDBCache(pCtg, pDbCache);
+  
+  CTG_RET(code);
+}
 

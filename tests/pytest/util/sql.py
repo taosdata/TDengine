@@ -22,7 +22,8 @@ import shutil
 import pandas as pd
 from util.log import *
 from util.constant import *
-
+import ctypes
+import random
 # from datetime import timezone
 import time
 
@@ -50,6 +51,8 @@ class TDSql:
 
     def init(self, cursor, log=True):
         self.cursor = cursor
+        self.sql = None
+        
         print(f"sqllog is :{log}")
         if (log):
             caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -78,7 +81,7 @@ class TDSql:
         self.cursor.execute(s)
         time.sleep(2)
 
-    def execute(self, sql, queryTimes=30, show=False):
+    def execute(self, sql, queryTimes=20, show=False):
         self.sql = sql
         if show:
             tdLog.info(sql)
@@ -115,13 +118,16 @@ class TDSql:
         else:
             tdLog.info("sql:%s, check passed, no ErrInfo occurred" % (sql))
 
-    def error(self, sql, expectedErrno = None, expectErrInfo = None, fullMatched = True):
+    def error(self, sql, expectedErrno = None, expectErrInfo = None, fullMatched = True, show = False):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrNotOccured = True
+        if show:
+            tdLog.info("sql:%s" % (sql))
 
         try:
             self.cursor.execute(sql)
         except BaseException as e:
+            tdLog.info("err:%s" % (e))
             expectErrNotOccured = False
             self.errno = e.errno
             error_info = repr(e)
@@ -136,7 +142,8 @@ class TDSql:
 
             if fullMatched:
                 if expectedErrno != None:
-                    if expectedErrno == self.errno:
+                    expectedErrno_rest = expectedErrno & 0x0000ffff
+                    if expectedErrno == self.errno or expectedErrno_rest == self.errno:
                         tdLog.info("sql:%s, expected errno %s occured" % (sql, expectedErrno))
                     else:
                         tdLog.exit("%s(%d) failed: sql:%s, errno '%s' occured, but not expected errno '%s'" % (caller.filename, caller.lineno, sql, self.errno, expectedErrno))
@@ -148,7 +155,8 @@ class TDSql:
                         tdLog.exit("%s(%d) failed: sql:%s, ErrInfo '%s' occured, but not expected ErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
             else:
                 if expectedErrno != None:
-                    if expectedErrno in self.errno:
+                    expectedErrno_rest = expectedErrno & 0x0000ffff
+                    if expectedErrno in self.errno or expectedErrno_rest in self.errno:
                         tdLog.info("sql:%s, expected errno %s occured" % (sql, expectedErrno))
                     else:
                         tdLog.exit("%s(%d) failed: sql:%s, errno '%s' occured, but not expected errno '%s'" % (caller.filename, caller.lineno, sql, self.errno, expectedErrno))
@@ -161,7 +169,10 @@ class TDSql:
 
             return self.error_info
 
-    def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None):
+    def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None, show = False):
+        if show:
+            tdLog.info("sql:%s" % (sql))
+
         self.sql = sql
         i=1
         while i <= queryTimes:
@@ -296,8 +307,8 @@ class TDSql:
             return col_name_list, col_type_list
         return col_name_list
 
-    def waitedQuery(self, sql, expectRows, timeout):
-        tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectRows, timeout))
+    def waitedQuery(self, sql, expectedRows, timeout):
+        tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectedRows, timeout))
         self.sql = sql
         try:
             for i in range(timeout):
@@ -305,8 +316,8 @@ class TDSql:
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
-                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectRows, self.queryRows))
-                if self.queryRows >= expectRows:
+                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectedRows, self.queryRows))
+                if self.queryRows >= expectedRows:
                     return (self.queryRows, i)
                 time.sleep(1)
         except Exception as e:
@@ -319,14 +330,25 @@ class TDSql:
     def getRows(self):
         return self.queryRows
 
-    def checkRows(self, expectRows):
-        if self.queryRows == expectRows:
-            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+    def checkRows(self, expectedRows):
+        if self.queryRows == expectedRows:
+            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectedRows))
             return True
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
+            args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectedRows)
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
+
+    def checkRows_not_exited(self, expectedRows):
+        """
+            Check if the query rows is equal to the expected rows
+            :param expectedRows: The expected number of rows.
+            :return: Returns True if the actual number of rows matches the expected number, otherwise returns False.
+            """
+        if self.queryRows == expectedRows:
+            return True
+        else:
+            return False
 
     def checkRows_range(self, excepte_row_list):
         if self.queryRows in excepte_row_list:
@@ -497,7 +519,7 @@ class TDSql:
 
 
     # return true or false replace exit, no print out
-    def checkDataNoExit(self, row, col, data):
+    def checkDataNotExit(self, row, col, data):
         if self.checkRowColNoExit(row, col) == False:
             return False
         if self.queryResult[row][col] != data:
@@ -531,7 +553,7 @@ class TDSql:
         # loop check util checkData return true
         for i in range(loopCount):
             self.query(sql)
-            if self.checkDataNoExit(row, col, data) :
+            if self.checkDataNotExit(row, col, data) :
                 self.checkData(row, col, data)
                 return
             time.sleep(waitTime)
@@ -539,6 +561,19 @@ class TDSql:
         # last check
         self.query(sql)
         self.checkData(row, col, data)
+
+    def check_rows_loop(self, expectedRows, sql, loopCount, waitTime):
+        # loop check util checkData return true
+        for i in range(loopCount):
+            self.query(sql)
+            if self.checkRows_not_exited(expectedRows):
+                return
+            else:
+                time.sleep(waitTime)
+                continue
+        # last check
+        self.query(sql)
+        self.checkRows(expectedRows)
 
 
     def getData(self, row, col):
@@ -736,5 +771,59 @@ class TDSql:
         os.makedirs( dir, 755 )
         tdLog.info("dir: %s is created" %dir)
         pass
+    
+
+
+    def get_db_vgroups(self, db_name:str = "test") -> list:
+        db_vgroups_list = []
+        tdSql.query(f"show {db_name}.vgroups")
+        for result in tdSql.queryResult:
+            db_vgroups_list.append(result[0])
+        vgroup_nums = len(db_vgroups_list)
+        tdLog.debug(f"{db_name} has {vgroup_nums} vgroups :{db_vgroups_list}")
+        tdSql.query("select * from information_schema.ins_vnodes")
+        return db_vgroups_list
+
+    def get_cluseter_dnodes(self) -> list:
+        cluset_dnodes_list = []
+        tdSql.query("show dnodes")
+        for result in tdSql.queryResult:
+            cluset_dnodes_list.append(result[0])
+        self.clust_dnode_nums = len(cluset_dnodes_list)
+        tdLog.debug(f"cluster has {len(cluset_dnodes_list)} dnodes :{cluset_dnodes_list}")
+        return cluset_dnodes_list
+    
+    def redistribute_one_vgroup(self, db_name:str = "test", replica:int = 1, vgroup_id:int = 1, useful_trans_dnodes_list:list = [] ):
+        # redisutribute vgroup {vgroup_id} dnode {dnode_id}
+        if replica == 1:
+            dnode_id = random.choice(useful_trans_dnodes_list)
+            redistribute_sql = f"redistribute vgroup {vgroup_id} dnode {dnode_id}"
+        elif replica ==3:
+            selected_dnodes = random.sample(useful_trans_dnodes_list, replica)
+            redistribute_sql_parts = [f"dnode {dnode}" for dnode in selected_dnodes]
+            redistribute_sql = f"redistribute vgroup {vgroup_id} " + " ".join(redistribute_sql_parts)
+        else:
+            raise ValueError(f"Replica count must be 1 or 3,but got {replica}")    
+        tdLog.debug(f"redistributeSql:{redistribute_sql}")
+        tdSql.query(redistribute_sql)
+        tdLog.debug("redistributeSql ok")
+
+    def redistribute_db_all_vgroups(self, db_name:str = "test", replica:int = 1):
+        db_vgroups_list = self.get_db_vgroups(db_name)
+        cluset_dnodes_list = self.get_cluseter_dnodes()
+        useful_trans_dnodes_list = cluset_dnodes_list.copy()
+        tdSql.query("select * from information_schema.ins_vnodes")
+        #result: dnode_id|vgroup_id|db_name|status|role_time|start_time|restored|
+
+        for vnode_group_id in db_vgroups_list:
+            print(tdSql.queryResult)
+            for result in tdSql.queryResult:
+                if result[2] == db_name and result[1] == vnode_group_id:
+                    tdLog.debug(f"dbname: {db_name}, vgroup :{vnode_group_id}, dnode is {result[0]}")
+                    print(useful_trans_dnodes_list)
+                    useful_trans_dnodes_list.remove(result[0])
+            tdLog.debug(f"vgroup :{vnode_group_id},redis_dnode list:{useful_trans_dnodes_list}")            
+            self.redistribute_one_vgroup(db_name, replica, vnode_group_id, useful_trans_dnodes_list)
+            useful_trans_dnodes_list = cluset_dnodes_list.copy()
 
 tdSql = TDSql()

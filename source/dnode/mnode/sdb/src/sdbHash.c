@@ -70,7 +70,11 @@ const char *sdbTableName(ESdbType type) {
       return "compact";
     case SDB_COMPACT_DETAIL:
       return "compact_detail";
-     default:
+    case SDB_GRANT:
+      return "grant";
+    case SDB_ARBGROUP:
+      return "arb_group";
+    default:
       return "undefine";
   }
 }
@@ -172,7 +176,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     if (code != 0) {
       if (terrno == 0) terrno = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       code = terrno;
-      taosHashRemove(hash, pRow->pObj, keySize);
+      (void)taosHashRemove(hash, pRow->pObj, keySize);
       sdbFreeRow(pSdb, pRow, false);
       terrno = code;
       sdbUnLock(pSdb, type);
@@ -235,10 +239,10 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow *pOldRow = *ppOldRow;
   pOldRow->status = pRaw->status;
 
-  atomic_add_fetch_32(&pOldRow->refCount, 1);
+  (void)atomic_add_fetch_32(&pOldRow->refCount, 1);
   sdbPrintOper(pSdb, pOldRow, "delete");
 
-  taosHashRemove(hash, pOldRow->pObj, keySize);
+  TAOS_CHECK_RETURN(taosHashRemove(hash, pOldRow->pObj, keySize));
   pSdb->tableVer[pOldRow->type]++;
   sdbUnLock(pSdb, type);
 
@@ -305,7 +309,7 @@ void *sdbAcquireAll(SSdb *pSdb, ESdbType type, const void *pKey, bool onlyReady)
   SSdbRow *pRow = *ppRow;
   switch (pRow->status) {
     case SDB_STATUS_READY:
-      atomic_add_fetch_32(&pRow->refCount, 1);
+      (void)atomic_add_fetch_32(&pRow->refCount, 1);
       pRet = pRow->pObj;
       sdbPrintOper(pSdb, pRow, "acquire");
       break;
@@ -323,7 +327,7 @@ void *sdbAcquireAll(SSdb *pSdb, ESdbType type, const void *pKey, bool onlyReady)
   if (pRet == NULL) {
     if (!onlyReady) {
       terrno = 0;
-      atomic_add_fetch_32(&pRow->refCount, 1);
+      (void)atomic_add_fetch_32(&pRow->refCount, 1);
       pRet = pRow->pObj;
       sdbPrintOper(pSdb, pRow, "acquire");
     }
@@ -391,7 +395,7 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
       continue;
     }
 
-    atomic_add_fetch_32(&pRow->refCount, 1);
+    (void)atomic_add_fetch_32(&pRow->refCount, 1);
     sdbPrintOper(pSdb, pRow, "fetch");
     *ppObj = pRow->pObj;
     break;
@@ -419,7 +423,7 @@ void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStat
       continue;
     }
 
-    atomic_add_fetch_32(&pRow->refCount, 1);
+    (void)atomic_add_fetch_32(&pRow->refCount, 1);
     sdbPrintOper(pSdb, pRow, "fetch");
     *ppObj = pRow->pObj;
     *status = pRow->status;
@@ -507,4 +511,16 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type) {
   }
 
   return pSdb->tableVer[type];
+}
+
+bool countValid(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  int32_t* pInt = p1;
+  (*pInt) += 1;
+  return true;
+}
+
+int32_t sdbGetValidSize(SSdb* pSdb, ESdbType type) {
+  int32_t num = 0;
+  sdbTraverse(pSdb, type, countValid, &num, 0, 0);
+  return num;
 }

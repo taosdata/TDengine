@@ -34,7 +34,7 @@ const int32_t TYPE_BYTES[21] = {
     INT_BYTES,               // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
     TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
-    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_VARBINARY: placeholder, not implemented
+    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_VARBINARY
     TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
     TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_BLOB: placeholder, not implemented
     TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_MEDIUMBLOB: placeholder, not implemented
@@ -61,11 +61,42 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt, tsDecompressInt},
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString},
-    {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString, tsDecompressString},     // placeholder, not implemented
+    {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString,
+     tsDecompressString},                                                // placeholder, not implemented
     {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
     {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
     {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString},
+};
+
+tDataTypeCompress tDataCompress[TSDB_DATA_TYPE_MAX] = {
+    {TSDB_DATA_TYPE_NULL, 6, 1, "NOTYPE", 0, 0, NULL, NULL},
+    {TSDB_DATA_TYPE_BOOL, 4, CHAR_BYTES, "BOOL", false, true, tsCompressBool2, tsDecompressBool2},
+    {TSDB_DATA_TYPE_TINYINT, 7, CHAR_BYTES, "TINYINT", INT8_MIN, INT8_MAX, tsCompressTinyint2, tsDecompressTinyint2},
+    {TSDB_DATA_TYPE_SMALLINT, 8, SHORT_BYTES, "SMALLINT", INT16_MIN, INT16_MAX, tsCompressSmallint2,
+     tsDecompressSmallint2},
+    {TSDB_DATA_TYPE_INT, 3, INT_BYTES, "INT", INT32_MIN, INT32_MAX, tsCompressInt2, tsDecompressInt2},
+    {TSDB_DATA_TYPE_BIGINT, 6, LONG_BYTES, "BIGINT", INT64_MIN, INT64_MAX, tsCompressBigint2, tsDecompressBigint2},
+    {TSDB_DATA_TYPE_FLOAT, 5, FLOAT_BYTES, "FLOAT", 0, 0, tsCompressFloat2, tsDecompressFloat2},
+    {TSDB_DATA_TYPE_DOUBLE, 6, DOUBLE_BYTES, "DOUBLE", 0, 0, tsCompressDouble2, tsDecompressDouble2},
+    {TSDB_DATA_TYPE_VARCHAR, 6, 1, "VARCHAR", 0, 0, tsCompressString2, tsDecompressString2},
+    {TSDB_DATA_TYPE_TIMESTAMP, 9, LONG_BYTES, "TIMESTAMP", INT64_MIN, INT64_MAX, tsCompressTimestamp2,
+     tsDecompressTimestamp2},
+    {TSDB_DATA_TYPE_NCHAR, 5, 1, "NCHAR", 0, 0, tsCompressString2, tsDecompressString2},
+    {TSDB_DATA_TYPE_UTINYINT, 16, CHAR_BYTES, "TINYINT UNSIGNED", 0, UINT8_MAX, tsCompressTinyint2,
+     tsDecompressTinyint2},
+    {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES, "SMALLINT UNSIGNED", 0, UINT16_MAX, tsCompressSmallint2,
+     tsDecompressSmallint2},
+    {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt2, tsDecompressInt2},
+    {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint2, tsDecompressBigint2},
+    {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString2, tsDecompressString2},
+    {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString2,
+     tsDecompressString2},                                               // placeholder, not implemented
+    {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
+    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
+    {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
+    {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString2, tsDecompressString2},
+
 };
 
 static float  floatMin = -FLT_MAX, floatMax = FLT_MAX;
@@ -144,7 +175,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       break;
     default: {
       if (len > 0) {
-        memcpy(val, src, len);
+        (void)memcpy(val, src, len);
       }
 
       break;

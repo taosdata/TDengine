@@ -32,6 +32,25 @@ extern "C" {
     (_w)->ekey = INT64_MIN; \
   } while (0);
 
+#define INIT_KEYRANGE(_k)      \
+  do {                         \
+    (_k)->skey.ts = INT64_MAX; \
+    (_k)->ekey.ts = INT64_MIN; \
+  } while (0);
+
+#define tRowGetKeyEx(_pRow, _pKey)                                         \
+  {                                                                        \
+    if ((_pRow)->type == TSDBROW_ROW_FMT) {                                \
+      (_pKey)->ts = (_pRow)->pTSRow->ts;                                   \
+      if ((_pRow)->pTSRow->numOfPKs > 0) {                                 \
+        tRowGetPrimaryKey((_pRow)->pTSRow, (_pKey));                       \
+      }                                                                    \
+    } else {                                                               \
+      (_pKey)->ts = (_pRow)->pBlockData->aTSKEY[(_pRow)->iRow];            \
+      tColRowGetPrimaryKey((_pRow)->pBlockData, (_pRow)->iRow, (_pKey));   \
+    }                                                                      \
+  }
+
 typedef enum {
   READER_STATUS_SUSPEND = 0x1,
   READER_STATUS_NORMAL = 0x2,
@@ -77,8 +96,13 @@ typedef enum ESttKeyStatus {
 
 typedef struct SSttKeyInfo {
   ESttKeyStatus status;           // this value should be updated when switch to the next fileset
-  int64_t       nextProcKey;
+  SRowKey       nextProcKey;
 } SSttKeyInfo;
+
+typedef struct SSttKeyRange {
+  SRowKey skey;
+  SRowKey ekey;
+} SSttKeyRange;
 
 // clean stt file blocks:
 // 1. not overlap with stt blocks in other stt files of the same fileset
@@ -86,24 +110,25 @@ typedef struct SSttKeyInfo {
 // 3. not overlap with in-memory data (mem/imem)
 // 4. not overlap with data file blocks
 typedef struct STableBlockScanInfo {
-  uint64_t    uid;
-  TSKEY       lastProcKey;
-  SSttKeyInfo sttKeyInfo;
-  SArray*     pBlockList;        // block data index list, SArray<SBrinRecord>
-  SArray*     pBlockIdxList;     // SArray<STableDataBlockIndx>
-  SArray*     pMemDelData;       // SArray<SDelData>
-  SArray*     pFileDelData;      // SArray<SDelData> from each file set
-  SIterInfo   iter;              // mem buffer skip list iterator
-  SIterInfo   iiter;             // imem buffer skip list iterator
-  SArray*     delSkyline;        // delete info for this table
-  int32_t     fileDelIndex;      // file block delete index
-  int32_t     sttBlockDelIndex;  // delete index for last block
-  bool        iterInit;          // whether to initialize the in-memory skip list iterator or not
-  bool        cleanSttBlocks;    // stt block is clean in current fileset
-  bool        sttBlockReturned;  // result block returned alreay
-  int64_t     numOfRowsInStt;
-  STimeWindow sttWindow;         // timestamp window for current stt files
-  STimeWindow filesetWindow;     // timestamp window for current file set
+  uint64_t     uid;
+  SRowKey      lastProcKey;
+  SSttKeyInfo  sttKeyInfo;
+  SArray*      pBlockList;        // block data index list, SArray<SBrinRecord>
+  SArray*      pBlockIdxList;     // SArray<STableDataBlockIndx>
+  SArray*      pMemDelData;       // SArray<SDelData>
+  SArray*      pFileDelData;      // SArray<SDelData> from each file set
+  SIterInfo    iter;              // mem buffer skip list iterator
+  SIterInfo    iiter;             // imem buffer skip list iterator
+  SArray*      delSkyline;        // delete info for this table
+  int32_t      fileDelIndex;      // file block delete index
+  int32_t      sttBlockDelIndex;  // delete index for last block
+  bool         iterInit;          // whether to initialize the in-memory skip list iterator or not
+  bool         cleanSttBlocks;    // stt block is clean in current fileset
+  bool         sttBlockReturned;  // result block returned alreay
+  int64_t      numOfRowsInStt;
+  SSttKeyRange sttRange;
+  //  STimeWindow sttWindow;         // timestamp window for current stt files
+  STimeWindow filesetWindow;  // timestamp window for current file set
 } STableBlockScanInfo;
 
 typedef struct SResultBlockInfo {
@@ -156,8 +181,12 @@ typedef struct SBlockLoadSuppInfo {
   SColumnDataAgg      tsColAgg;
   int16_t*            colId;
   int16_t*            slotId;
-  int32_t             numOfCols;
   char**              buildBuf;  // build string tmp buffer, todo remove it later after all string format being updated.
+  int32_t             numOfCols;
+  int32_t             numOfPks;
+  SColumnInfo         pk;
+  int32_t             pkSrcSlot;
+  int32_t             pkDstSlot;
   bool                smaValid;  // the sma on all queried columns are activated
 } SBlockLoadSuppInfo;
 
@@ -168,7 +197,8 @@ typedef struct SSttBlockReader {
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
-  int64_t            currentKey;
+  SRowKey            currentKey;
+  int32_t            numOfPks;
 } SSttBlockReader;
 
 typedef struct SFilesetIter {
@@ -181,12 +211,19 @@ typedef struct SFilesetIter {
 
 typedef struct SFileDataBlockInfo {
   // index position in STableBlockScanInfo in order to check whether neighbor block overlaps with it
-  //  int64_t suid;
   int64_t uid;
   int64_t firstKey;
-//  int64_t firstKeyVer;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } firstPk;
+
   int64_t lastKey;
-//  int64_t lastKeyVer;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } lastPk;
+
   int64_t minVer;
   int64_t maxVer;
   int64_t blockOffset;
@@ -205,13 +242,11 @@ typedef struct SDataBlockIter {
   SArray*    blockList;  // SArray<SFileDataBlockInfo>
   int32_t    order;
   SDataBlk   block;  // current SDataBlk data
-  SSHashObj* pTableMap;
 } SDataBlockIter;
 
 typedef struct SFileBlockDumpInfo {
   int32_t totalRows;
   int32_t rowIndex;
-  int64_t lastKey;
   bool    allDumped;
 } SFileBlockDumpInfo;
 
@@ -249,7 +284,6 @@ struct STsdbReader {
   TdThreadMutex      readerMutex;
   EReaderStatus      flag;
   int32_t            code;
-  uint64_t           rowsNum;
   SResultBlockInfo   resBlockInfo;
   SReaderStatus      status;
   char*              idStr;  // query info handle, for debug purpose
@@ -266,7 +300,7 @@ struct STsdbReader {
   STsdbReader*       innerReader[2];
   bool                 bFilesetDelimited;   // duration by duration output
   TsdReaderNotifyCbFn  notifyFn;
-  void*              notifyParam;
+  void*                notifyParam;
 };
 
 typedef struct SBrinRecordIter {
@@ -280,35 +314,37 @@ typedef struct SBrinRecordIter {
 } SBrinRecordIter;
 
 int32_t uidComparFunc(const void* p1, const void* p2);
+int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id);
 
-STableBlockScanInfo* getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, const char* id);
-
-SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
-                                   STableUidList* pUidList, int32_t numOfTables);
-void       clearBlockScanInfo(STableBlockScanInfo* p);
-void       destroyAllBlockScanInfo(SSHashObj* pTableMap);
-void       resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
-void       cleanupInfoForNextFileset(SSHashObj* pTableMap);
-int32_t    ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
-void       clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
-void*      getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index);
+int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
+                                STableUidList* pUidList, int32_t numOfTables, SSHashObj** pHashObj);
+int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
+                               STsdbReader* pReader);
+void    clearBlockScanInfo(STableBlockScanInfo* p);
+void    destroyAllBlockScanInfo(SSHashObj* pTableMap);
+void    resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
+void    cleanupInfoForNextFileset(SSHashObj* pTableMap);
+int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
+void    clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
+int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScanInfo** pRes);
 
 // brin records iterator
-void         initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList);
-SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter);
-void         clearBrinBlockIter(SBrinRecordIter* pIter);
+void    initBrinRecordIter(SBrinRecordIter* pIter, SDataFileReader* pReader, SArray* pList);
+int32_t getNextBrinRecord(SBrinRecordIter* pIter, SBrinRecord** pRecord);
+void    clearBrinBlockIter(SBrinRecordIter* pIter);
 
 // initialize block iterator API
 int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks, SArray* pTableList);
 bool    blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr);
 
 // load tomb data API (stt/mem only for one table each, tomb data from data files are load for all tables at one time)
-void    loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);
+int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piMemTbData, int64_t ver);
 int32_t loadDataFileTombDataForAll(STsdbReader* pReader);
 int32_t loadSttTombDataForAll(STsdbReader* pReader, SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pLoadInfo);
 int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo* pBlockLoadInfo,
                                TStatisBlkArray* pStatisBlkArray, uint64_t suid, const uint64_t* pUidList,
                                int32_t numOfTables);
+void    recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record);
 
 void    destroyLDataIter(SLDataIter* pIter);
 int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
@@ -316,6 +352,14 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
                               const char* pstr);
 bool    isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);
 bool    overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
+int32_t pkCompEx(SRowKey* p1, SRowKey* p2);
+int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
+void    clearRowKey(SRowKey* pKey);
+
+bool    shouldFreePkBuf(SBlockLoadSuppInfo* pSupp);
+int32_t resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool hasPk);
+void    clearDataBlockIterator(SDataBlockIter* pIter, bool needFree);
+void    cleanupDataBlockIterator(SDataBlockIter* pIter, bool hasPk);
 
 typedef struct {
   SArray* pTombData;
@@ -349,6 +393,8 @@ typedef struct SCacheRowsReader {
   char*                   idstr;
   int64_t                 lastTs;
   SArray*                 pFuncTypeList;
+  SRowKey                 rowKey;
+  SColumnInfo             pkColumn;
 } SCacheRowsReader;
 
 int32_t tsdbCacheGetBatch(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr, int8_t ltype);

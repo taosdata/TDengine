@@ -37,9 +37,12 @@ static SKeyword keywordTable[] = {
     {"ALTER",                TK_ALTER},
     {"ANALYZE",              TK_ANALYZE},
     {"AND",                  TK_AND},
+    {"ANTI",                 TK_ANTI},
+//    {"ANY",                  TK_ANY},
     {"APPS",                 TK_APPS},
     {"AS",                   TK_AS},
     {"ASC",                  TK_ASC},
+    {"ASOF",                 TK_ASOF},
     {"AT_ONCE",              TK_AT_ONCE},
     {"BALANCE",              TK_BALANCE},
     {"BATCH_SCAN",           TK_BATCH_SCAN},
@@ -74,6 +77,7 @@ static SKeyword keywordTable[] = {
     {"COUNT",                TK_COUNT},
     {"COUNT_WINDOW",         TK_COUNT_WINDOW},
     {"CREATE",               TK_CREATE},
+    {"CREATEDB",             TK_CREATEDB},
     {"CURRENT_USER",         TK_CURRENT_USER},
     {"DATABASE",             TK_DATABASE},
     {"DATABASES",            TK_DATABASES},
@@ -91,6 +95,9 @@ static SKeyword keywordTable[] = {
     {"DURATION",             TK_DURATION},
     {"ELSE",                 TK_ELSE},
     {"ENABLE",               TK_ENABLE},
+    {"ENCRYPTIONS",          TK_ENCRYPTIONS},
+    {"ENCRYPT_ALGORITHM",    TK_ENCRYPT_ALGORITHM},
+    {"ENCRYPT_KEY",          TK_ENCRYPT_KEY},
     {"END",                  TK_END},
     {"EXISTS",               TK_EXISTS},
     {"EXPIRED",              TK_EXPIRED},
@@ -105,6 +112,7 @@ static SKeyword keywordTable[] = {
     {"FLUSH",                TK_FLUSH},
     {"FROM",                 TK_FROM},
     {"FORCE",                TK_FORCE},
+    {"FULL",                 TK_FULL},
     {"FUNCTION",             TK_FUNCTION},
     {"FUNCTIONS",            TK_FUNCTIONS},
     {"GEOMETRY",             TK_GEOMETRY},
@@ -114,6 +122,7 @@ static SKeyword keywordTable[] = {
     {"LOGS",                 TK_LOGS},
     {"MACHINES",             TK_MACHINES},
     {"GROUP",                TK_GROUP},
+    {"HASH_JOIN",            TK_HASH_JOIN},    
     {"HAVING",               TK_HAVING},
     {"HOST",                 TK_HOST},
     {"IF",                   TK_IF},
@@ -129,14 +138,17 @@ static SKeyword keywordTable[] = {
     {"INTERVAL",             TK_INTERVAL},
     {"INTO",                 TK_INTO},
     {"IS",                   TK_IS},
+    {"JLIMIT",               TK_JLIMIT},
     {"JOIN",                 TK_JOIN},
     {"JSON",                 TK_JSON},
     {"KEEP",                 TK_KEEP},
+    {"KEY",                  TK_KEY},
     {"KILL",                 TK_KILL},
     {"LANGUAGE",             TK_LANGUAGE},
     {"LAST",                 TK_LAST},
     {"LAST_ROW",             TK_LAST_ROW},
     {"LEADER",               TK_LEADER},
+    {"LEFT",                 TK_LEFT},
     {"LICENCES",             TK_LICENCES},
     {"LIKE",                 TK_LIKE},
     {"LIMIT",                TK_LIMIT},
@@ -170,6 +182,7 @@ static SKeyword keywordTable[] = {
     {"ON",                   TK_ON},
     {"OR",                   TK_OR},
     {"ORDER",                TK_ORDER},
+    {"OUTER",                TK_OUTER},
     {"OUTPUTTYPE",           TK_OUTPUTTYPE},
     {"PAGES",                TK_PAGES},
     {"PAGESIZE",             TK_PAGESIZE},
@@ -179,6 +192,7 @@ static SKeyword keywordTable[] = {
     {"PASS",                 TK_PASS},
     {"PORT",                 TK_PORT},
     {"PPS",                  TK_PPS},
+    {"PRIMARY",              TK_PRIMARY},
     {"PRECISION",            TK_PRECISION},
     {"PREV",                 TK_PREV},
     {"PRIVILEGES",           TK_PRIVILEGES},
@@ -191,6 +205,7 @@ static SKeyword keywordTable[] = {
     {"RATIO",                TK_RATIO},
     {"PAUSE",                TK_PAUSE},
     {"READ",                 TK_READ},
+    {"RECURSIVE",            TK_RECURSIVE},
     {"REDISTRIBUTE",         TK_REDISTRIBUTE},
     {"RENAME",               TK_RENAME},
     {"REPLACE",              TK_REPLACE},
@@ -200,19 +215,23 @@ static SKeyword keywordTable[] = {
     {"RESTORE",              TK_RESTORE},
     {"RETENTIONS",           TK_RETENTIONS},
     {"REVOKE",               TK_REVOKE},
+    {"RIGHT",                TK_RIGHT},
     {"ROLLUP",               TK_ROLLUP},
     {"SCHEMALESS",           TK_SCHEMALESS},
     {"SCORES",               TK_SCORES},
     {"SELECT",               TK_SELECT},
+    {"SEMI",                 TK_SEMI},
     {"SERVER_STATUS",        TK_SERVER_STATUS},
     {"SERVER_VERSION",       TK_SERVER_VERSION},
     {"SESSION",              TK_SESSION},
     {"SET",                  TK_SET},
     {"SHOW",                 TK_SHOW},
     {"SINGLE_STABLE",        TK_SINGLE_STABLE},
+    {"SKIP_TSMA",            TK_SKIP_TSMA},
     {"SLIDING",              TK_SLIDING},
     {"SLIMIT",               TK_SLIMIT},
     {"SMA",                  TK_SMA},
+    {"SMALLDATA_TS_SORT",    TK_SMALLDATA_TS_SORT},
     {"SMALLINT",             TK_SMALLINT},
     {"SNODE",                TK_SNODE},
     {"SNODES",               TK_SNODES},
@@ -255,6 +274,8 @@ static SKeyword keywordTable[] = {
     {"TRIM",                 TK_TRIM},
     {"TSDB_PAGESIZE",        TK_TSDB_PAGESIZE},
     {"TSERIES",              TK_TSERIES},
+    {"TSMA",                 TK_TSMA},
+    {"TSMAS",                TK_TSMAS},
     {"TTL",                  TK_TTL},
     {"UNION",                TK_UNION},
     {"UNSAFE",               TK_UNSAFE},
@@ -286,7 +307,9 @@ static SKeyword keywordTable[] = {
     {"WATERMARK",            TK_WATERMARK},
     {"WHEN",                 TK_WHEN},
     {"WHERE",                TK_WHERE},
+    {"WINDOW",               TK_WINDOW},    
     {"WINDOW_CLOSE",         TK_WINDOW_CLOSE},
+    {"WINDOW_OFFSET",        TK_WINDOW_OFFSET},
     {"WITH",                 TK_WITH},
     {"WRITE",                TK_WRITE},
     {"_C0",                  TK_ROWTS},
@@ -302,7 +325,16 @@ static SKeyword keywordTable[] = {
     {"_WSTART",              TK_WSTART},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
+    {"S3_CHUNKSIZE",         TK_S3_CHUNKSIZE},
+    {"S3_KEEPLOCAL",         TK_S3_KEEPLOCAL},
+    {"S3_COMPACT",           TK_S3_COMPACT},
+    {"S3MIGRATE",            TK_S3MIGRATE},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
+    {"ENCODE",               TK_ENCODE},
+    {"COMPRESS",             TK_COMPRESS},
+    {"LEVEL",                TK_LEVEL},
+    {"ARBGROUPS",            TK_ARBGROUPS},
+    {"IS_IMPORT",            TK_IS_IMPORT},
 };
 // clang-format on
 
@@ -320,22 +352,23 @@ static const char isIdChar[] = {
 
 static void* keywordHashTable = NULL;
 
-static void doInitKeywordsTable(void) {
+static int32_t doInitKeywordsTable(void) {
   int numOfEntries = tListLen(keywordTable);
 
   keywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
     keywordTable[i].len = (uint8_t)strlen(keywordTable[i].name);
     void* ptr = &keywordTable[i];
-    taosHashPut(keywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
+    int32_t code = taosHashPut(keywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosHashCleanup(keywordHashTable);
+      return code;
+    }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
-static TdThreadOnce keywordsHashTableInit = PTHREAD_ONCE_INIT;
-
 static int32_t tKeywordCode(const char* z, int n) {
-  taosThreadOnce(&keywordsHashTableInit, doInitKeywordsTable);
-
   char key[512] = {0};
   if (n > tListLen(key)) {  // too long token, can not be any other token type
     return TK_NK_ID;
@@ -656,7 +689,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_ALIAS; // must be alias
         return i;
       }
-      if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
+      if (IS_TRUE_STR(z, i) || IS_FALSE_STR(z, i)) {
         *tokenId = TK_NK_BOOL;
         return i;
       }
@@ -749,12 +782,23 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
   if ('.' == str[*i + t0.n]) {
     len = tGetToken(&str[*i + t0.n + 1], &type);
 
-    // only id and string are valid
-    if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) || ((TK_NK_STRING != type) && (TK_NK_ID != type))) {
+    // only id、string and ? are valid
+    if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) ||
+        ((TK_NK_STRING != type) && (TK_NK_ID != type) && (TK_NK_QUESTION != type))) {
       t0.type = TK_NK_ILLEGAL;
       t0.n = 0;
 
       return t0;
+    }
+
+    // check the table name is '?', db.?asf is not valid.
+    if (TK_NK_QUESTION == type) {
+      (void)tGetToken(&str[*i + t0.n + 2], &type);
+      if (TK_NK_SPACE != type) {
+        t0.type = TK_NK_ILLEGAL;
+        t0.n = 0;
+        return t0;
+      }
     }
 
     t0.n += len + 1;
@@ -777,6 +821,10 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 }
 
 bool taosIsKeyWordToken(const char* z, int32_t len) { return (tKeywordCode((char*)z, len) != TK_NK_ID); }
+
+int32_t taosInitKeywordsTable() {
+  return doInitKeywordsTable();
+}
 
 void taosCleanupKeywordsTable() {
   void* m = keywordHashTable;

@@ -15,47 +15,32 @@
 #ifndef _TSTREAMUPDATE_H_
 #define _TSTREAMUPDATE_H_
 
+#include "storageapi.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tcommon.h"
 #include "tmsg.h"
-#include "storageapi.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SUpdateKey {
-  int64_t tbUid;
-  TSKEY   ts;
-} SUpdateKey;
-
-//typedef struct SUpdateInfo {
-//  SArray      *pTsBuckets;
-//  uint64_t     numBuckets;
-//  SArray      *pTsSBFs;
-//  uint64_t     numSBFs;
-//  int64_t      interval;
-//  int64_t      watermark;
-//  TSKEY        minTS;
-//  SScalableBf *pCloseWinSBF;
-//  SHashObj    *pMap;
-//  uint64_t     maxDataVersion;
-//} SUpdateInfo;
-
-SUpdateInfo *updateInfoInitP(SInterval *pInterval, int64_t watermark, bool igUp);
-SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, bool igUp);
-TSKEY        updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t primaryTsCol);
-bool         updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
-bool         updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid);
-void         updateInfoDestroy(SUpdateInfo *pInfo);
-void         updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo);
-void         updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo);
-int32_t      updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo);
-int32_t      updateInfoDeserialize(void *buf, int32_t bufLen, SUpdateInfo *pInfo);
-void         windowSBfDelete(SUpdateInfo *pInfo, uint64_t count);
-void         windowSBfAdd(SUpdateInfo *pInfo, uint64_t count);
-bool         isIncrementalTimeStamp(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
+int32_t updateInfoInitP(SInterval* pInterval, int64_t watermark, bool igUp, int8_t pkType, int32_t pkLen,
+                        SUpdateInfo** ppInfo);
+int32_t updateInfoInit(int64_t interval, int32_t precision, int64_t watermark, bool igUp, int8_t pkType, int32_t pkLen,
+                       SUpdateInfo** ppInfo);
+int32_t updateInfoFillBlockData(SUpdateInfo* pInfo, SSDataBlock* pBlock, int32_t primaryTsCol, int32_t primaryKeyCol,
+                                TSKEY* pMaxResTs);
+bool    updateInfoIsUpdated(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);
+bool    updateInfoIsTableInserted(SUpdateInfo* pInfo, int64_t tbUid);
+void    updateInfoDestroy(SUpdateInfo* pInfo);
+void    updateInfoAddCloseWindowSBF(SUpdateInfo* pInfo);
+void    updateInfoDestoryColseWinSBF(SUpdateInfo* pInfo);
+int32_t updateInfoSerialize(void* buf, int32_t bufLen, const SUpdateInfo* pInfo, int32_t* pLen);
+int32_t updateInfoDeserialize(void* buf, int32_t bufLen, SUpdateInfo* pInfo);
+void    windowSBfDelete(SUpdateInfo* pInfo, uint64_t count);
+int32_t windowSBfAdd(SUpdateInfo* pInfo, uint64_t count);
+bool    isIncrementalTimeStamp(SUpdateInfo* pInfo, uint64_t tableId, TSKEY ts, void* pPkVal, int32_t len);
 
 #ifdef __cplusplus
 }

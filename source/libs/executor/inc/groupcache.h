@@ -65,6 +65,7 @@ typedef struct SGcDownstreamCtx {
   SHashObj*       pSessions;  
   SHashObj*       pWaitSessions; 
   SGcFileCacheCtx fileCtx;
+  bool            fetchDone;
 } SGcDownstreamCtx;
 
 typedef struct SGcVgroupCtx {

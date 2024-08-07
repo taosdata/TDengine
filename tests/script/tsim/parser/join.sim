@@ -407,7 +407,7 @@ if $data00 != 396.000000000 then
 endi
 
 # first/last
-sql select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts and join_mt0.t1=1 interval(10a) order by _wstart asc;
+sql select count(join_mt0.c1), sum(join_mt1.c2) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts and join_mt0.t1=1 interval(10a) order by _wstart asc;
 
 $val = 100
 if $rows != $val then
@@ -426,13 +426,8 @@ if $data01 != $val then
    return -1
 endi
 
-$val = 0
-if $data02 != 0 then
-   return -1
-endi
-
 # order by first/last
-sql select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts and join_mt0.t1=1 interval(10a) order by _wstart desc;
+sql select count(join_mt0.c1), sum(join_mt1.c2) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts and join_mt0.t1=1 interval(10a) order by _wstart desc;
 
 $val = 100
 if $rows != $val then

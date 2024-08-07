@@ -23,6 +23,7 @@ extern "C" {
 #include "catalog.h"
 #include "os.h"
 #include "parser.h"
+#include "parToken.h"
 #include "query.h"
 
 #define parserFatal(param, ...) qFatal("PARSER: " param, ##__VA_ARGS__)
@@ -34,6 +35,45 @@ extern "C" {
 
 #define ROWTS_PSEUDO_COLUMN_NAME "_rowts"
 #define C0_PSEUDO_COLUMN_NAME    "_c0"
+
+#define IS_NOW_STR(s, n)                                                       \
+  ((*(s) == 'n' || *(s) == 'N') && (*((s) + 1) == 'o' || *((s) + 1) == 'O') && \
+   (*((s) + 2) == 'w' || *((s) + 2) == 'W') && (n == 3 || (n == 5 && *((s) + 3) == '(' && *((s) + 4) == ')')))
+
+#define IS_TODAY_STR(s, n)                                                                 \
+  ((*(s) == 't' || *(s) == 'T') && (*((s) + 1) == 'o' || *((s) + 1) == 'O') &&             \
+   (*((s) + 2) == 'd' || *((s) + 2) == 'D') && (*((s) + 3) == 'a' || *((s) + 3) == 'A') && \
+   (*((s) + 4) == 'y' || *((s) + 4) == 'Y') && (n == 5 || (n == 7 && *((s) + 5) == '(' && *((s) + 6) == ')')))
+
+#define IS_NULL_STR(s, n)                                                                \
+  (n == 4 && (*(s) == 'N' || *(s) == 'n') && (*((s) + 1) == 'U' || *((s) + 1) == 'u') && \
+   (*((s) + 2) == 'L' || *((s) + 2) == 'l') && (*((s) + 3) == 'L' || *((s) + 3) == 'l'))
+
+#define NEXT_TOKEN_WITH_PREV(pSql, token)           \
+  do {                                              \
+    int32_t index = 0;                              \
+    token = tStrGetToken(pSql, &index, true, NULL); \
+    pSql += index;                                  \
+  } while (0)
+
+#define NEXT_TOKEN_WITH_PREV_EXT(pSql, token, pIgnoreComma) \
+  do {                                                      \
+    int32_t index = 0;                                      \
+    token = tStrGetToken(pSql, &index, true, pIgnoreComma); \
+    pSql += index;                                          \
+  } while (0)
+
+#define NEXT_TOKEN_KEEP_SQL(pSql, token, index)      \
+  do {                                               \
+    token = tStrGetToken(pSql, &index, false, NULL); \
+  } while (0)
+
+#define NEXT_VALID_TOKEN(pSql, token)           \
+  do {                                          \
+    (token).n = tGetToken(pSql, &(token).type); \
+    (token).z = (char*)pSql;                    \
+    pSql += (token).n;                          \
+  } while (TK_NK_SPACE == (token).type)
 
 typedef struct SMsgBuf {
   int32_t len;
@@ -70,6 +110,8 @@ typedef struct SParseMetaCache {
   SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
+  SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
+  SHashObj* pTSMAs;        // key is tsmaFName, elemetns are STableTSMAInfo*
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
 } SParseMetaCache;
@@ -77,6 +119,7 @@ typedef struct SParseMetaCache {
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
 int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFormat, ...);
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
+int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr);
 
 SSchema*      getTableColumnSchema(const STableMeta* pTableMeta);
@@ -89,6 +132,10 @@ int32_t getTableTypeFromTableNode(SNode *pTable);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName);
+int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, int8_t type);
+int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
+                      SArray* pTagName, SArray* pTagVals, STag** pTag);
+int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pFoundCtbName);
 
 int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
 int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache);
@@ -104,11 +151,13 @@ int32_t reserveDbCfgInCache(int32_t acctId, const char* pDb, SParseMetaCache* pM
 int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                SParseMetaCache* pMetaCache);
 int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
-                              SParseMetaCache* pMetaCache);                               
+                              SParseMetaCache* pMetaCache);
 int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache);
 int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
+int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
+int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsmaName, SParseMetaCache* pMetaCache);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta);
@@ -123,7 +172,9 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
 int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput);
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
 void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
-SNode*  createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint);
+int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint, SNode** ppSelect);
+int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas);
+int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, STableTSMAInfo** pTsma);
 
 /**
  * @brief return a - b with overflow check

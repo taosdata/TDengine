@@ -62,6 +62,15 @@ class srvCtl:
             return clusterDnodes.getDnodesRootDir()
 
         return tdDnodes.getDnodesRootDir()
+    
+    # get taosd path
+    def taosdFile(self, idx):
+        if clusterDnodes.getModel() == 'cluster':
+            return clusterDnodes.taosdFile(idx)
+
+        return tdDnodes.taosdFile(idx)
+
+
 
     # return dnode data files list
     def dnodeDataFiles(self, idx):

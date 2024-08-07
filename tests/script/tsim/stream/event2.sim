@@ -35,7 +35,8 @@ sleep 1000
 
 sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 fill_history 1 into streamt0 as select  _wstart as s, count(*) c1,  sum(b), max(c), _wend as e from st partition by tbname event_window start with a = 0 end with b = 9;
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791253000,1,9,13,2.0);
 sql insert into t2 values(1648791253000,1,9,14,2.0);

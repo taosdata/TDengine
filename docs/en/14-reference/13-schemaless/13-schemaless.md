@@ -27,6 +27,7 @@ where:
 - `tag_set` will be used as tags, with format like `<tag_key>=<tag_value>,<tag_key>=<tag_value>` Enter a space between `tag_set` and `field_set`.
 - `field_set`will be used as data columns, with format like `<field_key>=<field_value>,<field_key>=<field_value>` Enter a space between `field_set` and `timestamp`.
 - `timestamp` is the primary key timestamp corresponding to this row of data
+- schemaless writing does not support writing data to tables with a second primary key column.
 
 All data in tag_set is automatically converted to the NCHAR data type and does not require double quotes (").
 
@@ -38,24 +39,24 @@ In the schemaless writing data line protocol, each data item in the field_set ne
 - If there are double quotes on both sides and a B/b prefix, it means VARBINARY type. Hexadecimal start with \x or string can be used in double quotes. For example `B"\x98f46e"` `B"hello"`.
 - Spaces, equals sign (=), comma (,), double quote ("), and backslash (\\) need to be escaped with a backslash (\\) in front. (All refer to the ASCII character). The rules are as follows:
 
-| **Serial number** | **Element**    | **Escape characters**   |
-| -------- | ----------- | -----------------------------       |
-| 1        | Measurement     | Comma, Space                    |
-| 2        | Tag key         | Comma, Equals Sign, Space       |
-| 3        | Tag value       | Comma, Equals Sign, Space       |
-| 4        | Field key       | Comma, Equals Sign, Space       |
-| 5        | Field value     | Double quote, Backslash         |
+| **Serial number** | **Element** | **Escape characters**     |
+| ----------------- | ----------- | ------------------------- |
+| 1                 | Measurement | Comma, Space              |
+| 2                 | Tag key     | Comma, Equals Sign, Space |
+| 3                 | Tag value   | Comma, Equals Sign, Space |
+| 4                 | Field key   | Comma, Equals Sign, Space |
+| 5                 | Field value | Double quote, Backslash   |
 
 With two contiguous backslashes, the first is interpreted as an escape character. Examples of backslash escape rules are as follows:
 
-| **Serial number**      | **Backslashes**    | **Interpreted as**            |
-| --------               | -----------        | ----------------------------- |
-| 1                      | \                  | \                             |
-| 2                      | \\\\               | \                             |
-| 3                      | \\\\\\             | \\\\                          |
-| 4                      | \\\\\\\\           | \\\\                          |
-| 5                      | \\\\\\\\\\         | \\\\\\                        |
-| 6                      | \\\\\\\\\\\\       | \\\\\\                        |
+| **Serial number** | **Backslashes** | **Interpreted as** |
+| ----------------- | --------------- | ------------------ |
+| 1                 | \               | \                  |
+| 2                 | \\\\            | \                  |
+| 3                 | \\\\\\          | \\\\               |
+| 4                 | \\\\\\\\        | \\\\               |
+| 5                 | \\\\\\\\\\      | \\\\\\             |
+| 6                 | \\\\\\\\\\\\    | \\\\\\             |
 
 - Numeric types will be distinguished from data types by the suffix.
 

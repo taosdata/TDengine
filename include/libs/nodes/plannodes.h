@@ -66,6 +66,7 @@ typedef struct SLogicNode {
   EOrder             inputTsOrder;
   EOrder             outputTsOrder;
   bool               forceCreateNonBlockingOptr;  // true if the operator can use non-blocking(pipeline) mode
+  bool               splitDone;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -108,6 +109,9 @@ typedef struct SScanLogicNode {
   int8_t        igExpired;
   int8_t        igCheckUpdate;
   SArray*       pSmaIndexes;
+  SArray*       pTsmas;
+  SArray*       pTsmaTargetTbVgInfo;
+  SArray*       pTsmaTargetTbInfo;
   SNodeList*    pGroupTags;
   bool          groupSort;
   SNodeList*    pTags;      // for create stream
@@ -122,20 +126,40 @@ typedef struct SScanLogicNode {
   bool          isCountByTag;  // true if selectstmt hasCountFunc & part by tag/tbname
   SArray*       pFuncTypes; // for last, last_row
   bool          paraTablesSort; // for table merge scan
+  bool          smallDataTsSort; // disable row id sort for table merge scan
+  bool          needSplit;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
   SLogicNode     node;
   EJoinType      joinType;
+  EJoinSubType   subType;
+  SNode*         pWindowOffset;
+  SNode*         pJLimit;
   EJoinAlgorithm joinAlgo;
+  SNode*         addPrimEqCond;
   SNode*         pPrimKeyEqCond;
   SNode*         pColEqCond;
+  SNode*         pColOnCond;
   SNode*         pTagEqCond;
   SNode*         pTagOnCond;
-  SNode*         pOtherOnCond;
+  SNode*         pFullOnCond; // except prim eq cond
+  SNodeList*     pLeftEqNodes;
+  SNodeList*     pRightEqNodes;
+  bool           allEqTags;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
   bool           isLowLevelJoin;
+  bool           seqWinGroup;
+  bool           grpJoin;
+  bool           hashJoinHint;
+  bool           batchScanHint;
+
+  // FOR HASH JOIN
+  int32_t        timeRangeTarget;  //table onCond filter
+  STimeWindow    timeRange;        //table onCond filter
+  SNode*         pLeftOnCond;      //table onCond filter
+  SNode*         pRightOnCond;     //table onCond filter
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -150,6 +174,7 @@ typedef struct SAggLogicNode {
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
   bool       hasGroup;
+  SNodeList *pTsmaSubplans;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -158,6 +183,7 @@ typedef struct SProjectLogicNode {
   char       stmtName[TSDB_TABLE_NAME_LEN];
   bool       ignoreGroupId;
   bool       inputIgnoreGroup;
+  bool       isSetOpProj;
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -233,7 +259,9 @@ typedef struct SMergeLogicNode {
   SNodeList* pMergeKeys;
   SNodeList* pInputs;
   int32_t    numOfChannels;
+  int32_t    numOfSubplans;
   int32_t    srcGroupId;
+  int32_t    srcEndGroupId;
   bool       colsMerge;
   bool       needSort;
   bool       groupSort;
@@ -286,6 +314,7 @@ typedef struct SWindowLogicNode {
   bool             isPartTb;
   int64_t          windowCount;
   int64_t          windowSliding;
+  SNodeList*       pTsmaSubplans;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -445,6 +474,7 @@ typedef struct STableScanPhysiNode {
   bool           filesetDelimited;
   bool           needCountEmptyTable;
   bool           paraTablesSort;
+  bool           smallDataTsSort;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -478,26 +508,52 @@ typedef struct SInterpFuncPhysiNode {
 } SInterpFuncPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
-  SPhysiNode node;
-  EJoinType  joinType;
-  SNode*     pPrimKeyCond;
-  SNode*     pColEqCond;
-  SNode*     pOtherOnCond;
-  SNodeList* pTargets;
+  SPhysiNode   node;
+  EJoinType    joinType;
+  EJoinSubType subType;
+  SNode*       pWindowOffset;
+  SNode*       pJLimit;
+  int32_t      asofOpType;
+  SNode*       leftPrimExpr;
+  SNode*       rightPrimExpr;
+  int32_t      leftPrimSlotId;
+  int32_t      rightPrimSlotId;
+  SNodeList*   pEqLeft;
+  SNodeList*   pEqRight;
+  SNode*       pPrimKeyCond; //remove
+  SNode*       pColEqCond;   //remove
+  SNode*       pColOnCond;
+  SNode*       pFullOnCond;
+  SNodeList*   pTargets;
+  SQueryStat   inputStat[2];  
+  bool         seqWinGroup;
+  bool         grpJoin;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SHashJoinPhysiNode {
-  SPhysiNode node;
-  EJoinType  joinType;
-  SNodeList* pOnLeft;
-  SNodeList* pOnRight;
-  SNode*     pFilterConditions;
-  SNodeList* pTargets;
-  SQueryStat inputStat[2];
+  SPhysiNode   node;
+  EJoinType    joinType;
+  EJoinSubType subType;
+  SNode*       pWindowOffset;
+  SNode*       pJLimit;  
+  SNodeList*   pOnLeft;
+  SNodeList*   pOnRight;
+  SNode*       leftPrimExpr;
+  SNode*       rightPrimExpr;
+  int32_t      leftPrimSlotId;
+  int32_t      rightPrimSlotId;
+  int32_t      timeRangeTarget; //table onCond filter
+  STimeWindow  timeRange;       //table onCond filter
+  SNode*       pLeftOnCond;     //table onCond filter
+  SNode*       pRightOnCond;    //table onCond filter
+  SNode*       pFullOnCond;     //preFilter
+  SNodeList*   pTargets;
+  SQueryStat   inputStat[2];
 
-  SNode*     pPrimKeyCond;
-  SNode*     pColEqCond;
-  SNode*     pTagEqCond;  
+  // only in planner internal
+  SNode*       pPrimKeyCond;
+  SNode*       pColEqCond;
+  SNode*       pTagEqCond;  
 } SHashJoinPhysiNode;
 
 typedef struct SGroupCachePhysiNode {
@@ -531,6 +587,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pAggFuncs;
   bool       mergeDataBlock;
   bool       groupKeyOptimized;
+  bool       hasCountLikeFunc;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {
@@ -560,7 +617,9 @@ typedef struct SMergePhysiNode {
   SNodeList* pMergeKeys;
   SNodeList* pTargets;
   int32_t    numOfChannels;
+  int32_t    numOfSubplans;
   int32_t    srcGroupId;
+  int32_t    srcEndGroupId;
   bool       groupSort;
   bool       ignoreGroupId;
   bool       inputWithGroupId;
@@ -576,6 +635,7 @@ typedef struct SWindowPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
+  int8_t     destHasPrimayKey;
   bool       mergeDataBlock;
 } SWindowPhysiNode;
 

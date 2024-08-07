@@ -56,7 +56,7 @@ static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static void    shellGetGrantInfo();
+static bool    shellGetGrantInfo(char* buf);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -730,6 +730,10 @@ bool shellIsShowWhole(const char *sql) {
   if (taosStrCaseStr(sql, "show ") != NULL) {
     return true;
   }
+  // explain
+  if (taosStrCaseStr(sql, "explain ") != NULL) {
+    return true;
+  }
 
   return false;
 }
@@ -1114,7 +1118,7 @@ void shellSourceFile(const char *file) {
   }
 
   char *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
-  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
+  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
     if ( cmd_len + read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
       printf("read command line too long over 1M, ignore this line. cmd_len = %d read_len=%d \n", (int32_t)cmd_len, read_len);
       cmd_len = 0;
@@ -1150,8 +1154,9 @@ void shellSourceFile(const char *file) {
   taosCloseFile(&pFile);
 }
 
-void shellGetGrantInfo() {
-  char sinfo[1024] = {0};
+bool shellGetGrantInfo(char* buf) {
+  bool community = true;
+  char sinfo[256] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
   strtok(sinfo, "\r\n");
 
@@ -1165,7 +1170,8 @@ void shellGetGrantInfo() {
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
-    return;
+    taos_free_result(tres);
+    return community;
   }
 
   int32_t num_fields = taos_field_count(tres);
@@ -1184,21 +1190,22 @@ void shellGetGrantInfo() {
       fprintf(stderr, "\r\nFailed to get grant information from server. Abort.\r\n");
       exit(0);
     }
-
-    char serverVersion[32] = {0};
+    char serverVersion[64] = {0};
     char expiretime[32] = {0};
     char expired[32] = {0};
 
-    memcpy(serverVersion, row[0], fields[0].bytes);
+    tstrncpy(serverVersion, row[0], 64);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
 
     if (strcmp(serverVersion, "community") == 0) {
-      fprintf(stdout, "Server is Community Edition.\r\n");
+      community = true;
     } else if (strcmp(expiretime, "unlimited") == 0) {
-      fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\r\n", serverVersion, sinfo);
+      community = false;
+      sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
-      fprintf(stdout, "Server is Enterprise %s Edition, %s and will expire at %s.\r\n", serverVersion, sinfo,
+      community = false;
+      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo,
               expiretime);
     }
 
@@ -1206,6 +1213,7 @@ void shellGetGrantInfo() {
   }
 
   fprintf(stdout, "\r\n");
+  return community;
 }
 
 #ifdef WINDOWS
@@ -1364,10 +1372,23 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
+char* buf = taosMemoryMalloc(512);
+bool community = shellGetGrantInfo(buf);
 #ifndef WINDOWS
-    printfIntroduction();
+    printfIntroduction(community);
+#else
+#ifndef WEBSOCKET
+  if(community) {
+    showAD(false);
+  }
+#endif  
 #endif
-    shellGetGrantInfo();
+// printf version
+if(!community) {
+  printf("%s\n", buf);
+}
+taosMemoryFree(buf);
+
 #ifdef WEBSOCKET
   }
 #endif
@@ -1380,6 +1401,13 @@ int32_t shellExecute() {
       break;
     }
   }
+#ifndef WEBSOCKET
+  // commnuity
+  if (community) {
+    showAD(true);
+  }
+#endif  
+
   taosThreadJoin(spid, NULL);
 
   shellCleanupHistory();

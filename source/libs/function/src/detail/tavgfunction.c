@@ -354,14 +354,17 @@ bool getAvgFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-bool avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
-  if (!functionSetup(pCtx, pResultInfo)) {
-    return false;
+int32_t avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
   }
 
   SAvgRes* pRes = GET_ROWCELL_INTERBUF(pResultInfo);
-  memset(pRes, 0, sizeof(SAvgRes));
-  return true;
+  (void)memset(pRes, 0, sizeof(SAvgRes));
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t calculateAvgBySMAInfo(SAvgRes* pRes, int32_t numOfRows, int32_t type, const SColumnDataAgg* pAgg) {
@@ -565,7 +568,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
     numOfElem = pInput->numOfRows;
     pAvgRes->count += pInput->numOfRows;
 
-    bool simdAvailable = tsAVXEnable && tsSIMDEnable && (numOfRows > THRESHOLD_SIZE);
+    bool simdAvailable = tsAVXSupported && tsSIMDEnable && (numOfRows > THRESHOLD_SIZE);
 
     switch(type) {
       case TSDB_DATA_TYPE_UTINYINT:
@@ -705,6 +708,12 @@ static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
 int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (IS_NULL_TYPE(pCol->info.type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
     return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
@@ -714,6 +723,7 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
   int32_t start = pInput->startRowIndex;
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    if(colDataIsNull_s(pCol, i)) continue;
     char*    data = colDataGetData(pCol, i);
     SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
     avgTransferInfo(pInputInfo, pInfo);
@@ -842,15 +852,23 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SAvgRes*             pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   int32_t              resultBytes = getAvgInfoSize();
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
-
-  memcpy(varDataVal(res), pInfo, resultBytes);
+  int32_t              code = TSDB_CODE_SUCCESS;
+  if (NULL == res) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (void)memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);
 
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if(NULL == pCol) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    goto _exit;
+  }
 
-  colDataSetVal(pCol, pBlock->info.rows, res, false);
+  code = colDataSetVal(pCol, pBlock->info.rows, res, false);
 
+_exit:
   taosMemoryFree(res);
-  return pResInfo->numOfRes;
+  return code;
 }

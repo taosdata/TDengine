@@ -16,14 +16,15 @@ ENDIF ()
 IF (TD_STORAGE)
   ADD_DEFINITIONS(-D_STORAGE)
   TARGET_LINK_LIBRARIES(common PRIVATE storage)
+ENDIF ()
 
+IF (TD_ENTERPRISE)
   IF(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
   ELSEIF(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
   ENDIF()
-
-ENDIF ()
+ENDIF()
 
 target_include_directories(
     common

@@ -498,7 +498,7 @@ class TDTestCase:
         #     "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
         # }
         # self.checkmavg(**err44)         # stb join
-        tdSql.query(f"select mavg( stb1.c1 , 1 )  from {dbname}.stb1 stb1, {dbname}.stb2 stb2 where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts;")
+        tdSql.error(f"select mavg( stb1.c1 , 1 )  from {dbname}.stb1 stb1, {dbname}.stb2 stb2 where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts;")
         err45 = {
             "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         }

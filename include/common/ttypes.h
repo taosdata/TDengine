@@ -46,7 +46,7 @@ typedef struct {
 #pragma pack(pop)
 
 #define varDataTLen(v)         (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataCopy(dst, v)    memcpy((dst), (void *)(v), varDataTLen(v))
+#define varDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), varDataTLen(v))
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
 
@@ -268,9 +268,11 @@ typedef struct {
 #define IS_MATHABLE_TYPE(_t) \
   (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
-#define IS_VAR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
-#define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
+#define IS_VAR_DATA_TYPE(t)                                                                                 \
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
+   ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
+#define IS_STR_DATA_TYPE(t) \
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)
@@ -340,13 +342,28 @@ typedef struct tDataTypeDescriptor {
                         int32_t nBuf);
 } tDataTypeDescriptor;
 
+typedef struct tDataTypeCompress {
+  int16_t type;
+  int16_t nameLen;
+  int32_t bytes;
+  char   *name;
+  int64_t minValue;
+  int64_t maxValue;
+  int32_t (*compFunc)(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                      int32_t nBuf);
+  int32_t (*decompFunc)(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg, void *pBuf,
+                        int32_t nBuf);
+} tDataTypeCompress;
+
 extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];
-bool                       isValidDataType(int32_t type);
+extern tDataTypeCompress   tDataCompress[TSDB_DATA_TYPE_MAX];
+
+bool isValidDataType(int32_t type);
 
 int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
-void  assignVal(char *val, const char *src, int32_t len, int32_t type);
-void *getDataMin(int32_t type, void* value);
-void *getDataMax(int32_t type, void* value);
+void    assignVal(char *val, const char *src, int32_t len, int32_t type);
+void   *getDataMin(int32_t type, void *value);
+void   *getDataMax(int32_t type, void *value);
 
 #ifdef __cplusplus
 }

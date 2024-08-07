@@ -1,5 +1,5 @@
 ---
-title: TDinsight - Grafana-based Zero-Dependency Monitoring Solution for TDengine
+title: TDinsight
 sidebar_label: TDinsight
 description: This document describes TDinsight, a monitoring solution for TDengine.
 ---

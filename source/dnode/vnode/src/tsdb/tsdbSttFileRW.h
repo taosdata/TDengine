@@ -54,10 +54,10 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
 int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *delBlk, STombBlock *dData);
 
 struct SSttFileReaderConfig {
-  STsdb    *tsdb;
-  int32_t   szPage;
-  STFile    file[1];
-  uint8_t **bufArr;
+  STsdb   *tsdb;
+  int32_t  szPage;
+  STFile   file[1];
+  SBuffer *buffers;
 };
 
 // SSttFileWriter ==========================================
@@ -71,8 +71,10 @@ int32_t tsdbSttFileWriteBlockData(SSttFileWriter *writer, SBlockData *pBlockData
 int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *record);
 bool    tsdbSttFileWriterIsOpened(SSttFileWriter *writer);
 
-int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize);
-int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize);
+int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize, 
+                            int32_t encryptAlgorithm, char* encryptKey);
+int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm, 
+                                char* encryptKey);
 
 struct SSttFileWriterConfig {
   STsdb    *tsdb;
@@ -86,7 +88,7 @@ struct SSttFileWriterConfig {
   int32_t   level;
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
-  uint8_t **bufArr;
+  SBuffer  *buffers;
 };
 
 #ifdef __cplusplus

@@ -40,6 +40,7 @@
 //
 
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  int32_t                 code = 0;
   SyncAppendEntriesReply* pMsg = (SyncAppendEntriesReply*)pRpcMsg->pCont;
   int32_t ret = 0;
 
@@ -55,11 +56,11 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     return 0;
   }
 
-  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+  if (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     if (pMsg->term > raftStoreGetTerm(ths)) {
       syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
       syncNodeStepDown(ths, pMsg->term);
-      return -1;
+      return TSDB_CODE_SYN_WRONG_TERM;
     }
 
     ASSERT(pMsg->term == raftStoreGetTerm(ths));
@@ -76,16 +77,24 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       // commit if needed
       SyncIndex indexLikely = TMIN(pMsg->matchIndex, ths->pLogBuf->matchIndex);
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
-      (void)syncLogBufferCommit(ths->pLogBuf, ths, commitIndex);
+      if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+        if (commitIndex >= ths->assignedCommitIndex) {
+          syncNodeStepDown(ths, pMsg->term);
+        }
+      } else {
+        TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex));
+      }
     }
 
     // replicate log
     SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
     if (pMgr == NULL) {
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
       sError("vgId:%d, failed to get log repl mgr for src addr: 0x%016" PRIx64, ths->vgId, pMsg->srcId.addr);
-      return -1;
+      TAOS_RETURN(code);
     }
-    (void)syncLogReplProcessReply(pMgr, ths, pMsg);
+    TAOS_CHECK_RETURN(syncLogReplProcessReply(pMgr, ths, pMsg));
   }
-  return 0;
+  TAOS_RETURN(code);
 }

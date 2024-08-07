@@ -25,20 +25,24 @@
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols); \
     src = (display);                                   \
     STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);          \
-    colDataSetVal(pColInfo, numOfRows, tmp, false);    \
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);    \
   } while (0)
 
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   int32_t cols = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
   char    tmp[32];
 
   if (pShow->numOfRows < 1) {
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    const char      *src = "community";
+    const char      *src = TD_PRODUCT_NAME;
     STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
-    colDataSetVal(pColInfo, numOfRows, tmp, false);
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
 
     GRANT_ITEM_SHOW("unlimited");
     GRANT_ITEM_SHOW("limited");
@@ -52,12 +56,18 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   }
 
   pShow->numOfRows += numOfRows;
+_exit:
+  if (code != 0) {
+    mError("failed to retrieve grant at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   return numOfRows;
 }
 
 static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
 static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
 static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
+static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) { return 0; }
 
 static int32_t mndProcessGrantHB(SRpcMsg *pReq) { return TSDB_CODE_SUCCESS; }
 
@@ -66,6 +76,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_FULL, mndRetrieveGrantFull);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS_LOGS, mndRetrieveGrantLogs);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MACHINES, mndRetrieveMachines);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPTIONS, mndRetrieveEncryptions);
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
   return 0;
 }
@@ -75,7 +86,11 @@ void    grantParseParameter() { mError("can't parsed parameter k"); }
 void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
-char   *tGetMachineId() { return NULL; };
+int64_t grantRemain(EGrantType grant) { return 0; }
+int32_t tGetMachineId(char **result) {
+  *result = NULL;
+  return 0;
+}
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) { return 0; }

@@ -59,7 +59,7 @@ TEST(testCase, checkpointUpload_Test) {
 
 TEST(testCase, checkpointDownload_Test) {
   char* id = "2013892036";
-  // downloadCheckpoint(id, "/root/offset/download/");
+  // streamTaskDownloadCheckpointData(id, "/root/offset/download/");
 }
 
 TEST(testCase, checkpointDelete_Test) {

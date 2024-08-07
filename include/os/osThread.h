@@ -222,6 +222,7 @@ int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const 
 int32_t taosThreadCondAttrDestroy(TdThreadCondAttr *attr);
 int32_t taosThreadCondAttrGetPshared(const TdThreadCondAttr *attr, int32_t *pshared);
 int32_t taosThreadCondAttrInit(TdThreadCondAttr *attr);
+int32_t taosThreadCondAttrSetclock(TdThreadCondAttr *attr, int clockId);
 int32_t taosThreadCondAttrSetPshared(TdThreadCondAttr *attr, int32_t pshared);
 int32_t taosThreadDetach(TdThread thread);
 int32_t taosThreadEqual(TdThread t1, TdThread t2);

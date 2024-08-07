@@ -104,17 +104,19 @@ typedef struct SNodeAllocator SNodeAllocator;
 int32_t nodesInitAllocatorSet();
 void    nodesDestroyAllocatorSet();
 int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAllocatorId);
+int32_t nodesSimAcquireAllocator(int64_t allocatorId);
+int32_t nodesSimReleaseAllocator(int64_t allocatorId);
 int32_t nodesAcquireAllocator(int64_t allocatorId);
 int32_t nodesReleaseAllocator(int64_t allocatorId);
 int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId);
 int64_t nodesReleaseAllocatorWeakRef(int64_t allocatorId);
 void    nodesDestroyAllocator(int64_t allocatorId);
 
-SNode* nodesMakeNode(ENodeType type);
+int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut);
 void   nodesDestroyNode(SNode* pNode);
 void   nodesFree(void* p);
 
-SNodeList* nodesMakeList();
+int32_t    nodesMakeList(SNodeList** ppListOut);
 int32_t    nodesListAppend(SNodeList* pList, SNode* pNode);
 int32_t    nodesListStrictAppend(SNodeList* pList, SNode* pNode);
 int32_t    nodesListMakeAppend(SNodeList** pList, SNode* pNode);
@@ -123,6 +125,7 @@ int32_t    nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t    nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t    nodesListMakeStrictAppendList(SNodeList** pTarget, SNodeList* pSrc);
 int32_t    nodesListPushFront(SNodeList* pList, SNode* pNode);
+int32_t    nodesListMakePushFront(SNodeList** pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 void       nodesListInsertListAfterPos(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
@@ -153,8 +156,8 @@ bool nodeListNodeEqual(const SNodeList* a, const SNode* b);
 
 bool nodesMatchNode(const SNode* pSub, const SNode* pNode);
 
-SNode*     nodesCloneNode(const SNode* pNode);
-SNodeList* nodesCloneList(const SNodeList* pList);
+int32_t nodesCloneNode(const SNode* pNode, SNode** ppNodeOut);
+int32_t nodesCloneList(const SNodeList* pList, SNodeList** ppList);
 
 const char* nodesNodeName(ENodeType type);
 int32_t     nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen);
@@ -169,6 +172,7 @@ int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
 char*   nodesGetNameFromColumnNode(SNode* pNode);
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
+void    nodesSortList(SNodeList** pList, int32_t (*)(SNode* pNode1, SNode* pNode2));
 
 #ifdef __cplusplus
 }

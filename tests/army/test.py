@@ -114,7 +114,7 @@ if __name__ == "__main__":
     level = 1
     disk  = 1
 
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWU:n:i:aP:L:D:', [
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWU:n:i:aPL:D:', [
         'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums',
         'queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode',"asan",'previous','level','disk'])
     for key, value in opts:
@@ -657,8 +657,10 @@ if __name__ == "__main__":
                 conn = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath())
 
             if fileName == "all":
+                tdLog.info("Procedures for testing runAllLinux")
                 tdCases.runAllLinux(conn)
             else:
+                tdLog.info(f"Procedures for testing runOneLinux {fileName}")
                 tdCases.runOneLinux(conn, fileName, replicaVar)
 
         # do restart option

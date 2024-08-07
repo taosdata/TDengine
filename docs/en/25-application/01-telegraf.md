@@ -1,5 +1,5 @@
 ---
-title: Quickly Build IT DevOps Visualization System with TDengine + Telegraf + Grafana
+title: IT Visualization with TDengine + Telegraf + Grafana
 sidebar_label: TDengine + Telegraf + Grafana
 description: This document describes how to create an IT visualization system by integrating TDengine with Telegraf and Grafana.
 ---

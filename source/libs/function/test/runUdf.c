@@ -9,17 +9,20 @@
 #include "tglobal.h"
 #include "tudf.h"
 
+#define TAOSFPRINTF(stream, format, ...) ((void)fprintf(stream, format, ##__VA_ARGS__))
+#define TAOSPRINTF(format, ...) ((void)printf(format, ##__VA_ARGS__))
+
 static int32_t parseArgs(int32_t argc, char *argv[]) {
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
-          printf("config file path overflow");
+          TAOSPRINTF("config file path overflow");
           return -1;
         }
         tstrncpy(configDir, argv[i], PATH_MAX);
       } else {
-        printf("'-c' requires a parameter, default is %s\n", configDir);
+        TAOSPRINTF("'-c' requires a parameter, default is %s\n", configDir);
         return -1;
       }
     }
@@ -35,6 +38,7 @@ static int32_t initLog() {
 }
 
 int scalarFuncTest() {
+  int32_t ret = 0;
   UdfcFuncHandle handle;
 
   if (doSetupUdf("udf1", &handle) != 0) {
@@ -47,10 +51,18 @@ int scalarFuncTest() {
     SSDataBlock *pBlock = &block;
     for (int32_t i = 0; i < 1; ++i) {
       SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
-      blockDataAppendColInfo(pBlock, &colInfo);
+      ret =  blockDataAppendColInfo(pBlock, &colInfo);
+      if (ret != 0) {
+        fnError("failed to append column info");
+        return -1;
+      }
     }
 
-    blockDataEnsureCapacity(pBlock, 1024);
+    ret = blockDataEnsureCapacity(pBlock, 1024);
+    if (ret != 0) {
+      fnError("failed to ensure capacity");
+      return -1;
+    }
     pBlock->info.rows = 1024;
 
     SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, 0);
@@ -63,41 +75,69 @@ int scalarFuncTest() {
     input.columnData = taosArrayGet(pBlock->pDataBlock, 0);
 
     SScalarParam output = {0};
-    doCallUdfScalarFunc(handle, &input, 1, &output);
+    ret =  doCallUdfScalarFunc(handle, &input, 1, &output);
+    if (ret != 0) {
+      fnError("failed to call udf scalar function");
+      return -1;
+    }
     taosArrayDestroy(pBlock->pDataBlock);
 
     SColumnInfoData *col = output.columnData;
     for (int32_t i = 0; i < output.numOfRows; ++i) {
-      if (i % 100 == 0) fprintf(stderr, "%d\t%d\n", i, *(int32_t *)(col->pData + i * sizeof(int32_t)));
+      if (i % 100 == 0) TAOSFPRINTF(stderr, "%d\t%d\n", i, *(int32_t *)(col->pData + i * sizeof(int32_t)));
     }
     colDataDestroy(output.columnData);
     taosMemoryFree(output.columnData);
   }
   int64_t end = taosGetTimestampUs();
-  fprintf(stderr, "time: %f\n", (end - beg) / 1000.0);
-  doTeardownUdf(handle);
+  TAOSFPRINTF(stderr, "time: %f\n", (end - beg) / 1000.0);
+  ret = doTeardownUdf(handle);
+  if (ret != 0) {
+    fnError("failed to teardown udf");
+    return -1;
+  }
 
   return 0;
 }
 
 int aggregateFuncTest() {
+  int32_t ret = 0;
   UdfcFuncHandle handle;
 
-  if (doSetupUdf("udf2", &handle) != 0) {
-    fnError("setup udf failure");
+  ret = doSetupUdf("udf2", &handle);
+  if (ret != 0) {
+    fnError("setup udf failure, code:%d", ret);
     return -1;
   }
 
-  SSDataBlock *pBlock = createDataBlock();
-  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
-    SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
-    blockDataAppendColInfo(pBlock, &colInfo);
+  SSDataBlock *pBlock = NULL;
+  int32_t code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
   }
 
-  blockDataEnsureCapacity(pBlock, 1024);
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
+    SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+    ret = blockDataAppendColInfo(pBlock, &colInfo);
+    if(ret != 0) {
+      fnError( "failed to append column info. code:%d", ret);
+      return -1;
+    } 
+  }
+
+  ret = blockDataEnsureCapacity(pBlock, 1024);
+  if (ret != 0) {
+    fnError( "failed to ensure capacity. code:%d", ret);
+    return -1;
+  }
   pBlock->info.rows = 1024;
 
-  SColumnInfoData *pColInfo = bdGetColumnInfoData(pBlock, 0);
+  SColumnInfoData *pColInfo = NULL;
+  code = bdGetColumnInfoData(pBlock, 0, &pColInfo);
+  if (code) {
+    return code;
+  }
+
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     colDataSetInt32(pColInfo, j, &j);
   }
@@ -105,37 +145,77 @@ int aggregateFuncTest() {
   SUdfInterBuf buf = {0};
   SUdfInterBuf newBuf = {0};
   SUdfInterBuf resultBuf = {0};
-  doCallUdfAggInit(handle, &buf);
-  doCallUdfAggProcess(handle, pBlock, &buf, &newBuf);
+  ret  =  doCallUdfAggInit(handle, &buf);
+  if (ret != 0) {
+    fnError("failed to init udf. code:%d", ret);
+    return -1;
+  }
+  ret = doCallUdfAggProcess(handle, pBlock, &buf, &newBuf);
+  if (ret != 0) {
+    fnError("failed to process udf. code:%d", ret);
+    return -1;
+  }
   taosArrayDestroy(pBlock->pDataBlock);
 
-  doCallUdfAggFinalize(handle, &newBuf, &resultBuf);
+  ret = doCallUdfAggFinalize(handle, &newBuf, &resultBuf);
+  if (ret != 0) {
+    TAOSFPRINTF(stderr,"failed to finalize udf. code:%d", ret);
+    return -1;
+  }
   if (resultBuf.buf != NULL) {
-    fprintf(stderr, "agg result: %f\n", *(double *)resultBuf.buf);
+    TAOSFPRINTF(stderr, "agg result: %f\n", *(double *)resultBuf.buf);
   } else {
-    fprintf(stderr, "result buffer is null");
+    fnError("result buffer is null");
   }
   freeUdfInterBuf(&buf);
   freeUdfInterBuf(&newBuf);
   freeUdfInterBuf(&resultBuf);
-  doTeardownUdf(handle);
+  ret = doTeardownUdf(handle);
+  if (ret != 0) {
+    fnError("failed to teardown udf. code:%d", ret);
+    return -1;
+  }
 
   blockDataDestroy(pBlock);
   return 0;
 }
 
 int main(int argc, char *argv[]) {
-  parseArgs(argc, argv);
-  initLog();
+  int32_t ret = 0;
+  ret = parseArgs(argc, argv);
+  if (ret != 0) {
+    fnError("failed to parse args");
+    return -1;
+  }
+  ret = initLog();
+  if (ret != 0) {
+    fnError("failed to init log");
+    return -1;
+  }
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
     fnError("failed to start since read config error");
     return -1;
   }
 
-  udfcOpen();
+  if (udfcOpen() != 0) {
+    fnError("failed to open udfc");
+    return -1;
+  }
   uv_sleep(1000);
 
-  scalarFuncTest();
-  aggregateFuncTest();
-  udfcClose();
+  ret = scalarFuncTest();
+  if (ret != 0) {
+    fnError("failed to run scalar function test");
+    return -1;
+  }
+  ret =  aggregateFuncTest();
+  if (ret != 0) {
+    fnError("failed to run aggregate function test");
+    return -1;
+  } 
+  ret = udfcClose();
+  if (ret != 0) {
+    fnError("failed to close udfc");
+    return -1;
+  }
 }

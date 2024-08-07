@@ -26,7 +26,7 @@
 #define TRANS_VER1_NUMBER  1
 #define TRANS_VER2_NUMBER  2
 #define TRANS_ARRAY_SIZE   8
-#define TRANS_RESERVE_SIZE 48
+#define TRANS_RESERVE_SIZE 44
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
@@ -105,6 +105,8 @@ static int32_t mndTransGetActionsSize(SArray *pArray) {
 }
 
 static int32_t mndTransEncodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionsNum) {
+  int32_t code = 0;
+  int32_t lino = 0;
   int32_t dataPos = *offset;
   int8_t  unused = 0;
   int32_t ret = -1;
@@ -142,6 +144,8 @@ _OVER:
 }
 
 SSdbRaw *mndTransEncode(STrans *pTrans) {
+  int32_t code = 0;
+  int32_t lino = 0;
   terrno = TSDB_CODE_INVALID_MSG;
   int8_t sver = taosArrayGetSize(pTrans->prepareActions) ? TRANS_VER2_NUMBER : TRANS_VER1_NUMBER;
 
@@ -169,7 +173,7 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->stbname, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pTrans->redoActionPos, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pTrans->actionPos, _OVER)
 
   int32_t prepareActionNum = taosArrayGetSize(pTrans->prepareActions);
   int32_t redoActionNum = taosArrayGetSize(pTrans->redoActions);
@@ -196,10 +200,21 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
   }
 
   SDB_SET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER)
+
+  int32_t arbGroupNum = taosHashGetSize(pTrans->arbGroupIds);
+  SDB_SET_INT32(pRaw, dataPos, arbGroupNum, _OVER)
+  void *pIter = NULL;
+  pIter = taosHashIterate(pTrans->arbGroupIds, NULL);
+  while (pIter) {
+    int32_t arbGroupId = *(int32_t *)pIter;
+    SDB_SET_INT32(pRaw, dataPos, arbGroupId, _OVER)
+    pIter = taosHashIterate(pTrans->arbGroupIds, pIter);
+  }
+
   SDB_SET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
-  terrno = 0;
+      terrno = 0;
 
 _OVER:
   if (terrno != 0) {
@@ -214,6 +229,8 @@ _OVER:
 }
 
 static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pActions, int32_t actionNum) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
   STransAction action = {0};
   int32_t      dataPos = *offset;
   int8_t       unused = 0;
@@ -268,7 +285,8 @@ _OVER:
 
 SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_INVALID_MSG;
-
+  int32_t code = 0;
+  int32_t lino = 0;
   SSdbRow *pRow = NULL;
   STrans  *pTrans = NULL;
   char    *pData = NULL;
@@ -279,6 +297,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   int32_t  undoActionNum = 0;
   int32_t  commitActionNum = 0;
   int32_t  dataPos = 0;
+  int32_t  arbgroupIdNum = 0;
 
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
@@ -317,7 +336,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->stbname, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pTrans->redoActionPos, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pTrans->actionPos, _OVER)
 
   if (sver > TRANS_VER1_NUMBER) {
     SDB_GET_INT32(pRaw, dataPos, &prepareActionNum, _OVER)
@@ -350,6 +369,16 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   }
 
   SDB_GET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER);
+
+  pTrans->arbGroupIds = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+
+  SDB_GET_INT32(pRaw, dataPos, &arbgroupIdNum, _OVER)
+  for (int32_t i = 0; i < arbgroupIdNum; ++i) {
+    int32_t arbGroupId = 0;
+    SDB_GET_INT32(pRaw, dataPos, &arbGroupId, _OVER)
+    if ((terrno = taosHashPut(pTrans->arbGroupIds, &arbGroupId, sizeof(int32_t), NULL, 0)) != 0) goto _OVER;
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -432,7 +461,7 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans,
         mndTransStr(pTrans->stage), pTrans->startFunc);
 
-  taosThreadMutexInit(&pTrans->mutex, NULL);
+  (void)taosThreadMutexInit(&pTrans->mutex, NULL);
 
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
@@ -461,6 +490,9 @@ void mndTransDropData(STrans *pTrans) {
   if (pTrans->commitActions != NULL) {
     mndTransDropActions(pTrans->commitActions);
     pTrans->commitActions = NULL;
+  }
+  if (pTrans->arbGroupIds != NULL) {
+    taosHashCleanup(pTrans->arbGroupIds);
   }
   if (pTrans->pRpcArray != NULL) {
     taosArrayDestroy(pTrans->pRpcArray);
@@ -516,8 +548,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
            pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
            pNew->createdTime);
     // only occured while sync timeout
-    terrno = TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_MND_TRANS_SYNC_TIMEOUT);
   }
 
   mndTransUpdateActions(pOld->prepareActions, pNew->prepareActions);
@@ -525,7 +556,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   mndTransUpdateActions(pOld->undoActions, pNew->undoActions);
   mndTransUpdateActions(pOld->commitActions, pNew->commitActions);
   pOld->stage = pNew->stage;
-  pOld->redoActionPos = pNew->redoActionPos;
+  pOld->actionPos = pNew->actionPos;
 
   if (pOld->stage == TRN_STAGE_COMMIT) {
     pOld->stage = TRN_STAGE_COMMIT_ACTION;
@@ -581,10 +612,11 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->redoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->undoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->commitActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
+  pTrans->arbGroupIds = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
   pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : tGenIdPI64();
   taosInitRWLatch(&pTrans->lockRpcArray);
-  taosThreadMutexInit(&pTrans->mutex, NULL);
+  (void)taosThreadMutexInit(&pTrans->mutex, NULL);
 
   if (pTrans->redoActions == NULL || pTrans->undoActions == NULL || pTrans->commitActions == NULL ||
       pTrans->pRpcArray == NULL) {
@@ -595,7 +627,10 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   }
 
   if (pReq != NULL) {
-    taosArrayPush(pTrans->pRpcArray, &pReq->info);
+    if (taosArrayPush(pTrans->pRpcArray, &pReq->info) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
     pTrans->originRpcType = pReq->msgType;
   }
 
@@ -634,8 +669,7 @@ static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction) {
 
   void *ptr = taosArrayPush(pArray, pAction);
   if (ptr == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   return 0;
@@ -733,38 +767,53 @@ void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) 
   }
 }
 
+void mndTransAddArbGroupId(STrans *pTrans, int32_t groupId) {
+  (void)taosHashPut(pTrans->arbGroupIds, &groupId, sizeof(int32_t), NULL, 0);
+}
+
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
 
 void mndTransSetParallel(STrans *pTrans) { pTrans->exec = TRN_EXEC_PARALLEL; }
 
+void mndTransSetChangeless(STrans *pTrans) { pTrans->changeless = true; }
+
 void mndTransSetOper(STrans *pTrans, EOperType oper) { pTrans->oper = oper; }
 
 static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
+  int32_t  code = 0;
   SSdbRaw *pRaw = mndTransEncode(pTrans);
   if (pRaw == NULL) {
-    mError("trans:%d, failed to encode while sync trans since %s", pTrans->id, terrstr());
-    return -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    mError("trans:%d, failed to encode while sync trans since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
   }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("trans:%d, sync to other mnodes, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
         pTrans->createdTime);
-  int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
+  code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
-    mError("trans:%d, failed to sync, errno:%s code:0x%x createTime:%" PRId64 " saved trans:%d", pTrans->id, terrstr(),
-           code, pTrans->createdTime, pMnode->syncMgmt.transId);
+    mError("trans:%d, failed to sync, errno:%s code:0x%x createTime:%" PRId64 " saved trans:%d", pTrans->id,
+           tstrerror(code), code, pTrans->createdTime, pMnode->syncMgmt.transId);
     sdbFreeRaw(pRaw);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   sdbFreeRaw(pRaw);
   mInfo("trans:%d, sync finished, createTime:%" PRId64, pTrans->id, pTrans->createdTime);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static bool mndCheckDbConflict(const char *conflict, STrans *pTrans) {
   if (conflict[0] == 0) return false;
-  if (strcasecmp(conflict, pTrans->dbname) == 0 || strcasecmp(conflict, pTrans->stbname) == 0) return true;
+  if (strcasecmp(conflict, pTrans->dbname) == 0) return true;
+  return false;
+}
+
+static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
+  if (conflict[0] == 0) return false;
+  if (strcasecmp(conflict, pTrans->stbname) == 0) return true;
   return false;
 }
 
@@ -784,34 +833,49 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
         if (mndCheckDbConflict(pNew->dbname, pTrans)) conflict = true;
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;
       }
     }
     if (pNew->conflict == TRN_CONFLICT_DB_INSIDE) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB) {
         if (mndCheckDbConflict(pNew->dbname, pTrans)) conflict = true;
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;
       }
       if (pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
+        if (mndCheckStbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
       }
     }
 
-    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
+//    if (pNew->conflict == TRN_CONFLICT_TOPIC) {
+//      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
+//      }
+//    }
+//    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
+//      }
+//      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
+//        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0)
+//          conflict = true;
+//      }
+//    }
+    if (pNew->conflict == TRN_CONFLICT_ARBGROUP) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC || pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-      }
-    }
-    if (pNew->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-      if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-      }
-      if (pTrans->conflict == TRN_CONFLICT_TOPIC_INSIDE) {
-        if (strcasecmp(pNew->dbname, pTrans->dbname) == 0 && strcasecmp(pNew->stbname, pTrans->stbname) == 0)
-          conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_ARBGROUP) {
+        void* pGidIter = taosHashIterate(pNew->arbGroupIds, NULL);
+        while (pGidIter != NULL) {
+          int32_t groupId = *(int32_t *)pGidIter;
+          if (taosHashGet(pTrans->arbGroupIds, &groupId, sizeof(int32_t)) != NULL) {
+            taosHashCancelIterate(pNew->arbGroupIds, pGidIter);
+            conflict = true;
+            break;
+          }
+          pGidIter = taosHashIterate(pNew->arbGroupIds, pGidIter);
+        }
       }
     }
 
@@ -830,47 +894,139 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
 }
 
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
   if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
     if (strlen(pTrans->dbname) == 0 && strlen(pTrans->stbname) == 0) {
-      terrno = TSDB_CODE_MND_TRANS_CONFLICT;
+      code = TSDB_CODE_MND_TRANS_CONFLICT;
       mError("trans:%d, failed to prepare conflict db not set", pTrans->id);
-      return -1;
+      TAOS_RETURN(code);
     }
   }
 
   if (mndCheckTransConflict(pMnode, pTrans)) {
-    terrno = TSDB_CODE_MND_TRANS_CONFLICT;
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    return terrno;
+    code = TSDB_CODE_MND_TRANS_CONFLICT;
+    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  return 0;
+  TAOS_RETURN(code);
+}
+
+int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
+  int32_t      code = 0;
+  void        *pIter = NULL;
+  bool         conflict = false;
+  SCompactObj *pCompact = NULL;
+
+  while (1) {
+    bool thisConflict = false;
+    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pCompact);
+    if (pIter == NULL) break;
+
+    if (pTrans->conflict == TRN_CONFLICT_GLOBAL || pTrans->conflict == TRN_CONFLICT_DB ||
+        pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+      if (strcasecmp(pTrans->dbname, pCompact->dbname) == 0) thisConflict = true;
+    }
+
+    if (thisConflict) {
+      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with compact:%d db:%s", pTrans->id,
+             pTrans->dbname, pTrans->stbname, pTrans->conflict, pCompact->compactId, pCompact->dbname);
+      conflict = true;
+    } else {
+      mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with compact:%d db:%s", pTrans->id, pTrans->dbname,
+            pTrans->stbname, pTrans->conflict, pCompact->compactId, pCompact->dbname);
+    }
+    sdbRelease(pMnode->pSdb, pCompact);
+  }
+
+  if (conflict) {
+    code = TSDB_CODE_MND_TRANS_CONFLICT_COMPACT;
+    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+static bool mndTransActionsOfSameType(SArray *pActions) {
+  int32_t size = taosArrayGetSize(pActions);
+  ETrnAct lastActType = TRANS_ACTION_NULL;
+  bool    same = true;
+  for (int32_t i = 0; i < size; ++i) {
+    STransAction *pAction = taosArrayGet(pActions, i);
+    if (i > 0) {
+      if (lastActType != pAction->actionType) {
+        same = false;
+        break;
+      }
+    }
+    lastActType = pAction->actionType;
+  }
+  return same;
+}
+
+static int32_t mndTransCheckParallelActions(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
+  if (pTrans->exec == TRN_EXEC_PARALLEL) {
+    if (mndTransActionsOfSameType(pTrans->redoActions) == false) {
+      code = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+      mError("trans:%d, types of parallel redo actions are not the same", pTrans->id);
+      TAOS_RETURN(code);
+    }
+
+    if (pTrans->policy == TRN_POLICY_ROLLBACK) {
+      if (mndTransActionsOfSameType(pTrans->undoActions) == false) {
+        code = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+        mError("trans:%d, types of parallel undo actions are not the same", pTrans->id);
+        TAOS_RETURN(code);
+      }
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t mndTransCheckCommitActions(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
+  if (!pTrans->changeless && taosArrayGetSize(pTrans->commitActions) <= 0) {
+    code = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
+    mError("trans:%d, commit actions of non-changeless trans are empty", pTrans->id);
+    TAOS_RETURN(code);
+  }
+  if (mndTransActionsOfSameType(pTrans->commitActions) == false) {
+    code = TSDB_CODE_MND_TRANS_INVALID_STAGE;
+    mError("trans:%d, types of commit actions are not the same", pTrans->id);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
-  if (pTrans == NULL) return -1;
-
-  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
-    return -1;
+  int32_t code = 0;
+  if (pTrans == NULL) {
+      return TSDB_CODE_INVALID_PARA;
   }
 
-  if (taosArrayGetSize(pTrans->commitActions) <= 0) {
-    terrno = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    return -1;
-  }
+  TAOS_CHECK_RETURN(mndTransCheckConflict(pMnode, pTrans));
+
+  TAOS_CHECK_RETURN(mndTransCheckParallelActions(pMnode, pTrans));
+
+  TAOS_CHECK_RETURN(mndTransCheckCommitActions(pMnode, pTrans));
 
   mInfo("trans:%d, prepare transaction", pTrans->id);
-  if (mndTransSync(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    return -1;
+  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
   }
   mInfo("trans:%d, prepare finished", pTrans->id);
 
   STrans *pNew = mndAcquireTrans(pMnode, pTrans->id);
   if (pNew == NULL) {
-    mError("trans:%d, failed to read from sdb since %s", pTrans->id, terrstr());
-    return -1;
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    mError("trans:%d, failed to read from sdb since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   pNew->pRpcArray = pTrans->pRpcArray;
@@ -883,37 +1039,41 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
 
   mndTransExecute(pMnode, pNew);
   mndReleaseTrans(pMnode, pNew);
+  // TDOD change to TAOS_RETURN(code);
   return 0;
 }
 
 static int32_t mndTransCommit(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
   mInfo("trans:%d, commit transaction", pTrans->id);
-  if (mndTransSync(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to commit since %s", pTrans->id, terrstr());
-    return -1;
+  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+    mError("trans:%d, failed to commit since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
   }
   mInfo("trans:%d, commit finished", pTrans->id);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
   mInfo("trans:%d, rollback transaction", pTrans->id);
-  if (mndTransSync(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to rollback since %s", pTrans->id, terrstr());
-    return -1;
+  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+    mError("trans:%d, failed to rollback since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
   }
   mInfo("trans:%d, rollback finished", pTrans->id);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndTransPreFinish(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
   mInfo("trans:%d, pre-finish transaction", pTrans->id);
-  if (mndTransSync(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to pre-finish since %s", pTrans->id, terrstr());
-    return -1;
+  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+    mError("trans:%d, failed to pre-finish since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
   }
   mInfo("trans:%d, pre-finish finished", pTrans->id);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
@@ -991,13 +1151,13 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_STB) {
         void   *pCont = NULL;
         int32_t contLen = 0;
-        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
+        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_INDEX) {
         void   *pCont = NULL;
         int32_t contLen = 0;
-        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
+        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       }
@@ -1019,6 +1179,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
 }
 
 int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
+  int32_t code = 0;
   SMnode *pMnode = pRsp->info.node;
   int64_t signature = (int64_t)(pRsp->info.ahandle);
   int32_t transId = (int32_t)(signature >> 32);
@@ -1026,7 +1187,9 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
 
   STrans *pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans == NULL) {
-    mError("trans:%d, failed to get transId from vnode rsp since %s", transId, terrstr());
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    mError("trans:%d, failed to get transId from vnode rsp since %s", transId, tstrerror(code));
     goto _OVER;
   }
 
@@ -1045,7 +1208,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
     goto _OVER;
   }
 
-  int32_t actionNum = taosArrayGetSize(pTrans->redoActions);
+  int32_t actionNum = taosArrayGetSize(pArray);
   if (action < 0 || action >= actionNum) {
     mError("trans:%d, invalid action:%d", transId, action);
     goto _OVER;
@@ -1067,7 +1230,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
 
 _OVER:
   mndReleaseTrans(pMnode, pTrans);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static void mndTransResetAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
@@ -1099,11 +1262,11 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
   }
 }
 
+// execute at bottom half
 static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->rawWritten) return 0;
   if (topHalf) {
-    terrno = TSDB_CODE_MND_TRANS_CTX_SWITCH;
-    return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+    TAOS_RETURN(TSDB_CODE_MND_TRANS_CTX_SWITCH);
   }
 
   int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pAction->pRaw);
@@ -1122,14 +1285,14 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
     mndSetTransLastAction(pTrans, pAction);
   }
 
-  return code;
+  TAOS_RETURN(code);
 }
 
+// execute at top half
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
   if (pAction->msgSent) return 0;
   if (mndCannotExecuteTransAction(pMnode, topHalf)) {
-    terrno = TSDB_CODE_MND_TRANS_CTX_SWITCH;
-    return TSDB_CODE_MND_TRANS_CTX_SWITCH;
+    TAOS_RETURN(TSDB_CODE_MND_TRANS_CTX_SWITCH);
   }
 
   int64_t signature = pTrans->id;
@@ -1173,7 +1336,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
     mndSetTransLastAction(pTrans, pAction);
   }
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndTransExecNullMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf) {
@@ -1255,9 +1418,9 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
 
     for (int32_t action = 0; action < numOfActions; ++action) {
       STransAction *pAction = taosArrayGet(pArray, action);
-      mDebug("trans:%d, %s:%d Sent:%d, Received:%d, errCode:0x%x, acceptableCode:0x%x, retryCode:0x%x", pTrans->id,
-             mndTransStr(pAction->stage), pAction->id, pAction->msgSent, pAction->msgReceived, pAction->errCode,
-             pAction->acceptableCode, pAction->retryCode);
+      mDebug("trans:%d, %s:%d Sent:%d, Received:%d, errCode:0x%x, acceptableCode:0x%x, retryCode:0x%x",
+              pTrans->id, mndTransStr(pAction->stage), pAction->id, pAction->msgSent, pAction->msgReceived,
+              pAction->errCode, pAction->acceptableCode, pAction->retryCode);
       if (pAction->msgSent) {
         if (pAction->msgReceived) {
           if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
@@ -1273,44 +1436,42 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
 
 static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions, topHalf);
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to execute redoActions since:%s, code:0x%x", terrstr(), terrno);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+    mError("trans:%d, failed to execute redoActions since:%s, code:0x%x, topHalf:%d", pTrans->id, terrstr(), terrno,
+           topHalf);
   }
   return code;
 }
 
 static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions, topHalf);
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to execute undoActions since %s", terrstr());
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+    mError("trans:%d, failed to execute undoActions since %s. topHalf:%d", pTrans->id, terrstr(), topHalf);
   }
   return code;
 }
 
 static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->commitActions, topHalf);
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to execute commitActions since %s", terrstr());
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS && code != TSDB_CODE_MND_TRANS_CTX_SWITCH) {
+    mError("trans:%d, failed to execute commitActions since %s. topHalf:%d", pTrans->id, terrstr(), topHalf);
   }
   return code;
 }
 
-static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArray *pActions, bool topHalf) {
   int32_t code = 0;
-  int32_t numOfActions = taosArrayGetSize(pTrans->redoActions);
+  int32_t numOfActions = taosArrayGetSize(pActions);
   if (numOfActions == 0) return code;
 
-  taosThreadMutexLock(&pTrans->mutex);
-
-  if (pTrans->redoActionPos >= numOfActions) {
-    taosThreadMutexUnlock(&pTrans->mutex);
+  if (pTrans->actionPos >= numOfActions) {
     return code;
   }
 
-  mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->redoActionPos);
+  mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->actionPos);
 
-  for (int32_t action = pTrans->redoActionPos; action < numOfActions; ++action) {
-    STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->redoActionPos);
+  for (int32_t action = pTrans->actionPos; action < numOfActions; ++action) {
+    STransAction *pAction = taosArrayGet(pActions, action);
 
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
     if (code == 0) {
@@ -1344,14 +1505,14 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, 
 
     if (code == 0) {
       pTrans->code = 0;
-      pTrans->redoActionPos++;
+      pTrans->actionPos++;
       mInfo("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
             pAction->id);
-      taosThreadMutexUnlock(&pTrans->mutex);
+      (void)taosThreadMutexUnlock(&pTrans->mutex);
       code = mndTransSync(pMnode, pTrans);
-      taosThreadMutexLock(&pTrans->mutex);
+      (void)taosThreadMutexLock(&pTrans->mutex);
       if (code != 0) {
-        pTrans->redoActionPos--;
+        pTrans->actionPos--;
         pTrans->code = terrno;
         mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,
                mndTransStr(pAction->stage), pAction->id, terrstr());
@@ -1377,8 +1538,26 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, 
     }
   }
 
-  taosThreadMutexUnlock(&pTrans->mutex);
+  return code;
+}
 
+static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+  int32_t code = TSDB_CODE_ACTION_IN_PROGRESS;
+  (void)taosThreadMutexLock(&pTrans->mutex);
+  if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
+    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->redoActions, topHalf);
+  }
+  (void)taosThreadMutexUnlock(&pTrans->mutex);
+  return code;
+}
+
+static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, bool topHalf) {
+  int32_t code = TSDB_CODE_ACTION_IN_PROGRESS;
+  (void)taosThreadMutexLock(&pTrans->mutex);
+  if (pTrans->stage == TRN_STAGE_UNDO_ACTION) {
+    code = mndTransExecuteActionsSerial(pMnode, pTrans, pTrans->undoActions, topHalf);
+  }
+  (void)taosThreadMutexUnlock(&pTrans->mutex);
   return code;
 }
 
@@ -1409,6 +1588,7 @@ _OVER:
 static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   bool    continueExec = true;
   int32_t code = 0;
+  terrno = 0;
 
   if (pTrans->exec == TRN_EXEC_SERIAL) {
     code = mndTransExecuteRedoActionsSerial(pMnode, pTrans, topHalf);
@@ -1486,6 +1666,11 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans, boo
     pTrans->stage = TRN_STAGE_FINISH;  // TRN_STAGE_PRE_FINISH is not necessary
     mInfo("trans:%d, stage from commitAction to finished", pTrans->id);
     continueExec = true;
+  } else if (code == TSDB_CODE_MND_TRANS_CTX_SWITCH && topHalf) {
+    pTrans->code = 0;
+    pTrans->stage = TRN_STAGE_COMMIT;
+    mInfo("trans:%d, back to commit stage", pTrans->id);
+    continueExec = true;
   } else {
     pTrans->code = terrno;
     pTrans->failedTimes++;
@@ -1498,13 +1683,22 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans, boo
 
 static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   bool    continueExec = true;
-  int32_t code = mndTransExecuteUndoActions(pMnode, pTrans, topHalf);
+  int32_t code = 0;
+
+  if (pTrans->exec == TRN_EXEC_SERIAL) {
+    code = mndTransExecuteUndoActionsSerial(pMnode, pTrans, topHalf);
+  } else {
+    code = mndTransExecuteUndoActions(pMnode, pTrans, topHalf);
+  }
+
+  if (mndCannotExecuteTransAction(pMnode, topHalf)) return false;
+  terrno = code;
 
   if (code == 0) {
     pTrans->stage = TRN_STAGE_PRE_FINISH;
     mInfo("trans:%d, stage from undoAction to pre-finish", pTrans->id);
     continueExec = true;
-  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS || code == TSDB_CODE_MND_TRANS_CTX_SWITCH) {
     mInfo("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {
@@ -1616,11 +1810,13 @@ void mndTransExecuteImp(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   mndTransSendRpcRsp(pMnode, pTrans);
 }
 
+// start trans, pullup, receive rsp, kill
 void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   bool topHalf = true;
   return mndTransExecuteImp(pMnode, pTrans, topHalf);
 }
 
+// update trans
 void mndTransRefresh(SMnode *pMnode, STrans *pTrans) {
   bool topHalf = false;
   return mndTransExecuteImp(pMnode, pTrans, topHalf);
@@ -1639,8 +1835,7 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
   } else if (pTrans->stage == TRN_STAGE_UNDO_ACTION) {
     pArray = pTrans->undoActions;
   } else {
-    terrno = TSDB_CODE_MND_TRANS_INVALID_STAGE;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_MND_TRANS_INVALID_STAGE);
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
@@ -1663,17 +1858,19 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
   STrans       *pTrans = NULL;
 
   if (tDeserializeSKillTransReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
   mInfo("trans:%d, start to kill", killReq.transId);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_TRANS) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_TRANS)) != 0) {
     goto _OVER;
   }
 
   pTrans = mndAcquireTrans(pMnode, killReq.transId);
   if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
     goto _OVER;
   }
 
@@ -1685,7 +1882,7 @@ _OVER:
   }
 
   mndReleaseTrans(pMnode, pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndCompareTransId(int32_t *pTransId1, int32_t *pTransId2) { return *pTransId1 >= *pTransId2 ? 1 : 0; }
@@ -1700,7 +1897,7 @@ void mndTransPullup(SMnode *pMnode) {
     STrans *pTrans = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
     if (pIter == NULL) break;
-    taosArrayPush(pArray, &pTrans->id);
+    (void)taosArrayPush(pArray, &pTrans->id);
     sdbRelease(pSdb, pTrans);
   }
 
@@ -1731,36 +1928,36 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->id, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->id, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->createdTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->createdTime, false);
 
     char stage[TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(stage, mndTransStr(pTrans->stage), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)stage, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)stage, false);
 
     char opername[TSDB_TRANS_OPER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(opername, pTrans->opername, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)opername, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)opername, false);
 
     char dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndGetDbStr(pTrans->dbname), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)dbname, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)dbname, false);
 
     char stbname[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(stbname, mndGetDbStr(pTrans->stbname), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)stbname, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)stbname, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
 
     char    lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
     char    detail[TSDB_TRANS_ERROR_LEN + 1] = {0};
@@ -1776,7 +1973,7 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     STR_WITH_MAXSIZE_TO_VARSTR(lastInfo, detail, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)lastInfo, false);
+    (void)colDataSetVal(pColInfo, numOfRows, (const char *)lastInfo, false);
 
     numOfRows++;
     sdbRelease(pSdb, pTrans);

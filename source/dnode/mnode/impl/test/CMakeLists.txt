@@ -1,6 +1,7 @@
 enable_testing()
 
 add_subdirectory(acct)
+add_subdirectory(arbgroup)
 #add_subdirectory(db)
 #add_subdirectory(dnode)
 add_subdirectory(func)
@@ -15,3 +16,4 @@ add_subdirectory(stb)
 add_subdirectory(topic)
 add_subdirectory(trans)
 #add_subdirectory(user)
+#add_subdirectory(mnode)

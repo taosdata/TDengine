@@ -28,8 +28,7 @@ typedef int32_t (*_equal_fn_t)(const void *, const void *, size_t len);
 typedef void (*_hash_before_fn_t)(void *);
 typedef void (*_hash_free_fn_t)(void *);
 
-#define HASH_KEY_ALREADY_EXISTS (-2)
-#define HASH_NODE_EXIST(code)   (code == HASH_KEY_ALREADY_EXISTS)
+#define HASH_NODE_EXIST(code)   (code == TSDB_CODE_DUP_KEY)
 
 /**
  * murmur hash algorithm
@@ -179,6 +178,13 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p);
  * @return
  */
 void *taosHashGetKey(void *data, size_t *keyLen);
+
+/**
+ * Get the corresponding value length for a given data in hash table
+ * @param data
+ * @return
+ */
+int32_t taosHashGetValueSize(void *data);
 
 /**
  * return the payload data with the specified key(reference number added)

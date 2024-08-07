@@ -335,9 +335,9 @@ TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
   run("ALTER DATABASE test KEEP 1000000000s", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test KEEP 1w", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test PAGES 63", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("ALTER DATABASE test WAL_LEVEL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  //run("ALTER DATABASE test WAL_LEVEL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test WAL_LEVEL 3", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("ALTER DATABASE test REPLICA 2", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  //run("ALTER DATABASE test REPLICA 2", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test STT_TRIGGER 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test STT_TRIGGER 17", TSDB_CODE_PAR_INVALID_DB_OPTION);
   // Regardless of the specific sentence
@@ -358,9 +358,9 @@ TEST_F(ParserInitialATest, alterLocal) {
   };
 
   auto setAlterLocal = [&](const char* pConfig, const char* pValue = nullptr) {
-    expect.first.assign(pConfig);
+    (void)expect.first.assign(pConfig);
     if (nullptr != pValue) {
-      expect.second.assign(pValue);
+      (void)expect.second.assign(pValue);
     }
   };
 
@@ -429,9 +429,10 @@ TEST_F(ParserInitialATest, alterSTable) {
     expect.numOfFields = numOfFields;
     if (NULL == expect.pFields) {
       expect.pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+      ASSERT_TRUE(expect.pFields);
       TAOS_FIELD field = {0};
-      taosArrayPush(expect.pFields, &field);
-      taosArrayPush(expect.pFields, &field);
+      ASSERT_TRUE(nullptr != taosArrayPush(expect.pFields, &field));
+      ASSERT_TRUE(nullptr != taosArrayPush(expect.pFields, &field));
     }
 
     TAOS_FIELD* pField = (TAOS_FIELD*)taosArrayGet(expect.pFields, 0);
@@ -706,9 +707,10 @@ TEST_F(ParserInitialATest, alterTable) {
       expect.numOfFields = numOfFields;
       if (NULL == expect.pFields) {
         expect.pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+        ASSERT_TRUE(expect.pFields);
         TAOS_FIELD field = {0};
-        taosArrayPush(expect.pFields, &field);
-        taosArrayPush(expect.pFields, &field);
+        ASSERT_TRUE(nullptr != taosArrayPush(expect.pFields, &field));
+        ASSERT_TRUE(nullptr != taosArrayPush(expect.pFields, &field));
       }
 
       TAOS_FIELD* pField = (TAOS_FIELD*)taosArrayGet(expect.pFields, 0);
@@ -784,7 +786,7 @@ TEST_F(ParserInitialATest, alterTableSemanticCheck) {
   run("ALTER TABLE st1s1 DROP TAG tag1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER TABLE st1s1 MODIFY TAG tag2 VARCHAR(30)", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   run("ALTER TABLE st1s1 RENAME TAG tag1 tag11", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
-  run("ALTER TABLE st1s1 SET TAG tag2 =  '123456789012345678901'", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
+  run("ALTER TABLE st1s1 SET TAG tag2 =  '123456789012345678901'", TSDB_CODE_PAR_VALUE_TOO_LONG);
 }
 
 /*

@@ -200,8 +200,9 @@ if $data02 != 2678400000 then
   return -1
 endi
 
-sql_error select  _wstart, count(tbcol), _wduration, _wstart, count(*) from ct3 interval(1n, 1w) sliding(2w)
-sql_error select _wstart, count(tbcol), _wduration, _wstart, count(*)  from ct3 interval(1n, 1w) sliding(4w)
+sql select  _wstart, count(tbcol), _wduration, _wstart, count(*) from ct3 interval(1n, 1w) sliding(2w)
+sql select _wstart, count(tbcol), _wduration, _wstart, count(*)  from ct3 interval(1n, 1w) sliding(4w)
+sql_error select _wstart, count(tbcol), _wduration, _wstart, count(*)  from ct3 interval(1n, 1w) sliding(5w)
 
 sql select _wstart, count(tbcol), _wduration, _wstart, count(*) from ct4 interval(1y, 6n)
 print ===> select _wstart, count(tbcol), _wduration, _wstart, count(*) from ct4 interval(1y, 6n)

@@ -206,11 +206,11 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 
 | Attribute  | Description                                                                                                                                                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Applicable | Server only                                                                                                                                                                                                                     |
+| Applicable | Server and Client                                                                                                                                                                                                                     |
 | Meaning    | count()/hyperloglog() return value or not if the input data is empty or NULL                                                                                                                                                    |
-| Vlue Range | 0: Return empty line, 1: Return 0                                                                                                                                                                                               |
+| Value Range | 0: Return empty line, 1: Return 0                                                                                                                                                                                               |
 | Default    | 1                                                                                                                                                                                                                               |
-| Notes      | When this parameter is setting to 1, for queries containing GROUP BY, PARTITION BY and INTERVAL clause, and input data in certain groups or windows is empty or NULL, the corresponding groups or windows have no return values |
+| Notes      | When this parameter is setting to 1, for queries containing INTERVAL clause or the queries using TSMA, and input data in certain groups or windows is empty or NULL, the corresponding groups or windows have no return values. Server and client use the same value|
 
 ### maxNumOfDistinctRes
 
@@ -230,6 +230,35 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | Value Range   | 1 means automatically setting the alias to the column name (excluding the function name), 0 means not automatically setting the alias.                                   |
 | Default Value | 0          |
 | Notes | When multiple of the above functions act on the same column at the same time and no alias is specified, if the order by clause refers to the column name, column selection ambiguous will occur because the aliases of multiple columns are the same. |
+
+### multiResultFunctionStarReturnTags
+
+| Attribute     | Description                                                                                                     |
+| ------------- | --------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                                     |
+| Meaning       | When querying a super table, whether last(\*)/last_row(\*)/first(\*) returns tags is affected by this parameter. When querying a normal table or subtable, this parameter has no effect. |
+| Value Range   | 0: do not return tags, 1: return tags |
+| Default Value | 0          |
+| Notes         |  When this parameter is set to 0, last(\*)/last_row(\*)/first(\*) only returns the columns of the super table; When it is 1, return the columns and tags of the super table.               |
+
+### maxTsmaCalcDelay
+
+| Attribute     | Description                                                                                                                                  |
+| --------      | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                                                                  |
+| Meaning       | Query allowed tsma calculation delay, if the tsma calculation delay is greater than the configured value, the TSMA will not be used.         |
+| Value Range   | 600s - 86400s, 10 minutes to 1 hour                                                                                                          |
+| Default value | 600s                                                                                                                                         |
+
+### tsmaDataDeleteMark
+
+| Attribute     | Description                        |
+| -------- | --------------------------- |
+| Applicable | Client only                |
+| Meaning     | The duration for which the intermediate results of TSMA calculations are saved, in milliseconds |
+| Value Range | >= 3600000, greater than or equal to 1 hour                       |
+| Default value   | 86400000, 1d                           |
+
 
 ## Locale Parameters
 
@@ -392,7 +421,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                        |
 | Meaning       | Maximum number of vnodes per dnode |
 | Value Range   | 0-4096                             |
-| Default Value | 2x the CPU cores                   |
+| Default Value | 2x the CPU cores plus 5            |
 
 ## Performance Tuning
 
@@ -403,7 +432,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                         |
 | Meaning       | Maximum number of threads to commit |
 | Value Range   | 0-1024                              |
-| Default Value |                                     |
+| Default Value | 4                                   |
 
 ## Log Parameters
 
@@ -700,6 +729,57 @@ The charset that takes effect is UTF-8.
 | Value Range | -1: none message is compressed; 0: all messages are compressed; N (N>0): messages exceeding N bytes are compressed |
 | Default     | -1                                                                                                                 |
 
+### fPrecision
+
+| Attribute     | Description                           |
+| -------- | -------------------------------- |
+| Application | Server Only                         |
+| Meaning     | Compression precision for float data type    |
+| Value Range | 0.1 ~ 0.00000001                 |
+| Default   | 0.00000001                       |
+| Note | The floating value below this setting will be cut off |
+
+### dPrecision
+
+| Attribute     | Description                            |
+| -------- | -------------------------------- |
+| Applicable | Server Only                        |
+| Meaning     | Compression precision for double data type |
+| Value Range | 0.1 ~ 0.0000000000000001         |
+| Default   | 0.0000000000000001               |
+| Note | The floating value below this setting will be cut off |
+
+### lossyColumn
+
+| Attribute     | Description                             |
+| -------- | -------------------------------- |
+| Applicable | Server Only                         |
+| Meaning     | Enable TSZ lossy compression for float and/or double |
+| Value Range |  float, double        |
+| Default   | none: disable TSZ lossy compression                |
+
+**补充说明**
+1. It's only available since 3.2.0.0 version, and can't downgrade to previous version once upgrading to 3.2.0.0 and enabling this parameter
+2. TSZ compression algorithm compresses data based on data prediction technique, so it's more suitable for data with specific pattern
+3. TSZ compression algorithm may take longer time but it has better compression ratio, so it's suitable when you have enough CPU resources and are more sensitive to disk occupation
+4. Example: enable TSZ for both float and double
+```shell
+lossyColumns     float|double
+```
+5. After configuring, taosd service needs to restarted. After restarting, if you see the following output in taosd logfile, it means the function has been enabled
+```sql
+   02/22 10:49:27.607990 00002933 UTL  lossyColumns     float|double
+```
+
+### ifAdtFse 
+
+| Attribute     | Description                         |
+| -------- | -------------------------------- |
+| Applicable | Server Only                         |
+| Meaning     | Replace HUFFMAN with FSE in TSZ, FSE is faster when compressing but slower when uncompressing |
+| Value Range |  0: Use HUFFMAN, 1: Use FSE         |
+| Default   | 0: Use HUFFMAN               |
+
 
 ## Other Parameters
 
@@ -749,6 +829,15 @@ The charset that takes effect is UTF-8.
 | Meaning     | The max num of topics  |
 | Value Range | 1-10000|
 | Default Value   | 20                  |
+
+### maxTsmaNum
+
+| Attribute | Description                   |
+| --------- | ----------------------------- |
+| Applicable | Server Only                  |
+| Meaning   | Max num of TSMAs              |
+| Value Range | 0-3                        |
+| Default Value | 3                         |
 
 ## 3.0 Parameters
 

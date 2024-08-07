@@ -18,9 +18,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "cJSON.h"
 #include "taos.h"
-#include "types.h"
 #include "tmsg.h"
+#include "types.h"
 
 static int running = 1;
 TdFilePtr  g_fp = NULL;
@@ -32,6 +33,7 @@ typedef struct {
   int  srcVgroups;
   int  dstVgroups;
   char dir[256];
+  bool btMeta;
 } Config;
 
 Config g_conf = {0};
@@ -61,8 +63,23 @@ static void msg_process(TAOS_RES* msg) {
     if (result) {
       printf("meta result: %s\n", result);
       if (g_fp && strcmp(result, "") != 0) {
-        taosFprintfFile(g_fp, result);
-        taosFprintfFile(g_fp, "\n");
+        // RES_TYPE__TMQ_BATCH_META
+        if ((*(int8_t*)msg) == 5) {
+          cJSON* pJson = cJSON_Parse(result);
+          cJSON* pJsonArray = cJSON_GetObjectItem(pJson, "metas");
+          int32_t num = cJSON_GetArraySize(pJsonArray);
+          for (int32_t i = 0; i < num; i++) {
+            cJSON* pJsonItem = cJSON_GetArrayItem(pJsonArray, i);
+            char* itemStr = cJSON_PrintUnformatted(pJsonItem);
+            taosFprintfFile(g_fp, itemStr);
+            tmq_free_json_meta(itemStr);
+            taosFprintfFile(g_fp, "\n");
+          }
+          cJSON_Delete(pJson);
+        } else {
+          taosFprintfFile(g_fp, result);
+          taosFprintfFile(g_fp, "\n");
+        }
       }
     }
     tmq_free_json_meta(result);
@@ -412,7 +429,8 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
 
 #ifdef WINDOWS
   pRes = taos_query(pConn,
-                    "CREATE STABLE `meters_summary` (`_wstart` TIMESTAMP, `current` FLOAT, `groupid` INT, `location` VARCHAR(16)) TAGS (`group_id` BIGINT UNSIGNED)");
+                    "CREATE STABLE `meters_summary` (`_wstart` TIMESTAMP, `current` FLOAT, `groupid` INT, `location` "
+                    "VARCHAR(16)) TAGS (`group_id` BIGINT UNSIGNED)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -420,7 +438,8 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   taos_free_result(pRes);
 
   pRes = taos_query(pConn,
-                    "  CREATE TABLE `t_d2a450ee819dcf7576f0282d9ac22dbc` USING `meters_summary` (`group_id`) TAGS (13135550082773579308)");
+                    "  CREATE TABLE `t_d2a450ee819dcf7576f0282d9ac22dbc` USING `meters_summary` (`group_id`) TAGS "
+                    "(13135550082773579308)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -435,7 +454,8 @@ int buildStable(TAOS* pConn, TAOS_RES* pRes) {
   taos_free_result(pRes);
 #else
   pRes = taos_query(pConn,
-                    "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 into meters_summary as select _wstart, max(current) as current, "
+                    "create stream meters_summary_s trigger at_once IGNORE EXPIRED 0 fill_history 1 into meters_summary as select "
+                    "_wstart, max(current) as current, "
                     "groupid, location from meters partition by groupid, location interval(10m)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
@@ -539,7 +559,8 @@ int32_t create_topic() {
 
   if (g_conf.subTable) {
     char topic[128] = {0};
-    sprintf(topic, "create topic meters_summary_t1 %s as stable meters_summary", g_conf.meta == 0 ? "with meta" : "only meta");
+    sprintf(topic, "create topic meters_summary_t1 %s as stable meters_summary",
+            g_conf.meta == 0 ? "with meta" : "only meta");
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic meters_summary_t1, reason:%s\n", taos_errstr(pRes));
@@ -575,9 +596,14 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.consume.excluded", "1");
+//  tmq_conf_set(conf, "max.poll.interval.ms", "20000");
 
   if (g_conf.snapShot) {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  }
+
+  if (g_conf.btMeta) {
+    tmq_conf_set(conf, "msg.enable.batchmeta", "true");
   }
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
@@ -653,8 +679,15 @@ void initLogFile() {
     if (g_conf.subTable) {
       char* result[] = {
           "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"meters_summary\",\"columns\":[{\"name\":\"_"
-          "wstart\",\"type\":9},{\"name\":\"current\",\"type\":6},{\"name\":\"groupid\",\"type\":4},{\"name\":"
-          "\"location\",\"type\":8,\"length\":16}],\"tags\":[{\"name\":\"group_id\",\"type\":14}]}",
+          "wstart\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+          ",{\"name\":\"current\",\"type\":6,\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\","
+          "\"level\":\"medium\"},{"
+          "\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+          "\"level\":\"medium\"},{\"name\":"
+          "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\","
+          "\"level\":\"medium\"}],\"tags\":[{\"name\":\"group_id\","
+          "\"type\":14}"
+          "]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\",\"using\":"
           "\"meters_summary\",\"tagNum\":1,\"tags\":[{\"name\":\"group_id\",\"type\":14,\"value\":1.313555008277358e+"
           "19}],\"createList\":[]}"};
@@ -664,56 +697,107 @@ void initLogFile() {
       }
     } else {
       char* result[] = {
-          "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
-          "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":64},{"
-          "\"name\":\"c4\",\"type\":5}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":"
+          "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\","
+          "\"type\":"
+          "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c1\","
+          "\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
+          "\"name\":\"c2\",\"type\":"
+          "4,"
+          "\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
+          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\","
+          "\"type\":9,"
+          "\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+          ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+          "\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\","
+          "\"level\":\"medium\"}"
+          ",{"
+          "\"name\":\"c3\",\"type\":8,\"length\":64,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
+          "\"lz4\",\"level\":\"medium\"},{"
+          "\"name\":\"c4\",\"type\":5,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+          "\"medium\"}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":"
+          "\"t3\","
+          "\"type\":10,\"length\":"
           "8},{\"name\":\"t4\",\"type\":1},{\"name\":\"t2\",\"type\":8,\"length\":64}]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":4,\"tags\":["
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":4,"
+          "\"tags\":["
           "{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{"
           "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":4,\"tags\":["
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":4,"
+          "\"tags\":["
           "{\"name\":\"t1\",\"type\":4,\"value\":2000}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":4,\"tags\":["
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":4,"
+          "\"tags\":["
           "],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":4,\"tags\":["
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":4,"
+          "\"tags\":["
           "{\"name\":\"t1\",\"type\":4,\"value\":5000}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c2\",\"type\":10,\"length\":8},{\"name\":\"cc3\",\"type\":5}],\"tags\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-          "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
+          "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\","
+          "\"type\":9,"
+          "\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c2\","
+          "\"type\":10,\"length\":8,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+          "\"medium\"},{\"name\":\"cc3\",\"type\":5,"
+          "\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
+          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\","
+          "\"type\":9,"
+          "\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},"
+          "{\"name\":\"i\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+          "\"medium\"}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,"
+          "\"tags\":[{"
           "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,"
+          "\"tags\":[]"
           ",\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-          ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-          "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\","
+          "\"type\":9,"
+          "\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+          ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+          "\"level\":"
+          "\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
+          "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
+          "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
+          "\"lz4\",\"level\":\"medium\"}],"
+          "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+          "\"type\":"
           "1}]}",
-          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
-          "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-          "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+          "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\","
+          "\"type\":"
+          "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
+          "\"c1\","
+          "\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
+          "\"name\":\"c2\",\"type\":6,"
+          "\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
+          "\"c3\","
+          "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+          "\"medium\"}],"
+          "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+          "\"type\":"
           "1}]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,"
+          "\"tags\":"
           "[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt1\\\"\"},{"
           "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"sttb1\",\"using\":\"sttb\",\"tagNum\":3,"
-          "\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"sttb1\\\"\"}"
+          "\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":"
+          "\"\\\"sttb1\\\"\"}"
           ",{\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt2\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt2\",\"using\":\"stt\",\"tagNum\":3,"
+          "\"tags\":"
           "[{\"name\":\"t1\",\"type\":4,\"value\":43},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt2\\\"\"},{"
           "\"name\":\"t4\",\"type\":1,\"value\":0}],\"createList\":[]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"sttb2\",\"using\":\"sttb\",\"tagNum\":3,"
           "\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":54},{\"name\":\"t3\",\"type\":10,\"value\":"
           "\"\\\"sttb2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,"
+          "\"tags\":"
           "[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt3\\\"\"},{"
           "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"sttb3\",\"using\":\"sttb\",\"tagNum\":3,"
-          "\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"sttb3\\\"\"}"
+          "\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":4},{\"name\":\"t3\",\"type\":10,\"value\":"
+          "\"\\\"sttb3\\\"\"}"
           ",{\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
-          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt4\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+          "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt4\",\"using\":\"stt\",\"tagNum\":3,"
+          "\"tags\":"
           "[{\"name\":\"t1\",\"type\":4,\"value\":433},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt4\\\"\"},{"
           "\"name\":\"t4\",\"type\":1,\"value\":0}],\"createList\":[]}",
           "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"sttb4\",\"using\":\"sttb\",\"tagNum\":3,"
@@ -726,24 +810,37 @@ void initLogFile() {
     }
   } else {
     if (g_conf.meta) {
-      if (g_conf.subTable){
-
-      }else{
+      if (g_conf.subTable) {
+      } else {
         char* result[] = {
-            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
-            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\","
+            "\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
+            "\"c1\",\"type\":4,\"isPrimarykey\":false,"
+            "\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c2\",\"type\":4,"
+            "\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":false,\"encode\":\"delta-d\","
+            "\"compress\":\"lz4\",\"level\":\"medium\"},{"
+            "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
+            "\"lz4\",\"level\":\"medium\"}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+            "\"type\":"
             "1}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,"
+            "\"tags\":["
             "{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{"
             "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":3,"
+            "\"tags\":["
             "{\"name\":\"t1\",\"type\":4,\"value\":2000}],\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":3,"
+            "\"tags\":["
             "],\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":3,"
+            "\"tags\":["
             "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
             "\"colType\":5}",
@@ -755,8 +852,11 @@ void initLogFile() {
             "\"colValue\":\"5000\",\"colValueNull\":false}",
             "{\"type\":\"drop\",\"tableNameList\":[\"ct3\",\"ct1\"]}",
             "{\"type\":\"drop\",\"tableType\":\"super\",\"tableName\":\"st1\"}",
-            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":10,\"length\":4}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
+            "\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"},{\"name\":\"c2\",\"type\":10,\"length\":4,"
+            "\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
             "\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
@@ -766,25 +866,48 @@ void initLogFile() {
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":9}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":6,\"colName\":\"c1\"}",
             "{\"type\":\"drop\",\"tableNameList\":[\"n1\"]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-            "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},"
+            "{\"name\":\"i\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":"
+            "[{"
             "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":"
+            "[]"
             ",\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-            "{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":1}]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},"
+            "{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
+            "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c3\",\"type\":8,"
+            "\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":\"medium\"}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+            "\"type\":1}]}",
             "{\"type\":\"drop\",\"tableType\":\"super\",\"tableName\":\"st1\"}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
+            "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
+            "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
+            "\"lz4\",\"level\":\"medium\"}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+            "\"type\":"
             "1}]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
-            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\","
+            "\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
+            "\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"},{\"name\":\"c2\",\"type\":6,"
+            "\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c3\","
+            "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+            "\"type\":"
             "1}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,"
+            "\"tags\":"
             "[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt1\\\"\"},{"
             "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt1\",\"using\":\"stt\","
             "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":"
@@ -795,7 +918,8 @@ void initLogFile() {
             "\"\\\"stt2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":0}]},{\"tableName\":\"sttb2\",\"using\":\"sttb\","
             "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":54},{\"name\":\"t3\",\"type\":10,\"value\":"
             "\"\\\"sttb2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,"
+            "\"tags\":"
             "[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt3\\\"\"},{"
             "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt3\",\"using\":\"stt\","
             "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":"
@@ -816,9 +940,17 @@ void initLogFile() {
       if (g_conf.subTable) {
         char* result[] = {
             "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"meters_summary\",\"columns\":[{\"name\":\"_"
-            "wstart\",\"type\":9},{\"name\":\"current\",\"type\":6},{\"name\":\"groupid\",\"type\":4},{\"name\":"
-            "\"location\",\"type\":8,\"length\":16}],\"tags\":[{\"name\":\"group_id\",\"type\":14}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\",\"using\":"
+            "wstart\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"},{\"name\":\"current\",\"type\":6,\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":"
+            "\"lz4\",\"level\":\"medium\"},{"
+            "\"name\":\"groupid\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"},{\"name\":"
+            "\"location\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"}],\"tags\":[{\"name\":\"group_id\","
+            "\"type\":"
+            "14}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t_d2a450ee819dcf7576f0282d9ac22dbc\","
+            "\"using\":"
             "\"meters_summary\",\"tagNum\":1,\"tags\":[{\"name\":\"group_id\",\"type\":14,\"value\":1.313555008277358e+"
             "19}],\"createList\":[]}"};
 
@@ -826,23 +958,36 @@ void initLogFile() {
           taosFprintfFile(pFile2, result[i]);
           taosFprintfFile(pFile2, "\n");
         }
-      }
-      else {
+      } else {
         char* result[] = {
-            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\",\"type\":"
-            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":4}],\"tags\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"tb1\",\"columns\":[{\"name\":\"ts\","
+            "\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
+            "\"name\":\"c1\",\"type\":4,"
+            "\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
+            "\"c2\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st1\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
+            "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
+            "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
+            "\"lz4\",\"level\":\"medium\"}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+            "\"type\":"
             "1}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct0\",\"using\":\"st1\",\"tagNum\":3,"
+            "\"tags\":["
             "{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{"
             "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct1\",\"using\":\"st1\",\"tagNum\":3,"
+            "\"tags\":["
             "{\"name\":\"t1\",\"type\":4,\"value\":2000}],\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct2\",\"using\":\"st1\",\"tagNum\":3,"
+            "\"tags\":["
             "],\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":3,\"tags\":["
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"using\":\"st1\",\"tagNum\":3,"
+            "\"tags\":["
             "{\"name\":\"t1\",\"type\":4,\"value\":3000}],\"createList\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":5,\"colName\":\"c4\","
             "\"colType\":5}",
@@ -853,8 +998,11 @@ void initLogFile() {
             "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"alterType\":4,\"colName\":\"t1\","
             "\"colValue\":\"5000\",\"colValueNull\":false}",
             "{\"type\":\"delete\",\"sql\":\"delete from `ct3` where `ts` >= 1626006833600 and `ts` <= 1626006833605\"}",
-            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":10,\"length\":4}],\"tags\":[]}",
+            "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":10,\"length\":4,"
+            "\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":5,\"colName\":\"c3\","
             "\"colType\":5}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":7,\"colName\":\"c2\","
@@ -863,21 +1011,39 @@ void initLogFile() {
             "\"colNewName\":\"cc3\"}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":9}",
             "{\"type\":\"alter\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"alterType\":6,\"colName\":\"c1\"}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":9},"
-            "{\"name\":\"i\",\"type\":4}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[{"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"jt\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},"
+            "{\"name\":\"i\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"}],\"tags\":[{\"name\":\"t\",\"type\":15}]}",
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt1\",\"using\":\"jt\",\"tagNum\":1,\"tags\":"
+            "[{"
             "\"name\":\"t\",\"type\":15,\"value\":\"{\\\"k1\\\":1,\\\"k2\\\":\\\"hello\\\"}\"}],\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":[]"
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"jt2\",\"using\":\"jt\",\"tagNum\":1,\"tags\":"
+            "[]"
             ",\"createList\":[]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":9}"
-            ",{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"stt\",\"columns\":[{\"name\":\"ts\",\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"
+            ",{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\","
+            "\"level\":\"medium\"},{\"name\":\"c2\",\"type\":6,\"isPrimarykey\":"
+            "false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{"
+            "\"name\":\"c3\",\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":"
+            "\"lz4\",\"level\":\"medium\"}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+            "\"type\":"
             "1}]}",
-            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\",\"type\":"
-            "9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":16}],"
-            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":"
+            "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"sttb\",\"columns\":[{\"name\":\"ts\","
+            "\"type\":"
+            "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":"
+            "\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"},{\"name\":\"c2\",\"type\":6,"
+            "\"isPrimarykey\":false,\"encode\":\"delta-d\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c3\","
+            "\"type\":8,\"length\":16,\"isPrimarykey\":false,\"encode\":\"disabled\",\"compress\":\"lz4\",\"level\":"
+            "\"medium\"}],"
+            "\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\","
+            "\"type\":"
             "1}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt1\",\"using\":\"stt\",\"tagNum\":3,"
+            "\"tags\":"
             "[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt1\\\"\"},{"
             "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt1\",\"using\":\"stt\","
             "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":2},{\"name\":\"t3\",\"type\":10,\"value\":"
@@ -888,7 +1054,8 @@ void initLogFile() {
             "\"\\\"stt2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":0}]},{\"tableName\":\"sttb2\",\"using\":\"sttb\","
             "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":54},{\"name\":\"t3\",\"type\":10,\"value\":"
             "\"\\\"sttb2\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}]}",
-            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,\"tags\":"
+            "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"stt3\",\"using\":\"stt\",\"tagNum\":3,"
+            "\"tags\":"
             "[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"stt3\\\"\"},{"
             "\"name\":\"t4\",\"type\":1,\"value\":1}],\"createList\":[{\"tableName\":\"stt3\",\"using\":\"stt\","
             "\"tagNum\":3,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":23},{\"name\":\"t3\",\"type\":10,\"value\":"
@@ -911,24 +1078,24 @@ void initLogFile() {
   taosCloseFile(&pFile2);
 }
 
-void testConsumeExcluded(int topic_type){
-  TAOS* pConn = use_db();
-  TAOS_RES *pRes = NULL;
+void testConsumeExcluded(int topic_type) {
+  TAOS*     pConn = use_db();
+  TAOS_RES* pRes = NULL;
 
-  if(topic_type == 1){
-    char *topic = "create topic topic_excluded with meta as database db_taosx";
+  if (topic_type == 1) {
+    char* topic = "create topic topic_excluded with meta as database db_taosx";
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
-      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      printf("failed to create topic topic_excluded1, reason:%s\n", taos_errstr(pRes));
       taos_close(pConn);
       return;
     }
     taos_free_result(pRes);
-  }else if(topic_type == 2){
-    char *topic = "create topic topic_excluded as select * from stt";
+  } else if (topic_type == 2) {
+    char* topic = "create topic topic_excluded as select * from stt";
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
-      printf("failed to create topic topic_excluded, reason:%s\n", taos_errstr(pRes));
+      printf("failed to create topic topic_excluded2, reason:%s\n", taos_errstr(pRes));
       taos_close(pConn);
       return;
     }
@@ -945,7 +1112,6 @@ void testConsumeExcluded(int topic_type){
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.consume.excluded", "1");
-
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
@@ -967,19 +1133,15 @@ void testConsumeExcluded(int topic_type){
     if (msg) {
       tmq_raw_data raw = {0};
       tmq_get_raw(msg, &raw);
-      if(topic_type == 1){
-        assert(raw.raw_type != 2 && raw.raw_type != 4 &&
-               raw.raw_type != TDMT_VND_CREATE_STB &&
-               raw.raw_type != TDMT_VND_ALTER_STB &&
-               raw.raw_type != TDMT_VND_CREATE_TABLE &&
-               raw.raw_type != TDMT_VND_ALTER_TABLE &&
-               raw.raw_type != TDMT_VND_DELETE);
-        assert(raw.raw_type == TDMT_VND_DROP_STB ||
-               raw.raw_type == TDMT_VND_DROP_TABLE);
-      }else if(topic_type == 2){
+      if (topic_type == 1) {
+        assert(raw.raw_type != 2 && raw.raw_type != 4 && raw.raw_type != TDMT_VND_CREATE_STB &&
+               raw.raw_type != TDMT_VND_ALTER_STB && raw.raw_type != TDMT_VND_CREATE_TABLE &&
+               raw.raw_type != TDMT_VND_ALTER_TABLE && raw.raw_type != TDMT_VND_DELETE);
+        assert(raw.raw_type == TDMT_VND_DROP_STB || raw.raw_type == TDMT_VND_DROP_TABLE || raw.raw_type == 5);
+      } else if (topic_type == 2) {
         assert(0);
       }
-//      printf("write raw data type: %d\n", raw.raw_type);
+      //      printf("write raw data type: %d\n", raw.raw_type);
       tmq_free_raw(raw);
 
       taos_free_result(msg);
@@ -998,8 +1160,20 @@ void testConsumeExcluded(int topic_type){
     taos_close(pConn);
     return;
   }
+  taos_close(pConn);
   taos_free_result(pRes);
 }
+
+void testDetailError() {
+  tmq_raw_data raw = {0};
+  raw.raw_type = 2;
+  int32_t code = tmq_write_raw((TAOS*)1, raw);
+  ASSERT(code);
+  const char* err = tmq_err2str(code);
+  char*       tmp = strstr(err, "Invalid parameters,detail:taos:0x1 or data");
+  ASSERT(tmp != NULL);
+}
+
 int main(int argc, char* argv[]) {
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -1016,6 +1190,8 @@ int main(int argc, char* argv[]) {
       g_conf.subTable = true;
     } else if (strcmp(argv[i], "-onlymeta") == 0) {
       g_conf.meta = 1;
+    } else if (strcmp(argv[i], "-bt") == 0) {
+      g_conf.btMeta = true;
     }
   }
 
@@ -1036,5 +1212,6 @@ int main(int argc, char* argv[]) {
 
   testConsumeExcluded(1);
   testConsumeExcluded(2);
+  testDetailError();
   taosCloseFile(&g_fp);
 }

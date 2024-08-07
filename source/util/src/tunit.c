@@ -23,45 +23,70 @@
 #define UNIT_ONE_PEBIBYTE        (UNIT_ONE_TEBIBYTE * UNIT_SIZE_CONVERT_FACTOR)
 #define UNIT_ONE_EXBIBYTE        (UNIT_ONE_PEBIBYTE * UNIT_SIZE_CONVERT_FACTOR)
 
-int64_t taosStrHumanToInt64(const char* str) {
-  size_t sLen = strlen(str);
-  if (sLen < 2) return atoll(str);
-
-  int64_t val = 0;
-
-  char* strNoUnit = NULL;
-  char  unit = str[sLen - 1];
-  if ((unit == 'P') || (unit == 'p')) {
-    strNoUnit = taosMemoryCalloc(sLen, 1);
-    memcpy(strNoUnit, str, sLen - 1);
-
-    val = atof(strNoUnit) * UNIT_ONE_PEBIBYTE;
-  } else if ((unit == 'T') || (unit == 't')) {
-    strNoUnit = taosMemoryCalloc(sLen, 1);
-    memcpy(strNoUnit, str, sLen - 1);
-
-    val = atof(strNoUnit) * UNIT_ONE_TEBIBYTE;
-  } else if ((unit == 'G') || (unit == 'g')) {
-    strNoUnit = taosMemoryCalloc(sLen, 1);
-    memcpy(strNoUnit, str, sLen - 1);
-
-    val = atof(strNoUnit) * UNIT_ONE_GIBIBYTE;
-  } else if ((unit == 'M') || (unit == 'm')) {
-    strNoUnit = taosMemoryCalloc(sLen, 1);
-    memcpy(strNoUnit, str, sLen - 1);
-
-    val = atof(strNoUnit) * UNIT_ONE_MEBIBYTE;
-  } else if ((unit == 'K') || (unit == 'k')) {
-    strNoUnit = taosMemoryCalloc(sLen, 1);
-    memcpy(strNoUnit, str, sLen - 1);
-
-    val = atof(strNoUnit) * UNIT_ONE_KIBIBYTE;
-  } else {
-    val = atoll(str);
+static int32_t parseCfgIntWithUnit(const char* str, double* res) {
+  double val, temp = (double)INT64_MAX;
+  char*  endPtr;
+  errno = 0;
+  val = taosStr2Int64(str, &endPtr, 0);
+  if (*endPtr == '.' || errno == ERANGE) {
+    errno = 0;
+    val = taosStr2Double(str, &endPtr);
   }
+  if (endPtr == str || errno == ERANGE || isnan(val)) {
+    return terrno = TSDB_CODE_INVALID_CFG_VALUE;
+  }
+  while (isspace((unsigned char)*endPtr)) endPtr++;
+  uint64_t factor = 1;
+  if (*endPtr != '\0') {
+    switch (*endPtr) {
+      case 'P':
+      case 'p': {
+        temp /= UNIT_ONE_PEBIBYTE;
+        factor = UNIT_ONE_PEBIBYTE;
+      } break;
+      case 'T':
+      case 't': {
+        temp /= UNIT_ONE_TEBIBYTE;
+        factor = UNIT_ONE_TEBIBYTE;
+      } break;
+      case 'G':
+      case 'g': {
+        temp /= UNIT_ONE_GIBIBYTE;
+        factor = UNIT_ONE_GIBIBYTE;
+      } break;
+      case 'M':
+      case 'm': {
+        temp /= UNIT_ONE_MEBIBYTE;
+        factor = UNIT_ONE_MEBIBYTE;
+      } break;
+      case 'K':
+      case 'k': {
+        temp /= UNIT_ONE_KIBIBYTE;
+        factor = UNIT_ONE_KIBIBYTE;
+      } break;
+      default:
+        return terrno = TSDB_CODE_INVALID_CFG_VALUE;
+    }
+    if ((val > 0 && val > temp) || (val < 0 && val < -temp)) {
+      return terrno = TSDB_CODE_OUT_OF_RANGE;
+    }
+    endPtr++;
+    val *= factor;
+  }
+  while (isspace((unsigned char)*endPtr)) endPtr++;
+  if (*endPtr) {
+    return terrno = TSDB_CODE_INVALID_CFG_VALUE;
+  }
+  val = rint(val);
+  *res = val;
+  return TSDB_CODE_SUCCESS;
+}
 
-  taosMemoryFree(strNoUnit);
-  return val;
+int32_t taosStrHumanToInt64(const char* str, int64_t* out) {
+  double  res;
+  int32_t code = parseCfgIntWithUnit(str, &res);
+  if (code == TSDB_CODE_SUCCESS) *out = (int64_t)res;
+  return code;
 }
 
 #ifdef BUILD_NO_CALL
@@ -83,35 +108,16 @@ void taosInt64ToHumanStr(int64_t val, char* outStr) {
 }
 #endif
 
-int32_t taosStrHumanToInt32(const char* str) {
-  size_t sLen = strlen(str);
-  if (sLen < 2) return atoll(str);
-
-  int32_t val = 0;
-
-  char* strNoUnit = NULL;
-  char  unit = str[sLen - 1];
-  if ((unit == 'G') || (unit == 'g')) {
-    strNoUnit = taosMemoryCalloc(sLen, 1);
-    memcpy(strNoUnit, str, sLen - 1);
-
-    val = atof(strNoUnit) * UNIT_ONE_GIBIBYTE;
-  } else if ((unit == 'M') || (unit == 'm')) {
-    strNoUnit = taosMemoryCalloc(sLen, 1);
-    memcpy(strNoUnit, str, sLen - 1);
-
-    val = atof(strNoUnit) * UNIT_ONE_MEBIBYTE;
-  } else if ((unit == 'K') || (unit == 'k')) {
-    strNoUnit = taosMemoryCalloc(sLen, 1);
-    memcpy(strNoUnit, str, sLen - 1);
-
-    val = atof(strNoUnit) * UNIT_ONE_KIBIBYTE;
-  } else {
-    val = atoll(str);
+int32_t taosStrHumanToInt32(const char* str, int32_t* out) {
+  double  res;
+  int32_t code = parseCfgIntWithUnit(str, &res);
+  if (code == TSDB_CODE_SUCCESS) {
+    if (res < INT32_MIN || res > INT32_MAX) {
+      return terrno = TSDB_CODE_OUT_OF_RANGE;
+    }
+    *out = (int32_t)res;
   }
-
-  taosMemoryFree(strNoUnit);
-  return val;
+  return code;
 }
 
 #ifdef BUILD_NO_CALL

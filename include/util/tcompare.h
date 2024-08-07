@@ -45,7 +45,10 @@ typedef struct SPatternCompareInfo {
   TdUcs4 umatchOne;    // unicode version matchOne
 } SPatternCompareInfo;
 
+int32_t InitRegexCache();
+void    DestroyRegexCache();
 int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo);
+int32_t checkRegexPattern(const char *pPattern);
 
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize, const SPatternCompareInfo *pInfo);
 

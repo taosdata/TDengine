@@ -36,7 +36,8 @@ typedef struct SFSetRAWWriter SFSetRAWWriter;
 
 int32_t tsdbFSetRAWWriterOpen(SFSetRAWWriterConfig *config, SFSetRAWWriter **writer);
 int32_t tsdbFSetRAWWriterClose(SFSetRAWWriter **writer, bool abort, TFileOpArray *fopArr);
-int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeader *bHdr);
+int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeader *bHdr, int32_t encryptAlgorithm, 
+                                  char* encryptKey);
 
 #ifdef __cplusplus
 }

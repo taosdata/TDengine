@@ -88,6 +88,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_LTRIM,
   FUNCTION_TYPE_RTRIM,
   FUNCTION_TYPE_SUBSTR,
+  FUNCTION_TYPE_MD5,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -137,6 +138,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_CACHE_LAST_ROW,
   FUNCTION_TYPE_CACHE_LAST,
   FUNCTION_TYPE_TABLE_COUNT,
+  FUNCTION_TYPE_GROUP_CONST_VALUE,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -164,6 +166,18 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV_MERGE,
   FUNCTION_TYPE_IRATE_PARTIAL,
   FUNCTION_TYPE_IRATE_MERGE,
+  FUNCTION_TYPE_AVG_STATE,
+  FUNCTION_TYPE_AVG_STATE_MERGE,
+  FUNCTION_TYPE_FIRST_STATE,
+  FUNCTION_TYPE_FIRST_STATE_MERGE,
+  FUNCTION_TYPE_LAST_STATE,
+  FUNCTION_TYPE_LAST_STATE_MERGE,
+  FUNCTION_TYPE_SPREAD_STATE,
+  FUNCTION_TYPE_SPREAD_STATE_MERGE,
+  FUNCTION_TYPE_STDDEV_STATE,
+  FUNCTION_TYPE_STDDEV_STATE_MERGE,
+  FUNCTION_TYPE_HYPERLOGLOG_STATE,
+  FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -238,11 +252,15 @@ bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
+bool fmIsIgnoreNullFunc(int32_t funcId);
 bool fmIsConstantResFunc(SFunctionNode* pFunc);
 bool fmIsSkipScanCheckFunc(int32_t funcId);
+bool fmIsPrimaryKeyFunc(int32_t funcId);
+bool fmIsProcessByRowFunc(int32_t funcId);
+bool fmisSelectGroupConstValueFunc(int32_t funcId);
 
-void getLastCacheDataType(SDataType* pType);
-SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
+void getLastCacheDataType(SDataType* pType, int32_t pkBytes);
+int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc, SFunctionNode** pMergeFunc);
 
@@ -255,7 +273,7 @@ typedef enum EFuncDataRequired {
 } EFuncDataRequired;
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
-EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow);
+int32_t fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockInfo* pBlockInfo, int32_t *reqStatus);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
@@ -268,6 +286,13 @@ bool    fmIsInvertible(int32_t funcId);
 #endif
 
 char*   fmGetFuncName(int32_t funcId);
+
+bool    fmIsTSMASupportedFunc(func_id_t funcId);
+int32_t fmCreateStateFuncs(SNodeList* pFuncs);
+int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
+int32_t fmGetFuncId(const char* name);
+bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
+bool    fmIsCountLikeFunc(int32_t funcId);
 
 #ifdef __cplusplus
 }

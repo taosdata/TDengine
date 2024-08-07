@@ -31,10 +31,10 @@ extern "C" {
 
 #define TSWAP(a, b)                  \
   do {                               \
-    char *__tmp = alloca(sizeof(a)); \
-    memcpy(__tmp, &(a), sizeof(a));  \
-    memcpy(&(a), &(b), sizeof(a));   \
-    memcpy(&(b), __tmp, sizeof(a));  \
+    char *__tmp = (char*)alloca(sizeof(a)); \
+    (void)memcpy(__tmp, &(a), sizeof(a));  \
+    (void)memcpy(&(a), &(b), sizeof(a));   \
+    (void)memcpy(&(b), __tmp, sizeof(a));  \
   } while (0)
 
 #ifdef WINDOWS

@@ -368,9 +368,10 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   SDiskCfg pDisks = {0};
   pDisks.level = 0;
   pDisks.primary = 1;
+  pDisks.disable = 0;
   strncpy(pDisks.dir, TD_DATA_DIR_PATH, TSDB_FILENAME_LEN);
   int32_t numOfDisks = 1;
-  pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);
+  (void)tfsOpen(&pDisks, numOfDisks, &pTsdb->pTfs);
   EXPECT_NE(pTsdb->pTfs, nullptr);
 
   // generate SSubmitReq msg and update expire window

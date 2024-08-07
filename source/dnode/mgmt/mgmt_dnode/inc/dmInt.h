@@ -43,13 +43,12 @@ typedef struct SDnodeMgmt {
   GetMnodeLoadsFp        getMnodeLoadsFp;
   GetQnodeLoadsFp        getQnodeLoadsFp;
   int32_t                statusSeq;
-  SendMonitorReportFp    sendMonitorReportFpBasic;
 } SDnodeMgmt;
 
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
-void    dmSendNotifyReq(SDnodeMgmt *pMgmt);
+void    dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
@@ -57,6 +56,7 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg);
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
+int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);

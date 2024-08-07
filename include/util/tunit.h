@@ -22,10 +22,10 @@
 extern "C" {
 #endif
 
-int64_t taosStrHumanToInt64(const char* str);
+int32_t taosStrHumanToInt64(const char* str, int64_t* out);
 void    taosInt64ToHumanStr(int64_t val, char* outStr);
 
-int32_t taosStrHumanToInt32(const char* str);
+int32_t taosStrHumanToInt32(const char* str, int32_t* out);
 void    taosInt32ToHumanStr(int32_t val, char* outStr);
 
 #ifdef __cplusplus

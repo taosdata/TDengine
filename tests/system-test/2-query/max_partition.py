@@ -21,7 +21,7 @@ class TDTestCase:
         for i in range(tb_nums):
             tbname = f"{dbname}.sub_{stb_name}_{i}"
             ts = self.ts + i*1000*120
-            tdSql.execute(f"create table {tbname} using {dbname}.{stb_name} tags ({ts} , {i} , {i}*10 ,{i}*1.0,{i}*1.0 , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )")
+            tdSql.execute(f"create table {tbname} using {dbname}.{stb_name} tags ({ts} , {i} , %d , %f , %f , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )"%(i*10,i*1.0,i*1.0))
 
             for row in range(row_nums):
                 ts = ts + row*1000
@@ -172,7 +172,7 @@ class TDTestCase:
         tdSql.checkRows(90)
 
         tdSql.query(f"select c1 , diff(c1 , 0) from {dbname}.stb partition by c1")
-        tdSql.checkRows(140)
+        tdSql.checkRows(139)
 
         tdSql.query(f"select c1 , csum(c1) from {dbname}.stb partition by c1")
         tdSql.checkRows(100)

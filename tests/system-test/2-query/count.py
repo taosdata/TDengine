@@ -1,3 +1,4 @@
+from os import system
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -102,6 +103,10 @@ class TDTestCase:
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} group by t0')
             tdSql.checkRows(row)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} partition by tbname')
+            tdSql.checkRows(row)
+            tdSql.query(f'select t0, {function_name}(c1),sum(c1) from {self.stbname} partition by tbname')
+            tdSql.checkRows(row)
+            tdSql.query(f'select cast(t0 as binary(12)), {function_name}(c1),sum(c1) from {self.stbname} partition by tbname')
             tdSql.checkRows(row)
             tdSql.query(f'select {function_name}(c1),sum(c1) from {self.stbname} partition by c1')
             tdSql.checkRows(0)
@@ -245,7 +250,28 @@ class TDTestCase:
         self.count_query_stb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
         self.count_query_ctb(self.column_dict,self.tag_dict,self.stbname,self.tbnum,self.rowNum)
         tdSql.execute('drop database db')
+
+    def test_count_with_sma_data(self):
+        sql_file = './2-query/count_test.sql'
+
+        os.system(f'taos -f {sql_file}')
+        tdSql.query('select count(c_1) from d2.t2 where c_1 < 10', queryTimes=1)
+        tdSql.checkData(0, 0, 0)
+        tdSql.query('select count(c_1), min(c_1),tbname from d2.can partition by tbname order by 3', queryTimes=1)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, 't1')
+
+        tdSql.checkData(1, 0, 15)
+        tdSql.checkData(1, 1, 1471617148940980000)
+        tdSql.checkData(1, 2, 't2')
+
+        tdSql.checkData(2, 0, 0)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, 't3')
+
     def run(self):
+        self.test_count_with_sma_data()
         self.check_stb()
         self.check_ntb()
     def stop(self):

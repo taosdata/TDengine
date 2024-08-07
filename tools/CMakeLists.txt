@@ -18,7 +18,7 @@ IF (TD_WEBSOCKET)
             COMMAND     git clean -f -d
             BUILD_COMMAND
             COMMAND cargo update
-            COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features native-tls
+            COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
@@ -37,7 +37,7 @@ IF (TD_WEBSOCKET)
             COMMAND     git clean -f -d
             BUILD_COMMAND
             COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
+            COMMAND cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/taosws.dll ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cp target/release/taosws.dll.lib ${CMAKE_BINARY_DIR}/build/lib/taosws.lib
@@ -57,7 +57,7 @@ IF (TD_WEBSOCKET)
             COMMAND     git clean -f -d
             BUILD_COMMAND
             COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
+            COMMAND cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
@@ -140,8 +140,8 @@ ELSE ()
             BUILD_COMMAND
             COMMAND set CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client
             COMMAND set CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib
-            COMMAND go build -a -o taosadapter.exe -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
-            COMMAND go build -a -o taosadapter-debug.exe -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
+            COMMAND go build -a -o taosadapter.exe -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            COMMAND go build -a -o taosadapter-debug.exe -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
 
             INSTALL_COMMAND
             COMMAND cmake -E echo "Comparessing taosadapter.exe"
@@ -167,8 +167,8 @@ ELSE ()
                 PATCH_COMMAND
                 COMMAND     git clean -f -d
                 BUILD_COMMAND
-                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
-                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
+                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
                 INSTALL_COMMAND
                 COMMAND cmake -E echo "Copy taosadapter"
                 COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
@@ -192,19 +192,19 @@ ELSE ()
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
-            COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
-            COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_DATE}'"
+            COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+#            COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
             INSTALL_COMMAND
-            COMMAND cmake -E echo "Comparessing taosadapter.exe"
-            COMMAND upx taosadapter || :
+#            COMMAND cmake -E echo "Comparessing taosadapter.exe"
+#            COMMAND upx taosadapter || :
             COMMAND cmake -E echo "Copy taosadapter"
             COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
             COMMAND cmake -E echo "Copy taosadapter.toml"
             COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
             COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-            COMMAND cmake -E echo "Copy taosadapter-debug"
-            COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+#            COMMAND cmake -E echo "Copy taosadapter-debug"
+#            COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
             )
     ENDIF ()
 ENDIF ()

@@ -24,7 +24,9 @@ extern "C" {
 
 typedef enum {
   TSDB_FEDIT_COMMIT = 1,  //
-  TSDB_FEDIT_MERGE
+  TSDB_FEDIT_MERGE,
+  TSDB_FEDIT_COMPACT,
+  TSDB_FEDIT_RETENTION,
 } EFEditT;
 
 typedef enum {
@@ -59,6 +61,8 @@ int32_t tsdbFSEditAbort(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);
+int32_t tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, STFileSet **fset);
+int32_t tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid);
 // utils
 int32_t save_fs(const TFileSetArray *arr, const char *fname);
 int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
@@ -72,10 +76,6 @@ struct STFileSystem {
   EFEditT       etype;
   TFileSetArray fSetArr[1];
   TFileSetArray fSetArrTmp[1];
-
-  // background task queue
-  bool    stop;
-  int64_t taskid;
 };
 
 #ifdef __cplusplus

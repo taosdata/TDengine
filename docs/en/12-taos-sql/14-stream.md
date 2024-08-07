@@ -1,5 +1,5 @@
 ---
-title: Stream Processing
+title: Stream Processing SQL Reference
 sidebar_label: Stream Processing
 description: This document describes the SQL statements related to the stream processing component of TDengine.
 ---
@@ -11,13 +11,14 @@ Because stream processing is built in to TDengine, you are no longer reliant on 
 ## Create a Stream
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
  FILL_HISTORY   [0|1]
+ IGNORE UPDATE  [0|1]
 }
 
 ```
@@ -29,10 +30,10 @@ subquery: SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
     [PARTITION BY tag_list]
-    [window_clause]
+    window_clause
 ```
 
-Session windows, state windows, and sliding windows are supported. When you configure a session or state window for a supertable, you must use PARTITION BY TBNAME.
+Session windows, state windows, and sliding windows are supported. When you configure a session or state window for a supertable, you must use PARTITION BY TBNAME. If the source table has a composite primary key, state windows, event windows, and count windows are not supported.
 
 Subtable Clause defines the naming rules of auto-created subtable, you can see more details in below part: Partitions of Stream.
 
@@ -46,7 +47,7 @@ window_clause: {
 }
 ```
 
-`SESSION` indicates a session window, and `tol_val` indicates the maximum range of the time interval. If the time interval between two continuous rows are within the time interval specified by `tol_val` they belong to the same session window; otherwise a new session window is started automatically.
+`SESSION` indicates a session window, and `tol_val` indicates the maximum range of the time interval. If the time interval between two continuous rows are within the time interval specified by `tol_val` they belong to the same session window; otherwise a new session window is started automatically.The `_wend` of this window is the time of the last data plus `tol_val`.
 
 `EVENT_WINDOW` is determined according to the window start condition and the window close condition. The window is started when `start_trigger_condition` is evaluated to true, the window is closed when `end_trigger_condition` is evaluated to true. `start_trigger_condition` and `end_trigger_condition` can be any conditional expressions supported by TDengine and can include multiple columns.
 
@@ -77,9 +78,13 @@ If a stream is created with PARTITION BY clause and SUBTABLE clause, the name of
 
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
+
+CREATE STREAM streams0 INTO streamt0 AS SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname EVENT_WINDOW START WITH voltage < 0 END WITH voltage > 9;
+
+CREATE STREAM streams1 IGNORE EXPIRED 1 WATERMARK 100s INTO streamt1 AS SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WINDOW(10);
 ```
 
-IN PARTITION clause, 'tbname', representing each subtable name of source supertable, is given alias 'tname'. And 'tname' is used in SUBTABLE clause. In SUBTABLE clause, each auto created subtable will concat 'new-' and source subtable name as their name(Starting from 3.2.3.0, in order to avoid the expression in subtable being unable to distinguish between different subtables, add '_groupId' to the end of subtable name).
+IN PARTITION clause, 'tbname', representing each subtable name of source supertable, is given alias 'tname'. And 'tname' is used in SUBTABLE clause. In SUBTABLE clause, each auto created subtable will concat 'new-' and source subtable name as their name(Starting from 3.2.3.0, in order to avoid the expression in subtable being unable to distinguish between different subtables, add '_stableName_groupId' to the end of subtable name).
 
 If the output length exceeds the limitation of TDengine(192), the name will be truncated. If the generated name is occupied by some other table, the creation and writing of the new subtable will be failed.
 
@@ -148,7 +153,7 @@ T = latest event time - watermark
 
 The window closing time for each batch of data that arrives at the system is updated using the preceding formula, and all windows are closed whose closing time is less than T. If the triggering method is WINDOW_CLOSE or MAX_DELAY, the aggregate result for the window is pushed.
 
-Stream processing strategy for expired data
+## Stream processing strategy for expired data
 The data in expired windows is tagged as expired. TDengine stream processing provides two methods for handling such data:
 
 1. Drop the data. This is the default and often only handling method for most stream processing engines.
@@ -156,6 +161,14 @@ The data in expired windows is tagged as expired. TDengine stream processing pro
 2. Recalculate the data. In this method, all data in the window is reobtained from the database and recalculated. The latest results are then returned.
 
 In both of these methods, configuring the watermark is essential for obtaining accurate results (if expired data is dropped) and avoiding repeated triggers that affect system performance (if expired data is recalculated).
+
+## Stream processing strategy for modifying data
+
+TDengine provides two ways to handle modified data, which are specified by the IGNORE UPDATE option:
+
+1. Check whether the data has been modified, i.e. IGNORE UPDATE 0, and recalculate the corresponding window if the data has been modified.
+
+2. Do not check whether the data has been modified, and calculate all the data as incremental data, i.e. IGNORE UPDATE 1, the default configuration.
 
 ## Supported functions
 
@@ -180,11 +193,32 @@ All [scalar functions](../function/#scalar-functions) are available in stream pr
   - [unique](../function/#unique)
   - [mode](../function/#mode)
 
-## Pause\Resume stream
+## Pause Resume stream
 1.pause stream
+```sql
 PAUSE STREAM [IF EXISTS] stream_name;
+```
 If "IF EXISTS" is not specified and the stream does not exist, an error will be reported; If "IF EXISTS" is specified and the stream does not exist, success is returned; If the stream exists, paused all stream tasks.
 
 2.resume stream
+```sql
 RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
+```
 If "IF EXISTS" is not specified and the stream does not exist, an error will be reported. If "IF EXISTS" is specified and the stream does not exist, success is returned; If the stream exists, all of the stream tasks will be resumed. If "IGNORE UntREATED" is specified, data written during the pause period of stream is ignored when resuming stream.
+
+## Stream State Backup
+The intermediate processing results of stream, a.k.a stream state, need to be persistent on the disk properly during stream processing. The stream state, consisting of multiple files on disk, may be transferred between different computing nodes during the stream processing, as a result of a leader/follower switch or physical computing node offline. You need to deploy the rsync on each physical node to enable the backup and restore processing work, since _ver_.3.3.2.1. To ensure it works correctly, please refer to the following instructions:
+1. add the option "snodeAddress" in the configure file
+2. add the option "checkpointBackupDir" in the configure file to set the backup data directory.
+3. create a _snode_ before creating a stream to ensure the backup service is activated. Otherwise, the checkpoint may not generated during the stream procedure.
+
+>snodeAddress 127.0.0.1:873
+>
+>checkpointBackupDir /home/user/stream/backup/checkpoint/
+
+## create snode
+The snode, stream node for short, on which the aggregate tasks can be deployed on, is a stateful computing node dedicated to the stream processing. An important feature is to backup and restore the stream state files. The snode needs to be created before creating stream tasks. Use the following SQL statement to create a snode in a TDengine cluster, and only one snode is allowed in a TDengine cluster for now.
+```sql
+CREATE SNODE ON DNODE id
+```
+is the ordinal number of a dnode, which can be acquired by using ```show dnodes``` statement.

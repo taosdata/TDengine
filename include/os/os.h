@@ -97,6 +97,7 @@ extern "C" {
 #include <nmmintrin.h>
 #endif
 
+
 #include "osThread.h"
 
 #include "osAtomic.h"
@@ -122,6 +123,9 @@ extern "C" {
 #include "osTimezone.h"
 #include "taoserror.h"
 #include "tlog.h"
+
+extern int32_t tsRandErrChance;
+extern threadlocal bool tsEnableRandErr;
 
 #ifdef __cplusplus
 }

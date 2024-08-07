@@ -28,22 +28,22 @@ if $data05 != NULL then
 endi
 sql create table st_double_2  using mt_double tags ('NULL')
 sql show tags from st_double_2
-if $data05 != 0.000000000 then
+if $data05 != NULL then
   return -1
 endi
 sql create table st_double_3  using mt_double tags ('NULL')
 sql show tags from st_double_3
-if $data05 != 0.000000000  then
+if $data05 != NULL  then
   return -1
 endi
 sql create table st_double_4  using mt_double tags ("NULL")
 sql show tags from st_double_4
-if $data05 != 0.000000000  then
+if $data05 != NULL  then
   return -1
 endi
 sql create table st_double_5  using mt_double tags ("NULL")
 sql show tags from st_double_5
-if $data05 != 0.000000000  then
+if $data05 != NULL  then
   return -1
 endi
 sql create table st_double_6  using mt_double tags (-123.321)
@@ -148,6 +148,46 @@ sql show tags from st_double_16_0
 #if $data05 != 0.001500000 then
 #  return -1
 #endi
+sql create table st_double_100 using mt_double tags ("0x01")
+sql show tags from  st_double_100
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql create table st_double_101 using mt_double tags ("0b01")
+sql show tags from  st_double_101
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql create table st_double_102 using mt_double tags ("+0x01")
+sql show tags from  st_double_102
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql create table st_double_103 using mt_double tags ("-0b01")
+sql show tags from  st_double_103
+if $data05 != -1.000000000 then
+  return -1
+endi
+sql create table st_double_200 using mt_double tags ( 0x01)
+sql show tags from  st_double_200
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql create table st_double_201 using mt_double tags (0b01 )
+sql show tags from  st_double_201
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql create table st_double_202 using mt_double tags (+0x01)
+sql show tags from  st_double_202
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql create table st_double_203 using mt_double tags ( -0b01 )
+sql show tags from  st_double_203
+if $data05 != -1.000000000 then
+  return -1
+endi
 
 ## case 01: insert values  for test column values
 sql insert into st_double_0  values (now, NULL )
@@ -274,6 +314,70 @@ endi
 #if $data01 != -56 then
 #  return -1
 #endi
+sql insert into  st_double_100 values(now, "0x01")
+sql select * from st_double_100
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into  st_double_101 values(now, "0b01")
+sql select * from st_double_101
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into  st_double_102 values(now, "+0x01")
+sql select * from st_double_102
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into  st_double_103 values(now, "-0b01")
+sql select * from st_double_103
+if $rows != 1 then
+  return -1
+endi
+if $data01 != -1.000000000 then
+  return -1
+endi
+sql insert into  st_double_200 values(now,  0x01)
+sql select * from st_double_200
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into  st_double_201 values(now, 0b01 )
+sql select * from st_double_201
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into  st_double_202 values(now, +0x01)
+sql select * from st_double_202
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into  st_double_203 values(now,  -0b01 )
+sql select * from st_double_203
+if $rows != 1 then
+  return -1
+endi
+if $data01 != -1.000000000 then
+  return -1
+endi
 
 ## case 02: dynamic create table for test tag values
 sql insert into st_double_16 using mt_double tags (NULL )   values (now, NULL )
@@ -394,6 +498,78 @@ sql select * from st_double_28
 #if $data01 != -56 then
 #  return -1
 #endi
+sql insert into st_double_100 using mt_double tags ("0x01") values (now, "0x01")
+sql show tags from  st_double_100
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql select * from st_double_100
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into st_double_101 using mt_double tags ("0b01") values (now, "0b01")
+sql show tags from  st_double_101
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql select * from st_double_101
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into st_double_102 using mt_double tags ("+0x01") values (now, "+0x01")
+sql show tags from  st_double_102
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql select * from st_double_102
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into st_double_103 using mt_double tags ("-0b01") values (now, "-0b01")
+sql show tags from  st_double_103
+if $data05 != -1.000000000 then
+  return -1
+endi
+sql select * from st_double_103
+if $data01 != -1.000000000 then
+  return -1
+endi
+sql insert into st_double_200 using mt_double tags ( 0x01) values (now, 0x01)
+sql show tags from  st_double_200
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql select * from st_double_200
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into st_double_201 using mt_double tags (0b01 ) values (now, 0b01)
+sql show tags from  st_double_201
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql select * from st_double_201
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into st_double_202 using mt_double tags (+0x01) values (now, +0x01)
+sql show tags from  st_double_202
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql select * from st_double_202
+if $data01 != 1.000000000 then
+  return -1
+endi
+sql insert into st_double_203 using mt_double tags ( -0b01 ) values (now, -0b01)
+sql show tags from  st_double_203
+if $data05 != -1.000000000 then
+  return -1
+endi
+sql select * from st_double_203
+if $data01 != -1.000000000 then
+  return -1
+endi
 
 ### case 03: alter tag values
 #sql alter table st_double_0 set tag tagname=1.7976931348623157e+308
@@ -436,6 +612,46 @@ sql select * from st_double_28
 ##if $data05 != -63 then
 ##  return -1
 ##endi
+sql alter table st_double_100 set tag tagname="0x01"
+sql show tags from  st_double_100
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql alter table st_double_101 set tag tagname="0b01"
+sql show tags from  st_double_101
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql alter table st_double_102 set tag tagname="+0x01"
+sql show tags from  st_double_102
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql alter table st_double_103 set tag tagname="-0b01"
+sql show tags from  st_double_103
+if $data05 != -1.000000000 then
+  return -1
+endi
+sql alter table st_double_200 set tag tagname= 0x01
+sql show tags from  st_double_200
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql alter table st_double_201 set tag tagname=0b01 
+sql show tags from  st_double_201
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql alter table st_double_202 set tag tagname=+0x01
+sql show tags from  st_double_202
+if $data05 != 1.000000000 then
+  return -1
+endi
+sql alter table st_double_203 set tag tagname= -0b01 
+sql show tags from  st_double_203
+if $data05 != -1.000000000 then
+  return -1
+endi
 
 ## case 04: illegal input
 sql_error create table st_double_e0 using mt_double tags (1.8976931348623157e+308)
@@ -445,11 +661,11 @@ sql_error create table st_double_e0 using mt_double tags (-31.7976931348623157e+
 #sql_error create table st_double_e0 using mt_double tags (12.80)   truncate integer part
 #sql_error create table st_double_e0 using mt_double tags (-11.80)
 sql_error create table st_double_e0 using mt_double tags (123abc)
-sql create table st_double_e0_1 using mt_double tags ("123abc")
+sql_error create table st_double_e0_1 using mt_double tags ("123abc")
 sql_error create table st_double_e0 using mt_double tags (abc)
-sql create table st_double_e0_2 using mt_double tags ("abc")
-sql create table st_double_e0_3 using mt_double tags (" ")
-sql create table st_double_e0_4 using mt_double tags ('')
+sql_error create table st_double_e0_2 using mt_double tags ("abc")
+sql_error create table st_double_e0_3 using mt_double tags (" ")
+sql_error create table st_double_e0_4 using mt_double tags ('')
 
 sql create table st_double_e0  using mt_double tags (123)
 sql create table st_double_e1  using mt_double tags (123)
@@ -502,7 +718,8 @@ sql_error insert into st_double_e20 using mt_double tags ("123abc") values (now,
 sql_error insert into st_double_e22 using mt_double tags (abc)      values (now, -033)
 sql_error insert into st_double_e23 using mt_double tags ("abc")    values (now, -033)
 sql_error insert into st_double_e24 using mt_double tags (" ")      values (now, -033)
-sql insert into st_double_e25 using mt_double tags ('')       values (now, -033)
+sql_error insert into st_double_e25 using mt_double tags ('')       values (now, -033)
+sql insert into st_double_e20 using mt_double tags ("123") values (now, -033)
 
 sql insert into st_double_e13 using mt_double tags (033) values (now, 00062)
 sql insert into st_double_e14 using mt_double tags (033) values (now, 00062)
@@ -523,10 +740,11 @@ sql_error alter table st_double_e14 set tag tagname=-1.8976931348623157e+308
 sql_error alter table st_double_e15 set tag tagname=131.7976931348623157e+308
 sql_error alter table st_double_e16 set tag tagname=-131.7976931348623157e+308
 sql_error alter table st_double_e19 set tag tagname=123abc
-sql alter table st_double_e20 set tag tagname="123abc"
+sql_error alter table st_double_e20 set tag tagname="123abc"
 sql_error alter table st_double_e22 set tag tagname=abc
-sql alter table st_double_e23 set tag tagname="abc"
-sql alter table st_double_e24 set tag tagname=" "
-sql alter table st_double_e25 set tag tagname=''
+sql_error alter table st_double_e23 set tag tagname="abc"
+sql_error alter table st_double_e24 set tag tagname=" "
+sql_error alter table st_double_e25 set tag tagname=''
+sql alter table st_double_e25 set tag tagname='123'
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT

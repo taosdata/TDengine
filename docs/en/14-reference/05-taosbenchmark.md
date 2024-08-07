@@ -92,7 +92,7 @@ taosBenchmark -f <json file>
 
 </details>
 
-## Command-line argument in detail
+## Command-line arguments in detail
 
 - **-f/--file &lt;json file&gt;** :
   specify the configuration file to use. This file includes All parameters. Users should not use this parameter with other parameters on the command-line. There is no default value.

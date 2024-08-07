@@ -12,6 +12,7 @@ IF (HEADER_GTEST_INCLUDE_DIR AND (LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
+    LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/terrorTest.cpp)
     ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
     TARGET_LINK_LIBRARIES(utilTest util common os gtest pthread)
 
@@ -32,6 +33,7 @@ ENDIF()
 #ENDIF ()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
 
 # arrayTest
 add_executable(arrayTest "arrayTest.cpp")
@@ -108,3 +110,34 @@ add_test(
     NAME tbaseCodecTest
     COMMAND tbaseCodecTest
 )
+
+# bufferTest
+add_executable(bufferTest "bufferTest.cpp")
+target_link_libraries(bufferTest os util gtest_main)
+add_test(
+    NAME bufferTest
+    COMMAND bufferTest
+)
+
+#add_executable(decompressTest "decompressTest.cpp")
+#target_link_libraries(decompressTest os util common gtest_main)
+#add_test(
+#    NAME decompressTest 
+#    COMMAND decompressTest
+#)
+
+if (${TD_LINUX})
+    # terrorTest
+    add_executable(terrorTest "terrorTest.cpp")
+    target_link_libraries(terrorTest os util common gtest_main)
+    add_test(
+        NAME terrorTest
+        COMMAND terrorTest
+    )
+
+    # config
+    SET(ERR_TBL_FILE ${CMAKE_CURRENT_SOURCE_DIR}/errorCodeTable.ini)
+    add_custom_command(TARGET terrorTest POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ERR_TBL_FILE} $<TARGET_FILE_DIR:terrorTest>
+    )
+endif ()

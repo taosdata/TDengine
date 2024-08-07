@@ -113,6 +113,13 @@
 ./test.sh -f tsim/parser/columnValue_smallint.sim
 ./test.sh -f tsim/parser/columnValue_tinyint.sim
 ./test.sh -f tsim/parser/columnValue_unsign.sim
+./test.sh -f tsim/parser/columnValue_uint.sim
+./test.sh -f tsim/parser/columnValue_timestamp.sim
+./test.sh -f tsim/parser/columnValue_varchar.sim
+./test.sh -f tsim/parser/columnValue_nchar.sim
+./test.sh -f tsim/parser/columnValue_varbinary.sim
+./test.sh -f tsim/parser/columnValue_json.sim
+./test.sh -f tsim/parser/columnValue_geometry.sim
 ./test.sh -f tsim/parser/condition.sim
 ./test.sh -f tsim/parser/condition_scl.sim
 ./test.sh -f tsim/parser/constCol.sim
@@ -394,6 +401,7 @@
 ./test.sh -f tsim/tag/tbNameIn.sim
 ./test.sh -f tmp/monitor.sim
 ./test.sh -f tsim/tagindex/add_index.sim
+./test.sh -f tsim/tagindex/indexOverflow.sim
 ./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ./test.sh -f tsim/view/view.sim
 ./test.sh -f tsim/query/cache_last.sim

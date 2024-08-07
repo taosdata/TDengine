@@ -10,7 +10,6 @@ target_sources(tdb
     "src/db/tdbTable.c"
     "src/db/tdbTxn.c"
     "src/db/tdbPage.c"
-    "src/db/tdbOs.c"
 )
 
 target_include_directories(
@@ -22,6 +21,7 @@ target_link_libraries(
     tdb
     PUBLIC os
     PUBLIC util
+    PUBLIC crypt
 )
 
 # for test

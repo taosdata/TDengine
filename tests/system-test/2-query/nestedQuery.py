@@ -423,16 +423,8 @@ class TDTestCase:
 
         self.calc_select_in_not_support_ts_j = ['apercentile(t1.q_int,20)' ,  'apercentile(t1.q_bigint,20)'  ,'apercentile(t1.q_smallint,20)'  ,'apercentile(t1.q_tinyint,20)' ,'apercentile(t1.q_float,20)'  ,'apercentile(t1.q_double,20)' ,
                     'apercentile(t1.q_int_null,20)' ,  'apercentile(t1.q_bigint_null,20)'  ,'apercentile(t1.q_smallint_null,20)'  ,'apercentile(t1.q_tinyint_null,20)' ,'apercentile(t1.q_float_null,20)'  ,'apercentile(t1.q_double_null,20)' ,
-                    'last_row(t1.q_int)' ,  'last_row(t1.q_bigint)' , 'last_row(t1.q_smallint)' , 'last_row(t1.q_tinyint)' , 'last_row(t1.q_float)' ,
-                    'last_row(t1.q_double)' , 'last_row(t1.q_bool)' ,'last_row(t1.q_binary)' ,'last_row(t1.q_nchar)' ,'last_row(t1.q_ts)' ,
-                    'last_row(t1.q_int_null)' ,  'last_row(t1.q_bigint_null)' , 'last_row(t1.q_smallint_null)' , 'last_row(t1.q_tinyint_null)' , 'last_row(t1.q_float_null)' ,
-                    'last_row(t1.q_double_null)' , 'last_row(t1.q_bool_null)' ,'last_row(t1.q_binary_null)' ,'last_row(t1.q_nchar_null)' ,'last_row(t1.q_ts_null)' ,
                     'apercentile(t2.q_int,20)' ,  'apercentile(t2.q_bigint,20)'  ,'apercentile(t2.q_smallint,20)'  ,'apercentile(t2.q_tinyint,20)' ,'apercentile(t2.q_float,20)'  ,'apercentile(t2.q_double,20)' ,
-                    'apercentile(t2.q_int_null,20)' ,  'apercentile(t2.q_bigint_null,20)'  ,'apercentile(t2.q_smallint_null,20)'  ,'apercentile(t2.q_tinyint_null,20)' ,'apercentile(t2.q_float_null,20)'  ,'apercentile(t2.q_double_null,20)' ,
-                    'last_row(t2.q_int)' ,  'last_row(t2.q_bigint)' , 'last_row(t2.q_smallint)' , 'last_row(t2.q_tinyint)' , 'last_row(t2.q_float)' ,
-                    'last_row(t2.q_double)' , 'last_row(t2.q_bool)' ,'last_row(t2.q_binary)' ,'last_row(t2.q_nchar)' ,'last_row(t2.q_ts)',
-                    'last_row(t2.q_int_null)' ,  'last_row(t2.q_bigint_null)' , 'last_row(t2.q_smallint_null)' , 'last_row(t2.q_tinyint_null)' , 'last_row(t2.q_float_null)' ,
-                    'last_row(t2.q_double_null)' , 'last_row(t2.q_bool_null)' ,'last_row(t2.q_binary_null)' ,'last_row(t2.q_nchar_null)' ,'last_row(t2.q_ts_null)']
+                    'apercentile(t2.q_int_null,20)' ,  'apercentile(t2.q_bigint_null,20)'  ,'apercentile(t2.q_smallint_null,20)'  ,'apercentile(t2.q_tinyint_null,20)' ,'apercentile(t2.q_float_null,20)'  ,'apercentile(t2.q_double_null,20)' ]
 
         self.calc_select_in_j = ['min(t1.q_int)' , 'min(t1.q_bigint)' , 'min(t1.q_smallint)' , 'min(t1.q_tinyint)' , 'min(t1.q_float)' ,'min(t1.q_double)' ,
                     'max(t1.q_int)' ,  'max(t1.q_bigint)' , 'max(t1.q_smallint)' , 'max(t1.q_tinyint)' ,'max(t1.q_float)' ,'max(t1.q_double)' ,
@@ -1385,8 +1377,19 @@ class TDTestCase:
                 tdSql.query(sql)
                 self.cur1.execute(sql)
                 self.explain_sql(sql)
-            elif (mathlist == ['MAVG']) or (mathlist == ['SAMPLE'])or (mathlist == ['TAIL']) or (mathlist == ['CSUM']) or (mathlist == ['HISTOGRAM'])  \
-                or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['UNIQUE']) or (mathlist == ['MODE']) or (mathlist == ['statecount','stateduration']) :
+            elif (mathlist == ['MAVG']) or (mathlist == ['CSUM']) or (mathlist == ['statecount','stateduration']) :
+                sql = "select  count(asct1) from  ( select  "
+                sql += "%s as asct1 " % math_fun_join_2
+                sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
+                sql += "%s " % random.choice(self.t_join_where)
+                sql += "and %s " % random.choice(self.t_u_where)
+                sql += "and %s " % random.choice(self.t_u_or_where)
+                sql += "%s " % random.choice(self.limit1_where)
+                sql += ") ;"
+                tdLog.info(sql)
+                tdLog.info(len(sql))
+                tdSql.error(sql)
+            elif (mathlist == ['TAIL']) or (mathlist == ['SAMPLE']) or (mathlist == ['UNIQUE'])  or (mathlist == ['HISTOGRAM']) or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['MODE']) :
                 sql = "select  count(asct1) from  ( select  "
                 sql += "%s as asct1 " % math_fun_join_2
                 sql += "from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and "
@@ -1399,7 +1402,7 @@ class TDTestCase:
                 tdLog.info(len(sql))
                 tdSql.query(sql)
                 self.cur1.execute(sql)
-                self.explain_sql(sql)
+                self.explain_sql(sql)                
 
         self.restartDnodes()
         tdSql.query("select 1-10 as math_nest from stable_1 limit 1;")
@@ -1628,9 +1631,7 @@ class TDTestCase:
                 or (mathlist == ['HYPERLOGLOG']) or (mathlist == ['UNIQUE']) or (mathlist == ['MODE']) or (mathlist == ['statecount','stateduration']) :
                 sql = "select  count(asct1) from  ( select  "
                 sql += "%s as asct1 " % math_fun_join_2
-                sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
-                sql += "%s " % random.choice(self.t_join_where)
-                sql += " and %s " % random.choice(self.qt_u_or_where)
+                sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts "
                 sql += "%s " % random.choice(self.partiton_where_j)
                 sql += "%s " % random.choice(self.slimit1_where)
                 sql += ") "
@@ -3345,9 +3346,7 @@ class TDTestCase:
                 sql += ") ;"
                 tdLog.info(sql)
                 tdLog.info(len(sql))
-                tdSql.query(sql)
-                self.cur1.execute(sql)
-                self.explain_sql(sql)
+                tdSql.error(sql)
 
         self.restartDnodes()
         tdSql.query("select 1-10 as time_nest from stable_1 limit 1;")
@@ -3700,9 +3699,7 @@ class TDTestCase:
                 sql = "select   asct1,(now()),(now()),asct2 ,now(),today(),timezone() from  ( select "
                 sql += "%s as asct2, " % time_fun_join_1
                 sql += "%s as asct1 " % time_fun_join_2
-                sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
-                sql += "%s " % random.choice(self.t_join_where)
-                sql += " and %s " % random.choice(self.qt_u_or_where)
+                sql += "from stable_1  t1, stable_2 t2 where t1.ts = t2.ts "
                 sql += "%s " % random.choice(self.partiton_where_j)
                 sql += "%s " % random.choice(self.slimit1_where)
                 sql += ") "
@@ -4852,8 +4849,7 @@ class TDTestCase:
         for i in range(self.fornum):
             sql = "select  * from ( select "
             sql += "%s " % random.choice(self.calc_calculate_regular_j)
-            sql += "  from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and  "
-            sql += "%s " % random.choice(self.t_join_where)
+            sql += "  from stable_1 t1, stable_2 t2 where t1.ts = t2.ts "
             sql += "%s " % random.choice(self.partiton_where_j)
             sql += ") "
             sql += "%s " % random.choice([self.limit_where[2] , self.limit_where[3]] )
@@ -5213,8 +5209,7 @@ class TDTestCase:
         for i in range(self.fornum):
             sql = "select   * from  ( select  "
             sql += "%s as calc16_1  " % random.choice(self.calc_calculate_groupbytbname_j)
-            sql += "  from stable_1  t1, stable_2 t2 where t1.ts = t2.ts and  "
-            sql += "%s " % random.choice(self.t_join_where)
+            sql += "  from stable_1  t1, stable_2 t2 where t1.ts = t2.ts "
             sql += "limit 2 ) "
             sql += "%s " % random.choice(self.limit1_where)
             tdLog.info(sql)
@@ -5588,9 +5583,7 @@ class TDTestCase:
             sql += ") "
             tdLog.info(sql)
             tdLog.info(len(sql))
-            tdSql.query(sql)
-            self.cur1.execute(sql)
-            self.explain_sql(sql)
+            tdSql.error(sql)
 
         tdSql.query("select 18-7 from stable_1;")
         for i in range(self.fornum):

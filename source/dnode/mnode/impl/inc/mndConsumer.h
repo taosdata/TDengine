@@ -24,29 +24,40 @@ extern "C" {
 
 enum {
   MQ_CONSUMER_STATUS_REBALANCE = 1,
-//  MQ_CONSUMER_STATUS__MODIFY_IN_REB,     // this value is not used anymore
   MQ_CONSUMER_STATUS_READY,
-  MQ_CONSUMER_STATUS_LOST,
-//  MQ_CONSUMER_STATUS__LOST_IN_REB,       // this value is not used anymore
-//  MQ_CONSUMER_STATUS__LOST_REBD,
-};\
+//  MQ_CONSUMER_STATUS_LOST,
+};
 
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
-void    mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId, SRpcHandleInfo* info);
+int32_t mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType, SRpcHandleInfo* info);
 
-SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int64_t consumerId);
-void            mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
-
-SMqConsumerObj *mndCreateConsumer(int64_t consumerId, const char *cgroup);
+int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** pConsumer);
+void    mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);
 
-int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
-int32_t mndSetConsumerDropLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
+int32_t mndSetConsumerCommitLogs(STrans *pTrans, SMqConsumerObj *pConsumer);
+int32_t mndSetConsumerDropLogs(STrans *pTrans, SMqConsumerObj *pConsumer);
 
 const char *mndConsumerStatusName(int status);
+
+#define MND_TMQ_NULL_CHECK(c)                \
+  do {                                   \
+    if (c == NULL) {                     \
+      code = TSDB_CODE_OUT_OF_MEMORY;     \
+      goto END;                          \
+    }                                    \
+  } while (0)
+
+#define MND_TMQ_RETURN_CHECK(c)                \
+  do {                                     \
+    code = c;                            \
+    if (code != 0) {                     \
+      goto END;                          \
+    }                                    \
+  } while (0)
 
 #ifdef __cplusplus
 }

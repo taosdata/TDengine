@@ -25,7 +25,7 @@
 #define MAX_NUM_JUMP      100
 #define MAX_LINE_LEN      3000
 #define MAX_CMD_LINES     2048
-#define MAX_OPTION_BUFFER 64000
+#define MAX_OPTION_BUFFER 128000
 
 enum {
   BLOCK_IF,

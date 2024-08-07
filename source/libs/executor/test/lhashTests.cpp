@@ -42,9 +42,6 @@ TEST(testCase, linear_hash_Tests) {
   int64_t et = taosGetTimestampUs();
 
   for (int32_t i = 0; i < 1000000; ++i) {
-    if (i == 950000) {
-      printf("kf\n");
-    }
     char* v = tHashGet(pHashObj, &i, sizeof(i));
     if (v != NULL) {
       //      printf("find value: %d, key:%d\n", *(int32_t*) v, i);
@@ -54,12 +51,16 @@ TEST(testCase, linear_hash_Tests) {
   }
 
   //  tHashPrint(pHashObj, LINEAR_HASH_STATIS);
-  tHashCleanup(pHashObj);
+  int32_t code = tHashCleanup(pHashObj);
+ASSERT(code == 0);
+
   int64_t et1 = taosGetTimestampUs();
 
   SHashObj* pHashObj1 = taosHashInit(1000, fn, false, HASH_NO_LOCK);
+  ASSERT(pHashObj1 != NULL);
   for (int32_t i = 0; i < 1000000; ++i) {
-    taosHashPut(pHashObj1, &i, sizeof(i), &i, sizeof(i));
+    int32_t code = taosHashPut(pHashObj1, &i, sizeof(i), &i, sizeof(i));
+    ASSERT(code == 0);
   }
 
   for (int32_t i = 0; i < 1000000; ++i) {
@@ -68,6 +69,6 @@ TEST(testCase, linear_hash_Tests) {
   taosHashCleanup(pHashObj1);
 
   int64_t et2 = taosGetTimestampUs();
-  printf("linear hash time:%.2f ms, buildHash:%.2f ms, hash:%.2f\n", (et1 - st) / 1000.0, (et - st) / 1000.0,
-         (et2 - et1) / 1000.0);
+  (void)printf("linear hash time:%.2f ms, buildHash:%.2f ms, hash:%.2f\n", (et1 - st) / 1000.0, (et - st) / 1000.0,
+               (et2 - et1) / 1000.0);
 }

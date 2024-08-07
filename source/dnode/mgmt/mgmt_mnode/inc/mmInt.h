@@ -33,6 +33,7 @@ typedef struct SMnodeMgmt {
   SSingleWorker  fetchWorker;
   SSingleWorker  readWorker;
   SSingleWorker  writeWorker;
+  SSingleWorker  arbWorker;
   SSingleWorker  syncWorker;
   SSingleWorker  syncRdWorker;
   bool           stopped;
@@ -53,6 +54,7 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);
 void    mmStopWorker(SMnodeMgmt *pMgmt);
 int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncRdQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);

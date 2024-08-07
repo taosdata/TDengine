@@ -16,7 +16,6 @@
 #ifndef _TD_COMMON_DEF_H_
 #define _TD_COMMON_DEF_H_
 
-#include "taosdef.h"
 #include "tarray.h"
 #include "tmsg.h"
 #include "tvariant.h"
@@ -107,6 +106,9 @@ typedef struct SFirstLastRes {
   bool      isNull;
   int32_t   bytes;
   int64_t   ts;
+  char*     pkData;
+  int32_t   pkBytes;
+  int8_t    pkType;
   STuplePos pos;
   char      buf[];
 } SFirstLastRes;
@@ -142,6 +144,7 @@ enum {
   TMQ_MSG_TYPE__EP_RSP,
   TMQ_MSG_TYPE__POLL_DATA_META_RSP,
   TMQ_MSG_TYPE__WALINFO_RSP,
+  TMQ_MSG_TYPE__POLL_BATCH_META_RSP,
 };
 
 enum {
@@ -174,6 +177,7 @@ typedef enum EStreamType {
   STREAM_CREATE_CHILD_TABLE,
   STREAM_TRANS_STATE,
   STREAM_MID_RETRIEVE,
+  STREAM_PARTITION_DELETE_DATA,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -200,6 +204,19 @@ typedef struct SBlockID {
   uint64_t groupId;
 } SBlockID;
 
+typedef struct SPkInfo {
+  int8_t  type;
+  int32_t bytes;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } skey;
+  union {
+    int64_t  val;
+    uint8_t* pData;
+  } ekey;
+} SPkInfo;
+
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
@@ -210,6 +227,7 @@ typedef struct SDataBlockInfo {
   int16_t     dataLoad;  // denote if the data is loaded or not
   uint8_t     scanFlag;
   bool        blankFill;
+  SValue      pks[2];
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -222,7 +240,7 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
-  SColumnDataAgg** pBlockAgg;
+  SColumnDataAgg*  pBlockAgg;
   SArray*          pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo   info;
 } SSDataBlock;
@@ -241,9 +259,9 @@ typedef struct SColumnInfoData {
     char*       nullbitmap;  // bitmap, one bit for each item in the list
     SVarColAttr varmeta;
   };
-  SColumnInfo info;     // column info
-  bool        hasNull;  // if current column data has null value.
-  bool        reassigned; // if current column data is reassigned.
+  SColumnInfo info;        // column info
+  bool        hasNull;     // if current column data has null value.
+  bool        reassigned;  // if current column data is reassigned.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
@@ -257,13 +275,13 @@ typedef struct SQueryTableDataCond {
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
-  bool         notLoadData;    // response the actual data, not only the rows in the attribute of info.row of ssdatablock
+  bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
 
-void    colDataDestroy(SColumnInfoData* pColData);
+void colDataDestroy(SColumnInfoData* pColData);
 
 //======================================================================================================================
 // the following structure shared by parser and executor
@@ -349,8 +367,8 @@ typedef struct {
     float       f;
   };
   size_t length;
-  bool keyEscaped;
-  bool valueEscaped;
+  bool   keyEscaped;
+  bool   valueEscaped;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -372,7 +390,6 @@ typedef struct SNonSortExecInfo {
   int32_t blkNums;
 } SNonSortExecInfo;
 
-
 typedef struct STUidTagInfo {
   char*    name;
   uint64_t uid;
@@ -388,13 +405,27 @@ typedef struct STUidTagInfo {
 #define CALCULATE_START_TS_COLUMN_INDEX 4
 #define CALCULATE_END_TS_COLUMN_INDEX   5
 #define TABLE_NAME_COLUMN_INDEX         6
+#define PRIMARY_KEY_COLUMN_INDEX        7
 
 // stream create table block column
 #define UD_TABLE_NAME_COLUMN_INDEX 0
 #define UD_GROUPID_COLUMN_INDEX    1
 #define UD_TAG_COLUMN_INDEX        2
 
-int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
+int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
+
+#define TSMA_RES_STB_POSTFIX "_tsma_res_stb_"
+#define MD5_OUTPUT_LEN 32
+#define TSMA_RES_STB_EXTRA_COLUMN_NUM 4 // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
+
+static inline bool isTsmaResSTb(const char* stbName) {
+  const char* pos = strstr(stbName, TSMA_RES_STB_POSTFIX);
+  if (pos && strlen(stbName) == (pos - stbName) + strlen(TSMA_RES_STB_POSTFIX)) {
+    return true;
+  }
+  return false;
+}
 
 #ifdef __cplusplus
 }

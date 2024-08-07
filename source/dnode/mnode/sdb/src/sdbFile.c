@@ -14,9 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "crypt.h"
 #include "sdb.h"
 #include "sync.h"
 #include "tchecksum.h"
+#include "tglobal.h"
 #include "wal.h"
 
 #define SDB_TABLE_SIZE   24
@@ -24,6 +26,7 @@
 #define SDB_FILE_VER     1
 
 static int32_t sdbDeployData(SSdb *pSdb) {
+  int32_t code = 0;
   mInfo("start to deploy sdb");
 
   for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
@@ -31,8 +34,9 @@ static int32_t sdbDeployData(SSdb *pSdb) {
     if (fp == NULL) continue;
 
     mInfo("start to deploy sdb:%s", sdbTableName(i));
-    if ((*fp)(pSdb->pMnode) != 0) {
-      mError("failed to deploy sdb:%s since %s", sdbTableName(i), terrstr());
+    code = (*fp)(pSdb->pMnode);
+    if (code != 0) {
+      mError("failed to deploy sdb:%s since %s", sdbTableName(i), tstrerror(code));
       return -1;
     }
   }
@@ -78,61 +82,62 @@ static void sdbResetData(SSdb *pSdb) {
 }
 
 static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
+  int32_t code = 0;
   int64_t sver = 0;
   int32_t ret = taosReadFile(pFile, &sver, sizeof(int64_t));
   if (ret < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
   if (ret != sizeof(int64_t)) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return -1;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TAOS_RETURN(code);
   }
   if (sver != SDB_FILE_VER) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return -1;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TAOS_RETURN(code);
   }
 
   ret = taosReadFile(pFile, &pSdb->applyIndex, sizeof(int64_t));
   if (ret < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
   if (ret != sizeof(int64_t)) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return -1;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TAOS_RETURN(code);
   }
 
   ret = taosReadFile(pFile, &pSdb->applyTerm, sizeof(int64_t));
   if (ret < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
   if (ret != sizeof(int64_t)) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return -1;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TAOS_RETURN(code);
   }
 
   ret = taosReadFile(pFile, &pSdb->applyConfig, sizeof(int64_t));
   if (ret < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
   if (ret != sizeof(int64_t)) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return -1;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TAOS_RETURN(code);
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
     int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
     if (ret < 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
     }
     if (ret != sizeof(int64_t)) {
-      terrno = TSDB_CODE_FILE_CORRUPTED;
-      return -1;
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TAOS_RETURN(code);
     }
     if (i < SDB_MAX) {
       pSdb->maxId[i] = maxId;
@@ -143,12 +148,12 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     int64_t ver = 0;
     ret = taosReadFile(pFile, &ver, sizeof(int64_t));
     if (ret < 0) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
     }
     if (ret != sizeof(int64_t)) {
-      terrno = TSDB_CODE_FILE_CORRUPTED;
-      return -1;
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TAOS_RETURN(code);
     }
     if (i < SDB_MAX) {
       pSdb->tableVer[i] = ver;
@@ -158,37 +163,38 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
   char reserve[SDB_RESERVE_SIZE] = {0};
   ret = taosReadFile(pFile, reserve, sizeof(reserve));
   if (ret < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
   if (ret != sizeof(reserve)) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return -1;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TAOS_RETURN(code);
   }
 
   return 0;
 }
 
 static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
+  int32_t code = 0;
   int64_t sver = SDB_FILE_VER;
   if (taosWriteFile(pFile, &sver, sizeof(int64_t)) != sizeof(int64_t)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
 
   if (taosWriteFile(pFile, &pSdb->applyIndex, sizeof(int64_t)) != sizeof(int64_t)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
 
   if (taosWriteFile(pFile, &pSdb->applyTerm, sizeof(int64_t)) != sizeof(int64_t)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
 
   if (taosWriteFile(pFile, &pSdb->applyConfig, sizeof(int64_t)) != sizeof(int64_t)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
@@ -197,8 +203,8 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
       maxId = pSdb->maxId[i];
     }
     if (taosWriteFile(pFile, &maxId, sizeof(int64_t)) != sizeof(int64_t)) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
     }
   }
 
@@ -208,15 +214,15 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
       ver = pSdb->tableVer[i];
     }
     if (taosWriteFile(pFile, &ver, sizeof(int64_t)) != sizeof(int64_t)) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
+      code = TAOS_SYSTEM_ERROR(errno);
+      TAOS_RETURN(code);
     }
   }
 
   char reserve[SDB_RESERVE_SIZE] = {0};
   if (taosWriteFile(pFile, reserve, sizeof(reserve)) != sizeof(reserve)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    TAOS_RETURN(code);
   }
 
   return 0;
@@ -235,23 +241,24 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
   SSdbRaw *pRaw = taosMemoryMalloc(bufLen + 100);
   if (pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed read sdb file since %s", terrstr());
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed read sdb file since %s", tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     taosMemoryFree(pRaw);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mInfo("read sdb file:%s finished since %s", file, terrstr());
+    code = TAOS_SYSTEM_ERROR(errno);
+    mInfo("read sdb file:%s finished since %s", file, tstrerror(code));
     return 0;
   }
 
-  if (sdbReadFileHead(pSdb, pFile) != 0) {
-    mError("failed to read sdb file:%s head since %s", file, terrstr());
+  code = sdbReadFileHead(pSdb, pFile);
+  if (code != 0) {
+    mError("failed to read sdb file:%s head since %s", file, tstrerror(code));
     taosMemoryFree(pRaw);
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     return -1;
   }
 
@@ -276,11 +283,14 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
+    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+      readLen = ENCRYPTED_LEN(pRaw->dataLen) + sizeof(int32_t);
+    }
     if (readLen >= bufLen) {
       bufLen = pRaw->dataLen * 2;
       SSdbRaw *pNewRaw = taosMemoryMalloc(bufLen + 100);
       if (pNewRaw == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         mError("failed read sdb file since malloc new sdbRaw size:%d failed", bufLen);
         goto _OVER;
       }
@@ -301,6 +311,31 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       code = TSDB_CODE_FILE_CORRUPTED;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " != readLen:%d", file, tstrerror(code), ret, readLen);
       goto _OVER;
+    }
+
+    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+      int32_t count = 0;
+
+      char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
+      if (plantContent == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _OVER;
+      }
+
+      SCryptOpts opts;
+      opts.len = ENCRYPTED_LEN(pRaw->dataLen);
+      opts.source = pRaw->pData;
+      opts.result = plantContent;
+      opts.unitLen = 16;
+      strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
+
+      count = CBC_Decrypt(&opts);
+
+      // mDebug("read sdb, CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
+
+      memcpy(pRaw->pData, plantContent, pRaw->dataLen);
+      taosMemoryFree(plantContent);
+      memcpy(pRaw->pData + pRaw->dataLen, &pRaw->pData[ENCRYPTED_LEN(pRaw->dataLen)], sizeof(int32_t));
     }
 
     int32_t totalLen = sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t);
@@ -326,24 +361,23 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
         pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   sdbFreeRaw(pRaw);
 
-  terrno = code;
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t sdbReadFile(SSdb *pSdb) {
-  taosThreadMutexLock(&pSdb->filelock);
+  (void)taosThreadMutexLock(&pSdb->filelock);
 
   sdbResetData(pSdb);
   int32_t code = sdbReadFileImp(pSdb);
   if (code != 0) {
-    mError("failed to read sdb file since %s", terrstr());
+    mError("failed to read sdb file since %s", tstrerror(code));
     sdbResetData(pSdb);
   }
 
-  taosThreadMutexUnlock(&pSdb->filelock);
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
   return code;
 }
 
@@ -362,14 +396,15 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 
   TdFilePtr pFile = taosOpenFile(tmpfile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to open sdb file:%s for write since %s", tmpfile, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to open sdb file:%s for write since %s", tmpfile, tstrerror(code));
+    TAOS_RETURN(code);
   }
 
-  if (sdbWriteFileHead(pSdb, pFile) != 0) {
-    mError("failed to write sdb file:%s head since %s", tmpfile, terrstr());
-    taosCloseFile(&pFile);
+  code = sdbWriteFileHead(pSdb, pFile);
+  if (code != 0) {
+    mError("failed to write sdb file:%s head since %s", tmpfile, tstrerror(code));
+    (void)taosCloseFile(&pFile);
     return -1;
   }
 
@@ -401,12 +436,48 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
       SSdbRaw *pRaw = (*encodeFp)(pRow->pObj);
       if (pRaw != NULL) {
         pRaw->status = pRow->status;
-        int32_t writeLen = sizeof(SSdbRaw) + pRaw->dataLen;
-        if (taosWriteFile(pFile, pRaw, writeLen) != writeLen) {
+
+        if (taosWriteFile(pFile, pRaw, sizeof(SSdbRaw)) != sizeof(SSdbRaw)) {
           code = TAOS_SYSTEM_ERROR(errno);
           taosHashCancelIterate(hash, ppRow);
           sdbFreeRaw(pRaw);
           break;
+        }
+
+        int32_t newDataLen = pRaw->dataLen;
+        char   *newData = pRaw->pData;
+        if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+          newDataLen = ENCRYPTED_LEN(pRaw->dataLen);
+          newData = taosMemoryMalloc(newDataLen);
+          if (newData == NULL) {
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            taosHashCancelIterate(hash, ppRow);
+            sdbFreeRaw(pRaw);
+            break;
+          }
+
+          SCryptOpts opts;
+          opts.len = newDataLen;
+          opts.source = pRaw->pData;
+          opts.result = newData;
+          opts.unitLen = 16;
+          strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
+
+          int32_t count = CBC_Encrypt(&opts);
+
+          // mDebug("write sdb, CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s",
+          //       newDataLen, pRaw->dataLen, __FUNCTION__);
+        }
+
+        if (taosWriteFile(pFile, newData, newDataLen) != newDataLen) {
+          code = TAOS_SYSTEM_ERROR(errno);
+          taosHashCancelIterate(hash, ppRow);
+          sdbFreeRaw(pRaw);
+          break;
+        }
+
+        if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+          taosMemoryFree(newData);
         }
 
         int32_t cksum = taosCalcChecksum(0, (const uint8_t *)pRaw, sizeof(SSdbRaw) + pRaw->dataLen);
@@ -436,7 +507,9 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     }
   }
 
-  taosCloseFile(&pFile);
+  if (taosCloseFile(&pFile) != 0) {
+    code = taosRenameFile(tmpfile, curfile);
+  }
 
   if (code == 0) {
     code = taosRenameFile(tmpfile, curfile);
@@ -470,7 +543,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
     return 0;
   }
 
-  taosThreadMutexLock(&pSdb->filelock);
+  (void)taosThreadMutexLock(&pSdb->filelock);
   if (pSdb->pWal != NULL) {
     if (pSdb->sync > 0) {
       code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
@@ -487,19 +560,22 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
     }
   }
   if (code != 0) {
-    mError("failed to write sdb file since %s", terrstr());
+    mError("failed to write sdb file since %s", tstrerror(code));
   }
-  taosThreadMutexUnlock(&pSdb->filelock);
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
   return code;
 }
 
 int32_t sdbDeploy(SSdb *pSdb) {
-  if (sdbDeployData(pSdb) != 0) {
-    return -1;
+  int32_t code = 0;
+  code = sdbDeployData(pSdb);
+  if (code != 0) {
+    TAOS_RETURN(code);
   }
 
-  if (sdbWriteFile(pSdb, 0) != 0) {
-    return -1;
+  code = sdbWriteFile(pSdb, 0);
+  if (code != 0) {
+    TAOS_RETURN(code);
   }
 
   return 0;
@@ -528,7 +604,7 @@ static void sdbCloseIter(SSdbIter *pIter) {
   if (pIter == NULL) return;
 
   if (pIter->file != NULL) {
-    taosCloseFile(&pIter->file);
+    (void)taosCloseFile(&pIter->file);
     pIter->file = NULL;
   }
 
@@ -543,31 +619,32 @@ static void sdbCloseIter(SSdbIter *pIter) {
 }
 
 int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config) {
+  int32_t   code = 0;
   SSdbIter *pIter = sdbCreateIter(pSdb);
   if (pIter == NULL) return -1;
 
   char datafile[PATH_MAX] = {0};
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
-  taosThreadMutexLock(&pSdb->filelock);
+  (void)taosThreadMutexLock(&pSdb->filelock);
   int64_t commitIndex = pSdb->commitIndex;
   int64_t commitTerm = pSdb->commitTerm;
   int64_t commitConfig = pSdb->commitConfig;
   if (taosCopyFile(datafile, pIter->name) < 0) {
-    taosThreadMutexUnlock(&pSdb->filelock);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to copy sdb file %s to %s since %s", datafile, pIter->name, terrstr());
+    (void)taosThreadMutexUnlock(&pSdb->filelock);
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to copy sdb file %s to %s since %s", datafile, pIter->name, tstrerror(code));
     sdbCloseIter(pIter);
-    return -1;
+    TAOS_RETURN(code);
   }
-  taosThreadMutexUnlock(&pSdb->filelock);
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
 
   pIter->file = taosOpenFile(pIter->name, TD_FILE_READ);
   if (pIter->file == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to open sdb file:%s since %s", pIter->name, terrstr());
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to open sdb file:%s since %s", pIter->name, tstrerror(code));
     sdbCloseIter(pIter);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   *ppIter = pIter;
@@ -583,21 +660,22 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *ter
 void sdbStopRead(SSdb *pSdb, SSdbIter *pIter) { sdbCloseIter(pIter); }
 
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
+  int32_t code = 0;
   int32_t maxlen = 4096;
   void   *pBuf = taosMemoryCalloc(1, maxlen);
   if (pBuf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
   }
 
   int32_t readlen = taosReadFile(pIter->file, pBuf, maxlen);
   if (readlen < 0 || readlen > maxlen) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("sdbiter:%p, failed to read snapshot since %s, total:%" PRId64, pIter, terrstr(), pIter->total);
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("sdbiter:%p, failed to read snapshot since %s, total:%" PRId64, pIter, tstrerror(code), pIter->total);
     *ppBuf = NULL;
     *len = 0;
     taosMemoryFree(pBuf);
-    return -1;
+    TAOS_RETURN(code);
   } else if (readlen == 0) {
     mInfo("sdbiter:%p, read snapshot to the end, total:%" PRId64, pIter, pIter->total);
     *ppBuf = NULL;
@@ -614,15 +692,19 @@ int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
 }
 
 int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
+  int32_t   code = 0;
   SSdbIter *pIter = sdbCreateIter(pSdb);
-  if (pIter == NULL) return -1;
+  if (pIter == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
 
   pIter->file = taosOpenFile(pIter->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pIter->file == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to open %s since %s", pIter->name, terrstr());
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to open %s since %s", pIter->name, tstrerror(code));
     sdbCloseIter(pIter);
-    return -1;
+    TAOS_RETURN(code);
   }
 
   *ppIter = pIter;
@@ -640,24 +722,28 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   }
 
   if (taosFsyncFile(pIter->file) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("sdbiter:%p, failed to fasync file %s since %s", pIter, pIter->name, terrstr());
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("sdbiter:%p, failed to fasync file %s since %s", pIter, pIter->name, tstrerror(code));
     goto _OVER;
   }
 
-  taosCloseFile(&pIter->file);
+  if (taosCloseFile(&pIter->file) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _OVER;
+  }
   pIter->file = NULL;
 
   char datafile[PATH_MAX] = {0};
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
   if (taosRenameFile(pIter->name, datafile) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("sdbiter:%p, failed to rename file %s to %s since %s", pIter, pIter->name, datafile, terrstr());
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("sdbiter:%p, failed to rename file %s to %s since %s", pIter, pIter->name, datafile, tstrerror(code));
     goto _OVER;
   }
 
-  if (sdbReadFile(pSdb) != 0) {
-    mError("sdbiter:%p, failed to read from %s since %s", pIter, datafile, terrstr());
+  code = sdbReadFile(pSdb);
+  if (code != 0) {
+    mError("sdbiter:%p, failed to read from %s since %s", pIter, datafile, tstrerror(code));
     goto _OVER;
   }
 
@@ -680,11 +766,12 @@ _OVER:
 }
 
 int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len) {
+  int32_t code = 0;
   int32_t writelen = taosWriteFile(pIter->file, pBuf, len);
   if (writelen != len) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to write len:%d since %s, total:%" PRId64, len, terrstr(), pIter->total);
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to write len:%d since %s, total:%" PRId64, len, tstrerror(code), pIter->total);
+    TAOS_RETURN(code);
   }
 
   pIter->total += writelen;

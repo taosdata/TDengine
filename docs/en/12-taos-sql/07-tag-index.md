@@ -34,6 +34,13 @@ SELECT * FROM information_schema.INS_INDEXES
 
 You can also add filter conditions to limit the results.
 
+
+````sql
+SHOW INDEXES FROM tbl_name [FROM db_name];
+SHOW INDEXES FROM [db_name.]tbl_name ;
+````
+Use `show indexes` commands to show indices that have been created for the specified database or table.
+
 ## Detailed Specification
 
 1. Indexes can improve query performance significantly if they are used properly. The operators supported by tag index include  `=`, `>`, `>=`, `<`, `<=`. If you use these operators with tags, indexes can improve query performance significantly. However, for operators not in this scope, indexes don't help. More and more operators will be added in future.

@@ -51,7 +51,10 @@ TEST_F(CfgTest, 01_Str) {
 }
 
 TEST_F(CfgTest, 02_Basic) {
-  SConfig *pConfig = cfgInit();
+  SConfig *pConfig = NULL;
+  int32_t  code = cfgInit(&pConfig);
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_NE(pConfig, nullptr);
 
   EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0, 0), 0);
@@ -63,9 +66,15 @@ TEST_F(CfgTest, 02_Basic) {
 
   EXPECT_EQ(cfgGetSize(pConfig), 6);
 
-  int32_t size = taosArrayGetSize(pConfig->array);
-  for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = (SConfigItem *)taosArrayGet(pConfig->array, i);
+  int32_t size = cfgGetSize(pConfig);
+
+  SConfigItem* pItem = NULL;
+  SConfigIter *pIter = NULL;
+  code = cfgCreateIter(pConfig, &pIter);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pIter, nullptr);
+
+  while((pItem = cfgNextIter(pIter)) != NULL) {
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL:
         printf("index:%d, cfg:%s value:%d\n", size, pItem->name, pItem->bval);
@@ -90,9 +99,12 @@ TEST_F(CfgTest, 02_Basic) {
         break;
     }
   }
+
+  cfgDestroyIter(pIter);
+
   EXPECT_EQ(cfgGetSize(pConfig), 6);
 
-  SConfigItem *pItem = cfgGetItem(pConfig, "test_bool");
+  pItem = cfgGetItem(pConfig, "test_bool");
   EXPECT_EQ(pItem->stype, CFG_STYPE_DEFAULT);
   EXPECT_EQ(pItem->dtype, CFG_DTYPE_BOOL);
   EXPECT_STREQ(pItem->name, "test_bool");

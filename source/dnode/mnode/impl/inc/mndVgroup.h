@@ -29,6 +29,7 @@ void     mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup);
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
 SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 SEpSet   mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup);
+SEpSet   mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId);
 int32_t  mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId);
 void     mndSortVnodeGid(SVgObj *pVgroup);
 int64_t  mndGetVnodesMemory(SMnode *pMnode, int32_t dnodeId);
@@ -44,7 +45,7 @@ int32_t mndAddAlterVnodeAction(SMnode *, STrans *pTrans, SDbObj *pDb, SVgObj *pV
 int32_t mndAddDropVnodeAction(SMnode *, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SVnodeGid *pVgid, bool isRedo);
 int32_t mndSetMoveVgroupsInfoToTrans(SMnode *, STrans *pTrans, int32_t dropDnodeId, bool force, bool unsafe);
 int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pVgroup,
-                                  SArray *pArray);
+                                  SArray *pArray, SVgObj* pNewVgroup);
 int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
                                     STimeWindow tw);
 int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pVgroup,
@@ -54,8 +55,8 @@ void *mndBuildCreateVnodeReq(SMnode *, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *p
 void *mndBuildDropVnodeReq(SMnode *, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen);
 bool  mndVgroupInDb(SVgObj *pVgroup, int64_t dbUid);
 bool  mndVgroupInDnode(SVgObj *pVgroup, int32_t dnodeId);
-int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup, 
-                                        SDnodeObj *pDnode);
+int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup,
+                                         SDnodeObj *pDnode);
 
 int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgroup);
 

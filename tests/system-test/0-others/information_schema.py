@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-
+import time
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -19,6 +19,8 @@ from util.common import *
 from util.sqlset import *
 
 class TDTestCase:
+    updatecfgDict = {'qDebugFlag':135 , 'mDebugFlag':135}
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
@@ -45,20 +47,21 @@ class TDTestCase:
             'col12': f'binary({self.binary_length})',
             'col13': f'nchar({self.nchar_length})'
         }
-        self.tbnum = 20
+        self.tbnum = 21
         self.rowNum = 10
         self.tag_dict = {
-            't0':'int'
+            't0':'int',
+            't1':f'nchar({self.nchar_length})'
         }
         self.tag_values = [
-            f'1'
+            f'1', '""'
             ]
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
         self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
-                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines']
+                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions"]
         self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -70,7 +73,7 @@ class TDTestCase:
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
-            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
+            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]}, {self.tag_values[1]})")
             self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
     def count_check(self):
         tdSql.query('select count(*) from information_schema.ins_tables')
@@ -218,7 +221,8 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(215, 230))
+        tdLog.info(len(tdSql.queryResult))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(261, 269))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(54, len(tdSql.queryResult))
@@ -265,13 +269,21 @@ class TDTestCase:
 
     def ins_grants_check(self):
         grant_name_dict = {
-            'stream':'stream',
-            'subscription':'subscription',
-            'view':'view',
-            'audit':'audit',
-            'csv':'csv',
-            'storage':'multi_tier_storage',
-            'backup_restore':'backup_restore',
+            'service':'Service Time',
+            'timeseries':'Timeseries',
+            'dnodes':'Dnodes',
+            'cpu_cores':'CPU Cores',
+            'stream':'Stream',
+            'subscription':'Subscription',
+            'view':'View',
+            'audit':'Audit',
+            'csv':'CSV',
+            'storage':'Multi-Tier Storage',
+            'backup_restore':'Data Backup & Restore',
+            'object_storage':'Object Storage',
+            'active_active':'Active-Active',
+            'dual_replica':'Dual-Replica HA',
+            'db_encryption':'Database Encryption',
             'opc_da':'OPC_DA',
             'opc_ua':'OPC_UA',
             'pi':'Pi',
@@ -281,7 +293,12 @@ class TDTestCase:
             'avevahistorian':'avevaHistorian',
             'opentsdb':'OpenTSDB',
             'td2.6':'TDengine2.6',
-            'td3.0':'TDengine3.0'
+            'td3.0':'TDengine3.0',
+            'mysql':'MySQL',
+            'postgres':'PostgreSQL',
+            'oracle':'Oracle',
+            'mssql':'SqlServer',
+            'mongodb':'MongoDB',
         }
 
         tdSql.execute('drop database if exists db2')
@@ -293,7 +310,7 @@ class TDTestCase:
             if result[i][0] in grant_name_dict:
                 tdSql.checkEqual(result[i][1], grant_name_dict[result[i][0]])
                 index += 1
-        tdSql.checkEqual(index, 17)
+        tdSql.checkEqual(index, len(grant_name_dict))
         tdSql.query(f'select * from information_schema.ins_grants_logs')
         result = tdSql.queryResult
         tdSql.checkEqual(True, len(result) >= 0)
@@ -311,6 +328,56 @@ class TDTestCase:
         tdSql.error('alter cluster "activeCode" ""')
         tdSql.execute('alter cluster "activeCode" "revoked"')
 
+    def ins_encryptions_check(self):
+        key_status_list = ['unknown', 'unset', 'set', 'loaded']
+
+        # unset/none
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        time.sleep(2)
+        tdSql.query(f'select * from information_schema.ins_encryptions')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            tdSql.checkEqual(True, result[i][1] in key_status_list[1])
+            index += 1
+        tdSql.checkEqual(True, index > 0)
+
+        tdSql.query(f'show encryptions')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            tdSql.checkEqual(True, result[i][1] in key_status_list[1])
+            index += 1
+        tdSql.checkEqual(True, index > 0)
+
+        # loaded/sm4
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create encrypt_key \'12345678\'')
+        time.sleep(3)
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1 encrypt_algorithm \'sm4\'')
+        tdSql.query(f'select * from information_schema.ins_encryptions')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            tdSql.checkEqual(True, result[i][1] in key_status_list[3])
+            index += 1
+        tdSql.checkEqual(True, index > 0)
+
+        tdSql.query(f'show encryptions')
+        result = tdSql.queryResult
+        index = 0
+        for i in range(0, len(result)):
+            tdSql.checkEqual(True, result[i][1] in key_status_list[3])
+            index += 1
+        tdSql.checkEqual(True, index > 0)
+
+    def test_query_ins_tags(self):
+        sql = f'select tag_name, tag_value from information_schema.ins_tags where table_name = "{self.stbname}_0"'
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+
+
     def run(self):
         self.prepare_data()
         self.count_check()
@@ -320,6 +387,8 @@ class TDTestCase:
         self.ins_stable_check2()
         self.ins_dnodes_check()
         self.ins_grants_check()
+        self.ins_encryptions_check()
+        self.test_query_ins_tags()
 
 
     def stop(self):

@@ -24,6 +24,15 @@ extern "C" {
 
 #include "ttokendef.h"
 
+#define IS_TRUE_STR(s, n)                                                                \
+  (n == 4 && (*(s) == 't' || *(s) == 'T') && (*((s) + 1) == 'r' || *((s) + 1) == 'R') && \
+   (*((s) + 2) == 'u' || *((s) + 2) == 'U') && (*((s) + 3) == 'e' || *((s) + 3) == 'E'))
+
+#define IS_FALSE_STR(s, n)                                                                 \
+  (n == 5 && (*(s) == 'f' || *(s) == 'F') && (*((s) + 1) == 'a' || *((s) + 1) == 'A') &&   \
+   (*((s) + 2) == 'l' || *((s) + 2) == 'L') && (*((s) + 3) == 's' || *((s) + 3) == 'S') && \
+   (*((s) + 4) == 'e' || *((s) + 4) == 'E'))
+
 // used to denote the minimum unite in sql parsing
 typedef struct SToken {
   uint32_t n;
@@ -173,7 +182,8 @@ _end:
   return (i < pToken->n) ? TK_NK_ILLEGAL : type;
 }
 
-void taosCleanupKeywordsTable();
+int32_t taosInitKeywordsTable();
+void    taosCleanupKeywordsTable();
 
 #ifdef __cplusplus
 }
