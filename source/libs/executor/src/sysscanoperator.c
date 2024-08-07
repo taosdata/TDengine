@@ -2813,8 +2813,8 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
 _error:
   if (pInfo) {
     pInfo->pTableListInfo = NULL;
+    destroyBlockDistScanOperatorInfo(pInfo);
   }
-  taosMemoryFreeClear(pInfo);
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   return code;
 }

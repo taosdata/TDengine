@@ -1432,7 +1432,7 @@ _error:
     destroyTableScanOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -4113,7 +4113,7 @@ _error:
     destroyStreamScanOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -4669,8 +4669,8 @@ _error:
     pInfo->pTableListInfo = NULL;
   }
 
-  taosMemoryFree(pInfo);
-  taosMemoryFree(pOperator);
+  if (pInfo != NULL) destroyTagScanOperatorInfo(pInfo);
+  destroyOperator(pOperator);
   return code;
 }
 
@@ -5914,8 +5914,8 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
 _error:
   pTaskInfo->code = code;
   pInfo->base.pTableListInfo = NULL;
-  taosMemoryFree(pInfo);
-  taosMemoryFree(pOperator);
+  if (pInfo != NULL) destroyTableMergeScanOperatorInfo(pInfo);
+  destroyOperator(pOperator);
   return code;
 }
 
@@ -6072,7 +6072,7 @@ _error:
   if (pInfo != NULL) {
     destoryTableCountScanOperator(pInfo);
   }
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
