@@ -1414,7 +1414,10 @@ _error:
   if (pInfo != NULL) {
     destroyIntervalOperatorInfo(pInfo);
   }
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -1690,7 +1693,10 @@ _error:
     destroyStateWindowOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -1783,7 +1789,10 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
 
 _error:
   if (pInfo != NULL) destroySWindowOperatorInfo(pInfo);
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -2095,7 +2104,10 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
 
 _error:
   destroyMAIOperatorInfo(miaInfo);
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -2427,7 +2439,10 @@ _error:
     destroyMergeIntervalOperatorInfo(pMergeIntervalInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }

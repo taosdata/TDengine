@@ -164,7 +164,10 @@ _error:
     destroySortOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -836,6 +839,9 @@ _error:
   if (pInfo != NULL) {
     destroyGroupSortOperatorInfo(pInfo);
   }
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }

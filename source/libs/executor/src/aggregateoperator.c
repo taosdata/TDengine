@@ -147,7 +147,10 @@ _error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }

@@ -247,7 +247,10 @@ _error:
   }
   pInfo->pTableList = NULL;
   destroyCacheScanOperator(pInfo);
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 
