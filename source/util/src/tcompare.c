@@ -1256,14 +1256,13 @@ int32_t InitRegexCache() {
   sRegexCache.regexHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (sRegexCache.regexHash == NULL) {
     uError("failed to create RegexCache");
-    return -1;
+    return terrno;
   }
   taosHashSetFreeFp(sRegexCache.regexHash, regexCacheFree);
   sRegexCache.regexCacheTmr = taosTmrInit(0, 0, 0, "REGEXCACHE");
   if (sRegexCache.regexCacheTmr == NULL) {
     uError("failed to create regex cache check timer");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   sRegexCache.exit = false;
@@ -1271,10 +1270,10 @@ int32_t InitRegexCache() {
   sRegexCache.timer = taosTmrStart(checkRegexCache, REGEX_CACHE_CLEAR_TIME * 1000, NULL, sRegexCache.regexCacheTmr);
   if (sRegexCache.timer == NULL) {
     uError("failed to start regex cache timer");
-    return -1;
+    return terrno;
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 void DestroyRegexCache(){
@@ -1316,7 +1315,7 @@ int32_t getRegComp(const char *pPattern, HashRegexPtr **regexRet) {
   UsingRegex *pUsingRegex = taosMemoryMalloc(sizeof(UsingRegex));
   if (pUsingRegex == NULL) {
     uError("Failed to Malloc when compile regex pattern %s.", pPattern);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t cflags = REG_EXTENDED;
   int32_t ret = regcomp(&pUsingRegex->pRegex, pPattern, cflags);
@@ -1421,8 +1420,7 @@ int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
   size_t sz = varDataLen(pRight);
   char  *pattern = taosMemoryMalloc(sz + 1);
   if (NULL == pattern) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return 1;
+    return 1;  // terrno has been set
   }
 
   (void)memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
@@ -1432,8 +1430,7 @@ int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
   char *str = taosMemoryMalloc(sz + 1);
   if (NULL == str) {
     taosMemoryFree(pattern);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return 1;
+    return 1;  // terrno has been set
   }
 
   (void)memcpy(str, varDataVal(pLeft), sz);
@@ -1451,14 +1448,13 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
   size_t len = varDataLen(pPattern);
   char  *pattern = taosMemoryMalloc(len + 1);
   if (NULL == pattern) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return 1;
+    return 1;  // terrno has been set
   }
 
   int convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pPattern), len, pattern);
   if (convertLen < 0) {
     taosMemoryFree(pattern);
-    return (terrno = TSDB_CODE_APP_ERROR);
+    return 1; // terrno has been set
   }
 
   pattern[convertLen] = 0;
@@ -1467,15 +1463,14 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
   char *str = taosMemoryMalloc(len + 1);
   if (NULL == str) {
     taosMemoryFree(pattern);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return 1;
+    return 1; // terrno has been set
   }
 
   convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pString), len, str);
   if (convertLen < 0) {
     taosMemoryFree(str);
     taosMemoryFree(pattern);
-    return (terrno = TSDB_CODE_APP_ERROR);
+    return 1; // terrno has been set
   }
 
   str[convertLen] = 0;
