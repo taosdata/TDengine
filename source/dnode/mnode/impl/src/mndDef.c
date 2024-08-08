@@ -429,6 +429,7 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   tlen += taosEncodeFixedI32(buf, pConsumer->resetOffsetCfg);
   tlen += taosEncodeFixedI32(buf, pConsumer->maxPollIntervalMs);
   tlen += taosEncodeFixedI32(buf, pConsumer->sessionTimeoutMs);
+  tlen += taosEncodeString(buf, pConsumer->user);
   return tlen;
 }
 
@@ -503,6 +504,7 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   if (sver > 2){
     buf = taosDecodeFixedI32(buf, &pConsumer->maxPollIntervalMs);
     buf = taosDecodeFixedI32(buf, &pConsumer->sessionTimeoutMs);
+    buf = taosDecodeStringTo(buf, pConsumer->user);
   } else{
     pConsumer->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
     pConsumer->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;

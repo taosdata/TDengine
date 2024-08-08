@@ -903,6 +903,14 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       MND_TMQ_NULL_CHECK(pColInfo);
       MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)clientId, false));
 
+      // user
+      char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(user, pConsumer->user);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      MND_TMQ_NULL_CHECK(pColInfo);
+      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)user, false));
+
       // status
       const char *pStatusName = mndConsumerStatusName(pConsumer->status);
       status = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
