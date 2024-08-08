@@ -2228,7 +2228,7 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   }
 
   if (pMsg->msg.info.handle !=0) {
-    transReleaseExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle);
+    transRemoveExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle);
   }
 
   transDestroyConnCtx(pMsg->ctx);
