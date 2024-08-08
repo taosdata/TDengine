@@ -111,7 +111,7 @@ export function createStableReq(payload) {
 export function changeStableStruct(data, stableName) {
   let { operation, first_field = "", second_field = "" } = data;
   let sql = "";
-  sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field};`;
+  sql = `ALTER STABLE  ${stableName} ${operation} ${first_field} ${second_field};`;
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
   });
@@ -121,9 +121,9 @@ export function changeStableStructOther(data, stableName) {
   let { operation, first_field = "", second_field = "", encode = "", compress = "", level = "", isVariable } = data;
   let sql = "";
   if (operation.startsWith('add')) {
-    sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field} ${encode ? ' ENCODE ' + `'${encode}'` : ''}${compress ? ' COMPRESS ' + `'${compress}'` : ''}${level ? ' LEVEL ' + `'${level}'` : ''};`;
+    sql = `ALTER STABLE  ${stableName} ${operation} ${first_field} ${second_field} ${encode ? ' ENCODE ' + `'${encode}'` : ''}${compress ? ' COMPRESS ' + `'${compress}'` : ''}${level ? ' LEVEL ' + `'${level}'` : ''};`;
   } else {
-    sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${encode ? ' ENCODE ' + `'${encode}'` : ''}${compress ? ' COMPRESS ' + `'${compress}'` : ''}${level ? ' LEVEL ' + `'${level}'` : ''};`;
+    sql = `ALTER STABLE  ${stableName} ${operation} ${first_field} ${encode ? ' ENCODE ' + `'${encode}'` : ''}${compress ? ' COMPRESS ' + `'${compress}'` : ''}${level ? ' LEVEL ' + `'${level}'` : ''};`;
   }
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
