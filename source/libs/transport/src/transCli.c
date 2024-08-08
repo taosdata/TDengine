@@ -1630,6 +1630,7 @@ _exception:
   tDebug("already free conn %p by id %" PRId64"", conn, refId);
 
   (void)transReleaseExHandle(transGetRefMgt(), refId);
+  (void)transReleaseExHandle(transGetRefMgt(), refId);
   (void)transRemoveExHandle(transGetRefMgt(), refId);
   destroyCmsg(pMsg);
 }
@@ -2228,6 +2229,7 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   }
 
   if (pMsg->msg.info.handle !=0) {
+    (void)transReleaseExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle); 
     (void)transRemoveExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle);
   }
 
