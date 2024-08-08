@@ -1435,86 +1435,89 @@ pub async fn ipc_flat_stream_worker_concurrent(
         let stream_trace_id = stream_trace_id.clone();
         let batch_counter = batch_counter.clone();
         let cancel = cancel.clone();
-        writer_set.spawn(async move {
-            let mut taos = None;
-            let metrics = metrics_arc.ipc();
-            let mut worker_written = 0;
-            while let Ok(record) = msg_rx.recv_async().await {
-                let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                let data_trace_id = stream_trace_id.with_data_id(batch_number);
-                trace!("Writing batch {}", data_trace_id);
-                let mut written = 0;
-                let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-                    std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-                })
-                .unwrap();
-                let res = consume_flat_record(
-                    &context.pool,
-                    &mut taos,
-                    &record,
-                    &mut written,
-                    cancel.clone(),
-                    &context.parser,
-                    context.target_precision,
-                    data_trace_id,
-                    metrics,
-                    Some(notifier.clone()),
-                )
-                .await;
-                worker_written += written;
-                count.fetch_add(written, Ordering::SeqCst);
-                match res {
-                    Err(err) => {
-                        metrics.add_failed_batches(1);
-                        error!(trace.id = %data_trace_id, "Writing batch error: {err:#}");
-                        let ack = LushAck {
-                            code: 0,
-                            message: Some(err.to_string()),
-                            context: Some(
-                                json!({
-                                    "stream": "flat",
-                                    "written":  written,
-                                })
-                                .to_string(),
-                            ),
-                        };
-                        ack_tx.send_async(ack).await.context("ACK writer error")?;
-                        if ipc_error_strategy.will_stop() {
-                            Err(err).context("write batch error")?;
-                        } else if let Err(_) =
-                            notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
-                        {
-                            Err(err).context("write batch error")?;
+        writer_set.spawn(
+            async move {
+                let mut taos = None;
+                let metrics = metrics_arc.ipc();
+                let mut worker_written = 0;
+                while let Ok(record) = msg_rx.recv_async().await {
+                    let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
+                    let data_trace_id = stream_trace_id.with_data_id(batch_number);
+                    trace!("Writing batch {}", data_trace_id);
+                    let mut written = 0;
+                    let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+                        std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+                    })
+                    .unwrap();
+                    let res = consume_flat_record(
+                        &context.pool,
+                        &mut taos,
+                        &record,
+                        &mut written,
+                        cancel.clone(),
+                        &context.parser,
+                        context.target_precision,
+                        data_trace_id,
+                        metrics,
+                        Some(notifier.clone()),
+                    )
+                    .await;
+                    worker_written += written;
+                    count.fetch_add(written, Ordering::SeqCst);
+                    match res {
+                        Err(err) => {
+                            metrics.add_failed_batches(1);
+                            error!(trace.id = %data_trace_id, "Writing batch error: {err:#}");
+                            let ack = LushAck {
+                                code: 0,
+                                message: Some(err.to_string()),
+                                context: Some(
+                                    json!({
+                                        "stream": "flat",
+                                        "written":  written,
+                                    })
+                                    .to_string(),
+                                ),
+                            };
+                            ack_tx.send_async(ack).await.context("ACK writer error")?;
+                            if ipc_error_strategy.will_stop() {
+                                Err(err).context("write batch error")?;
+                            } else if let Err(_) =
+                                notifier.send(crate::TaskNotify::Error(format!("{:#}", err)))
+                            {
+                                Err(err).context("write batch error")?;
+                            }
+                        }
+                        Ok(_) => {
+                            metrics.add_processed_batches(1);
+                            trace!(trace.id = %data_trace_id, written, "Writing batch done");
+                            let ack = LushAck {
+                                code: 0,
+                                message: None,
+                                context: Some(
+                                    json!({
+                                        "stream": "flat",
+                                        "written":  written
+                                    })
+                                    .to_string(),
+                                ),
+                            };
+                            ack_tx.send_async(ack).await.context("ACK writer error")?;
                         }
                     }
-                    Ok(_) => {
-                        metrics.add_processed_batches(1);
-                        trace!(trace.id = %data_trace_id, written, "Writing batch done");
-                        let ack = LushAck {
-                            code: 0,
-                            message: None,
-                            context: Some(
-                                json!({
-                                    "stream": "flat",
-                                    "written":  written
-                                })
-                                .to_string(),
-                            ),
-                        };
-                        ack_tx.send_async(ack).await.context("ACK writer error")?;
-                    }
                 }
+                if worker_written > 0 {
+                    info!(
+                        worker.id = i,
+                        worker.written = worker_written,
+                        "Flat stream worker {} done",
+                        i
+                    );
+                }
+                return anyhow::Ok(());
             }
-            if worker_written > 0 {
-                info!(
-                    worker.id = i,
-                    worker.written = worker_written,
-                    "Flat stream worker {} done",
-                    i
-                );
-            }
-            return anyhow::Ok(());
-        });
+            .instrument(tracing::info_span!("flat_stream_worker", worker.id = i,)),
+        );
     }
 
     #[derive(Clone)]
