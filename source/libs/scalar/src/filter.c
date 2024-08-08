@@ -3601,12 +3601,12 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   if (FILTER_GET_FLAG(info->status, FI_STATUS_ALL)) {
     fltInfo("Final - FilterInfo: [ALL]");
-    goto _return;
+    goto _return1;
   }
 
   if (FILTER_GET_FLAG(info->status, FI_STATUS_EMPTY)) {
     fltInfo("Final - FilterInfo: [EMPTY]");
-    goto _return;
+    goto _return1;
   }
 
   FLT_ERR_JRET(filterGenerateColRange(info, gRes, gResNum));
@@ -3619,10 +3619,10 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   FLT_ERR_JRET(filterGenerateComInfo(info));
 
+_return1:
+  FLT_ERR_JRET(filterSetExecFunc(info));
+
 _return:
-
-  FLT_ERR_RET(filterSetExecFunc(info));
-
   for (int32_t i = 0; i < gResNum; ++i) {
     filterFreeGroupCtx(gRes[i]);
   }
