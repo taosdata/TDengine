@@ -5837,7 +5837,8 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
                                          SOperatorInfo** pOptrInfo) {
   QRY_OPTR_CHECK(pOptrInfo);
 
-  int32_t              code = 0;
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
   STableMergeScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableMergeScanInfo));
   SOperatorInfo*       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5850,16 +5851,10 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   int32_t numOfCols = 0;
   code = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID,
                              &pInfo->base.matchInfo);
-  int32_t lino = 0;
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle);
-  if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(pInfo->base.matchInfo.pList);
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* pSup = &pInfo->base.pseudoSup;
@@ -5874,10 +5869,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
 
   pInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
-  if (pInfo->base.metaCache.pTableMetaEntryCache == NULL) {
-    code = terrno;
-    goto _error;
-  }
+  QUERY_CHECK_NULL(pInfo->base.metaCache.pTableMetaEntryCache, code, lino, _error, terrno);
 
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   pInfo->base.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -5894,9 +5886,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   pInfo->sample.seed = taosGetTimestampSec();
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
@@ -5958,6 +5948,9 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   return code;
 
 _error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   pTaskInfo->code = code;
   pInfo->base.pTableListInfo = NULL;
   if (pInfo != NULL) destroyTableMergeScanOperatorInfo(pInfo);
