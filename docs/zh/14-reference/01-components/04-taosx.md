@@ -330,7 +330,7 @@ journalctl -u taosx [-f]
 
 taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。  
 
-### taosX 服务监控指标
+### taosX 服务
 
 | 字段                       | 描述                                                                          |
 | -------------------------- | ----------------------------------------------------------------------------- |
@@ -349,7 +349,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | process_disk_written_bytes | taosX 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytres/s  |
 
 
-### Agent 监控指标
+### Agent
 
 | 字段                       | 描述                                                                          |
 | -------------------------- | ----------------------------------------------------------------------------- |
@@ -365,7 +365,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | process_disk_read_bytes    | agent 进程在一个监控周期（比如10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
 | process_disk_written_bytes | agent 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytes/s   |
 
-### Connector 监控指标
+### Connector
 
 | 字段                       | 描述                                                                              |
 | -------------------------- | --------------------------------------------------------------------------------- |
@@ -376,7 +376,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | process_disk_read_bytes    | connector 进程在一个监控周期（比如10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
 | process_disk_written_bytes | connector 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytes/s   |
 
-### taosX 通用数据源任务监控指标
+### taosX 通用数据源任务
 
 | 字段                 | 描述                                                            |
 | -------------------- | --------------------------------------------------------------- |
@@ -388,7 +388,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | written_points       | 本次运行写入成功点数 (等于数据块包含的行数乘以数据块包含的列数) |
 | execute_time         | 任务本次运行时间，单位秒                                        |
 
-### taosX TDengine V2 任务监控指标
+### taosX TDengine V2 任务
 
 | 字段                  | 描述                                                                 |
 | --------------------- | -------------------------------------------------------------------- |
@@ -404,7 +404,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | created_tables        | 本次运行创建子表数                                                   |
 | updated_tags          | 本次运行更新 tag 数                                                  |
 
-### taosX TDengine V3 任务监控指标
+### taosX TDengine V3 任务
 
 | 字段                   | 描述                                                    |
 | ---------------------- | ------------------------------------------------------- |
@@ -422,7 +422,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | success_blocks         | 本次写入成功的数据块数                                  |
 
 
-### taosX 其他数据源 任务监控指标
+### taosX 其他数据源 任务
 
 这些数据源包括： InfluxDB，OpenTSDB，OPC UA，OPC DA，PI，CSV，MQTT，AVEVA Historian 和 Kafka。  
 
