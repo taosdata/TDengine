@@ -2094,7 +2094,7 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   return code;
 
 _error:
-  destroyMAIOperatorInfo(miaInfo);
+  if (miaInfo != NULL) destroyMAIOperatorInfo(miaInfo);
   destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
