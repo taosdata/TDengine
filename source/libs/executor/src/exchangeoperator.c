@@ -452,7 +452,10 @@ _error:
     doDestroyExchangeOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -707,8 +710,8 @@ void updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t
 }
 
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
   SSDataBlock* pBlock = NULL;
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
@@ -757,6 +760,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
     QUERY_CHECK_CODE(code, lino, _end);
 
     blockDataDestroy(pBlock);
+    pBlock = NULL;
   }
 
 _end:

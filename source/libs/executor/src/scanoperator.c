@@ -1466,7 +1466,10 @@ _error:
     destroyTableScanOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -3777,7 +3780,7 @@ static void destroyStreamScanOperatorInfo(void* param) {
     destroyOperator(pStreamScan->pTableScanOp);
   }
 
-  if (pStreamScan->tqReader) {
+  if (pStreamScan->tqReader != NULL && pStreamScan->readerFn.tqReaderClose != NULL) {
     pStreamScan->readerFn.tqReaderClose(pStreamScan->tqReader);
   }
   if (pStreamScan->matchInfo.pList) {
@@ -4147,7 +4150,10 @@ _error:
     destroyStreamScanOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -4608,7 +4614,7 @@ static SSDataBlock* doTagScanFromMetaEntry(SOperatorInfo* pOperator) {
 
 static void destroyTagScanOperatorInfo(void* param) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
-  if (pInfo->pCtbCursor != NULL) {
+  if (pInfo->pCtbCursor != NULL && pInfo->pStorageAPI != NULL) {
     pInfo->pStorageAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
   }
   taosHashCleanup(pInfo->filterCtx.colHash);
@@ -4705,7 +4711,10 @@ _error:
   }
 
   if (pInfo != NULL) destroyTagScanOperatorInfo(pInfo);
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 
@@ -5770,8 +5779,10 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
 
   // start one reader variable
-  pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
-  pTableScanInfo->base.dataReader = NULL;
+  if (pTableScanInfo->base.readerAPI.tsdReaderClose != NULL) {
+    pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
+    pTableScanInfo->base.dataReader = NULL;
+  }
 
   for (int32_t i = 0; i < pTableScanInfo->numNextDurationBlocks; ++i) {
     if (pTableScanInfo->nextDurationBlocks[i] != NULL) {
@@ -5950,7 +5961,10 @@ _error:
   pTaskInfo->code = code;
   pInfo->base.pTableListInfo = NULL;
   if (pInfo != NULL) destroyTableMergeScanOperatorInfo(pInfo);
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 
@@ -6107,7 +6121,10 @@ _error:
   if (pInfo != NULL) {
     destoryTableCountScanOperator(pInfo);
   }
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }

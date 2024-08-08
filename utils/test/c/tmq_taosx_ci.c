@@ -633,7 +633,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
   int32_t cnt = 0;
   while (running) {
-    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 5000);
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);
