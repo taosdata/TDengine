@@ -441,15 +441,12 @@ void transReqQueueClear(queue* q) {
 }
 
 int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
-  queue->q = taosArrayInit(4, sizeof(void*));
-  if (taosArrayReserve(queue->q, 4) == NULL) {
+  queue->q = taosArrayInit(2, sizeof(void*));
+  if (queue->q == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   queue->freeFunc = (void (*)(const void*))freeFunc;
 
-  if (queue->q == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
   return 0;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {

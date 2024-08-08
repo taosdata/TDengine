@@ -907,7 +907,6 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
   taosWUnLockLatch(&exh->latch);
 
   conn->refId = exh->refId;
-  taosWUnLockLatch(&exh->latch);
 
   tDebug("conn %p specified by %" PRId64 "", conn, handle);
 
@@ -1978,6 +1977,7 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
           continue;
         }
         QUEUE_INIT(&pBatchList->wq);
+        pBatchList->port = port;
         pBatchList->connMax = pInst->connLimitNum;
         pBatchList->connCnt = 0;
         pBatchList->batchLenLimit = pInst->batchSize;
@@ -1993,7 +1993,6 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
           tError("failed to create batch list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
           continue;
         }
-        pBatchList->port = port;
 
         SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
         if (pBatch == NULL) {
