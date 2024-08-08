@@ -651,6 +651,10 @@ fn pre_check_config(config: &PiConfig) -> anyhow::Result<()> {
         }
         let start_time = config.backfill_start_time.unwrap();
         let end_time = config.backfill_end_time.unwrap();
+        let start_time_str = start_time.to_string();
+        let ent_time_str = end_time.to_string();
+        let start_time: chrono::DateTime<chrono::Utc> = start_time_str.parse()?;
+        let end_time: chrono::DateTime<chrono::Utc> = ent_time_str.parse()?;
         if start_time >= end_time {
             anyhow::bail!(
                 "PI backfill start time must be less than end time. start: {}, end: {}",
@@ -659,13 +663,11 @@ fn pre_check_config(config: &PiConfig) -> anyhow::Result<()> {
             );
         }
         let now = chrono::Utc::now();
-        let now_str = now.to_rfc3339();
-        let toml_now = now_str.parse::<toml::value::Datetime>().unwrap();
-        if end_time > toml_now {
+        if end_time > now {
             anyhow::bail!(
                 "PI backfill end time must be less than current time. end: {}, now: {}",
                 end_time,
-                now_str
+                now
             );
         }
     }
