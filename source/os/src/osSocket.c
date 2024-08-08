@@ -1075,14 +1075,14 @@ int32_t taosGetFqdn(char *fqdn) {
 
   freeaddrinfo(result);
 
-#else
+#elif WINDOWS
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
 
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    fprintf(stderr, "failed to get fqdn, code:%d, reason:%s\n", ret, gai_strerror(ret));
+    fprintf(stderr, "failed to get fqdn, code:%d, hostname:%s, reason:%s\n", ret, hostname, gai_strerror(ret));
     return -1;
   }
   strcpy(fqdn, result->ai_canonname);
