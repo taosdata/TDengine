@@ -7,6 +7,7 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
+use tracing_subscriber::fmt::format;
 
 use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
@@ -87,11 +88,12 @@ pub async fn pi_to_taos(
         sql_port.get(),
         task_id,
     )
-    .await?;
+    .await
+    .context("Failed to create PIConfig")?;
     pre_check_config(&config)?;
     let toml = toml::to_string(&config)?;
-    let mut config_file = tempfile::NamedTempFile::new()?;
-    write!(config_file, "{}", &toml)?;
+    let mut config_file = tempfile::NamedTempFile::new().context("Failed to create tempfile")?;
+    write!(config_file, "{}", &toml).context("Faile to write config file")?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
@@ -652,9 +654,13 @@ fn pre_check_config(config: &PiConfig) -> anyhow::Result<()> {
         let start_time = config.backfill_start_time.unwrap();
         let end_time = config.backfill_end_time.unwrap();
         let start_time_str = start_time.to_string();
-        let ent_time_str = end_time.to_string();
-        let start_time: chrono::DateTime<chrono::Utc> = start_time_str.parse()?;
-        let end_time: chrono::DateTime<chrono::Utc> = ent_time_str.parse()?;
+        let end_time_str = end_time.to_string();
+        let start_time: chrono::DateTime<chrono::Utc> = start_time_str
+            .parse()
+            .context(format!("Failed to parse start_time_str {}", start_time_str))?;
+        let end_time: chrono::DateTime<chrono::Utc> = end_time_str
+            .parse()
+            .context(format!("Failed to parse end_time_str {}", end_time_str))?;
         if start_time >= end_time {
             anyhow::bail!(
                 "PI backfill start time must be less than end time. start: {}, end: {}",
