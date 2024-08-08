@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 ## UDF 简介
 
-在某些应用场景中，应用逻辑需要的查询功能无法直接使用 TDengine 内置的函数来实现。TDengine 允许编写用户自定义函数（UDF），以便解决特殊应用场景中的使用需求。UDF 在集群中注册成功后，可以像系统内置函数一样在 SQ L中调用，就使用角度而言没有任何区别。UDF 分为标量函数和聚合函数。标量函数对每行数据输出一个值，如求绝对值（abs）、正弦函数（sin）、字符串拼接函数（concat）等。聚合函数对多行数据输出一个值，如求平均数（avg）、取最大值（max）等。
+在某些应用场景中，应用逻辑需要的查询功能无法直接使用内置函数来实现，TDengine 允许编写用户自定义函数（UDF），以便解决特殊应用场景中的使用需求。UDF 在集群中注册成功后，可以像系统内置函数一样在 SQL 中调用，就使用角度而言没有任何区别。UDF 分为标量函数和聚合函数。标量函数对每行数据输出一个值，如求绝对值（abs）、正弦函数（sin）、字符串拼接函数（concat）等。聚合函数对多行数据输出一个值，如求平均数（avg）、取最大值（max）等。
 
 TDengine 支持用 C 和 Python 两种编程语言编写 UDF。C 语言编写的 UDF 与内置函数的性能几乎相同，Python 语言编写的 UDF 可以利用丰富的 Python 运算库。为了避免 UDF 执行中发生异常影响数据库服务，TDengine 使用了进程分离技术，把 UDF 的执行放到另一个进程中完成，即使用户编写的 UDF 崩溃，也不会影响 TDengine 的正常运行。
 
@@ -15,20 +15,19 @@ TDengine 支持用 C 和 Python 两种编程语言编写 UDF。C 语言编写的
 使用 C 语言实现 UDF 时，需要实现规定的接口函数
 - 标量函数需要实现标量接口函数 scalarfn 。
 - 聚合函数需要实现聚合接口函数 aggfn_start、aggfn、aggfn_finish。
-- 如果需要初始化，实现 udf_init；如果需要清理工作，实现 udf_destroy。
-
-接口函数的名称是 UDF 名称，或者是 UDF 名称和特定后缀（`_start`、`_finish`、`_init`、`_destroy`）的连接。
+- 如果需要初始化，实现 udf_init。
+- 如果需要清理工作，实现 udf_destroy。
 
 ### 接口定义
 
-在 TDengine 中，UDF 的接口函数名称可以是 UDF 名称，也可以是 UDF 名称和特定后缀（如_start、_finish、_init、_destroy）的连接。后面内容中描述的函数名称，例如 scalarfn、aggfn，需要替换成 UDF 名称。
+接口函数的名称是 UDF 名称，或者是 UDF 名称和特定后缀（_start、_finish、_init、_destroy）的连接。后面内容中描述的函数名称，例如 scalarfn、aggfn，需要替换成 UDF 名称。
 
 #### 标量函数接口
 
 标量函数是一种将输入数据转换为输出数据的函数，通常用于对单个数据值进行计算和转换。标量函数的接口函数原型如下。
 
 ```c
-int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)
+int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn);
 ```
 主要参数说明如下。
 - inputDataBlock：输入的数据块。
@@ -47,9 +46,9 @@ int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)
 聚合函数的接口函数原型如下。
 
 ```c
-int32_t aggfn_start(SUdfInterBuf *interBuf)
-int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf)
-int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result)
+int32_t aggfn_start(SUdfInterBuf *interBuf);
+int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf);
+int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result);
 ```
 
 其中 aggfn 是函数名的占位符。首先调用 aggfn_start 生成结果 buffer，然后相关的数据会被分为多个行数据块，对每个数据块调用 aggfn 用数据块更新中间结果，最后再调用 aggfn_finish 从中间结果产生最终结果，最终结果只能含 0 或 1 条结果数据。
@@ -79,15 +78,16 @@ int32_t udf_destroy()
 #include "taoserror.h"
 #include "taosudf.h"
 
-// Initialization function. If no initialization, we can skip definition of it. 
-// The initialization function shall be concatenation of the udf name and _init suffix
+// Initialization function. 
+// If no initialization, we can skip definition of it. 
+// The initialization function shall be concatenation of the udf name and _init suffix.
 // @return error number defined in taoserror.h
 int32_t scalarfn_init() {
     // initialization.
     return TSDB_CODE_SUCCESS;
 }
 
-// Scalar function main computation function
+// Scalar function main computation function.
 // @param inputDataBlock, input data block composed of multiple columns with each column defined by SUdfColumn
 // @param resultColumn, output column
 // @return error number defined in taoserror.h
@@ -96,7 +96,8 @@ int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn* resultColumn) {
     return TSDB_CODE_SUCCESS;
 }
 
-// Cleanup function. If no cleanup related processing, we can skip definition of it.
+// Cleanup function.
+// If no cleanup related processing, we can skip definition of it.
 // The destroy function shall be concatenation of the udf name and _destroy suffix.
 // @return error number defined in taoserror.h
 int32_t scalarfn_destroy() {
@@ -112,16 +113,18 @@ int32_t scalarfn_destroy() {
 #include "taoserror.h"
 #include "taosudf.h"
 
-// Initialization function. If no initialization, we can skip definition of it. 
-// The initialization function shall be concatenation of the udf name and _init suffix
+// Initialization function.
+// If no initialization, we can skip definition of it. 
+// The initialization function shall be concatenation of the udf name and _init suffix.
 // @return error number defined in taoserror.h
 int32_t aggfn_init() {
     // initialization.
     return TSDB_CODE_SUCCESS;
 }
 
-// Aggregate start function. The intermediate value or the state(@interBuf) is initialized in this function. 
-// The function name shall be concatenation of udf name and _start suffix
+// Aggregate start function.
+// The intermediate value or the state(@interBuf) is initialized in this function. 
+// The function name shall be concatenation of udf name and _start suffix.
 // @param interbuf intermediate value to initialize
 // @return error number defined in taoserror.h
 int32_t aggfn_start(SUdfInterBuf* interBuf) {
@@ -129,7 +132,8 @@ int32_t aggfn_start(SUdfInterBuf* interBuf) {
     return TSDB_CODE_SUCCESS;
 }
 
-// Aggregate reduce function. This function aggregate old state(@interbuf) and one data bock(inputBlock) and output a new state(@newInterBuf).
+// Aggregate reduce function.
+// This function aggregate old state(@interbuf) and one data bock(inputBlock) and output a new state(@newInterBuf).
 // @param inputBlock input data block
 // @param interBuf old state
 // @param newInterBuf new state
@@ -139,7 +143,8 @@ int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *n
     return TSDB_CODE_SUCCESS;
 }
 
-// Aggregate function finish function. This function transforms the intermediate value(@interBuf) into the final output(@result).
+// Aggregate function finish function.
+// This function transforms the intermediate value(@interBuf) into the final output(@result).
 // The function name must be concatenation of aggfn and _finish suffix.
 // @interBuf : intermediate value
 // @result: final result
@@ -149,7 +154,8 @@ int32_t int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result) {
     return TSDB_CODE_SUCCESS;
 }
 
-// Cleanup function. If no cleanup related processing, we can skip definition of it. 
+// Cleanup function.
+// If no cleanup related processing, we can skip definition of it. 
 // The destroy function shall be concatenation of the udf name and _destroy suffix.
 // @return error number defined in taoserror.h
 int32_t aggfn_destroy() {
@@ -432,7 +438,7 @@ create function myfun as '/root/udf/myfun.py' outputtype double language 'Python
 其输出如下
 
 ```shell
- taos> create function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
+taos> create function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
 Create OK, 0 row(s) affected (0.005202s)
 ```
 
