@@ -38,7 +38,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock) + PAYLOAD_PREFIX_LEN;
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   (*pRsp)->useconds = 0;
@@ -289,7 +289,7 @@ static int32_t buildRetension(SArray* pRetension, char **ppRetentions ) {
 
   char*   p1 = taosMemoryCalloc(1, 100);
   if(NULL == p1) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   int32_t len = 0;
 
@@ -849,7 +849,7 @@ _return:
 static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (NULL == pBlock) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pBlock->info.hasVarCol = true;
