@@ -2468,7 +2468,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
     code = terrno;
-    tscError("failed to init server status client");
+    tscError("failed to init server status client since %s", tstrerror(code));
     goto _OVER;
   }
 
