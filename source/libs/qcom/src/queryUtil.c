@@ -225,6 +225,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
+
   int code = rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   if (code) {
     destroySendMsgInfo(pInfo);
@@ -234,6 +235,9 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
 
 int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
+}
+int32_t asyncFreeConnById(void* pTransporter, int64_t pid) {
+  return rpcFreeConnById(pTransporter, pid);
 }
 
 char* jobTaskStatusStr(int32_t status) {
@@ -448,13 +452,13 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
       if (value == NULL) {
         goto end;
       }
-      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
         goto end;
       }
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
       if (pTagVal->nData > 0) {
-        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
         if (tagJsonValue == NULL) {
           goto end;
         }
@@ -479,7 +483,7 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
         goto end;
       }
 
-      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
         goto end;
       }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
@@ -488,7 +492,7 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
       if (value == NULL) {
         goto end;
       }
-      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
         goto end;
       }
     } else if (type == TSDB_DATA_TYPE_BOOL) {
@@ -497,7 +501,7 @@ void parseTagDatatoJson(void* p, char** jsonStr) {
       if (value == NULL) {
         goto end;
       }
-      if(!cJSON_AddItemToObject(json, tagJsonKey, value)){
+      if (!cJSON_AddItemToObject(json, tagJsonKey, value)) {
         goto end;
       }
     } else {
@@ -581,6 +585,8 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
+  (*pDst)->vgArray = NULL;
+  
   if (pSrc->vgHash) {
     (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
                                    HASH_ENTRY_LOCK);

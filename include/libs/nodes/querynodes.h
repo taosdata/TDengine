@@ -60,6 +60,7 @@ typedef struct SExprNode {
   bool      orderAlias;
   bool      asAlias;
   bool      asParam;
+  bool      asPosition;
 } SExprNode;
 
 typedef enum EColumnType {

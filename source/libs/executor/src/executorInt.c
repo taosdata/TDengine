@@ -89,6 +89,10 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
   int32_t pageId = -1;
   if (*currentPageId == -1) {
     pData = getNewBufPage(pResultBuf, &pageId);
+    if (pData == NULL) {
+      qError("failed to get buffer, code:%s", tstrerror(terrno));
+      return NULL;
+    }
     pData->num = sizeof(SFilePage);
   } else {
     pData = getBufPage(pResultBuf, *currentPageId);
@@ -104,9 +108,11 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
       releaseBufPage(pResultBuf, pData);
 
       pData = getNewBufPage(pResultBuf, &pageId);
-      if (pData != NULL) {
-        pData->num = sizeof(SFilePage);
+      if (pData == NULL) {
+        qError("failed to get buffer, code:%s", tstrerror(terrno));
+        return NULL;
       }
+      pData->num = sizeof(SFilePage);
     }
   }
 
@@ -152,8 +158,9 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   if (isIntervalQuery) {
     if (p1 != NULL) {  // the *p1 may be NULL in case of sliding+offset exists.
       pResult = getResultRowByPos(pResultBuf, p1, true);
-      if (NULL == pResult) {
-        T_LONG_JMP(pTaskInfo->env, terrno);
+      if (pResult == NULL) {
+        pTaskInfo->code = terrno;
+        return NULL;
       }
 
       ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
@@ -165,7 +172,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
       // todo
       pResult = getResultRowByPos(pResultBuf, p1, true);
       if (NULL == pResult) {
-        T_LONG_JMP(pTaskInfo->env, terrno);
+        pTaskInfo->code = terrno;
+        return NULL;
       }
 
       ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
@@ -178,7 +186,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
     SFilePage*         pPage = getBufPage(pResultBuf, pos.pageId);
     if (pPage == NULL) {
       qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
-      T_LONG_JMP(pTaskInfo->env, terrno);
+      pTaskInfo->code = terrno;
+      return NULL;
     }
     releaseBufPage(pResultBuf, pPage);
   }
@@ -187,7 +196,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   if (pResult == NULL) {
     pResult = getNewResultRow(pResultBuf, &pSup->currentPageId, pSup->resultRowSize);
     if (pResult == NULL) {
-      T_LONG_JMP(pTaskInfo->env, terrno);
+      pTaskInfo->code = terrno;
+      return NULL;
     }
 
     // add a new result set for a new group
@@ -196,7 +206,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
                                   sizeof(SResultRowPosition));
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, code);
+      pTaskInfo->code = code;
+      return NULL;
     }
   }
 
@@ -206,7 +217,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   // too many time window in query
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH &&
       tSimpleHashGetSize(pSup->pResultRowHashTable) > MAX_INTERVAL_TIME_WINDOW) {
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW);
+    pTaskInfo->code = TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW;
+    return NULL;
   }
 
   return pResult;
@@ -409,6 +421,9 @@ static int32_t doCreateConstantValColumnSMAInfo(SInputColumnInfoData* pInput, SF
   SColumnDataAgg* da = NULL;
   if (pInput->pColumnDataAgg[paramIndex] == NULL) {
     da = taosMemoryCalloc(1, sizeof(SColumnDataAgg));
+    if (!da) {
+      return terrno;
+    }
     pInput->pColumnDataAgg[paramIndex] = da;
     if (da == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -574,8 +589,10 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
     size_t size = taosArrayGetSize(pColMatchInfo->pList);
     for (int32_t i = 0; i < size; ++i) {
       SColMatchItem* pInfo = taosArrayGet(pColMatchInfo->pList, i);
+      QUERY_CHECK_NULL(pInfo, code, lino, _err, terrno);
       if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pInfo->dstSlotId);
+        QUERY_CHECK_NULL(pColData, code, lino, _err, terrno);
         if (pColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
           code = blockDataUpdateTsWindow(pBlock, pInfo->dstSlotId);
           QUERY_CHECK_CODE(code, lino, _err);
@@ -664,6 +681,7 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
       // expand the result into multiple rows. E.g., _wstart, top(k, 20)
       // the _wstart needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
       for (int32_t k = 0; k < pRow->numOfRows; ++k) {
         code = colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
@@ -1043,6 +1061,10 @@ bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
   if (LIST_LENGTH(pGroupList) == 1) {
     SNode* p = nodesListGetNode(pGroupList, 0);
+    if (!p) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return false;
+    }
     if (p->type == QUERY_NODE_FUNCTION) {
       // partition by tbname/group by tbname
       bytbname = (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0);
@@ -1091,6 +1113,11 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
 
       for (int32_t i = 0; i < numOfTables; ++i) {
         STableKeyInfo* pTable = tableListGetInfo(pTableListInfo, i);
+        if (!pTable) {
+          taosArrayDestroy(pDeleterParam->pUidList);
+          taosMemoryFree(pDeleterParam);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         void*          tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
         if (!tmp) {
           taosArrayDestroy(pDeleterParam->pUidList);

@@ -224,6 +224,21 @@ SCompactObj *mndAcquireCompact(SMnode *pMnode, int64_t compactId) {
 void mndReleaseCompact(SMnode *pMnode, SCompactObj *pCompact) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pCompact);
+  pCompact = NULL;
+}
+
+int32_t mndCompactGetDbName(SMnode *pMnode, int32_t compactId, char *dbname, int32_t len) {
+  int32_t      code = 0;
+  SCompactObj *pCompact = mndAcquireCompact(pMnode, compactId);
+  if (pCompact == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  (void)strncpy(dbname, pCompact->dbname, len);
+  mndReleaseCompact(pMnode, pCompact);
+  TAOS_RETURN(code);
 }
 
 // compact db
@@ -488,7 +503,7 @@ _OVER:
   }
 
   tFreeSKillCompactReq(&killCompactReq);
-  sdbRelease(pMnode->pSdb, pCompact);
+  mndReleaseCompact(pMnode, pCompact);
 
   TAOS_RETURN(code);
 }
@@ -523,6 +538,10 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
 int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq) {
   int32_t                  code = 0;
   SQueryCompactProgressRsp req = {0};
+  if (pReq->code != 0) {
+    mError("received wrong compact response, req code is %s", tstrerror(pReq->code));
+    TAOS_RETURN(pReq->code);
+  }
   code = tDeserializeSQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &req);
   if (code != 0) {
     mError("failed to deserialize vnode-query-compact-progress-rsp, ret:%d, pCont:%p, len:%d", code, pReq->pCont,
@@ -636,16 +655,12 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  SCompactObj *pCompact = mndAcquireCompact(pMnode, compactId);
-  if (pCompact == NULL) TAOS_RETURN(code);
+  char dbname[TSDB_TABLE_FNAME_LEN] = {0};
+  TAOS_CHECK_RETURN(mndCompactGetDbName(pMnode, compactId, dbname, TSDB_TABLE_FNAME_LEN));
 
-  SDbObj *pDb = mndAcquireDb(pMnode, pCompact->dbname);
-  if (pDb == NULL) {
+  if (!mndDbIsExist(pMnode, dbname)) {
     needSave = true;
-    mWarn("compact:%" PRId32 ", no db exist, set needSave:%s", compactId, pCompact->dbname);
-  } else {
-    mndReleaseDb(pMnode, pDb);
-    pDb = NULL;
+    mWarn("compact:%" PRId32 ", no db exist, set needSave:%s", compactId, dbname);
   }
 
   if (!needSave) {
@@ -662,7 +677,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   }
   mInfo("compact:%d, trans:%d, used to update compact progress.", compactId, pTrans->id);
 
-  mndTransSetDbName(pTrans, pCompact->dbname, NULL);
+  mndTransSetDbName(pTrans, dbname, NULL);
 
   pIter = NULL;
   while (1) {
@@ -730,24 +745,20 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  pDb = mndAcquireDb(pMnode, pCompact->dbname);
-  if (pDb == NULL) {
+  if (!mndDbIsExist(pMnode, dbname)) {
     allFinished = true;
-    mWarn("compact:%" PRId32 ", no db exist, set all finished:%s", compactId, pCompact->dbname);
-  } else {
-    mndReleaseDb(pMnode, pDb);
-    pDb = NULL;
+    mWarn("compact:%" PRId32 ", no db exist, set all finished:%s", compactId, dbname);
   }
 
   if (allFinished) {
-    mInfo("compact:%d, all finished", pCompact->compactId);
+    mInfo("compact:%d, all finished", compactId);
     pIter = NULL;
     while (1) {
       SCompactDetailObj *pDetail = NULL;
       pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
       if (pIter == NULL) break;
 
-      if (pDetail->compactId == pCompact->compactId) {
+      if (pDetail->compactId == compactId) {
         SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
         if (pCommitRaw == NULL) {
           mndTransDrop(pTrans);
@@ -770,7 +781,15 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
       sdbRelease(pMnode->pSdb, pDetail);
     }
 
+    SCompactObj *pCompact = mndAcquireCompact(pMnode, compactId);
+    if (pCompact == NULL) {
+      mndTransDrop(pTrans);
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      TAOS_RETURN(code);
+    }
     SSdbRaw *pCommitRaw = mndCompactActionEncode(pCompact);
+    mndReleaseCompact(pMnode, pCompact);
     if (pCommitRaw == NULL) {
       mndTransDrop(pTrans);
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -789,11 +808,9 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("compact:%d, trans:%d, failed to prepare since %s", compactId, pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    sdbRelease(pMnode->pSdb, pCompact);
     TAOS_RETURN(code);
   }
 
-  sdbRelease(pMnode->pSdb, pCompact);
   mndTransDrop(pTrans);
   return 0;
 }
@@ -823,8 +840,8 @@ void mndCompactPullup(SMnode *pMnode) {
       if ((code = mndSaveCompactProgress(pMnode, pCompact->compactId)) != 0) {
         mError("compact:%d, failed to save compact progress since %s", pCompact->compactId, tstrerror(code));
       }
+      mndReleaseCompact(pMnode, pCompact);
     }
-    mndReleaseCompact(pMnode, pCompact);
   }
   taosArrayDestroy(pArray);
 }

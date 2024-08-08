@@ -9,16 +9,14 @@ import (
 )
 
 func main() {
+	// use
+	// var taosDSN = "root:taosdata@tcp(localhost:6030)/dbName"
+	// if you want to connect a specified database named "dbName".
 	var taosDSN = "root:taosdata@tcp(localhost:6030)/"
 	taos, err := sql.Open("taosSql", taosDSN)
 	if err != nil {
 		log.Fatalln("failed to connect TDengine, err:", err)
-		return
 	}
-	fmt.Println("Connected")
+	fmt.Println("Connected to " + taosDSN + " successfully.")
 	defer taos.Close()
 }
-
-// use
-// var taosDSN = "root:taosdata@tcp(localhost:6030)/dbName"
-// if you want to connect a specified database named "dbName".

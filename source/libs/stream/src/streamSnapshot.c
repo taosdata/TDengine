@@ -399,6 +399,10 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
   // unite read/write snap file
   for (int32_t i = 0; i < taosArrayGetSize(pSnap->pFileList); i++) {
     SBackendFileItem* pItem = taosArrayGet(pSnap->pFileList, i);
+    if (pItem == NULL) {
+      continue;
+    }
+
     if (pItem->ref == 0) {
       taosMemoryFree(pItem->name);
     }

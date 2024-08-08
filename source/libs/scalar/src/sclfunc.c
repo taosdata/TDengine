@@ -262,7 +262,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
           colDataSetNULL(pOutputData, i);
           continue;
         }
-        out[i] = f1(in[i]);
+        out[i] = f1(in[i]) + 0;
       }
       break;
     }
@@ -276,7 +276,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
           colDataSetNULL(pOutputData, i);
           continue;
         }
-        out[i] = d1(in[i]);
+        out[i] = d1(in[i]) + 0;
       }
       break;
     }
@@ -401,8 +401,8 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
       taosMemoryFree(newBuf);
       return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
-    (void)memcpy(varDataVal(output) + *dataLen, newBuf, varDataLen(input) * TSDB_NCHAR_SIZE);
-    *dataLen += varDataLen(input) * TSDB_NCHAR_SIZE;
+    (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
+    *dataLen += len;
     taosMemoryFree(newBuf);
   } else {
     (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
