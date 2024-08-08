@@ -48,7 +48,7 @@ namespace PISimulator
         }
         public void TDengineConnect() {
             TDengineInit();
-            // tdEngineProxy.Connect();
+            tdEngineProxy.Connect();
         }
         public void TDengineInit() {
             tdEngineProxy = TDEngineProxyBuild.NewTDEngineProxy(AppSettings.tomlConfig.IPCStream,
