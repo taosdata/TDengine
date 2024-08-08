@@ -17,36 +17,10 @@ from util.cases import *
 from util.sql import *
 from util.common import *
 from util.sqlset import *
-from scipy.stats import gaussian_kde
 from hyperloglog import HyperLogLog
 '''
 Test case for TS-5150
 '''
-def approximate_percentile(data, percentile):
-    """
-    使用 KDE 近似计算百分位数。
-    
-    Parameters:
-    - data: 包含数据的列表或数组
-    - percentile: 要计算的百分位数（0到100之间）
-    
-    Returns:
-    - 近似百分位数的值
-    """
-    # 使用高斯核估计概率密度
-    kde = gaussian_kde(data)
-    
-    # 生成一组足够密集的点，计算累积分布函数
-    min_val = min(data)
-    max_val = max(data)
-    x = np.linspace(min_val, max_val, 1000)
-    cdf = np.cumsum(kde(x) / kde(x).sum())
-    
-    # 找到最接近所需百分位数的值
-    idx = np.abs(cdf - percentile / 100.0).argmin()
-    approximate_value = x[idx]
-    
-    return approximate_value
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -89,7 +63,7 @@ class TDTestCase:
                         HYPERLOGLOG(CASE WHEN delay != 0 THEN delay ELSE NULL END) AS hyperloglog from stb where ts between {1537146000000 + i * 1000} and {1537146000000 + (i+10) * 1000}')
             #verify apercentile
             apercentile_res = tdSql.queryResult[0][0]
-            approximate_median = approximate_percentile(col_val_list, 50)
+            approximate_median = np.percentile(col_val_list, 50)
             assert np.abs(apercentile_res - approximate_median) < 1
             #verify max
             max_res = tdSql.queryResult[0][1]
