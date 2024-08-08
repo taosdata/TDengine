@@ -130,7 +130,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
       pGroupIdCalc->lastKeysLen = 0;
       pGroupIdCalc->keyBuf = taosMemoryCalloc(1, keyLen);
       if (!pGroupIdCalc->keyBuf) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno;
       }
     }
   }
@@ -164,7 +164,10 @@ _error:
     destroySortOperatorInfo(pInfo);
   }
 
-  taosMemoryFree(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -370,8 +373,13 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
+  if (ps == NULL) {
+    return terrno;
+  }
+
   ps->param = pOperator->pDownstream[0];
   ps->onlyRef = true;
+
   code = tsortAddSource(pInfo->pSortHandle, ps);
   if (code) {
     taosMemoryFree(ps);
@@ -464,6 +472,9 @@ void destroySortOperatorInfo(void* param) {
 
 int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
   SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
+  if (pInfo == NULL) {
+    return terrno;
+  }
 
   SSortOperatorInfo* pOperatorInfo = (SSortOperatorInfo*)pOptr->info;
 
@@ -638,6 +649,10 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
 
   SSortSource*           ps = taosMemoryCalloc(1, sizeof(SSortSource));
   SGroupSortSourceParam* param = taosMemoryCalloc(1, sizeof(SGroupSortSourceParam));
+  if (ps == NULL || param == NULL) {
+    T_LONG_JMP(pTaskInfo->env, terrno);
+  }
+
   param->childOpInfo = pOperator->pDownstream[0];
   param->grpSortOpInfo = pInfo;
   ps->param = param;
@@ -824,6 +839,9 @@ _error:
   if (pInfo != NULL) {
     destroyGroupSortOperatorInfo(pInfo);
   }
-  taosMemoryFree(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }

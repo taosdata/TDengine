@@ -1504,7 +1504,10 @@ _error:
     destroyGroupCacheOperator(pInfo);
   }
 
-  taosMemoryFree(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }

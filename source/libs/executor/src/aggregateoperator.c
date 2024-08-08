@@ -147,12 +147,10 @@ _error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
-
   if (pOperator != NULL) {
-    cleanupExprSupp(&pOperator->exprSupp);
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
   }
-
-  taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -180,11 +178,11 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
-  if (pOperator->blocking && pAggInfo->hasValidBlock) return false;
+  if (pOperator->blocking && pAggInfo->hasValidBlock) {
+    return false;
+  }
 
-  SExprSupp*     pSup = &pOperator->exprSupp;
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
-
+  SExprSupp*   pSup = &pOperator->exprSupp;
   int64_t      st = taosGetTimestampUs();
   int32_t      order = pAggInfo->binfo.inputTsOrder;
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
@@ -345,6 +343,7 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SSDataBlock* pBlock = NULL;
   if (!tsCountAlwaysReturnValue) {
     return TSDB_CODE_SUCCESS;
   }
@@ -368,7 +367,6 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     return TSDB_CODE_SUCCESS;
   }
 
-  SSDataBlock* pBlock = NULL;
   code = createDataBlock(&pBlock);
   if (code) {
     return code;
@@ -416,6 +414,7 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }
   return code;
@@ -454,6 +453,9 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
   SResultRow* pResultRow =
       doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId, sizeof(groupId), true,
                              groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
+  if (pResultRow == NULL || pTaskInfo->code != 0) {
+    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+  }
   /*
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one

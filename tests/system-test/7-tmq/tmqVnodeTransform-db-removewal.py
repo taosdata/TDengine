@@ -140,7 +140,7 @@ class TDTestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  2,
+                    'pollDelay':  5,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -190,9 +190,6 @@ class TDTestCase:
         # redistribute vgroup
         self.redistributeVgroups()
 
-        tdLog.info("start consume processor")
-        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
-        tdLog.info("wait the consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
         

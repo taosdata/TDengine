@@ -224,7 +224,10 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
     return -1;
   }
 
-  (void)tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn);
+  if (tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn)) {
+    taosMemoryFree(pTbc);
+    return -1;
+  }
 
   *ppTbc = pTbc;
   return 0;

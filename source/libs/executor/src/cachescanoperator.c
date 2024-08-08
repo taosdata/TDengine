@@ -187,6 +187,7 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL | SCAN_ROW_TYPE(pScanNode->ignoreNull);
 
     STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
+    if (totalTables) QUERY_CHECK_NULL(pList, code, lino, _error, terrno);
 
     uint64_t suid = tableListGetSuid(pTableListInfo);
     code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
@@ -246,7 +247,10 @@ _error:
   }
   pInfo->pTableList = NULL;
   destroyCacheScanOperator(pInfo);
-  taosMemoryFree(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 
@@ -439,15 +443,15 @@ void destroyCacheScanOperator(void* param) {
   SCacheRowsScanInfo* pInfo = (SCacheRowsScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
   blockDataDestroy(pInfo->pBufferedRes);
-  taosMemoryFree(pInfo->pSlotIds);
-  taosMemoryFree(pInfo->pDstSlotIds);
+  taosMemoryFreeClear(pInfo->pSlotIds);
+  taosMemoryFreeClear(pInfo->pDstSlotIds);
   taosArrayDestroy(pInfo->pCidList);
   taosArrayDestroy(pInfo->pFuncTypeList);
   taosArrayDestroy(pInfo->pUidList);
   taosArrayDestroy(pInfo->matchInfo.pList);
   tableListDestroy(pInfo->pTableList);
 
-  if (pInfo->pLastrowReader != NULL) {
+  if (pInfo->pLastrowReader != NULL && pInfo->readHandle.api.cacheFn.closeReader != NULL) {
     pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);
     pInfo->pLastrowReader = NULL;
   }
@@ -462,13 +466,13 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
 
   *pSlotIds = taosMemoryMalloc(numOfCols * sizeof(int32_t));
   if (*pSlotIds == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   *pDstSlotIds = taosMemoryMalloc(numOfCols * sizeof(int32_t));
   if (*pDstSlotIds == NULL) {
-    taosMemoryFree(*pSlotIds);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFreeClear(*pSlotIds);
+    return terrno;
   }
 
   SSchemaInfo*    pSchemaInfo = taosArrayGetLast(pTaskInfo->schemaInfos);
