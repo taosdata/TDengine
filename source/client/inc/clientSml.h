@@ -204,6 +204,7 @@ typedef struct {
   STableMeta  *currSTableMeta;
   STableDataCxt *currTableDataCtx;
   bool         needModifySchema;
+  char        *tbnameKey;
 } SSmlHandle;
 
 extern int64_t smlFactorNS[];
@@ -219,9 +220,10 @@ bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
 void          smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
 int32_t       smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
-int32_t       smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen, SSmlTableInfo** tInfo);
+
+int32_t           smlBuildTableInfo(int numRows, const char* measure, int32_t measureLen, SSmlTableInfo** tInfo);
 int32_t           smlBuildSTableMeta(bool isDataFormat, SSmlSTableMeta** sMeta);
-int32_t           smlSetCTableName(SSmlTableInfo *oneTable);
+int32_t           smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey);
 int32_t           getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo);
 int32_t           smlGetMeta(SSmlHandle *info, const void* measure, int32_t measureLen, STableMeta **pTableMeta);
 int32_t           is_same_child_table_telnet(const void *a, const void *b);
