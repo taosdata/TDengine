@@ -25,8 +25,8 @@ threadlocal void* threadPoolSession = NULL;
 SMemPoolMgmt gMPMgmt = {0};
 SMPStrategyFp gMPFps[] = {
   {NULL}, 
-  {NULL,        mpDirectAlloc, mpDirectFree, mpDirectGetMemSize, mpDirectRealloc, NULL,               NULL},
-  {mpChunkInit, mpChunkAlloc,  mpChunkFree,  mpChunkGetMemSize,  mpChunkRealloc,  mpChunkInitSession, mpChunkUpdateCfg}
+  {NULL,        mpDirectAlloc, mpDirectFree, mpDirectGetMemSize, mpDirectRealloc, NULL,               NULL,             NULL},
+  {mpChunkInit, mpChunkAlloc,  mpChunkFree,  mpChunkGetMemSize,  mpChunkRealloc,  mpChunkInitSession, mpChunkUpdateCfg, NULL}
 };
 
 
@@ -362,6 +362,17 @@ int32_t mpRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t si
   MP_RET((*gMPFps[gMPMgmt.strategy].reallocFp)(pPool, pSession, pPtr, size, origSize));
 }
 
+int32_t mpTrim(SMemPool* pPool, SMPSession* pSession, int32_t size, bool* trimed) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (gMPFps[gMPMgmt.strategy].trimFp) {
+    MP_RET((*gMPFps[gMPMgmt.strategy].trimFp)(pPool, pSession, size, trimed));
+  }
+
+  return code;
+}
+
+
 void mpPrintStatDetail(SMPCtrlInfo* pCtrl, SMPStatDetail* pDetail, char* detailName, int64_t maxAllocSize) {
   if (!MP_GET_FLAG(pCtrl->funcFlags, MP_CTRL_FLAG_PRINT_STAT)) {
     return;
@@ -378,7 +389,9 @@ void mpPrintStatDetail(SMPCtrlInfo* pCtrl, SMPStatDetail* pDetail, char* detailN
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Calloc", pDetail->times.memCalloc));
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Realloc", pDetail->times.memRealloc));
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Strdup", pDetail->times.strdup));
+      uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Strndup", pDetail->times.strndup));
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Free", pDetail->times.memFree));
+      uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Trim", pDetail->times.memTrim));
       break;
     case E_MP_STRATEGY_CHUNK:
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("chunkMalloc", pDetail->times.chunkMalloc));
@@ -397,7 +410,9 @@ void mpPrintStatDetail(SMPCtrlInfo* pCtrl, SMPStatDetail* pDetail, char* detailN
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Calloc", pDetail->bytes.memCalloc));
       uInfo(MP_STAT_ORIG_FORMAT, MP_STAT_ORIG_VALUE("Realloc", pDetail->bytes.memRealloc));
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Strdup", pDetail->bytes.strdup));
+      uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Strndup", pDetail->bytes.strndup));
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Free", pDetail->bytes.memFree));
+      uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("Trim", pDetail->bytes.memTrim));
       break;
   case E_MP_STRATEGY_CHUNK:
       uInfo(MP_STAT_FORMAT, MP_STAT_VALUE("chunkMalloc", pDetail->bytes.chunkMalloc));
@@ -511,6 +526,35 @@ void mpLogStatDetail(SMPStatDetail* pDetail, EMPStatLogItem item, SMPStatInput* 
       } 
       break;
     }
+    case E_MP_STAT_LOG_MEM_STRNDUP: {
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
+        atomic_add_fetch_64(&pDetail->times.strndup.exec, 1);
+        atomic_add_fetch_64(&pDetail->bytes.strndup.exec, pInput->size);
+      }
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
+        atomic_add_fetch_64(&pDetail->times.strndup.succ, 1);
+        atomic_add_fetch_64(&pDetail->bytes.strndup.succ, pInput->size);
+      } 
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
+        atomic_add_fetch_64(&pDetail->times.strndup.fail, 1);
+        atomic_add_fetch_64(&pDetail->bytes.strndup.fail, pInput->size);
+      } 
+      break;
+    }
+    case E_MP_STAT_LOG_MEM_TRIM: {
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_EXEC)) {
+        atomic_add_fetch_64(&pDetail->times.memTrim.exec, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memTrim.exec, pInput->origSize);
+      }
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_SUCC)) {
+        atomic_add_fetch_64(&pDetail->times.memTrim.succ, 1);
+        atomic_add_fetch_64(&pDetail->bytes.memTrim.succ, pInput->size);
+      } 
+      if (MP_GET_FLAG(pInput->procFlags, MP_STAT_PROC_FLAG_RES_FAIL)) {
+        atomic_add_fetch_64(&pDetail->times.memTrim.fail, 1);
+      } 
+      break;
+    }
     case E_MP_STAT_LOG_CHUNK_MALLOC:  
     case E_MP_STAT_LOG_CHUNK_RECYCLE:  
     case E_MP_STAT_LOG_CHUNK_REUSE:
@@ -529,7 +573,9 @@ void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPSt
     case E_MP_STAT_LOG_MEM_CALLOC:
     case E_MP_STAT_LOG_MEM_REALLOC:
     case E_MP_STAT_LOG_MEM_FREE:
-    case E_MP_STAT_LOG_MEM_STRDUP: {
+    case E_MP_STAT_LOG_MEM_STRDUP: 
+    case E_MP_STAT_LOG_MEM_STRNDUP: 
+    case E_MP_STAT_LOG_MEM_TRIM: {
       if (MP_GET_FLAG(pSession->ctrlInfo.statFlags, MP_STAT_FLAG_LOG_ALL_MEM_STAT)) {
         mpLogStatDetail(&pSession->stat.statDetail, item, pInput);
       }
@@ -829,7 +875,7 @@ _return:
   return ptr;
 }
 
-char   *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char* fileName, int32_t lineNo) {
+char *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char* fileName, int32_t lineNo) {
   int32_t code = TSDB_CODE_SUCCESS;
   void *res = NULL;
   
@@ -857,6 +903,37 @@ _return:
 
   return res;
 }
+
+char *taosMemPoolStrndup(void* poolHandle, void* session, const char *ptr, int64_t size, char* fileName, int32_t lineNo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  void *res = NULL;
+  
+  if (NULL == poolHandle || NULL == session || NULL == fileName || NULL == ptr || size < 0) {
+    uError("%s invalid input param, handle:%p, session:%p, fileName:%p, ptr:%p, size:%" PRId64, 
+      __FUNCTION__, poolHandle, session, fileName, ptr, size);
+    MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
+  }
+
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  SMPSession* pSession = (SMPSession*)session;
+  int64_t origSize = strlen(ptr);
+  size = TMIN(size, origSize) + 1;
+  SMPStatInput input = {.size = size, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
+
+  terrno = mpMalloc(pPool, pSession, size, 0, &res);
+  if (NULL != res) {
+    TAOS_MEMCPY(res, ptr, size - 1);
+    *((char*)res + size - 1) = 0;
+  }
+
+  MP_SET_FLAG(input.procFlags, (res ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
+  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_STRNDUP, &input);
+
+_return:
+
+  return res;
+}
+
 
 void taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -937,8 +1014,29 @@ void taosMemPoolModDestroy(void) {
 }
 
 
-void taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo) {
+int32_t taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo, bool* trimed) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  if (NULL == poolHandle || NULL == session || NULL == fileName || size < 0) {
+    uError("%s invalid input param, handle:%p, session:%p, fileName:%p, size:%d", 
+      __FUNCTION__, poolHandle, session, fileName, size);
+    MP_ERR_JRET(TSDB_CODE_INVALID_MEM_POOL_PARAM);
+  }
 
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  SMPSession* pSession = (SMPSession*)session;
+  SMPStatInput input = {.origSize = 1, .size = 0, .file = fileName, .line = lineNo, .procFlags = MP_STAT_PROC_FLAG_EXEC};
+
+  code = mpTrim(pPool, pSession, size, trimed);
+
+  input.size = (trimed) ? 1 : 0;
+
+  MP_SET_FLAG(input.procFlags, ((0 == code) ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
+  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_TRIM, &input);
+
+_return:
+
+  return code;
 }
 
 int32_t taosMemPoolCallocJob(uint64_t jobId, void** ppJob) {

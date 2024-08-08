@@ -84,6 +84,20 @@ char *stpncpy(char *dest, const char *src, int n) {
 }
 #endif
 
+char *tstrndup(const char *str, int64_t size) {
+#ifdef WINDOWS
+  return strndup(str, size);
+#else
+  char* p = strndup(str, size);
+  if (str != NULL && NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
+  
+#endif
+}
+
+
 int64_t taosStr2int64(const char *str) {
   char *endptr = NULL;
   return strtoll(str, &endptr, 10);

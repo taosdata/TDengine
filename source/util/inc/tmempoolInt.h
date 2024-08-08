@@ -80,6 +80,9 @@ typedef enum EMPStatLogItem {
   E_MP_STAT_LOG_MEM_REALLOC,
   E_MP_STAT_LOG_MEM_FREE,
   E_MP_STAT_LOG_MEM_STRDUP,
+  E_MP_STAT_LOG_MEM_STRNDUP,
+  E_MP_STAT_LOG_MEM_TRIM,
+  
   E_MP_STAT_LOG_CHUNK_MALLOC,  
   E_MP_STAT_LOG_CHUNK_RECYCLE,  
   E_MP_STAT_LOG_CHUNK_REUSE,  
@@ -284,6 +287,7 @@ typedef int32_t (*mpReallocFunc)(SMemPool*, SMPSession*, void **, int64_t, int64
 typedef int32_t (*mpInitSessionFunc)(SMemPool*, SMPSession*);
 typedef int32_t (*mpInitFunc)(SMemPool*, char*, SMemPoolCfg*);
 typedef int32_t (*mpUpdateCfgFunc)(SMemPool*);
+typedef int32_t (*mpTrimFunc)(SMemPool*, SMPSession*, int32_t, bool*);
 
 typedef struct SMPStrategyFp {
   mpInitFunc        initFp;
@@ -293,6 +297,7 @@ typedef struct SMPStrategyFp {
   mpReallocFunc     reallocFp;
   mpInitSessionFunc initSessionFp;
   mpUpdateCfgFunc   updateCfgFp;
+  mpTrimFunc        trimFp;
 } SMPStrategyFp;
 
 #define MP_GET_FLAG(st, f) ((st) & (f))

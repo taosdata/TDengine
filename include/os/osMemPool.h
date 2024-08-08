@@ -59,7 +59,9 @@ typedef struct SMPMemoryStat {
   SMPStatItem    memCalloc;
   SMPStatItemExt memRealloc;
   SMPStatItem    strdup;
+  SMPStatItem    strndup;
   SMPStatItem    memFree;
+  SMPStatItem    memTrim;
 
   SMPStatItem    chunkMalloc;
   SMPStatItem    chunkRecycle;
@@ -105,9 +107,10 @@ void   *taosMemPoolMalloc(void* poolHandle, void* session, int64_t size, char* f
 void   *taosMemPoolCalloc(void* poolHandle, void* session, int64_t num, int64_t size, char* fileName, int32_t lineNo);
 void   *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t size, char* fileName, int32_t lineNo);
 char   *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char* fileName, int32_t lineNo);
+char   *taosMemPoolStrndup(void* poolHandle, void* session, const char *ptr, int64_t size, char* fileName, int32_t lineNo);
 void    taosMemPoolFree(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo);
 int64_t taosMemPoolGetMemorySize(void* poolHandle, void* session, void *ptr, char* fileName, int32_t lineNo);
-void    taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo);
+int32_t taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fileName, int32_t lineNo, bool* trimed);
 void   *taosMemPoolMallocAlign(void* poolHandle, void* session, uint32_t alignment, int64_t size, char* fileName, int32_t lineNo);
 void    taosMemPoolClose(void* poolHandle);
 void    taosMemPoolModDestroy(void);
@@ -141,9 +144,10 @@ extern threadlocal void* threadPoolSession;
 #define taosMemoryCalloc(_num, _size) ((NULL != threadPoolHandle) ? (taosMemPoolCalloc(threadPoolHandle, threadPoolSession, _num, _size, (char*)__FILE__, __LINE__)) : (taosMemCalloc(_num, _size)))
 #define taosMemoryRealloc(_ptr, _size) ((NULL != threadPoolHandle) ? (taosMemPoolRealloc(threadPoolHandle, threadPoolSession, _ptr, _size, (char*)__FILE__, __LINE__)) : (taosMemRealloc(_ptr, _size)))
 #define taosStrdup(_ptr) ((NULL != threadPoolHandle) ? (taosMemPoolStrdup(threadPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosStrdupi(_ptr)))
+#define taosStrndup(_ptr, _size) ((NULL != threadPoolHandle) ? (taosMemPoolStrndup(threadPoolHandle, threadPoolSession, _ptr, _size, (char*)__FILE__, __LINE__)) : (taosStrndupi(_ptr, _size)))
 #define taosMemoryFree(_ptr) ((NULL != threadPoolHandle) ? (taosMemPoolFree(threadPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosMemFree(_ptr)))
 #define taosMemorySize(_ptr) ((NULL != threadPoolHandle) ? (taosMemPoolGetMemorySize(threadPoolHandle, threadPoolSession, _ptr, (char*)__FILE__, __LINE__)) : (taosMemSize(_ptr)))
-#define taosMemoryTrim(_size) ((NULL != threadPoolHandle) ? (taosMemPoolTrim(threadPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__)) : (taosMemTrim(_size)))
+#define taosMemoryTrim(_size, _trimed) ((NULL != threadPoolHandle) ? (taosMemPoolTrim(threadPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__, _trimed)) : (taosMemTrim(_size)))
 #define taosMemoryMallocAlign(_alignment, _size) ((NULL != threadPoolHandle) ? (taosMemPoolMallocAlign(threadPoolHandle, threadPoolSession, _alignment, _size, (char*)__FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
 #else
 #define taosEnableMemoryPoolUsage(_pool, _session) 
@@ -157,7 +161,7 @@ extern threadlocal void* threadPoolSession;
 #define taosStrdup(_ptr) taosStrdupi(_ptr)
 #define taosMemoryFree(_ptr) taosMemFree(_ptr)
 #define taosMemorySize(_ptr) taosMemSize(_ptr)
-#define taosMemoryTrim(_size) taosMemTrim(_size)
+#define taosMemoryTrim(_size, _trimed) taosMemTrim(_size)
 #define taosMemoryMallocAlign(_alignment, _size) taosMemMallocAlign(_alignment, _size)
 
 #endif
