@@ -29,9 +29,9 @@ TARGET_LINK_LIBRARIES(
 #        PUBLIC os util common transport monitor parser catalog scheduler function gtest taos_static qcom executor
 #)
 
-ADD_EXECUTABLE(passwdTest ../../../tests/script/api/passwdTest.c)
+ADD_EXECUTABLE(userOperTest ../../../tests/script/api/passwdTest.c)
 TARGET_LINK_LIBRARIES(
-        passwdTest
+        userOperTest
         PUBLIC taos
 )
 
@@ -70,6 +70,6 @@ add_test(
 # )
 
 add_test(
-        NAME passwdTest
-        COMMAND passwdTest
+        NAME userOperTest
+        COMMAND userOperTest
 )
