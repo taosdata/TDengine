@@ -19,7 +19,7 @@ pub fn to_schema() -> anyhow::Result<Schema> {
 }
 
 pub fn to_record_batches(
-    documents: Vec<Document>,
+    documents: &[Document],
     batch_size: usize,
 ) -> anyhow::Result<Vec<RecordBatch>> {
     let fields = vec![Field::new("value", DataType::Utf8, false)];
@@ -73,7 +73,8 @@ pub fn to_record_batches(
                         payload.insert(key.clone(), json!(v));
                     }
                     Bson::Binary(v) => {
-                        payload.insert(key.clone(), json!(serde_json::to_string(v).unwrap()));
+                        let value: String = v.bytes.iter().map(|b| format!("{:02x}", b)).collect();
+                        payload.insert(key.clone(), json!(format!("\\x{}", value)));
                     }
                     Bson::ObjectId(v) => {
                         payload.insert(key.clone(), json!(v.to_string()));
@@ -293,7 +294,7 @@ mod tests {
                 let query_result = query.top_n("test_taosx", "metrics", doc! {}, 7).await;
                 match query_result {
                     Ok(documents) => {
-                        let batches = to_record_batches(documents, 3).unwrap();
+                        let batches = to_record_batches(&documents, 3).unwrap();
                         dbg!(&batches);
                         assert_eq!(batches.len(), 3);
                     }

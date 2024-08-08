@@ -22,6 +22,7 @@ type ArrowReporter struct {
 	writer    *ipc.Writer
 	reader    *ipc.Reader
 	address   *net.TCPAddr
+	id        int
 }
 
 var meta = arrow.MetadataFrom(map[string]string{
@@ -30,7 +31,7 @@ var meta = arrow.MetadataFrom(map[string]string{
 	"ack":     "lush",
 })
 
-func NewArrowReporter(remote string) (*ArrowReporter, error) {
+func NewArrowReporter(remote string, id int) (*ArrowReporter, error) {
 	address, err := net.ResolveTCPAddr("tcp", remote)
 	if err != nil {
 		return nil, fmt.Errorf("resolve remote address error %s", err)
@@ -48,7 +49,7 @@ func NewArrowReporter(remote string) (*ArrowReporter, error) {
 		},
 		&meta,
 	)
-	logger := log.GetLogger("arrow").WithField("address", conn.LocalAddr().String()).WithField("remote", conn.RemoteAddr().String())
+	logger := log.GetLogger("arrow").WithField("address", conn.LocalAddr().String()).WithField("remote", conn.RemoteAddr().String()).WithField("reporter_id", id)
 	logger.Debugln("create ipc writer")
 	writer := ipc.NewWriter(conn, ipc.WithSchema(schema))
 
@@ -66,6 +67,7 @@ func NewArrowReporter(remote string) (*ArrowReporter, error) {
 		schema:    schema,
 		address:   address,
 		logger:    logger,
+		id:        id,
 	}, nil
 }
 

@@ -21,7 +21,7 @@ func TestArrowReporter(t *testing.T) {
 	defer server.Close()
 
 	// Start reporter
-	reporter, err := NewArrowReporter(server.Addr().String())
+	reporter, err := NewArrowReporter(server.Addr().String(), 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -117,7 +117,7 @@ func TestReport(t *testing.T) {
 	go accept(t, server, make(chan struct{}))
 
 	// Start reporter
-	reporter, err := NewArrowReporter(server.Addr().String())
+	reporter, err := NewArrowReporter(server.Addr().String(), 0)
 	if err != nil {
 		t.Error(err)
 	}

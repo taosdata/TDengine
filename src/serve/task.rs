@@ -2,11 +2,6 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
-use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
-use crate::serve::{
-    controller::{Status, TaskControllerRef},
-    NewTask, TaskDecorator, TaskFilter, UpdateTask,
-};
 use actix_files::NamedFile;
 use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 use actix_web::body::BoxBody;
@@ -15,17 +10,24 @@ use actix_web::{
     web::{Data, Path, Query},
     HttpRequest, HttpResponse, Responder, ResponseError,
 };
+use anyhow::anyhow;
 use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
-use taosx_core::core_metrics::CoreMetrics;
-use taosx_core::{get_data_dir, get_file_upload_home_dir};
 use tracing::instrument;
 use utoipa::*;
 
+use taosx_core::core_metrics::CoreMetrics;
+use taosx_core::{get_data_dir, get_file_upload_home_dir};
+
+use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
+use crate::serve::{
+    controller::{Status, TaskControllerRef},
+    NewTask, TaskDecorator, TaskFilter, UpdateTask,
+};
+
 use super::controller::agent::AgentActivityFilter;
-use anyhow::anyhow;
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -234,6 +236,11 @@ pub(super) struct NewReplicate {
     force: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct TaskBatchReq {
+    ids: Vec<i64>,
+}
+
 /// Update Task by given path variable id.
 ///
 /// This endpoint needs `api_key` authentication in order to call. Api key can be found from README.md.
@@ -324,6 +331,25 @@ pub(super) async fn delete_task(
     }
 }
 
+#[utoipa::path(
+    tag = "tasks",
+    params(
+        ( "ids" = Vec<i64>, description = "task ids")
+    ),
+    responses(
+        (status = 200, description = "delete batch tasks"),
+        (status = 500, description = "failed to delete tasks", body = Failed),
+    )
+)]
+#[post("/tasks/batch/delete")]
+pub async fn delete_batch_tasks(
+    ids: Query<TaskBatchReq>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    dbg!(ids, task_store);
+    Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish())
+}
+
 /// Get Task by given task id.
 ///
 /// Return found `Task` with status 200 or 404 not found if `Task` is not found from shared in-memory storage.
@@ -392,6 +418,25 @@ pub(super) async fn start_task(
     }
 }
 
+#[utoipa::path(
+    tag = "tasks",
+    params(
+        ( "ids" = Vec<i64>, description = "task ids")
+    ),
+    responses(
+        (status = 200, description = "start batch tasks"),
+        (status = 500, description = "failed to start tasks", body = Failed),
+    )
+)]
+#[post("/tasks/bath/start")]
+pub async fn start_batch_tasks(
+    ids: Query<TaskBatchReq>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    dbg!(ids, task_store);
+    Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish())
+}
+
 /// Stop [Task] by given path variable id.
 ///
 /// If storage does not contain `Task` with given id 404 not found will be returned.
@@ -425,6 +470,25 @@ pub(super) async fn stop_task(
             message: format!("{:#}", err),
         }),
     }
+}
+
+#[utoipa::path(
+    tag = "tasks",
+    params(
+        ( "ids" = Vec<i64>, description = "task ids")
+    ),
+    responses(
+        (status = 200, description = "stop batch tasks"),
+        (status = 500, description = "failed to stop tasks", body = Failed),
+    )
+)]
+#[post("/tasks/bath/stop")]
+pub async fn stop_batch_tasks(
+    ids: Query<TaskBatchReq>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    dbg!(ids, task_store);
+    Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish())
 }
 
 /// Get Task Offsets by given task id.

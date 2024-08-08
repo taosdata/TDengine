@@ -5,12 +5,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/taosdata/taosx/plugins/mqtt/system"
 	"github.com/taosdata/taosx/plugins/mqtt/version"
 )
 
 func main() {
+	signal.Ignore(syscall.SIGPIPE) // ignore SIGPIPE
 	var configFile *string
 	var check *bool
 	var v *bool

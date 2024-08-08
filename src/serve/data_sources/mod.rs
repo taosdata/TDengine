@@ -29,6 +29,7 @@ use taosx_core::{
 };
 
 mod definition;
+pub(crate) mod opc;
 mod query;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]

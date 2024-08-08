@@ -33,6 +33,11 @@ command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
 dependencies = ["cargo-update"]
 
+[tasks.taosx.windows]
+command = "cargo"
+args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}", "--no-default-features", "--features", "optin,native-tls"]
+dependencies = ["cargo-update"]
+
 [tasks.taosx-agent]
 command = "cargo"
 args = ["build", "--release", "-p", "taosx-agent"]
@@ -358,7 +363,7 @@ docker build -f docker/dev/Dockerfile -t taosx/dev .
 script = """
 echo Build taosX release binaries with taosx/dev image.
 mkdir -p target/centos7
-docker compose run build \
+docker compose run --remove-orphans --rm build \
   cargo build --release -p taosx
 """
 
@@ -381,7 +386,7 @@ echo "Detect OS ${os}"
 upx_dir = get_env "UPX_DIR"
 echo "Use upx dir ${upx_dir}"
 
-version = set "3.96"
+version = set "4.2.4"
 
 if eq ${os} "windows"
   if is_path_exists "${upx_dir}/upx.exe"
@@ -403,26 +408,27 @@ if eq ${os} "windows"
 
   exec powershell -command "Expand-Archive -Force '${file}' '${upx_dir}/'"
 	exec powershell -command "Move-Item '${upx_dir}/upx-${version}-win64/upx.exe' '${upx_dir}/'"
+  rm ${file}
 else
   if is_path_exists "${upx_dir}/upx"
     echo "* UPX binary already exists"
     exit 0
   end
 
-  echo "* Downloading UPX binary in windows..."
+  echo "* Downloading UPX binary in linux..."
 
   file = set ${upx_dir}/upx.tar.xz
 
   if is_path_exists ${file}
-    echo "UPX already downloaded"
+    echo "UPX already downloaded: ${file}"
   else
     triple = get_env CARGO_MAKE_RUST_TARGET_TRIPLE
     echo Target triple: ${triple}
     if contains ${triple} "aarch64"
       arch = set "arm64"
-      version = set "4.2.3"
     else
       arch = set "amd64"
+      version = set "3.96"
     end
     url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-${arch}_linux.tar.xz"
     echo ${url}
@@ -431,6 +437,8 @@ else
   end
 
   exec tar -xvf ${file} --strip-components=1 -C ${upx_dir}
+  echo "* UPX binary downloaded, remove ${file}"
+  rm ${file}
 end
 """
 

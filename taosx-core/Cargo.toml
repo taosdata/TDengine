@@ -170,7 +170,12 @@ rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "gssapi-vendor
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[target.'cfg(all(unix, not(target_arch = "loongarch64")))'.dependencies]
 openssl = { version = "0.10.55", features = ["vendored"] }
+
+[target.'cfg(target_arch="loongarch64")'.dependencies]
+openssl = { version = "0.10.55" }
 
 [features]
 default = ["optin", "native-tls"]
