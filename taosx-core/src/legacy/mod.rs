@@ -2898,7 +2898,10 @@ async fn legacy_to_taos_impl(
     let metrics_arc = get_metrics_arc(task_id.clone()).await;
     let metrics = metrics_arc.as_ref().legacy();
 
-    let from_database = from.subject.clone().unwrap();
+    let from_database = from
+        .subject
+        .clone()
+        .ok_or_else(|| anyhow::format_err!("Source database should be set"))?;
     let mut source_opts: SourceOpts = SourceOpts::from_params(&mut from)?;
     if source_opts.workers == 0 {
         source_opts.workers = concurrent;
