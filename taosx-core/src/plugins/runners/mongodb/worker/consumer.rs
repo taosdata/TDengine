@@ -93,25 +93,30 @@ impl Consumer {
 
             tracing::debug!("consume task, config:{:?}, filter:{:?}", &config, &document);
 
+            // query database, oom occurs when rows are too large
+            // let result = query.select_all_and_to_record_batches(&database, &collection, document, batch_size).await;
+
+            let run_start = Utc::now().timestamp_millis();
             let result = query
-                .select_all_and_to_record_batches(&database, &collection, document, batch_size)
+                .select_all_and_send(&database, &collection, document, batch_size, tx.clone())
                 .await;
+            let run_end = Utc::now().timestamp_millis();
 
             match result {
-                Ok(batches) => {
-                    for batch in batches {
-                        // send to IPC
-                        tx.send_async(batch.clone()).await?;
-                        // stastics
-                        batch_count += 1;
-                    }
+                Ok(amount) => {
+                    tracing::info!(
+                        "migrate mongodb sub task finished, total rows: {}, used {} ms.",
+                        amount,
+                        (run_end - run_start)
+                    );
+                    batch_count += amount;
+                    // set breakpoint
+                    set_breakpoint(&config, &end).await?;
                 }
                 Err(e) => {
                     tracing::warn!("migrate mongodb query error: {e:?}");
                 }
             }
-            // set breakpoint
-            set_breakpoint(&config, &end).await?;
         }
         drop(tx);
 

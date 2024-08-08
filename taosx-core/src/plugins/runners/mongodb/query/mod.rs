@@ -1,4 +1,6 @@
+use anyhow::Context;
 use arrow::array::RecordBatch;
+use flume::Sender;
 use mongodb::bson::Document;
 use mongodb::options::{AuthMechanism, ClientOptions, Compressor, Credential, Tls, TlsOptions};
 use mongodb::{Client, Cursor};
@@ -122,6 +124,7 @@ impl MongoDBQuery {
         }
     }
 
+    #[allow(unused)]
     pub async fn select_all_and_to_record_batches(
         &mut self,
         database: &str,
@@ -149,8 +152,56 @@ impl MongoDBQuery {
                         None => break,
                     }
                 }
-                let batch = appender::to_record_batches(documents, batch_size)?;
+                let batch = appender::to_record_batches(&documents, batch_size)?;
                 Ok(batch)
+            }
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+        }
+    }
+
+    pub async fn select_all_and_send(
+        &mut self,
+        database: &str,
+        collection: &str,
+        filter: Document,
+        batch_size: usize,
+        tx: Sender<RecordBatch>,
+    ) -> anyhow::Result<u64> {
+        // connect to mongodb
+        let database = self.client.database(database);
+        let collection: mongodb::Collection<Document> = database.collection(collection);
+        // statistics
+        let mut amount = 0;
+        // select data
+        let result: Result<Cursor<Document>, mongodb::error::Error> = collection.find(filter).await;
+        match result {
+            Ok(mut cursor) => {
+                let mut documents = Vec::new();
+                loop {
+                    let item = cursor.next().await;
+                    match item {
+                        Some(Ok(item)) => {
+                            if documents.len() >= batch_size {
+                                send_documents_to_ipc(
+                                    &mut documents,
+                                    batch_size,
+                                    &tx,
+                                    &mut amount,
+                                )?;
+                            } else {
+                                documents.push(item);
+                            }
+                        }
+                        Some(Err(e)) => {
+                            anyhow::bail!("failed to select data, cause: {}", e.to_string());
+                        }
+                        None => break,
+                    }
+                }
+                if documents.len() > 0 {
+                    send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount)?;
+                }
+                Ok(amount)
             }
             Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
         }
@@ -191,6 +242,23 @@ impl MongoDBQuery {
             Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
         }
     }
+}
+
+fn send_documents_to_ipc(
+    documents: &mut Vec<Document>,
+    batch_size: usize,
+    tx: &Sender<RecordBatch>,
+    amount: &mut u64,
+) -> Result<(), anyhow::Error> {
+    let batches = appender::to_record_batches(&*documents, batch_size)?;
+    for batch in batches {
+        if batch.num_rows() > 0 {
+            tx.send(batch).context("failed to send record batch")?;
+        }
+    }
+    *amount += documents.len() as u64;
+    documents.clear();
+    Ok(())
 }
 
 #[cfg(test)]
