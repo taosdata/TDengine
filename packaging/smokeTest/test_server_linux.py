@@ -8,7 +8,7 @@ with open("%s/test_server_linux.txt" % current_path) as f:
 
 
 @pytest.fixture(scope="module")
-def setup_module():
+def setup_module(request):
     def run_command(command):
         result = subprocess.run(command, capture_output=True, text=True, shell=True)
         print("CMD:", command)
@@ -19,7 +19,13 @@ def setup_module():
         return result
 
     # setup before module tests
-    cmd = "bash getAndRunInstaller.sh -m enterprise -f server -l false -c x64 -v 3.3.2.6 -o smoking -s nas -t tar"
+    # bash getAndRunInstaller.sh -m ${verMode} -f server -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
+    verMode = request.config.getoption("--verMode")
+    taosVersion = request.config.getoption("--taosVersion")
+    baseVersion = request.config.getoption("--baseVersion")
+    sourcePath = request.config.getoption("--sourcePath")
+    cmd = "bash getAndRunInstaller.sh -m %s -f server -l false -c x64 -v %s -o %s -s %s -t tar" % (
+        verMode, taosVersion, baseVersion, sourcePath)
     run_command(cmd)
     cmd = "cp /usr/bin/taos*  ../../debug/build/bin/"
     run_command(cmd)
@@ -27,7 +33,8 @@ def setup_module():
     yield
 
     # teardown after module tests
-    cmd = "python3 versionCheckAndUninstall.py -v 3.3.2.6 -m enterprise -u"
+    # python3 versionCheckAndUninstall.py -v ${version} -m ${verMode} -u
+    cmd = "python3 versionCheckAndUninstall.py -v %s -m %s -u" % (taosVersion, verMode)
     run_command(cmd)
 
 
@@ -50,6 +57,7 @@ def run_command(request):
 
 
 class TestServerLinux:
+    @pytest.mark.server_linux
     def test_execute_cases(self, setup_module, run_command):
         # assert the result
         if run_command['returncode'] != 0:

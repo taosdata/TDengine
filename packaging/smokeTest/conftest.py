@@ -1,6 +1,24 @@
 # conftest.py
 import pytest
 
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--verMode", default="enterprise", help="community or enterprise"
+    )
+    parser.addoption(
+        "--taosVersion", default="3.3.2.6", help="the version of taos"
+    )
+    parser.addoption(
+        "--baseVersion", default="smoking", help="the path of nas"
+    )
+    parser.addoption(
+        "--sourcePath", default="nas", help="only support nas currently"
+    )
+
+
+
+
 # Collect the setup and teardown of each test case and their std information
 setup_stdout_info = {}
 teardown_stdout_info = {}
