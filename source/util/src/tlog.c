@@ -621,7 +621,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   }
 }
 
-void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
+void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...) {
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
   char    buffer[LOG_MAX_LINE_BUFFER_SIZE];
@@ -644,7 +644,7 @@ void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char 
   }
 }
 
-void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
+void taosPrintLongString(const char *flags, int32_t level, int32_t dflag, const char *format, ...) {
   if (!osLogSpaceSufficient()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 

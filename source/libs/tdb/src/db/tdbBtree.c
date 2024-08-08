@@ -194,7 +194,11 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
   int    idx;
   int    c;
 
-  (void)tdbBtcOpen(&btc, pBt, pTxn);
+  ret = tdbBtcOpen(&btc, pBt, pTxn);
+  if (ret) {
+    tdbError("tdb/btree-insert: btc open failed with ret: %d.", ret);
+    return ret;
+  }
 
   tdbTrace("tdb insert, btc: %p, pTxn: %p", &btc, pTxn);
 
@@ -235,7 +239,11 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
   int  c;
   int  ret;
 
-  (void)tdbBtcOpen(&btc, pBt, pTxn);
+  ret = tdbBtcOpen(&btc, pBt, pTxn);
+  if (ret) {
+    tdbError("tdb/btree-delete: btc open failed with ret: %d.", ret);
+    return ret;
+  }
   /*
   btc.coder.ofps = taosArrayInit(8, sizeof(SPage *));
   // btc.coder.ofps = taosArrayInit(8, sizeof(SPgno));
@@ -337,7 +345,11 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
   void        *pTVal = NULL;
   SCellDecoder cd = {0};
 
-  (void)tdbBtcOpen(&btc, pBt, NULL);
+  ret = tdbBtcOpen(&btc, pBt, NULL);
+  if (ret) {
+    tdbError("tdb/btree-pget: btc open failed with ret: %d.", ret);
+    return ret;
+  }
 
   tdbTrace("tdb pget, btc: %p", &btc);
 

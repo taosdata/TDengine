@@ -320,6 +320,30 @@ typedef int32_t (*TScriptUdfDestoryFunc)(void *udfCtx);
 typedef int32_t (*TScriptOpenFunc)(SScriptUdfEnvItem *items, int numItems);
 typedef int32_t (*TScriptCloseFunc)();
 
+// clang-format off
+#ifdef WINDOWS
+  #define fnFatal(...) {}
+  #define fnError(...) {}
+  #define fnWarn(...)  {}
+  #define fnInfo(...)  {}
+  #define fnDebug(...) {}
+  #define fnTrace(...) {}
+#else
+  DLL_EXPORT void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
+#ifdef __GNUC__
+    __attribute__((format(printf, 4, 5)))
+#endif
+    ;
+  extern int32_t udfDebugFlag;
+  #define udfFatal(...) { if (udfDebugFlag & 1) { taosPrintLog("UDF FATAL ", 1, 255, __VA_ARGS__); }}
+  #define udfError(...) { if (udfDebugFlag & 1) { taosPrintLog("UDF ERROR ", 1, 255, __VA_ARGS__); }}
+  #define udfWarn(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF WARN ",  2, 255, __VA_ARGS__); }}
+  #define udfInfo(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF ",       2, 255, __VA_ARGS__); }}
+  #define udfDebug(...) { if (udfDebugFlag & 4) { taosPrintLog("UDF ",       4, udfDebugFlag, __VA_ARGS__); }}
+  #define udfTrace(...) { if (udfDebugFlag & 8) { taosPrintLog("UDF ",       8, udfDebugFlag, __VA_ARGS__); }}
+#endif
+// clang-format on
+
 #ifdef __cplusplus
 }
 #endif

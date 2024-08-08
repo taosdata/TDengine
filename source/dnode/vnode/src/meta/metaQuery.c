@@ -231,6 +231,7 @@ _exit:
 #if 1  // ===================================================
 SMTbCursor *metaOpenTbCursor(void *pVnode) {
   SMTbCursor *pTbCur = NULL;
+  int32_t     code;
 
   pTbCur = (SMTbCursor *)taosMemoryCalloc(1, sizeof(*pTbCur));
   if (pTbCur == NULL) {
@@ -241,7 +242,12 @@ SMTbCursor *metaOpenTbCursor(void *pVnode) {
   // tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
   pTbCur->pMeta = pVnodeObj->pMeta;
   pTbCur->paused = 1;
-  metaResumeTbCursor(pTbCur, 1, 0);
+  code = metaResumeTbCursor(pTbCur, 1, 0);
+  if (code) {
+    terrno = code;
+    taosMemoryFree(pTbCur);
+    return NULL;
+  }
   return pTbCur;
 }
 
@@ -266,28 +272,39 @@ void metaPauseTbCursor(SMTbCursor *pTbCur) {
     pTbCur->paused = 1;
   }
 }
-void metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
+int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
+  int32_t code = 0;
+  int32_t lino;
+
   if (pTbCur->paused) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
 
-    (void)tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
+    code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     if (first) {
-      (void)tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
+      code = tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
+      TSDB_CHECK_CODE(code, lino, _exit);
     } else {
       int c = 1;
-      (void)tdbTbcMoveTo(pTbCur->pDbc, pTbCur->pKey, pTbCur->kLen, &c);
+      code = tdbTbcMoveTo(pTbCur->pDbc, pTbCur->pKey, pTbCur->kLen, &c);
+      TSDB_CHECK_CODE(code, lino, _exit);
       if (c == 0) {
         if (move) tdbTbcMoveToNext(pTbCur->pDbc);
       } else if (c < 0) {
-        (void)tdbTbcMoveToPrev(pTbCur->pDbc);
+        code = tdbTbcMoveToPrev(pTbCur->pDbc);
+        TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        (void)tdbTbcMoveToNext(pTbCur->pDbc);
+        code = tdbTbcMoveToNext(pTbCur->pDbc);
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
     pTbCur->paused = 0;
   }
+
+_exit:
+  return code;
 }
 
 int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
@@ -355,7 +372,9 @@ _query:
 
   version = ((SUidIdxVal *)pData)[0].version;
 
-  (void)tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
+  if (tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData) != 0) {
+    goto _err;
+  }
 
   SMetaEntry me = {0};
   tDecoderInit(&dc, pData, nData);
@@ -385,7 +404,9 @@ _query:
   }
 
   tDecoderInit(&dc, pData, nData);
-  (void)tDecodeSSchemaWrapperEx(&dc, &schema);
+  if (tDecodeSSchemaWrapperEx(&dc, &schema) != 0) {
+    goto _err;
+  }
   pSchema = tCloneSSchemaWrapper(&schema);
   tDecoderClear(&dc);
 
@@ -588,6 +609,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
 
 int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema **ppTSchema) {
   int32_t code = 0;
+  int32_t lino;
 
   void     *pData = NULL;
   int       nData = 0;
@@ -603,7 +625,8 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       skmDbKey.uid = suid ? suid : uid;
       skmDbKey.sver = INT32_MAX;
 
-      (void)tdbTbcOpen(pMeta->pSkmDb, &pSkmDbC, NULL);
+      code = tdbTbcOpen(pMeta->pSkmDb, &pSkmDbC, NULL);
+      TSDB_CHECK_CODE(code, lino, _exit);
       metaRLock(pMeta);
 
       if (tdbTbcMoveTo(pSkmDbC, &skmDbKey, sizeof(skmDbKey), &c) < 0) {

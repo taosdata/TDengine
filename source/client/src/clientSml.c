@@ -402,7 +402,7 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
       if (kv->valueEscaped) kv->value = NULL;
     }
 
-    code = smlSetCTableName(tinfo);
+    code = smlSetCTableName(tinfo, info->tbnameKey);
     if (code != TSDB_CODE_SUCCESS){
       smlDestroyTableInfo(&tinfo);
       return code;
@@ -486,10 +486,10 @@ int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs) 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlParseTableName(SArray *tags, char *childTableName) {
+static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnameKey) {
   bool   autoChildName = false;
   size_t delimiter = strlen(tsSmlAutoChildTableNameDelimiter);
-  if (delimiter > 0) {
+  if(delimiter > 0 && tbnameKey == NULL){
     size_t totalNameLen = delimiter * (taosArrayGetSize(tags) - 1);
     for (int i = 0; i < taosArrayGetSize(tags); i++) {
       SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
@@ -517,8 +517,11 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName) {
     if (tsSmlDot2Underline) {
       smlStrReplace(childTableName, strlen(childTableName));
     }
-  } else {
-    size_t childTableNameLen = strlen(tsSmlChildTableName);
+  }else{
+    if (tbnameKey == NULL){
+      tbnameKey = tsSmlChildTableName;
+    }
+    size_t childTableNameLen = strlen(tbnameKey);
     if (childTableNameLen <= 0) return TSDB_CODE_SUCCESS;
 
     for (int i = 0; i < taosArrayGetSize(tags); i++) {
@@ -527,7 +530,7 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName) {
         return TSDB_CODE_SML_INVALID_DATA;
       }
       // handle child table name
-      if (childTableNameLen == tag->keyLen && strncmp(tag->key, tsSmlChildTableName, tag->keyLen) == 0) {
+      if (childTableNameLen == tag->keyLen && strncmp(tag->key, tbnameKey, tag->keyLen) == 0) {
         (void)memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
         (void)strncpy(childTableName, tag->value, (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
         if (tsSmlDot2Underline) {
@@ -542,8 +545,8 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
-  int32_t code = smlParseTableName(oneTable->tags, oneTable->childTableName);
+int32_t smlSetCTableName(SSmlTableInfo *oneTable, char *tbnameKey) {
+  int32_t code = smlParseTableName(oneTable->tags, oneTable->childTableName, tbnameKey);
   if(code != TSDB_CODE_SUCCESS){
     return code;
   }
@@ -2127,7 +2130,7 @@ void smlSetReqSQL(SRequestObj *request, char *lines[], char *rawLine, char *rawL
 }
 
 TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine, char *rawLineEnd, int numLines,
-                                       int protocol, int precision, int32_t ttl, int64_t reqid) {
+                                       int protocol, int precision, int32_t ttl, int64_t reqid, char *tbnameKey) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == taos) {
     uError("SML:taos_schemaless_insert error taos is null");
@@ -2159,6 +2162,7 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     info->msgBuf.buf = info->pRequest->msgBuf;
     info->msgBuf.len = ERROR_MSG_BUF_DEFAULT_SIZE;
     info->lineNum = numLines;
+    info->tbnameKey = tbnameKey;
 
     smlSetReqSQL(request, lines, rawLine, rawLineEnd);
 
@@ -2237,9 +2241,14 @@ end:
  * @return TAOS_RES
  */
 
+TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lines[], int numLines, int protocol,
+                                                                      int precision, int32_t ttl, int64_t reqid, char *tbnameKey){
+  return taos_schemaless_insert_inner(taos, lines, NULL, NULL, numLines, protocol, precision, ttl, reqid, tbnameKey);
+}
+
 TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                                 int32_t ttl, int64_t reqid) {
-  return taos_schemaless_insert_inner(taos, lines, NULL, NULL, numLines, protocol, precision, ttl, reqid);
+  return taos_schemaless_insert_ttl_with_reqid_tbname_key(taos, lines, numLines, protocol, precision, ttl, reqid, NULL);
 }
 
 TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
@@ -2272,10 +2281,15 @@ static void getRawLineLen(char *lines, int len, int32_t *totalRows, int protocol
   }
 }
 
+TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
+                                                                          int protocol, int precision, int32_t ttl, int64_t reqid, char *tbnameKey){
+  getRawLineLen(lines, len, totalRows, protocol);
+  return taos_schemaless_insert_inner(taos, NULL, lines, lines + len, *totalRows, protocol, precision, ttl, reqid, tbnameKey);
+}
+
 TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                                     int precision, int32_t ttl, int64_t reqid) {
-  getRawLineLen(lines, len, totalRows, protocol);
-  return taos_schemaless_insert_inner(taos, NULL, lines, lines + len, *totalRows, protocol, precision, ttl, reqid);
+  return taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(taos, lines, len, totalRows, protocol, precision, ttl, reqid, NULL);
 }
 
 TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,

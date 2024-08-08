@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to initialize RPC");
-    return -1;
+    return terrno;
   }
 
   tInfo("client is initialized");

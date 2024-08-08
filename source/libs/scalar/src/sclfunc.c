@@ -2913,7 +2913,7 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 
 _return:
   taosMemoryFree(bins);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t selectScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
