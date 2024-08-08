@@ -1240,11 +1240,15 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     taosMsleep(100);
   }
 
+  streamMetaRLock(pMeta);
+
   SArray* pTaskList = NULL;
   int32_t code = streamMetaSendMsgBeforeCloseTasks(pMeta, &pTaskList);
   if (code != TSDB_CODE_SUCCESS) {
 //    return code;
   }
+
+  streamMetaRUnLock(pMeta);
 
   if (pTaskList != NULL) {
     taosArrayDestroy(pTaskList);
