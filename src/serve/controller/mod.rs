@@ -934,40 +934,46 @@ impl TaskController {
         .await?;
         let id: i64 = res.last_insert_rowid();
 
-        let set_id =
-            |from: &mut Dsn, field_to_build: &str, build_switch_name: &str| -> anyhow::Result<()> {
-                let origin_id = from
-                    .get(field_to_build)
-                    .filter(|s| !s.trim().is_empty())
-                    .with_context(|| format!("{field_to_build} not found"))?;
-                if from
-                    .get(build_switch_name)
-                    .is_some_and(|s| s.to_ascii_lowercase() == "true")
-                {
-                    from.set(
-                        field_to_build,
-                        format!("{}{id}{origin_id}", build::CUS_CLI_NAME),
-                    );
-                } else {
-                    from.set(
-                        field_to_build,
-                        format!("{}{origin_id}", build::CUS_CLI_NAME),
-                    );
-                }
-                Ok(())
-            };
+        let set_id = |from: &mut Dsn,
+                      field_to_build: &str,
+                      build_switch_name: &str,
+                      context: &'static str|
+         -> anyhow::Result<()> {
+            let origin_id = from
+                .get(field_to_build)
+                .filter(|s| !s.trim().is_empty())
+                .context(context)?;
+            if from
+                .get(build_switch_name)
+                .is_some_and(|s| s.to_ascii_lowercase() == "true")
+            {
+                from.set(
+                    field_to_build,
+                    format!("{}{id}{origin_id}", build::CUS_CLI_NAME),
+                );
+            } else {
+                from.set(
+                    field_to_build,
+                    format!("{}{origin_id}", build::CUS_CLI_NAME),
+                );
+            }
+            Ok(())
+        };
 
         const CLIENT_ID: &str = "client_id";
         const CLIENT_ID_SWITCH: &str = "client_id_with_task_id";
+        const CLIENT_ID_CONTEXT: &str = "client ID not set";
+
         const GROUP_ID: &str = "group";
+        const GROUP_ID_CONTEXT: &str = "consumer group ID not set";
         const GROUP_ID_SWITCH: &str = "group_id_with_task_id";
         match from.driver.as_str() {
             MQTT_ID => {
-                set_id(&mut from, CLIENT_ID, CLIENT_ID_SWITCH)?;
+                set_id(&mut from, CLIENT_ID, CLIENT_ID_SWITCH, CLIENT_ID_CONTEXT)?;
             }
             KAFKA_ID => {
-                set_id(&mut from, GROUP_ID, GROUP_ID_SWITCH)?;
-                set_id(&mut from, CLIENT_ID, CLIENT_ID_SWITCH)?;
+                set_id(&mut from, GROUP_ID, GROUP_ID_SWITCH, GROUP_ID_CONTEXT)?;
+                set_id(&mut from, CLIENT_ID, CLIENT_ID_SWITCH, CLIENT_ID_CONTEXT)?;
             }
             _ => {}
         }
