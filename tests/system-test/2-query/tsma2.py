@@ -842,7 +842,7 @@ class TDTestCase:
                 ]
         tdSql.execute('use db')
         for (i, ri, ret) in examples:
-            self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471099)
+            self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471097)
 
         self.create_tsma('tsma1', db, tb, func, '1h')
         self.create_recursive_tsma('tsma1', 'tsma2', db, '1n', tb, func)
@@ -898,7 +898,17 @@ class TDTestCase:
                     .get_qc())
 
         self.check(ctxs)
-        tdSql.execute('drop database db')
+
+        sql = 'select count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
+        tdSql.query(sql)
+        first_win: datetime = tdSql.queryResult[0][1]
+        if first_win.hour != 0:
+            tdLog.exit("day sliding should always aligned with current timezone")
+        sql = 'select /*+skip_tsma()*/count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
+        tdSql.query(sql)
+        first_win: datetime = tdSql.queryResult[0][1]
+        if first_win.hour != 0:
+            tdLog.exit("day sliding should always aligned with current timezone")
 
     def stop(self):
         tdSql.close()

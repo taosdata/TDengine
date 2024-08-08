@@ -1476,18 +1476,18 @@ class TDTestCase:
         tdSql.error(sql, -2147473920)  # syntax error 
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(1m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471097)  # invalid tsma interval
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(7m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471097)  # invalid tsma interval
 
         sql = 'create recursive tsma tsma2 on test.tsma1 interval(11m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter
+        tdSql.error(sql, -2147471097)  # invalid tsma interval
 
         self.create_recursive_tsma('tsma1', 'tsma2', 'test', '20m', 'meters')
 
         sql = 'create recursive tsma tsma3 on test.tsma2 interval(30m)'
-        tdSql.error(sql, -2147471099)  # invalid tsma parameter    
+        tdSql.error(sql, -2147471097)  # invalid tsma interval
 
         self.create_recursive_tsma('tsma2', 'tsma3', 'test', '40m', 'meters')
 
