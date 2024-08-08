@@ -34,7 +34,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 
   pOut->dbVgroup = taosMemoryCalloc(1, sizeof(SDBVgInfo));
   if (NULL == pOut->dbVgroup) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pOut->dbVgroup->vgVersion = usedbRsp->vgVersion;
@@ -509,7 +509,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
 
@@ -764,7 +764,7 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
 
   STableCfgRsp *out = taosMemoryCalloc(1, sizeof(STableCfgRsp));
   if(out == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (tDeserializeSTableCfgRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableCfgRsp failed, msgSize:%d", msgSize);
@@ -785,7 +785,7 @@ int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
 
   SViewMetaRsp *out = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
   if (out == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   if (tDeserializeSViewMetaRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSViewMetaRsp failed, msgSize:%d", msgSize);
