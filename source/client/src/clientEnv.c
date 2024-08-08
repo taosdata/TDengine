@@ -871,7 +871,7 @@ _return:
     TSC_ERR_RET(terrno);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void tscStopCrashReport() {
