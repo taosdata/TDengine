@@ -124,7 +124,6 @@ int32_t qExplainInitCtx(SExplainCtx **pCtx, SHashObj *groupHash, bool verbose, d
   if (NULL == ctx) {
     qError("calloc SExplainCtx failed");
     QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-    goto _return;
   }
 
   SArray *rows = taosArrayInit(10, sizeof(SQueryExplainRowInfo));
@@ -1973,7 +1972,6 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   if (NULL == rsp) {
     qError("malloc SRetrieveTableRsp failed, size:%d", rspSize);
     QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-    goto _return;
   }
 
   rsp->completed = 1;
