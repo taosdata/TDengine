@@ -1,6 +1,7 @@
 import pytest
 import subprocess
 import os
+from versionCheckAndUninstallforPytest import UninstallTaos
 
 current_path = os.path.abspath(os.path.dirname(__file__))
 with open("%s/test_server_linux.txt" % current_path) as f:
@@ -10,8 +11,8 @@ with open("%s/test_server_linux.txt" % current_path) as f:
 @pytest.fixture(scope="module")
 def setup_module(request):
     def run_command(command):
-        result = subprocess.run(command, capture_output=True, text=True, shell=True)
         print("CMD:", command)
+        result = subprocess.run(command, capture_output=True, text=True, shell=True)
         print("STDOUT:", result.stdout)
         print("STDERR:", result.stderr)
         print("Return Code:", result.returncode)
@@ -34,8 +35,9 @@ def setup_module(request):
 
     # teardown after module tests
     # python3 versionCheckAndUninstall.py -v ${version} -m ${verMode} -u
-    cmd = "python3 versionCheckAndUninstall.py -v %s -m %s -u" % (taosVersion, verMode)
-    run_command(cmd)
+    # cmd = "python3 versionCheckAndUninstall.py -v %s -m %s -u" % (taosVersion, verMode)
+    # run_command(cmd)
+    UninstallTaos(taosVersion, verMode, True)
 
 
 # use pytest fixture to exec case
@@ -57,7 +59,6 @@ def run_command(request):
 
 
 class TestServerLinux:
-    @pytest.mark.server_linux
     def test_execute_cases(self, setup_module, run_command):
         # assert the result
         if run_command['returncode'] != 0:
