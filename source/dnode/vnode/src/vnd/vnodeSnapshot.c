@@ -609,7 +609,10 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter
   int64_t       sver = pParam->start;
   int64_t       ever = pParam->end;
 
-  // cancel and disable all bg task
+  // disable write, cancel and disable all bg tasks
+  (void)taosThreadMutexLock(&pVnode->mutex);
+  pVnode->disableWrite = true;
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
   (void)vnodeCancelAndDisableAllBgTask(pVnode);
 
   // alloc
@@ -741,6 +744,9 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   }
 
   (void)vnodeBegin(pVnode);
+  (void)taosThreadMutexLock(&pVnode->mutex);
+  pVnode->disableWrite = false;
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
 
 _exit:
   if (code) {
