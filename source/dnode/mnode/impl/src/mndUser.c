@@ -1677,7 +1677,7 @@ int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser) 
 
   *ppUser = sdbAcquire(pSdb, SDB_USER, userName);
   if (*ppUser == NULL) {
-    if (code == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
       code = TSDB_CODE_MND_USER_NOT_EXIST;
     } else {
       code = TSDB_CODE_MND_USER_NOT_AVAILABLE;
@@ -3149,7 +3149,8 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
         (void)memcpy(rsp.user, pUsers[i].user, TSDB_USER_LEN);
         (void)taosArrayPush(batchRsp.pArray, &rsp);
       }
-      mError("user:%s, failed to auth user since %s", pUsers[i].user, terrstr());
+      mError("user:%s, failed to auth user since %s", pUsers[i].user, tstrerror(code));
+      code = 0;
       continue;
     }
 

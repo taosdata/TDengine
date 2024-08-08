@@ -1,6 +1,5 @@
 ---
 title: 开发指南
-sidebar_label: 开发指南
 description: 让开发者能够快速上手的指南
 ---
 

@@ -367,6 +367,9 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->fileSize = 0;
   pPBuf->pFree = taosArrayInit(4, sizeof(SFreeListItem));
   pPBuf->freePgList = tdListNew(POINTER_BYTES);
+  if (pPBuf->pFree == NULL || pPBuf->freePgList == NULL) {
+    goto _error;
+  }
 
   // at least more than 2 pages must be in memory
   if (inMemBufSize < pagesize * 2) {

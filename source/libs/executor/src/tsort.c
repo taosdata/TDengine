@@ -285,6 +285,10 @@ int32_t tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize,
   pSortHandle->pageSize = pageSize;
   pSortHandle->numOfPages = numOfPages;
   pSortHandle->pSortInfo = taosArrayDup(pSortInfo, NULL);
+  if (pSortHandle->pSortInfo == NULL) {
+    return terrno;
+  }
+
   pSortHandle->loops = 0;
 
   pSortHandle->pqMaxTupleLength = pqMaxTupleLength;
@@ -1708,6 +1712,9 @@ int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsMemSize) {
   pHandle->extRowBytes = blockDataGetRowSize(pHandle->pDataBlock) + taosArrayGetSize(pHandle->pDataBlock->pDataBlock) + sizeof(int32_t);
   pHandle->extRowsMemSize = extRowsMemSize;
   pHandle->aExtRowsOrders = taosArrayDup(pHandle->pSortInfo, NULL);
+  if (pHandle->aExtRowsOrders == NULL) {
+    return terrno;
+  }
 
   int32_t code = initRowIdSort(pHandle);
   if (code) {

@@ -82,9 +82,15 @@ static int32_t setCountWindowOutputBuff(SExprSupp* pExprSup, SCountWindowSupp* p
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SCountWindowResult* pBuff = getCountWinStateInfo(pCountSup);
+  QUERY_CHECK_NULL(pBuff, code, lino, _end, terrno);
   (*pResult) = &pBuff->row;
   code = setResultRowInitCtx(*pResult, pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
   (*ppResBuff) = pBuff;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -335,7 +341,7 @@ _error:
     destroyCountWindowOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }

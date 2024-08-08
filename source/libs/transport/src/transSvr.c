@@ -1707,7 +1707,7 @@ void transUnrefSrvHandle(void* handle) {
   }
 }
 
-int transReleaseSrvHandle(void* handle) {
+int32_t transReleaseSrvHandle(void* handle) {
   int32_t         code = 0;
   SRpcHandleInfo* info = handle;
   SExHandle*      exh = info->handle;
@@ -1747,7 +1747,7 @@ _return2:
   return code;
 }
 
-int transSendResponse(const STransMsg* msg) {
+int32_t transSendResponse(const STransMsg* msg) {
   int32_t code = 0;
 
   if (msg->info.noResp) {
@@ -1800,7 +1800,7 @@ _return2:
   rpcFreeCont(msg->pCont);
   return code;
 }
-int transRegisterMsg(const STransMsg* msg) {
+int32_t transRegisterMsg(const STransMsg* msg) {
   int32_t code = 0;
 
   SExHandle* exh = msg->info.handle;
@@ -1891,4 +1891,4 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   return code;
 }
 
-int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
+int32_t transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }

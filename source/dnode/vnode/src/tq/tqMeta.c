@@ -106,7 +106,7 @@ int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset) {
   void*    buf = NULL;
   int32_t  code = TDB_CODE_SUCCESS;
   int32_t  vlen;
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncodeSize(tEncodeSTqOffset, pOffset, vlen, code);
   if (code < 0) {
     goto END;
@@ -201,7 +201,7 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   int32_t  code = TDB_CODE_SUCCESS;
   int32_t  vlen;
   void*    buf = NULL;
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
   if (code < 0) {
     goto END;

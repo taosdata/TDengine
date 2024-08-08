@@ -1018,37 +1018,37 @@ END:
   return code;
 }
 
-//static int32_t mndDropConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic) {
-//  void           *pIter = NULL;
-//  SMqConsumerObj *pConsumer = NULL;
-//  int             code = 0;
-//  while (1) {
-//    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
-//    if (pIter == NULL) {
-//      break;
-//    }
-//
-//    // drop consumer in lost status, other consumers not in lost status already deleted by rebalance
-//    if (pConsumer->status != MQ_CONSUMER_STATUS_LOST || strcmp(cgroup, pConsumer->cgroup) != 0) {
-//      sdbRelease(pMnode->pSdb, pConsumer);
-//      continue;
-//    }
-//    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
-//    for (int32_t i = 0; i < sz; i++) {
-//      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
-//      if (name && strcmp(topic, name) == 0) {
-//        MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumer));
-//      }
-//    }
-//
-//    sdbRelease(pMnode->pSdb, pConsumer);
-//  }
-//
-//END:
-//  sdbRelease(pMnode->pSdb, pConsumer);
-//  sdbCancelFetch(pMnode->pSdb, pIter);
-//  return code;
-//}
+static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgroup, char *topic) {
+  void           *pIter = NULL;
+  SMqConsumerObj *pConsumer = NULL;
+  int             code = 0;
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (strcmp(cgroup, pConsumer->cgroup) != 0) {
+      sdbRelease(pMnode->pSdb, pConsumer);
+      continue;
+    }
+
+    bool found = checkTopic(pConsumer->assignedTopics, topic);
+    if (found){
+      mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
+             topic, pConsumer->consumerId, pConsumer->cgroup);
+      code = TSDB_CODE_MND_CGROUP_USED;
+      goto END;
+    }
+
+    sdbRelease(pMnode->pSdb, pConsumer);
+  }
+
+END:
+  sdbRelease(pMnode->pSdb, pConsumer);
+  sdbCancelFetch(pMnode->pSdb, pIter);
+  return code;
+}
 
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   SMnode         *pMnode = pMsg->info.node;
@@ -1085,6 +1085,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   mndTransSetDbName(pTrans, pSub->dbName, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   MND_TMQ_RETURN_CHECK(sendDeleteSubToVnode(pMnode, pSub, pTrans));
+  MND_TMQ_RETURN_CHECK(mndCheckConsumerByGroup(pMnode, pTrans, dropReq.cgroup, dropReq.topic));
   MND_TMQ_RETURN_CHECK(mndSetDropSubCommitLogs(pMnode, pTrans, pSub));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
 
@@ -1371,7 +1372,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
       OffsetRows *tmp = taosArrayGet(offsetRows, i);
       MND_TMQ_NULL_CHECK(tmp);
       if (tmp->vgId != pVgEp->vgId) {
-        mError("mnd show subscriptions: do not find vgId:%d, %d in offsetRows", tmp->vgId, pVgEp->vgId);
+        mInfo("mnd show subscriptions: do not find vgId:%d, %d in offsetRows", tmp->vgId, pVgEp->vgId);
         continue;
       }
       data = tmp;
@@ -1395,7 +1396,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       MND_TMQ_NULL_CHECK(pColInfo);
       colDataSetNULL(pColInfo, *numOfRows);
-      mError("mnd show subscriptions: do not find vgId:%d in offsetRows", pVgEp->vgId);
+      mInfo("mnd show subscriptions: do not find vgId:%d in offsetRows", pVgEp->vgId);
     }
     (*numOfRows)++;
   }

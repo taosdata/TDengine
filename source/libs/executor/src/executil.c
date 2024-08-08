@@ -826,6 +826,8 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
 
   if (tsTagFilterCache) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
+    QUERY_CHECK_NULL(tableList, code, lino, end, terrno);
+
     code = pAPI->metaFn.metaPutTbGroupToCache(pVnode, pTableListInfo->idInfo.suid, context.digest,
                                               tListLen(context.digest), tableList,
                                               taosArrayGetSize(tableList) * sizeof(STableKeyInfo));

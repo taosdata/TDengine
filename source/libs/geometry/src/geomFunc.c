@@ -156,6 +156,10 @@ _exit:
 int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
 
+  if (!IS_VAR_DATA_TYPE((pInputData)->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+
   char          *input = colDataGetData(pInputData, i);
   unsigned char *output = NULL;
 

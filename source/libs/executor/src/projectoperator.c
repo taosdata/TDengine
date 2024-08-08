@@ -180,7 +180,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
 
 _error:
   destroyProjectOperatorInfo(pInfo);
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -529,7 +529,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
 _error:
   destroyIndefinitOperatorInfo(pInfo);
-  taosMemoryFree(pOperator);
+  destroyOperator(pOperator);
   pTaskInfo->code = code;
   return code;
 }
@@ -703,6 +703,9 @@ int32_t setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo,
   int64_t     groupId = 0;
   SResultRow* pRow = doSetResultOutBufByKey(pSup->pResultBuf, pResultRowInfo, (char*)&tid, sizeof(tid), true, groupId,
                                             pTaskInfo, false, pSup, true);
+  if (pRow == NULL || pTaskInfo->code != 0) {
+    return pTaskInfo->code;
+  }
 
   for (int32_t i = 0; i < numOfExprs; ++i) {
     struct SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, i, rowEntryInfoOffset);
