@@ -42,19 +42,19 @@ taosKeeper 的配置文件默认位于 `/etc/taos/taoskeeper.toml`。 详细配�
 
 TDengine 数据源插件已被提交至 Grafana 官网，完成插件的安装和数据源的创建后，可以进行 TDinsight 仪表盘的导入。
 
-在 Grafana 的 Home-Dashboards 页面，点击位于右上角的 New → mport 按钮，即可进入 Dashboard 的导入页面，它支持以下两种导入方式。
+在 Grafana 的 ”Home“ -> ”Dashboards“ 页面，点击位于右上角的 ”New“ -> ”import“ 按钮，即可进入 Dashboard 的导入页面，它支持以下两种导入方式。
 - Dashboard ID：18180。
 - Dashboard URL：https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/
 
-填写以上 Dashboard ID 或 Dashboard URL 以后，点击 Load 按钮，按照向导操作，即可完成导入。导入成功后，Dashboards 列表页面会出现 ”TDinsight for 3.x“ 仪表盘，点击进入后，就可以看到 TDinsight 中已创建的各个指标的面板，如下图所示：
+填写以上 Dashboard ID 或 Dashboard URL 以后，点击 ”Load“ 按钮，按照向导操作，即可完成导入。导入成功后，Dashboards 列表页面会出现 ”TDinsight for 3.x“ 仪表盘，点击进入后，就可以看到 TDinsight 中已创建的各个指标的面板，如下图所示：
 
 ![TDinsight 界面示例](./TDinsight-1-cluster-status.webp)
 
-**注意** 在 TDinsight 界面左上角的 Log from 下拉列表中可以选择 log 数据库。
+**注意** 在 TDinsight 界面左上角的 ”Log from“ 下拉列表中可以选择 `log` 数据库。
 
 ### TDengine V3 监控数据
 
-TDinsight dashboard 数据来源于 `log` 库（存放监控数据的默认 db，可以在 taoskeeper 配置文件中修改）。”TDinsight for 3.x“ 仪表盘查询了 taosd 和 TaosAdapter 的监控指标。
+TDinsight dashboard 数据来源于 `log` 库（存放监控数据的默认数据库，可以在 taoskeeper 配置文件中修改）。”TDinsight for 3.x“ 仪表盘查询了 taosd 和 TaosAdapter 的监控指标。
 - taosd 的监控指标请参考 [taosd 监控指标](../../reference/components/taosd/#taosd-监控指标)
 - taosAdapter 的监控指标请参考 [taosAdapter 监控指标](../../reference/components/taosadapter/#taosadapter-监控指标)
 
