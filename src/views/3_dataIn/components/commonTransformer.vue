@@ -531,7 +531,7 @@
                       @blur="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
                     >
                     </el-input>
-                    <el-date-picker
+                    <!-- <el-date-picker
                       v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'TIMESTAMP'"
                       v-model="scope.row.default"
                       :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
@@ -541,7 +541,7 @@
                       size="small"
                       class="mapping-rule-extra"
                     >
-                    </el-date-picker>
+                    </el-date-picker> -->
                     <el-select 
                       v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'BOOL'"
                       v-model="scope.row.default"

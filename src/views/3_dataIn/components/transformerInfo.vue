@@ -274,10 +274,7 @@
               </template>
                 <div class="box-expression" slot-scope="scope">
                   <template v-if="scope.row['Name'] == 'SubTableName'">
-                    <span
-                      size="small"
-                      :placeholder="exprformat"
-                    >{{ scope.row.Expression }}</span>
+                    <span>{{ scope.row.Expression }}</span>
                   </template>
                   <template v-else>
                     <span
@@ -287,19 +284,13 @@
                     </span>
             
                     <span
-                      :placeholder="$t('datasource.transformer.coltip')"
-                      :clearable="scope.row.exprname == 'mapping'"
-                      size="small"
-                      filterable
                       :key="Math.random()"
                       class="mapping-rule-expression"
-                      :multiple="scope.row.exprname != 'mapping'"
                     >
                      {{ scope.row.Expression }}
                     </span>
                     <span
                       v-if="scope.row.exprname == 'join'"
-                      size="small"
                       :key="'exprjoin'"
                       class="mapping-rule-extra"
                       style="height: 32px;"
@@ -307,16 +298,7 @@
                       with {{ scope.row.joinwith }}
                     </span>
                     <span
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'TIMESTAMP'"
-                      :key="'default-value-of-' + scope.row['Name']"
-                      class="mapping-rule-extra"
-                    >
-                      {{ scope.row.default && parsinginZone(Number(scope.row.default)) }}
-                    </span>
-                    <span
                       v-else-if="scope.row.exprname == 'mapping' && (scope.row.dataType || scope.row.dataRange || scope.row.dataType == 'BOOL' )"
-                      size="small"
-                      :placeholder="$t('datasource.transformer.defaultValuePlaceholder')"
                       :key="'default-value-of-' + scope.row['Name']"
                       class="mapping-rule-extra"
                     >{{ scope.row.default }}</span>
@@ -2149,7 +2131,7 @@ export default {
       flex: 1;
     }
     .mapping-rule-extra {
-      width: 100px;
+      width: 108px;
       margin-left: 5px;
       // 考虑是换行显示 还是出现滚动的样式 
       // overflow-x: auto;
