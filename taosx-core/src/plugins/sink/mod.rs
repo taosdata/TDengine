@@ -2659,7 +2659,7 @@ async fn consume_flat_record(
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: &FlatMessage,
     count: &mut usize,
-    cancel: CancellationToken,
+    cancel: &CancellationToken,
     parser: &Parser,
     target_precision: taos::Precision,
     data_trace_id: TraceDataId,
@@ -2706,6 +2706,7 @@ async fn consume_flat_record(
                         &req_id,
                         message,
                         metrics,
+                        cancel,
                     )
                     .in_current_span()
                     .await?;
@@ -2720,6 +2721,7 @@ async fn consume_flat_record(
                         &req_id,
                         message,
                         metrics,
+                        cancel,
                     )
                     .in_current_span()
                     .await?;
@@ -2992,6 +2994,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 stream_trace_id,
                 metrics_arc,
+                cancel,
             )
             .await
         }
@@ -3006,6 +3009,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 stream_trace_id,
                 metrics_arc,
+                cancel,
             )
             .await
         }
@@ -3020,6 +3024,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 stream_trace_id,
                 metrics_arc,
+                cancel,
             )
             .await
         }
@@ -3208,7 +3213,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
         match pool.get().await {
             Ok(obj) => break obj,
             Err(err) => {
-                if retries < MAX_RETRIES {
+                if retries < MAX_RETRIES && !cancel.is_cancelled() {
                     retries += 1;
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     continue;
@@ -3401,6 +3406,7 @@ pub struct IpcStreamWorker {
     taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
     target_precision: taos::Precision,
     span: tracing::Span,
+    cancel: CancellationToken,
 }
 
 unsafe impl Send for IpcStreamWorker {}
@@ -3424,6 +3430,7 @@ impl Clone for IpcStreamWorker {
             span: self.span.clone(),
             taos: Cell::new(None),
             target_precision: self.target_precision,
+            cancel: self.cancel.clone(),
         }
     }
 }
@@ -3462,6 +3469,8 @@ impl IpcStreamWorker {
             _ => {}
         };
 
+        let cancel = CancellationToken::new();
+
         // let stmt = Stmt::init(&taos)?;
         Ok(Self {
             pool,
@@ -3479,6 +3488,7 @@ impl IpcStreamWorker {
             taos: Cell::new(Some(taos)),
             target_precision,
             span,
+            cancel,
         })
     }
 
@@ -3520,7 +3530,7 @@ impl IpcStreamWorker {
                     &mut taos,
                     &record,
                     &mut count,
-                    CancellationToken::new(),
+                    &self.cancel,
                     parser.ok_or_else(|| {
                         anyhow::format_err!("Parser should be set with flat stream")
                     })?,
@@ -3872,6 +3882,7 @@ pub async fn listen_tcp_socket(
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
                         info!("Spawned IPC reader");
+                        let cancel2 = cancel.clone();
                         let res = ipc_tcp_read(
                             client,
                             pool,
@@ -3892,6 +3903,10 @@ pub async fn listen_tcp_socket(
                             // panic!("{err:?}");
                             println!("{err:?}");
                             tracing::error!("ipc read err: {:#}", err);
+                            if cancel2.is_cancelled() {
+                                tracing::debug!("IPC handler completed");
+                                return;
+                            }
                             // notify the listener to stop
                             notify.notify_waiters();
                             let _ = se.send(format!("{:#}", err)).await;

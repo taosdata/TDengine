@@ -140,6 +140,7 @@ async fn assert_create_stable(
     taos: &mut Option<TaosConnection>,
     sql: &str,
     req_id: &RequestID,
+    cancel: &CancellationToken,
 ) -> Result<(), FlatWriteError> {
     match exec_sql_with_connection_retries(
         pool,
@@ -147,6 +148,7 @@ async fn assert_create_stable(
         sql,
         req_id.next(),
         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+        cancel,
     )
     .await
     {
@@ -173,6 +175,7 @@ async fn write_stable_with_sql(
     taos: &mut Option<TaosConnection>,
     req_id: &RequestID,
     records: &Records,
+    cancel: &CancellationToken,
 ) -> Result<usize, FlatWriteError> {
     let sql = records.sql();
     match exec_sql_with_connection_retries(
@@ -181,6 +184,7 @@ async fn write_stable_with_sql(
         sql,
         req_id.next(),
         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+        cancel,
     )
     .await
     {
@@ -225,6 +229,7 @@ pub async fn flat_write_with_sql(
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
+    cancel: &CancellationToken,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     // Split messages into different stales.
@@ -236,7 +241,7 @@ pub async fn flat_write_with_sql(
         let sqls = message_to_sql(&messages, target_precision, true, true);
         for records in sqls {
             loop {
-                match write_stable_with_sql(pool, taos, req_id, &records).await {
+                match write_stable_with_sql(pool, taos, req_id, &records, cancel).await {
                     Ok(n) => {
                         count += n;
                         metrics.add_inserted_sqls(1 as u64);
@@ -257,12 +262,13 @@ pub async fn flat_write_with_sql(
                                         stable = stable.as_deref(),
                                         "stable not exists, create stable with sql: {stable_sql}"
                                     );
-                                    assert_create_stable(pool, taos, &stable_sql, req_id).await?;
+                                    assert_create_stable(pool, taos, &stable_sql, req_id, cancel)
+                                        .await?;
                                 }
 
                                 for m in &messages {
                                     let sql = m.table_sql();
-                                    assert_create_stable(pool, taos, &sql, req_id).await?;
+                                    assert_create_stable(pool, taos, &sql, req_id, cancel).await?;
                                 }
                             }
                             FlatWriteError::ContainerLengthTooShort(field) => {
@@ -337,6 +343,7 @@ pub async fn flat_write_with_raw_block(
     req_id: &RequestID,
     messages: Vec<MessageArrowRecords>,
     metrics: &IpcMetrics,
+    cancel: &CancellationToken,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     for records in messages {
@@ -386,6 +393,7 @@ pub async fn flat_write_with_raw_block(
                             taos,
                             &table_name,
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                            cancel,
                         )
                         .await;
                         match res {
@@ -456,6 +464,7 @@ pub async fn flat_write_with_raw_block(
                                             &sql,
                                             req_id.next(),
                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                            cancel,
                                         )
                                         .await
                                         {
@@ -474,6 +483,7 @@ pub async fn flat_write_with_raw_block(
                                                             taos,
                                                             table,
                                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                                            cancel,
                                                         )
                                                         .await?;
                                                     for f in desc.iter().filter(|f| {
@@ -492,6 +502,7 @@ pub async fn flat_write_with_raw_block(
                                                             &sql,
                                                             req_id.next(),
                                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                                            cancel,
                                                         )
                                                         .await;
                                                         continue;
@@ -510,6 +521,7 @@ pub async fn flat_write_with_raw_block(
                                                                 taos,
                                                                 table,
                                                                 DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                                                cancel,
                                                             )
                                                             .await?;
                                                         res.into_iter().for_each(|tag_added| {
@@ -533,6 +545,7 @@ pub async fn flat_write_with_raw_block(
                                                                 &add_tag_sql,
                                                                 req_id.next(),
                                                                 DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                                                cancel,
                                                             )
                                                             .await?;
                                                         }
@@ -553,6 +566,7 @@ pub async fn flat_write_with_raw_block(
                                         &sql,
                                         req_id.next(),
                                         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                        cancel,
                                     )
                                     .await
                                     .inspect(|_| metrics.add_created_tables(1))?;
@@ -590,6 +604,7 @@ pub async fn flat_write_with_raw_block(
                             &sql,
                             req_id.next(),
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                            cancel,
                         )
                         .await
                         {
@@ -624,6 +639,7 @@ pub async fn flat_write_with_raw_block(
                             &sql,
                             req_id.next(),
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                            cancel,
                         )
                         .await
                         {
@@ -639,6 +655,7 @@ pub async fn flat_write_with_raw_block(
                                         taos,
                                         table,
                                         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                        cancel,
                                     )
                                     .await?;
                                     for f in
@@ -656,6 +673,7 @@ pub async fn flat_write_with_raw_block(
                                             &sql,
                                             req_id.next(),
                                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                            cancel,
                                         )
                                         .await;
                                     }
@@ -673,6 +691,7 @@ pub async fn flat_write_with_raw_block(
                             &sql,
                             req_id.next(),
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                            cancel,
                         )
                         .await
                         .inspect(|_| metrics.add_created_tables(1))?;
@@ -686,6 +705,7 @@ pub async fn flat_write_with_raw_block(
                         taos,
                         &table_name,
                         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                        cancel,
                     )
                     .await?;
                     let table = records.table.using.as_deref().unwrap_or(&table_name);
@@ -702,6 +722,7 @@ pub async fn flat_write_with_raw_block(
                             &sql,
                             req_id.next(),
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                            cancel,
                         )
                         .await;
                     }
@@ -717,6 +738,7 @@ pub async fn flat_write_with_raw_block(
                             taos,
                             &table_name,
                             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                            cancel,
                         )
                         .await?;
                         let mut need_add = true;
@@ -747,6 +769,7 @@ pub async fn flat_write_with_raw_block(
                                 &sql,
                                 req_id.next(),
                                 DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                                cancel,
                             )
                             .await?;
                         }
@@ -754,6 +777,9 @@ pub async fn flat_write_with_raw_block(
                     }
                 } else if errno == 0xE001 || errno == 0xE002 || errno == 0xE003 || errno == 0x000B {
                     tokio::time::sleep(Duration::from_secs(2)).await;
+                    if cancel.is_cancelled() {
+                        return Err(err)?;
+                    }
                     taos.replace(pool.get().await?);
                     continue;
                 } else if errno == 0x2653 {
@@ -771,6 +797,7 @@ pub async fn flat_write_with_raw_block(
                         &req_id,
                         retry_messages,
                         metrics,
+                        cancel,
                     )
                     .await?;
                 } else {
@@ -816,6 +843,7 @@ impl FlatSink {
         parser: Parser,
         target_precision: taos::Precision,
         metrics_arc: Arc<CoreMetrics>,
+        cancel: CancellationToken,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -840,6 +868,7 @@ impl FlatSink {
                 let metrics_arc = metrics_arc.clone();
                 let parser = parser.clone();
                 let rx = rx.clone();
+                let cancel = cancel.clone();
                 set.spawn(
                     async move {
                         let metrics = metrics_arc.ipc();
@@ -864,6 +893,7 @@ impl FlatSink {
                                     &req_id,
                                     messages,
                                     metrics,
+                                    &cancel,
                                 )
                                 .in_current_span()
                                 .await?;
@@ -879,6 +909,7 @@ impl FlatSink {
                                     &req_id,
                                     messages,
                                     metrics,
+                                    &cancel,
                                 )
                                 .in_current_span()
                                 .await?;
@@ -1022,12 +1053,14 @@ pub async fn ipc_flat_stream_worker_vgroup(
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
         parser.clone(),
         target_precision,
         metrics_arc.clone(),
+        cancel,
     )
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
@@ -1191,12 +1224,14 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: TraceStreamId,
     metrics_arc: Arc<CoreMetrics>,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
         parser.clone(),
         target_precision,
         metrics_arc.clone(),
+        cancel,
     )
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
@@ -1364,6 +1399,10 @@ pub async fn ipc_flat_stream_worker_concurrent(
         let ipc_error_strategy = ipc_error_strategy.clone();
         let stream_trace_id = stream_trace_id.clone();
         let batch_counter = batch_counter.clone();
+        if cancel.is_cancelled() {
+            writer_set.abort_all();
+            return Ok(());
+        }
         let cancel = cancel.clone();
         writer_set.spawn(
             async move {
@@ -1384,7 +1423,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         &mut taos,
                         &record,
                         &mut written,
-                        cancel.clone(),
+                        &cancel,
                         &context.parser,
                         context.target_precision,
                         data_trace_id,
@@ -1818,6 +1857,7 @@ mod tests {
             &req_id,
             messages,
             &metrics,
+            &CancellationToken::new(),
         )
         .await?;
 
