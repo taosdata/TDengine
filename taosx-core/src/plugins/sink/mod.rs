@@ -3929,6 +3929,7 @@ pub async fn listen_tcp_socket(
     let thread = tokio::task::spawn(
         async move {
             info!("waiting for IPC connections");
+            let cancel = cancel.child_token();
             let mut handlers = vec![];
             let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
                 tracing::info!("new tcp client!: {:?}", addr);
@@ -3991,6 +3992,8 @@ pub async fn listen_tcp_socket(
                             }
                             // notify the listener to stop
                             notified.notify_waiters();
+                            // Found error, now cancel all IPC runners.
+                            cancel2.cancel();
                             let _ = se.send(format!("{:#}", err)).await;
                         } else {
                             tracing::debug!("IPC handler completed");
