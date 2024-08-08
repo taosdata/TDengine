@@ -21,6 +21,8 @@ def setup_module():
     # setup before module tests
     cmd = "bash getAndRunInstaller.sh -m enterprise -f server -l false -c x64 -v 3.3.2.6 -o smoking -s nas -t tar"
     run_command(cmd)
+    cmd = "cp /usr/bin/taos*  ../../debug/build/bin/"
+    run_command(cmd)
 
     yield
 
