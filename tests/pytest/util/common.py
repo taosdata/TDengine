@@ -543,16 +543,16 @@ class TDCom:
         # print(con)
         return con
 
-    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',database=None):
+    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',database=None, timezone='asia/shanghai'):
         cfgPath = self.getClientCfgPath()
-        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database=database)
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database=database, timezone=timezone)
         cur=con.cursor()
         # print(cur)
         return cur
 
-    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', database = None):
+    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', database = None, timezone='asia/shanghai'):
         newTdSql = TDSql()
-        cur = self.newcur(host=host,port=port,user=user,password=password, database=database)
+        cur = self.newcur(host=host,port=port,user=user,password=password, database=database, timezone=timezone)
         newTdSql.init(cur, False)
         return newTdSql
 

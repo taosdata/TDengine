@@ -2,6 +2,7 @@ from wsgiref.headers import tspecials
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.common import tdCom
 import numpy as np
 
 
@@ -127,11 +128,35 @@ class TDTestCase:
         tdSql.query(f"select * from {dbname}.stb where loc not in ('shanghai', 'shanghai', null)")
         tdSql.checkRows(0)
 
+    def timeZoneTest(self):
+        dbname = self.dbname
+        tdSql.execute(f'create table {dbname}.tzt(ts timestamp, c1 int)')
+        tdSql.execute(f'insert into {dbname}.tzt values({self.ts}, 1)')
+        tdSql.query(f"select * from {dbname}.tzt")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00")
+        
+        tdsql1 = tdCom.newTdSql(timezone="UTC")
+        tdsql1.query(f"select * from {dbname}.tzt")
+        tdsql1.checkRows(1)
+        tdsql1.checkData(0, 0, "2018-09-17 01:00:00")
+        
+        
+        tdsql1.execute(f'insert into {dbname}.tzt values({self.ts + 1000}, 2)')
+        tdsql1.query(f"select * from {dbname}.tzt order by ts")
+        tdsql1.checkRows(2)
+        tdsql1.checkData(1, 0, "2018-09-17 01:00:01")
+        
+        tdsql2 = tdCom.newTdSql(timezone="Asia/Shanghai")
+        tdsql2.query(f"select * from {dbname}.tzt order by ts")
+        tdsql2.checkRows(2)
+        tdsql2.checkData(1, 0, "2018-09-17 09:00:01")
 
     def run(self):
         dbname = "db"
         tdSql.prepare()
         
+        self.timeZoneTest()
         self.inAndNotinTest()
 
 

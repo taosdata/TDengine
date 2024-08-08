@@ -524,19 +524,19 @@ class TDCom:
         # print(con)
         return con
 
-    def newcur(self,host='localhost',port=6030,user='root',password='taosdata'):
+    def newcur(self,host='localhost',port=6030,user='root',password='taosdata', timezone='asia/shanghai'):
         cfgPath = self.getClientCfgPath()
-        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port)
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port, timezone=timezone)
         cur=con.cursor()
         # print(cur)
         return cur
 
-    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata'):
+    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', timezone='asia/shanghai'):
         newTdSql = TDSql()
-        cur = self.newcur(host=host,port=port,user=user,password=password)
+        cur = self.newcur(host=host,port=port,user=user,password=password, timezone=timezone)
         newTdSql.init(cur, False)
         return newTdSql
-
+ 
     ################################################################################################################
     # port from the common.py of new test frame
     ################################################################################################################
