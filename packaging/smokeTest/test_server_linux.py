@@ -28,6 +28,8 @@ def setup_module(request):
     cmd = "bash getAndRunInstaller.sh -m %s -f server -l false -c x64 -v %s -o %s -s %s -t tar" % (
         verMode, taosVersion, baseVersion, sourcePath)
     run_command(cmd)
+    cmd = "mkdir -p ../../debug/build/bin/"
+    run_command(cmd)
     cmd = "cp /usr/bin/taos*  ../../debug/build/bin/"
     run_command(cmd)
 
@@ -37,7 +39,7 @@ def setup_module(request):
     # python3 versionCheckAndUninstall.py -v ${version} -m ${verMode} -u
     # cmd = "python3 versionCheckAndUninstall.py -v %s -m %s -u" % (taosVersion, verMode)
     # run_command(cmd)
-    UninstallTaos(taosVersion, verMode, True)
+    # UninstallTaos(taosVersion, verMode, True)
 
 
 # use pytest fixture to exec case
