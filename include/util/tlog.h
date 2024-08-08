@@ -74,13 +74,13 @@ void    taosCloseLog();
 void    taosResetLog();
 void    taosDumpData(uint8_t *msg, int32_t len);
 
-void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...)
+void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
     __attribute__((format(printf, 4, 5)))
 #endif
     ;
 
-void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...)
+void taosPrintLongString(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
     __attribute__((format(printf, 4, 5)))
 #endif

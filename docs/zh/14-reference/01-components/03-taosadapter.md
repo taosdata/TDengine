@@ -289,31 +289,32 @@ http 返回内容：
 
 ## taosAdapter 监控指标
 
-taosAdapter 采集 http 相关指标、CPU 百分比和内存百分比。
+taosAdapter 采集 REST/Websocket 相关请求的监控指标。将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。 
 
-### http 接口
+#### adapter\_requests 表
 
-提供符合 [OpenMetrics](https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md) 接口：
+`adapter_requests` 记录 taosadapter 监控数据。
 
-```text
-http://<fqdn>:6041/metrics
-```
-
-### 写入 TDengine
-
-taosAdapter 支持将 http 监控、CPU 百分比和内存百分比写入 TDengine。
-
-有关配置参数
-
-| **配置项**                 | **描述**                                     | **默认值**  |
-|-------------------------|--------------------------------------------|----------|
-| monitor.collectDuration | CPU 和内存采集间隔                                | 3s       |
-| monitor.identity        | 当前taosadapter 的标识符如果不设置将使用 'hostname:port' |          |
-| monitor.incgroup        | 是否是 cgroup 中运行(容器中运行设置为 true)              | false    |
-| monitor.writeToTD       | 是否写入到 TDengine                             | false    |
-| monitor.user            | TDengine 连接用户名                             | root     |
-| monitor.password        | TDengine 连接密码                              | taosdata |
-| monitor.writeInterval   | 写入TDengine 间隔                              | 30s      |
+| field              | type         | is\_tag | comment                             |
+| :----------------- | :----------- | :------ | :---------------------------------- |
+| ts                 | TIMESTAMP    |         | timestamp                           |
+| total              | INT UNSIGNED |         | 总请求数                            |
+| query              | INT UNSIGNED |         | 查询请求数                          |
+| write              | INT UNSIGNED |         | 写入请求数                          |
+| other              | INT UNSIGNED |         | 其他请求数                          |
+| in\_process        | INT UNSIGNED |         | 正在处理请求数                      |
+| success            | INT UNSIGNED |         | 成功请求数                          |
+| fail               | INT UNSIGNED |         | 失败请求数                          |
+| query\_success     | INT UNSIGNED |         | 查询成功请求数                      |
+| query\_fail        | INT UNSIGNED |         | 查询失败请求数                      |
+| write\_success     | INT UNSIGNED |         | 写入成功请求数                      |
+| write\_fail        | INT UNSIGNED |         | 写入失败请求数                      |
+| other\_success     | INT UNSIGNED |         | 其他成功请求数                      |
+| other\_fail        | INT UNSIGNED |         | 其他失败请求数                      |
+| query\_in\_process | INT UNSIGNED |         | 正在处理查询请求数                  |
+| write\_in\_process | INT UNSIGNED |         | 正在处理写入请求数                  |
+| endpoint           | VARCHAR      |         | 请求端点                            |
+| req\_type          | NCHAR        | TAG     | 请求类型：0 为 REST，1 为 Websocket |
 
 ## 结果返回条数限制
 
@@ -342,11 +343,11 @@ taosAdapter 从 3.0.4.0 版本开始，提供参数 `smlAutoCreateDB` 来控制�
 
 在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
-| **#** | **embedded httpd**  | **taosAdapter**               | **comment**                                                                                    |
-|-------|---------------------|-------------------------------|------------------------------------------------------------------------------------------------|
-| 1     | httpEnableRecordSql | --logLevel=debug              |                                                                                                |
-| 2     | httpMaxThreads      | n/a                           | taosAdapter 自动管理线程池，无需此参数                                                                      |
+| **#** | **embedded httpd**  | **taosAdapter**                      | **comment**                                                                                                                                |
+| ----- | ------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | httpEnableRecordSql | --logLevel=debug                     |                                                                                                                                            |
+| 2     | httpMaxThreads      | n/a                                  | taosAdapter 自动管理线程池，无需此参数                                                                                                     |
 | 3     | telegrafUseFieldNum | 请参考 taosAdapter telegraf 配置方法 |
-| 4     | restfulRowLimit     | restfulRowLimit               | 内嵌 httpd 默认输出 10240 行数据，最大允许值为 102400。taosAdapter 也提供 restfulRowLimit 但是默认不做限制。您可以根据实际场景需求进行配置 |
-| 5     | httpDebugFlag       | 不适用                           | httpdDebugFlag 对 taosAdapter 不起作用                                                              |
-| 6     | httpDBNameMandatory | 不适用                           | taosAdapter 要求 URL 中必须指定数据库名                                                                   |
+| 4     | restfulRowLimit     | restfulRowLimit                      | 内嵌 httpd 默认输出 10240 行数据，最大允许值为 102400。taosAdapter 也提供 restfulRowLimit 但是默认不做限制。您可以根据实际场景需求进行配置 |
+| 5     | httpDebugFlag       | 不适用                               | httpdDebugFlag 对 taosAdapter 不起作用                                                                                                     |
+| 6     | httpDBNameMandatory | 不适用                               | taosAdapter 要求 URL 中必须指定数据库名                                                                                                    |
