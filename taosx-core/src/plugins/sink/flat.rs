@@ -1547,10 +1547,8 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 }
                 if worker_written > 0 {
                     info!(
-                        worker.id = i,
                         worker.written = worker_written,
-                        "Flat stream worker {} done",
-                        i
+                        "Flat stream worker {} done", i
                     );
                 }
                 return anyhow::Ok(());
@@ -1566,13 +1564,16 @@ pub async fn ipc_flat_stream_worker_concurrent(
         target_precision: taos::Precision,
     }
 
+    let mut batches = 0;
     while let Some(record) = stream.next().await {
+        batches += 1;
         metrics_arc.ipc().add_received_batches(1);
         match record {
             Ok(record) => {
                 msg_tx.send_async(record).await?;
             }
             Err(err) => {
+                tracing::warn!("Consume message error: {err:#}");
                 ack_tx
                     .send_async(LushAck {
                         code: 0xFFFF,
@@ -1588,6 +1589,13 @@ pub async fn ipc_flat_stream_worker_concurrent(
             }
         };
     }
+
+    if batches == 0 {
+        info!("None batches received");
+        writer_set.abort_all();
+        return Ok(());
+    }
+    info!("All messages received, totally {} batches", batches);
 
     // The workers will exit when all tx are dropped.
     drop(msg_tx);
