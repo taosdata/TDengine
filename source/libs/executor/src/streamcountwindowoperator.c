@@ -927,7 +927,10 @@ _error:
     destroyStreamCountAggOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;

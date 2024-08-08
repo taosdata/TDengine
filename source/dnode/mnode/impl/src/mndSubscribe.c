@@ -882,7 +882,7 @@ static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOu
     rebInput->oldConsumerNum = 0;
     code = mndCreateSubscription(pMnode, pTopic, key, &rebOutput->pSub);
     if (code != 0) {
-      mError("[rebalance] mq rebalance %s failed create sub since %s, ignore", key, terrstr());
+      mError("[rebalance] mq rebalance %s failed create sub since %s, ignore", key, tstrerror(code));
       taosRUnLockLatch(&pTopic->lock);
       mndReleaseTopic(pMnode, pTopic);
       return code;
@@ -1067,7 +1067,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
       return 0;
     } else {
       code = TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
-      mError("topic:%s, cgroup:%s, failed to drop since %s", dropReq.topic, dropReq.cgroup, terrstr());
+      mError("topic:%s, cgroup:%s, failed to drop since %s", dropReq.topic, dropReq.cgroup, tstrerror(code));
       return code;
     }
   }
@@ -1075,7 +1075,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
   taosWLockLatch(&pSub->lock);
   if (taosHashGetSize(pSub->consumerHash) != 0) {
     code = TSDB_CODE_MND_CGROUP_USED;
-    mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, tstrerror(code));
     goto END;
   }
 

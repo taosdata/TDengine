@@ -393,8 +393,8 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
-    dError("failed to init dnode rpc client");
-    return -1;
+    dError("failed to init dnode rpc client since:%s", tstrerror(terrno));
+    return terrno;
   }
 
   dDebug("dnode rpc client is initialized");
@@ -437,8 +437,8 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
   if (pTrans->statusRpc == NULL) {
-    dError("failed to init dnode rpc status client");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to init dnode rpc status client since %s", tstrerror(terrno)); 
+    return terrno;
   }
 
   dDebug("dnode rpc status client is initialized");
@@ -482,8 +482,8 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
 
   pTrans->syncRpc = rpcOpen(&rpcInit);
   if (pTrans->syncRpc == NULL) {
-    dError("failed to init dnode rpc sync client");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to init dnode rpc sync client since %s", tstrerror(terrno));
+    return terrno;
   }
 
   dDebug("dnode rpc sync client is initialized");
@@ -532,7 +532,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {
-    dError("failed to init dnode rpc server");
+    dError("failed to init dnode rpc server since:%s", tstrerror(terrno));
     return terrno;
   }
 

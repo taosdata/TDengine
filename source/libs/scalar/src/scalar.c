@@ -904,9 +904,8 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   terrno = TSDB_CODE_SUCCESS;
   SCL_ERR_JRET(OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC));
-  SCL_ERR_JRET(terrno);
-_return:
 
+_return:
   sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }

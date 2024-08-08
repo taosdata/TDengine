@@ -1,6 +1,6 @@
 ---
-sidebar_label: 数据写入
-title: 零代码数据源接入
+sidebar_label: 数据接入
+title: 零代码第三方数据接入
 toc_max_heading_level: 4
 ---
 

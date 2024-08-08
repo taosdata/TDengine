@@ -278,7 +278,7 @@ SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       blockDataDestroy(pBlock);
       pBlock = NULL;
-      terrno = code;
+      terrno = TSDB_CODE_INVALID_PARA;
       break;
     }
     SColumnInfoData idata =
@@ -1094,7 +1094,7 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
   code = blockDataEnsureCapacity(pResBlock, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    taosMemoryFree(pResBlock);
+    blockDataDestroy(pResBlock);
     return NULL;
   }
 
@@ -1166,7 +1166,7 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(pResBlock);
+    blockDataDestroy(pResBlock);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     terrno = code;
     return NULL;

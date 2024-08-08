@@ -652,7 +652,7 @@ void destroyOperator(SOperatorInfo* pOperator) {
   freeResetOperatorParams(pOperator, OP_GET_PARAM, true);
   freeResetOperatorParams(pOperator, OP_NOTIFY_PARAM, true);
 
-  if (pOperator->fpSet.closeFn != NULL) {
+  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
   }
 
