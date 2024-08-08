@@ -780,6 +780,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   int32_t ret = 0;
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
   } else {
     (void)pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
   }
@@ -1578,6 +1579,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
     firstMetaCursor = 1;
   }
   if (!firstMetaCursor) {
