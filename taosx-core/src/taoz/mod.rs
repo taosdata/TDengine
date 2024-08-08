@@ -248,6 +248,12 @@ where
 }
 
 pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
+    if dsn.subject.is_none() {
+        return DataSourceValidation::invalid(
+            "taos".to_string(),
+            "Database is required.".to_string(),
+        );
+    }
     let builder = TaosBuilder::from_dsn(dsn);
     match builder {
         Err(err) => DataSourceValidation::invalid(
