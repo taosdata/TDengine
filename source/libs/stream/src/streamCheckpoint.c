@@ -567,14 +567,13 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
   ASSERT(pInfo->checkpointId <= pReq->checkpointId && pInfo->checkpointVer <= pReq->checkpointVer &&
          pInfo->processedVer <= pReq->checkpointVer);
 
-  pInfo->checkpointId = pReq->checkpointId;
-  pInfo->checkpointVer = pReq->checkpointVer;
-  pInfo->checkpointTime = pReq->checkpointTs;
-
-  streamTaskClearCheckInfo(pTask, true);
-
+  // update only it is in checkpoint status.
   if (pStatus.state == TASK_STATUS__CK) {
-    // todo handle error
+    pInfo->checkpointId = pReq->checkpointId;
+    pInfo->checkpointVer = pReq->checkpointVer;
+    pInfo->checkpointTime = pReq->checkpointTs;
+
+    streamTaskClearCheckInfo(pTask, true);
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
   } else {
     stDebug("s-task:0x%x vgId:%d not handle checkpoint-done event, status:%s", pReq->taskId, vgId, pStatus.name);
