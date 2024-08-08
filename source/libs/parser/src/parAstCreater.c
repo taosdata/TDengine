@@ -316,17 +316,8 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       // See TS-3398.
       // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
       // If aliasName is truncated, hash value of aliasName could be the same.
-      T_MD5_CTX ctx;
-      tMD5Init(&ctx);
-      tMD5Update(&ctx, (uint8_t*)pRawExpr->p, pRawExpr->n);
-      tMD5Final(&ctx);
-      char* p = pExpr->aliasName;
-      for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
-        sprintf(p, "%02x", ctx.digest[i]);
-        p += 2;
-      }
-      uint64_t a = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
-      sprintf(pExpr->aliasName, "%"PRIu64, a);
+      uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
+      sprintf(pExpr->aliasName, "%"PRIu64, hashVal);
       strncpy(pExpr->userAlias, pRawExpr->p, len);
       pExpr->userAlias[len] = '\0';
     }
