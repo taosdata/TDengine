@@ -2103,7 +2103,7 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   return code;
 
 _error:
-  destroyMAIOperatorInfo(miaInfo);
+  if (miaInfo != NULL) destroyMAIOperatorInfo(miaInfo);
   if (pOperator != NULL) {
     pOperator->info = NULL;
     destroyOperator(pOperator);
