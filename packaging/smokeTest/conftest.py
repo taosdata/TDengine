@@ -31,14 +31,67 @@ def pytest_html_results_summary(prefix, summary, postfix):
         # Insert setup stdout
         if setup_stdout_info:
             for nodeid, stdout in setup_stdout_info.items():
-                rows.append(
-                    '<tr><td><b><span style="font-size: larger; color: black;">Setup:</b></span></td><td colspan="4"><pre>{}</pre></td></tr>'.format(
-                        stdout.strip()))
+                html_content = '''
+                <tr>
+                    <td><b><span style="font-size: larger; color: black;">Setup:</span></b></td>
+                    <td colspan="4">
+                        <a href="#" id="toggleSetup">Show Setup</a>
+                        <div id="setupContent" class="collapsible-content" style="display: none; white-space: pre-wrap; margin-top: 5px;">
+                            <pre>{}</pre>
+                        </div>
+                    </td>
+                </tr>
+                '''.format(stdout.strip())
 
+                # 如果需要在 Python 脚本中生成 HTML，并使用 JavaScript 控制折叠内容的显示，可以这样做：
+
+                html_script = '''
+                <script>
+                document.getElementById('toggleSetup').addEventListener('click', function(event) {
+                    event.preventDefault();
+                    var setupContentDiv = document.getElementById('setupContent');
+                    setupContentDiv.style.display = setupContentDiv.style.display === 'none' ? 'block' : 'none';
+                    var buttonText = setupContentDiv.style.display === 'none' ? 'Show Setup' : 'Hide Setup';
+                    this.textContent = buttonText;
+                });
+                </script>
+                '''
+
+                # 输出完整的 HTML 代码
+                final_html = html_content + html_script
+                rows.append(final_html)
+                rows.append("<br>")
         # Insert teardown stdout
         if teardown_stdout_info:
             for nodeid, stdout in teardown_stdout_info.items():
-                rows.append(
-                    '<tr><td><b><span style="font-size: larger; color: black;">Teardown:</b></td><td colspan="4"><pre>{}</pre></td></tr>'.format(stdout.strip()))
+                html_content = '''
+                    <tr>
+                        <td><b><span style="font-size: larger; color: black;">Teardown:</span></b></td>
+                        <td colspan="4">
+                            <a href="#" id="toggleTeardown">Show Teardown</a>
+                            <div id="teardownContent" class="collapsible-content" style="display: none; white-space: pre-wrap; margin-top: 5px;">
+                                <pre>{}</pre>
+                            </div>
+                        </td>
+                    </tr>
+                    '''.format(stdout.strip())
+
+                # 如果需要在 Python 脚本中生成 HTML，并使用 JavaScript 控制折叠内容的显示，可以这样做：
+
+                html_script = '''
+                    <script>
+                    document.getElementById('toggleTeardown').addEventListener('click', function(event) {
+                        event.preventDefault();
+                        var teardownContentDiv = document.getElementById('teardownContent');
+                        teardownContentDiv.style.display = teardownContentDiv.style.display === 'none' ? 'block' : 'none';
+                        var buttonText = teardownContentDiv.style.display === 'none' ? 'Show Teardown' : 'Hide Teardown';
+                        this.textContent = buttonText;
+                    });
+                    </script>
+                    '''
+
+                # 输出完整的 HTML 代码
+                final_html = html_content + html_script
+                rows.append(final_html)
 
         prefix.extend(rows)
