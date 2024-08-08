@@ -531,7 +531,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
 
   STscObj *pTscObj = acquireTscObj(connId);
   if (pTscObj == NULL) {
-    TSC_ERR_JRET(terrno);
+    TSC_ERR_JRET(TSDB_CODE_TSC_DISCONNECTED);
   }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
