@@ -1440,6 +1440,11 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
 
       STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
+      if (!info.pTagVal) {
+        metaCloseCtbCursor(pCur);
+        taosHashCleanup(pSepecifiedUidMap);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       if (taosArrayPush(pUidTagInfo, &info) == NULL) {
         metaCloseCtbCursor(pCur);
@@ -1462,6 +1467,11 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, *index);
       if (pTagInfo->pTagVal == NULL) {
         pTagInfo->pTagVal = taosMemoryMalloc(pCur->vLen);
+        if (!pTagInfo->pTagVal) {
+          metaCloseCtbCursor(pCur);
+          taosHashCleanup(pSepecifiedUidMap);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
       }
     }

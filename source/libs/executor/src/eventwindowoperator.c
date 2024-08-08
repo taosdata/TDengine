@@ -145,7 +145,10 @@ _error:
     destroyEWindowOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
