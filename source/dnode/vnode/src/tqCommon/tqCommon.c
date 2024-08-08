@@ -563,7 +563,7 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
             pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
   }
 
-  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamTaskId, req.downstreamNodeId);
+  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamNodeId, req.downstreamTaskId);
   streamMetaReleaseTask(pMeta, pTask);
   if (code) {
     return code;

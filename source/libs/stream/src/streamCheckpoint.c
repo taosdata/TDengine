@@ -361,7 +361,6 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
       (void)streamTaskBuildCheckpoint(pTask);   // todo: not handle error yet
     } else {  // source & agg tasks need to forward the checkpoint msg downwards
       stDebug("s-task:%s process checkpoint-trigger block, all %d upstreams sent, forwards to downstream", id, num);
-
       flushStateDataInExecutor(pTask, (SStreamQueueItem*)pBlock);
 
       // Put the checkpoint-trigger block into outputQ, to make sure all blocks with less version have been handled by
@@ -376,8 +375,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
 // only when all downstream tasks are send checkpoint rsp, we can start the checkpoint procedure for the agg task
 static int32_t processCheckpointReadyHelp(SActiveCheckpointInfo* pInfo, int32_t numOfDownstream,
                                           int32_t downstreamNodeId, int64_t streamId, int32_t downstreamTaskId,
-                                          const char* id, int32_t* pNotReady, int32_t* pTransId) {
-  bool    received = false;
+                                          const char* id, int32_t* pNotReady, int32_t* pTransId, bool* alreadyRecv) {
+  *alreadyRecv = false;
   int32_t size = taosArrayGetSize(pInfo->pCheckpointReadyRecvList);
   for (int32_t i = 0; i < size; ++i) {
     STaskDownstreamReadyInfo* p = taosArrayGet(pInfo->pCheckpointReadyRecvList, i);
@@ -386,12 +385,12 @@ static int32_t processCheckpointReadyHelp(SActiveCheckpointInfo* pInfo, int32_t 
     }
 
     if (p->downstreamTaskId == downstreamTaskId) {
-      received = true;
+      (*alreadyRecv) = true;
       break;
     }
   }
 
-  if (received) {
+  if (*alreadyRecv) {
     stDebug("s-task:%s already recv checkpoint-ready msg from downstream:0x%x, ignore. %d/%d downstream not ready", id,
             downstreamTaskId, (int32_t)(numOfDownstream - taosArrayGetSize(pInfo->pCheckpointReadyRecvList)),
             numOfDownstream);
@@ -427,6 +426,7 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId
   int32_t     code = 0;
   int32_t     notReady = 0;
   int32_t     transId = 0;
+  bool        alreadyHandled = false;
 
   // 1. not in checkpoint status now
   SStreamTaskState pStat = streamTaskGetStatus(pTask);
@@ -445,12 +445,17 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask, int64_t checkpointId
 
   streamMutexLock(&pInfo->lock);
   code = processCheckpointReadyHelp(pInfo, total, downstreamNodeId, pTask->id.streamId, downstreamTaskId, id, &notReady,
-                                    &transId);
+                                    &transId, &alreadyHandled);
   streamMutexUnlock(&pInfo->lock);
 
-  if ((notReady == 0) && (code == 0)) {
-    stDebug("s-task:%s all downstream tasks have completed build checkpoint, do checkpoint for current task", id);
-    (void)appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, checkpointId, transId, -1);
+  if (alreadyHandled) {
+    stDebug("s-task:%s checkpoint-ready msg checkpointId:%" PRId64 " from task:0x%x already handled, not handle again",
+            id, checkpointId, downstreamTaskId);
+  } else {
+    if ((notReady == 0) && (code == 0) && (!alreadyHandled)) {
+      stDebug("s-task:%s all downstream tasks have completed build checkpoint, do checkpoint for current task", id);
+      (void)appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, checkpointId, transId, -1);
+    }
   }
 
   return code;

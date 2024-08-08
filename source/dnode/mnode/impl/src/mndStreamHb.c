@@ -211,6 +211,10 @@ int32_t mndProcessResetStatusReq(SRpcMsg *pReq) {
   SStreamTaskResetMsg* pMsg = pReq->pCont;
   mndKillTransImpl(pMnode, pMsg->transId, "");
 
+  streamMutexLock(&execInfo.lock);
+  (void) mndResetChkptReportInfo(execInfo.pChkptStreams, pMsg->streamId);
+  streamMutexUnlock(&execInfo.lock);
+
   code = mndGetStreamObj(pMnode, pMsg->streamId, &pStream);
   if (pStream == NULL || code != 0) {
     code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
@@ -453,7 +457,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         addIntoCheckpointList(pFailedChkpt, &info);
 
         // remove failed trans from pChkptStreams
-        code = taosHashRemove(execInfo.pChkptStreams, &p->id.streamId, sizeof(p->id.streamId));
+        code = mndResetChkptReportInfo(execInfo.pChkptStreams, p->id.streamId);
         if (code) {
           mError("failed to remove stream:0x%"PRIx64" in checkpoint stream list", p->id.streamId);
         }
