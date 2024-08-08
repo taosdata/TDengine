@@ -55,7 +55,7 @@ DLL_EXPORT int32_t bit_and(SUdfDataBlock* block, SUdfColumn* resultCol) {
   }
 
   resultData->numOfRows = block->numOfRows;
-  udfTrace("block:%p, processing completed, rows:%d, cols:%d,", block, block->numOfRows, block->numOfCols);
+  udfTrace("block:%p, processing completed", block);
 
   return TSDB_CODE_SUCCESS;
 }
