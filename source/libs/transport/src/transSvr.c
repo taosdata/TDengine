@@ -205,7 +205,6 @@ void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   int32_t      code = transAllocBuffer(pBuf, buf);
   if (code < 0) {
     tError("conn %p failed to alloc buffer, since %s", conn, tstrerror(code));
-    // destroyConn(conn, true);
   }
 }
 
@@ -542,6 +541,9 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   buf->len = 2;
   buf->base = taosMemoryCalloc(1, sizeof(char) * buf->len);
+  if (buf == NULL) {
+    tError("failed to alloc conn read buffer since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+  }
 }
 
 void uvOnTimeoutCb(uv_timer_t* handle) {
