@@ -2727,7 +2727,7 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
       pqNode.data = &refTuple;
       PriorityQueueNode* pPushedNode = taosBQPush(pHandle->pBoundedQueue, &pqNode);
       if (!pPushedNode) {
-        if (terrno != TSDB_CODE_SUCCESS) return terrno;
+        // do nothing if push failed
       } else {
         pPushedNode->data = NULL;
         int32_t code = createAllocatedTuple(pBlock, colNum, tupleLen, rowIdx, (TupleDesc**)&pPushedNode->data);
