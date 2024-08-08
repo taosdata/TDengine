@@ -1,6 +1,5 @@
 import pytest
 import subprocess
-from main import run_command
 import os
 
 current_path = os.path.abspath(os.path.dirname(__file__))
@@ -10,11 +9,24 @@ with open("%s/test_server_linux.txt" % current_path) as f:
 
 @pytest.fixture(scope="module")
 def setup_module():
+    def run_command(command):
+        result = subprocess.run(command, capture_output=True, text=True, shell=True)
+        print("CMD:", command)
+        print("STDOUT:", result.stdout)
+        print("STDERR:", result.stderr)
+        print("Return Code:", result.returncode)
+        assert result.returncode == 0
+        return result
+
     # setup before module tests
-    print("\nSetup for module")
+    cmd = "bash getAndRunInstaller.sh -m enterprise -f server -l false -c x64 -v 3.3.2.6 -o smoking -s nas -t tar"
+    run_command(cmd)
+
     yield
+
     # teardown after module tests
-    print("\nTeardown for module")
+    cmd = "python3 versionCheckAndUninstall.py -v 3.3.2.6 -m enterprise -u"
+    run_command(cmd)
 
 
 # use pytest fixture to exec case
