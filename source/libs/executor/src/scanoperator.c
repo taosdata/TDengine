@@ -1466,7 +1466,10 @@ _error:
     destroyTableScanOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -4147,7 +4150,10 @@ _error:
     destroyStreamScanOperatorInfo(pInfo);
   }
 
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -4704,7 +4710,10 @@ _error:
   }
 
   if (pInfo != NULL) destroyTagScanOperatorInfo(pInfo);
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 
@@ -5951,7 +5960,10 @@ _error:
   pTaskInfo->code = code;
   pInfo->base.pTableListInfo = NULL;
   if (pInfo != NULL) destroyTableMergeScanOperatorInfo(pInfo);
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 
@@ -6108,7 +6120,10 @@ _error:
   if (pInfo != NULL) {
     destoryTableCountScanOperator(pInfo);
   }
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
