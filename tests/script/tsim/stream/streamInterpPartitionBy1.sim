@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
-print step prev
+print step NULL
 print =============== create database
 sql create database test vgroups 1;
 sql use test;
@@ -14,7 +14,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create table t3 using st tags(2,2,2);
 
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), _isfilled, tbname, b, c from st partition by tbname, b,c every(1s) fill(prev);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, interp(a), _isfilled, tbname, b, c from st partition by tbname, b,c every(1s) fill(NULL);
 
 run tsim/stream/checkTaskStatus.sim
 
@@ -22,8 +22,8 @@ sql insert into t1 values(1648791212000,0,0,0,0.0) (1648791212001,1,0,0,1.0) (16
 
 sql insert into t3 values(1648791212000,0,2,2,0.0) (1648791212001,1,2,2,1.0) (1648791217001,2,2,2,2.1);
 
-print sql select _irowts, interp(a), _isfilled, b from st where b = 0 and c = 0 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(prev) order by b, 1;
-sql select _irowts, interp(a), _isfilled, b from st where b = 0 and c = 0 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(prev) order by b, 1;
+print sql select _irowts, interp(a), _isfilled, b from st where b = 0 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(NULL) order by b, 1;
+sql select _irowts, interp(a), _isfilled, b from st where b = 0 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(NULL) order by b, 1;
 
 print $data00 $data01 $data02 $data03 $data04 $data05
 print $data10 $data11 $data12 $data13 $data14 $data15
@@ -32,8 +32,8 @@ print $data30 $data31 $data32 $data33 $data34 $data35
 print $data40 $data41 $data42 $data43 $data44 $data45
 print $data50 $data51 $data52 $data53 $data54 $data55
 
-print sql select _irowts, interp(a), _isfilled, b from st where b = 1 and c =1 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(prev) order by b, 1;
-sql select _irowts, interp(a), _isfilled, b from st where b = 1 and c = 1 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(prev) order by b, 1;
+print sql select _irowts, interp(a), _isfilled, b from st where b = 1 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(NULL) order by b, 1;
+sql select _irowts, interp(a), _isfilled, b from st where b = 1 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(NULL) order by b, 1;
 
 print $data00 $data01 $data02 $data03 $data04 $data05
 print $data10 $data11 $data12 $data13 $data14 $data15
@@ -42,8 +42,8 @@ print $data30 $data31 $data32 $data33 $data34 $data35
 print $data40 $data41 $data42 $data43 $data44 $data45
 print $data50 $data51 $data52 $data53 $data54 $data55
 
-print sql select _irowts, interp(a), _isfilled, b from st where b = 2 and c = 2 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(prev) order by b, 1;
-sql select _irowts, interp(a), _isfilled, b from st where b = 2 and c = 2 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(prev) order by b, 1;
+print sql select _irowts, interp(a), _isfilled, b from st where b = 2 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(NULL) order by b, 1;
+sql select _irowts, interp(a), _isfilled, b from st where b = 2 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(NULL) order by b, 1;
 
 print $data00 $data01 $data02 $data03 $data04 $data05
 print $data10 $data11 $data12 $data13 $data14 $data15
@@ -90,7 +90,7 @@ if $data02 != 0 then
   goto loop0
 endi
 
-if $data11 != 1 then
+if $data11 != NULL then
   print ======data11=$data11
   goto loop0
 endi
@@ -100,7 +100,7 @@ if $data12 != 1 then
   goto loop0
 endi
 
-if $data21 != 1 then
+if $data21 != NULL then
   print ======data21=$data21
   goto loop0
 endi
@@ -110,7 +110,7 @@ if $data22 != 1 then
   goto loop0
 endi
 
-if $data31 != 1 then
+if $data31 != NULL then
   print ======data31=$data31
   goto loop0
 endi
@@ -120,7 +120,7 @@ if $data32 != 1 then
   goto loop0
 endi
 
-if $data41 != 1 then
+if $data41 != NULL then
   print ======data41=$data41
   goto loop0
 endi
@@ -130,7 +130,7 @@ if $data42 != 1 then
   goto loop0
 endi
 
-if $data51 != 1 then
+if $data51 != NULL then
   print ======data51=$data51
   goto loop0
 endi
@@ -168,7 +168,7 @@ if $data02 != 0 then
   goto loop0
 endi
 
-if $data11 != 1 then
+if $data11 != NULL then
   print ======data11=$data11
   goto loop0
 endi
@@ -178,7 +178,7 @@ if $data12 != 1 then
   goto loop0
 endi
 
-if $data21 != 1 then
+if $data21 != NULL then
   print ======data21=$data21
   goto loop0
 endi
@@ -188,7 +188,7 @@ if $data22 != 1 then
   goto loop0
 endi
 
-if $data31 != 1 then
+if $data31 != NULL then
   print ======data31=$data31
   goto loop0
 endi
@@ -198,7 +198,7 @@ if $data32 != 1 then
   goto loop0
 endi
 
-if $data41 != 1 then
+if $data41 != NULL then
   print ======data41=$data41
   goto loop0
 endi
@@ -208,7 +208,7 @@ if $data42 != 1 then
   goto loop0
 endi
 
-if $data51 != 1 then
+if $data51 != NULL then
   print ======data51=$data51
   goto loop0
 endi
@@ -246,7 +246,7 @@ if $data02 != 0 then
   goto loop0
 endi
 
-if $data11 != 1 then
+if $data11 != NULL then
   print ======data11=$data11
   goto loop0
 endi
@@ -256,7 +256,7 @@ if $data12 != 1 then
   goto loop0
 endi
 
-if $data21 != 1 then
+if $data21 != NULL then
   print ======data21=$data21
   goto loop0
 endi
@@ -266,7 +266,7 @@ if $data22 != 1 then
   goto loop0
 endi
 
-if $data31 != 1 then
+if $data31 != NULL then
   print ======data31=$data31
   goto loop0
 endi
@@ -276,7 +276,7 @@ if $data32 != 1 then
   goto loop0
 endi
 
-if $data41 != 1 then
+if $data41 != NULL then
   print ======data41=$data41
   goto loop0
 endi
@@ -286,7 +286,7 @@ if $data42 != 1 then
   goto loop0
 endi
 
-if $data51 != 1 then
+if $data51 != NULL then
   print ======data51=$data51
   goto loop0
 endi
@@ -296,7 +296,7 @@ if $data52 != 1 then
   goto loop0
 endi
 
-print step next
+print step linear
 print =============== create database
 sql create database test2 vgroups 1;
 sql use test2;
@@ -306,36 +306,16 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create table t3 using st tags(2,2,2);
 
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2 as select _irowts, interp(a), _isfilled, tbname, b, c from st partition by tbname, b,c every(1s) fill(next);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt2 as select _irowts, interp(a), _isfilled, tbname, b, c from st partition by tbname, b,c every(1s) fill(linear);
 
 run tsim/stream/checkTaskStatus.sim
 
-sql insert into t1 values(1648791212000,0,0,0,0.0) (1648791212001,1,0,0,1.0) (1648791217001,2,0,0,2.1) t2 values(1648791212000,0,1,1,0.0) (1648791212001,1,1,1,1.0) (1648791217001,2,1,1,2.1);
+sql insert into t1 values(1648791212000,0,0,0,0.0) (1648791212001,10,0,0,1.0) (1648791217001,20,0,0,2.1) t2 values(1648791212000,0,1,1,0.0) (1648791212001,10,1,1,1.0) (1648791217001,20,1,1,2.1);
 
-sql insert into t3 values(1648791212000,0,2,2,0.0) (1648791212001,1,2,2,1.0) (1648791217001,2,2,2,2.1);
+sql insert into t3 values(1648791212000,0,2,2,0.0) (1648791212001,10,2,2,1.0) (1648791217001,20,2,2,2.1);
 
-print sql select _irowts, interp(a), _isfilled, b from st where b = 0 and c = 0 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(next) order by b, 1;
-sql select _irowts, interp(a), _isfilled, b from st where b = 0 and c = 0 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(next) order by b, 1;
-
-print $data00 $data01 $data02 $data03 $data04 $data05
-print $data10 $data11 $data12 $data13 $data14 $data15
-print $data20 $data21 $data22 $data23 $data24 $data25
-print $data30 $data31 $data32 $data33 $data34 $data35
-print $data40 $data41 $data42 $data43 $data44 $data45
-print $data50 $data51 $data52 $data53 $data54 $data55
-
-print sql select _irowts, interp(a), _isfilled, b from st where b = 1 and c =1 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(next) order by b, 1;
-sql select _irowts, interp(a), _isfilled, b from st where b = 1 and c = 1 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(next) order by b, 1;
-
-print $data00 $data01 $data02 $data03 $data04 $data05
-print $data10 $data11 $data12 $data13 $data14 $data15
-print $data20 $data21 $data22 $data23 $data24 $data25
-print $data30 $data31 $data32 $data33 $data34 $data35
-print $data40 $data41 $data42 $data43 $data44 $data45
-print $data50 $data51 $data52 $data53 $data54 $data55
-
-print sql select _irowts, interp(a), _isfilled, b from st where b = 2 and c = 2 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(next) order by b, 1;
-sql select _irowts, interp(a), _isfilled, b from st where b = 2 and c = 2 partition by tbname, b,c range(1648791212000, 1648791217001) every(1s) fill(next) order by b, 1;
+print sql select _irowts, interp(a), _isfilled, b from st where b = 0 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(linear) order by b, 1;
+sql select _irowts, interp(a), _isfilled, b from st where b = 0 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(linear) order by b, 1;
 
 print $data00 $data01 $data02 $data03 $data04 $data05
 print $data10 $data11 $data12 $data13 $data14 $data15
@@ -382,7 +362,7 @@ if $data02 != 0 then
   goto loop1
 endi
 
-if $data11 != 2 then
+if $data11 != 11 then
   print ======data11=$data11
   goto loop1
 endi
@@ -392,7 +372,7 @@ if $data12 != 1 then
   goto loop1
 endi
 
-if $data21 != 2 then
+if $data21 != 13 then
   print ======data21=$data21
   goto loop1
 endi
@@ -402,7 +382,7 @@ if $data22 != 1 then
   goto loop1
 endi
 
-if $data31 != 2 then
+if $data31 != 15 then
   print ======data31=$data31
   goto loop1
 endi
@@ -412,7 +392,7 @@ if $data32 != 1 then
   goto loop1
 endi
 
-if $data41 != 2 then
+if $data41 != 17 then
   print ======data41=$data41
   goto loop1
 endi
@@ -422,7 +402,7 @@ if $data42 != 1 then
   goto loop1
 endi
 
-if $data51 != 2 then
+if $data51 != 19 then
   print ======data51=$data51
   goto loop1
 endi
@@ -431,6 +411,16 @@ if $data52 != 1 then
   print ======data51=$data51
   goto loop1
 endi
+
+print sql select _irowts, interp(a), _isfilled, b from st where b = 1 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(linear) order by b, 1;
+sql select _irowts, interp(a), _isfilled, b from st where b = 1 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(linear) order by b, 1;
+
+print $data00 $data01 $data02 $data03 $data04 $data05
+print $data10 $data11 $data12 $data13 $data14 $data15
+print $data20 $data21 $data22 $data23 $data24 $data25
+print $data30 $data31 $data32 $data33 $data34 $data35
+print $data40 $data41 $data42 $data43 $data44 $data45
+print $data50 $data51 $data52 $data53 $data54 $data55
 
 print 1 sql select * from streamt2 where b = 1 and c = 1 order by 1;
 sql select * from streamt2 where b = 1 and c = 1 order by 1;
@@ -460,7 +450,7 @@ if $data02 != 0 then
   goto loop1
 endi
 
-if $data11 != 2 then
+if $data11 != 11 then
   print ======data11=$data11
   goto loop1
 endi
@@ -470,7 +460,7 @@ if $data12 != 1 then
   goto loop1
 endi
 
-if $data21 != 2 then
+if $data21 != 13 then
   print ======data21=$data21
   goto loop1
 endi
@@ -480,7 +470,7 @@ if $data22 != 1 then
   goto loop1
 endi
 
-if $data31 != 2 then
+if $data31 != 15 then
   print ======data31=$data31
   goto loop1
 endi
@@ -490,7 +480,7 @@ if $data32 != 1 then
   goto loop1
 endi
 
-if $data41 != 2 then
+if $data41 != 17 then
   print ======data41=$data41
   goto loop1
 endi
@@ -500,7 +490,7 @@ if $data42 != 1 then
   goto loop1
 endi
 
-if $data51 != 2 then
+if $data51 != 19 then
   print ======data51=$data51
   goto loop1
 endi
@@ -509,6 +499,16 @@ if $data52 != 1 then
   print ======data51=$data51
   goto loop1
 endi
+
+print sql select _irowts, interp(a), _isfilled, b from st where b = 2 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(linear) order by b, 1;
+sql select _irowts, interp(a), _isfilled, b from st where b = 2 partition by tbname, b, c range(1648791212000, 1648791217001) every(1s) fill(linear) order by b, 1;
+
+print $data00 $data01 $data02 $data03 $data04 $data05
+print $data10 $data11 $data12 $data13 $data14 $data15
+print $data20 $data21 $data22 $data23 $data24 $data25
+print $data30 $data31 $data32 $data33 $data34 $data35
+print $data40 $data41 $data42 $data43 $data44 $data45
+print $data50 $data51 $data52 $data53 $data54 $data55
 
 print 2 sql select * from streamt2 where b = 2 and c = 2 order by 1;
 sql select * from streamt2 where b = 2 and c = 2 order by 1;
@@ -538,7 +538,7 @@ if $data02 != 0 then
   goto loop1
 endi
 
-if $data11 != 2 then
+if $data11 != 11 then
   print ======data11=$data11
   goto loop1
 endi
@@ -548,7 +548,7 @@ if $data12 != 1 then
   goto loop1
 endi
 
-if $data21 != 2 then
+if $data21 != 13 then
   print ======data21=$data21
   goto loop1
 endi
@@ -558,7 +558,7 @@ if $data22 != 1 then
   goto loop1
 endi
 
-if $data31 != 2 then
+if $data31 != 15 then
   print ======data31=$data31
   goto loop1
 endi
@@ -568,7 +568,7 @@ if $data32 != 1 then
   goto loop1
 endi
 
-if $data41 != 2 then
+if $data41 != 17 then
   print ======data41=$data41
   goto loop1
 endi
@@ -578,7 +578,7 @@ if $data42 != 1 then
   goto loop1
 endi
 
-if $data51 != 2 then
+if $data51 != 19 then
   print ======data51=$data51
   goto loop1
 endi

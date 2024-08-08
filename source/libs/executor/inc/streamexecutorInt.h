@@ -46,7 +46,6 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
 SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index);
 
 void    destroyStreamFillSupporter(SStreamFillSupporter* pFillSup);
-void    calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol, int32_t numOfCol);
 bool    hasCurWindow(SStreamFillSupporter* pFillSup);
 bool    hasPrevWindow(SStreamFillSupporter* pFillSup);
 bool    hasNextWindow(SStreamFillSupporter* pFillSup);

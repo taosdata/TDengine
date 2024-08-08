@@ -259,7 +259,7 @@ static void transBlockToResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKE
   pRowVal->key = ts;
 }
 
-void calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol, int32_t numOfCol) {
+static void calcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol, int32_t numOfCol) {
   for (int32_t i = 0; i < numOfCol; i++) {
     if (!pFillCol[i].notFillCol) {
       int32_t          slotId = GET_DEST_SLOT_ID(pFillCol + i);
@@ -1271,30 +1271,26 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
 
     for (int32_t i = 0; i < pFillSup->numOfAllCols; i++) {
       SColumnInfoData* pColData = taosArrayGet(pRes->pDataBlock, i);
-      SPoint           value = {0};
-      value.val = taosMemoryCalloc(1, pColData->info.bytes);
-      if (!value.val) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        QUERY_CHECK_CODE(code, lino, _end);
+      if (pColData == NULL) {
+        SPoint dummy = {0};
+        dummy.val = taosMemoryCalloc(1, 1);
+        taosArrayPush(pFillInfo->pLinearInfo->pEndPoints, &dummy);
+        dummy.val = taosMemoryCalloc(1, 1);
+        taosArrayPush(pFillInfo->pLinearInfo->pNextEndPoints, &dummy);
+        continue;
       }
+      SPoint value = {0};
+      value.val = taosMemoryCalloc(1, pColData->info.bytes);
+      QUERY_CHECK_NULL(value.val, code, lino, _end, terrno);
 
       void* tmpRes = taosArrayPush(pFillInfo->pLinearInfo->pEndPoints, &value);
-      if (!tmpRes) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      QUERY_CHECK_NULL(tmpRes, code, lino, _end, terrno);
 
       value.val = taosMemoryCalloc(1, pColData->info.bytes);
-      if (!value.val) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      QUERY_CHECK_NULL(value.val, code, lino, _end, terrno);
 
       tmpRes = taosArrayPush(pFillInfo->pLinearInfo->pNextEndPoints, &value);
-      if (!tmpRes) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      QUERY_CHECK_NULL(tmpRes, code, lino, _end, terrno);
     }
   }
   pFillInfo->pLinearInfo->winIndex = 0;
@@ -1318,6 +1314,11 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
     for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
       SColumnInfoData* pColData = taosArrayGet(pRes->pDataBlock, i);
       SResultCellData* pCell = getResultCell(pFillInfo->pResRow, i);
+      if (pColData == NULL) {
+        pCell->bytes = 1;
+        pCell->type = 4;
+        continue;
+      }
       pCell->bytes = pColData->info.bytes;
       pCell->type = pColData->info.type;
     }

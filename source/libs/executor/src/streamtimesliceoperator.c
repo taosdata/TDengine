@@ -347,10 +347,7 @@ static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* p
     (*pRes) = false;
     goto _end;
   }
-  if (IS_INVALID_WIN_KEY(ts)) {
-    (*pRes) = true;
-    goto _end;
-  }
+
   bool ckRes = true;
   code = checkResult(pFillSup, ts, pBlock->info.id.groupId, &ckRes);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -428,7 +425,7 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
         bool isFilled = true;
         code = colDataSetVal(pDstCol, pBlock->info.rows, (char*)&isFilled, false);
         QUERY_CHECK_CODE(code, lino, _end);
-      } else {
+      } else if (isInterpFunc(pFillCol->pExpr)) {
         int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
         SResultCellData* pCell = getSliceResultCell(pFillInfo->pResRow->pRowVal, srcSlot);
         if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pCell->isNull) {
@@ -451,6 +448,11 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
         QUERY_CHECK_CODE(code, lino, _end);
 
         destroySPoint(&cur);
+      } else {
+        int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
+        SResultCellData* pCell = getSliceResultCell(pFillInfo->pResRow->pRowVal, srcSlot);
+        code = setRowCell(pDstCol, pBlock->info.rows, pCell);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
@@ -476,7 +478,7 @@ static void doStreamFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* p
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    res = true;
-  if (pFillInfo->needFill == false) {
+  if (pFillInfo->needFill == false && pFillInfo->pos != FILL_POS_INVALID) {
     code = fillPointResult(pFillSup, &pFillSup->cur, pFillSup->cur.key, pRes, &res, false);
     QUERY_CHECK_CODE(code, lino, _end);
     return;
@@ -847,6 +849,34 @@ _end:
   return code;
 }
 
+static void copyNonFillValueInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo) {
+  for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
+    SFillColInfo* pFillCol = pFillSup->pAllColInfo + i;
+    if (!isInterpFunc(pFillCol->pExpr) && !isIrowtsPseudoColumn(pFillCol->pExpr) &&
+        !isIsfilledPseudoColumn(pFillCol->pExpr)) {
+      int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
+      SResultCellData* pSrcCell = getResultCell(&pFillSup->cur, srcSlot);
+      SResultCellData* pDestCell = getResultCell(pFillInfo->pResRow, srcSlot);
+      pDestCell->isNull = pSrcCell->isNull;
+      if (!pDestCell->isNull) {
+        memcpy(pDestCell->pData, pSrcCell->pData, pSrcCell->bytes);
+      }
+    }
+  }
+}
+
+static void copyCalcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFillColInfo* pFillCol, int32_t numOfCol) {
+  for (int32_t i = 0; i < numOfCol; i++) {
+    if (isInterpFunc(pFillCol[i].pExpr)) {
+      int32_t          slotId = pFillCol[i].pExpr->base.pParam[0].pCol->slotId;
+      SResultCellData* pECell = getResultCell(pEndRow, slotId);
+      SPoint*          pPoint = taosArrayGet(pEndPoins, slotId);
+      pPoint->key = pEndRow->key;
+      memcpy(pPoint->val, pECell->pData, pECell->bytes);
+    }
+  }
+}
+
 static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts) {
   if (!hasPrevWindow(pFillSup) && !hasNextWindow(pFillSup)) {
     pFillInfo->needFill = false;
@@ -878,7 +908,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
       }
-      copyNotFillExpData(pFillSup, pFillInfo);
+      copyNonFillValueInfo(pFillSup, pFillInfo);
       pFillInfo->pResRow->key = ts;
     } break;
     case TSDB_FILL_PREV: {
@@ -920,7 +950,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         pFillInfo->pos = FILL_POS_INVALID;
         SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
         pFillSup->next.key = pFillSup->nextOriginKey;
-        calcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
+        copyCalcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
                          pFillSup->numOfAllCols);
         pFillSup->prev.key = pFillSup->prevOriginKey;
         pFillInfo->pResRow = &pFillSup->prev;
@@ -930,7 +960,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
         SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
-        calcRowDeltaData(&pFillSup->cur, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
+        copyCalcRowDeltaData(&pFillSup->cur, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
                          pFillSup->numOfAllCols);
         pFillSup->prev.key = pFillSup->prevOriginKey;
         pFillInfo->pResRow = &pFillSup->prev;
@@ -942,7 +972,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         pFillInfo->pos = FILL_POS_START;
         SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
         pFillSup->next.key = pFillSup->nextOriginKey;
-        calcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
+        copyCalcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
                          pFillSup->numOfAllCols);
         pFillInfo->pResRow = &pFillSup->cur;
         pFillInfo->pLinearInfo->hasNext = false;
@@ -955,7 +985,6 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
 
 _end:
   if (ts != pFillSup->cur.key) {
-    SET_WIN_KEY_INVALID(pFillSup->cur.key);
     pFillInfo->pos = FILL_POS_INVALID;
   }
 }
@@ -1481,7 +1510,7 @@ static SSDataBlock* doStreamTimeSlice(SOperatorInfo* pOperator) {
   return pRes;
 }
 
-static void setValueForFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo) {
+static void copyFillValueInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo) {
   if (pFillInfo->type == TSDB_FILL_SET_VALUE || pFillInfo->type == TSDB_FILL_SET_VALUE_F) {
     int32_t valueIndex = 0;
     for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
@@ -1525,8 +1554,10 @@ int32_t getDownstreamRes(SOperatorInfo* downstream, SSDataBlock** ppRes) {
     SStreamScanInfo* pInfo = (SStreamScanInfo*)downstream->info;
     *ppRes = pInfo->pRes;
     return TSDB_CODE_SUCCESS;
-  } else if (downstream->pDownstream[0] != NULL) {
-    return getDownstreamRes(downstream->pDownstream[0], ppRes);
+  } else if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION) {
+    SStreamPartitionOperatorInfo* pInfo = (SStreamPartitionOperatorInfo*)downstream->info;
+    *ppRes = pInfo->binfo.pRes;
+    return TSDB_CODE_SUCCESS;
   }
   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_FAILED));
   return TSDB_CODE_FAILED;
@@ -1627,7 +1658,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->pFillInfo = initStreamFillInfo(pInfo->pFillSup, pDownRes);
-  setValueForFillInfo(pInfo->pFillSup, pInfo->pFillInfo);
+  copyFillValueInfo(pInfo->pFillSup, pInfo->pFillInfo);
 
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;
