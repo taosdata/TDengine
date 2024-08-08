@@ -242,7 +242,7 @@ int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const 
   return EINVAL;
 #else
   int32_t code = pthread_cond_timedwait(cond, mutex, abstime);
-  if (code) {
+  if (code && code != ETIMEDOUT) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return terrno;
   }

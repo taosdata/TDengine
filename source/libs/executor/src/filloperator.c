@@ -567,7 +567,10 @@ _error:
   }
 
   pTaskInfo->code = code;
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 

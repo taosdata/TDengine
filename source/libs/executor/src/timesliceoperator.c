@@ -1208,7 +1208,10 @@ _error:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   if (pInfo != NULL) destroyTimeSliceOperatorInfo(pInfo);
-  destroyOperator(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }

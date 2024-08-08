@@ -3660,15 +3660,25 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
     FLT_ERR_JRET(terrno);
   }
 
-  FLT_ERR_JRET(filterInitUnitsFields(info));
+  code = filterInitUnitsFields(info);
+  if(TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(group);
+    goto _return;
+  }
 
   SFltBuildGroupCtx tctx = {.info = info, .group = group};
   nodesWalkExpr(tree, fltTreeToGroup, (void *)&tctx);
-  FLT_ERR_JRET(tctx.code);
-
-  FLT_ERR_JRET(filterConvertGroupFromArray(info, group));
+  if (TSDB_CODE_SUCCESS != tctx.code) {
+    taosArrayDestroy(group);
+    code = tctx.code;
+    goto _return;
+  }
+  code = filterConvertGroupFromArray(info, group);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(group);
+    goto _return;
+  }
   taosArrayDestroy(group);
-
   FLT_ERR_JRET(fltInitValFieldData(info));
 
   if (!FILTER_GET_FLAG(info->options, FLT_OPTION_NO_REWRITE)) {
