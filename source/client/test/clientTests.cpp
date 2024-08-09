@@ -1493,4 +1493,125 @@ TEST(clientCase, sub_tb_mt_test) {
   }
 }
 
+TEST(clientCase, timezone_Test) {
+  {
+    // taos_options(  TSDB_OPTION_TIMEZONE, "UTC-8");
+    int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC-8");
+    ASSERT_TRUE(code ==  0);
+    TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+    ASSERT_NE(pConn, nullptr);
+
+    TAOS_RES* pRes = taos_query(pConn, "drop database if exists db1");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+
+    pRes = taos_query(pConn, "create database db1");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+
+    pRes = taos_query(pConn, "create table db1.t1 (ts timestamp, v int)");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+
+    char sql[256] = {0};
+    (void)sprintf(sql, "insert into db1.t1 values('2023-09-16 17:00:00', 1)");
+    pRes = taos_query(pConn, sql);
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+
+    pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 17:00:00'");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+    TAOS_ROW    pRow = NULL;
+    TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+    int32_t     numOfFields = taos_num_fields(pRes);
+
+    char str[512] = {0};
+    int rows =  0;
+    while ((pRow = taos_fetch_row(pRes)) != NULL) {
+      rows++;
+    }
+    ASSERT_TRUE(rows == 1);
+
+    taos_free_result(pRes);
+
+    taos_close(pConn);
+  }
+
+  {
+    // taos_options(  TSDB_OPTION_TIMEZONE, "UTC+8");
+    int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC+8");
+    ASSERT_TRUE(code ==  0);
+    TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+    ASSERT_NE(pConn, nullptr);
+
+    TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 01:00:00'");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+    TAOS_ROW    pRow = NULL;
+    TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+    int32_t     numOfFields = taos_num_fields(pRes);
+
+    int rows =  0;
+    char str[512] = {0};
+    while ((pRow = taos_fetch_row(pRes)) != NULL) {
+      rows++;
+    }
+    ASSERT_TRUE(rows == 1);
+
+    taos_free_result(pRes);
+
+    char sql[256] = {0};
+    (void)sprintf(sql, "insert into db1.t1 values('2023-09-16 17:00:01', 1)");
+    pRes = taos_query(pConn, sql);
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+    taos_free_result(pRes);
+
+    taos_close(pConn);
+  }
+
+  {
+    // taos_options(  TSDB_OPTION_TIMEZONE, "UTC+0");
+    int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC+0");
+    ASSERT_TRUE(code ==  0);
+    TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+    ASSERT_NE(pConn, nullptr);
+
+    TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 09:00:00'");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+    TAOS_ROW    pRow = NULL;
+    TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+    int32_t     numOfFields = taos_num_fields(pRes);
+
+    int rows =  0;
+    char str[512] = {0};
+    while ((pRow = taos_fetch_row(pRes)) != NULL) {
+      rows++;
+    }
+    ASSERT_TRUE(rows == 1);
+    taos_free_result(pRes);
+
+    {
+      TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-17 01:00:01'");
+      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+      TAOS_ROW    pRow = NULL;
+      TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+      int32_t     numOfFields = taos_num_fields(pRes);
+
+      int  rows = 0;
+      char str[512] = {0};
+      while ((pRow = taos_fetch_row(pRes)) != NULL) {
+        rows++;
+      }
+      ASSERT_TRUE(rows == 1);
+      taos_free_result(pRes);
+    }
+
+    taos_close(pConn);
+  }
+}
+
 #pragma GCC diagnostic pop
