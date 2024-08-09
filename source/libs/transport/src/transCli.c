@@ -1973,11 +1973,11 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
       SCliBatchList** ppBatchList = taosHashGet(pThrd->batchCache, key, klen);
       if (ppBatchList == NULL || *ppBatchList == NULL) {
         SCliBatchList* pBatchList = taosMemoryCalloc(1, sizeof(SCliBatchList));
-        if (pBatchList == NULL) {
-          tError("failed to create batch list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-          destroyCmsg(pMsg);
-          continue;
-        }
+        // if (pBatchList == NULL) {
+        //   tError("failed to create batch list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+        //   destroyCmsg(pMsg);
+        //   continue;
+        // }
         QUEUE_INIT(&pBatchList->wq);
         pBatchList->port = port;
         pBatchList->connMax = pInst->connLimitNum;
@@ -1987,21 +1987,21 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
 
         pBatchList->ip = taosStrdup(ip);
         pBatchList->dst = taosStrdup(key);
-        if (pBatchList->ip == NULL || pBatchList->dst == NULL) {
-          taosMemoryFree(pBatchList->ip);
-          taosMemoryFree(pBatchList->dst);
-          taosMemoryFree(pBatchList);
-          destroyCmsg(pMsg);
-          tError("failed to create batch list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-          continue;
-        }
+        // if (pBatchList->ip == NULL || pBatchList->dst == NULL) {
+        //   taosMemoryFree(pBatchList->ip);
+        //   taosMemoryFree(pBatchList->dst);
+        //   taosMemoryFree(pBatchList);
+        //   destroyCmsg(pMsg);
+        //   tError("failed to create batch list, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+        //   continue;
+        // }
 
         SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
-        if (pBatch == NULL) {
-          tError("failed to create batch, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-          destroyCmsg(pMsg);
-          continue;
-        }
+        // if (pBatch == NULL) {
+        //   tError("failed to create batch, reason:%s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+        //   destroyCmsg(pMsg);
+        //   continue;
+        // }
 
         pBatch->batchSize += pMsg->msg.contLen;
         pBatch->pList = pBatchList;
@@ -2010,21 +2010,21 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
 
         code = taosHashPut(pThrd->batchCache, key, klen, &pBatchList, sizeof(void*));
         if (code != 0) {
-          taosMemoryFree(pBatch);
-          taosMemoryFree(pBatchList->ip);
-          taosMemoryFree(pBatchList->dst);
-          taosMemoryFree(pBatchList);
-          tError("failed to put batch list to cache, reason:%s", tstrerror(code));
-          destroyCmsg(pMsg);
-          continue;
+          // taosMemoryFree(pBatch);
+          // taosMemoryFree(pBatchList->ip);
+          // taosMemoryFree(pBatchList->dst);
+          // taosMemoryFree(pBatchList);
+          // tError("failed to put batch list to cache, reason:%s", tstrerror(code));
+          // destroyCmsg(pMsg);
+          // continue;
         }
       } else {
         if (QUEUE_IS_EMPTY(&(*ppBatchList)->wq)) {
           SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
-          if (pBatch == NULL) {
-            destroyCmsg(pMsg);
-            continue;
-          }
+          // if (pBatch == NULL) {
+          //   destroyCmsg(pMsg);
+          //   continue;
+          // }
           QUEUE_INIT(&pBatch->wq);
           QUEUE_INIT(&pBatch->listq);
 
@@ -2044,10 +2044,10 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
             pBatch->wLen += 1;
           } else {
             SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
-            if (pBatch == NULL) {
-              destroyCmsg(pMsg);
-              continue;
-            }
+            // if (pBatch == NULL) {
+            //   destroyCmsg(pMsg);
+            //   continue;
+            // }
 
             QUEUE_INIT(&pBatch->wq);
             QUEUE_INIT(&pBatch->listq);
