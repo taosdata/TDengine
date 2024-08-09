@@ -543,16 +543,29 @@ class TDCom:
         # print(con)
         return con
 
-    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',database=None, timezone='asia/shanghai'):
+    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',database=None):
         cfgPath = self.getClientCfgPath()
-        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database=database, timezone=timezone)
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database=database)
         cur=con.cursor()
         # print(cur)
         return cur
 
-    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', database = None, timezone='asia/shanghai'):
+    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', database = None):
         newTdSql = TDSql()
-        cur = self.newcur(host=host,port=port,user=user,password=password, database=database, timezone=timezone)
+        cur = self.newcur(host=host,port=port,user=user,password=password, database=database)
+        newTdSql.init(cur, False)
+        return newTdSql
+    
+    def newcurWithTimezone(self,  timezone, host='localhost', port=6030,  user='root', password='taosdata'):
+        cfgPath = self.getClientCfgPath()
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port, timezone=timezone)
+        cur=con.cursor()
+        # print(cur)
+        return cur
+
+    def newTdSqlWithTimezone(self, timezone, host='localhost',port=6030,user='root',password='taosdata'):
+        newTdSql = TDSql()
+        cur = self.newcurWithTimezone(host=host,port=port,user=user,password=password, timezone=timezone)
         newTdSql.init(cur, False)
         return newTdSql
 
