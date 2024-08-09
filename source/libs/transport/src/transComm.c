@@ -32,7 +32,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
 
   char* buf = taosMemoryMalloc(len + compHdr + 8);  // 8 extra bytes
   if (buf == NULL) {
-    tError("failed to allocate memory for rpc msg compression, contLen:%d", len);
+    tWarn("failed to allocate memory for rpc msg compression, contLen:%d", len);
     ret = len;
     return ret;
   }
@@ -206,6 +206,8 @@ int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
       p->cap = p->left + p->len;
       p->buf = taosMemoryRealloc(p->buf, p->cap);
       if (p->buf == NULL) {
+        uvBuf->base = NULL;
+        uvBuf->len = 0;
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       uvBuf->base = p->buf + p->len;
@@ -440,11 +442,11 @@ void transReqQueueClear(queue* q) {
 
 int32_t transQueueInit(STransQueue* queue, void (*freeFunc)(const void* arg)) {
   queue->q = taosArrayInit(2, sizeof(void*));
-  queue->freeFunc = (void (*)(const void*))freeFunc;
-
   if (queue->q == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  queue->freeFunc = (void (*)(const void*))freeFunc;
+
   return 0;
 }
 bool transQueuePush(STransQueue* queue, void* arg) {
