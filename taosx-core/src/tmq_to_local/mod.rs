@@ -5,6 +5,19 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::{Context, Result};
+use chrono::{DateTime, Local};
+use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
+use taos::taos_query::tmq::Assignment;
+use taos::*;
+use taos_query::common::RawData;
+use tokio::sync::{Barrier, Mutex};
+use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Instrument};
+
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
     tmq::tmq_metric::TmqMetrics,
@@ -13,19 +26,6 @@ use crate::{
     taoz::{RawType, ZFile},
     tmq::*,
 };
-use anyhow::{Context, Result};
-use chrono::{DateTime, Local};
-use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-use taos::*;
-use tokio::sync::{Barrier, Mutex};
-use tokio::task::JoinSet;
-use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Instrument};
-
-use dashmap::DashMap;
-use taos::taos_query::tmq::Assignment;
-use taos_query::common::RawData;
 
 struct ZFileMan {
     api_version: String,
@@ -58,6 +58,7 @@ impl ZFileMan {
         }
         Ok(())
     }
+
     async fn assert_vgroup(&self, vgroup: i32) -> Result<()> {
         if !self.writers.contains_key(&vgroup) {
             let _ = self.sync.lock().await;
@@ -75,6 +76,7 @@ impl ZFileMan {
         }
         Ok(())
     }
+
     #[allow(unused /* previous version */)]
     async fn write_vgroup_with_meta(
         &self,
@@ -89,6 +91,7 @@ impl ZFileMan {
         metrics.add_messages_of_meta(1);
         Ok(())
     }
+
     #[allow(unused /* previous version */)]
     async fn write_vgroup_with_data(
         &self,
@@ -152,20 +155,22 @@ impl ZFileMan {
         Ok(())
     }
 
+    /// write data to file and return the number of rows and whether to stop
     async fn stop_at(
         &self,
         vgroup: i32,
         data: taos::Data,
         metrics: &TmqMetrics,
-        stop_at: Option<DateTime<Local>>,
+        stop_at: &Option<StopAt>,
     ) -> Result<(usize, bool)> {
         if stop_at.is_none() {
             return Ok((0, false));
         }
+
         let mut nrows = 0;
         let mut last_ts = None;
+
         while let Some(block) = data.fetch_raw_block().await? {
-            // dbg!(&block);
             if let Some(view) = block.column_views().get(0) {
                 match view {
                     ColumnView::Timestamp(view) => {
@@ -175,6 +180,7 @@ impl ZFileMan {
                 }
             }
             nrows += block.nrows();
+
             tracing::debug!(
                 "[vg:{vgroup}] table {} rows: {}",
                 block.table_name().unwrap_or_default(),
@@ -187,11 +193,18 @@ impl ZFileMan {
 
         let mut stop = false;
         match (stop_at, last_ts) {
-            (Some(stop_at), Some(last_ts)) => {
-                if last_ts.to_datetime_with_tz() >= stop_at {
-                    stop = true;
+            (Some(stop_at), Some(last_ts)) => match stop_at {
+                StopAt::Rows(n) => {
+                    if nrows >= *n {
+                        stop = true;
+                    }
                 }
-            }
+                StopAt::DateTime(stop_at) => {
+                    if last_ts.to_datetime_with_tz() >= *stop_at {
+                        stop = true;
+                    }
+                }
+            },
             _ => (),
         }
         metrics.add_messages_of_data(1);
@@ -205,91 +218,6 @@ impl ZFileMan {
 
         Ok(())
     }
-}
-
-#[instrument(skip_all)]
-async fn backup(
-    sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
-    consumer: Consumer,
-    man: Arc<ZFileMan>,
-    id: usize,
-    barrier: Arc<Barrier>,
-    cancel: CancellationToken,
-    metrics_arc: Arc<CoreMetrics>,
-    stop_at: Option<DateTime<Local>>,
-    _offsets: Arc<DashMap<String, Vec<Assignment>>>,
-    _version: String,
-) -> Result<()> {
-    let mut stream = consumer.stream();
-    let mut rows = 0;
-    let mut messages = 0;
-    let metrics = metrics_arc.tmq();
-    loop {
-        tokio::select! {
-            _ = cancel.cancelled() => {
-                tracing::warn!("[sync: {id}] cancelled");
-                break;
-            }
-            next = stream.try_next() => {
-                if let Some((offset, message)) = next? {
-                    metrics.add_messages(1);
-                    let total = metrics.messages.load(SeqCst);
-                    messages += 1;
-                    if messages % 2000 == 0 {
-                        tracing::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
-                    }
-                    let vgroup = offset.vgroup_id();
-
-                    match message {
-                        MessageSet::Meta(meta) => {
-                            let raw = meta.as_raw_meta().await?;
-                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Meta).await?;
-                            man.flush_vgroup(vgroup).await?;
-                            metrics.add_messages_of_meta(1);
-                            consumer.commit(offset).await?;
-                        }
-                        MessageSet::Data(data) => {
-                            let raw = data.as_raw_data().await?;
-                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Data).await?;
-                            man.flush_vgroup(vgroup).await?;
-                            metrics.add_messages_of_data(1);
-
-                            let (size, stop) = man.stop_at(vgroup, data, metrics, stop_at).await?;
-                            rows += size;
-                            consumer.commit(offset).await?;
-                            if stop {
-                                break;
-                            }
-                        }
-                        MessageSet::MetaData(_meta, data) => {
-                            let raw = data.as_raw_data().await?;
-                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Both).await?;
-                            man.flush_vgroup(vgroup).await?;
-                            metrics.add_messages_of_data(1);
-
-                            let (size, stop) = man.stop_at(vgroup, data, metrics, stop_at).await?;
-                            rows += size;
-                            consumer.commit(offset).await?;
-                            if stop {
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    tracing::info!("[sync: {id}] polling stopped");
-                    break;
-                }
-            }
-        }
-    }
-
-    barrier.wait().await;
-    tracing::info!("[{id}] total backup {} rows", rows);
-    drop(stream);
-    let _ = sender.send(consumer); // tokio send
-                                   // consumer.unsubscribe().await;
-    tracing::info!("[{id}] backup done");
-    Ok(())
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -332,6 +260,7 @@ impl LocalConfig {
     }
 }
 
+/// full or incremental backup from TMQ to local file
 pub async fn tmq_to_local(
     from: Dsn,
     mut to: Dsn,
@@ -345,15 +274,14 @@ pub async fn tmq_to_local(
     let version = builder.server_version().await?.to_owned();
 
     let mut from_params = from.drain_params();
-
     let stop_at = if let Some(stop_at) = from_params.remove("stopAt") {
-        let ts = StopAt::from_str(&stop_at)
-            .context(format!("Unsupported `stopAt` parameter: {stop_at}"))?;
-        Some(ts.to_local_date_time())
+        Some(StopAt::from_str(&stop_at).map_err(|err| {
+            anyhow::anyhow!("failed to parse stopAt: {}, cause: {:?}", stop_at, err)
+        })?)
     } else {
         None
     };
-    // let (mut from, mut from_params) = from.split_params();
+
     let to_params = to.drain_params();
 
     if to.path.is_none() {
@@ -362,6 +290,8 @@ pub async fn tmq_to_local(
             to
         );
     }
+
+    // local backup path
     let path: &Path = to.path.as_ref().unwrap().as_ref();
     if !path.exists() {
         tracing::info!("create directory for backup: {}", path.display());
@@ -437,12 +367,10 @@ pub async fn tmq_to_local(
     tracing::info!("write to config file done");
 
     let mut join_set = JoinSet::new();
-
     let mut consumer_task_id = 0;
-    let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
+    let (consumers_tx, mut consumers_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let mut files_manager = Vec::new();
-
     for (_, topic) in config.topics.iter().enumerate() {
         if jobs == 0 && topic.vgroups == 0 {
             anyhow::bail!("unknown vgroups, use a thread number larger than 0 with -j");
@@ -491,8 +419,9 @@ pub async fn tmq_to_local(
             let barrier = barrier.clone();
             let man = man.clone();
             let cancel = cancel.clone();
-            let sender = consumers_sender.clone();
+            let sender = consumers_tx.clone();
             let offsets = offsets.clone();
+            let stop_at_clone = stop_at.clone();
             join_set.spawn(
                 backup(
                     sender,
@@ -502,7 +431,7 @@ pub async fn tmq_to_local(
                     barrier,
                     cancel,
                     metrics_arc.clone(),
-                    stop_at,
+                    stop_at_clone,
                     offsets,
                     version.clone(),
                 )
@@ -521,44 +450,136 @@ pub async fn tmq_to_local(
             return Err(err);
         }
     }
+
     tracing::info!("all consumers done");
     for man in files_manager {
         man.shutdown().await?;
     }
     tracing::info!("stop all consumers({})", consumer_task_id);
     for _ in 0..consumer_task_id {
-        let _ = consumers_receiver.recv().await;
+        let _ = consumers_rx.recv().await;
     }
     tracing::info!("all workers done for backup");
-
-    println!("{}", metrics);
+    tracing::debug!("metrics: {}", metrics);
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread")]
-#[ignore]
-async fn test_tmq_to_local() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
-    taos.exec_many([
-        "DROP TOPIC IF EXISTS tmq_to_local",
-        "DROP DATABASE IF EXISTS tmq_to_local",
-        "CREATE DATABASE tmq_to_local wal_retention_period 3600",
-        "USE tmq_to_local",
-        "CREATE STABLE stb1 (ts TIMESTAMP, v1 BOOL) TAGS(j1 json)",
-        "CREATE TOPIC tmq_to_local WITH META AS DATABASE tmq_to_local",
-    ])
-    .await?;
-    tmq_to_local(
-        "tmq:///tmq_to_local".parse()?,
-        "local:./tmq_to_local_out".parse()?,
-        1,
-        true,
-        Default::default(),
-        None,
-    )
-    .await?;
-    std::fs::remove_dir_all("./tmq_to_local_out")?;
+#[instrument(skip_all)]
+async fn backup(
+    sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
+    consumer: Consumer,
+    man: Arc<ZFileMan>,
+    id: usize,
+    barrier: Arc<Barrier>,
+    cancel: CancellationToken,
+    metrics_arc: Arc<CoreMetrics>,
+    stop_at: Option<StopAt>,
+    _offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    _version: String,
+) -> Result<()> {
+    let mut stream = consumer.stream();
+    let mut rows = 0;
+    let mut messages = 0;
+    let metrics = metrics_arc.tmq();
+
+    loop {
+        tokio::select! {
+            _ = cancel.cancelled() => {
+                tracing::warn!("[sync: {id}] cancelled");
+                break;
+            }
+            next = stream.try_next() => {
+                if let Some((offset, message)) = next? {
+                    metrics.add_messages(1);
+                    let total = metrics.messages.load(SeqCst);
+                    messages += 1;
+                    if messages % 2000 == 0 {
+                        tracing::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
+                    }
+                    let vgroup = offset.vgroup_id();
+
+                    // handle message
+                    match message {
+                        MessageSet::Meta(meta) => {
+                            let raw = meta.as_raw_meta().await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Meta).await?;
+                            man.flush_vgroup(vgroup).await?;
+                            metrics.add_messages_of_meta(1);
+                            consumer.commit(offset).await?;
+                        }
+                        MessageSet::Data(data) => {
+                            let raw = data.as_raw_data().await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Data).await?;
+                            man.flush_vgroup(vgroup).await?;
+                            metrics.add_messages_of_data(1);
+
+                            let (size, stop) = man.stop_at(vgroup, data, metrics, &stop_at).await?;
+                            rows += size;
+                            consumer.commit(offset).await?;
+                            if stop {
+                                break;
+                            }
+                        }
+                        MessageSet::MetaData(_meta, data) => {
+                            let raw = data.as_raw_data().await?;
+                            man.write_vgroup_with_raw(vgroup, &raw, RawType::Both).await?;
+                            man.flush_vgroup(vgroup).await?;
+                            metrics.add_messages_of_data(1);
+
+                            let (size, stop) = man.stop_at(vgroup, data, metrics, &stop_at).await?;
+                            rows += size;
+                            consumer.commit(offset).await?;
+                            if stop {
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    tracing::info!("[sync: {id}] polling stopped");
+                    break;
+                }
+            }
+        }
+    }
+
+    barrier.wait().await;
+    tracing::info!("[{id}] total backup {} rows", rows);
+    drop(stream);
+    let _ = sender.send(consumer);
+    // consumer.unsubscribe().await;
+    tracing::info!("[{id}] backup done");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn test_tmq_to_local() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
+        let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
+        taos.exec_many([
+            "DROP TOPIC IF EXISTS tmq_to_local",
+            "DROP DATABASE IF EXISTS tmq_to_local",
+            "CREATE DATABASE tmq_to_local wal_retention_period 3600",
+            "USE tmq_to_local",
+            "CREATE STABLE stb1 (ts TIMESTAMP, v1 BOOL) TAGS(j1 json)",
+            "CREATE TOPIC tmq_to_local WITH META AS DATABASE tmq_to_local",
+        ])
+        .await?;
+        tmq_to_local(
+            "tmq:///tmq_to_local".parse()?,
+            "local:./tmq_to_local_out".parse()?,
+            1,
+            true,
+            Default::default(),
+            None,
+        )
+        .await?;
+        std::fs::remove_dir_all("./tmq_to_local_out")?;
+        Ok(())
+    }
 }
