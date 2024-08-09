@@ -349,6 +349,9 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   streamMetaWLock(pStreamMeta);
   pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
   streamMetaWUnLock(pStreamMeta);
+  if (pTaskList == NULL) {
+    return terrno;
+  }
 
   tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
 

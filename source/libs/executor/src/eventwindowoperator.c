@@ -110,11 +110,11 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pEventWindowNode->window.node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
+  initBasicInfo(&pInfo->binfo, pResBlock);
 
   code = blockDataEnsureCapacity(pResBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  initBasicInfo(&pInfo->binfo, pResBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
   pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
@@ -145,7 +145,10 @@ _error:
     destroyEWindowOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -284,6 +287,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   SSDataBlock*     pRes = pInfo->binfo.pRes;
   int64_t          gid = pBlock->info.id.groupId;
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _return, terrno);
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
   SWindowRowsSup*  pRowSup = &pInfo->winSup;
   SColumnInfoData *ps = NULL, *pe = NULL;

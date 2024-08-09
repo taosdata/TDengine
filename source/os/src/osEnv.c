@@ -47,14 +47,15 @@ char tsAVX512Supported = 0;
 
 int32_t osDefaultInit() {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
   taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
-  code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone);
-  if (code) {
-    return code;
+  if (strlen(tsTimezoneStr) > 0) { // ignore empty timezone
+    if ((code = taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone)) != TSDB_CODE_SUCCESS)
+      return code;
   }
+
   taosGetSystemInfo();
 
   // deadlock in query

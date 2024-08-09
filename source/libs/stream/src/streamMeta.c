@@ -1140,6 +1140,20 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     taosMsleep(100);
   }
 
+  streamMetaRLock(pMeta);
+
+  SArray* pTaskList = NULL;
+  int32_t code = streamMetaSendMsgBeforeCloseTasks(pMeta, &pTaskList);
+  if (code != TSDB_CODE_SUCCESS) {
+//    return code;
+  }
+
+  streamMetaRUnLock(pMeta);
+
+  if (pTaskList != NULL) {
+    taosArrayDestroy(pTaskList);
+  }
+
   int64_t el = taosGetTimestampMs() - st;
   stDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
 }
@@ -1277,10 +1291,13 @@ static int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64
   if (pMeta->closeFlag) {
     streamMetaWUnLock(pMeta);
     stError("vgId:%d vnode is closed, not start check task(s) downstream status", pMeta->vgId);
-    return -1;
+    return TSDB_CODE_FAILED;
   }
 
   *pList = taosArrayDup(pMeta->pTaskList, NULL);
+  if (*pList == NULL) {
+    return terrno;
+  }
 
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   taosHashClear(pMeta->startInfo.pFailedTaskSet);
