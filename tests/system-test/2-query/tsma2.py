@@ -830,11 +830,21 @@ class TDTestCase:
             ).ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
         return ctxs
 
+    def test_query_interval(self):
+        sql = 'select count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, '2017-06-15 00:00:00')
+        sql = 'select /*+skip_tsma()*/count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
+        tdSql.query(sql)
+        tdSql.checkData(0, 1, '2017-06-15 00:00:00')
+
     def test_bigger_tsma_interval(self):
         db = 'db'
         tb = 'meters'
         func = ['max(c1)', 'min(c1)', 'min(c2)', 'max(c2)', 'avg(c1)', 'count(ts)']
         self.init_data(db,10, 10000, 1500000000000, 11000000)
+        self.test_query_interval()
+
         examples = [
                 ('10m', '1h', True), ('10m','1d',True), ('1m', '120s', True), ('1h','1d',True),
                 ('12h', '1y', False), ('1h', '1n', True), ('1h', '1y', True),
@@ -899,16 +909,6 @@ class TDTestCase:
 
         self.check(ctxs)
 
-        sql = 'select count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
-        tdSql.query(sql)
-        first_win: datetime = tdSql.queryResult[0][1]
-        if first_win.hour != 0:
-            tdLog.exit("day sliding should always aligned with current timezone")
-        sql = 'select /*+skip_tsma()*/count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
-        tdSql.query(sql)
-        first_win: datetime = tdSql.queryResult[0][1]
-        if first_win.hour != 0:
-            tdLog.exit("day sliding should always aligned with current timezone")
 
     def stop(self):
         tdSql.close()
