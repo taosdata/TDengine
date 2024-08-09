@@ -846,7 +846,7 @@ pycumsum 使用 numpy 计算输入列所有数据的累积和。
 
 创建标量函数的 SQL 语法如下。
 ```sql
-CREATE OR REPLACE FUNCTION function_name AS library_path OUTPUTTYPE output_type LANGUAGE 'Python';
+CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_type LANGUAGE 'Python';
 ```
 各参数说明如下。
 - or replace：如果函数已经存在，则会修改已有的函数属性。
@@ -859,8 +859,9 @@ CREATE OR REPLACE FUNCTION function_name AS library_path OUTPUTTYPE output_type 
 ### 创建聚合函数
 
 创建聚合函数的 SQL 语法如下。
+
 ```sql
-CREATE OR REPLACE AGGREGATE FUNCTION function_name library_path OUTPUTTYPE output_type LANGUAGE 'Python';
+CREATE [OR REPLACE] AGGREGATE FUNCTION function_name library_path OUTPUTTYPE output_type BUFSIZE 其中，buffer_size LANGUAGE 'Python';
 ```
 
 其中，buffer_size 表示中间计算结果的缓冲区大小，单位是字节。其他参数的含义与标量函数相同。
@@ -872,7 +873,7 @@ CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUT
 
 ### 删除 UDF
 
-删除指定名称的 UDF 的 SQL 语法如下：
+删除指定名称的 UDF 的 SQL 语法如下。
 ```sql
 DROP FUNCTION function_name;
 ```
