@@ -83,6 +83,7 @@ struct tmq_t {
   char           groupId[TSDB_CGROUP_LEN];
   char           clientId[TSDB_CLIENT_ID_LEN];
   char           user[TSDB_USER_LEN];
+  char           fqdn[TSDB_FQDN_LEN];
   int8_t         withTbName;
   int8_t         useSnapshot;
   int8_t         autoCommit;
@@ -1267,6 +1268,9 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->sourceExcluded = conf->sourceExcluded;
   pTmq->enableBatchMeta = conf->enableBatchMeta;
   tstrncpy(pTmq->user, user, TSDB_USER_LEN);
+  if (taosGetFqdn(pTmq->fqdn) != 0) {
+    (void)strcpy(pTmq->fqdn, "localhost");
+  }
   if (conf->replayEnable) {
     pTmq->autoCommit = false;
   }
@@ -1335,6 +1339,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   tstrncpy(req.clientId, tmq->clientId, TSDB_CLIENT_ID_LEN);
   tstrncpy(req.cgroup, tmq->groupId, TSDB_CGROUP_LEN);
   tstrncpy(req.user, tmq->user, TSDB_USER_LEN);
+  tstrncpy(req.fqdn, tmq->fqdn, TSDB_FQDN_LEN);
 
   req.topicNames = taosArrayInit(sz, sizeof(void*));
   if (req.topicNames == NULL) {

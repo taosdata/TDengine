@@ -2838,6 +2838,7 @@ typedef struct {
   char    cgroup[TSDB_CGROUP_LEN];
   char    clientId[TSDB_CLIENT_ID_LEN];
   char    user[TSDB_USER_LEN];
+  char    fqdn[TSDB_FQDN_LEN];
   SArray* topicNames;  // SArray<char**>
 
   int8_t  withTbName;
@@ -2872,6 +2873,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   tlen += taosEncodeFixedI32(buf, pReq->sessionTimeoutMs);
   tlen += taosEncodeFixedI32(buf, pReq->maxPollIntervalMs);
   tlen += taosEncodeString(buf, pReq->user);
+  tlen += taosEncodeString(buf, pReq->fqdn);
 
   return tlen;
 }
@@ -2907,6 +2909,7 @@ static FORCE_INLINE int32_t tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeR
     buf = taosDecodeFixedI32(buf, &pReq->sessionTimeoutMs);
     buf = taosDecodeFixedI32(buf, &pReq->maxPollIntervalMs);
     buf = taosDecodeStringTo(buf, pReq->user);
+    buf = taosDecodeStringTo(buf, pReq->fqdn);
   } else {
     pReq->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
     pReq->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
