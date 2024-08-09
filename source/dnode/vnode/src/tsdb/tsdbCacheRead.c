@@ -466,13 +466,13 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
   if (pRow == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
+    goto _end1;
   }
 
   pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
   if (pRes == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
+    goto _end1;
   }
 
   pkBufLen = (pr->rowKey.numOfPKs > 0) ? pr->pkColumn.bytes : 0;
@@ -482,7 +482,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + bytes + pkBufLen + VARSTR_HEADER_SIZE);
     if (pRes[j] == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _end;
+      goto _end1;
     }
 
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);
@@ -526,7 +526,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         for (int32_t j = 0; j < pr->rowKey.numOfPKs; j++) {
           p.rowKey.pks[j].type = pr->pkColumn.type;
           if (IS_VAR_DATA_TYPE(pr->pkColumn.type)) {
-
             p.rowKey.pks[j].pData = taosMemoryCalloc(1, pr->pkColumn.bytes);
             if (p.rowKey.pks[j].pData == NULL) {
               code = TSDB_CODE_OUT_OF_MEMORY;
@@ -707,6 +706,7 @@ _end:
 
   (void)taosThreadMutexUnlock(&pr->readerMutex);
 
+_end1:
   if (pRes != NULL) {
     for (int32_t j = 0; j < pr->numOfCols; ++j) {
       taosMemoryFree(pRes[j]);
