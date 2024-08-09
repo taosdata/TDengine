@@ -23,7 +23,8 @@
 static void tLDataIterClose2(SLDataIter *pIter);
 
 // SLDataIter =================================================
-int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo) {
+int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int8_t *colTypes, int32_t numOfCols,
+                                SSttBlockLoadInfo **pInfo) {
   *pInfo = NULL;
 
   SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(1, sizeof(SSttBlockLoadInfo));
@@ -56,6 +57,7 @@ int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t num
 
   pLoadInfo->pSchema = pSchema;
   pLoadInfo->colIds = colList;
+  pLoadInfo->colTypes = colTypes;
   pLoadInfo->numOfCols = numOfCols;
 
   *pInfo = pLoadInfo;
@@ -179,7 +181,7 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
 
   SBlockData *pBlock = &pInfo->blockData[pInfo->currentLoadBlockIndex].data;
   code = tsdbSttFileReadBlockDataByColumn(pIter->pReader, pIter->pSttBlk, pBlock, pInfo->pSchema, &pInfo->colIds[1],
-                                          pInfo->numOfCols - 1);
+                                          &pInfo->colTypes[1], pInfo->numOfCols - 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -973,7 +975,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
       }
 
       if (pLoadInfo == NULL) {
-        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols, &pLoadInfo);
+        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->pTypes, pConf->numOfCols, &pLoadInfo);
         if (code != TSDB_CODE_SUCCESS) {
           goto _end;
         }

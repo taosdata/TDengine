@@ -278,8 +278,8 @@ int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOf
 }
 
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr,
-                                SArray* pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks) {
+                                SArray* pCidList, SArray* pTypeList, int32_t* pSlotIds, uint64_t suid, void** pReader,
+                                const char* idstr, SArray* pFuncTypeList, SColumnInfo* pPkCol, int32_t numOfPks) {
   *pReader = NULL;
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
@@ -293,6 +293,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->info.suid = suid;
   p->numOfCols = numOfCols;
   p->pCidList = pCidList;
+  p->pTypeList = pTypeList;
   p->pSlotIds = pSlotIds;
   p->pFuncTypeList = pFuncTypeList;
 
@@ -337,6 +338,10 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   }
 
   p->idstr = taosStrdup(idstr);
+  if (p->idstr == NULL) {
+    tsdbCacherowsReaderClose(p);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   code = taosThreadMutexInit(&p->readerMutex, NULL);
   if (code) {
     tsdbCacherowsReaderClose(p);
