@@ -295,12 +295,12 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   if (code) {
     stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
   }
-
   streamMetaRUnLock(pMeta);
+
   streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
                  "meta-hb-tmr");
-
   code = taosReleaseRef(streamMetaId, rid);
+
   if (code) {
     stError("vgId:%d in meta timer, failed to release the meta rid:%" PRId64, pMeta->vgId, rid);
   }
