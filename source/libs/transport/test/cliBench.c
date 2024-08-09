@@ -43,7 +43,7 @@ void initLogEnv() {
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
