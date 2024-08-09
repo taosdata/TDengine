@@ -861,7 +861,7 @@ CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_typ
 创建聚合函数的 SQL 语法如下。
 
 ```sql
-CREATE [OR REPLACE] AGGREGATE FUNCTION function_name library_path OUTPUTTYPE output_type BUFSIZE 其中，buffer_size LANGUAGE 'Python';
+CREATE [OR REPLACE] AGGREGATE FUNCTION function_name library_path OUTPUTTYPE output_type BUFSIZE buffer_size LANGUAGE 'Python';
 ```
 
 其中，buffer_size 表示中间计算结果的缓冲区大小，单位是字节。其他参数的含义与标量函数相同。
