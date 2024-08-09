@@ -2012,8 +2012,11 @@ int32_t createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiN
   return code;
 
 _error:
-  destroyStreamFinalIntervalOperatorInfo(pInfo);
-  taosMemoryFreeClear(pOperator);
+  if (pInfo != NULL) destroyStreamFinalIntervalOperatorInfo(pInfo);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -3738,9 +3741,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   code = initBasicInfoEx(&pInfo->binfo, pExpSup, pExprInfo, numOfCols, pResBlock, &pTaskInfo->storageAPI.functionStore);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->twAggSup = (STimeWindowAggSupp){
       .waterMark = pSessionNode->window.watermark,
@@ -3834,7 +3835,10 @@ _error:
     destroyStreamSessionAggOperatorInfo(pInfo);
   }
 
-  taosMemoryFreeClear(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
@@ -4090,7 +4094,10 @@ _error:
   if (pInfo != NULL) {
     destroyStreamSessionAggOperatorInfo(pInfo);
   }
-  taosMemoryFreeClear(pOperator);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
@@ -4979,8 +4986,11 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   return code;
 
 _error:
-  destroyStreamStateOperatorInfo(pInfo);
-  taosMemoryFreeClear(pOperator);
+  if (pInfo != NULL) destroyStreamStateOperatorInfo(pInfo);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
@@ -5193,6 +5203,8 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
+  initBasicInfo(&pInfo->binfo, pResBlock);
+
   pInfo->interval = (SInterval){
       .interval = pIntervalPhyNode->interval,
       .sliding = pIntervalPhyNode->sliding,
@@ -5220,7 +5232,6 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   SExprSupp* pSup = &pOperator->exprSupp;
   pSup->hasWindowOrGroup = true;
 
-  initBasicInfo(&pInfo->binfo, pResBlock);
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -5314,8 +5325,11 @@ int32_t createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   return code;
 
 _error:
-  destroyStreamFinalIntervalOperatorInfo(pInfo);
-  taosMemoryFreeClear(pOperator);
+  if (pInfo != NULL) destroyStreamFinalIntervalOperatorInfo(pInfo);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }

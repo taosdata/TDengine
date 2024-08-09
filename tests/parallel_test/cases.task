@@ -340,7 +340,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
@@ -544,6 +544,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/limit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/logical_operators.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/logical_operators.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py

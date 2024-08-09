@@ -1204,8 +1204,12 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timezone");
-  TAOS_CHECK_RETURN(osSetTimezone(pItem->str));
-  uDebug("timezone format changed from %s to %s", pItem->str, tsTimezoneStr);
+  if (0 == strlen(pItem->str)) {
+    uError("timezone is not set");
+  } else {
+    TAOS_CHECK_RETURN(osSetTimezone(pItem->str));
+    uDebug("timezone format changed from %s to %s", pItem->str, tsTimezoneStr);
+  }
   TAOS_CHECK_RETURN(cfgSetItem(pCfg, "timezone", tsTimezoneStr, pItem->stype, true));
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "locale");
@@ -1216,7 +1220,7 @@ static int32_t taosSetSystemCfg(SConfig *pCfg) {
 
   int32_t code = taosSetSystemLocale(locale, charset);
   if (TSDB_CODE_SUCCESS != code) {
-    uInfo("failed to set locale %s, since: %s", locale, tstrerror(code));
+    uError("failed to set locale:%s, since: %s", locale, tstrerror(code));
     char curLocale[TD_LOCALE_LEN] = {0};
     char curCharset[TD_CHARSET_LEN] = {0};
     taosGetSystemLocale(curLocale, curCharset);
@@ -1568,13 +1572,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SConfig *pCfg = NULL;
 
   if (tsCfg == NULL) {
-    TAOS_CHECK_RETURN(osDefaultInit());
+    TAOS_CHECK_GOTO(osDefaultInit(), &lino, _exit);
   }
 
-  SConfig *pCfg = NULL;
-  TAOS_CHECK_RETURN(cfgInit(&pCfg));
+  TAOS_CHECK_GOTO(cfgInit(&pCfg), &lino, _exit);
 
   if (tsc) {
     tsLogEmbedded = 0;
@@ -1604,7 +1608,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   SConfigItem *pDebugItem = NULL;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pDebugItem, "debugFlag");
-  TAOS_CHECK_RETURN(taosSetAllDebugFlag(pCfg, pDebugItem->i32));
+  TAOS_CHECK_GOTO(taosSetAllDebugFlag(pCfg, pDebugItem->i32), &lino, _exit);
 
   if ((code = taosMulModeMkDir(tsLogDir, 0777, true)) != TSDB_CODE_SUCCESS) {
     printf("failed to create dir:%s since %s\n", tsLogDir, tstrerror(code));

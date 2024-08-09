@@ -453,8 +453,9 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pReadyMsgList); ++i) {
     STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pInfo->pReadyMsgList, i);
     if (pReadyInfo == NULL) {
-      streamMutexUnlock(&pInfo->lock);
-      return TSDB_CODE_INVALID_PARA;
+      stError("s-task:%s invalid index during iterate the checkpoint-ready msg list, index:%d, ignore and continue",
+              pTask->id.idStr, i);
+      continue;
     }
 
     if (pReadyInfo->upstreamTaskId == upstreamTaskId && pReadyInfo->checkpointId == checkpointId) {
@@ -468,8 +469,9 @@ int32_t streamTaskProcessCheckpointReadyRsp(SStreamTask* pTask, int32_t upstream
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pReadyMsgList); ++i) {
     STaskCheckpointReadyInfo* pReadyInfo = taosArrayGet(pInfo->pReadyMsgList, i);
     if (pReadyInfo == NULL) {
-      streamMutexUnlock(&pInfo->lock);
-      return TSDB_CODE_INVALID_PARA;
+      stError("s-task:%s invalid index during iterate the checkpoint-ready msg list, index:%d, ignore and continue",
+              pTask->id.idStr, i);
+      continue;
     }
 
     if (pReadyInfo->sendCompleted == 1) {
@@ -601,9 +603,15 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 }
 
 void streamTaskSetFailedCheckpointId(SStreamTask* pTask) {
-  pTask->chkInfo.pActiveInfo->failedId = pTask->chkInfo.pActiveInfo->activeId;
-  stDebug("s-task:%s mark the checkpointId:%" PRId64 " (transId:%d) failed", pTask->id.idStr,
-          pTask->chkInfo.pActiveInfo->activeId, pTask->chkInfo.pActiveInfo->transId);
+  struct SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
+
+  if (pInfo->activeId <= 0) {
+    stWarn("s-task:%s checkpoint-info is cleared now, not set the failed checkpoint info", pTask->id.idStr);
+  } else {
+    pInfo->failedId = pInfo->activeId;
+    stDebug("s-task:%s mark the checkpointId:%" PRId64 " (transId:%d) failed", pTask->id.idStr, pInfo->activeId,
+            pInfo->transId);
+  }
 }
 
 static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* list) {
@@ -960,6 +968,7 @@ bool streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId) 
   const char*            id = pTask->id.idStr;
   SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
   SStreamTaskState       pStatus = streamTaskGetStatus(pTask);
+  bool                   alreadySend = false;
 
   if (pStatus.state != TASK_STATUS__CK) {
     return false;
@@ -971,11 +980,12 @@ bool streamTaskAlreadySendTrigger(SStreamTask* pTask, int32_t downstreamNodeId) 
     return false;
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pDispatchTriggerList); ++i) {
+  int32_t num = taosArrayGetSize(pInfo->pDispatchTriggerList);
+  for (int32_t i = 0; i < num; ++i) {
     STaskTriggerSendInfo* pSendInfo = taosArrayGet(pInfo->pDispatchTriggerList, i);
     if (pSendInfo == NULL) {
-      streamMutexUnlock(&pInfo->lock);
-      return TSDB_CODE_INVALID_PARA;
+      stError("s-task:%s invalid index in dispatch-trigger list, index:%d, size:%d, ignore and continue", id, i, num);
+      continue;
     }
 
     if (pSendInfo->nodeId != downstreamNodeId) {

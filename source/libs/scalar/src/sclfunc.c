@@ -401,8 +401,8 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
       taosMemoryFree(newBuf);
       return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
-    (void)memcpy(varDataVal(output) + *dataLen, newBuf, varDataLen(input) * TSDB_NCHAR_SIZE);
-    *dataLen += varDataLen(input) * TSDB_NCHAR_SIZE;
+    (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
+    *dataLen += len;
     taosMemoryFree(newBuf);
   } else {
     (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
@@ -2913,7 +2913,7 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 
 _return:
   taosMemoryFree(bins);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t selectScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

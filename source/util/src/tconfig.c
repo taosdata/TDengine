@@ -244,6 +244,12 @@ static int32_t doSetConf(SConfigItem *pItem, const char *value, ECfgSrcType styp
 
 static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
+  if (strlen(value) == 0) {
+    uError("cfg:%s, type:%s src:%s, value:%s, skip to set timezone", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
   TAOS_CHECK_RETURN(osSetTimezone(value));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

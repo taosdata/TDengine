@@ -1207,8 +1207,11 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  taosMemoryFree(pInfo);
-  taosMemoryFree(pOperator);
+  if (pInfo != NULL) destroyTimeSliceOperatorInfo(pInfo);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
