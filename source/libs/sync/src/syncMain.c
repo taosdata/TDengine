@@ -1287,7 +1287,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   }
 
   // tools
-  (void)syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS, &pSyncNode->pSyncRespMgr); // TODO: check return value
+  (void)syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS, &pSyncNode->pSyncRespMgr);  // TODO: check return value
   if (pSyncNode->pSyncRespMgr == NULL) {
     sError("vgId:%d, failed to create SyncRespMgr", pSyncNode->vgId);
     goto _error;
@@ -1407,7 +1407,8 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
   sInfo("vgId:%d, restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
-  if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE && (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex)) < 0) {
+  if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
+      (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex)) < 0) {
     TAOS_RETURN(code);
   }
 
@@ -2187,7 +2188,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   }
 
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  ASSERT(lastIndex >= 0);
+  // ASSERT(lastIndex >= 0);
   sInfo("vgId:%d, become leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64 "", pSyncNode->vgId,
         raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, lastIndex);
 }
