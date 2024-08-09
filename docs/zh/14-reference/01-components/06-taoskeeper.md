@@ -317,3 +317,19 @@ scrape_configs:
 
 在 Grafana Dashboard 菜单点击 `import`，dashboard ID 填写 `18587`，点击 `Load` 按钮即可导入 `TaosKeeper Prometheus Dashboard for 3.x` dashboard。
 
+
+
+## taosKeeper 监控指标
+
+taosKeeper 也会将自己采集的监控数据写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。
+
+### keeper\_monitor 表
+
+`keeper_monitor` 记录 taoskeeper 监控数据。
+
+| field    | type      | is\_tag | comment      |
+| :------- | :-------- | :------ | :----------- |
+| ts       | TIMESTAMP |         | timestamp    |
+| cpu      | DOUBLE    |         | cpu 使用率   |
+| mem      | DOUBLE    |         | 内存使用率   |
+| identify | NCHAR     | TAG     | 身份标识信息 |

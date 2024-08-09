@@ -90,11 +90,11 @@ taosx privileges -i ./user-pass-privileges-backup.json -t "taos:///"
 
 可用参数列表：
 
-| 参数 | 说明 |
-| ---- | ---- |
-| -u | 包含用户基本信息（密码、是否启用等） |
-| -p | 包含权限信息 |
-| -w | 包含白名单信息 |
+| 参数 | 说明                                 |
+| ---- | ------------------------------------ |
+| -u   | 包含用户基本信息（密码、是否启用等） |
+| -p   | 包含权限信息                         |
+| -w   | 包含白名单信息                       |
 
 当 `-u`/`-p` 参数应用时，将仅包含指定的信息，不带参数时，表示所有信息（用户名、密码、权限和白名单）。
 
@@ -325,3 +325,130 @@ Linux 下 `journalctl` 查看日志的命令如下：
 ```bash
 journalctl -u taosx [-f]
 ```
+
+## taosX 监控指标
+
+taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。  
+
+### taosX 服务
+
+| 字段                       | 描述                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| sys_cpu_cores              | 系统 CPU 核数                                                                 |
+| sys_total_memory           | 系统总内存，单位：字节                                                        |
+| sys_used_memory            | 系统已用内存, 单位：字节                                                      |
+| sys_available_memory       | 系统可用内存, 单位：字节                                                      |
+| process_uptime             | taosX 运行时长，单位：秒                                                      |
+| process_id                 | taosX 进程 ID                                                                 |
+| running_tasks              | taosX 当前执行任务数                                                          |
+| completed_tasks            | taosX 进程在一个监控周期（比如10s）内完成的任务数                             |
+| failed_tasks               | taosX 进程在一个监控周期（比如10s）内失败的任务数                             |
+| process_cpu_percent        | taosX 进程占用 CPU 百分比， 单位 %                                            |
+| process_memory_percent     | taosX 进程占用内存百分比， 单位 %                                             |
+| process_disk_read_bytes    | taosX 进程在一个监控周期（比如10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
+| process_disk_written_bytes | taosX 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytres/s  |
+
+
+### Agent
+
+| 字段                       | 描述                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| sys_cpu_cores              | 系统 CPU 核数                                                                 |
+| sys_total_memory           | 系统总内存，单位：字节                                                        |
+| sys_used_memory            | 系统已用内存, 单位：字节                                                      |
+| sys_available_memory       | 系统可用内存, 单位：字节                                                      |
+| process_uptime             | agent 运行时长，单位：秒                                                      |
+| process_id                 | agent 进程 id                                                                 |
+| process_cpu_percent        | agent 进程占用 CPU 百分比                                                     |
+| process_memory_percent     | agent 进程占用内存百分比                                                      |
+| process_uptime             | 进程启动时间，单位秒                                                          |
+| process_disk_read_bytes    | agent 进程在一个监控周期（比如10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
+| process_disk_written_bytes | agent 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytes/s   |
+
+### Connector
+
+| 字段                       | 描述                                                                              |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| process_id                 | connector 进程 id                                                                 |
+| process_uptime             | 进程启动时间，单位秒                                                              |
+| process_cpu_percent        | 进程占用 CPU 百分比， 单位 %                                                      |
+| process_memory_percent     | 进程占用内存百分比， 单位 %                                                       |
+| process_disk_read_bytes    | connector 进程在一个监控周期（比如10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
+| process_disk_written_bytes | connector 进程在一个监控周期（比如10s）内写到硬盘的字节数的平均值，单位 bytes/s   |
+
+### taosX 通用数据源任务
+
+| 字段                 | 描述                                                            |
+| -------------------- | --------------------------------------------------------------- |
+| total_execute_time   | 任务累计运行时间，单位毫秒                                      |
+| total_written_rowsls | 成功写入 TDengine 的总行数（包括重复记录）                      |
+| total_written_points | 累计写入成功点数 (等于数据块包含的行数乘以数据块包含的列数)     |
+| start_time           | 任务启动时间 (每次重启任务会被重置)                             |
+| written_rows         | 本次运行此任务成功写入 TDengine 的总行数（包括重复记录）        |
+| written_points       | 本次运行写入成功点数 (等于数据块包含的行数乘以数据块包含的列数) |
+| execute_time         | 任务本次运行时间，单位秒                                        |
+
+### taosX TDengine V2 任务
+
+| 字段                  | 描述                                                                 |
+| --------------------- | -------------------------------------------------------------------- |
+| read_concurrency      | 并发读取数据源的数据 worker 数, 也等于并发写入 TDengine 的 worker 数 |
+| total_stables         | 需要迁移的超级表数据数量                                             |
+| total_updated_tags    | 累计更新 tag 数                                                      |
+| total_created_tables  | 累计创建子表数                                                       |
+| total_tables          | 需要迁移的子表数量                                                   |
+| total_finished_tables | 完成数据迁移的子表数 (任务中断重启可能大于实际值)                    |
+| total_success_blocks  | 累计写入成功的数据块数                                               |
+| finished_tables       | 本次运行完成迁移子表数                                               |
+| success_blocks        | 本次写入成功的数据块数                                               |
+| created_tables        | 本次运行创建子表数                                                   |
+| updated_tags          | 本次运行更新 tag 数                                                  |
+
+### taosX TDengine V3 任务
+
+| 字段                   | 描述                                                    |
+| ---------------------- | ------------------------------------------------------- |
+| total_messages         | 通过 TMQ 累计收到的消息总数                             |
+| total_messages_of_meta | 通过 TMQ 累计收到的 Meta 类型的消息总数                 |
+| total_messages_of_data | 通过 TMQ 累计收到的 Data 和 MetaData 类型的消息总数     |
+| total_write_raw_fails  | 累计写入 raw meta 失败的次数                            |
+| total_success_blocks   | 累计写入成功的数据块数                                  |
+| topics                 | 通过 TMQ 订阅的主题数                                   |
+| consumers              | TMQ 消费者数                                            |
+| messages               | 本次运行通过 TMQ 收到的消息总数                         |
+| messages_of_meta       | 本次运行通过 TMQ 收到的 Meta 类型的消息总数             |
+| messages_of_data       | 本次运行通过 TMQ 收到的 Data 和 MetaData 类型的消息总数 |
+| write_raw_fails        | 本次运行写入 raw meta 失败的次数                        |
+| success_blocks         | 本次写入成功的数据块数                                  |
+
+
+### taosX 其他数据源 任务
+
+这些数据源包括： InfluxDB，OpenTSDB，OPC UA，OPC DA，PI，CSV，MQTT，AVEVA Historian 和 Kafka。  
+
+| 字段                    | 描述                                                        |
+| ----------------------- | ----------------------------------------------------------- |
+| total_received_batches  | 通过 IPC Stream 收到的数据总批数                            |
+| total_processed_batches | 已经处理的批数                                              |
+| total_processed_rows    | 已经处理的总行数（等于每批包含数据行数之和）                |
+| total_inserted_sqls     | 执行的 INSERT SQL 总条数                                    |
+| total_failed_sqls       | 执行失败的 INSERT SQL 总条数                                |
+| total_created_stables   | 创建的超级表总数（可能大于实际值）                          |
+| total_created_tables    | 尝试创建子表总数(可能大于实际值)                            |
+| total_failed_rows       | 写入失败的总行数                                            |
+| total_failed_point      | 写入失败的总点数                                            |
+| total_written_blocks    | 写入成功的 raw block 总数                                   |
+| total_failed_blocks     | 写入失败的 raw block 总数                                   |
+| received_batches        | 本次运行此任务通过 IPC Stream 收到的数据总批数              |
+| processed_batches       | 本次运行已处理批数                                          |
+| processed_rows          | 本次处理的总行数（等于包含数据的 batch 包含的数据行数之和） |
+| received_records        | 本次运行此任务通过 IPC Stream 收到的数据总行数              |
+| inserted_sqls           | 本次运行此任务执行的 INSERT SQL 总条数                      |
+| failed_sqls             | 本次运行此任务执行失败的 INSERT SQL 总条数                  |
+| created_stables         | 本次运行此任务尝试创建超级表数（可能大于实际值）            |
+| created_tables          | 本次运行此任务尝试创建子表数(可能大于实际值)                |
+| failed_rows             | 本次运行此任务写入失败的行数                                |
+| failed_points           | 本次运行此任务写入失败的点数                                |
+| written_blocks          | 本次运行此任务写人成功的 raw block 数                       |
+| failed_blocks           | 本次运行此任务写入失败的 raw block 数                       |
+

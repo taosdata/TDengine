@@ -18,13 +18,13 @@ alter user test add host host_name1
 
 查询 IP 白名单的 SQL 如下。
 ```sql
-select test, allowed_host from ins_user_privileges;
-show users;
+SELECT TEST, ALLOWED_HOST FROM INS_USERS;
+SHOW USERS;
 ```
 
 删除 IP 白名单的命令如下。
 ```sql
-alter user test drop host host_name1
+ALTER USER TEST DROP HOST HOST_NAME1
 ```
 
 ## 审计日志

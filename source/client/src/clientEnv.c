@@ -374,8 +374,8 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
 
   *pDnodeConn = rpcOpen(&rpcInit);
   if (*pDnodeConn == NULL) {
-    tscError("failed to init connection to server.");
-    code = TSDB_CODE_FAILED;
+    tscError("failed to init connection to server since %s", tstrerror(terrno));
+    code = terrno;
   }
 
   return code;
@@ -531,7 +531,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
 
   STscObj *pTscObj = acquireTscObj(connId);
   if (pTscObj == NULL) {
-    TSC_ERR_JRET(terrno);
+    TSC_ERR_JRET(TSDB_CODE_TSC_DISCONNECTED);
   }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
@@ -871,7 +871,7 @@ _return:
     TSC_ERR_RET(terrno);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void tscStopCrashReport() {

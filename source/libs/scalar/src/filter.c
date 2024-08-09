@@ -2343,7 +2343,7 @@ _return:
 
   (void)filterFreeRangeCtx(ctx);  // No need to handle the return value.
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gResNum) {
@@ -2671,7 +2671,7 @@ _return:
 
   (void)filterFreeRangeCtx(ctx);  // No need to handle the return value.
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t *gResNum) {
@@ -2758,7 +2758,7 @@ _return:
 
   FILTER_SET_FLAG(info->status, FI_STATUS_ALL);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
@@ -2958,7 +2958,7 @@ _return:
   taosMemoryFreeClear(idxNum);
   taosMemoryFreeClear(idxs);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterPostProcessRange(SFilterInfo *info) {
@@ -3601,12 +3601,12 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   if (FILTER_GET_FLAG(info->status, FI_STATUS_ALL)) {
     fltInfo("Final - FilterInfo: [ALL]");
-    goto _return;
+    goto _return1;
   }
 
   if (FILTER_GET_FLAG(info->status, FI_STATUS_EMPTY)) {
     fltInfo("Final - FilterInfo: [EMPTY]");
-    goto _return;
+    goto _return1;
   }
 
   FLT_ERR_JRET(filterGenerateColRange(info, gRes, gResNum));
@@ -3619,10 +3619,10 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   FLT_ERR_JRET(filterGenerateComInfo(info));
 
+_return1:
+  FLT_ERR_JRET(filterSetExecFunc(info));
+
 _return:
-
-  FLT_ERR_RET(filterSetExecFunc(info));
-
   for (int32_t i = 0; i < gResNum; ++i) {
     filterFreeGroupCtx(gRes[i]);
   }
@@ -5003,7 +5003,7 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
   }
 _return:
   taosArrayDestroy(sclOpList);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t fltGetDataFromColId(void *param, int32_t id, void **data) {

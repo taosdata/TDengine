@@ -735,6 +735,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       pStart += sizeof(SSysTableSchema);
     }
 
+    pBlock = NULL;
     code = createDataBlock(&pBlock);
     QUERY_CHECK_CODE(code, lino, _end);
 
