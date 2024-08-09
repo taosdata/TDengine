@@ -295,10 +295,14 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   if (code) {
     stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
   }
-
   streamMetaRUnLock(pMeta);
-  streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
-                 "meta-hb-tmr");
+
+  if (code != TSDB_CODE_APP_IS_STOPPING) {
+    streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
+                   "meta-hb-tmr");
+  } else {
+    stDebug("vgId:%d is stopping, not start hb again", pMeta->vgId);
+  }
 
   code = taosReleaseRef(streamMetaId, rid);
   if (code) {

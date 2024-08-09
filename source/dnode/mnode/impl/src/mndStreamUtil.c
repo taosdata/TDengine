@@ -1069,6 +1069,9 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
 
   while ((pIter = taosHashIterate(execInfo.pChkptStreams, pIter)) != NULL) {
     SChkptReportInfo* px = (SChkptReportInfo *)pIter;
+    if (taosArrayGetSize(px->pTaskList) == 0) {
+      continue;
+    }
 
     STaskChkptInfo *pInfo = taosArrayGet(px->pTaskList, 0);
     if (pInfo == NULL) {
