@@ -1066,7 +1066,8 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
       info->fields[type].fields =
           taosMemoryRealloc(info->fields[type].fields, info->fields[type].size * sizeof(SFilterField));
       if (info->fields[type].fields == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        fltError("taosMemoryRealloc failed, size:%d", (int32_t)(info->fields[type].size * sizeof(SFilterField)));
+        FLT_ERR_RET(terrno);
       }
     }
 
@@ -1086,14 +1087,20 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
                                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
         if (NULL == info->pctx.valHash) {
           fltError("taosHashInit failed, size:%d", FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE);
-          FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+          if (srcFlag) {
+            FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
+          }
+          FLT_ERR_RET(terrno);
         }
       }
 
       SFilterDataInfo dInfo = {idx, *data};
       if (taosHashPut(info->pctx.valHash, *data, dataLen, &dInfo, sizeof(dInfo))) {
         fltError("taosHashPut to set failed");
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        if (srcFlag) {
+          FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
+        }
+        FLT_ERR_RET(terrno);
       }
       if (srcFlag) {
         FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
@@ -1102,7 +1109,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
   } else if (type != FLD_TYPE_COLUMN && data) {
     if (freeIfExists) {
       taosMemoryFreeClear(*data);
-    } else if (sameBuf) {
+    } else if (sameBuf && srcFlag) {
       FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
     }
   }
@@ -1114,11 +1121,11 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
 }
 
 static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilterField *field, SFilterFieldId *fid) {
-  FLT_ERR_RET(filterAddField(info, field->desc, &field->data, FILTER_GET_TYPE(field->flag), fid, 0, false, NULL));
+  int32_t code = filterAddField(info, field->desc, &field->data, FILTER_GET_TYPE(field->flag), fid, 0, false, NULL);
 
   FILTER_SET_FLAG(field->flag, FLD_DATA_NO_FREE);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *fid) {
@@ -2855,10 +2862,9 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
       }
     }
   }
+  FLT_ERR_JRET(filterConvertGroupFromArray(info, group));
 
 _return:
-  FLT_ERR_RET(filterConvertGroupFromArray(info, group));
-
   taosArrayDestroy(group);
 
   filterFreeInfo(&oinfo);
