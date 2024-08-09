@@ -8,7 +8,7 @@
             :placeholder="$t('datasource.transformer.col_select')"
             v-model="ruleForm.col_name"
             @change="selectCol"
-            :disabled="ruleForm.col_name != '' && itemData.columnname != '' && !!ruleForm.filter_name"
+            :disabled="ruleForm.col_name != '' && itemData.columnname != ''"
           >
             <el-option
               v-for="(item, index) in extractColumns"
@@ -204,14 +204,9 @@ export default {
     },
     selectCol() {
       this.disabled = true;
-      if (this.ruleForm.filter_name) {
-        this.$emit("selectColumn", this.index, this.ruleForm.col_name);
-      }
+      this.$emit("selectColumn", this.index, this.ruleForm.col_name);
     },
     changeExtractType() {
-      if (this.ruleForm.col_name) {
-        this.$emit("selectColumn", this.index, this.ruleForm.col_name);
-      }
       let index = this.$parent.extractArr.findIndex(
         (item) => item.columnname == this.ruleForm.col_name
       );
