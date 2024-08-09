@@ -597,6 +597,8 @@ typedef struct {
   int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
   char     clientId[TSDB_CLIENT_ID_LEN];
+  char     user[TSDB_USER_LEN];
+  char     fqdn[TSDB_FQDN_LEN];
   int8_t   updateType;  // used only for update
   int32_t  epoch;
   int32_t  status;
