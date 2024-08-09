@@ -161,7 +161,7 @@ async fn run_task(
             let activity = match message {
                 TaskNotify::Error(message) => TaskActivity::error(task_id, message),
                 TaskNotify::Warn(message) => TaskActivity::warn(task_id, message),
-                TaskNotify::Info(message) => TaskActivity::running(task_id, message),
+                TaskNotify::Info(message) => TaskActivity::logging(task_id, message),
                 _ => break,
             };
             global_sender.send_task_activity(activity);

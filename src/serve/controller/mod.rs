@@ -2272,7 +2272,7 @@ impl TaskActivity {
             at: Utc::now(),
             level: LevelFilter::Error,
             activity: message,
-            status: "running".to_string(),
+            status: "logging".to_string(),
             context: None,
         }
     }
@@ -2283,7 +2283,7 @@ impl TaskActivity {
             at: Utc::now(),
             level: LevelFilter::Warn,
             activity: message,
-            status: "running".to_string(),
+            status: "logging".to_string(),
             context: None,
         }
     }

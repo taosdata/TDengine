@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,7 +10,9 @@ use arrow::array::{
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
+use arrow_schema::SchemaRef;
 use chrono::Utc;
+use futures_util::StreamExt;
 use futures_util::TryStreamExt;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
@@ -20,14 +21,14 @@ use rdkafka::config::{ClientConfig, RDKafkaLogLevel};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer, ConsumerContext, Rebalance};
 use rdkafka::error::KafkaResult;
-use rdkafka::message::Message;
+use rdkafka::message::{BorrowedMessage, Message};
 use rdkafka::topic_partition_list::TopicPartitionList;
 use rdkafka::Offset;
 use serde_json::json;
 use taos::Dsn;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
-use tracing::Span;
+use tracing::{instrument, Instrument, Span};
 
 use taosx_ipc::ack::AckReaderBuilder;
 use taosx_ipc::prelude::ArrowDataType;
@@ -214,6 +215,7 @@ fn tracing_all_topics(topics: Vec<&str>, consumer: &BaseConsumer) -> anyhow::Res
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub async fn kafka_to_taos(
     from: Dsn,
     parser: Option<Parser>,
@@ -228,6 +230,8 @@ pub async fn kafka_to_taos(
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
+    let cancel = cancel.child_token();
+    let _drop_guard = cancel.clone().drop_guard();
     tracing::info!(
         "Kafka task: {} start, from: {}, parser: {}, to: {}",
         task_id.unwrap_or(-1),
@@ -257,28 +261,46 @@ pub async fn kafka_to_taos(
     )
     .await?;
 
-    let aborted = Arc::new(AtomicBool::new(false));
-    let aborted_cloned = aborted.clone();
-    let mut join_set = execute(from, ipc_port.get(), aborted_cloned, notify.clone()).await?;
-
+    let aborted_cloned = cancel.clone();
+    let mut join_set = execute(from, ipc_port.get(), aborted_cloned, notify.clone())
+        .in_current_span()
+        .await?;
     tokio::spawn(async move {
         tokio::select! {
             // application exit with error code
             status = async {
                 while let Some(res) = join_set.join_next().await {
                     match res {
-                        Ok(_) => {}
+                        Ok(Ok(status)) => {
+                            if status.is_timeout() {
+                                return Ok(status);
+                            }
+                        }
+                        Ok(Err(err)) => {
+                            tracing::error!("Kafka consumer exit with error: {:#}", err);
+                            Err(err).context("Kafka runners error")?;
+                        }
                         Err(err) => {
                             tracing::error!("Kafka worker exit with error: {:#}", err);
+                            join_set.abort_all();
                             anyhow::bail!("Kafka worker exit with error: {:#}", err);
                         }
                     }
                 }
                 tracing::debug!("Kafka polling finished");
-                Ok(())
+                Ok(ExitStatus::Finished)
             } => {
                 match status {
-                    Ok(_) => {
+                    Ok(status) => {
+                        if status.is_timeout() {
+                            // wait for completion
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                            cancel.cancel();
+                            // stop the connector
+                            tracing::info!("Kafka task Done");
+                            ipc.close().await?;
+                            return Ok(());
+                        }
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         match ipc.try_recv_error() {
                             Ok(res) => {
@@ -299,7 +321,7 @@ pub async fn kafka_to_taos(
             },
             err = ipc.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
-                aborted.store(true, std::sync::atomic::Ordering::Relaxed);
+                cancel.cancel();
                 join_set.abort_all();
                 if let Some(err) = err {
                     let _ = ipc.send(()).await;
@@ -310,7 +332,6 @@ pub async fn kafka_to_taos(
             },
             _ = cancel.cancelled() => {
                 tracing::info!("Kafka task cancelled");
-                aborted.store(true, std::sync::atomic::Ordering::Relaxed);
                 join_set.abort_all();
             }
         }
@@ -322,18 +343,18 @@ pub async fn kafka_to_taos(
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
-    }).await??;
+    }.in_current_span()).await??;
 
     tracing::info!("Kafka task: {} stopped", task_id.unwrap_or(-1));
     Ok(())
 }
 
-type KafkaJoinSet = JoinSet<anyhow::Result<()>>;
+type KafkaJoinSet = JoinSet<anyhow::Result<ExitStatus>>;
 
 async fn execute(
     from: Dsn,
     ipc_server_port: u16,
-    aborted: Arc<AtomicBool>,
+    aborted: CancellationToken,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<KafkaJoinSet> {
     let ipc_server = format!("127.0.0.1:{}", ipc_server_port);
@@ -349,19 +370,21 @@ async fn execute(
     ack_stream.set_read_timeout(None)?;
     let mut consumers = JoinSet::new();
 
+    let ack_span = tracing::info_span!("kafka_ack_reader");
     // receive ACK from IPC
     consumers.spawn_blocking(move || {
+        let _entered = ack_span.entered();
         let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
         for ack in ack_reader {
             if !ack.success() {
-                tracing::error!("Kafka write records error: {ack:?}");
+                tracing::error!(ack.code = %ack.code(), ack.message = ack.message(), ack.context = ack.context(), "Kafka ack found error");
                 if let Some(message) = ack.message() {
-                    anyhow::bail!("Kafka IPC writer error: {message}")
+                    anyhow::bail!("Kafka IPC writer error: {message}");
                 }
             }
         }
         tracing::info!("Kafka ACK reader finished");
-        Ok(())
+        Ok(ExitStatus::Finished)
     });
 
     let schema = build_schema();
@@ -370,17 +393,24 @@ async fn execute(
 
     // IPC Writer
     let schema_clone = schema.clone();
+    let ipc_span = tracing::info_span!("kafka_ipc_writer");
     // polling from kafka and send to ipc writer
     consumers.spawn_blocking(move || {
+        let _entered = ipc_span.entered();
         let mut writer = StreamWriter::try_new(stream, &schema_clone)?;
 
         let mut row_count = 0;
         let mut batches = 0;
         while let Ok(batch) = rx.recv() {
             writer.write(&batch)?;
-            tracing::debug!("Kafka IPC Writer send {} rows", batch.num_rows());
-
             row_count += batch.num_rows();
+            tracing::trace!(
+                batches,
+                rows = row_count,
+                "Kafka IPC Writer send {} rows",
+                batch.num_rows()
+            );
+
             batches += 1;
         }
         let _ = writer.finish()?;
@@ -389,13 +419,14 @@ async fn execute(
             send.records = row_count,
             "Kafka IPC Writer finished, waiting for persisting"
         );
-        anyhow::Ok(())
+        Ok(ExitStatus::Finished)
     });
 
     // kafka task config
     let config = KafkaTaskConfig::from_dsn(&from)?;
 
     let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
+    let batch_timeout_ms = config.advanced_options.batch_timeout.unwrap_or(1000) as i64;
 
     // split into sub tasks
     let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify.clone())?;
@@ -405,17 +436,29 @@ async fn execute(
         let schema = schema.clone();
         let consumer = task.consumer;
         let timeout = task.timeout;
+        let notify = notify.clone();
 
-        consumers.spawn(poll_message(
-            idx,
-            consumer,
-            tx,
-            timeout,
-            aborted,
-            schema,
-            batch_size,
-            notify.clone(),
-        ));
+        consumers.spawn(
+            async move {
+                poll_message(
+                    idx,
+                    &consumer,
+                    tx,
+                    timeout,
+                    aborted,
+                    schema,
+                    batch_size,
+                    batch_timeout_ms,
+                    notify,
+                )
+                .in_current_span()
+                .await
+            }
+            .instrument(tracing::info_span!(
+                "kafka_consumer",
+                kafka.consumer.id = idx
+            )),
+        );
     }
 
     drop(tx);
@@ -515,108 +558,230 @@ impl SubTask {
     }
 }
 
-async fn poll_message(
-    index: usize,
-    consumer: LoggingConsumer,
+enum ExitStatus {
+    /// Nothing to consume
+    None,
+    /// Finished
+    Finished,
+    /// Timeout to poll next message
+    Timeout,
+    /// Cancelled by upstream or other consumers.
+    Aborted,
+}
+
+impl ExitStatus {
+    pub fn is_timeout(&self) -> bool {
+        matches!(self, Self::Timeout)
+    }
+}
+
+struct MessagesSender<'a> {
+    consumer: &'a LoggingConsumer,
     tx: flume::Sender<RecordBatch>,
-    timeout: i64,
-    aborted: Arc<AtomicBool>,
-    schema: Schema,
+    // Send options
     batch_size: usize,
-    notify: crate::TaskNotifySender,
-) -> anyhow::Result<()> {
-    let mut last_polling = chrono::Utc::now().timestamp_millis();
+    batch_timeout_ms: i64,
+    polling_timeout_ms: i64,
+    last_polling: i64,
+    last_sent: i64,
 
-    loop {
-        // let message_sets = consumer.poll().context("Kafka polling error")?;
-        if aborted.load(std::sync::atomic::Ordering::Relaxed) {
-            tracing::info!("Kafka consumer-{} cancelled", index);
-            break;
+    // Builders
+    timestamp: TimestampNanosecondBuilder,
+    topic: StringBuilder,
+    partition: Int32Builder,
+    offset: Int64Builder,
+    key: BinaryBuilder,
+    value: BinaryBuilder,
+    schema: SchemaRef,
+}
+
+impl<'a> MessagesSender<'a> {
+    pub async fn send_chuck(
+        &mut self,
+        chunk: &[BorrowedMessage<'a>],
+    ) -> anyhow::Result<ExitStatus> {
+        if chunk.is_empty() {
+            return Ok(ExitStatus::None);
         }
 
-        let mut timestamp = TimestampNanosecondBuilder::new();
-        let mut topic = StringBuilder::new();
-        let mut partition = Int32Builder::new();
-        let mut offset = Int64Builder::new();
-        let mut key = BinaryBuilder::new();
-        let mut value = BinaryBuilder::new();
-
-        let mut read_chunks = consumer.stream().try_ready_chunks(batch_size);
-        let fetch = read_chunks.try_next();
-
-        match tokio::time::timeout(Duration::from_millis(timeout as u64), fetch).await? {
-            Ok(chunk) => {
-                if let Some(chunk) = chunk {
-                    for msg in chunk {
-                        match msg.payload_view::<str>() {
-                            None => {}
-                            Some(Ok(s)) => {
-                                timestamp.append_value(Utc::now().timestamp_nanos_opt().unwrap());
-                                topic.append_value(msg.topic());
-                                partition.append_value(msg.partition());
-                                offset.append_value(msg.offset());
-                                key.append_value(msg.key().unwrap_or(&[]));
-                                value.append_value(s);
-                            }
-                            Some(Err(e)) => {
-                                tracing::warn!(
-                                    "Error while deserializing message payload: {:?}",
-                                    e
-                                );
-                            }
-                        };
-                    }
-                    consumer
-                        .commit_consumer_state(CommitMode::Sync)
-                        .map_err(|err| {
-                            anyhow::anyhow!("failed to commit consumer state, cause: {:#}", err)
-                        })?;
+        for msg in chunk {
+            match msg.payload_view::<str>() {
+                None => {}
+                Some(Ok(s)) => {
+                    self.timestamp
+                        .append_value(Utc::now().timestamp_nanos_opt().unwrap());
+                    self.topic.append_value(msg.topic());
+                    self.partition.append_value(msg.partition());
+                    self.offset.append_value(msg.offset());
+                    self.key.append_value(msg.key().unwrap_or(&[]));
+                    self.value.append_value(s);
                 }
-            }
-            Err(err) => {
-                let _ = notify.send(crate::TaskNotify::error(format!(
-                    "failed to polling from kafka, cause: {:#}",
-                    err
-                )));
-                tracing::error!("failed to polling from kafka, cause: {:#}", err);
-            }
-        };
-
-        if value.is_empty() {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            let now = chrono::Utc::now().timestamp_millis();
-            if timeout >= 0 && now - last_polling > timeout {
-                tracing::info!("Kafka consumer-{} polling timeout", index);
-                break;
-            } else {
-                continue;
-            }
+                Some(Err(e)) => {
+                    tracing::warn!("Error while deserializing message payload: {:?}", e);
+                }
+            };
         }
 
+        self.last_polling = chrono::Utc::now().timestamp_millis();
+
+        if self.value.len() == 0 {
+            // Empty values, go next polling.
+            return Ok(ExitStatus::None);
+        }
+
+        if self.value.len() >= self.batch_size {
+            // Reaches batch size, send directly.
+            return self.send().await;
+        }
+
+        let now = chrono::Utc::now().timestamp_millis();
+        if now - self.last_sent > self.batch_timeout_ms {
+            // Reaches batch timeout, send directly.
+            return self.send().await;
+        }
+
+        // Partially in cache, go next polling.
+        anyhow::Ok(ExitStatus::None)
+    }
+
+    /// Safely send batches in cache or return timeout.
+    async fn send(&mut self) -> anyhow::Result<ExitStatus> {
+        let now = chrono::Utc::now().timestamp_millis();
+
+        if now - self.last_polling > self.polling_timeout_ms {
+            // Reaches batch timeout, send directly.
+            return Ok(ExitStatus::Timeout);
+        }
+        if self.value.len() == 0 {
+            return Ok(ExitStatus::None);
+        }
         let batch = RecordBatch::try_new(
-            Arc::new(schema.clone()),
+            self.schema.clone(),
             vec![
-                Arc::new(timestamp.finish()),
-                Arc::new(topic.finish()),
-                Arc::new(partition.finish()),
-                Arc::new(offset.finish()),
-                Arc::new(key.finish()),
-                Arc::new(value.finish()),
+                Arc::new(self.timestamp.finish()),
+                Arc::new(self.topic.finish()),
+                Arc::new(self.partition.finish()),
+                Arc::new(self.offset.finish()),
+                Arc::new(self.key.finish()),
+                Arc::new(self.value.finish()),
             ],
         )?;
 
         let batch_size = batch.num_rows();
-        tx.send_async(batch).await?;
+        self.tx.send_async(batch).await?;
 
         tracing::debug!(
-            "Kafka consumer-{} send batch to IPC Writer, batch size: {}",
-            index,
+            "Kafka consumer send batch to IPC Writer, batch size: {}",
             batch_size
         );
 
-        last_polling = chrono::Utc::now().timestamp_millis();
+        self.consumer
+            .commit_consumer_state(CommitMode::Sync)
+            .map_err(|err| anyhow::anyhow!("failed to commit consumer state, cause: {:#}", err))?;
+
+        self.last_sent = chrono::Utc::now().timestamp_millis();
+        anyhow::Ok(ExitStatus::Finished)
     }
-    Ok(())
+}
+
+async fn poll_message<'a>(
+    index: usize,
+    consumer: &'a LoggingConsumer,
+    tx: flume::Sender<RecordBatch>,
+    timeout: i64,
+    aborted: CancellationToken,
+    schema: Schema,
+    batch_size: usize,
+    batch_timeout_ms: i64,
+    notify: crate::TaskNotifySender,
+) -> anyhow::Result<ExitStatus> {
+    let last_polling = chrono::Utc::now().timestamp_millis();
+
+    let read_chunks = consumer.stream().try_ready_chunks(batch_size);
+    tokio::pin!(read_chunks);
+
+    let timeout_duration = if timeout > 0 {
+        Duration::from_millis(timeout as u64)
+    } else {
+        Duration::MAX
+    };
+
+    let timestamp = TimestampNanosecondBuilder::new();
+    let topic = StringBuilder::new();
+    let partition = Int32Builder::new();
+    let offset = Int64Builder::new();
+    let key = BinaryBuilder::new();
+    let value = BinaryBuilder::new();
+    let schema = Arc::new(schema);
+
+    let mut sender = MessagesSender {
+        consumer,
+        tx,
+        batch_size,
+        batch_timeout_ms,
+        polling_timeout_ms: timeout,
+        last_polling,
+        last_sent: chrono::Utc::now().timestamp_millis(),
+        timestamp,
+        topic,
+        partition,
+        offset,
+        key,
+        value,
+        schema,
+    };
+    loop {
+        tokio::select! {
+            _ = aborted.cancelled() => {
+                tracing::info!("Kafka consumer-{} cancelled", index);
+                return Ok(ExitStatus::Aborted);
+            }
+            _ = tokio::time::sleep(timeout_duration) => {
+                tracing::info!("Kafka consumer-{} polling timeout", index);
+                return Ok(ExitStatus::Timeout);
+            }
+            chunk = read_chunks.next() => {
+                match chunk {
+                    Some(Ok(chunk)) => {
+                        match sender.send_chuck(&chunk).await? {
+                            ExitStatus::None => {
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                            }
+                            ExitStatus::Timeout => {
+                                return Ok(ExitStatus::Timeout);
+                            }
+                            ExitStatus::Aborted => {
+                                return Ok(ExitStatus::Aborted);
+                            }
+                            ExitStatus::Finished => {
+                                continue;
+                            }
+                        }
+                    }
+                    Some(Err(err)) => {
+                        let _ = notify.send(crate::TaskNotify::error(format!("failed to polling from kafka, cause: {:#}", err)));
+                        tracing::error!("failed to polling from kafka, cause: {:#}", err);
+                    }
+                    None => {
+                        match sender.send().await? {
+                            ExitStatus::None => {
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                            }
+                            ExitStatus::Timeout => {
+                                return Ok(ExitStatus::Timeout);
+                            }
+                            ExitStatus::Aborted => {
+                                return Ok(ExitStatus::Aborted);
+                            }
+                            ExitStatus::Finished => {
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn build_schema() -> Schema {
