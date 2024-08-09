@@ -2908,6 +2908,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx **gRes, int32_
   info->colRangeNum = colNum;
   info->colRange = taosMemoryCalloc(colNum, POINTER_BYTES);
   if (info->colRange == NULL) {
+    info->colRangeNum = 0;
     FLT_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 

@@ -11,7 +11,7 @@ toc_max_heading_level: 4
 TDengine 支持 WAL 机制，实现数据的容错能力，保证数据的高可靠。TDengine 接收到应用程序的请求数据包时，会先将请求的原始数据包写入数据库日志文件，等数据成功写入数据库数据文件后，再删除相应的 WAL。这样保证了 TDengine 能够在断电等因素导致的服务重启时，从数据库日志文件中恢复数据，避免数据丢失。涉及的配置参数有如下两个：
 
 - wal_level ：WAL 级别，1 表示写 WAL，但不执行 fsync ； 2 表示写 WAL，而且执行 fsync。默认值为 1。
-- wal_fsync_period：当 wal_level 设置为 2 时，执行 fsync 的周期；当 wal-level 设置为 0 时，表示每次写入，立即执行 fsync。
+- wal_fsync_period：当 wal_level 设置为 2 时，执行 fsync 的周期；当 wal_fsync_period 设置为 0 时，表示每次写入，立即执行 fsync。
 
 如果要 100% 保证数据不丢失，则需要将 wal_level 设置为 2，wal_fsync_period 设置为 0。这时写入速度将会下降。但如果应用程序侧启动的写数据的线程数达到一定的数量（超过 50），那么写入数据的性能也会很不错，只会比 wal_fsync_period 设置为 3000ms 下降 30% 左右。
 

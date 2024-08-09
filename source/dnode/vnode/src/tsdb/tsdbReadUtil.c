@@ -1074,8 +1074,12 @@ int32_t doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
     int32_t inc = numOfFileObj - size;
     for (int32_t k = 0; k < inc; ++k) {
       SLDataIter* pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
-      void*       px = taosArrayPush(pLDIterList, &pIter);
+      if (!pIter) {
+        return terrno;
+      }
+      void* px = taosArrayPush(pLDIterList, &pIter);
       if (px == NULL) {
+        taosMemoryFree(pIter);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }

@@ -318,7 +318,19 @@ int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key)
   pBackend->pTask = pTask;
   pBackend->pMeta = pMeta;
 
-  if (processVer != -1) pTask->chkInfo.processedVer = processVer;
+  if (processVer != -1) {
+    if (pTask->chkInfo.processedVer != processVer) {
+      stWarn("s-task:%s vgId:%d update checkpointVer:%" PRId64 "->%" PRId64 " for checkpointId:%" PRId64,
+             pTask->id.idStr, pTask->pMeta->vgId, pTask->chkInfo.processedVer, processVer, pTask->chkInfo.checkpointId);
+      pTask->chkInfo.processedVer = processVer;
+      pTask->chkInfo.checkpointVer = processVer;
+      pTask->chkInfo.nextProcessVer = processVer + 1;
+    } else {
+      stInfo("s-task:%s vgId:%d processedVer:%" PRId64
+             " in task meta equals to data in checkpoint data for checkpointId:%" PRId64,
+             pTask->id.idStr, pTask->pMeta->vgId, pTask->chkInfo.processedVer, pTask->chkInfo.checkpointId);
+    }
+  }
 
   code = taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   if (code) {
@@ -1140,6 +1152,20 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     taosMsleep(100);
   }
 
+  streamMetaRLock(pMeta);
+
+  SArray* pTaskList = NULL;
+  int32_t code = streamMetaSendMsgBeforeCloseTasks(pMeta, &pTaskList);
+  if (code != TSDB_CODE_SUCCESS) {
+//    return code;
+  }
+
+  streamMetaRUnLock(pMeta);
+
+  if (pTaskList != NULL) {
+    taosArrayDestroy(pTaskList);
+  }
+
   int64_t el = taosGetTimestampMs() - st;
   stDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
 }
@@ -1393,7 +1419,6 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     }
 
     // negotiate the consensus checkpoint id for current task
-    ASSERT(pTask->pBackend == NULL);
     code = streamTaskSendRestoreChkptMsg(pTask);
 
     // this task may has no checkpoint, but others tasks may generate checkpoint already?
