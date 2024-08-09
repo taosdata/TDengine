@@ -91,6 +91,7 @@ int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg) {
   if (code < 0) {
     goto _exit;
   }
+  code = 0;
 
 _exit:
   rspMsg.info = pMsg->info;
