@@ -59,7 +59,8 @@ void __taos_notify_cb(void *param, void *ext, int type) {
   switch (type) {
     case TAOS_NOTIFY_PASSVER: {
       ++nPassVerNotified;
-      printf("%s:%d type:%d user:%s passVer:%d\n", __func__, __LINE__, type, param ? (char *)param : "NULL", *(int *)ext);
+      printf("%s:%d type:%d user:%s passVer:%d\n", __func__, __LINE__, type, param ? (char *)param : "NULL",
+             *(int *)ext);
       break;
     }
     case TAOS_NOTIFY_USER_DROPPED: {
@@ -191,11 +192,11 @@ static int printResult(TAOS_RES *res, char *output) {
     printRow(temp, row, fields, numFields);
     puts(temp);
   }
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
   char qstr[1024];
-
   // connect to server
   if (argc < 2) {
     printf("please input server-ip \n");
@@ -215,6 +216,7 @@ int main(int argc, char *argv[]) {
 
   taos_close(taos);
   taos_cleanup();
+  exit(EXIT_SUCCESS);
 }
 
 void createUsers(TAOS *taos, const char *host, char *qstr) {
@@ -234,6 +236,7 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
 
     if (code != 0) {
       fprintf(stderr, "failed to run: taos_set_notify_cb(TAOS_NOTIFY_PASSVER) for user:%s since %d\n", users[i], code);
+      exit(EXIT_FAILURE);
     } else {
       fprintf(stderr, "success to run: taos_set_notify_cb(TAOS_NOTIFY_PASSVER) for user:%s\n", users[i]);
     }
@@ -260,6 +263,7 @@ void passVerTestMulti(const char *host, char *qstr) {
 
     if (code != 0) {
       fprintf(stderr, "failed to run: taos_set_notify_cb since %d\n", code);
+      exit(EXIT_FAILURE);
     } else {
       fprintf(stderr, "success to run: taos_set_notify_cb\n");
     }
@@ -301,8 +305,7 @@ void passVerTestMulti(const char *host, char *qstr) {
 
   fprintf(stderr, "######## %s #########\n", __func__);
   if (nPassVerNotified == nConn) {
-    fprintf(stderr, ">>> succeed to get passVer notification since nNotify %d == nConn %d\n", nPassVerNotified,
-            nConn);
+    fprintf(stderr, ">>> succeed to get passVer notification since nNotify %d == nConn %d\n", nPassVerNotified, nConn);
   } else {
     fprintf(stderr, ">>> failed to get passVer notification since nNotify %d != nConn %d\n", nPassVerNotified, nConn);
     exit(1);
@@ -337,7 +340,7 @@ void sysInfoTest(TAOS *taosRoot, const char *host, char *qstr) {
   TAOS_RES *res = NULL;
   int32_t   nRep = 0;
 
-_REP: 
+_REP:
   fprintf(stderr, "######## %s loop:%d #########\n", __func__, nRep);
   res = taos_query(taos[0], qstr);
   if (taos_errno(res) != 0) {
@@ -375,7 +378,7 @@ _REP:
     sleep(1);
   }
 
-  if(++nRep < 5) {
+  if (++nRep < 5) {
     goto _REP;
   }
 
@@ -390,7 +393,7 @@ _REP:
   fprintf(stderr, "######## %s #########\n", __func__);
 }
 static bool isDropUser = true;
-void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
+void        userDroppedTest(TAOS *taos, const char *host, char *qstr) {
   // users
   int nTestUsers = nUser;
   int nLoop = 0;
@@ -408,6 +411,7 @@ _loop:
     if (code != 0) {
       fprintf(stderr, "failed to run: taos_set_notify_cb:%d for user:%s since %d\n", TAOS_NOTIFY_USER_DROPPED, users[i],
               code);
+      exit(EXIT_FAILURE);
     } else {
       fprintf(stderr, "success to run: taos_set_notify_cb:%d for user:%s\n", TAOS_NOTIFY_USER_DROPPED, users[i]);
     }
