@@ -142,11 +142,12 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   }
 
   SStreamHbMsg* pMsg = &pInfo->hbMsg;
-  stDebug("vgId:%d build stream hbMsg, leader:%d msgId:%d", pMeta->vgId, (pMeta->role == NODE_ROLE_LEADER),
-          pMeta->pHbInfo->hbCount);
-
   pMsg->vgId = pMeta->vgId;
   pMsg->msgId = pMeta->pHbInfo->hbCount;
+  pMsg->ts = taosGetTimestampMs();
+
+  stDebug("vgId:%d build stream hbMsg, leader:%d HbMsgId:%d, HbMsgTs:%" PRId64, pMeta->vgId,
+          (pMeta->role == NODE_ROLE_LEADER), pMsg->msgId, pMsg->ts);
 
   pMsg->pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
   pMsg->pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
@@ -292,7 +293,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   streamMetaRLock(pMeta);
   code = streamMetaSendHbHelper(pMeta);
   if (code) {
-    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, strerror(code));
+    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
   }
 
   streamMetaRUnLock(pMeta);

@@ -3519,8 +3519,10 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
     resetTableListIndex(&pReader->status);
   }
 
-  // set the correct start position according to the query time window
-  initBlockDumpInfo(pReader, pBlockIter);
+  if (code == TSDB_CODE_SUCCESS) {
+    // set the correct start position according to the query time window
+    initBlockDumpInfo(pReader, pBlockIter);
+  }
   taosArrayDestroy(pTableList);
   return code;
 }

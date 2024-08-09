@@ -142,7 +142,7 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
         mndConsumerStatusName(pConsumer->status));
 
   MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "clear-csm");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "clear-csm");
   MND_TMQ_NULL_CHECK(pTrans);
   MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
   code = mndTransPrepare(pMnode, pTrans);
