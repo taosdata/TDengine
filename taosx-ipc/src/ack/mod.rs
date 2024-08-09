@@ -13,6 +13,7 @@ use arrow::{
     ipc::{reader::StreamReader, writer::StreamWriter},
     record_batch::RecordBatch,
 };
+use taos::Code;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -31,6 +32,9 @@ impl LushAck {
     }
     pub fn context(&self) -> Option<&str> {
         self.context.as_deref()
+    }
+    pub fn code(&self) -> Code {
+        Code::from(self.code)
     }
 
     pub fn ok() -> Self {

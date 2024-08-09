@@ -262,11 +262,11 @@ pub async fn flat_write_with_sql(
                     if let Some(notifier) = notifier {
                         let _ = notifier
                             .send_async(crate::TaskNotify::error(
-                                "Parimary key field contains null value",
+                                "Primary key field contains null value",
                             ))
                             .await;
                     }
-                    bail!("Parimary key field contains null value")
+                    bail!("Primary key field contains null value")
                 }
             }
         }
@@ -409,11 +409,11 @@ pub async fn flat_write_with_raw_block(
                     if let Some(notifier) = notifier {
                         let _ = notifier
                             .send_async(crate::TaskNotify::error(
-                                "Parimary key field contains null value",
+                                "Primary key field contains null value",
                             ))
                             .await;
                     }
-                    bail!("Parimary key field contains null value")
+                    bail!("Primary key field contains null value")
                 }
             }
         }
@@ -853,7 +853,7 @@ pub async fn flat_write_with_raw_block(
                         opts: records.opts.clone(),
                     };
                     let retry_messages = vec![records_copy];
-                    let _ = flat_write_with_sql(
+                    count += flat_write_with_sql(
                         &pool,
                         taos,
                         target_precision,
@@ -864,6 +864,7 @@ pub async fn flat_write_with_raw_block(
                         cancel,
                     )
                     .await?;
+                    break;
                 } else {
                     error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
                     metrics.add_failed_raw_blocks(1);
