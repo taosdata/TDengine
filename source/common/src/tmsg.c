@@ -10068,6 +10068,7 @@ void *tDecodeMqSubTopicEp(void *buf, SMqSubTopicEp *pTopicEp) {
     buf = tDecodeSMqSubVgEp(buf, &vgEp);
     if (taosArrayPush(pTopicEp->vgs, &vgEp) == NULL) {
       taosArrayDestroy(pTopicEp->vgs);
+      pTopicEp->vgs = NULL;
       return NULL;
     }
   }
