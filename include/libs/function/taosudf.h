@@ -131,6 +131,14 @@ static FORCE_INLINE char *udfColDataGetData(const SUdfColumn *pColumn, int32_t r
   }
 }
 
+static FORCE_INLINE int32_t udfColDataGetDataLen(const SUdfColumn *pColumn, int32_t row) {
+  if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
+    return *(uint16_t*)(pColumn->colData.varLenCol.payload + pColumn->colData.varLenCol.varOffsets[row]);
+  } else {
+    return pColumn->colMeta.bytes;
+  }
+}
+
 static FORCE_INLINE bool udfColDataIsNull(const SUdfColumn *pColumn, int32_t row) {
   if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
     if (pColumn->colMeta.type == TSDB_DATA_TYPE_JSON) {
