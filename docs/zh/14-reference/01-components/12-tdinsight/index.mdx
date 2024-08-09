@@ -32,76 +32,8 @@ TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽�
 
 
 
-## 安装 TDengine 数据源插件
-
-TDengine 数据源插件支持图形界面安装、手动安装和脚本安装三种安装方式，一般建议图形界面安装。对于 Grafana 8.5 以下版本可以使用手动安装和脚本安装方式。
-
-<Tabs defaultValue="manual" groupId="deploy">
-<TabItem value="gui" label="图形界面安装">
-
-使用 Grafana 最新版本（8.5+），您可以在 Grafana 中[浏览和管理插件](https://grafana.com/docs/grafana/next/administration/plugin-management/#plugin-catalog)。在 Grafana 管理界面中的 **Configurations > Plugins** 页面直接搜索 `TDengine` 并按照提示安装。
-
-</TabItem>
-<TabItem value="manual" label="手动安装">
-
-从 GitHub 安装 TDengine 最新版数据源插件。
-
-```bash
-get_latest_release() {
-  curl --silent "https://api.github.com/repos/taosdata/grafanaplugin/releases/latest" |
-    grep '"tag_name":' |
-    sed -E 's/.*"v([^"]+)".*/\1/'
-}
-TDENGINE_PLUGIN_VERSION=$(get_latest_release)
-sudo grafana-cli \
-  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v$TDENGINE_PLUGIN_VERSION/tdengine-datasource-$TDENGINE_PLUGIN_VERSION.zip \
-  plugins install tdengine-datasource
-```
-
-:::note
-3.1.6 和更早版本插件需要在配置文件 `/etc/grafana/grafana.ini` 中添加如下设置，以启用未签名插件。
-
-```ini
-[plugins]
-allow_loading_unsigned_plugins = tdengine-datasource
-```
-
-:::
-
-</TabItem>
-
-<TabItem value="auto" label="脚本安装">
-
-我们提供了一个自动化安装脚本 [TDinsight.sh](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) 脚本以便用户快速进行安装配置。
-
-您可以通过 `wget` 或其他工具下载该脚本：
-
-```bash
-wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
-chmod +x TDinsight.sh
-./TDinsight.sh
-```
-
-这个脚本会自动下载最新的[Grafana TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases/latest) 和 [TDinsight 仪表盘](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json) ，将命令行选项中的可配置参数转为 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置文件，以进行自动化部署及更新等操作。
-
-1. 假设您在同一台主机上使用 TDengine 和 Grafana 服务。 运行 `./TDinsight.sh` 并打开 Grafana 页面就可以看到 TDinsight 仪表盘了。
-2. 假设您在主机 `tdengine` 上启动 TDengine 数据库，taosAdapter 的 HTTP 监听端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：`./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord`
-
-详细的使用方法请参考 [TDinsight.sh 详细说明](./#附录)
-
-</TabItem>
-</Tabs>
-
-
-## 添加 TDengine 数据源
-
-安装完毕后， 点击 “Connections” -> “Data sources“， 然后选择 ”tdengine-datasource“，输入 TDengine 相关配置：
-- Host： TDengine 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
-- User：TDengine 用户名。
-- Password：TDengine 用户密码。
-
-点击 `Save & Test` 进行测试，成功会提示：`TDengine Data source is working`。  
-
+## 安装 TDengine 数据源插件和配置数据源
+安装 Grafana TDengine 数据源插件和配置数据源的步骤请参考：[与  Grafana 集成](../../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)
 
 ## 导入 TDinsightV3 仪表盘
 
