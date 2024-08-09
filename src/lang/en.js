@@ -528,7 +528,7 @@ export default {
     Days: "Days",
     days: "days",
     precision: "Precision",
-    bufferTip: "The size of cache for writing of a vnode, default is 96MB.",
+    bufferTip: "The size of cache for writing of a vnode, default is 256MB.",
     cacheModelTip: `specifies how the latest data in subtables is stored in the cache. The default value is none.
     <ul>
     <li>NONE - no caching.</li>

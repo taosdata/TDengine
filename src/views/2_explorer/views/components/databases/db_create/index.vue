@@ -67,7 +67,7 @@
                     :max="16384"
                     controls-position="right"
                     class="form_item"
-                    placeholder="96MB"
+                    placeholder="256MB"
                   >
                   </el-input-number>
                 </el-form-item>

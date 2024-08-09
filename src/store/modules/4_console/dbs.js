@@ -105,8 +105,6 @@ const actions = {
             params[k] = state.db_form[k];
           }
         }
-      } else {
-        params.buffer = 32;
       }
       if (JSON.stringify(params) === '{}') return resolve();
       execFn(params, name)
