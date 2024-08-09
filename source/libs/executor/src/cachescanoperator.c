@@ -245,8 +245,10 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  pInfo->pTableList = NULL;
-  destroyCacheScanOperator(pInfo);
+  if (pInfo != NULL) {
+    pInfo->pTableList = NULL;
+    destroyCacheScanOperator(pInfo);
+  }
   if (pOperator != NULL) {
     pOperator->info = NULL;
     destroyOperator(pOperator);
