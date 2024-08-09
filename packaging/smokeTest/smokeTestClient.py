@@ -126,7 +126,7 @@ if version:
     if system == "Windows":
         taos_V_output = subprocess.getoutput("taos -V | findstr version")
     else:
-        taos_V_output = subprocess.getoutput("taos -V | grep version | awk -F ' ' '{print $3}'")
+        taos_V_output = subprocess.getoutput("taos -V | grep version")
 
     print("taos -V output is: %s" % taos_V_output)
     if version in taos_V_output and version in conn.client_info:
