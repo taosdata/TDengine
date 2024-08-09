@@ -192,7 +192,7 @@ int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   return code;
 }
 
-int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback, int8_t loadTask) {
   int32_t code = 0;
   STQ*    pTq = pWriter->pTq;
 
@@ -213,6 +213,10 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
   }
   streamMetaWUnLock(pTq->pStreamMeta);
   taosMemoryFree(pWriter);
+
+  if (loadTask == 1) {
+    streamMetaLoadAllTasks(pTq->pStreamMeta);
+  }
   return code;
 
 _err:

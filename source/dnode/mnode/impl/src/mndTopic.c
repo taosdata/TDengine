@@ -431,7 +431,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   SQueryPlan *pPlan = NULL;
   SMqTopicObj topicObj = {0};
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "create-topic");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-topic");
   MND_TMQ_NULL_CHECK(pTrans);
   mndTransSetDbName(pTrans, pDb->name, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
@@ -574,7 +574,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
 
 END:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to create topic:%s since %s", createTopicReq.name, terrstr());
+    mError("failed to create topic:%s since %s", createTopicReq.name, tstrerror(code));
   }
 
   mndReleaseTopic(pMnode, pTopic);
@@ -699,7 +699,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       tFreeSMDropTopicReq(&dropReq);
       return 0;
     } else {
-      mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+      mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(code));
       tFreeSMDropTopicReq(&dropReq);
       return code;
     }
@@ -727,7 +727,7 @@ END:
   mndReleaseTopic(pMnode, pTopic);
   mndTransDrop(pTrans);
   if (code != 0) {
-    mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+    mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(code));
     tFreeSMDropTopicReq(&dropReq);
     return code;
   }

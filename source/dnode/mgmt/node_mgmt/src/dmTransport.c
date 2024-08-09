@@ -109,7 +109,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t svrVer = 0;
   (void)taosVersionStrToInt(version, &svrVer);
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
-    dError("Version not compatible, cli ver: %d, svr ver: %d", pRpc->info.cliVer, svrVer);
+    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer, pRpc->info.conn.clientIp);
     goto _OVER;
   }
 
@@ -387,13 +387,14 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.notWaitAvaliableConn = 1;
 
   (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
-    dError("failed to init dnode rpc client");
-    return -1;
+    dError("failed to init dnode rpc client since:%s", tstrerror(terrno));
+    return terrno;
   }
 
   dDebug("dnode rpc client is initialized");
@@ -436,8 +437,8 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
 
   pTrans->statusRpc = rpcOpen(&rpcInit);
   if (pTrans->statusRpc == NULL) {
-    dError("failed to init dnode rpc status client");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to init dnode rpc status client since %s", tstrerror(terrno)); 
+    return terrno;
   }
 
   dDebug("dnode rpc status client is initialized");
@@ -481,8 +482,8 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
 
   pTrans->syncRpc = rpcOpen(&rpcInit);
   if (pTrans->syncRpc == NULL) {
-    dError("failed to init dnode rpc sync client");
-    return TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to init dnode rpc sync client since %s", tstrerror(terrno));
+    return terrno;
   }
 
   dDebug("dnode rpc sync client is initialized");
@@ -531,7 +532,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   (void)taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
   pTrans->serverRpc = rpcOpen(&rpcInit);
   if (pTrans->serverRpc == NULL) {
-    dError("failed to init dnode rpc server");
+    dError("failed to init dnode rpc server since:%s", tstrerror(terrno));
     return terrno;
   }
 

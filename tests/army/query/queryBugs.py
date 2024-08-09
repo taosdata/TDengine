@@ -113,6 +113,34 @@ class TDTestCase(TBase):
             tdSql.checkData(0, 0, f"nihao{num + 2}")
             tdSql.checkData(0, 1, f"{11*i}")
 
+    def FIX_TS_5239(self):
+        tdLog.info("check bug TS_5239 ...\n")
+        sqls = [
+            "drop database if exists ts_5239",
+            "create database ts_5239 cachemodel 'both' stt_trigger 1;",
+            "use ts_5239;",
+            "CREATE STABLE st (ts timestamp, c1 int) TAGS (groupId int);",
+            "CREATE TABLE ct1 USING st TAGS (1);"
+        ]
+        tdSql.executes(sqls)
+        # 2024-07-03 06:00:00.000
+        start_ts = 1719957600000
+        # insert 100 rows
+        sql = "insert into ct1 values "
+        for i in range(100):
+            sql += f"('{start_ts+i * 100}', {i+1})"
+        sql += ";"
+        tdSql.execute(sql)
+        tdSql.execute("flush database ts_5239;")
+        tdSql.execute("alter database ts_5239 stt_trigger 3;")
+        tdSql.execute(f"insert into ct1(ts) values({start_ts - 100 * 100})")
+        tdSql.execute("flush database ts_5239;")
+        tdSql.execute(f"insert into ct1(ts) values({start_ts + 100 * 200})")
+        tdSql.execute("flush database ts_5239;")
+        tdSql.query("select count(*) from ct1;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 102)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -123,6 +151,7 @@ class TDTestCase(TBase):
         # TS BUGS
         self.FIX_TS_5105()
         self.FIX_TS_5143()
+        self.FIX_TS_5239()
 
         tdLog.success(f"{__file__} successfully executed")
 

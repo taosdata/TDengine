@@ -278,7 +278,7 @@ SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       blockDataDestroy(pBlock);
       pBlock = NULL;
-      terrno = code;
+      terrno = TSDB_CODE_INVALID_PARA;
       break;
     }
     SColumnInfoData idata =
@@ -1094,7 +1094,7 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
   code = blockDataEnsureCapacity(pResBlock, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    taosMemoryFree(pResBlock);
+    blockDataDestroy(pResBlock);
     return NULL;
   }
 
@@ -1166,7 +1166,7 @@ SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, S
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(pResBlock);
+    blockDataDestroy(pResBlock);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     terrno = code;
     return NULL;
@@ -1781,7 +1781,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     pExp->base.resSchema =
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pValNode->node.aliasName);
     pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
-    nodesValueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
+    code = nodesValueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
   } else if (type == QUERY_NODE_FUNCTION) {
     pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
     SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
@@ -1811,12 +1811,10 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
       }
-      if (TSDB_CODE_SUCCESS != code) {  // todo handle error
-      } else {
-        res->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
-        code = nodesListAppend(pFuncNode->pParameterList, (SNode*)res);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
+      res->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
+      code = nodesListAppend(pFuncNode->pParameterList, (SNode*)res);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 #endif
 
@@ -1826,7 +1824,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = numOfParam;
 
-    for (int32_t j = 0; j < numOfParam; ++j) {
+    for (int32_t j = 0; j < numOfParam && TSDB_CODE_SUCCESS == code; ++j) {
       SNode* p1 = nodesListGetNode(pFuncNode->pParameterList, j);
       QUERY_CHECK_NULL(p1, code, lino, _end, terrno);
       if (p1->type == QUERY_NODE_COLUMN) {
@@ -1839,7 +1837,8 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
       } else if (p1->type == QUERY_NODE_VALUE) {
         SValueNode* pvn = (SValueNode*)p1;
         pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
-        nodesValueNodeToVariant(pvn, &pExp->base.pParam[j].param);
+        code = nodesValueNodeToVariant(pvn, &pExp->base.pParam[j].param);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
   } else if (type == QUERY_NODE_OPERATOR) {
@@ -1871,13 +1870,10 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SLogicConditionNode* pCond = (SLogicConditionNode*)pNode;
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
     QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
-
-    if (TSDB_CODE_SUCCESS == code) {
-      pExp->base.numOfParams = 1;
-      SDataType* pType = &pCond->node.resType;
-      pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCond->node.aliasName);
-      pExp->pExpr->_optrRoot.pRootNode = pNode;
-    }
+    pExp->base.numOfParams = 1;
+    SDataType* pType = &pCond->node.resType;
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCond->node.aliasName);
+    pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else {
     ASSERT(0);
   }

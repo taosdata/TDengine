@@ -179,8 +179,11 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   return code;
 
 _error:
-  destroyProjectOperatorInfo(pInfo);
-  destroyOperator(pOperator);
+  if (pInfo != NULL) destroyProjectOperatorInfo(pInfo);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }
@@ -528,8 +531,11 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   return code;
 
 _error:
-  destroyIndefinitOperatorInfo(pInfo);
-  destroyOperator(pOperator);
+  if (pInfo != NULL) destroyIndefinitOperatorInfo(pInfo);
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   pTaskInfo->code = code;
   return code;
 }

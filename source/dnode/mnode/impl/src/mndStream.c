@@ -533,7 +533,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, SStreamTask *pTask) {
     return code;
   }
 
-  code = setTransAction(pTrans, buf, tlen, TDMT_STREAM_TASK_DEPLOY, &pTask->info.epSet, 0, 0);
+  code = setTransAction(pTrans, buf, tlen, TDMT_STREAM_TASK_DEPLOY, &pTask->info.epSet, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code) {
     taosMemoryFree(buf);
   }
@@ -2139,7 +2139,7 @@ static int32_t refreshNodeListFromExistedStreams(SMnode *pMnode, SArray *pNodeLi
         break;
       }
 
-      SNodeEntry entry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId};
+      SNodeEntry entry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId, .lastHbMsgId = -1};
       epsetAssign(&entry.epset, &pTask->info.epSet);
       (void)taosHashPut(pHash, &entry.nodeId, sizeof(entry.nodeId), &entry, sizeof(entry));
     }
@@ -2319,7 +2319,7 @@ void saveTaskAndNodeInfoIntoBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode)
       }
 
       if (!exist) {
-        SNodeEntry nodeEntry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId};
+        SNodeEntry nodeEntry = {.hbTimestamp = -1, .nodeId = pTask->info.nodeId, .lastHbMsgId = -1};
         epsetAssign(&nodeEntry.epset, &pTask->info.epSet);
 
         void* px = taosArrayPush(pExecNode->pNodeList, &nodeEntry);
@@ -2420,7 +2420,7 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
     if (pStream != NULL) {  // TODO:handle error
       code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
       if (code) {
-        mError("failed to create checkpoint trans, code:%s", strerror(code));
+        mError("failed to create checkpoint trans, code:%s", tstrerror(code));
       }
     } else {
       // todo: wait for the create stream trans completed, and launch the checkpoint trans
@@ -2454,8 +2454,45 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
   return 0;
 }
 
-static void doAddReportStreamTask(SArray* pList, const SCheckpointReport* pReport) {
-  bool existed = false;
+// valid the info according to the HbMsg
+static bool validateChkptReport(const SCheckpointReport *pReport, int64_t reportChkptId) {
+  STaskId           id = {.streamId = pReport->streamId, .taskId = pReport->taskId};
+  STaskStatusEntry *pTaskEntry = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
+  if (pTaskEntry == NULL) {
+    mError("invalid checkpoint-report msg from task:0x%x, discard", pReport->taskId);
+    return false;
+  }
+
+  if (pTaskEntry->checkpointInfo.latestId >= pReport->checkpointId) {
+    mError("s-task:0x%x invalid checkpoint-report msg, checkpointId:%" PRId64 " saved checkpointId:%" PRId64 " discard",
+           pReport->taskId, pReport->checkpointId, pTaskEntry->checkpointInfo.activeId);
+    return false;
+  }
+
+  // now the task in checkpoint procedure
+  if ((pTaskEntry->checkpointInfo.activeId != 0) && (pTaskEntry->checkpointInfo.activeId > pReport->checkpointId)) {
+    mError("s-task:0x%x invalid checkpoint-report msg, checkpointId:%" PRId64 " active checkpointId:%" PRId64
+           " discard",
+           pReport->taskId, pReport->checkpointId, pTaskEntry->checkpointInfo.activeId);
+    return false;
+  }
+
+  if (reportChkptId >= pReport->checkpointId) {
+    mError("s-task:0x%x expired checkpoint-report msg, checkpointId:%" PRId64 " already update checkpointId:%" PRId64
+           " discard",
+           pReport->taskId, pReport->checkpointId, reportChkptId);
+    return false;
+  }
+
+  return true;
+}
+
+static void doAddReportStreamTask(SArray *pList, int64_t reportChkptId, const SCheckpointReport *pReport) {
+  bool valid = validateChkptReport(pReport, reportChkptId);
+  if (!valid) {
+    return;
+  }
+
   for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
     STaskChkptInfo *p = taosArrayGet(pList, i);
     if (p == NULL) {
@@ -2463,27 +2500,38 @@ static void doAddReportStreamTask(SArray* pList, const SCheckpointReport* pRepor
     }
 
     if (p->taskId == pReport->taskId) {
-      existed = true;
-      break;
+      if (p->checkpointId > pReport->checkpointId) {
+        mError("s-task:0x%x invalid checkpoint-report msg, existed:%" PRId64 " req checkpointId:%" PRId64 ", discard",
+               pReport->taskId, p->checkpointId, pReport->checkpointId);
+      } else if (p->checkpointId < pReport->checkpointId) {  // expired checkpoint-report msg, update it
+        mDebug("s-task:0x%x expired checkpoint-report msg in checkpoint-report list update from %" PRId64 "->%" PRId64,
+               pReport->taskId, p->checkpointId, pReport->checkpointId);
+
+        memcpy(p, pReport, sizeof(STaskChkptInfo));
+      } else {
+        mWarn("taskId:0x%x already in checkpoint-report list", pReport->taskId);
+      }
+      return;
     }
   }
 
-  if (!existed) {
-    STaskChkptInfo info = {
-        .streamId = pReport->streamId,
-        .taskId = pReport->taskId,
-        .transId = pReport->transId,
-        .dropHTask = pReport->dropHTask,
-        .version = pReport->checkpointVer,
-        .ts = pReport->checkpointTs,
-        .checkpointId = pReport->checkpointId,
-        .nodeId = pReport->nodeId,
-    };
+  STaskChkptInfo info = {
+      .streamId = pReport->streamId,
+      .taskId = pReport->taskId,
+      .transId = pReport->transId,
+      .dropHTask = pReport->dropHTask,
+      .version = pReport->checkpointVer,
+      .ts = pReport->checkpointTs,
+      .checkpointId = pReport->checkpointId,
+      .nodeId = pReport->nodeId,
+  };
 
-    void* p = taosArrayPush(pList, &info);
-    if (p == NULL) {
-      mError("failed to put into task list, taskId:0x%x", pReport->taskId);
-    }
+  void *p = taosArrayPush(pList, &info);
+  if (p == NULL) {
+    mError("failed to put into task list, taskId:0x%x", pReport->taskId);
+  } else {
+    int32_t size = taosArrayGetSize(pList);
+    mDebug("stream:0x%"PRIx64" %d tasks has send checkpoint-report", pReport->streamId, size);
   }
 }
 
@@ -2530,23 +2578,23 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
 
   int32_t numOfTasks = (pStream == NULL) ? 0 : mndGetNumOfStreamTasks(pStream);
 
-  SArray **pReqTaskList = (SArray **)taosHashGet(execInfo.pChkptStreams, &req.streamId, sizeof(req.streamId));
-  if (pReqTaskList == NULL) {
-    SArray *pList = taosArrayInit(4, sizeof(STaskChkptInfo));
-    if (pList != NULL) {
-      doAddReportStreamTask(pList, &req);
-      code = taosHashPut(execInfo.pChkptStreams, &req.streamId, sizeof(req.streamId), &pList, POINTER_BYTES);
+  SChkptReportInfo *pInfo = (SChkptReportInfo*)taosHashGet(execInfo.pChkptStreams, &req.streamId, sizeof(req.streamId));
+  if (pInfo == NULL) {
+    SChkptReportInfo info = {.pTaskList = taosArrayInit(4, sizeof(STaskChkptInfo)), .streamId = req.streamId};
+    if (info.pTaskList != NULL) {
+      doAddReportStreamTask(info.pTaskList, info.reportChkpt, &req);
+      code = taosHashPut(execInfo.pChkptStreams, &req.streamId, sizeof(req.streamId), &info, sizeof(info));
       if (code) {
         mError("stream:0x%" PRIx64 " failed to put into checkpoint stream", req.streamId);
       }
 
-      pReqTaskList = (SArray **)taosHashGet(execInfo.pChkptStreams, &req.streamId, sizeof(req.streamId));
+      pInfo = (SChkptReportInfo *)taosHashGet(execInfo.pChkptStreams, &req.streamId, sizeof(req.streamId));
     }
   } else {
-    doAddReportStreamTask(*pReqTaskList, &req);
+    doAddReportStreamTask(pInfo->pTaskList, pInfo->reportChkpt, &req);
   }
 
-  int32_t total = taosArrayGetSize(*pReqTaskList);
+  int32_t total = taosArrayGetSize(pInfo->pTaskList);
   if (total == numOfTasks) {  // all tasks has send the reqs
     mInfo("stream:0x%" PRIx64 " %s all %d tasks send checkpoint-report, checkpoint meta-info for checkpointId:%" PRId64
           " will be issued soon",

@@ -131,7 +131,7 @@ typedef SVCreateTSmaReq SSmaCfg;
 SMTbCursor* metaOpenTbCursor(void* pVnode);
 void        metaCloseTbCursor(SMTbCursor* pTbCur);
 void        metaPauseTbCursor(SMTbCursor* pTbCur);
-void        metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first, int8_t move);
+int32_t     metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first, int8_t move);
 int32_t     metaTbCursorNext(SMTbCursor* pTbCur, ETableType jumpTableType);
 int32_t     metaTbCursorPrev(SMTbCursor* pTbCur, ETableType jumpTableType);
 
@@ -362,7 +362,7 @@ int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader);
 int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData);
 
 int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter);
-int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback);
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback, int8_t loadTask);
 int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData);
 
 int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateReader** ppReader);
@@ -473,6 +473,7 @@ struct SVnode {
   STfs*     pTfs;
   int32_t   diskPrimary;
   SMsgCb    msgCb;
+  bool      disableWrite;
 
   // Buffer Pool
   TdThreadMutex mutex;

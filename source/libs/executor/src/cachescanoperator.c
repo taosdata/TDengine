@@ -245,9 +245,14 @@ _error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  pInfo->pTableList = NULL;
-  destroyCacheScanOperator(pInfo);
-  destroyOperator(pOperator);
+  if (pInfo != NULL) {
+    pInfo->pTableList = NULL;
+    destroyCacheScanOperator(pInfo);
+  }
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
   return code;
 }
 
@@ -448,7 +453,7 @@ void destroyCacheScanOperator(void* param) {
   taosArrayDestroy(pInfo->matchInfo.pList);
   tableListDestroy(pInfo->pTableList);
 
-  if (pInfo->pLastrowReader != NULL) {
+  if (pInfo->pLastrowReader != NULL && pInfo->readHandle.api.cacheFn.closeReader != NULL) {
     pInfo->readHandle.api.cacheFn.closeReader(pInfo->pLastrowReader);
     pInfo->pLastrowReader = NULL;
   }

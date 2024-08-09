@@ -4,7 +4,7 @@ title: 更多安全策略
 toc_max_heading_level: 4
 ---
 
-除了传统的用户和权限管理之外，TDengine 还有其他的安全策略，例如 IP 白名单、审计日志、数据加密等。
+除了传统的用户和权限管理之外，TDengine 还有其他的安全策略，例如 IP 白名单、审计日志、数据加密等，这些都是 TDengine Enterprise 特有功能，其中白名单功能在 3.2.0.0 版本首次发布，审计日志在 3.1.1.0 版本中首次发布，数据库加密在 3.3.0.0 中首次发布，建议使用最新版本。
 
 ## IP 白名单
 
@@ -18,13 +18,13 @@ alter user test add host host_name1
 
 查询 IP 白名单的 SQL 如下。
 ```sql
-select test, allowed_host from ins_user_privileges;
-show users;
+SELECT TEST, ALLOWED_HOST FROM INS_USERS;
+SHOW USERS;
 ```
 
 删除 IP 白名单的命令如下。
 ```sql
-alter user test drop host host_name1
+ALTER USER TEST DROP HOST HOST_NAME1
 ```
 
 ## 审计日志
