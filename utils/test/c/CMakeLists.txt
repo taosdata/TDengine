@@ -7,6 +7,7 @@ add_executable(write_raw_block_test write_raw_block_test.c)
 add_executable(sml_test sml_test.c)
 add_executable(get_db_name_test get_db_name_test.c)
 add_executable(tmq_offset tmqOffset.c)
+add_executable(tmq_multi_thread_test tmq_multi_thread_test.c)
 add_executable(tmq_offset_test tmq_offset_test.c)
 add_executable(varbinary_test varbinary_test.c)
 add_executable(replay_test replay_test.c)
@@ -22,6 +23,15 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
+target_link_libraries(
+    tmq_multi_thread_test
+    PUBLIC taos
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
 target_link_libraries(
     create_table
     PUBLIC taos
