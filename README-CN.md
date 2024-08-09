@@ -348,7 +348,7 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 
 # 成为社区贡献者
 
-点击 [这里](https://www.taosdata.com/cn/contributor/)，了解如何成为 TDengine 的贡献者。
+点击 [这里](https://www.taosdata.com/contributor)，了解如何成为 TDengine 的贡献者。
 
 # 加入技术交流群
 
