@@ -204,7 +204,8 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow **ppOldRow = taosHashGet(hash, pNewRow->pObj, keySize);
   if (ppOldRow == NULL || *ppOldRow == NULL) {
     sdbUnLock(pSdb, type);
-    return sdbInsertRow(pSdb, hash, pRaw, pNewRow, keySize);
+    // return sdbInsertRow(pSdb, hash, pRaw, pNewRow, keySize);
+    return TSDB_CODE_MND_TRANS_NOT_EXIST;
   }
 
   SSdbRow *pOldRow = *ppOldRow;
