@@ -181,6 +181,7 @@ typedef struct SBlockLoadSuppInfo {
   SColumnDataAgg      tsColAgg;
   int16_t*            colId;
   int16_t*            slotId;
+  int8_t*             colType;
   char**              buildBuf;  // build string tmp buffer, todo remove it later after all string format being updated.
   int32_t             numOfCols;
   int32_t             numOfPks;
@@ -378,6 +379,7 @@ typedef struct SCacheRowsReader {
   char**                  transferBuf;  // todo remove it soon
   int32_t                 numOfCols;
   SArray*                 pCidList;
+  SArray*                 pTypeList;
   int32_t*                pSlotIds;
   int32_t                 type;
   int32_t                 tableIndex;  // currently returned result tables

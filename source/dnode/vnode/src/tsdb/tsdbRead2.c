@@ -173,17 +173,18 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
   pSupInfo->smaValid = true;
   pSupInfo->numOfCols = numOfCols;
 
-  pSupInfo->colId = taosMemoryMalloc(numOfCols * (sizeof(int16_t) * 2 + POINTER_BYTES));
+  pSupInfo->colId = taosMemoryMalloc(numOfCols * (sizeof(int16_t) * 2 + sizeof(int8_t) + POINTER_BYTES));
   if (pSupInfo->colId == NULL) {
-    taosMemoryFree(pSupInfo->colId);
-    return terrno;
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   pSupInfo->slotId = (int16_t*)((char*)pSupInfo->colId + (sizeof(int16_t) * numOfCols));
-  pSupInfo->buildBuf = (char**)((char*)pSupInfo->slotId + (sizeof(int16_t) * numOfCols));
+  pSupInfo->colType = (int8_t*)((char*)pSupInfo->slotId + (sizeof(int16_t) * numOfCols));
+  pSupInfo->buildBuf = (char**)((char*)pSupInfo->colType + (sizeof(int8_t) * numOfCols));
   for (int32_t i = 0; i < numOfCols; ++i) {
     pSupInfo->colId[i] = pCols[i].colId;
     pSupInfo->slotId[i] = pSlotIdList[i];
+    pSupInfo->colType[i] = pCols[i].type;
 
     if (IS_VAR_DATA_TYPE(pCols[i].type)) {
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCols[i].bytes);
@@ -203,7 +204,7 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
     }
   }
 
-  return (initSucc)? TSDB_CODE_SUCCESS:TSDB_CODE_OUT_OF_MEMORY;
+  return (initSucc) ? TSDB_CODE_SUCCESS : TSDB_CODE_OUT_OF_MEMORY;
 }
 
 static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) {
@@ -1430,7 +1431,7 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
   blockInfoToRecord(&tmp, pBlockInfo, pSup);
   SBrinRecord* pRecord = &tmp;
   code = tsdbDataFileReadBlockDataByColumn(pReader->pFileReader, pRecord, pBlockData, pSchema, &pSup->colId[1],
-                                           pSup->numOfCols - 1);
+                                           &pSup->colType[1], pSup->numOfCols - 1);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p error occurs in loading file block, global index:%d, table index:%d, brange:%" PRId64 "-%" PRId64
               ", rows:%d, code:%s %s",
@@ -2424,6 +2425,7 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
       .backward = (pSttBlockReader->order == TSDB_ORDER_DESC),
       .pSttFileBlockIterArray = pReader->status.pLDataIterArray,
       .pCols = pReader->suppInfo.colId,
+      .pTypes = pReader->suppInfo.colType,
       .numOfCols = pReader->suppInfo.numOfCols,
       .loadTombFn = loadSttTombDataForAll,
       .pCurRowKey = &pScanInfo->sttKeyInfo.nextProcKey,
@@ -5574,6 +5576,7 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
       .pReader = pReader,
       .pSchema = pReader->info.pSchema,
       .pCols = pReader->suppInfo.colId,
+      .pTypes = pReader->suppInfo.colType,
       .numOfCols = pReader->suppInfo.numOfCols,
       .suid = pReader->info.suid,
   };

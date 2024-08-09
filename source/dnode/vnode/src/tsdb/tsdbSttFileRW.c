@@ -235,7 +235,7 @@ _exit:
 }
 
 int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *sttBlk, SBlockData *bData,
-                                         STSchema *pTSchema, int16_t cids[], int32_t ncid) {
+                                         STSchema *pTSchema, int16_t cids[], int8_t types[], int32_t ncid) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -309,11 +309,11 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
 
     if (cid < blockCol.cid) {
       const STColumn *tcol = tTSchemaSearchColumn(pTSchema, cid);
-      ASSERT(tcol);
+      ASSERT(!tcol || (tcol->type == types[i]));
       SBlockCol none = {
           .cid = cid,
-          .type = tcol->type,
-          .cflag = tcol->flags,
+          .type = tcol ? tcol->type : types[i],
+          .cflag = tcol ? tcol->flags : 0,
           .flag = HAS_NONE,
           .szOrigin = 0,
           .szBitmap = 0,

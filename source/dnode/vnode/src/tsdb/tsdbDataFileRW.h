@@ -58,7 +58,7 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 // .data
 int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData);
 int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
-                                          STSchema *pTSchema, int16_t cids[], int32_t ncid);
+                                          STSchema *pTSchema, int16_t cids[], int8_t types[], int32_t ncid);
 // .sma
 int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *record,
                                  TColumnDataAggArray *columnDataAggArray);

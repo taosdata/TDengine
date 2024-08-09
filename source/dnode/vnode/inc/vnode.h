@@ -181,8 +181,8 @@ void         tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn not
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr,
-                                SArray *pFuncTypeList, SColumnInfo *pkCol, int32_t numOfPks);
+                                SArray *pCidList, SArray *pTypeList, int32_t *pSlotIds, uint64_t suid, void **pReader,
+                                const char *idstr, SArray *pFuncTypeList, SColumnInfo *pkCol, int32_t numOfPks);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                               SArray *pTableUids);
 void    tsdbCacherowsReaderClose(void *pReader);

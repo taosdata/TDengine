@@ -43,6 +43,7 @@ typedef struct SCacheRowsScanInfo {
   SSDataBlock*    pBufferedRes;
   SArray*         pUidList;
   SArray*         pCidList;
+  SArray*         pTypeList;
   int32_t         indexOfBufferedRes;
   STableListInfo* pTableList;
   SArray*         pFuncTypeList;
@@ -145,8 +146,11 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
     }
   }
 
-  SArray* pCidList = taosArrayInit(numOfCols, sizeof(int16_t));
-  QUERY_CHECK_NULL(pCidList, code, lino, _error, terrno);
+  pInfo->pCidList = taosArrayInit(numOfCols, sizeof(int16_t));
+  QUERY_CHECK_NULL(pInfo->pCidList, code, lino, _error, terrno);
+
+  pInfo->pTypeList = taosArrayInit(numOfCols, sizeof(int8_t));
+  QUERY_CHECK_NULL(pInfo->pTypeList, code, lino, _error, terrno);
 
   pInfo->pFuncTypeList = taosArrayInit(taosArrayGetSize(pScanNode->pFuncTypes), sizeof(int32_t));
   QUERY_CHECK_NULL(pInfo->pFuncTypeList, code, lino, _error, terrno);
@@ -160,15 +164,18 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
     SColMatchItem* pColInfo = taosArrayGet(pInfo->matchInfo.pList, i);
     QUERY_CHECK_NULL(pColInfo, code, lino, _error, terrno);
 
-    void*          tmp = taosArrayPush(pCidList, &pColInfo->colId);
+    void* tmp = taosArrayPush(pInfo->pCidList, &pColInfo->colId);
     QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
+
+    tmp = taosArrayPush(pInfo->pTypeList, &pColInfo->dataType.type);
+    QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
+
     if (pInfo->pFuncTypeList != NULL && taosArrayGetSize(pInfo->pFuncTypeList) > i) {
       void* pFuncType = taosArrayGet(pInfo->pFuncTypeList, i);
       QUERY_CHECK_NULL(pFuncType, code, lino, _error, terrno);
       pColInfo->funcType = *(int32_t*)pFuncType;
     }
   }
-  pInfo->pCidList = pCidList;
 
   code = removeRedundantTsCol(pScanNode, &pInfo->matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -190,10 +197,10 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
     if (totalTables) QUERY_CHECK_NULL(pList, code, lino, _error, terrno);
 
     uint64_t suid = tableListGetSuid(pTableListInfo);
-    code = pInfo->readHandle.api.cacheFn.openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
-                                                    taosArrayGetSize(pInfo->matchInfo.pList), pCidList, pInfo->pSlotIds,
-                                                    suid, &pInfo->pLastrowReader, pTaskInfo->id.str,
-                                                    pScanNode->pFuncTypes, &pInfo->pkCol, pInfo->numOfPks);
+    code = pInfo->readHandle.api.cacheFn.openReader(
+        pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables, taosArrayGetSize(pInfo->matchInfo.pList),
+        pInfo->pCidList, pInfo->pTypeList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader, pTaskInfo->id.str,
+        pScanNode->pFuncTypes, &pInfo->pkCol, pInfo->numOfPks);
     QUERY_CHECK_CODE(code, lino, _error);
 
     capacity = TMIN(totalTables, 4096);
@@ -366,8 +373,8 @@ int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       if (NULL == pInfo->pLastrowReader) {
         int32_t tmpRes = pReaderFn->openReader(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
                                                taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList,
-                                               pInfo->pSlotIds, suid, &pInfo->pLastrowReader, pTaskInfo->id.str,
-                                               pInfo->pFuncTypeList, &pInfo->pkCol, pInfo->numOfPks);
+                                               pInfo->pTypeList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader,
+                                               pTaskInfo->id.str, pInfo->pFuncTypeList, &pInfo->pkCol, pInfo->numOfPks);
 
         if (tmpRes != TSDB_CODE_SUCCESS) {
           pInfo->currentGroupIndex += 1;
@@ -446,6 +453,7 @@ void destroyCacheScanOperator(void* param) {
   taosMemoryFreeClear(pInfo->pSlotIds);
   taosMemoryFreeClear(pInfo->pDstSlotIds);
   taosArrayDestroy(pInfo->pCidList);
+  taosArrayDestroy(pInfo->pTypeList);
   taosArrayDestroy(pInfo->pFuncTypeList);
   taosArrayDestroy(pInfo->pUidList);
   taosArrayDestroy(pInfo->matchInfo.pList);

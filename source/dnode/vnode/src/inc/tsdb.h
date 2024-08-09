@@ -794,6 +794,7 @@ typedef struct SSttBlockLoadInfo {
   int32_t               currentLoadBlockIndex;
   STSchema             *pSchema;
   int16_t              *colIds;
+  int8_t               *colTypes;
   int32_t               numOfCols;
   bool                  checkRemainingRow;  // todo: no assign value?
   bool                  isLast;
@@ -884,6 +885,7 @@ typedef struct SMergeTreeConf {
   void         *pCurrentFileset;
   STSchema     *pSchema;
   int16_t      *pCols;
+  int8_t       *pTypes;
   int32_t       numOfCols;
   SRowKey      *pCurRowKey;
   _load_tomb_fn loadTombFn;
@@ -905,7 +907,8 @@ void    tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 
-int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo);
+int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int8_t *colTypes, int32_t numOfCols,
+                                SSttBlockLoadInfo **pInfo);
 void    destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void    destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
 
