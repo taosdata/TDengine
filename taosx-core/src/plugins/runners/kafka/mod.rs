@@ -426,6 +426,7 @@ async fn execute(
     let config = KafkaTaskConfig::from_dsn(&from)?;
 
     let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
+    let batch_timeout_ms = config.advanced_options.batch_timeout.unwrap_or(1000) as i64;
 
     // split into sub tasks
     let sub_tasks: Vec<SubTask> = SubTask::build_tasks(config, notify.clone())?;
@@ -440,7 +441,15 @@ async fn execute(
         consumers.spawn(
             async move {
                 poll_message(
-                    idx, &consumer, tx, timeout, aborted, schema, batch_size, notify,
+                    idx,
+                    &consumer,
+                    tx,
+                    timeout,
+                    aborted,
+                    schema,
+                    batch_size,
+                    batch_timeout_ms,
+                    notify,
                 )
                 .in_current_span()
                 .await
@@ -683,6 +692,7 @@ async fn poll_message<'a>(
     aborted: CancellationToken,
     schema: Schema,
     batch_size: usize,
+    batch_timeout_ms: i64,
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<ExitStatus> {
     let last_polling = chrono::Utc::now().timestamp_millis();
@@ -695,7 +705,6 @@ async fn poll_message<'a>(
     } else {
         Duration::MAX
     };
-    let batch_timeout_ms = 1000;
 
     let timestamp = TimestampNanosecondBuilder::new();
     let topic = StringBuilder::new();
@@ -754,7 +763,6 @@ async fn poll_message<'a>(
                         tracing::error!("failed to polling from kafka, cause: {:#}", err);
                     }
                     None => {
-                        tokio::time::sleep(Duration::from_millis(100)).await;
                         match sender.send().await? {
                             ExitStatus::None => {
                                 tokio::time::sleep(Duration::from_millis(100)).await;
