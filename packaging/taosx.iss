@@ -24,7 +24,7 @@ Source: "{#MyAppSourceDir}\config\explorer.toml"; DestDir: "{app}\cfg"; Flags: u
 Source: "{#MyAppSourceDir}\append\opc_gdba_32\*"; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 
 [Components]
-Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en";
+Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en"; Types: full;
 
 [run]
 Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
