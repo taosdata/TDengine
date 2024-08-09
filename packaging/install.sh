@@ -245,11 +245,6 @@ install_taosx_only() {
     else
         ${csudo}cp -f ./etc/taos/taosx.toml ${CONFIG_DIR}/
     fi
-    if [ -f ${CONFIG_DIR}/agent.toml ]; then
-        ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
-    else
-        ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/
-    fi
     echo "install toml file to ${CONFIG_DIR}..."
     if [ -f ./etc/taos/explorer.toml ]; then
         if [ -f ${CONFIG_DIR}/explorer.toml ]; then
