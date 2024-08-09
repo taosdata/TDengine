@@ -247,7 +247,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
 
     } else {
       stError("failed to start stream backend at %s, reason: %s, restart from default state dir:%s", chkp,
-              tstrerror(TAOS_SYSTEM_ERROR(errno)), state);
+              tstrerror(terrno), state);
       code = taosMkDir(state);
       if (code != 0) {
         code = TAOS_SYSTEM_ERROR(errno);
