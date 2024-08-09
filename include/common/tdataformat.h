@@ -193,6 +193,7 @@ int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *co
 
 // for stmt bind
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen);
 void    tColDataSortMerge(SArray *colDataArr);
 
 // for raw block
@@ -377,6 +378,14 @@ typedef struct {
 } SBindInfo;
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
                           SArray *rowArray);
+
+typedef struct {
+  int32_t          columnId;
+  int32_t          type;
+  TAOS_STMT2_BIND *bind;
+} SBindInfo2;
+int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                           SArray *rowArray);
 
 #endif
 
