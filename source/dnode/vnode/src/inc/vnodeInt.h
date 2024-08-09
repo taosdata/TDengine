@@ -362,7 +362,7 @@ int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader);
 int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData);
 
 int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter);
-int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback);
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback, int8_t loadTask);
 int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData);
 
 int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateReader** ppReader);

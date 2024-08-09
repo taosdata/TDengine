@@ -563,7 +563,7 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
             pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
   }
 
-  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamTaskId, req.downstreamNodeId);
+  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamNodeId, req.downstreamTaskId);
   streamMetaReleaseTask(pMeta, pTask);
   if (code) {
     return code;
@@ -996,7 +996,13 @@ int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg)
     int64_t checkpointId = 0;
 
     streamTaskGetActiveCheckpointInfo(pTask, &transId, &checkpointId);
-    ASSERT(checkpointId == pReq->checkpointId);
+    if (checkpointId != pReq->checkpointId) {
+      tqError("s-task:%s invalid checkpoint-trigger retrieve msg from 0x%" PRIx64 ", current checkpointId:%" PRId64
+              " req:%" PRId64,
+              pTask->id.idStr, pReq->downstreamTaskId, checkpointId, pReq->checkpointId);
+      streamMetaReleaseTask(pMeta, pTask);
+      return TSDB_CODE_INVALID_MSG;
+    }
 
     if (streamTaskAlreadySendTrigger(pTask, pReq->downstreamNodeId)) {
       // re-send the lost checkpoint-trigger msg to downstream task
