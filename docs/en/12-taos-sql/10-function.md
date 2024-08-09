@@ -1186,7 +1186,7 @@ CSUM(expr)
 ### DERIVATIVE
 
 ```sql
-DERIVATIVE(expr, time_inerval, ignore_negative)
+DERIVATIVE(expr, time_interval, ignore_negative)
 
 ignore_negative: {
     0
