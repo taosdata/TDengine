@@ -430,7 +430,7 @@ def process(block):
 1. shape() 返回数据块的行数和列数
 2. data(i, j) 返回 i 行 j 列的数据
 标量函数的 process 方法传入的数据块有多少行，就需要返回多少行数据。上述代码忽略列数，因为只需对每行的第一个数做计算。
-接下来我建对应的 UDF 函数，在 TDengine CLI 中执行下面语句。
+接下来创建对应的 UDF 函数，在 TDengine CLI 中执行下面语句。
 
 ```sql
 create function myfun as '/root/udf/myfun.py' outputtype double language 'Python'
