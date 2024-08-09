@@ -798,7 +798,7 @@ int32_t taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, i
         memcpy(&winStr[3], pp, ppp - pp);
         indexStr = ppp - pp + 3;
       }
-      sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (p[0] == '+' ? '-' : '+'), p[1], p[2], p[3], p[4]);
+      sprintf(&winStr[indexStr], "%c%c%c:%c%c:00", (p[0] == '+' ? '+' : '-'), p[1], p[2], p[3], p[4]);
       *tsTimezone = -taosStr2Int32(p, NULL, 10);
     } else {
       *tsTimezone = 0;
