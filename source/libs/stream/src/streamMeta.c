@@ -1240,6 +1240,15 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     taosMsleep(100);
   }
 
+  streamMetaRLock(pMeta);
+
+  SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
+  streamMetaRUnLock(pMeta);
+
+  if (pTaskList != NULL) {
+    taosArrayDestroy(pTaskList);
+  }
+
   int64_t el = taosGetTimestampMs() - st;
   stDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
 }

@@ -810,6 +810,28 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
     return;
   }
 
+  if ((pTmrInfo->launchChkptId != pActiveInfo->activeId) || (pActiveInfo->activeId == 0)) {
+    taosThreadMutexUnlock(&pActiveInfo->lock);
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stWarn("s-task:%s vgId:%d checkpoint-trigger retrieve by previous checkpoint procedure, checkpointId:%" PRId64
+               ", quit, ref:%d",
+           id, vgId, pTmrInfo->launchChkptId, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
+  // active checkpoint info is cleared for now
+  if ((pActiveInfo->activeId == 0) || (pActiveInfo->transId == 0) || (pTask->chkInfo.startTs == 0)) {
+    taosThreadMutexUnlock(&pActiveInfo->lock);
+    int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
+    stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from retrieve checkpoint-trigger send tmr, ref:%d",
+           id, vgId, ref);
+
+    streamMetaReleaseTask(pTask->pMeta, pTask);
+    return;
+  }
+
   for (int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
     SStreamUpstreamEpInfo* pInfo = taosArrayGetP(pList, i);
 
