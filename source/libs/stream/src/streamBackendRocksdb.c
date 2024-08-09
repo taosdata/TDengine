@@ -1452,8 +1452,14 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
-    (void)taosArrayPush(pSnap, &snap);
+    if (taosArrayPush(pSnap, &snap) == NULL) {
+      taskDbUnRefChkp(pTaskDb, pTaskDb->chkpId);
+      taskDbRemoveRef(pTaskDb);
+      code = terrno;
+      break;
+    }
 
+    taskDbRemoveRef(pTaskDb);
     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
   }
   streamMutexUnlock(&pMeta->backendMutex);
