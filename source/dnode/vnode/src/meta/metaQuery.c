@@ -1427,6 +1427,11 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
     int32_t len = 0;
     if (metaGetTableTagByUid(pMeta, suid, p->uid, &val, &len, false) == 0) {
       p->pTagVal = taosMemoryMalloc(len);
+      if (!p->pTagVal) {
+        if (isLock) metaULock(pMeta);
+
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
       memcpy(p->pTagVal, val, len);
       tdbFree(val);
     } else {
