@@ -25,7 +25,8 @@ void* consumeThreadFunc(void* param) {
   int32_t* index = (int32_t*) param;
   tmq_conf_t* conf = tmq_conf_new();
   char groupId[64] = {0};
-  sprintf(groupId, "group_%d", *index);
+  int64_t t = taosGetTimestampMs();
+  sprintf(groupId, "group_%ld_%d", t, *index);
   tmq_conf_set(conf, "enable.auto.commit", "false");
   tmq_conf_set(conf, "auto.commit.interval.ms", "2000");
   tmq_conf_set(conf, "group.id", groupId);
@@ -46,26 +47,28 @@ void* consumeThreadFunc(void* param) {
   tmq_list_destroy(topicList);
 
   int32_t     timeout = 200;
-
+  int32_t totalRows = 0;
   while (1) {
     printf("start to poll\n");
 
     TAOS_RES *pRes = tmq_consumer_poll(tmq, timeout);
     if (pRes) {
+      int32_t rows = 0;
+      void* data = NULL;
+      taos_fetch_raw_block(pRes, &rows, &data);
+
+      totalRows+=rows;
       int cols = taos_num_fields(pRes);
       for(int32_t i = 0; i < cols; ++i) {
-        int32_t rows = 0;
-        void* data = NULL;
         int64_t start = taosGetTimestampUs();
-        taos_fetch_raw_block(pRes, &rows, &data);
         for (int32_t j = 0; j < rows; ++j) {
-          int64_t t1 = taosGetTimestampUs();
+          //int64_t t1 = taosGetTimestampUs();
           taos_is_null(pRes, j, i);
-          int64_t t2 = taosGetTimestampUs();
-          printf("taos_is_null cost %"PRId64" us\n", t2 - t1);
+          //int64_t t2 = taosGetTimestampUs();
+          //printf("taos_is_null  gourp:%s cost %"PRId64" us\n", groupId, t2 - t1);
         }
         int64_t end = taosGetTimestampUs();
-        printf("taos_fetch_raw_block rows:%d cost %"PRId64" us\n", rows, end - start);
+        printf("taos_fetch_raw_block gourp:%s total rows:%d cost %"PRId64" us\n", groupId, totalRows, end - start);
       }
 
       taos_free_result(pRes);
@@ -90,6 +93,7 @@ int main(int argc, char* argv[]) {
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
+  int64_t t1 = taosGetTimestampUs();
   // pthread_create one thread to consume
   int32_t* paras = taosMemoryCalloc(numOfThread, sizeof(int32_t));
   for (int32_t i = 0; i < numOfThread; ++i) {
@@ -102,6 +106,8 @@ int main(int argc, char* argv[]) {
     taosThreadClear(&thread[i]);
   }
 
+  int64_t t2 = taosGetTimestampUs();
+  printf("total cost %"PRId64" us\n", t2 - t1);
   taosMemoryFree(paras);
   return 0;
 }
