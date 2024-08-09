@@ -152,5 +152,5 @@ TDengine 的多级存储功能在使用上还具备以下优点。
 |RESTful 接口 | 6041 |
 |WebSocket 接口 |6041 |
 |taosKeeper | 6043 |
-|taosX | 6055 |
+|taosX | 6050, 6055 |
 |taosExplorer | 6060 |

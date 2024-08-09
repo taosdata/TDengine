@@ -44,7 +44,7 @@ fqdn h1.taosdata.com
 serverPort 6030
 ```
 
-一定要修改的参数是 f irstEp 和 fqdn。对于每个 dnode，f irstEp 配置应该保持一致，但 fqdn 一定要配置成其所在 dnode 的值。其他参数可不做任何修改，除非你很清楚为什么要修改。
+一定要修改的参数是 firstEp 和 fqdn。对于每个 dnode，firstEp 配置应该保持一致，但 fqdn 一定要配置成其所在 dnode 的值。其他参数可不做任何修改，除非你很清楚为什么要修改。
 
 对于希望加入集群的 dnode 节点，必须确保下表所列的与 TDengine 集群相关的参数设置完全一致。任何参数的不匹配都可能导致 dnode 节点无法成功加入集群。
 
