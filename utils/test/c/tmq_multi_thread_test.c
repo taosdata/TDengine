@@ -68,7 +68,9 @@ void* consumeThreadFunc(void* param) {
           //printf("taos_is_null  gourp:%s cost %"PRId64" us\n", groupId, t2 - t1);
         }
         int64_t end = taosGetTimestampUs();
-        printf("taos_fetch_raw_block gourp:%s total rows:%d cost %"PRId64" us\n", groupId, totalRows, end - start);
+        bool* isNULL = taosMemoryCalloc(rows, sizeof(bool));
+        int code = taos_get_column_data_null(pRes, i, isNULL, rows);
+        printf("taos_fetch_raw_block gourp:%s total rows:%d cost %"PRId64" us, code:%d\n", groupId, totalRows, end - start, code);
       }
 
       taos_free_result(pRes);
