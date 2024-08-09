@@ -811,7 +811,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
   }
 
   if ((pTmrInfo->launchChkptId != pActiveInfo->activeId) || (pActiveInfo->activeId == 0)) {
-    streamMutexUnlock(&pActiveInfo->lock);
+    taosThreadMutexUnlock(&pActiveInfo->lock);
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d checkpoint-trigger retrieve by previous checkpoint procedure, checkpointId:%" PRId64
                ", quit, ref:%d",
@@ -823,7 +823,7 @@ void checkpointTriggerMonitorFn(void* param, void* tmrId) {
 
   // active checkpoint info is cleared for now
   if ((pActiveInfo->activeId == 0) || (pActiveInfo->transId == 0) || (pTask->chkInfo.startTs == 0)) {
-    streamMutexUnlock(&pActiveInfo->lock);
+    taosThreadMutexUnlock(&pActiveInfo->lock);
     int32_t ref = streamCleanBeforeQuitTmr(pTmrInfo, pTask);
     stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from retrieve checkpoint-trigger send tmr, ref:%d",
            id, vgId, ref);
