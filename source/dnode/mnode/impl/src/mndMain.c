@@ -443,7 +443,7 @@ static int32_t mndInitTimer(SMnode *pMnode) {
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   if ((code = taosThreadCreate(&pMnode->thread, &thAttr, mndThreadFp, pMnode)) != 0) {
-    mError("failed to create timer thread since %s", strerror(errno));
+    mError("failed to create timer thread since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
 

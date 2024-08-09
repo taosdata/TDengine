@@ -27,9 +27,9 @@
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
-# ,,n,army,python3 ./test.py -f cmdline/fullopt.py
-,,n,army,python3 ./test.py -f query/show.py -N 3
-,,n,army,python3 ./test.py -f alter/alterConfig.py -N 3
+,,n,army,python3 ./test.py -f cmdline/fullopt.py
+,,y,army,./pytest.sh python3 ./test.py -f query/show.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f alter/alterConfig.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/subquery/subqueryBugs.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
 ,,y,army,./pytest.sh python3 ./test.py -f storage/compressBasic.py -N 3
@@ -163,6 +163,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stt_blocks_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_null.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
@@ -280,8 +281,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db-removewal.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb-removewal.py -N 6 -n 3
-#,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
-#,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
 #,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db.py -N 6 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3

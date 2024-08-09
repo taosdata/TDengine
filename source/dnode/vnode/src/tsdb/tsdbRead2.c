@@ -4708,8 +4708,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   pReader->pSchemaMap = tSimpleHashInit(8, taosFastHash);
   if (pReader->pSchemaMap == NULL) {
     tsdbError("failed init schema hash for reader %s", pReader->idStr);
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TSDB_CHECK_NULL(pReader->pSchemaMap, code, lino, _err, terrno);
   }
 
   tSimpleHashSetFreeFp(pReader->pSchemaMap, freeSchemaFunc);

@@ -417,7 +417,6 @@ int32_t tqStreamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return code;
   } else {
     tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, pRsp->upstreamTaskId);
-    terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 }

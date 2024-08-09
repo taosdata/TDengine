@@ -390,11 +390,13 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   }
 
   initLimitInfo(pExNode->node.pLimit, pExNode->node.pSlimit, &pInfo->limitInfo);
-  pInfo->self = taosAddRef(exchangeObjRefPool, pInfo);
-  if (pInfo->self < 0) {
+  int64_t refId = taosAddRef(exchangeObjRefPool, pInfo);
+  if (refId < 0) {
     int32_t code = terrno;
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
+  } else {
+    pInfo->self = refId;
   }
 
   return initDataSource(numOfSources, pInfo, id);
