@@ -35,6 +35,11 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
+add_test(
+        NAME clientTest
+        COMMAND clientTest
+)
+
 TARGET_INCLUDE_DIRECTORIES(
         tmqTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
