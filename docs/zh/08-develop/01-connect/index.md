@@ -259,17 +259,19 @@ dotnet add package TDengine.Connector
 ## 建立连接
 
 在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine，而且服务端的 FQDN 配置正确。以下示例代码，都假设 TDengine 安装在本机，且 FQDN（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
+
 ### 连接参数
 连接的配置项较多，因此在建立连接之前，我们能先介绍一下各语言连接器建立连接使用的参数。
 
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
+    Java 连接器建立连接的参数有 URL 和 Properties。  
+    TDengine 的 JDBC URL 规范格式为：
+    `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
 
-Java 连接器建立连接的参数有 URL 和 Properties。  
-TDengine 的 JDBC URL 规范格式为：
-`jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`  
+    URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/java/#url-规范)
 
-URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/java/#url-规范)
+    **注**：REST 连接中增加 `batchfetch` 参数并设置为 true，将开启 WebSocket 连接。
 
     </TabItem>
     <TabItem label="Python" value="python">
@@ -343,7 +345,7 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
     - **database**: 数据库名称。
     - **params**: 其他参数。 例如token。
 
-    - 完整 D 示例：
+    - 完整 DSN 示例：
 
     ```js
         ws://root:taosdata@localhost:6041

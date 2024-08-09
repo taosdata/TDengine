@@ -169,7 +169,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 ```
 
 
-执行带有 reqId 的无模式写入，此 reqId 可用于请求链路追踪。
+执行带有 reqId 的无模式写入，最后一个参数 reqId 可用于请求链路追踪。
 
 ```java
 writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
@@ -213,7 +213,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 {{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/SchemalessJniTest.java:schemaless}}
 ```
 
-执行带有 reqId 的无模式写入，此 reqId 可用于请求链路追踪。
+执行带有 reqId 的无模式写入，最后一个参数 reqId 可用于请求链路追踪。
 
 ```java
 writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);

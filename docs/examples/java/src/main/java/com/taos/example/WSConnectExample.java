@@ -11,9 +11,9 @@ public class WSConnectExample {
 // ANCHOR: main
 public static void main(String[] args) throws SQLException {
     // use
-    // String jdbcUrl = "jdbc:TAOS-RS://localhost:6041/dbName?user=root&password=taosdata";
+    // String jdbcUrl = "jdbc:TAOS-RS://localhost:6041/dbName?user=root&password=taosdata&batchfetch=true";
     // if you want to connect a specified database named "dbName".
-    String jdbcUrl = "jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata";
+    String jdbcUrl = "jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata&batchfetch=true";
     Properties connProps = new Properties();
     connProps.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
     connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
