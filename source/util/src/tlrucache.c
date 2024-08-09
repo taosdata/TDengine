@@ -384,6 +384,9 @@ static LRUStatus taosLRUCacheShardInsertEntry(SLRUCacheShard *shard, SLRUEntry *
                                               bool freeOnFail) {
   LRUStatus status = TAOS_LRU_STATUS_OK;
   SArray   *lastReferenceList = taosArrayInit(16, POINTER_BYTES);
+  if (!lastReferenceList) {
+    return TAOS_LRU_STATUS_FAIL;
+  }
 
   (void)taosThreadMutexLock(&shard->mutex);
 
