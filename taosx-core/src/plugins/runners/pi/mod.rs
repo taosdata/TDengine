@@ -1,14 +1,5 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::Context;
-use serde::Deserialize;
-use serde_json::Value;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use tokio_process_terminate::TerminateExt;
-use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Span};
-use tracing_subscriber::fmt::format;
-
 use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
@@ -16,10 +7,14 @@ use crate::runners::pi::config::PiConfig;
 use crate::sink::lush::LushModelConfig;
 use crate::utils::monitor::send_sub_process_info;
 use crate::TaskNotify;
-use crate::{
-    build_ipc, get_log_keep_days, plugins::service::spawn_rest_service, utils::port_pool::PortPool,
-    Action, Transferred,
-};
+use crate::{build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, Transferred};
+use anyhow::Context;
+use serde::Deserialize;
+use serde_json::Value;
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio_process_terminate::TerminateExt;
+use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Span};
 
 pub mod config;
 pub mod transform;
@@ -172,16 +167,6 @@ pub async fn pi_to_taos(
         }
     }
 
-    let server_cancellation_token = CancellationToken::new();
-    let server_cancellation_token_cloned = server_cancellation_token.clone();
-    let server = std::thread::spawn(move || {
-        spawn_rest_service(
-            target_pool,
-            sql_port.get(),
-            server_cancellation_token_cloned,
-        )
-    });
-
     let mut ipc = build_ipc(
         &config.ipc_stream,
         None,
@@ -278,12 +263,6 @@ pub async fn pi_to_taos(
                         tracing::info!("All IPC handlers have been finished");
                     });
                     temp_path.close().unwrap();
-                    tokio::spawn(async move {
-                        tracing::info!("Wait for rest api server finished");
-                        server_cancellation_token.cancel();
-                        let _ = server.join();
-                        tracing::info!("REST api server has been finished");
-                    });
                 });
             };
             (wait) => {
@@ -306,12 +285,6 @@ pub async fn pi_to_taos(
                         tracing::info!("All IPC handlers have been finished");
                     });
                     let _ = temp_path.close();
-                    tokio::spawn(async move {
-                        tracing::info!("Wait for rest api server finished");
-                        server_cancellation_token.cancel();
-                        let _ = server.join();
-                        tracing::info!("REST api server has been finished");
-                    });
                     exit
                 })
             };
