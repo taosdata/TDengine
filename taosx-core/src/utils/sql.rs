@@ -7,16 +7,21 @@ use taos::{
     taos_query::{common::Describe, Manager},
     AsyncQueryable, Error as TaosError, RawBlock, TaosBuilder, TaosPool,
 };
+use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
 async fn reconnect_with_max_retries(
     pool: &TaosPool,
     max_retries: u32,
+    cancel: &CancellationToken,
 ) -> Result<TaosConnection, TaosError> {
     let mut backoff = 1;
     let mut retries = 0;
     loop {
+        if cancel.is_cancelled() {
+            return Err(TaosError::new(0x000B, "reconnection cancelled".to_string()));
+        }
         match pool.get().await {
             Ok(taos) => {
                 tracing::debug!(retries, "reconnected");
@@ -24,10 +29,12 @@ async fn reconnect_with_max_retries(
             }
             Err(err) => {
                 if retries >= max_retries {
+                    tracing::warn!(retries, "reconnect failed after retries");
                     break Err(TaosError::new(0x000B, format!("reconnect failed: {}", err)));
                 }
                 retries += 1;
                 tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
+                tracing::trace!(retries, "retry reconnecting");
                 if backoff < 64 {
                     backoff *= 2;
                 }
@@ -43,10 +50,11 @@ pub async fn exec_sql_with_connection_retries(
     sql: &str,
     req_id: u64,
     max_retries: u32,
+    cancel: &CancellationToken,
 ) -> Result<usize, TaosError> {
     if taos.is_none() {
         taos.replace(
-            reconnect_with_max_retries(pool, max_retries)
+            reconnect_with_max_retries(pool, max_retries, cancel)
                 .in_current_span()
                 .await?,
         );
@@ -70,7 +78,7 @@ pub async fn exec_sql_with_connection_retries(
             match errno {
                 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
                     taos.replace(
-                        reconnect_with_max_retries(pool, max_retries)
+                        reconnect_with_max_retries(pool, max_retries, &cancel)
                             .in_current_span()
                             .await?,
                     );
@@ -102,10 +110,11 @@ pub async fn write_raw_block_with_connection_retries(
     block: &RawBlock,
     req_id: u64,
     max_retries: u32,
+    cancel: &CancellationToken,
 ) -> Result<(), TaosError> {
     if taos.is_none() {
         taos.replace(
-            reconnect_with_max_retries(pool, max_retries)
+            reconnect_with_max_retries(pool, max_retries, cancel)
                 .in_current_span()
                 .await?,
         );
@@ -128,7 +137,7 @@ pub async fn write_raw_block_with_connection_retries(
             match errno {
                 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
                     taos.replace(
-                        reconnect_with_max_retries(pool, max_retries)
+                        reconnect_with_max_retries(pool, max_retries, cancel)
                             .in_current_span()
                             .await?,
                     );
@@ -150,10 +159,11 @@ pub async fn describe_table_with_connection_retries(
     taos: &mut Option<TaosConnection>,
     table: &str,
     max_retries: u32,
+    cancel: &CancellationToken,
 ) -> Result<Describe, TaosError> {
     if taos.is_none() {
         taos.replace(
-            reconnect_with_max_retries(pool, max_retries)
+            reconnect_with_max_retries(pool, max_retries, cancel)
                 .in_current_span()
                 .await?,
         );
@@ -176,7 +186,7 @@ pub async fn describe_table_with_connection_retries(
             match errno {
                 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
                     taos.replace(
-                        reconnect_with_max_retries(pool, max_retries)
+                        reconnect_with_max_retries(pool, max_retries, cancel)
                             .in_current_span()
                             .await?,
                     );
@@ -196,25 +206,40 @@ pub struct RetriableTaos {
     pool: TaosPool,
     taos: Option<TaosConnection>,
     max_retries: u32,
+    cancel: CancellationToken,
 }
 
 impl RetriableTaos {
-    pub fn new(pool: TaosPool, max_retries: u32) -> Self {
+    pub fn new(pool: TaosPool, max_retries: u32, cancel: CancellationToken) -> Self {
         Self {
             pool,
             taos: None,
             max_retries,
+            cancel,
         }
     }
 
     pub async fn exec(&mut self, sql: &str, req_id: u64) -> Result<usize, TaosError> {
-        exec_sql_with_connection_retries(&self.pool, &mut self.taos, sql, req_id, self.max_retries)
-            .await
+        exec_sql_with_connection_retries(
+            &self.pool,
+            &mut self.taos,
+            sql,
+            req_id,
+            self.max_retries,
+            &self.cancel,
+        )
+        .await
     }
 
     pub async fn describe(&mut self, table: &str) -> Result<Describe, TaosError> {
-        describe_table_with_connection_retries(&self.pool, &mut self.taos, table, self.max_retries)
-            .await
+        describe_table_with_connection_retries(
+            &self.pool,
+            &mut self.taos,
+            table,
+            self.max_retries,
+            &self.cancel,
+        )
+        .await
     }
 
     pub async fn write_raw_block(
@@ -228,6 +253,7 @@ impl RetriableTaos {
             block,
             req_id,
             self.max_retries,
+            &self.cancel,
         )
         .await
     }

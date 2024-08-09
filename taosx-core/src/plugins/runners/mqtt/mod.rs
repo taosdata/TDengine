@@ -174,7 +174,7 @@ pub async fn mqtt_to_taos(
             if bytes_read == 0 {
                 break;
             }
-            if line.contains("fatal") {
+            if line.contains("fatal") || line.contains("error") {
                 use ringbuf::Rb;
                 let mut guard = error_buf_producer.lock().await;
                 let _ = guard.push_overwrite(line.clone());
@@ -212,9 +212,11 @@ pub async fn mqtt_to_taos(
         },
         err = ipc_handler.recv_error() => {
             tracing::info!("have received worker thread panicked message, terminate child process");
+            tokio::time::sleep(Duration::from_secs(1)).await;
             // Check if the child process is still running.
             if let Ok(Some(status)) = child.try_wait() {
                 tracing::warn!(err, "IPC handler error, mqtt already exit with {status}");
+                let _ = stderr_handler.await;
                 if status.success() {
                     safe_exit!();
                     if let Some(err) = err {
@@ -236,6 +238,7 @@ pub async fn mqtt_to_taos(
                 tracing::warn!(err, "IPC handler error, mqtt connector is still running, terminate it");
                 // The child process is still running, terminate it.
                 let _ = child.terminate_timeout(Duration::from_secs(2)).await;
+                let _ = stderr_handler.await;
                 safe_exit!();
                 if let Some(err) = err {
                     anyhow::bail!("mqtt writer error: {err}");

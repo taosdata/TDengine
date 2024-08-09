@@ -178,8 +178,10 @@ impl PiConfig {
             )?
         };
 
-        let mut from_tdengine_last_time = Self::parse_from_tdengine_last_time(&from)?;
-        let mut to_tdengine_first_time = Self::parse_to_tdengine_first_time(&from)?;
+        let mut from_tdengine_last_time = Self::parse_from_tdengine_last_time(&from)
+            .context("Failed to parse_from_tdengine_last_time")?;
+        let mut to_tdengine_first_time = Self::parse_to_tdengine_first_time(&from)
+            .context("Failed to parse_to_tdengine_first_time")?;
         let backfill_start_time = if let Some(backfill_start) =
             from.params.get("BackfillStartTime").map(|v| v.to_string())
         {

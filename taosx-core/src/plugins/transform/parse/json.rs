@@ -3,12 +3,16 @@ use std::{borrow::Cow, str::FromStr, sync::Arc};
 use anyhow::Context;
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array,
-        Int32Array, Int64Array, Int8Array, ListBuilder, NullArray, StringArray, StringBuilder,
-        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Array, ArrayRef, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array,
+        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, ListArray, ListBuilder,
+        NullArray, StringArray, StringBuilder, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
+        UInt8Array,
     },
-    datatypes::{DataType, Schema, TimeUnit},
+    datatypes::{
+        DataType, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type, Schema,
+        TimeUnit, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    },
     record_batch::RecordBatch,
 };
 use arrow_schema::{Field, Fields};
@@ -540,42 +544,211 @@ impl Parse for Json {
                     r_fields.push(f);
                     r_arrays.push(array);
                 }
-                DataType::List(_) => {
-                    let capacity = json_values.len();
-                    let builder = StringBuilder::new();
-                    let mut list = ListBuilder::with_capacity(builder, capacity);
-                    json_values.iter().for_each(|(_n, v)| {
-                        if let Some(v) = v.as_ref().and_then(getter) {
-                            match v.as_array() {
-                                Some(array) => {
-                                    array.iter().for_each(|v| match v {
-                                        JsonValue::String(v) => {
-                                            list.values().append_value(v);
-                                        }
-                                        _ => {
-                                            list.values().append_value(v.to_string());
-                                        }
-                                    });
-                                    list.append(true);
-                                }
-                                None => {
-                                    list.append_null();
-                                }
-                            }
-                        } else {
-                            list.append_null();
+                DataType::List(field) => {
+                    let array = match field.data_type() {
+                        DataType::UInt8 => ListArray::from_iter_primitive::<UInt8Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_u64()
+                                                .map(|v| v as u8)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::UInt16 => ListArray::from_iter_primitive::<UInt16Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_u64()
+                                                .map(|v| v as u16)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::UInt32 => ListArray::from_iter_primitive::<UInt32Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_u64()
+                                                .map(|v| v as u32)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::UInt64 => ListArray::from_iter_primitive::<UInt64Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_u64()
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Int8 => ListArray::from_iter_primitive::<Int8Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_i64()
+                                                .map(|v| v as i8)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Int16 => ListArray::from_iter_primitive::<Int16Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_i64()
+                                                .map(|v| v as i16)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Int32 => ListArray::from_iter_primitive::<Int32Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_i64()
+                                                .map(|v| v as i32)
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Int64 => ListArray::from_iter_primitive::<Int64Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_i64()
+                                                .or_else(|| v.as_f64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Binary | DataType::LargeBinary => {
+                            let mut array =
+                                ListBuilder::with_capacity(BinaryBuilder::new(), json_values.len());
+                            array.extend(json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_str()
+                                                .map(|s| s.as_bytes())
+                                                .map(Cow::Borrowed)
+                                                .or_else(|| {
+                                                    serde_json::to_vec(v).map(Cow::Owned).ok()
+                                                })
+                                        })
+                                    })
+                                })
+                            }));
+                            array.finish()
                         }
-                    });
-                    let array = Arc::new(list.finish()) as ArrayRef;
-                    // set field type to List<Utf8>
-                    let field = Field::new_list(
-                        f.name(),
-                        Field::new_list_field(DataType::Utf8, true),
-                        true,
-                    );
-                    // push to arrow
-                    r_fields.push(field);
-                    r_arrays.push(array);
+                        DataType::Float32 => ListArray::from_iter_primitive::<Float32Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_f64()
+                                                .map(|f| f as f32)
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Float64 => ListArray::from_iter_primitive::<Float64Type, _, _>(
+                            json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_f64()
+                                                .or_else(|| v.as_i64().map(|v| v as _))
+                                                .or_else(|| v.as_u64().map(|v| v as _))
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }),
+                        ),
+                        DataType::Boolean => {
+                            let mut array = ListBuilder::with_capacity(
+                                BooleanBuilder::new(),
+                                json_values.len(),
+                            );
+                            array.extend(json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_bool()
+                                                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                        })
+                                    })
+                                })
+                            }));
+                            array.finish()
+                        }
+                        _ => {
+                            // utf8 type and other types...
+                            let mut array =
+                                ListBuilder::with_capacity(StringBuilder::new(), json_values.len());
+                            array.extend(json_values.iter().map(|(_, v)| {
+                                v.as_ref().and_then(getter).and_then(|v| {
+                                    v.as_array().map(|a| {
+                                        a.into_iter().map(|v| {
+                                            v.as_str().map(Cow::Borrowed).or_else(|| {
+                                                serde_json::to_string(v).map(Cow::Owned).ok()
+                                            })
+                                        })
+                                    })
+                                })
+                            }));
+                            array.finish()
+                        }
+                    };
+                    r_fields.push(f);
+                    r_arrays.push(Arc::new(array) as ArrayRef)
                 }
                 DataType::Struct(_) => {
                     let values = json_values

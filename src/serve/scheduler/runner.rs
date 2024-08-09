@@ -156,18 +156,19 @@ async fn run_task(
 
     let instant = std::time::Instant::now();
     let global_sender = global.clone();
-    tokio::spawn(async move {
+    let logging_abort = tokio::spawn(async move {
         while let Ok(message) = task_rx.recv_async().await {
             let activity = match message {
                 TaskNotify::Error(message) => TaskActivity::error(task_id, message),
                 TaskNotify::Warn(message) => TaskActivity::warn(task_id, message),
-                TaskNotify::Info(message) => TaskActivity::running(task_id, message),
+                TaskNotify::Info(message) => TaskActivity::logging(task_id, message),
                 _ => break,
             };
             global_sender.send_task_activity(activity);
         }
     });
     let res = opts.run(&global.port_pool).in_current_span().await;
+    logging_abort.abort();
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {
         error!(task.elapsed = ?instant.elapsed(), error.message = %error, error.backtrace = ?error);

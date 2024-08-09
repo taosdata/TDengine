@@ -13,6 +13,7 @@ use arrow::{
     ipc::{reader::StreamReader, writer::StreamWriter},
     record_batch::RecordBatch,
 };
+use taos::Code;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -31,6 +32,9 @@ impl LushAck {
     }
     pub fn context(&self) -> Option<&str> {
         self.context.as_deref()
+    }
+    pub fn code(&self) -> Code {
+        Code::from(self.code)
     }
 
     pub fn ok() -> Self {
@@ -300,9 +304,9 @@ impl AckWriterBuilder {
         self
     }
 
-    pub fn open<W: Write>(&self, writer: W) -> AckWriter<W> {
+    pub fn open<W: Write>(&self, writer: W) -> Result<AckWriter<W>, ArrowError> {
         let ack = self.ack;
-        match ack {
+        Ok(match ack {
             AckType::None => AckWriter {
                 ack,
                 writer: Some(writer),
@@ -323,7 +327,7 @@ impl AckWriterBuilder {
                 ];
                 let schema = Schema::new(fields).with_metadata(self.metadata.clone());
                 let schema = Arc::new(schema);
-                let writer = StreamWriter::try_new(writer, &schema).unwrap();
+                let writer = StreamWriter::try_new(writer, &schema)?;
 
                 AckWriter {
                     ack: self.ack,
@@ -332,7 +336,7 @@ impl AckWriterBuilder {
                     ipc_schema: Some(schema),
                 }
             }
-        }
+        })
     }
 }
 
@@ -409,7 +413,8 @@ mod tests {
         let mut writer = AckWriterBuilder::new(AckType::Lush)
             .with_meta("version", "1.0")
             .with_meta("custom", "meta")
-            .open(&mut buf);
+            .open(&mut buf)
+            .unwrap();
         writer.write_ok().unwrap();
         writer
             .ack(LushAck {
@@ -446,7 +451,8 @@ mod tests {
         let mut writer = AckWriterBuilder::new(AckType::Code)
             .with_meta("version", "1.0")
             .with_meta("custom", "meta")
-            .open(&mut buf);
+            .open(&mut buf)
+            .unwrap();
         writer.write_ok().unwrap();
         writer
             .ack(dbg!(LushAck {
@@ -480,7 +486,8 @@ mod tests {
         let mut writer = AckWriterBuilder::new(AckType::None)
             .with_meta("version", "1.0")
             .with_meta("custom", "meta")
-            .open(&mut buf);
+            .open(&mut buf)
+            .unwrap();
         writer.write_ok().unwrap();
         writer
             .ack(LushAck {
@@ -514,7 +521,8 @@ mod tests {
         let mut writer = AckWriterBuilder::new(AckType::Code)
             .with_meta("version", "1.0")
             .with_meta("custom", "meta")
-            .open(&mut buf);
+            .open(&mut buf)
+            .unwrap();
         assert!(writer.write_ok().is_err());
     }
 }

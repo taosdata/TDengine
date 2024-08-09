@@ -27,14 +27,14 @@ async fn hello() -> &'static str {
 
 fn ipc_windows_read(stream: TcpStream) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
-    let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream)?;
     ipc_test(ipc_reader, ipc_ack_writer)
 }
 
 #[cfg(not(target_os = "windows"))]
 fn ipc_unix_read(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
-    let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream)?;
     ipc_test(ipc_reader, ipc_ack_writer)
 }
 

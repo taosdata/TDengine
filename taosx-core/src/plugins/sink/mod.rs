@@ -160,9 +160,7 @@ impl MessageMetadata {
     }
 }
 
-#[instrument(skip_all, fields(task.id = task_id, client=%client))]
 async fn ipc_tcp_forward(
-    client: String,
     stream: std::net::TcpStream, // socket2::Socket,
     cancel: CancellationToken,
     remote: String, // "http://127.0.0.1:6051"
@@ -199,6 +197,7 @@ async fn ipc_tcp_forward(
         tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream))
             .in_current_span()
             .await
+            .context("Spawn AckWriter error")?
             .context("Create AckWriter error")?;
 
     let schema = ipc_reader.schema.clone();
@@ -211,7 +210,7 @@ async fn ipc_tcp_forward(
     }
     let schema: Arc<Schema> = Arc::new(schema);
 
-    info!("Start reading IPC stream");
+    info!("Reading batches");
     let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
 
     let (tables_cache_tx, tables_cache_rx) = ring_channel(NonZeroUsize::new(50).unwrap());
@@ -513,9 +512,7 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
 }
 
 #[framed]
-#[instrument(skip_all)]
 async fn ipc_tcp_read(
-    client: String,
     pool: TaosPool,
     stream: std::net::TcpStream, //socket2::Socket,
     lock: Arc<Mutex<()>>,
@@ -532,22 +529,21 @@ async fn ipc_tcp_read(
     // let reader = stream.clone();
     let stream_trace_id = TraceStreamId::random();
     set_data_trace_id_for_current_span(&stream_trace_id);
-    info!(client, "Prepare IPC stream reader");
+    info!("Prepare IPC stream reader");
     let reader_stream = stream.try_clone().context("Clone tcp stream error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || {
         IpcReader::new(reader_stream).context("IPC reading error")
     })
     .await??;
-    info!(client, "Prepare IPC ACK writer");
+    info!("Prepare IPC ACK writer");
     // dbg!(ipc_reader.ack());
     let ack = ipc_reader.ack();
     let ipc_ack_writer =
-        tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream)).await?;
-    // ipc_ack_writer.ack(LushAck);
-    let client = client.to_string();
-    info!(client, "Processing IPC stream");
+        tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream))
+            .await?
+            .context("Can't open IPC ACK writer")?;
+    info!("Processing IPC stream");
     ipc_process(
-        client,
         pool,
         ipc_reader,
         ipc_ack_writer,
@@ -2738,7 +2734,7 @@ async fn consume_flat_record(
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: &FlatMessage,
     count: &mut usize,
-    cancel: CancellationToken,
+    cancel: &CancellationToken,
     parser: &Parser,
     target_precision: taos::Precision,
     data_trace_id: TraceDataId,
@@ -2787,6 +2783,7 @@ async fn consume_flat_record(
                         message,
                         metrics,
                         notifier.clone(),
+                        cancel,
                     )
                     .in_current_span()
                     .await?;
@@ -2802,6 +2799,7 @@ async fn consume_flat_record(
                         message,
                         metrics,
                         notifier.clone(),
+                        cancel,
                     )
                     .in_current_span()
                     .await?;
@@ -3074,6 +3072,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 stream_trace_id,
                 metrics_arc,
+                cancel,
             )
             .await
         }
@@ -3088,6 +3087,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 stream_trace_id,
                 metrics_arc,
+                cancel,
             )
             .await
         }
@@ -3102,6 +3102,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 stream_trace_id,
                 metrics_arc,
+                cancel,
             )
             .await
         }
@@ -3266,9 +3267,8 @@ impl From<Option<&str>> for IpcErrorStrategy {
 }
 
 #[framed]
-#[instrument(skip_all, fields(client, connector))]
+#[instrument(skip_all)]
 async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
-    client: String,
     pool: TaosPool,
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
@@ -3283,14 +3283,14 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     notifier: crate::TaskNotifySender,
     stream_trace_id: TraceStreamId,
 ) -> anyhow::Result<()> {
-    info!(client, "IPC stream processing...");
+    info!("IPC stream processing...");
     const MAX_RETRIES: usize = 10;
     let mut retries = 0;
     let taos = loop {
         match pool.get().await {
             Ok(obj) => break obj,
             Err(err) => {
-                if retries < MAX_RETRIES {
+                if retries < MAX_RETRIES && !cancel.is_cancelled() {
                     retries += 1;
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     continue;
@@ -3483,6 +3483,7 @@ pub struct IpcStreamWorker {
     taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
     target_precision: taos::Precision,
     span: tracing::Span,
+    cancel: CancellationToken,
 }
 
 unsafe impl Send for IpcStreamWorker {}
@@ -3506,6 +3507,7 @@ impl Clone for IpcStreamWorker {
             span: self.span.clone(),
             taos: Cell::new(None),
             target_precision: self.target_precision,
+            cancel: self.cancel.clone(),
         }
     }
 }
@@ -3544,6 +3546,8 @@ impl IpcStreamWorker {
             _ => {}
         };
 
+        let cancel = CancellationToken::new();
+
         // let stmt = Stmt::init(&taos)?;
         Ok(Self {
             pool,
@@ -3561,6 +3565,7 @@ impl IpcStreamWorker {
             taos: Cell::new(Some(taos)),
             target_precision,
             span,
+            cancel,
         })
     }
 
@@ -3603,7 +3608,7 @@ impl IpcStreamWorker {
                     &mut taos,
                     &record,
                     &mut count,
-                    CancellationToken::new(),
+                    &self.cancel,
                     parser.ok_or_else(|| {
                         anyhow::format_err!("Parser should be set with flat stream")
                     })?,
@@ -3744,6 +3749,7 @@ pub async fn listen_tcp_socket_with_agent(
             let mut handlers = vec![];
             let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
                 tracing::info!("new tcp client!: {:?}", addr);
+                let span = tracing::info_span!("agent_ipc_handler", client = %addr);
                 let stream = stream.into_std().unwrap();
                 let _ = stream.set_read_timeout(None);
                 let _ = stream.set_nonblocking(false);
@@ -3753,17 +3759,20 @@ pub async fn listen_tcp_socket_with_agent(
                 let cancel = cancel.clone();
                 let (id, remote, token) = with_agent.clone();
                 let config = config.clone();
+                let notify = notified.clone();
 
                 tokio::spawn(async move {
-                    let client = addr.to_string();
                     let res =
-                        ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id, config).await;
+                        ipc_tcp_forward(stream, cancel, remote, token, id, config).in_current_span().await;
                     if let Err(err) = res {
                         let error_msg = format!("{:?}", err);
                         if error_msg.contains("os error 10060") {
-                            tracing::warn!("IPC reader stopped for client {} with warn: {}", client, error_msg);
+                            tracing::warn!("IPC reader stopped with warn: {}", error_msg);
                         } else {
-                            tracing::error!(?client, "{:?}", err);
+                            tracing::error!("{:?}", err);
+
+                            // notify the listener to stop
+                            notify.notify_waiters();
                             tokio::spawn(async move {
                                 let r = se.send(format!("{err:?}")).await;
                                 if let Err(send_err) = r {
@@ -3772,9 +3781,9 @@ pub async fn listen_tcp_socket_with_agent(
                             });
                         }
                     } else {
-                        tracing::info!("IPC reader stopped for client {client}",);
+                        tracing::info!("IPC reader stopped");
                     }
-                })
+                }.instrument(span))
             };
             let mut backoff = 1;
             loop {
@@ -3919,21 +3928,22 @@ pub async fn listen_tcp_socket(
     let thread = tokio::task::spawn(
         async move {
             info!("waiting for IPC connections");
-            let mut handlers = vec![];
-            let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
+            let cancel = cancel.child_token();
+            let server = addr;
+            let mut set = tokio::task::JoinSet::new();
+            let mut accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr, ipc_id: usize| {
                 tracing::info!("new tcp client!: {:?}", addr);
-                // let span = tracing::info_span!("ipc_reader", client.address = %addr);
+                let span = tracing::info_span!("ipc_reader", ipc.id = ipc_id, %server, client = %addr);
                 let stream = stream.into_std().unwrap();
                 let _ = stream.set_read_timeout(None);
                 let _ = stream.set_nonblocking(false);
-                let client = addr.to_string();
                 let se = sender.clone();
                 let cancel = cancel.clone();
 
                 if let Some((id, server, token)) = with_agent.clone() {
                     let opc_model_config = opc_model_config.clone();
-                    tokio::spawn(async move {
-                        let res = ipc_tcp_forward(client, stream, cancel, server, token, id, opc_model_config).await;
+                    set.spawn(async move {
+                        let res = ipc_tcp_forward(stream, cancel, server, token, id, opc_model_config).in_current_span().await;
                         if let Err(err) = res {
                             tracing::error!("ipc read err: {:#}", err);
                             let _ = se.send(format!("{:#}", err)).await;
@@ -3949,12 +3959,13 @@ pub async fn listen_tcp_socket(
                     let transferred = transferred.clone();
                     let task_id = task_id.clone();
                     let notifier = notifier.clone();
-                    tokio::spawn(async move {
+                    let notify = notified.clone();
+                    set.spawn(async move {
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
                         info!("Spawned IPC reader");
+                        let cancel2 = cancel.clone();
                         let res = ipc_tcp_read(
-                            client,
                             pool,
                             stream,
                             lock,
@@ -3973,14 +3984,23 @@ pub async fn listen_tcp_socket(
                             // panic!("{err:?}");
                             println!("{err:?}");
                             tracing::error!("ipc read err: {:#}", err);
+                            if cancel2.is_cancelled() {
+                                tracing::debug!("IPC handler completed");
+                                return;
+                            }
+                            // notify the listener to stop
+                            notify.notify_waiters();
+                            // Found error, now cancel all IPC runners.
+                            cancel2.cancel();
                             let _ = se.send(format!("{:#}", err)).await;
                         } else {
                             tracing::debug!("IPC handler completed");
                         }
-                    }.instrument(span.clone()))
+                    }.instrument(span))
                 }
             };
             let mut backoff = 1;
+            let mut ipc_id = 0;
             loop {
                 tokio::select! {
                     _ = notified.notified() => {
@@ -3991,8 +4011,8 @@ pub async fn listen_tcp_socket(
                         match accept {
                             Ok((stream, addr)) => {
                                 backoff = 1;
-                                let h = accept_stream(stream, addr);
-                                handlers.push(h);
+                                accept_stream(stream, addr, ipc_id);
+                                ipc_id += 1;
                             }
                             Err(e) => {
                                 if backoff > 64 {
@@ -4007,7 +4027,7 @@ pub async fn listen_tcp_socket(
                     }
                 }
             }
-            tracing::info!(ipc.handlers = handlers.len(), "IPC stream listener would wait for handlers to finish");
+            tracing::info!(ipc.handlers = ipc_id, "IPC stream listener would wait for handlers to finish");
 
             let _ = tracing::info_span!("wait for ipc handlers to be finished").entered();
 
@@ -4015,7 +4035,14 @@ pub async fn listen_tcp_socket(
             // let handlers = handlers.into_iter().map(|h| {
             //     tokio::time::timeout(Duration::from_secs(10), h)
             // }).collect::<Vec<_>>();
-            let _results = futures::future::join_all(handlers).await;
+            let max_wait_timeout = Duration::from_secs(60 * 10);
+            if tokio::time::timeout(max_wait_timeout, async {
+                while let Some(res) = set.join_next().await {
+                    let _ = res;
+                }
+            }).await.is_err() {
+                set.abort_all();
+            }
             tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
         }
             .instrument(tracing::info_span!("plain_ipc_listener")),

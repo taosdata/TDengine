@@ -157,7 +157,7 @@ namespace TDPIConnector.TDEngine
         }
         public virtual void Connect()
         {
-            taosxCommonClient.Connect();
+           // taosxCommonClient.Connect();
         }
 
         public virtual Task<TDEngineResponse> GetServerVersion()
