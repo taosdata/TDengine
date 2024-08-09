@@ -1620,15 +1620,18 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (size == 0) {
     // already recv, and notify upper layer
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _exception);
-    return;
   } else {
-    while (T_REF_VAL_GET(conn) >= 1) transUnrefCliHandle(conn);
+    while (T_REF_VAL_GET(conn) >= 1) {
+      transUnrefCliHandle(conn);
+    }
+    return;
   }
-  return;
 _exception:
   tDebug("already free conn %p by id %" PRId64"", conn, refId);
 
   (void)transReleaseExHandle(transGetRefMgt(), refId);
+  (void)transReleaseExHandle(transGetRefMgt(), refId);
+  (void)transRemoveExHandle(transGetRefMgt(), refId);
   destroyCmsg(pMsg);
 }
 
@@ -2223,6 +2226,11 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
 
   if (pMsg->msg.info.notFreeAhandle == 0 && pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
     pThrd->destroyAhandleFp(pMsg->ctx->ahandle);
+  }
+
+  if (pMsg->msg.info.handle !=0) {
+    (void)transReleaseExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle); 
+    (void)transRemoveExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle);
   }
 
   transDestroyConnCtx(pMsg->ctx);
