@@ -159,9 +159,9 @@ int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaUpgrade(SVnode* pVnode, SMeta** ppMeta);
 int             metaClose(SMeta** pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
-TXN*            metaGetTxn(SMeta* pMeta);
+TXN**           metaGetTxn(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta, TXN* txn);
-int             metaFinishCommit(SMeta* pMeta, TXN* txn);
+int             metaFinishCommit(SMeta* pMeta, TXN** txn);
 int             metaPrepareAsyncCommit(SMeta* pMeta);
 int             metaAbort(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
@@ -582,7 +582,7 @@ struct SSnapDataHdr {
 struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
-  TXN*       txn;
+  TXN**      txn;
 };
 
 struct SCompactInfo {

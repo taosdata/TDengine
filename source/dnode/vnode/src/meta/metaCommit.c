@@ -56,9 +56,13 @@ _exit:
 }
 
 // commit the meta txn
-TXN *metaGetTxn(SMeta *pMeta) { return pMeta->txn; }
-int  metaCommit(SMeta *pMeta, TXN *txn) { return tdbCommit(pMeta->pEnv, txn); }
-int  metaFinishCommit(SMeta *pMeta, TXN *txn) { return tdbPostCommit(pMeta->pEnv, txn); }
+TXN **metaGetTxn(SMeta *pMeta) { return &pMeta->txn; }
+int   metaCommit(SMeta *pMeta, TXN *txn) { return tdbCommit(pMeta->pEnv, txn); }
+int   metaFinishCommit(SMeta *pMeta, TXN **txn) {
+    int code = tdbPostCommit(pMeta->pEnv, *txn);
+    *txn = NULL;
+    return code;
+}
 
 int metaPrepareAsyncCommit(SMeta *pMeta) {
   // return tdbPrepareAsyncCommit(pMeta->pEnv, pMeta->txn);
