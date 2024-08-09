@@ -1234,6 +1234,9 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
   SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  if (!pCursor) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   pCursor->pMeta = pMeta;
   pCursor->suid = param->suid;
   pCursor->cid = param->cid;
