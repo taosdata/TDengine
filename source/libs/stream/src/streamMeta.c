@@ -1242,12 +1242,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   streamMetaRLock(pMeta);
 
-  SArray* pTaskList = NULL;
-  int32_t code = streamMetaSendMsgBeforeCloseTasks(pMeta, &pTaskList);
-  if (code != TSDB_CODE_SUCCESS) {
-//    return code;
-  }
-
+  SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
   streamMetaRUnLock(pMeta);
 
   if (pTaskList != NULL) {
