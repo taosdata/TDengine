@@ -297,14 +297,10 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
   streamMetaRUnLock(pMeta);
 
-  if (code != TSDB_CODE_APP_IS_STOPPING) {
-    streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
-                   "meta-hb-tmr");
-  } else {
-    stDebug("vgId:%d is stopping, not start hb again", pMeta->vgId);
-  }
-
+  streamTmrReset(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
+                 "meta-hb-tmr");
   code = taosReleaseRef(streamMetaId, rid);
+
   if (code) {
     stError("vgId:%d in meta timer, failed to release the meta rid:%" PRId64, pMeta->vgId, rid);
   }
