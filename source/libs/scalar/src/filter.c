@@ -1093,7 +1093,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
       SFilterDataInfo dInfo = {idx, *data};
       if (taosHashPut(info->pctx.valHash, *data, dataLen, &dInfo, sizeof(dInfo))) {
         fltError("taosHashPut to set failed");
-        FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        FLT_ERR_RET(terrno);
       }
       if (srcFlag) {
         FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
@@ -2855,10 +2855,9 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
       }
     }
   }
+  FLT_ERR_JRET(filterConvertGroupFromArray(info, group));
 
 _return:
-  FLT_ERR_RET(filterConvertGroupFromArray(info, group));
-
   taosArrayDestroy(group);
 
   filterFreeInfo(&oinfo);
@@ -5101,6 +5100,15 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
 
 _return:
 
+  if (code) {
+    for (uint32_t f = 0; f < info->fields[FLD_TYPE_VALUE].num; ++f) {
+      // already freed in filterRewrite
+      SFilterField *tmpField = &(info->fields[FLD_TYPE_VALUE].fields[f]);
+      if (!FILTER_GET_FLAG(tmpField->flag, FLD_DATA_NO_FREE)) {
+        tmpField->data = NULL;
+      }
+    }
+  }
   filterFreeInfo(*pInfo);
   *pInfo = NULL;
   FLT_RET(code);
