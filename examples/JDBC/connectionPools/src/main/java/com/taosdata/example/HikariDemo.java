@@ -21,7 +21,7 @@ public static void main(String[] args) throws SQLException {
     config.setConnectionTimeout(30000); //maximum wait milliseconds for get connection from pool
     config.setMaxLifetime(0);       // maximum life time for each connection
     config.setIdleTimeout(0);       // max idle time for recycle idle connection
-    config.setConnectionTestQuery("SELECT SERVER_STATUS()"); //validation query
+    config.setConnectionTestQuery("SELECT SERVER_VERSION()"); //validation query
 
     HikariDataSource ds = new HikariDataSource(config); //create datasource
 
