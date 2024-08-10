@@ -1161,7 +1161,7 @@ void cliSendBatch(SCliConn* pConn) {
   if (wb == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     tError("%s conn %p failed to send batch msg since:%s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
-    goto _except;
+    goto _exception;
   }
 
   int    i = 0;
@@ -1177,7 +1177,7 @@ void cliSendBatch(SCliConn* pConn) {
       if (pMsg->pCont == NULL) {
         code = TSDB_CODE_OUT_OF_BUFFER;
         tError("%s conn %p failed to send batch msg since:%s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
-        goto _except;
+        goto _exception;
       }
       pMsg->contLen = 0;
     }
@@ -1215,7 +1215,7 @@ void cliSendBatch(SCliConn* pConn) {
   if (req == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     tError("%s conn %p failed to send batch msg since:%s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
-    goto _except;
+    goto _exception;
   }
   req->data = pConn;
   tDebug("%s conn %p start to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(pConn), pConn,
@@ -1224,13 +1224,13 @@ void cliSendBatch(SCliConn* pConn) {
   code = uv_write(req, (uv_stream_t*)pConn->stream, wb, wLen, cliSendBatchCb);
   if (code != 0) {
     tDebug("%s conn %p failed to to send batch msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(code));
-    goto _except;
+    goto _exception;
   }
 
   taosMemoryFree(wb);
   return;
 
-_except:
+_exception:
   cliDestroyBatch(pBatch);
   taosMemoryFree(wb);
   pConn->pBatch = NULL;
