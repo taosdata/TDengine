@@ -1725,12 +1725,14 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
           code = reallocVarDataVal(&lastCol.rowKey.pks[j]);
           if (code) {
             (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+            taosArrayDestroy(remainCols);
             TAOS_RETURN(code);
           }
         }
         code = reallocVarData(&lastCol.colVal);
         if (code) {
           (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+          taosArrayDestroy(remainCols);
           TAOS_RETURN(code);
         }
         taosArraySet(pLastArray, idxKey->idx, &lastCol);
