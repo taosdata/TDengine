@@ -1971,9 +1971,8 @@ static int32_t createBatchList(SCliBatchList** ppBatchList, char* key, char* ip,
   *ppBatchList = pBatchList;
   return 0;
 }
-static int32_t destroyBatchList(SCliBatchList* pList) {
+static void destroyBatchList(SCliBatchList* pList) {
   if (pList == NULL) {
-    return 0;
   }
   while (!QUEUE_IS_EMPTY(&pList->wq)) {
     queue* h = QUEUE_HEAD(&pList->wq);
@@ -1985,7 +1984,6 @@ static int32_t destroyBatchList(SCliBatchList* pList) {
   taosMemoryFree(pList->ip);
   taosMemoryFree(pList->dst);
   taosMemoryFree(pList);
-  return 0;
 }
 static int32_t createBatch(SCliBatch** ppBatch, SCliBatchList* pList, SCliMsg* pMsg) {
   SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
