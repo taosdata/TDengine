@@ -1973,6 +1973,7 @@ static int32_t createBatchList(SCliBatchList** ppBatchList, char* key, char* ip,
 }
 static void destroyBatchList(SCliBatchList* pList) {
   if (pList == NULL) {
+    return;
   }
   while (!QUEUE_IS_EMPTY(&pList->wq)) {
     queue* h = QUEUE_HEAD(&pList->wq);
@@ -2056,7 +2057,10 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
         if (QUEUE_IS_EMPTY(&(*ppBatchList)->wq)) {
           SCliBatch* pBatch = NULL;
           code = createBatch(&pBatch, *ppBatchList, pMsg);
-          if (code != 0) cliDestroyBatch(pBatch);
+          if (code != 0) {
+            destroyCmsg(pMsg);
+            cliDestroyBatch(pBatch);
+          }
         } else {
           queue*     hdr = QUEUE_TAIL(&((*ppBatchList)->wq));
           SCliBatch* pBatch = QUEUE_DATA(hdr, SCliBatch, listq);
@@ -2067,7 +2071,10 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
           } else {
             SCliBatch* tBatch = NULL;
             code = createBatch(&tBatch, *ppBatchList, pMsg);
-            if (code != 0) cliDestroyBatch(pBatch);
+            if (code != 0) {
+              destroyCmsg(pMsg);
+              cliDestroyBatch(pBatch);
+            }
           }
         }
       }
