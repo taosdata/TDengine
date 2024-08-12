@@ -1,7 +1,7 @@
 import taos
 
 conn = None
-reqId = 1
+reqId = 3
 host="localhost"
 port=6030
 try:

@@ -40,10 +40,10 @@ public class WsConsumerLoopFull {
             return consumer;
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to create websocket consumer, host: " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create consumer", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers")
+            System.out.println("Failed to create websocket consumer, host: " + config.getProperty("bootstrap.servers")
                     + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create consumer", ex);
         }
