@@ -24,33 +24,41 @@
 
 static int DemoSmlInsert() {
 // ANCHOR: schemaless
-const char *ip        = "localhost";
+const char *host      = "localhost";
 const char *user      = "root";
 const char *password  = "taosdata";
+uint16_t    port      = 6030;
+int code  = 0;
 
 // connect
-TAOS *taos = taos_connect(ip, user, password, NULL, 0);
+TAOS *taos = taos_connect(host, user, password, NULL, port);
 if (taos == NULL) {
-  printf("failed to connect to server %s, reason: %s\n", ip, taos_errstr(NULL));
+  printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
   taos_cleanup();
   return -1;
 }
-printf("success to connect server %s\n", ip);
 
 // create database
 TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
-int code = taos_errno(result);
+code = taos_errno(result);
 if (code != 0) {
-  printf("failed to create database power, reason: %s\n", taos_errstr(result));
+  printf("Failed to create database power, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
 }
 taos_free_result(result);
-printf("success to create database power\n");
+printf("Create database power successfully.\n");
 
 // use database
 result = taos_query(taos, "USE power");
+code = taos_errno(result);
+if (code != 0) {
+  printf("Failed to execute use power, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
+  taos_close(taos);
+  taos_cleanup();
+  return -1;
+}
 taos_free_result(result);
 
 // schemaless demo data
@@ -61,29 +69,31 @@ char * json_demo = "{\"metric\": \"metric_json\",\"timestamp\": 1626846400,\"val
 // influxdb line protocol
 char *lines[] = {line_demo};
 result = taos_schemaless_insert(taos, lines, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-if (taos_errno(result) != 0) {
-  printf("failed to insert schemaless line data, reason: %s\n", taos_errstr(result));
+code = taos_errno(result);
+if (code != 0) {
+  printf("Failed to insert schemaless line data, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
 }
 
 int rows = taos_affected_rows(result);
-printf("success to insert %d rows of schemaless line data\n", rows);
+printf("Insert %d rows of schemaless line data successfully.\n", rows);
 taos_free_result(result);
 
 // opentsdb telnet protocol
 char *telnets[] = {telnet_demo};
 result = taos_schemaless_insert(taos, telnets, 1, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-if (taos_errno(result) != 0) {
-  printf("failed to insert schemaless telnet data, reason: %s\n", taos_errstr(result));
+code = taos_errno(result);
+if (code != 0) {
+  printf("Failed to insert schemaless telnet data, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
 }
 
 rows = taos_affected_rows(result);
-printf("success to insert %d rows of schemaless telnet data\n", rows);
+printf("Insert %d rows of schemaless telnet data successfully.\n", rows);
 taos_free_result(result);
 
 // opentsdb json protocol
@@ -91,16 +101,17 @@ char *jsons[1] = {0};
 // allocate memory for json data. can not use static memory.
 jsons[0] = malloc(1024);
 if (jsons[0] == NULL) {
-  printf("failed to allocate memory\n");
+  printf("Failed to allocate memory\n");
   taos_close(taos);
   taos_cleanup();
   return -1;
 }
 (void)strncpy(jsons[0], json_demo, 1023);
 result = taos_schemaless_insert(taos, jsons, 1, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
-if (taos_errno(result) != 0) {
+code = taos_errno(result);
+if (code != 0) {
   free(jsons[0]);
-  printf("failed to insert schemaless json data, reason: %s\n", taos_errstr(result));
+  printf("Failed to insert schemaless json data, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
@@ -108,7 +119,7 @@ if (taos_errno(result) != 0) {
 free(jsons[0]);
 
 rows = taos_affected_rows(result);
-printf("success to insert %d rows of schemaless json data\n", rows);
+printf("Insert %d rows of schemaless json data successfully.\n", rows);
 taos_free_result(result);
 
 // close & clean

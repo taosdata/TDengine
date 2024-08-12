@@ -25,47 +25,44 @@
 
 static int DemoCreateDB() {
 // ANCHOR: create_db_and_table
-const char *ip        = "localhost";
+const char *host      = "localhost";
 const char *user      = "root";
 const char *password  = "taosdata";
+uint16_t    port      = 6030;
+int code  = 0;
 
 // connect
-TAOS *taos = taos_connect(ip, user, password, NULL, 0);
+TAOS *taos = taos_connect(host, user, password, NULL, port);
 if (taos == NULL) {
-  printf("failed to connect to server %s, reason: %s\n", ip, taos_errstr(NULL));
+  printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
   taos_cleanup();
   return -1;
 }
-printf("success to connect server %s\n", ip);
 
 // create database
 TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
-int code = taos_errno(result);
+code = taos_errno(result);
 if (code != 0) {
-  printf("failed to create database power, reason: %s\n", taos_errstr(result));
+  printf("Failed to create database power, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
 }
 taos_free_result(result);
-printf("success to create database power\n");
-
-// use database
-result = taos_query(taos, "USE power");
-taos_free_result(result);
+printf("Create database power successfully.\n");
 
 // create table
-const char* sql = "CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))";
+const char* sql = "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))";
 result = taos_query(taos, sql);
 code = taos_errno(result);
 if (code != 0) {
-  printf("failed to create stable meters, reason: %s\n", taos_errstr(result));
+  printf("Failed to create stable power.meters, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
 }
 taos_free_result(result);
-printf("success to create table meters\n");
+printf("Create stable meters successfully.\n");
 
 // close & clean
 taos_close(taos);

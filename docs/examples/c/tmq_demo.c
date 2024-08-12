@@ -27,9 +27,15 @@ static int   running = 1;
 const char*  topic_name = "topic_meters";
 
 void* prepare_data(void* arg) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  const char *host      = "localhost";
+  const char *user      = "root";
+  const char *password  = "taosdata";
+  uint16_t    port      = 6030;
+  TAOS *pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
-    return NULL;
+    printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    taos_cleanup();
+    return -1;
   }
 
   TAOS_RES* pRes;
@@ -46,12 +52,12 @@ void* prepare_data(void* arg) {
 
     pRes = taos_query(pConn, buf);
     if (taos_errno(pRes) != 0) {
-      printf("error in insert data to power.meters, reason:%s\n", taos_errstr(pRes));
+      printf("Failed to insert data to power.meters, reason: %s\n", taos_errstr(pRes));
     }
     taos_free_result(pRes);
     sleep(1);
   }
-  printf("prepare data thread exit\n");
+  printf("Prepare data thread exit\n");
   return NULL;
 }
 
@@ -81,7 +87,7 @@ static int32_t msg_process(TAOS_RES* msg) {
     rows++;
     // print the row content
     if (taos_print_row(buf, row, fields, numOfFields) < 0) {
-      printf("failed to print row\n");
+      printf("Failed to print row\n");
       break;
     }
     // print the precision and row content to the console
@@ -93,8 +99,14 @@ static int32_t msg_process(TAOS_RES* msg) {
 // ANCHOR_END: msg_process
 
 static int32_t init_env() {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  const char *host      = "localhost";
+  const char *user      = "root";
+  const char *password  = "taosdata";
+  uint16_t    port      = 6030;
+  TAOS *pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
+    printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    taos_cleanup();
     return -1;
   }
 
@@ -145,8 +157,14 @@ END:
 int32_t create_topic() {
   printf("create topic\n");
   TAOS_RES* pRes;
-  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  const char *host      = "localhost";
+  const char *user      = "root";
+  const char *password  = "taosdata";
+  uint16_t    port      = 6030;
+  TAOS *pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
+    printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    taos_cleanup();
     return -1;
   }
 
@@ -285,7 +303,7 @@ void consume_repeatly(tmq_t* tmq) {
   // get the topic assignment
   int32_t code = tmq_get_topic_assignment(tmq, topic_name, &pAssign, &numOfAssignment);
   if (code != 0 || pAssign == NULL || numOfAssignment == 0) {
-    fprintf(stderr, "failed to get assignment, reason:%s", tmq_err2str(code));
+    fprintf(stderr, "Failed to get assignment, reason:%s", tmq_err2str(code));
     return;
   }
 
@@ -295,7 +313,7 @@ void consume_repeatly(tmq_t* tmq) {
 
     code = tmq_offset_seek(tmq, topic_name, p->vgId, p->begin);
     if (code != 0) {
-      fprintf(stderr, "failed to seek to %d, reason:%s", (int)p->begin, tmq_err2str(code));
+      fprintf(stderr, "Failed to seek to %d, reason:%s", (int)p->begin, tmq_err2str(code));
     }
   }
 
@@ -328,6 +346,8 @@ void manual_commit(tmq_t* tmq) {
         // free the message
         taos_free_result(tmqmsg);
         break;
+      } else {
+        printf("Commit offset manually successfully.");
       }
       // free the message
       taos_free_result(tmqmsg);
@@ -356,17 +376,17 @@ int main(int argc, char* argv[]) {
   }
 
   if (pthread_create(&thread_id, NULL, &prepare_data, NULL)) {
-    fprintf(stderr, "create thread failed\n");
+    fprintf(stderr, "Create thread failed\n");
     return 1;
   }
 
   // ANCHOR: create_consumer_2
   tmq_t* tmq = build_consumer();
   if (NULL == tmq) {
-    fprintf(stderr, "build consumer to localhost fail!\n");
+    fprintf(stderr, "Failed to create consumer.\n");
     return -1;
   }
-  printf("build consumer to localhost successfully \n");
+  printf("Create consumer successfully.\n");
 
   // ANCHOR_END: create_consumer_2
 
@@ -378,6 +398,8 @@ int main(int argc, char* argv[]) {
 
   if ((code = tmq_subscribe(tmq, topic_list))) {
     fprintf(stderr, "Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
+  } else {
+    printf("Subscribe topics successfully.\n");
   }
 
   tmq_list_destroy(topic_list);
