@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// to compile: gcc -o tmq_demo tmq_demo.c -ltaos -lpthread
+
 #include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -27,8 +29,15 @@ static int   running = 1;
 const char*  topic_name = "topic_meters";
 
 void* prepare_data(void* arg) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  const char *host      = "localhost";
+  const char *user      = "root";
+  const char *password  = "taosdata";
+  uint16_t    port      = 6030;
+  int code = 0;
+  TAOS *pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    taos_cleanup();
     return NULL;
   }
 
@@ -45,13 +54,14 @@ void* prepare_data(void* arg) {
         i);
 
     pRes = taos_query(pConn, buf);
-    if (taos_errno(pRes) != 0) {
-      printf("error in insert data to power.meters, reason:%s\n", taos_errstr(pRes));
+    code = taos_errno(pRes);
+    if (code != 0) {
+      fprintf(stderr, "Failed to insert data to power.meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
     }
     taos_free_result(pRes);
     sleep(1);
   }
-  printf("prepare data thread exit\n");
+  fprintf(stdout, "Prepare data thread exit\n");
   return NULL;
 }
 
@@ -63,9 +73,9 @@ static int32_t msg_process(TAOS_RES* msg) {
   const char* dbName = tmq_get_db_name(msg);
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
 
-  printf("topic: %s\n", topicName);
-  printf("db: %s\n", dbName);
-  printf("vgroup id: %d\n", vgroupId);
+  fprintf(stdout, "topic: %s\n", topicName);
+  fprintf(stdout, "db: %s\n", dbName);
+  fprintf(stdout, "vgroup id: %d\n", vgroupId);
 
   while (1) {
     // get one row data from message
@@ -81,11 +91,11 @@ static int32_t msg_process(TAOS_RES* msg) {
     rows++;
     // print the row content
     if (taos_print_row(buf, row, fields, numOfFields) < 0) {
-      printf("failed to print row\n");
+      fprintf(stderr, "Failed to print row\n");
       break;
     }
     // print the precision and row content to the console
-    printf("precision: %d, row content: %s\n", precision, buf);
+    fprintf(stdout, "precision: %d, data: %s\n", precision, buf);
   }
 
   return rows;
@@ -93,42 +103,53 @@ static int32_t msg_process(TAOS_RES* msg) {
 // ANCHOR_END: msg_process
 
 static int32_t init_env() {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  const char *host      = "localhost";
+  const char *user      = "root";
+  const char *password  = "taosdata";
+  uint16_t    port      = 6030;
+  int code = 0;
+  TAOS *pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    taos_cleanup();
     return -1;
   }
 
   TAOS_RES* pRes;
   // drop database if exists
-  printf("create database\n");
-  pRes = taos_query(pConn, "drop topic if exists topic_meters");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop topic_meters, reason:%s\n", taos_errstr(pRes));
+  fprintf(stdout, "Create database.\n");
+  pRes = taos_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
+  code = taos_errno(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to drop topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "drop database if exists power");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop power, reason:%s\n", taos_errstr(pRes));
+  pRes = taos_query(pConn, "DROP DATABASE IF EXISTS power");
+  code = taos_errno(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to drop database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
   }
   taos_free_result(pRes);
 
   // create database
-  pRes = taos_query(pConn, "create database power precision 'ms' WAL_RETENTION_PERIOD 3600");
-  if (taos_errno(pRes) != 0) {
-    printf("error in create tmqdb, reason:%s\n", taos_errstr(pRes));
+  pRes = taos_query(pConn, "CREATE DATABASE power PRECISION 'ms' WAL_RETENTION_PERIOD 3600");
+  code = taos_errno(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to create tmqdb, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
     goto END;
   }
   taos_free_result(pRes);
 
   // create super table
-  printf("create super table\n");
+  fprintf(stdout, "Create super table.\n");
   pRes = taos_query(
       pConn,
       "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
       "(groupId INT, location BINARY(24))");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table meters, reason:%s\n", taos_errstr(pRes));
+  code = taos_errno(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to create super table meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
     goto END;
   }
 
@@ -143,16 +164,24 @@ END:
 }
 
 int32_t create_topic() {
-  printf("create topic\n");
+  fprintf(stdout, "Create topic.\n");
   TAOS_RES* pRes;
-  TAOS*     pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  const char *host      = "localhost";
+  const char *user      = "root";
+  const char *password  = "taosdata";
+  uint16_t    port      = 6030;
+  int code = 0;
+  TAOS *pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    taos_cleanup();
     return -1;
   }
 
-  pRes = taos_query(pConn, "use power");
+  pRes = taos_query(pConn, "USE POWER");
+  code = taos_errno(pRes);
   if (taos_errno(pRes) != 0) {
-    printf("error in use tmqdb, reason:%s\n", taos_errstr(pRes));
+    fprintf(stderr, "Failed to use tmqdb, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
@@ -160,8 +189,9 @@ int32_t create_topic() {
   pRes = taos_query(
       pConn,
       "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create topic topic_meters, reason:%s\n", taos_errstr(pRes));
+  code = taos_errno(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to create topic topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
@@ -171,7 +201,7 @@ int32_t create_topic() {
 }
 
 void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
-  printf("tmq_commit_cb_print() code: %d, tmq: %p, param: %p\n", code, tmq, param);
+  fprintf(stdout, "tmq_commit_cb_print() code: %d, tmq: %p, param: %p\n", code, tmq, param);
 }
 
 // ANCHOR: create_consumer_1
@@ -243,6 +273,7 @@ tmq_list_t* build_topic_list() {
   if (code) {
     // if failed, destroy the list and return NULL
     tmq_list_destroy(topicList);
+    fprintf(stderr, "Failed to create topic_list, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
     return NULL;
   }
   // if success, return the list
@@ -285,7 +316,7 @@ void consume_repeatly(tmq_t* tmq) {
   // get the topic assignment
   int32_t code = tmq_get_topic_assignment(tmq, topic_name, &pAssign, &numOfAssignment);
   if (code != 0 || pAssign == NULL || numOfAssignment == 0) {
-    fprintf(stderr, "failed to get assignment, reason:%s", tmq_err2str(code));
+    fprintf(stderr, "Failed to get assignment, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
     return;
   }
 
@@ -295,7 +326,9 @@ void consume_repeatly(tmq_t* tmq) {
 
     code = tmq_offset_seek(tmq, topic_name, p->vgId, p->begin);
     if (code != 0) {
-      fprintf(stderr, "failed to seek to %d, reason:%s", (int)p->begin, tmq_err2str(code));
+      fprintf(stderr, "Failed to seek assignment %d to beginning %ld, ErrCode: 0x%x, ErrMessage: %s.\n", i, p->begin, code, tmq_err2str(code));
+    } else {
+      fprintf(stdout, "Seek assignment %d to beginning %ld successfully.\n", i, p->begin);
     }
   }
 
@@ -324,10 +357,12 @@ void manual_commit(tmq_t* tmq) {
       int32_t code = tmq_commit_sync(tmq, tmqmsg);
 
       if (code) {
-        fprintf(stderr, "Failed to commit message: %s\n", tmq_err2str(code));
+        fprintf(stderr, "Failed to commit message, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
         // free the message
         taos_free_result(tmqmsg);
         break;
+      } else {
+        fprintf(stdout, "Commit offset manually successfully.\n");
       }
       // free the message
       taos_free_result(tmqmsg);
@@ -339,7 +374,7 @@ void manual_commit(tmq_t* tmq) {
   }
 
   // print the result: total messages and total rows consumed
-  fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+  fprintf(stderr, "%d msg consumed, include %d rows.\n", msgCnt, totalRows);
 }
 // ANCHOR_END: manual_commit
 
@@ -356,28 +391,31 @@ int main(int argc, char* argv[]) {
   }
 
   if (pthread_create(&thread_id, NULL, &prepare_data, NULL)) {
-    fprintf(stderr, "create thread failed\n");
+    fprintf(stderr, "Failed to create thread.\n");
     return 1;
   }
 
   // ANCHOR: create_consumer_2
   tmq_t* tmq = build_consumer();
   if (NULL == tmq) {
-    fprintf(stderr, "build consumer to localhost fail!\n");
+    fprintf(stderr, "Failed to create consumer.\n");
     return -1;
   }
-  printf("build consumer to localhost successfully \n");
+  fprintf(stdout, "Create consumer successfully.\n");
 
   // ANCHOR_END: create_consumer_2
 
   // ANCHOR: subscribe_3
   tmq_list_t* topic_list = build_topic_list();
   if (NULL == topic_list) {
+    fprintf(stderr, "Failed to create topic_list.\n");
     return -1;
   }
 
   if ((code = tmq_subscribe(tmq, topic_list))) {
-    fprintf(stderr, "Failed to tmq_subscribe(): %s\n", tmq_err2str(code));
+    fprintf(stderr, "Failed to subscribe topic_list, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
+  } else {
+    fprintf(stdout, "Subscribe topics successfully.\n");
   }
 
   tmq_list_destroy(topic_list);
@@ -393,13 +431,15 @@ int main(int argc, char* argv[]) {
   // unsubscribe the topic
   code = tmq_unsubscribe(tmq);
   if (code) {
-    fprintf(stderr, "Failed to tmq_unsubscribe(): %s\n", tmq_err2str(code));
+    fprintf(stderr, "Failed to unsubscribe consumer, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
+  } else {
+    fprintf(stderr, "Consumer unsubscribed successfully.\n");
   }
-  fprintf(stderr, "Unsubscribed consumer successfully.\n");
+
   // close the consumer
   code = tmq_consumer_close(tmq);
   if (code) {
-    fprintf(stderr, "Failed to close consumer: %s\n", tmq_err2str(code));
+    fprintf(stderr, "Failed to close consumer: %s.\n", tmq_err2str(code));
   } else {
     fprintf(stderr, "Consumer closed successfully.\n");
   }

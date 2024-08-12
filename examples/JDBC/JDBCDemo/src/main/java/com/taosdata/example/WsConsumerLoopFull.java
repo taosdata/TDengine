@@ -57,7 +57,7 @@ public class WsConsumerLoopFull {
 
             // subscribe to the topics
             consumer.subscribe(topics);
-            System.out.println("subscribe topics successfully.");
+            System.out.println("Subscribe topics successfully.");
             for (int i = 0; i < 50; i++) {
                 // poll data
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
@@ -86,9 +86,9 @@ public class WsConsumerLoopFull {
 
             // subscribe to the topics
             consumer.subscribe(topics);
-            System.out.println("subscribe topics successfully.");
+            System.out.println("Subscribe topics successfully.");
             Set<TopicPartition> assignment = consumer.assignment();
-            System.out.println("now assignment: " + JSON.toJSONString(assignment));
+            System.out.println("Now assignment: " + JSON.toJSONString(assignment));
 
             ConsumerRecords<ResultBean> records = ConsumerRecords.emptyRecord();
             // make sure we have got some data
@@ -97,13 +97,13 @@ public class WsConsumerLoopFull {
             }
 
             consumer.seekToBeginning(assignment);
-            System.out.println("assignment seek to beginning successfully.");
+            System.out.println("Assignment seek to beginning successfully.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("seek example failed", ex);
         } catch (Exception ex) {
-            System.out.println("seek example failed; ErrMessage: " + ex.getMessage());
+            System.out.println("Seek example failed; ErrMessage: " + ex.getMessage());
             throw new SQLException("seek example failed", ex);
         }
 // ANCHOR_END: consumer_seek
@@ -126,7 +126,7 @@ public class WsConsumerLoopFull {
                 if (!records.isEmpty()) {
                     // after processing the data, commit the offset manually
                     consumer.commitSync();
-                    System.out.println("commit offset manually successfully.");
+                    System.out.println("Commit offset manually successfully.");
                 }
             }
         } catch (SQLException ex) {
@@ -147,7 +147,7 @@ public class WsConsumerLoopFull {
         try {
             // unsubscribe the consumer
             consumer.unsubscribe();
-            System.out.println("consumer unsubscribed successfully.");
+            System.out.println("Consumer unsubscribed successfully.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
@@ -159,7 +159,7 @@ public class WsConsumerLoopFull {
         finally {
             // close the consumer
             consumer.close();
-            System.out.println("consumer closed successfully.");
+            System.out.println("Consumer closed successfully.");
         }
 // ANCHOR_END: unsubscribe_data_code_piece
     }

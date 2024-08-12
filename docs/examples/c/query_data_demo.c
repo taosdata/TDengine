@@ -25,29 +25,28 @@
 
 static int DemoQueryData() {
 // ANCHOR: query_data
-const char *ip        = "localhost";
+const char *host      = "localhost";
 const char *user      = "root";
 const char *password  = "taosdata";
+uint16_t    port      = 6030;
+int code  = 0;
 
 // connect
-TAOS *taos = taos_connect(ip, user, password, NULL, 0);
+TAOS *taos = taos_connect(host, user, password, NULL, port);
 if (taos == NULL) {
-  printf("failed to connect to server %s, reason: %s\n", ip, taos_errstr(NULL));
+  printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
   taos_cleanup();
   return -1;
 }
-printf("success to connect server %s\n", ip);
 
-// use database
-TAOS_RES *result = taos_query(taos, "USE power");
-taos_free_result(result);
+
 
 // query data, please make sure the database and table are already created
 const char* sql = "SELECT ts, current, location FROM power.meters limit 100";
-result = taos_query(taos, sql);
-int code = taos_errno(result);
+TAOS_RES *result = taos_query(taos, sql);
+code = taos_errno(result);
 if (code != 0) {
-  printf("failed to query data from power.meters, ip: %s, reason: %s\n", ip, taos_errstr(result));
+  printf("Failed to query data from power.meters, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
@@ -70,7 +69,6 @@ while ((row = taos_fetch_row(result))) {
 }
 printf("total rows: %d\n", rows);
 taos_free_result(result);
-printf("success to query data from power.meters\n");
 
 // close & clean
 taos_close(taos);

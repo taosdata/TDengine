@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ANCHOR: consume
     match consumer.subscribe(["topic_meters"]).await{
-        Ok(_) => println!("subscribe topics successfully."),
+        Ok(_) => println!("Subscribe topics successfully."),
         Err(err) => {
             eprintln!("Failed to subscribe topic_meters, dsn: {}; ErrMessage: {}", dsn, err);
             return Err(err.into());
@@ -123,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
             }
             // commit offset manually when you have processed the message.
             match consumer.commit(offset).await{
-                Ok(_) => println!("commit offset manually successfully."),
+                Ok(_) => println!("Commit offset manually successfully."),
                 Err(err) => {
                     eprintln!("Failed to commit offset manually, dsn: {}; ErrMessage: {}", dsn, err);
                     return Err(err.into());
@@ -172,15 +172,15 @@ async fn main() -> anyhow::Result<()> {
         let topic_assignment = consumer.topic_assignment(topic).await;
         println!("topic assignment: {:?}", topic_assignment);
     }
-    println!("assignment seek to beginning successfully.");
+    println!("Assignment seek to beginning successfully.");
     // after seek offset
     let assignments = consumer.assignments().await.unwrap();
-    println!("after seek offset assignments: {:?}", assignments);
+    println!("After seek offset assignments: {:?}", assignments);
     // ANCHOR_END: seek_offset
 
     // ANCHOR: unsubscribe
     consumer.unsubscribe().await;
-    println!("consumer unsubscribed successfully.");
+    println!("Consumer unsubscribed successfully.");
     // ANCHOR_END: unsubscribe
 
     tokio::time::sleep(Duration::from_secs(1)).await;
