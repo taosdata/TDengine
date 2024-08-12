@@ -123,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
             }
             // commit offset manually when you have processed the message.
             match consumer.commit(offset).await{
-                Ok(_) => println!("commit offset manually successfully."),
+                Ok(_) => println!("Commit offset manually successfully."),
                 Err(err) => {
                     eprintln!("Failed to commit offset manually, dsn: {}; ErrMessage: {}", dsn, err);
                     return Err(err.into());
