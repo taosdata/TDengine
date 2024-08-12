@@ -892,7 +892,6 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 }
 
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
-  STUB_RAND_IO_ERR(terrno)
   if (pFile == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -922,6 +921,8 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (mtime != NULL) {
     *mtime = fileStat.st_mtime;
   }
+
+  STUB_RAND_IO_ERR(terrno)
 
   return 0;
 }
@@ -1214,7 +1215,6 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
 }
 
 int32_t taosCloseFile(TdFilePtr *ppFile) {
-  STUB_RAND_IO_ERR(terrno)
   int32_t code = 0;
   if (ppFile == NULL || *ppFile == NULL) {
     return 0;
@@ -1253,6 +1253,11 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
   taosMemoryFree(*ppFile);
   *ppFile = NULL;
 
+#if BUILD_WITH_RAND_ERR
+  if (terrno == 0) {
+    STUB_RAND_IO_ERR(terrno)
+  }
+#endif
   return code;
 }
 
@@ -1642,8 +1647,13 @@ size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *strea
 }
 
 int taosCloseCFile(FILE *f) {
-  STUB_RAND_IO_ERR(terrno)
-  return fclose(f);
+  int32_t code = fclose(f);
+#if BUILD_WITH_RAND_ERR
+  if (code == 0) {
+    STUB_RAND_IO_ERR(terrno)
+  }
+#endif
+  return code == 0 ? code : TAOS_SYSTEM_ERROR(errno);
 }
 
 int taosSetAutoDelFile(char *path) {
