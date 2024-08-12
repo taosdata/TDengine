@@ -13177,6 +13177,10 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
   }
+  if (tlen >= TSDB_MAX_MSG_SIZE - sizeof(SMsgHead)) {
+    return TSDB_CODE_INVALID_MSG_LEN;
+  }
+
   tlen += sizeof(SMsgHead);
   void* buf = taosMemoryMalloc(tlen);
   if (NULL == buf) {
@@ -14014,6 +14018,7 @@ int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut
 
     code = serializeVgroupCreateTableBatch(pTbBatch, pBufArray);
     if (TSDB_CODE_SUCCESS != code) {
+      qError("failed to serialize create table batch msg, since:%s", tstrerror(code));
       taosHashCancelIterate(pVgroupHashmap, pTbBatch);
       break;
     }
