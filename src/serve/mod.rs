@@ -139,14 +139,14 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_tasks_count)
             .service(create_task)
             .service(update_task)
+            .service(delete_tasks)
             .service(delete_task)
-            .service(delete_batch_tasks)
             .service(get_task_by_id)
             .service(get_task_offsets_by_id)
+            .service(start_tasks)
             .service(start_task)
-            .service(start_batch_tasks)
+            .service(stop_tasks)
             .service(stop_task)
-            .service(stop_batch_tasks)
             .service(metrics::metrics_exporter)
             .service(metrics::metrics_desc)
             .service(get_sample)
@@ -388,12 +388,12 @@ impl Cli {
                 task::get_tasks_count,
                 task::create_task,
                 task::update_task,
+                task::delete_tasks,
                 task::delete_task,
-                task::delete_batch_tasks,
+                task::start_tasks,
                 task::start_task,
-                task::start_batch_tasks,
+                task::stop_tasks,
                 task::stop_task,
-                task::stop_batch_tasks,
                 task::get_task_by_id,
                 task::get_task_offsets_by_id,
                 task::get_task_activities_by_id,

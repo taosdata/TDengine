@@ -5,6 +5,7 @@ use std::fs;
 use actix_files::NamedFile;
 use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 use actix_web::body::BoxBody;
+use actix_web::web::Json;
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query},
@@ -21,13 +22,12 @@ use utoipa::*;
 use taosx_core::core_metrics::CoreMetrics;
 use taosx_core::{get_data_dir, get_file_upload_home_dir};
 
+use super::controller::agent::AgentActivityFilter;
 use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
 use crate::serve::{
     controller::{Status, TaskControllerRef},
     NewTask, TaskDecorator, TaskFilter, UpdateTask,
 };
-
-use super::controller::agent::AgentActivityFilter;
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -236,6 +236,13 @@ pub(super) struct NewReplicate {
     force: bool,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum TaskBatchOperation {
+    Start,
+    Stop,
+    Delete,
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TaskBatchReq {
     ids: Vec<i64>,
@@ -333,21 +340,27 @@ pub(super) async fn delete_task(
 
 #[utoipa::path(
     tag = "tasks",
-    params(
-        ( "ids" = Vec<i64>, description = "task ids")
-    ),
     responses(
         (status = 200, description = "delete batch tasks"),
         (status = 500, description = "failed to delete tasks", body = Failed),
     )
 )]
-#[post("/tasks/batch/delete")]
-pub async fn delete_batch_tasks(
-    ids: Query<TaskBatchReq>,
+#[post("/tasks/delete")]
+pub async fn delete_tasks(
+    ids: Json<TaskBatchReq>,
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
-    dbg!(ids, task_store);
-    Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish())
+    let result = batch_operation(
+        TaskBatchOperation::Delete,
+        ids.ids.clone(),
+        task_store.clone(),
+    )
+    .await;
+
+    if result.is_empty() {
+        return HttpResponse::Ok().finish();
+    }
+    HttpResponse::InternalServerError().json(result)
 }
 
 /// Get Task by given task id.
@@ -418,23 +431,35 @@ pub(super) async fn start_task(
     }
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+struct TaskBatchResponse {
+    id: Option<i64>,
+    message: Option<String>,
+}
+
 #[utoipa::path(
     tag = "tasks",
-    params(
-        ( "ids" = Vec<i64>, description = "task ids")
-    ),
     responses(
         (status = 200, description = "start batch tasks"),
         (status = 500, description = "failed to start tasks", body = Failed),
     )
 )]
-#[post("/tasks/bath/start")]
-pub async fn start_batch_tasks(
-    ids: Query<TaskBatchReq>,
+#[post("/tasks/start")]
+pub async fn start_tasks(
+    req: Json<TaskBatchReq>,
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
-    dbg!(ids, task_store);
-    Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish())
+    let result = batch_operation(
+        TaskBatchOperation::Start,
+        req.ids.clone(),
+        task_store.clone(),
+    )
+    .await;
+
+    if result.is_empty() {
+        return HttpResponse::Ok().finish();
+    }
+    HttpResponse::InternalServerError().json(result)
 }
 
 /// Stop [Task] by given path variable id.
@@ -474,21 +499,106 @@ pub(super) async fn stop_task(
 
 #[utoipa::path(
     tag = "tasks",
-    params(
-        ( "ids" = Vec<i64>, description = "task ids")
-    ),
     responses(
         (status = 200, description = "stop batch tasks"),
         (status = 500, description = "failed to stop tasks", body = Failed),
     )
 )]
-#[post("/tasks/bath/stop")]
-pub async fn stop_batch_tasks(
-    ids: Query<TaskBatchReq>,
+#[post("/tasks/stop")]
+pub async fn stop_tasks(
+    ids: Json<TaskBatchReq>,
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
-    dbg!(ids, task_store);
-    Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish())
+    let result = batch_operation(
+        TaskBatchOperation::Stop,
+        ids.ids.clone(),
+        task_store.clone(),
+    )
+    .await;
+
+    if result.is_empty() {
+        return HttpResponse::Ok().finish();
+    }
+    HttpResponse::InternalServerError().json(result)
+}
+
+async fn batch_operation(
+    operation: TaskBatchOperation,
+    ids: Vec<i64>,
+    task_store: Data<TaskControllerRef>,
+) -> Vec<TaskBatchResponse> {
+    let mut set = tokio::task::JoinSet::new();
+    for id in ids.iter() {
+        let id_clone = id.clone();
+        let task_store_clone = task_store.clone();
+        set.spawn(async move {
+            match operation {
+                TaskBatchOperation::Start => match task_store_clone.start(id_clone.clone()).await {
+                    Ok(Some(_)) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        message: None,
+                    },
+                    Ok(None) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        message: Some(format!("Task {id_clone} not found")),
+                    },
+                    Err(err) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        message: Some(format!("{:?}", err)),
+                    },
+                },
+                TaskBatchOperation::Stop => match task_store_clone.stop(id_clone.clone()).await {
+                    Ok(Some(_)) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        message: None,
+                    },
+                    Ok(None) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        message: Some(format!("Task {id_clone} not found")),
+                    },
+                    Err(err) => TaskBatchResponse {
+                        id: Some(id_clone),
+                        message: Some(format!("{:?}", err)),
+                    },
+                },
+                TaskBatchOperation::Delete => {
+                    match task_store_clone.delete(id_clone.clone()).await {
+                        Ok(Some(_)) => TaskBatchResponse {
+                            id: Some(id_clone),
+                            message: None,
+                        },
+                        Ok(None) => TaskBatchResponse {
+                            id: Some(id_clone),
+                            message: Some(format!("Task {id_clone} not found")),
+                        },
+                        Err(err) => TaskBatchResponse {
+                            id: Some(id_clone),
+                            message: Some(format!("{:?}", err)),
+                        },
+                    }
+                }
+            }
+        });
+    }
+
+    let mut result = Vec::new();
+    while let Some(res) = set.join_next().await {
+        match res {
+            Ok(response) => {
+                if response.message.is_some() {
+                    result.push(response);
+                }
+            }
+            Err(err) => {
+                result.push(TaskBatchResponse {
+                    id: None,
+                    message: Some(format!("{:?}", err)),
+                });
+            }
+        }
+    }
+
+    result
 }
 
 /// Get Task Offsets by given task id.

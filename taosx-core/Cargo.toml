@@ -78,9 +78,8 @@ tinytemplate = "1.2.1"
 serde_json_path = "0.6.0"
 csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
-rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "tracing"] }
 notify = "6.1.1"
-futures-ext ={ path = "../crates/futures-ext" }
+futures-ext = { path = "../crates/futures-ext" }
 
 file-rotate = "0.7.5"
 ringbuf = { version = "0.3.3" }
@@ -155,7 +154,7 @@ rumqttc = "0.24.0"
 rustls-pemfile = "2"
 rustls-native-certs = "0.7"
 
-mongodb = { version="3.0.0", features = [
+mongodb = { version = "3.0.0", features = [
     "aws-auth",
     "zstd-compression",
     "zlib-compression",
@@ -163,18 +162,24 @@ mongodb = { version="3.0.0", features = [
     "openssl-tls"
 ] }
 
+#rdkafka = { version = "0.36.2", features = ["dynamic-linking"] }
+rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl"] }
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"
 
 [target.'cfg(not(windows))'.dependencies]
 rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "gssapi-vendored"] }
+#rdkafka = { version = "0.36.2", features = ["dynamic-linking"] }
+
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [target.'cfg(all(unix, not(target_arch = "loongarch64")))'.dependencies]
 openssl = { version = "0.10.55", features = ["vendored"] }
+#openssl = { version = "0.10.55" }
 
 [target.'cfg(target_arch="loongarch64")'.dependencies]
 openssl = { version = "0.10.55" }
