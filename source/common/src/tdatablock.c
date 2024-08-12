@@ -1737,7 +1737,11 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   uint32_t cap = pDst->info.capacity;
 
   pDst->info = pSrc->info;
-  copyPkVal(&pDst->info, &pSrc->info);
+  code = copyPkVal(&pDst->info, &pSrc->info);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
 
   pDst->info.capacity = cap;
   return code;
@@ -1902,9 +1906,11 @@ int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlo
   return code;
 }
 
-void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc) {
+int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (!IS_VAR_DATA_TYPE(pSrc->pks[0].type)) {
-    return;
+    return code;
   }
 
   // prepare the pk buffer if needed
@@ -1912,14 +1918,24 @@ void copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc) {
 
   p->type = pDst->pks[0].type;
   p->pData = taosMemoryCalloc(1, pDst->pks[0].nData);
+  QUERY_CHECK_NULL(p->pData, code, lino, _end, terrno);
+
   p->nData = pDst->pks[0].nData;
   memcpy(p->pData, pDst->pks[0].pData, p->nData);
 
   p = &pDst->pks[1];
   p->type = pDst->pks[1].type;
   p->pData = taosMemoryCalloc(1, pDst->pks[1].nData);
+  QUERY_CHECK_NULL(p->pData, code, lino, _end, terrno);
+
   p->nData = pDst->pks[1].nData;
   memcpy(p->pData, pDst->pks[1].pData, p->nData);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock) {
@@ -1958,7 +1974,11 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
     }
   }
 
-  copyPkVal(&pDstBlock->info, &pDataBlock->info);
+  code = copyPkVal(&pDstBlock->info, &pDataBlock->info);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
 
   if (copyData) {
     code = blockDataEnsureCapacity(pDstBlock, pDataBlock->info.rows);
