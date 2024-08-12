@@ -1,6 +1,6 @@
 ---
 title: TDengine Command Line Interface (CLI)
-sidebar_label: Command Line Interface
+sidebar_label: TDengine CLI
 description: This document describes how to use the TDengine CLI.
 ---
 

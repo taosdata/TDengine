@@ -1,9 +1,9 @@
 ---
-title: Reference Manual
-description: This document describes TDengine utilities.
+title: Components Reference Guide
+sidebar_label: Components
 ---
 
-This section describes the TDengine utilities.
+In this section we will explain the major TDengine components, including their functionalities, command line parameters, configurations, etc.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

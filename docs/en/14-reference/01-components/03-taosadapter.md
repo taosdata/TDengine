@@ -1,5 +1,5 @@
 ---
-title: taosAdapter
+title: taosAdapter Reference Guide
 sidebar_label: taosAdapter
 description: This document describes how to use taosAdapter, a TDengine companion tool that acts as a bridge and adapter between TDengine clusters and applications.
 ---
