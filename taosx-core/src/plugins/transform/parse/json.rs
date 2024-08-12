@@ -730,6 +730,11 @@ impl Parse for Json {
                             array.finish()
                         }
                         _ => {
+                            let field = Field::new_list(
+                                f.name(),
+                                Field::new_list_field(DataType::Utf8, true),
+                                f.is_nullable(),
+                            );
                             // utf8 type and other types...
                             let mut array =
                                 ListBuilder::with_capacity(StringBuilder::new(), json_values.len());
@@ -744,7 +749,9 @@ impl Parse for Json {
                                     })
                                 })
                             }));
-                            array.finish()
+                            r_fields.push(field);
+                            r_arrays.push(Arc::new(array.finish()) as ArrayRef);
+                            continue;
                         }
                     };
                     r_fields.push(f);
