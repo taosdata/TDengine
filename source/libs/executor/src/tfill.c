@@ -207,7 +207,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
             setNotFillColumn(pFillInfo, pDstCol, index, i);
           }
         } else {
-          SRowVal*    pRVal = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
+          SRowVal*    pRVal = &pFillInfo->prev;
           SGroupKeys* pKey = taosArrayGet(pRVal->pRowVal, i);
           if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pKey->isNull) {
             colDataSetNULL(pDstCol, index);
@@ -395,12 +395,17 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
       ASSERT(pFillInfo->currentKey == ts);
       int32_t index = pBlock->info.rows;
 
+      int32_t nextRowIndex = pFillInfo->index + 1;
       if (pFillInfo->type == TSDB_FILL_NEXT) {
-        int32_t nextRowIndex = pFillInfo->index + 1;
         if ((pFillInfo->index + 1) < pFillInfo->numOfRows) {
           copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, false);
         } else {
           // reset to null after last row
+          copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, true);
+        }
+      }
+      if (pFillInfo->type == TSDB_FILL_PREV) {
+        if (nextRowIndex + 1 >= pFillInfo->numOfRows && !FILL_IS_ASC_FILL(pFillInfo)) {
           copyCurrentRowIntoBuf(pFillInfo, nextRowIndex, &pFillInfo->next, true);
         }
       }
@@ -418,7 +423,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
         if (!colDataIsNull_s(pSrc, pFillInfo->index)) {
           code = colDataSetVal(pDst, index, src, false);
           QUERY_CHECK_CODE(code, lino, _end);
-          SRowVal* pRVal = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
+          SRowVal* pRVal = &pFillInfo->prev;
           saveColData(pRVal->pRowVal, i, src, false);
           if (pFillInfo->srcTsSlotId == dstSlotId) {
             pRVal->key = *(int64_t*)src;
@@ -439,7 +444,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
               code = colDataSetVal(pDst, index, src, isNull);
               QUERY_CHECK_CODE(code, lino, _end);
 
-              SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
+              SArray* p = pFillInfo->prev.pRowVal;
               saveColData(p, i, src, isNull);  // todo:
             } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
               colDataSetNULL(pDst, index);
