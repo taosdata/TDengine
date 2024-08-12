@@ -70,7 +70,7 @@ def create_consumer():
         print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}");
         return consumer
     except Exception as err:
-        print(f"Failed to create websocket consumer, host: {host}:{port} ; ErrMessage:{err}");
+        print(f"Failed to create native consumer, host: {host}:{port} ; ErrMessage:{err}");
         raise err
     # ANCHOR_END: create_consumer
 

@@ -48,7 +48,7 @@ def prepareMeta():
                 VALUES (NOW + 1a, 10.30000, 218, 0.25000)
             """
         affectedRows = conn.execute(sql)
-        print(f"inserted into {affectedRows} rows to power.meters successfully.")
+        print(f"Inserted into {affectedRows} rows to power.meters successfully.")
 
     except Exception as err:
         print(f"Failed to prepareMeta ErrMessage:{err}")
@@ -95,10 +95,10 @@ def seek_offset(consumer):
                 print(
                     f"vg_id: {assign.vg_id()}, offset: {assign.offset()}, begin: {assign.begin()}, end: {assign.end()}")
                 consumer.seek(topic, assign.vg_id(), assign.begin())
-                print("assignment seek to beginning successfully");
+                print("Assignment seek to beginning successfully");
 
     except Exception as err:
-        print(f"seek example failed; ErrMessage:{err}")
+        print(f"Seek example failed; ErrMessage:{err}")
         raise err
     # ANCHOR_END: assignment
 
@@ -107,7 +107,7 @@ def seek_offset(consumer):
 def subscribe(consumer):
     try:
         consumer.subscribe([topic])
-        print("subscribe topics successfully")
+        print("Subscribe topics successfully")
         for i in range(50):
             records = consumer.poll(timeout=1.0)
             if records:
@@ -134,7 +134,7 @@ def commit_offset(consumer):
                         
                 #  after processing the data, commit the offset manually        
                 consumer.commit(records)
-                print("commit offset manually successfully.");
+                print("Commit offset manually successfully.");
 
     except Exception as err:
         print(f"Failed to poll data, ErrMessage:{err}")
@@ -147,7 +147,7 @@ def commit_offset(consumer):
 def unsubscribe(consumer):
     try:
         consumer.unsubscribe()
-        print("consumer unsubscribed successfully.");
+        print("Consumer unsubscribed successfully.");
     except Exception as err:
         print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
 
