@@ -55,7 +55,7 @@ async function subscribe(consumer) {
         for (let i = 0; i < 50; i++) {
             let res = await consumer.poll(100);
             for (let [key, value] of res) {
-                console.log(key, value);
+                console.log(`data: ${key} ${value}`);
             }
         }
     } catch (err) {
