@@ -79,20 +79,11 @@ async function test() {
         }  
 
         let assignment = await consumer.assignment();
-        for (let i in assignment) {
-            console.log("seek before:", assignment[i]);
-        }
-
         await consumer.seekToBeginning(assignment);
-        console.log("assignment seek to beginning successfully");
-        assignment = await consumer.assignment();
-        for (let i in assignment) {
-            console.log("seek after:", assignment[i]);
-        }
-        await consumer.unsubscribe();
+        console.log("Assignment seek to beginning successfully");
     }
     catch (err) {
-        console.error("seek example failed, ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error("Seek example failed, ErrCode:" + err.code + "; ErrMessage: " + err.message);
     }
     finally {
         if (consumer) {

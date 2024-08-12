@@ -37,9 +37,9 @@ def prepareMeta():
                 VALUES (NOW + 1a, 10.30000, 218, 0.25000)
             """
         affectedRows = conn.execute(sql)
-        print(f"inserted into {affectedRows} rows to power.meters successfully.")
+        print(f"Inserted into {affectedRows} rows to power.meters successfully.")
     except Exception as err:
-        print(f"prepare meta ErrMessage:{err}")
+        print(f"Prepare insert data error, ErrMessage:{err}")
         raise err
     finally:
         if conn:
@@ -80,13 +80,13 @@ def subscribe(consumer):
     try:
         # subscribe to the topics
         consumer.subscribe(["topic_meters"])
-        print("subscribe topics successfully")
+        print("Subscribe topics successfully")
         for i in range(50):
             records = consumer.poll(1)
             if records:
                 err = records.error()
                 if err is not None:
-                    print(f"poll data error, {err}")
+                    print(f"Poll data error, {err}")
                     raise err
 
                 val = records.value()
@@ -110,7 +110,7 @@ def commit_offset(consumer):
             if records:
                 err = records.error()
                 if err is not None:
-                    print(f"poll data error, {err}")
+                    print(f"Poll data error, {err}")
                     raise err
 
                 val = records.value()
@@ -120,7 +120,7 @@ def commit_offset(consumer):
 
                 # after processing the data, commit the offset manually
                 consumer.commit(records)
-                print("commit offset manually successfully.");
+                print("Commit offset manually successfully.");
 
     except Exception as err:
         print(f"Failed to poll data, ErrMessage:{err}")
@@ -134,12 +134,11 @@ def seek_offset(consumer):
         assignments = consumer.assignment()
         if assignments:
             for partition in assignments:
-                print(f"first data polled: {partition.offset}")
                 partition.offset = 0
                 consumer.seek(partition)
-                print(f"assignment seek to beginning successfully");
+                print(f"Assignment seek to beginning successfully");
     except Exception as err:
-        print(f"seek example failed; ErrMessage:{err}")
+        print(f"Seek example failed; ErrMessage:{err}")
         raise err
     # ANCHOR_END: assignment
 
@@ -148,7 +147,7 @@ def seek_offset(consumer):
 def unsubscribe(consumer):
     try:
         consumer.unsubscribe()
-        print("unsubscribe consumer successfully.");
+        print("Consumer unsubscribed successfully.");
     except Exception as err:
         print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
 

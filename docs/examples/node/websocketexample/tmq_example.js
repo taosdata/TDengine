@@ -63,7 +63,7 @@ async function subscribe(consumer) {
                 console.log(`data: ${key} ${value}`);
             }
             consumer.commit();
-            console.log("commit offset manually successfully.");
+            console.log("Commit offset manually successfully.");
         }        
     } catch (err) {
         console.error("Failed to poll data; err.code, ErrCode:" + err.code + "; ErrMessage: " + err.message);
@@ -80,7 +80,7 @@ async function test() {
         let consumer = await createConsumer()
         await subscribe(consumer)      
         await consumer.unsubscribe();
-        console.log("unsubscribe consumer successfully.");
+        console.log("Consumer unsubscribed successfully.");
     }
     catch (err) {
         console.error("Failed to unsubscribe consume, ErrCode:" + err.code + "; ErrMessage: " + err.message);
