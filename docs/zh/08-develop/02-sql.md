@@ -57,7 +57,7 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:create_db_and_table}}
 ```
@@ -133,7 +133,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:insertData}}
 ```
@@ -207,7 +207,7 @@ rust 连接器还支持使用 **serde** 进行反序列化行为结构体的结�
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:queryData}}
 ```
@@ -282,7 +282,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:sqlWithReqid}}
 ```

@@ -63,6 +63,12 @@ import TabItem from "@theme/TabItem";
 {{#include docs/examples/csharp/wsStmt/Program.cs:main}}
 ```
 </TabItem>
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ## 原生连接
@@ -94,6 +100,9 @@ import TabItem from "@theme/TabItem";
 ```
 
 </TabItem>
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
 {{#include docs/examples/csharp/stmtInsert/Program.cs:main}}
@@ -104,5 +113,7 @@ import TabItem from "@theme/TabItem";
 {{#include docs/examples/c/stmt_insert_demo.c}}
 ```
 </TabItem>
-
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>

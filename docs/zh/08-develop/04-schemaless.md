@@ -194,7 +194,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/line_example.js}}
 ```
@@ -204,6 +204,12 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 {{#include docs/examples/csharp/wssml/Program.cs:main}}
 ```
 </TabItem>
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ### 原生连接
@@ -237,7 +243,9 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 {{#include docs/examples/rust/nativeexample/examples/schemaless.rs}}
 ```
 
-
+</TabItem>
+<TabItem label="Node.js" value="node">
+不支持
 </TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
@@ -249,7 +257,9 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 {{#include docs/examples/c/sml_insert_demo.c:schemaless}}
 ```
 </TabItem>
-
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ## 查询写入的数据
