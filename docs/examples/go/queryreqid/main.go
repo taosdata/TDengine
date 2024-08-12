@@ -11,19 +11,21 @@ import (
 )
 
 func main() {
-	db, err := sql.Open("taosSql", "root:taosdata@tcp(localhost:6030)/")
+	taosDSN := "root:taosdata@tcp(localhost:6030)/"
+	db, err := sql.Open("taosSql", taosDSN)
 	if err != nil {
-		log.Fatal("Open database error: ", err)
+		log.Fatalln("Failed to connect to " + taosDSN + "; ErrMessage: " + err.Error())
 	}
 	defer db.Close()
 	initEnv(db)
 	// ANCHOR: query_id
 	// use context to set request id
-	ctx := context.WithValue(context.Background(), "taos_req_id", int64(3))
+	reqId := int64(3)
+	ctx := context.WithValue(context.Background(), "taos_req_id", reqId)
 	// execute query with context
 	rows, err := db.QueryContext(ctx, "SELECT ts, current, location FROM power.meters limit 1")
 	if err != nil {
-		log.Fatal("Query error: ", err)
+		log.Fatalf("Failed to execute sql with reqId: %d, url: %s; ErrMessage: %s\n", reqId, taosDSN, err.Error())
 	}
 	for rows.Next() {
 		var (
