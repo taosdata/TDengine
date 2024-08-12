@@ -16,7 +16,7 @@
     >
       <template>
         <span v-if="config.type !== 'dataset'" style="padding-right: 10px">{{ labelText }}:</span>
-        <span v-if="!inputType.includes(config.type)">{{ data[field] }}</span>
+        <span v-if="!inputType.includes(config.type)">{{ field == 'group' ? (data['group'] || this.taskId) : data[field] }}</span>
         <span v-if="config.type == 'select'">
           <span v-if="Array.isArray(getOptions())" class="flexWrap">
             <span v-for="(option,index) in getOptions()" :key="option">{{ option }}
@@ -116,9 +116,12 @@ export default {
     classMark() {
       return getFieldClassMarkName(this.parent + this.field);
     },
+    taskId() {
+      return this.sourceParent.editId
+    }
   },
   watch: {},
-  created() {},
+  created() {console.log('taskId',this.taskId);},
   mounted() {},
   methods: {
     parseMarked(desc) {
