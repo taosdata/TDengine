@@ -163,6 +163,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stt_blocks_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_null.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
@@ -341,7 +342,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
-#,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py

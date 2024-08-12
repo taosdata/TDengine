@@ -96,6 +96,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 同通用基础配置项。
 
 </TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ### Websocket 连接 
@@ -148,6 +151,12 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/csharp/wssubscribe/Program.cs:create_consumer}}
 ```
 </TabItem>
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 
@@ -187,7 +196,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 
 </TabItem>
-
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
 {{#include docs/examples/csharp/subscribe/Program.cs:create_consumer}}
@@ -206,7 +217,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 调用 `build_consumer` 函数尝试获取消费者实例 `tmq`。成功则打印成功日志，失败则打印失败日志。
 </TabItem>
-
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ## 订阅消费数据
@@ -267,7 +280,12 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/csharp/wssubscribe/Program.cs:subscribe}}
 ```
 </TabItem>
-
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ### 原生连接 
@@ -311,7 +329,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 - `Record` 是我们自定义的一个结构体，其字段名和数据类型与列的名称和数据类型一一对应，这样可以通过 `serde` 反序列化出 `Record` 类型的对象。  
 
 </TabItem>
-
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
 {{#include docs/examples/csharp/subscribe/Program.cs:subscribe}}
@@ -343,7 +363,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
   5. 调用 `basic_consume_loop` 函数开始基本的消费循环，处理订阅的消息。
    
 </TabItem>
-
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ## 指定订阅的 Offset
@@ -402,6 +424,12 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/csharp/wssubscribe/Program.cs:seek}}
 ```
 </TabItem>
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ### 原生连接 
@@ -445,7 +473,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 2. 在所有分区的偏移量调整完成后，再次获取并记录消费者的分区分配信息，以确认偏移量调整后的状态。    
 
 </TabItem>
-
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
 {{#include docs/examples/csharp/subscribe/Program.cs:seek}}
@@ -465,6 +495,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 6. 调用 `basic_consume_loop` 函数开始新的的消费循环，处理消息。
     
 </TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 
@@ -518,6 +551,12 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/csharp/wssubscribe/Program.cs:commit_offset}}
 ```
 </TabItem>
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ### 原生连接 
@@ -551,7 +590,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 可以通过 `consumer.commit` 方法来手工提交消费进度。
 </TabItem>
-
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
 {{#include docs/examples/csharp/subscribe/Program.cs:commit_offset}}
@@ -566,6 +607,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 可以通过 `tmq_commit_sync` 函数来手工提交消费进度。
 
 </TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 
@@ -615,6 +659,12 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/csharp/wssubscribe/Program.cs:close}}
 ```
 </TabItem>
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ### 原生连接 
@@ -646,7 +696,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 **注意**：消费者取消订阅后无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
 </TabItem>
-
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp
 {{#include docs/examples/csharp/subscribe/Program.cs:close}}
@@ -658,7 +710,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/c/tmq_demo.c:unsubscribe_and_close}}
 ```        
 </TabItem>
-
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 
@@ -720,7 +774,12 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </details>
 </TabItem>
-
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>
 
 ### 原生连接 
@@ -765,7 +824,9 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 </details>
 </TabItem>
-
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
 <TabItem label="C#" value="csharp">
 <details>
 <summary>完整代码示例</summary> 
@@ -783,4 +844,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```            
 </details>
 </TabItem>
+<TabItem label="REST API" value="rest">
+不支持
+</TabItem>   
 </Tabs>

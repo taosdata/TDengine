@@ -2420,7 +2420,7 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
     if (pStream != NULL) {  // TODO:handle error
       code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId, 0, false);
       if (code) {
-        mError("failed to create checkpoint trans, code:%s", strerror(code));
+        mError("failed to create checkpoint trans, code:%s", tstrerror(code));
       }
     } else {
       // todo: wait for the create stream trans completed, and launch the checkpoint trans

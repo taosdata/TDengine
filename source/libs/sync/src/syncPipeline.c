@@ -892,7 +892,7 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
 
   if (pMsg->matchIndex < pNode->pLogBuf->matchIndex) {
     code = syncLogReplGetPrevLogTerm(pMgr, pNode, index + 1, &term);
-    if (term < 0 && (errno == ENFILE || errno == EMFILE)) {
+    if (term < 0 && (errno == ENFILE || errno == EMFILE || errno == ENOENT)) {
       sError("vgId:%d, failed to get prev log term since %s. index:%" PRId64, pNode->vgId, tstrerror(code), index + 1);
       TAOS_RETURN(code);
     }

@@ -107,7 +107,7 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
   int32_t code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK);
   int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
   if (code) {
-    stError("s-task:%s sched task failed, code:%s, ref:%d", pId->idStr, strerror(code), ref);
+    stError("s-task:%s sched task failed, code:%s, ref:%d", pId->idStr, tstrerror(code), ref);
   } else {
     stDebug("trigger to resume s-task:%s after being idled for %dms, ref:%d", pId->idStr, pTask->status.schedIdleTime,
             ref);
