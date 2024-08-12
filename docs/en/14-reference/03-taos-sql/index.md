@@ -1,5 +1,6 @@
 ---
-title: TDengine SQL
+title: SQL Reference Guide
+sidebar_label: SQL
 description: This document describes the syntax and functions supported by TDengine SQL.
 ---
 
