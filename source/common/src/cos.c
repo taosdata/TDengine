@@ -63,7 +63,7 @@ int32_t s3Begin() {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-void s3End() { S3_deinitialize(); }
+void s3End() { (void)S3_deinitialize(); }
 
 int32_t s3Init() { TAOS_RETURN(TSDB_CODE_SUCCESS); /*s3Begin();*/ }
 
