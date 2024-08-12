@@ -118,14 +118,14 @@ static int32_t init_env() {
   TAOS_RES* pRes;
   // drop database if exists
   fprintf(stdout, "Create database.\n");
-  pRes = taos_query(pConn, "drop topic if exists topic_meters");
+  pRes = taos_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to drop topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "drop database if exists power");
+  pRes = taos_query(pConn, "DROP DATABASE IF EXISTS power");
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to drop database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -133,7 +133,7 @@ static int32_t init_env() {
   taos_free_result(pRes);
 
   // create database
-  pRes = taos_query(pConn, "create database power precision 'ms' WAL_RETENTION_PERIOD 3600");
+  pRes = taos_query(pConn, "CREATE DATABASE power PRECISION 'ms' WAL_RETENTION_PERIOD 3600");
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to create tmqdb, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -178,7 +178,7 @@ int32_t create_topic() {
     return -1;
   }
 
-  pRes = taos_query(pConn, "use power");
+  pRes = taos_query(pConn, "USE POWER");
   code = taos_errno(pRes);
   if (taos_errno(pRes) != 0) {
     fprintf(stderr, "Failed to use tmqdb, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
@@ -362,7 +362,7 @@ void manual_commit(tmq_t* tmq) {
         taos_free_result(tmqmsg);
         break;
       } else {
-        fprintf(stdout, "commit offset manually successfully.");
+        fprintf(stdout, "Commit offset manually successfully.\n");
       }
       // free the message
       taos_free_result(tmqmsg);
@@ -415,7 +415,7 @@ int main(int argc, char* argv[]) {
   if ((code = tmq_subscribe(tmq, topic_list))) {
     fprintf(stderr, "Failed to subscribe topic_list, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
   } else {
-    fprintf(stdout, "subscribe topics successfully.\n");
+    fprintf(stdout, "Subscribe topics successfully.\n");
   }
 
   tmq_list_destroy(topic_list);
@@ -433,7 +433,7 @@ int main(int argc, char* argv[]) {
   if (code) {
     fprintf(stderr, "Failed to unsubscribe consumer, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
   } else {
-    fprintf(stderr, "consumer unsubscribed successfully.\n");
+    fprintf(stderr, "Consumer unsubscribed successfully.\n");
   }
 
   // close the consumer
@@ -441,7 +441,7 @@ int main(int argc, char* argv[]) {
   if (code) {
     fprintf(stderr, "Failed to close consumer: %s.\n", tmq_err2str(code));
   } else {
-    fprintf(stderr, "consumer closed successfully.\n");
+    fprintf(stderr, "Consumer closed successfully.\n");
   }
   // ANCHOR_END: unsubscribe_and_close
 
