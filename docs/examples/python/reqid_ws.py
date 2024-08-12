@@ -1,7 +1,7 @@
 import taosws
 
 conn = None
-reqId = 1
+reqId = 3
 host="localhost"
 port=6041
 try:
@@ -12,7 +12,7 @@ try:
         port=port,
     )
 
-    result = conn.query_with_req_id("SELECT ts, current, location FROM power.meters limit 100", req_id=1)
+    result = conn.query_with_req_id("SELECT ts, current, location FROM power.meters limit 100", req_id=3)
     # Get data from result as list of tuple
     for row in result:
         print(f"ts: {row[0]}, current: {row[1]}, location:  {row[2]}")

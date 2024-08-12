@@ -22,55 +22,57 @@
 #include <string.h>
 #include "taos.h"
 
-
 static int DemoCreateDB() {
-// ANCHOR: create_db_and_table
-const char *host      = "localhost";
-const char *user      = "root";
-const char *password  = "taosdata";
-uint16_t    port      = 6030;
-int code  = 0;
+  // ANCHOR: create_db_and_table
+  const char *host = "localhost";
+  const char *user = "root";
+  const char *password = "taosdata";
+  uint16_t    port = 6030;
+  int         code = 0;
 
-// connect
-TAOS *taos = taos_connect(host, user, password, NULL, port);
-if (taos == NULL) {
-  printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
-  taos_cleanup();
-  return -1;
-}
+  // connect
+  TAOS *taos = taos_connect(host, user, password, NULL, port);
+  if (taos == NULL) {
+    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+           taos_errstr(NULL));
+    taos_cleanup();
+    return -1;
+  }
 
-// create database
-TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
-code = taos_errno(result);
-if (code != 0) {
-  printf("Failed to create database power, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, code, taos_errstr(result));
+  // create database
+  TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
+  code = taos_errno(result);
+  if (code != 0) {
+    printf("Failed to create database power, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, code,
+           taos_errstr(result));
+    taos_close(taos);
+    taos_cleanup();
+    return -1;
+  }
+  taos_free_result(result);
+  printf("Create database power successfully.\n");
+
+  // create table
+  const char *sql =
+      "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId "
+      "INT, location BINARY(24))";
+  result = taos_query(taos, sql);
+  code = taos_errno(result);
+  if (code != 0) {
+    printf("Failed to create stable power.meters, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s\n.", host, port, code,
+           taos_errstr(result));
+    taos_close(taos);
+    taos_cleanup();
+    return -1;
+  }
+  taos_free_result(result);
+  printf("Create stable power.meters successfully.\n");
+
+  // close & clean
   taos_close(taos);
   taos_cleanup();
-  return -1;
-}
-taos_free_result(result);
-printf("Create database power successfully.\n");
-
-// create table
-const char* sql = "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))";
-result = taos_query(taos, sql);
-code = taos_errno(result);
-if (code != 0) {
-  printf("Failed to create stable power.meters, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s\n.", host, port, code, taos_errstr(result));
-  taos_close(taos);
-  taos_cleanup();
-  return -1;
-}
-taos_free_result(result);
-printf("Create stable meters successfully.\n");
-
-// close & clean
-taos_close(taos);
-taos_cleanup();
-return 0;
-// ANCHOR_END: create_db_and_table
+  return 0;
+  // ANCHOR_END: create_db_and_table
 }
 
-int main(int argc, char *argv[]) {
-  return DemoCreateDB();
-}
+int main(int argc, char *argv[]) { return DemoCreateDB(); }
