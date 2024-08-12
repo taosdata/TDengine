@@ -33,7 +33,7 @@ int code  = 0;
 // connect
 TAOS *taos = taos_connect(host, user, password, NULL, port);
 if (taos == NULL) {
-  printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+  printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
   taos_cleanup();
   return -1;
 }
@@ -51,7 +51,7 @@ const char* sql = "INSERT INTO "                                                
 TAOS_RES *result = taos_query(taos, sql);
 code = taos_errno(result);
 if (code != 0) {
-  printf("Failed to insert data to power.meters, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
+  printf("Failed to insert data to power.meters, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;

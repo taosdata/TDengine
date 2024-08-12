@@ -33,7 +33,7 @@ int code  = 0;
 // connect
 TAOS *taos = taos_connect(host, user, password, NULL, port);
 if (taos == NULL) {
-  printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+  printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
   taos_cleanup();
   return -1;
 }
@@ -42,7 +42,7 @@ if (taos == NULL) {
 TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
 code = taos_errno(result);
 if (code != 0) {
-  printf("Failed to create database power, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, code, taos_errstr(result));
+  printf("Failed to create database power, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
@@ -54,7 +54,7 @@ printf("Create database power successfully.\n");
 result = taos_query(taos, "USE power");
 code = taos_errno(result);
 if (code != 0) {
-  printf("Failed to execute use power, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
+  printf("Failed to execute use power, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
@@ -71,7 +71,7 @@ char *lines[] = {line_demo};
 result = taos_schemaless_insert(taos, lines, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
 code = taos_errno(result);
 if (code != 0) {
-  printf("Failed to insert schemaless line data, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
+  printf("Failed to insert schemaless line data, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
@@ -86,7 +86,7 @@ char *telnets[] = {telnet_demo};
 result = taos_schemaless_insert(taos, telnets, 1, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
 code = taos_errno(result);
 if (code != 0) {
-  printf("Failed to insert schemaless telnet data, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
+  printf("Failed to insert schemaless telnet data, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
@@ -111,7 +111,7 @@ result = taos_schemaless_insert(taos, jsons, 1, TSDB_SML_JSON_PROTOCOL, TSDB_SML
 code = taos_errno(result);
 if (code != 0) {
   free(jsons[0]);
-  printf("Failed to insert schemaless json data, Server: %s:%hu; ErrCode: 0x%x; ErrMessage: %s\n.", host, port, code, taos_errstr(result));
+  printf("Failed to insert schemaless json data, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s\n.", host, port, code, taos_errstr(result));
   taos_close(taos);
   taos_cleanup();
   return -1;
