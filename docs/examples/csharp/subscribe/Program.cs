@@ -152,41 +152,24 @@ namespace TMQExample
             {
                 // get assignment
                 var assignment = consumer.Assignment;
-                Console.WriteLine($"now assignment: ${assignment}");
+                Console.WriteLine($"now assignment: {assignment}");
                 // seek to the beginning
                 foreach (var topicPartition in assignment)
                 {
                     consumer.Seek(new TopicPartitionOffset(topicPartition.Topic, topicPartition.Partition, 0));
                 }
-                Console.WriteLine("assignment seek to beginning successfully");
-                // poll data again
-                for (int i = 0; i < 50; i++)
-                {
-                    // consume message with using block to ensure the result is disposed
-                    using (var cr = consumer.Consume(100))
-                    {
-                        if (cr == null) continue;
-                        foreach (var message in cr.Message)
-                        {
-                            // handle message
-                            Console.WriteLine(
-                                $"second data polled: {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
-                                $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
-                        }
-                        break;
-                    }
-                }
+                Console.WriteLine("Assignment seek to beginning successfully");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("seek example failed; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Seek example failed; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("seek example failed; ErrMessage: " + e.Message);
+                Console.WriteLine("Seek example failed; ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: seek
@@ -208,7 +191,7 @@ namespace TMQExample
                         {
                             cr.TopicPartitionOffset,
                         });
-                        Console.WriteLine("commit offset manually successfully.");
+                        Console.WriteLine("Commit offset manually successfully.");
                     }
                 }
                 catch (TDengineError e)
@@ -251,7 +234,7 @@ namespace TMQExample
             {
                 // close consumer
                 consumer.Close();
-                Console.WriteLine("consumer closed successfully.");
+                Console.WriteLine("Consumer closed successfully.");
             }
             // ANCHOR_END: close
         }
