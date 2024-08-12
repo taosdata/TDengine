@@ -1388,7 +1388,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   // we only set the dispatch msg info for current checkpoint trans
   streamMutexLock(&pTask->lock);
   triggerDispatchRsp = (streamTaskGetStatus(pTask).state == TASK_STATUS__CK) &&
-                       (pTask->chkInfo.pActiveInfo->activeId == pMsgInfo->checkpointId);
+                       (pTask->chkInfo.pActiveInfo->activeId == pMsgInfo->checkpointId) &&
+                       (pTask->chkInfo.pActiveInfo->transId != pMsgInfo->transId);
   streamMutexUnlock(&pTask->lock);
 
   streamMutexLock(&pMsgInfo->lock);
@@ -1449,7 +1450,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
         if (delayDispatch) {
           // we only set the dispatch msg info for current checkpoint trans
           if (triggerDispatchRsp) {
-            ASSERT(pTask->chkInfo.pActiveInfo->transId == pMsgInfo->transId);
             stDebug("s-task:%s checkpoint-trigger msg to 0x%x rsp for checkpointId:%" PRId64 " transId:%d confirmed",
                     pTask->id.idStr, pRsp->downstreamTaskId, pMsgInfo->checkpointId, pMsgInfo->transId);
 
