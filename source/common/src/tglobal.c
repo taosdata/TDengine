@@ -376,6 +376,7 @@ static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSD
   *pNum = num;
 
 _exit:
+  taosMemoryFreeClear(slices);
   taosMemoryFreeClear(strDup);
   TAOS_RETURN(code);
 }

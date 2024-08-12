@@ -955,7 +955,11 @@ static int32_t s3InitEpIndexArray(SArray **pIndexArray) {
   }
 
   for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    taosArraySet(indexArray, i, &i);
+    if (taosArrayPush(indexArray, &i) == NULL) {
+      taosArrayDestroy(indexArray);
+      uError("%s: %s", __func__, "out of memory");
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
   }
 
   if (tsS3EpNum > 1) {
