@@ -1,5 +1,6 @@
 ---
-title: Configuration Parameters
+title: Configuration Parmeters
+sidebar_label: Configurations
 description: This document describes the configuration parameters for the TDengine server and client.
 ---
 

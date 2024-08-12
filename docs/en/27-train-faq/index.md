@@ -1,5 +1,6 @@
 ---
 title: FAQ & Others
+sidebar_label: FAQ
 description: This document describes common issues related with TDengine.
 ---
 

@@ -1,5 +1,6 @@
 ---
 title: Schemaless Writing
+sidebar_label: Schemaless
 description: This document describes how to use the schemaless write component of TDengine.
 ---
 
