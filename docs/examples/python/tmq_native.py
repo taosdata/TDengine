@@ -142,17 +142,17 @@ def seek_offset(consumer):
         raise err
     # ANCHOR_END: assignment
 
-
-# ANCHOR: unsubscribe
 def unsubscribe(consumer):
+    # ANCHOR: unsubscribe    
     try:
         consumer.unsubscribe()
         print("Consumer unsubscribed successfully.");
     except Exception as err:
         print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
-
-
-# ANCHOR_END: unsubscribe
+    finally:
+        if consumer:
+            consumer.close()        
+    # ANCHOR_END: unsubscribe
 
 if __name__ == "__main__":
     consumer = None
@@ -162,9 +162,10 @@ if __name__ == "__main__":
         subscribe(consumer)
         seek_offset(consumer)
         commit_offset(consumer)
-        unsubscribe(consumer)
+        consumer.unsubscribe()
+        print("Consumer unsubscribed successfully.");
     except Exception as err:
         print(f"Failed to stmt consumer. ErrMessage:{err}")
     finally:
-        if consumer:
-            consumer.close()
+        consumer.unsubscribe()
+

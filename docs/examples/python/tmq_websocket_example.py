@@ -143,14 +143,17 @@ def commit_offset(consumer):
 
 # ANCHOR_END: commit_offset
 #
-# ANCHOR: unsubscribe
+
 def unsubscribe(consumer):
+# ANCHOR: unsubscribe    
     try:
         consumer.unsubscribe()
         print("Consumer unsubscribed successfully.");
     except Exception as err:
         print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
-
+    finally:
+        if consumer:
+            consumer.close()    
 
 # ANCHOR_END: unsubscribe
 
@@ -161,10 +164,8 @@ if __name__ == "__main__":
         consumer = create_consumer()
         subscribe(consumer)
         seek_offset(consumer)
-        commit_offset(consumer)
-        unsubscribe(consumer)
+        commit_offset(consumer)      
     except Exception as err:
         print(f"Failed to stmt consumer. ErrorMessage:{err}")
     finally:
-        if consumer:
-            consumer.close()
+        unsubscribe(consumer);
