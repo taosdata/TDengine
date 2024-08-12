@@ -78,7 +78,9 @@ tinytemplate = "1.2.1"
 serde_json_path = "0.6.0"
 csv_lib = { version = "1.2", package = "csv" }
 glob = "0.3.1"
-rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl"] }
+rdkafka = { version = "0.36.2", features = ["cmake-build", "ssl", "tracing"] }
+notify = "6.1.1"
+futures-ext ={ path = "../crates/futures-ext" }
 
 file-rotate = "0.7.5"
 ringbuf = { version = "0.3.3" }
@@ -154,10 +156,10 @@ rustls-pemfile = "2"
 rustls-native-certs = "0.7"
 
 mongodb = { version="3.0.0", features = [
-    "aws-auth", 
-    "zstd-compression", 
-    "zlib-compression", 
-    "snappy-compression", 
+    "aws-auth",
+    "zstd-compression",
+    "zlib-compression",
+    "snappy-compression",
     "openssl-tls"
 ] }
 
