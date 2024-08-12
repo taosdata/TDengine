@@ -49,23 +49,28 @@ def prepareMeta():
 from taos.tmq import Consumer
 
 def create_consumer():
+    host = "localhost"
+    port = 6030
+    groupId = "group1"
+    clientId = "1"
     try:
         consumer = Consumer(
             {
-                "group.id": "group1",
-                "client.id": "1",
+                "group.id": groupId,
+                "client.id": clientId,
                 "td.connect.user": "root",
                 "td.connect.pass": "taosdata",
                 "enable.auto.commit": "true",
                 "auto.commit.interval.ms": "1000",
                 "auto.offset.reset": "latest",
-                "td.connect.ip": "localhost",
-                "td.connect.port": "6030",
+                "td.connect.ip": host,
+                "td.connect.port": port,
             }
         )
+        print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}");
         return consumer
     except Exception as err:
-        print(f"Failed to poll data, err:{err}")
+        print(f"Failed to create websocket consumer, host: {host}:{port} ; err:{err}");
         raise err
     # ANCHOR_END: create_consumer
 
@@ -87,7 +92,8 @@ def subscribe(consumer):
                 val = records.value()
                 if val:
                     for block in val:
-                        print(block.fetchall())
+                        data = block.fetchall()
+                        print(f"data: {data}")
 
     except Exception as err:
         print(f"Failed to poll data, err:{err}")
@@ -114,6 +120,7 @@ def commit_offset(consumer):
 
                 # after processing the data, commit the offset manually
                 consumer.commit(records)
+                print("commit offset manually successfully.");
 
     except Exception as err:
         print(f"Failed to poll data, err:{err}")
@@ -141,6 +148,7 @@ def seek_offset(consumer):
 def unsubscribe(consumer):
     try:
         consumer.unsubscribe()
+        print("unsubscribe consumer successfully.");
     except Exception as err:
         print(f"Failed to unsubscribe consumer. err:{err}")
 
