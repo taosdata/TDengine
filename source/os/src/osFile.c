@@ -1001,6 +1001,7 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+
 #ifdef WINDOWS
 
   HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
@@ -1411,8 +1412,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   int32_t code = 0;
 
 #if FILE_WITH_LOCK
-      (void)
-      taosThreadRwlockRdlock(&(pFile->rwlock));
+  (void)taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   if (pFile == NULL || ptrBuf == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
