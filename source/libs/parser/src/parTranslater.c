@@ -9975,15 +9975,14 @@ static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
   (void)tNameGetFullDbName(&name, pDbFName);
 }
 
-static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len) {
-  if (NULL == taosHashGet(pUserAliasSet, "_wstart", strlen("_wstart"))) {
-    snprintf(aliasName, len, "%s", "_wstart");
-    return;
+static void getStreamQueryFirstProjectAliasName(SHashObj* pUserAliasSet, char* aliasName, int32_t len, char* defaultName[], int32_t defaultNum) {
+  for (int32_t i = 0; i < defaultNum; i++) {
+    if (NULL == taosHashGet(pUserAliasSet, defaultName[i], strlen(defaultName[i]))) {
+      snprintf(aliasName, len, "%s", defaultName[i]);
+      return;
+    }
   }
-  if (NULL == taosHashGet(pUserAliasSet, "ts", strlen("ts"))) {
-    snprintf(aliasName, len, "%s", "ts");
-    return;
-  }
+
   do {
     taosRandStr(aliasName, len - 1);
     aliasName[len - 1] = '\0';
@@ -10002,6 +10001,44 @@ static int32_t setColumnDefNodePrimaryKey(SColumnDefNode* pNode, bool isPk) {
   return code;
 }
 
+static int32_t addTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
+                                                  SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
+  SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
+  if (!pSelect->hasInterpFunc ||
+      (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_irowts", ((SFunctionNode*)pProj)->functionName))) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SFunctionNode* pFunc = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (NULL == pFunc) {
+    return code;
+  }
+  strcpy(pFunc->functionName, "_irowts");
+  char* defaultName[] = {"_irowts"};
+  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName, sizeof(defaultName));
+  code = getFuncInfo(pCxt, pFunc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && STREAM_CREATE_STABLE_TRUE == pReq->createStb) {
+    SColumnDefNode* pColDef = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef);
+    if (TSDB_CODE_SUCCESS == code) {
+      strcpy(pColDef->colName, pFunc->node.aliasName);
+      pColDef->dataType = pFunc->node.resType;
+      pColDef->sma = true;
+      code = setColumnDefNodePrimaryKey(pColDef, false);
+    }
+    if (TSDB_CODE_SUCCESS == code) code = nodesListPushFront(pCols, (SNode*)pColDef);
+    if (TSDB_CODE_SUCCESS != code) nodesDestroyNode((SNode*)pColDef);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+  }
+  return code;
+}
+
 static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
                                                   SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
   SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
@@ -10015,7 +10052,8 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
     return code;
   }
   strcpy(pFunc->functionName, "_wstart");
-  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName));
+  char* defaultName[] = {"_wstart", "ts"};
+  getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName, sizeof(defaultName));
   code = getFuncInfo(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
@@ -10046,6 +10084,9 @@ static int32_t addWstartTsToCreateStreamQuery(STranslateContext* pCxt, SNode* pS
   int32_t      code = checkProjectAlias(pCxt, pSelect->pProjectionList, &pUserAliasSet);
   if (TSDB_CODE_SUCCESS == code) {
     code = addWstartTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
   }
   taosHashCleanup(pUserAliasSet);
   return code;
