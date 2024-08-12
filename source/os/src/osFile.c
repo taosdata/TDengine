@@ -66,7 +66,6 @@ typedef struct TdFile {
 
 #ifdef BUILD_WITH_RAND_ERR
 #define BUILD_WITH_RAND_IO_ERR
-#endif
 #define STUB_RAND_IO_ERR(ret)            \
   if (tsEnableRandErr) {                 \
     uint32_t r = taosRand() % 10001;     \
@@ -76,6 +75,7 @@ typedef struct TdFile {
       return (ret);                      \
     }                                    \
   }
+#endif
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
