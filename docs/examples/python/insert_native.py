@@ -21,7 +21,7 @@ try:
     print(f"Successfully inserted {affectedRows} rows to power.meters.")
 
 except Exception as err:
-    print(f"Failed to insert data to power.meters, db addr:{host}:{port} ; err:{err}")
+    print(f"Failed to insert data to power.meters, db addr:{host}:{port} ; ErrMessage:{err}")
 finally:
     if conn:
         conn.close()

@@ -14,7 +14,7 @@ try:
         print(f"ts: {row[0]}, current: {row[1]}, location:  {row[2]}")
 
 except Exception as err:
-    print(f"Failed to query data from power.meters, db addr:{host}:{port} ; err:{err}")
+    print(f"Failed to query data from power.meters, db addr:{host}:{port} ; ErrMessage:{err}")
 finally:
     if conn:
         conn.close()

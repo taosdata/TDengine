@@ -25,8 +25,10 @@ async function createDbAndTable() {
     let wsSql = null;
     try {
         wsSql = await createConnect();
+        // create database
         await wsSql.exec('CREATE DATABASE IF NOT EXISTS power');
-
+        console.log("Create database power successfully.");
+        // create table
         await wsSql.exec('CREATE STABLE IF NOT EXISTS power.meters ' + 
         '(_ts timestamp, current float, voltage int, phase float) ' +
         'TAGS (location binary(64), groupId int);');
@@ -109,7 +111,7 @@ async function sqlWithReqid() {
         }
     }
     catch (err) {
-        console.error("Failed to execute sql with reqId: " + reqId + "," + err.code + "; ErrMessage: " + err.message);
+        console.error("Failed to execute sql with reqId: " + reqId + ", ErrCode:" + err.code + "; ErrMessage: " + err.message);
     }
     finally {
         if (wsRows) {

@@ -14,4 +14,4 @@ try:
             print(f"ts: {row[0]}, current: {row[1]}, location:  {row[2]}")
 
 except Exception as err:
-    print(f"Failed to query data from power.meters, url:{url} ; err:{err}")
+    print(f"Failed to query data from power.meters, url:{url} ; ErrMessage:{err}")

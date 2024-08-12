@@ -66,7 +66,7 @@ def schemaless_insert():
         )
         print("Inserted data with schemaless successfully.");
     except Exception as err:
-        print(f"Failed to insert data with schemaless, addr: {host}:{port}  err:{err}")
+        print(f"Failed to insert data with schemaless, addr: {host}:{port}  ErrMessage:{err}")
         raise err
     
     finally:

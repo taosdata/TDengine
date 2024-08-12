@@ -51,7 +51,7 @@ def prepareMeta():
         print(f"inserted into {affectedRows} rows to power.meters successfully.")
 
     except Exception as err:
-        print(f"Failed to prepareMeta {err}")
+        print(f"Failed to prepareMeta ErrMessage:{err}")
         raise err
     finally:
         if conn:
@@ -78,7 +78,7 @@ def create_consumer():
         print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}");
         return consumer;
     except Exception as err:
-        print(f"Failed to create websocket consumer, host: {host}:{port} ; err:{err}");
+        print(f"Failed to create websocket consumer, host: {host}:{port} ; ErrMessage:{err}");
         raise err
 
 
@@ -98,7 +98,7 @@ def seek_offset(consumer):
                 print("assignment seek to beginning successfully");
 
     except Exception as err:
-        print(f"seek example failed; err:{err}")
+        print(f"seek example failed; ErrMessage:{err}")
         raise err
     # ANCHOR_END: assignment
 
@@ -116,7 +116,7 @@ def subscribe(consumer):
                         print(f"data: {row}")
 
     except Exception as err:
-        print(f"Failed to poll data, err:{err}")
+        print(f"Failed to poll data, ErrMessage:{err}")
         raise err
 
 
@@ -137,7 +137,7 @@ def commit_offset(consumer):
                 print("commit offset manually successfully.");
 
     except Exception as err:
-        print(f"Failed to poll data, err:{err}")
+        print(f"Failed to poll data, ErrMessage:{err}")
         raise err
 
 
@@ -147,9 +147,9 @@ def commit_offset(consumer):
 def unsubscribe(consumer):
     try:
         consumer.unsubscribe()
-        print("unsubscribe consumer successfully.");
+        print("consumer unsubscribed successfully.");
     except Exception as err:
-        print("Failed to unsubscribe consumer. err:{err}")
+        print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
 
 
 # ANCHOR_END: unsubscribe
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         commit_offset(consumer)
         unsubscribe(consumer)
     except Exception as err:
-        print(f"Failed to stmt consumer. err:{err}")
+        print(f"Failed to stmt consumer. ErrorMessage:{err}")
     finally:
         if consumer:
             consumer.close()

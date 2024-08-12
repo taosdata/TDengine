@@ -56,7 +56,7 @@ try:
         print(f"Successfully inserted to power.meters.")
 
 except Exception as err:
-    print(f"Failed to insert to table meters using stmt, addr:{host}:{port} ; err:{err}") 
+    print(f"Failed to insert to table meters using stmt, addr:{host}:{port} ; ErrMessage:{err}") 
 finally:
     if stmt:
         stmt.close()
