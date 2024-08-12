@@ -40,21 +40,21 @@ taosKeeper 的配置文件默认位于 `/etc/taos/taoskeeper.toml`。 详细配�
 
 #### 导入仪表盘
 
-TDengine 数据源插件已被提交至 Grafana 官网，完成插件的安装和数据源的创建后，可以进行 TDinsight 仪表盘的导入。
+TDengine 数据源插件已提交至 Grafana 官网，如何安装 TDengine 数据源插件和配置数据源请参考：[安装 Grafana Plugin 并配置数据源](../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)。完成插件的安装和数据源的创建后，可以进行 TDinsight 仪表盘的导入。
 
-在 Grafana 的 ”Home“ -> ”Dashboards“ 页面，点击位于右上角的 ”New“ -> ”import“ 按钮，即可进入 Dashboard 的导入页面，它支持以下两种导入方式。
+在 Grafana 的 “Home” -> “Dashboards” 页面，点击位于右上角的 “New” -> “import” 按钮，即可进入 Dashboard 的导入页面，它支持以下两种导入方式。
 - Dashboard ID：18180。
 - Dashboard URL：https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/
 
-填写以上 Dashboard ID 或 Dashboard URL 以后，点击 ”Load“ 按钮，按照向导操作，即可完成导入。导入成功后，Dashboards 列表页面会出现 ”TDinsight for 3.x“ 仪表盘，点击进入后，就可以看到 TDinsight 中已创建的各个指标的面板，如下图所示：
+填写以上 Dashboard ID 或 Dashboard URL 以后，点击 “Load” 按钮，按照向导操作，即可完成导入。导入成功后，Dashboards 列表页面会出现 “TDinsight for 3.x” 仪表盘，点击进入后，就可以看到 TDinsight 中已创建的各个指标的面板，如下图所示：
 
 ![TDinsight 界面示例](./TDinsight-1-cluster-status.webp)
 
-**注意** 在 TDinsight 界面左上角的 ”Log from“ 下拉列表中可以选择 `log` 数据库。
+**注意** 在 TDinsight 界面左上角的 “Log from” 下拉列表中可以选择 `log` 数据库。
 
 ### TDengine V3 监控数据
 
-TDinsight dashboard 数据来源于 `log` 库（存放监控数据的默认数据库，可以在 taoskeeper 配置文件中修改）。”TDinsight for 3.x“ 仪表盘查询了 taosd 和 TaosAdapter 的监控指标。
+TDinsight dashboard 数据来源于 `log` 库（存放监控数据的默认数据库，可以在 taoskeeper 配置文件中修改）。“TDinsight for 3.x” 仪表盘查询了 taosd 和 TaosAdapter 的监控指标。
 - taosd 的监控指标请参考 [taosd 监控指标](../../reference/components/taosd/#taosd-监控指标)
 - taosAdapter 的监控指标请参考 [taosAdapter 监控指标](../../reference/components/taosadapter/#taosadapter-监控指标)
 
@@ -66,18 +66,15 @@ taosX 是 TDengine 中提供零代码数据接入能力的核心组件，对它�
 3. 运行在 taosX 端或 taosx-agent 端的各个连接器子进程
 4. 运行中的各类数据写入任务
 
-### 版本支持
+### 前置条件
 
-1. TDengine 企业版本 3.2.3.0 或以上版本包含的 taosX 才包含此功能。如果单独安装 taosX，需要 taosX 1.5.0 或以上版本。
-2. 需要安装 Grafana 插件 [TDengie Datasource v3.5.0](https://grafana.com/grafana/plugins/tdengine-datasource/) 或以上版本。
+1. taosd，taosAdapter 和 taosKeeper 都已经部署完成并启动成功。
+2. taosX 服务监控配置正确，如何配置可以参考下文 “配置 taosX 监控”，服务启动成功。  
+   **注意**：TDengine 企业版本 3.2.3.0 或以上版本包含的 taosX 才包含此功能。如果单独安装 taosX，需要 taosX 1.5.0 或以上版本。
+3. 部署 Grafana ，安装 TDengine Datasource 插件，配置好数据源。可以参考：[安装 Grafana Plugin 并配置数据源](../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)。  
+   **注意**：需要安装 Grafana 插件 [TDengie Datasource v3.5.0](https://grafana.com/grafana/plugins/tdengine-datasource/) 或以上版本。
 
-### 准备工作
-
-假设你已经部署好了 taosd，taosAdapter 和 taosAdapter。 那么还需要：  
-1. 启动 taosX 服务。
-2. 部署 Grafana ，安装 TDengine Datasource 插件，配置好数据源。
-
-### 配置 taosX
+### 配置 taosX 监控
 
 toasX 的配置文件(默认 /etc/taos/taosx.toml) 中与 monitor 相关的配置如下：
 
@@ -101,12 +98,12 @@ toasX 的配置文件(默认 /etc/taos/taosx.toml) 中与 monitor 相关的配�
 
 ### 基于 TDinsight 监控 tasoX
 
-"TDinsight for taosX" 是专门为 taosX 监控创建的 Grafana 面板。使用前需要先导入这个面板。
+“TDinsight for taosX” 是专门为 taosX 监控创建的 Grafana 面板。使用前需要先导入这个面板。
 
 #### 进入面板
 
-1. 在 Grafana 界面菜单中点击 ”Data sources“， 然后选择已经配置好的 TDengine 数据源。
-2. 在数据源配置界面选择 “Dashboard” Tab, 然后导入 ”TDinsight for taosX“ 面板（第一次使用需要先导入）。 下面是一个示例图：
+1. 在 Grafana 界面菜单中点击 “Data sources”， 然后选择已经配置好的 TDengine 数据源。
+2. 在数据源配置界面选择 “Dashboard” Tab, 然后导入 “TDinsight for taosX” 面板（第一次使用需要先导入）。 下面是一个示例图：
    
    ![monitor rows](./pic/monitor-04.jpg)
     

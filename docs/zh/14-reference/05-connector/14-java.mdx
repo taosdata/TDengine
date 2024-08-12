@@ -199,7 +199,7 @@ Websocket 和 REST 连接使用驱动类 `com.taosdata.jdbc.rs.RestfulDriver`。
 
 #### URL 规范
 TDengine 的 JDBC URL 规范格式为：
-`jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
+`jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
 对于建立连接，原生连接与 REST 连接有细微不同。 Websocket 和 REST 连接使用驱动类 `com.taosdata.jdbc.rs.RestfulDriver`。原生连接使用驱动类 `com.taosdata.jdbc.TSDBDriver`。
 

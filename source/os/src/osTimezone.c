@@ -871,14 +871,14 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   {
     int n = readlink("/etc/localtime", buf, sizeof(buf));
     if (n < 0) {
-      printf("read /etc/localtime error, reason:%s", strerror(errno));
+      printf("read /etc/localtime error, reason:%s\n", strerror(errno));
       return;
     }
     buf[n] = '\0';
 
     char *zi = strstr(buf, "zoneinfo");
     if (!zi) {
-      printf("parsing /etc/localtime failed");
+      printf("parsing /etc/localtime failed\n");
       return;
     }
     tz = zi + strlen("zoneinfo") + 1;
@@ -893,7 +893,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
     //   }
     // }
     // if (!tz || 0 == strchr(tz, '/')) {
-    //   printf("parsing /etc/localtime failed");
+    //   printf("parsing /etc/localtime failed\n");
     //   return;
     // }
 
@@ -927,7 +927,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   {
     int n = readlink("/etc/localtime", buf, sizeof(buf)-1);
     if (n < 0) {
-      (void)printf("read /etc/localtime error, reason:%s", strerror(errno));
+      (void)printf("read /etc/localtime error, reason:%s\n", strerror(errno));
 
       if (taosCheckExistFile("/etc/timezone")) {
         /*
@@ -947,7 +947,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
           int len = taosReadFile(pFile, buf, 64);
           if (len < 0) {
             (void)taosCloseFile(&pFile);
-            (void)printf("read /etc/timezone error, reason:%s", strerror(errno));
+            (void)printf("read /etc/timezone error, reason:%s\n", strerror(errno));
             return;
           }
 
@@ -994,7 +994,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
 
     char *zi = strstr(buf, "zoneinfo");
     if (!zi) {
-      (void)printf("parsing /etc/localtime failed");
+      (void)printf("parsing /etc/localtime failed\n");
       return;
     }
     tz = zi + strlen("zoneinfo") + 1;
