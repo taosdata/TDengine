@@ -172,15 +172,15 @@ async fn main() -> anyhow::Result<()> {
         let topic_assignment = consumer.topic_assignment(topic).await;
         println!("topic assignment: {:?}", topic_assignment);
     }
-    println!("assignment seek to beginning successfully.");
+    println!("Assignment seek to beginning successfully.");
     // after seek offset
     let assignments = consumer.assignments().await.unwrap();
-    println!("after seek offset assignments: {:?}", assignments);
+    println!("After seek offset assignments: {:?}", assignments);
     // ANCHOR_END: seek_offset
 
     // ANCHOR: unsubscribe
     consumer.unsubscribe().await;
-    println!("consumer unsubscribed successfully.");
+    println!("Consumer unsubscribed successfully.");
     // ANCHOR_END: unsubscribe
 
     tokio::time::sleep(Duration::from_secs(1)).await;
