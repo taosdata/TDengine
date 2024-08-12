@@ -2792,8 +2792,11 @@ char* getStreamOpName(uint16_t opType) {
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
-  if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("%s===stream===%s: Block is Null or Empty", taskIdStr, flag);
+  if (!pBlock) {
+    qDebug("%s===stream===%s: Block is Null", taskIdStr, flag);
+    return;
+  } else if (pBlock->info.rows == 0) {
+    qDebug("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
     return;
   }
   char*   pBuf = NULL;
