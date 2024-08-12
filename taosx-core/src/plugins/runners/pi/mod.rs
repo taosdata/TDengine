@@ -183,21 +183,6 @@ pub async fn pi_to_taos(
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
-
-    let client = reqwest::Client::new();
-    let mut retries = 0;
-    loop {
-        let resp = client.get(format!("{}/ping", config.sql_api)).send().await;
-        if resp.is_ok() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        if retries > 600 {
-            break;
-        }
-        retries += 1;
-    }
-
     let mut log_path = log_path();
     std::fs::create_dir_all(&log_path)
         .with_context(|| format!("Log path {}", log_path.display()))?;
