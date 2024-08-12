@@ -10,7 +10,9 @@ namespace TMQExample
         {
             try
             {
-                var builder = new ConnectionStringBuilder("protocol=WebSocket;host=127.0.0.1;port=6041;username=root;password=taosdata");
+                var builder =
+                    new ConnectionStringBuilder(
+                        "protocol=WebSocket;host=127.0.0.1;port=6041;username=root;password=taosdata");
                 using (var client = DbDriver.Open(builder))
                 {
                     client.Exec("CREATE DATABASE IF NOT EXISTS power");
@@ -48,7 +50,9 @@ namespace TMQExample
 
         static void InsertData()
         {
-            var builder = new ConnectionStringBuilder("protocol=WebSocket;host=127.0.0.1;port=6041;username=root;password=taosdata");
+            var builder =
+                new ConnectionStringBuilder(
+                    "protocol=WebSocket;host=127.0.0.1;port=6041;username=root;password=taosdata");
             using (var client = DbDriver.Open(builder))
             {
                 while (true)
@@ -64,17 +68,20 @@ namespace TMQExample
         {
             // ANCHOR: create_consumer
             // consumer config
+            var host = "127.0.0.1";
+            var groupId = "group1";
+            var clientId = "client1";
             var cfg = new Dictionary<string, string>()
             {
-                {"td.connect.type", "WebSocket"},
+                { "td.connect.type", "WebSocket" },
                 { "td.connect.port", "6041" },
                 { "auto.offset.reset", "latest" },
                 { "msg.with.table.name", "true" },
                 { "enable.auto.commit", "true" },
                 { "auto.commit.interval.ms", "1000" },
-                { "group.id", "group1" },
-                { "client.id", "client1" },
-                { "td.connect.ip", "127.0.0.1" },
+                { "group.id", groupId },
+                { "client.id", clientId },
+                { "td.connect.ip", host },
                 { "td.connect.user", "root" },
                 { "td.connect.pass", "taosdata" },
             };
@@ -83,17 +90,20 @@ namespace TMQExample
             {
                 // create consumer
                 consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
+                Console.WriteLine("Create consumer successfully, host: " + host + ", groupId: " + groupId +
+                                  ", clientId: " + clientId);
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to create consumer; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to create websocket consumer, host : " + host + "; ErrCode:" + e.Code +
+                                  "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to create consumer; Err:" + e.Message);
+                Console.WriteLine("Failed to create websocket consumer, host : " + host + "; ErrMessage: " + e.Message);
                 throw;
             }
 
@@ -108,6 +118,7 @@ namespace TMQExample
             {
                 // subscribe
                 consumer.Subscribe(new List<string>() { "topic_meters" });
+                Console.WriteLine("subscribe topics successfully");
                 for (int i = 0; i < 50; i++)
                 {
                     // consume message with using block to ensure the result is disposed
@@ -118,7 +129,7 @@ namespace TMQExample
                         {
                             // handle message
                             Console.WriteLine(
-                                $"data {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
+                                $"data: {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
                                 $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
                         }
                     }
@@ -133,7 +144,7 @@ namespace TMQExample
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to poll data; Err:" + e.Message);
+                Console.WriteLine("Failed to poll data; ErrMessage:" + e.Message);
                 throw;
             }
             // ANCHOR_END: subscribe
@@ -146,6 +157,7 @@ namespace TMQExample
             {
                 // get assignment
                 var assignment = consumer.Assignment;
+                Console.WriteLine($"now assignment: ${assignment}");
                 // seek to the beginning
                 foreach (var topicPartition in assignment)
                 {
@@ -166,6 +178,7 @@ namespace TMQExample
                                 $"second data polled: {{{((DateTime)message.Value["ts"]).ToString("yyyy-MM-dd HH:mm:ss.fff")}, " +
                                 $"{message.Value["current"]}, {message.Value["voltage"]}, {message.Value["phase"]}}}");
                         }
+
                         break;
                     }
                 }
@@ -173,13 +186,13 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to seek; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("seek example failed; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to seek; Err:" + e.Message);
+                Console.WriteLine("seek example failed; ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: seek
@@ -201,18 +214,19 @@ namespace TMQExample
                         {
                             cr.TopicPartitionOffset,
                         });
+                        Console.WriteLine("commit offset manually successfully.");
                     }
                 }
                 catch (TDengineError e)
                 {
                     // handle TDengine error
-                    Console.WriteLine("Failed to commit offset; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                    Console.WriteLine("Failed to execute consumer functions. ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                     throw;
                 }
                 catch (Exception e)
                 {
                     // handle other exceptions
-                    Console.WriteLine("Failed to commit offset; Err:" + e.Message);
+                    Console.WriteLine("Failed to execute consumer functions. ErrMessage:" + e.Message);
                     throw;
                 }
             }
@@ -230,19 +244,20 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to unsubscribe consumer; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to unsubscribe consumer. ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to unsubscribe consumer; Err:" + e.Message);
+                Console.WriteLine("Failed to unsubscribe consumer. Err: " + e.Message);
                 throw;
             }
             finally
             {
                 // close consumer
                 consumer.Close();
+                Console.WriteLine("consumer closed successfully.");
             }
             // ANCHOR_END: close
         }
