@@ -66,7 +66,7 @@ async function subscribe(consumer) {
             console.log("Commit offset manually successfully.");
         }        
     } catch (err) {
-        console.error("Failed to poll data; err.code, ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error("Failed to poll data; ErrCode:" + err.code + "; ErrMessage: " + err.message);
         throw err;
     }
     // ANCHOR_END: commit
