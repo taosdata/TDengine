@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ANCHOR: consume
     match consumer.subscribe(["topic_meters"]).await{
-        Ok(_) => println!("subscribe topics successfully."),
+        Ok(_) => println!("Subscribe topics successfully."),
         Err(err) => {
             eprintln!("Failed to subscribe topic_meters, dsn: {}; ErrMessage: {}", dsn, err);
             return Err(err.into());
