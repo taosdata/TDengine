@@ -35,7 +35,7 @@ func main() {
 	}
 	rowsAffected, err = res.RowsAffected()
 	if err != nil {
-		log.Fatalln("Failed to get create create rowsAffected, url:" + taosDSN + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to get create db rowsAffected, url:" + taosDSN + "; ErrMessage: " + err.Error())
 	}
 	// you can check rowsAffected here
 	fmt.Println("Create stable power.meters successfully, rowsAffected:", rowsAffected)
@@ -66,7 +66,7 @@ func main() {
 	// query data, make sure the database and table are created before
 	rows, err := db.Query("SELECT ts, current, location FROM power.meters limit 100")
 	if err != nil {
-		log.Fatal("query data failed:", err)
+		log.Fatal("Failed to query data from power.meters, url:" + taosDSN + "; ErrMessage: " + err.Error())
 	}
 	for rows.Next() {
 		var (
@@ -76,7 +76,7 @@ func main() {
 		)
 		err = rows.Scan(&ts, &current, &location)
 		if err != nil {
-			log.Fatal("scan data failed:", err)
+			log.Fatal("Failed to scan data, url:" + taosDSN + "; ErrMessage: " + err.Error())
 		}
 		// you can check data here
 		fmt.Printf("ts: %s, current: %f, location: %s\n", ts, current, location)

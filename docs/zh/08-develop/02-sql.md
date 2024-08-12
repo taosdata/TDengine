@@ -53,7 +53,7 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 <TabItem label="Rust" value="rust">
 
 ```rust
-{{#include docs/examples/rust/nativeexample/examples/query.rs:create_db_and_table}}
+{{#include docs/examples/rust/nativeexample/examples/createdb.rs:create_db_and_table}}
 ```
 
 </TabItem>
@@ -129,7 +129,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 <TabItem label="Rust" value="rust">
 
 ```rust
-{{#include docs/examples/rust/nativeexample/examples/query.rs:insert_data}}
+{{#include docs/examples/rust/nativeexample/examples/insert.rs:insert_data}}
 ```
 
 </TabItem>
