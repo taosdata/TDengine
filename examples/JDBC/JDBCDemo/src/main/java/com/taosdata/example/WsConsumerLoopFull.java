@@ -10,6 +10,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 // ANCHOR: consumer_demo
 public class WsConsumerLoopFull {
@@ -34,7 +35,9 @@ public class WsConsumerLoopFull {
         config.setProperty("value.deserializer.encoding", "UTF-8");
 
         try {
-            return new TaosConsumer<>(config);
+            TaosConsumer<ResultBean> consumer= new TaosConsumer<>(config);
+            System.out.println("Create consumer successfully, host: " + config.getProperty("bootstrap.servers") + ", groupId: " + config.getProperty("group.id") + ", clientId: " + config.getProperty("client.id"));
+            return consumer;
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
@@ -95,7 +98,6 @@ public class WsConsumerLoopFull {
 
             consumer.seekToBeginning(assignment);
             System.out.println("assignment seek to beginning successfully");
-            System.out.println("beginning assignment: " + JSON.toJSONString(assignment));
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
@@ -124,6 +126,7 @@ public class WsConsumerLoopFull {
                 if (!records.isEmpty()) {
                     // after processing the data, commit the offset manually
                     consumer.commitSync();
+                    System.out.println("commit offset manually successfully.");
                 }
             }
         } catch (SQLException ex) {
@@ -144,6 +147,7 @@ public class WsConsumerLoopFull {
         try {
             // unsubscribe the consumer
             consumer.unsubscribe();
+            System.out.println("unsubscribe consumer successfully.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
@@ -155,6 +159,7 @@ public class WsConsumerLoopFull {
         finally {
             // close the consumer
             consumer.close();
+            System.out.println("consumer closed successfully.");
         }
 // ANCHOR_END: unsubscribe_data_code_piece
     }
