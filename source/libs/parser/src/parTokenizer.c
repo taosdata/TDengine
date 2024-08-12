@@ -77,6 +77,7 @@ static SKeyword keywordTable[] = {
     {"COUNT",                TK_COUNT},
     {"COUNT_WINDOW",         TK_COUNT_WINDOW},
     {"CREATE",               TK_CREATE},
+    {"CREATEDB",             TK_CREATEDB},
     {"CURRENT_USER",         TK_CURRENT_USER},
     {"DATABASE",             TK_DATABASE},
     {"DATABASES",            TK_DATABASES},
@@ -333,6 +334,7 @@ static SKeyword keywordTable[] = {
     {"COMPRESS",             TK_COMPRESS},
     {"LEVEL",                TK_LEVEL},
     {"ARBGROUPS",            TK_ARBGROUPS},
+    {"IS_IMPORT",            TK_IS_IMPORT},
 };
 // clang-format on
 
@@ -350,22 +352,23 @@ static const char isIdChar[] = {
 
 static void* keywordHashTable = NULL;
 
-static void doInitKeywordsTable(void) {
+static int32_t doInitKeywordsTable(void) {
   int numOfEntries = tListLen(keywordTable);
 
   keywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
     keywordTable[i].len = (uint8_t)strlen(keywordTable[i].name);
     void* ptr = &keywordTable[i];
-    taosHashPut(keywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
+    int32_t code = taosHashPut(keywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosHashCleanup(keywordHashTable);
+      return code;
+    }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
-static TdThreadOnce keywordsHashTableInit = PTHREAD_ONCE_INIT;
-
 static int32_t tKeywordCode(const char* z, int n) {
-  taosThreadOnce(&keywordsHashTableInit, doInitKeywordsTable);
-
   char key[512] = {0};
   if (n > tListLen(key)) {  // too long token, can not be any other token type
     return TK_NK_ID;
@@ -779,12 +782,23 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
   if ('.' == str[*i + t0.n]) {
     len = tGetToken(&str[*i + t0.n + 1], &type);
 
-    // only id and string are valid
-    if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) || ((TK_NK_STRING != type) && (TK_NK_ID != type))) {
+    // only id、string and ? are valid
+    if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) ||
+        ((TK_NK_STRING != type) && (TK_NK_ID != type) && (TK_NK_QUESTION != type))) {
       t0.type = TK_NK_ILLEGAL;
       t0.n = 0;
 
       return t0;
+    }
+
+    // check the table name is '?', db.?asf is not valid.
+    if (TK_NK_QUESTION == type) {
+      (void)tGetToken(&str[*i + t0.n + 2], &type);
+      if (TK_NK_SPACE != type) {
+        t0.type = TK_NK_ILLEGAL;
+        t0.n = 0;
+        return t0;
+      }
     }
 
     t0.n += len + 1;
@@ -807,6 +821,10 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 }
 
 bool taosIsKeyWordToken(const char* z, int32_t len) { return (tKeywordCode((char*)z, len) != TK_NK_ID); }
+
+int32_t taosInitKeywordsTable() {
+  return doInitKeywordsTable();
+}
 
 void taosCleanupKeywordsTable() {
   void* m = keywordHashTable;

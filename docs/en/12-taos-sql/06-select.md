@@ -65,10 +65,16 @@ interp_clause:
     RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
-    PARTITION BY expr [, expr] ...
+    PARTITION BY partition_by_expr [, partition_by_expr] ...
+
+partition_by_expr:
+    {expr | position | c_alias}
 
 group_by_clause:
-    GROUP BY expr [, expr] ... HAVING condition
+    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
+                                                    
+group_by_expr:
+    {expr | position | c_alias}
 
 order_by_clasue:
     ORDER BY order_expr [, order_expr] ...
@@ -147,6 +153,11 @@ You can query tag columns in supertables and subtables and receive results in th
 ```sql
 SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
+
+### Alias Name
+
+The naming rules for aliases are the same as those for columns, and it supports directly specifying Chinese aliases in UTF-8 encoding format.
+
 
 ### Distinct Values
 
@@ -269,7 +280,13 @@ If you use a GROUP BY clause, the SELECT list can only include the following ite
 
 The GROUP BY clause groups each row of data by the value of the expression following the clause and returns a combined result for each group.
 
-The expressions in a GROUP BY clause can include any column in any table or view. It is not necessary that the expressions appear in the SELECT list.
+In the GROUP BY clause, columns from a table or view can be grouped by specifying the column name. These columns do not need to be included in the SELECT list.
+
+You can specify integers in GROUP BY expression to indicate the expressions in the select list used for grouping. For example, 1 indicates the first item in the select list.
+
+You can specify column names in result set to indicate the expressions in the select list used for grouping.
+
+When using position and result set column names for grouping in the GROUP BY clause, the corresponding expressions in the select list must not be aggregate functions.
 
 The GROUP BY clause does not guarantee that the results are ordered. If you want to ensure that grouped data is ordered, use the ORDER BY clause.
 
@@ -278,7 +295,7 @@ The GROUP BY clause does not guarantee that the results are ordered. If you want
 
 The PARTITION BY clause is a TDengine-specific extension to standard SQL introduced in TDengine 3.0. This clause partitions data based on the part_list and performs computations per partition.
 
-PARTITION BY and GROUP BY have similar meanings. They both group data according to a specified list and then perform calculations. The difference is that PARTITION BY does not have various restrictions on the SELECT list of the GROUP BY clause. Any operation can be performed within the group (constants, aggregations, scalars, expressions, etc.). Therefore, PARTITION BY is fully compatible with GROUP BY in terms of usage. All places that use the GROUP BY clause can be replaced with PARTITION BY.
+PARTITION BY and GROUP BY have similar meanings. They both group data according to a specified list and then perform calculations. The difference is that PARTITION BY does not have various restrictions on the SELECT list of the GROUP BY clause. Any operation can be performed within the group (constants, aggregations, scalars, expressions, etc.). Therefore, PARTITION BY is fully compatible with GROUP BY in terms of usage. All places that use the GROUP BY clause can be replaced with PARTITION BY, there may be differences in the query results while no aggregation function in the query.
 
 Because PARTITION BY does not require returning a row of aggregated data, it can also support various window operations after grouping slices. All window operations that need to be grouped can only use the PARTITION BY clause.
 
@@ -439,7 +456,7 @@ FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
 ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 ```
 
-For more information about JOIN operations, please refer to the page [TDengine Join] (../join).
+For more information about JOIN operations, please refer to the page [TDengine Join](../join).
 
 ## Nested Query
 
@@ -454,6 +471,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 :::info
 
 - The result of a nested query is returned as a virtual table used by the outer query. It's recommended to give an alias to this table for the convenience of using it in the outer query.
+- Outer queries support directly referencing columns or pseudo-columns of inner queries in the form of column names or \`column names\`.
 - JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
 - The features that can be used in the inner query are the same as those that can be used in a non-nested query.
   - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.

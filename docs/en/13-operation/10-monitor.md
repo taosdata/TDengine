@@ -43,201 +43,204 @@ Launch `TDinsight.sh` with the command above and restart Grafana, then open Dash
 
 The data of tdinsight dashboard is stored in `log` database (default. You can change it in taoskeeper's config file. For more infrmation, please reference to [taoskeeper document](../../reference/taosKeeper)). The taoskeeper will create log database on taoskeeper startup.
 
-### cluster\_info table
+### taosd\_cluster\_basic table
 
-`cluster_info` table contains cluster information records.
+`taosd_cluster_basic` table contains cluster basic information.
 
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
 |first\_ep|VARCHAR||first ep of cluster|
 |first\_ep\_dnode\_id|INT||dnode id or first\_ep|
-|version|VARCHAR||tdengine version. such as: 3.0.4.0|
-|master\_uptime|FLOAT||days of master's uptime|
-|monitor\_interval|INT||monitor interval in second|
-|dbs\_total|INT||total number of databases in cluster|
-|tbs\_total|BIGINT||total number of tables in cluster|
-|stbs\_total|INT||total number of stables in cluster|
-|dnodes\_total|INT||total number of dnodes in cluster|
-|dnodes\_alive|INT||total number of dnodes in ready state|
-|mnodes\_total|INT||total number of  mnodes in cluster|
-|mnodes\_alive|INT||total number of  mnodes in ready state|
-|vgroups\_total|INT||total number of vgroups in cluster|
-|vgroups\_alive|INT||total number of vgroups in ready state|
-|vnodes\_total|INT||total number of vnode in cluster|
-|vnodes\_alive|INT||total number of vnode in ready state|
-|connections\_total|INT||total number of connections to cluster|
-|topics\_total|INT||total number of topics in cluster|
-|streams\_total|INT||total number of streams in cluster|
-|protocol|INT||protocol version|
-|cluster\_id|NCHAR|TAG|cluster id|
+|cluster_version|VARCHAR||tdengine version. such as: 3.0.4.0|
+|cluster\_id|VARCHAR|TAG|cluster id|
 
-### d\_info table
+### taosd\_cluster\_info table
 
-`d_info` table contains dnodes information records.
+`taosd_cluster_info` table contains cluster information records.
 
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
-|status|VARCHAR||dnode status|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
+|cluster\_uptime|DOUBLE||seconds of master's uptime|
+|dbs\_total|DOUBLE||total number of databases in cluster|
+|tbs\_total|DOUBLE||total number of tables in cluster|
+|stbs\_total|DOUBLE||total number of stables in cluster|
+|dnodes\_total|DOUBLE||total number of dnodes in cluster|
+|dnodes\_alive|DOUBLE||total number of dnodes in ready state|
+|mnodes\_total|DOUBLE||total number of  mnodes in cluster|
+|mnodes\_alive|DOUBLE||total number of  mnodes in ready state|
+|vgroups\_total|DOUBLE||total number of vgroups in cluster|
+|vgroups\_alive|DOUBLE||total number of vgroups in ready state|
+|vnodes\_total|DOUBLE||total number of vnode in cluster|
+|vnodes\_alive|DOUBLE||total number of vnode in ready state|
+|connections\_total|DOUBLE||total number of connections to cluster|
+|topics\_total|DOUBLE||total number of topics in cluster|
+|streams\_total|DOUBLE||total number of streams in cluster|
+|grants_expire\_time|DOUBLE||time until grants expire in seconds|
+|grants_timeseries\_used|DOUBLE||timeseries used|
+|grants_timeseries\_total|DOUBLE||total timeseries|
+|cluster\_id|VARCHAR|TAG|cluster id|
 
-### m\_info table 
+### taosd\_vgroups\_info table
 
-`m_info` table contains mnode information records.
-
-|field|type|is\_tag|comment|
-|:----|:---|:-----|:------|
-|ts|TIMESTAMP||timestamp|
-|role|VARCHAR||the role of mnode. leader or follower|
-|mnode\_id|INT|TAG|master node id|
-|mnode\_ep|NCHAR|TAG|master node endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
-
-### dnodes\_info table 
-
-`dnodes_info` table contains dnodes information records.
-
-|field|type|is\_tag|comment|
-|:----|:---|:-----|:------|
-|ts|TIMESTAMP||timestamp|
-|uptime|FLOAT||dnode uptime in `days`|
-|cpu\_engine|FLOAT||cpu usage of tdengine. read from `/proc/<taosd_pid>/stat`|
-|cpu\_system|FLOAT||cpu usage of server. read from `/proc/stat`|
-|cpu\_cores|FLOAT||cpu cores of server|
-|mem\_engine|INT||memory usage of tdengine. read from `/proc/<taosd_pid>/status`|
-|mem\_system|INT||available memory on the server in `KB`|
-|mem\_total|INT||total memory of server in `KB`|
-|disk\_engine|INT|||
-|disk\_used|BIGINT||usage of data dir in `bytes`|
-|disk\_total|BIGINT||the capacity of data dir in `bytes`|
-|net\_in|FLOAT||network throughput rate in byte/s. read from `/proc/net/dev`|
-|net\_out|FLOAT||network throughput rate in byte/s. read from `/proc/net/dev`|
-|io\_read|FLOAT||io throughput rate in byte/s. read from `/proc/<taosd_pid>/io`|
-|io\_write|FLOAT||io throughput rate in byte/s. read from `/proc/<taosd_pid>/io`|
-|io\_read\_disk|FLOAT||io throughput rate of disk in byte/s. read from `/proc/<taosd_pid>/io`|
-|io\_write\_disk|FLOAT||io throughput rate of disk in byte/s. read from `/proc/<taosd_pid>/io`|
-|req\_select|INT||number of select queries received per dnode|
-|req\_select\_rate|FLOAT||number of select queries received per dnode divided by monitor interval.|
-|req\_insert|INT||number of insert queries received per dnode|
-|req\_insert\_success|INT||number of successfully insert queries received per dnode|
-|req\_insert\_rate|FLOAT||number of insert queries received per dnode divided by monitor interval|
-|req\_insert\_batch|INT||number of batch insertions|
-|req\_insert\_batch\_success|INT||number of successful batch insertions|
-|req\_insert\_batch\_rate|FLOAT||number of batch insertions divided by monitor interval|
-|errors|INT||dnode errors|
-|vnodes\_num|INT||number of vnodes per dnode|
-|masters|INT||number of master vnodes|
-|has\_mnode|INT||if the dnode has mnode|
-|has\_qnode|INT||if the dnode has qnode|
-|has\_snode|INT||if the dnode has snode|
-|has\_bnode|INT||if the dnode has bnode|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
-
-### data\_dir table 
-
-`data_dir` table contains data directory information records. 
+`taosd_vgroups_info` table contains vgroups information records.
 
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
-|name|NCHAR||data directory. default is `/var/lib/taos`|
-|level|INT||level for multi-level storage|
-|avail|BIGINT||available space for data directory in `bytes`|
-|used|BIGINT||used space for data directory in `bytes`| 
-|total|BIGINT||total space for data directory in `bytes`|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
+|tables\_num|DOUBLE||number of tables per vgroup|
+|status|DOUBLE||status, value range:unsynced = 0, ready = 1|
+|vgroup\_id|VARCHAR|TAG|vgroup id|
+|database\_name|VARCHAR|TAG|database for the vgroup|
+|cluster\_id|VARCHAR|TAG|cluster id|
 
-### log\_dir table
+### taosd\_dnodes\_info table 
+
+`taosd_dnodes_info` table contains dnodes information records.
+
+|field|type|is\_tag|comment|
+|:----|:---|:-----|:------|
+|ts|TIMESTAMP||timestamp|
+|uptime|DOUBLE||dnode uptime in `seconds`|
+|cpu\_engine|DOUBLE||cpu usage of tdengine. read from `/proc/<taosd_pid>/stat`|
+|cpu\_system|DOUBLE||cpu usage of server. read from `/proc/stat`|
+|cpu\_cores|DOUBLE||cpu cores of server|
+|mem\_engine|DOUBLE||memory usage of tdengine. read from `/proc/<taosd_pid>/status`|
+|mem\_free|DOUBLE||available memory on the server in `KB`|
+|mem\_total|DOUBLE||total memory of server in `KB`|
+|disk\_used|DOUBLE||usage of data dir in `bytes`|
+|disk\_total|DOUBLE||the capacity of data dir in `bytes`|
+|system\_net\_in|DOUBLE||network throughput rate in byte/s. read from `/proc/net/dev`|
+|system\_net\_out|DOUBLE||network throughput rate in byte/s. read from `/proc/net/dev`|
+|io\_read|DOUBLE||io throughput rate in byte/s. read from `/proc/<taosd_pid>/io`|
+|io\_write|DOUBLE||io throughput rate in byte/s. read from `/proc/<taosd_pid>/io`|
+|io\_read\_disk|DOUBLE||io throughput rate of disk in byte/s. read from `/proc/<taosd_pid>/io`|
+|io\_write\_disk|DOUBLE||io throughput rate of disk in byte/s. read from `/proc/<taosd_pid>/io`|
+|vnodes\_num|DOUBLE||number of vnodes per dnode|
+|masters|DOUBLE||number of master vnodes|
+|has\_mnode|DOUBLE||if the dnode has mnode, value range:include=1, not_include=0|
+|has\_qnode|DOUBLE||if the dnode has qnode, value range:include=1, not_include=0|
+|has\_snode|DOUBLE||if the dnode has snode, value range:include=1, not_include=0|
+|has\_bnode|DOUBLE||if the dnode has bnode, value range:include=1, not_include=0|
+|error\_log\_count|DOUBLE||error count|
+|info\_log\_count|DOUBLE||info count|
+|debug\_log\_count|DOUBLE||debug count|
+|trace\_log\_count|DOUBLE||trace count|
+|dnode\_id|VARCHAR|TAG|dnode id|
+|dnode\_ep|VARCHAR|TAG|dnode endpoint|
+|cluster\_id|VARCHAR|TAG|cluster id|
+
+### taosd\_dnodes\_status table
+
+`taosd_dnodes_status` table contains dnodes information records.
+
+|field|type|is\_tag|comment|
+|:----|:---|:-----|:------|
+|ts|TIMESTAMP||timestamp|
+|status|DOUBLE||dnode status, value range:ready=1，offline =0|
+|dnode\_id|VARCHAR|TAG|dnode id|
+|dnode\_ep|VARCHAR|TAG|dnode endpoint|
+|cluster\_id|VARCHAR|TAG|cluster id|
+
+### taosd\_dnodes\_log\_dir table
 
 `log_dir` table contains log directory information records.
 
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
-|name|NCHAR||log directory. default is `/var/log/taos/`|
-|avail|BIGINT||available space for log directory in `bytes`|
-|used|BIGINT||used space for data directory in `bytes`|
-|total|BIGINT||total space for data directory in `bytes`|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
+|avail|DOUBLE||available space for log directory in `bytes`|
+|used|DOUBLE||used space for data directory in `bytes`|
+|total|DOUBLE||total space for data directory in `bytes`|
+|name|VARCHAR|TAG|log directory. default is `/var/log/taos/`|
+|dnode\_id|VARCHAR|TAG|dnode id|
+|dnode\_ep|VARCHAR|TAG|dnode endpoint|
+|cluster\_id|VARCHAR|TAG|cluster id|
 
-### temp\_dir table
+### taosd\_dnodes\_data\_dir table 
 
-`temp_dir` table contains temp dir information records.
-
-|field|type|is\_tag|comment|
-|:----|:---|:-----|:------|
-|ts|TIMESTAMP||timestamp|
-|name|NCHAR||temp directory. default is `/tmp/`|
-|avail|BIGINT||available space for temp directory in `bytes`|
-|used|BIGINT||used space for temp directory in `bytes`|
-|total|BIGINT||total space for temp directory in `bytes`|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
-
-### vgroups\_info table
-
-`vgroups_info` table contains vgroups information records.
+`taosd_dnodes_data_dir` table contains data directory information records. 
 
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
-|vgroup\_id|INT||vgroup id|
-|database\_name|VARCHAR||database for the vgroup|
-|tables\_num|BIGINT||number of tables per vgroup|
-|status|VARCHAR||status|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
+|avail|DOUBLE||available space for data directory in `bytes`|
+|used|DOUBLE||used space for data directory in `bytes`| 
+|total|DOUBLE||total space for data directory in `bytes`|
+|level|VARCHAR|TAG|level for multi-level storage|
+|name|VARCHAR|TAG|data directory. default is `/var/lib/taos`|
+|dnode\_id|VARCHAR|TAG|dnode id|
+|dnode\_ep|VARCHAR|TAG|dnode endpoint|
+|cluster\_id|VARCHAR|TAG|cluster id|
 
-### vnodes\_role table 
+### taosd\_mnodes\_info table 
 
-`vnodes_role` table contains vnode role information records.
-
-|field|type|is\_tag|comment|
-|:----|:---|:-----|:------|
-|ts|TIMESTAMP||timestamp|
-|vnode\_role|VARCHAR||role. leader or follower|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
-
-### log\_summary table
-
-`log_summary` table contains log summary information records.
+`taosd_mnodes_info` table contains mnode information records.
 
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
-|error|INT||error count|
-|info|INT||info count|
-|debug|INT||debug count|
-|trace|INT||trace count|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
+|role|DOUBLE||the role of mnode. value range:offline = 0,follower = 100,candidate = 101,leader = 102,error = 103,learner = 104|
+|mnode\_id|VARCHAR|TAG|master node id|
+|mnode\_ep|VARCHAR|TAG|master node endpoint|
+|cluster\_id|VARCHAR|TAG|cluster id|
 
-### grants\_info table 
+### taosd\_vnodes\_role table 
 
-`grants_info` table contains grants information records.
+`taosd_vnodes_role` table contains vnode role information records.
 
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
-|expire\_time|BIGINT||time until grants expire in seconds|
-|timeseries\_used|BIGINT||timeseries used|
-|timeseries\_total|BIGINT||total timeseries|
-|dnode\_id|INT|TAG|dnode id|
-|dnode\_ep|NCHAR|TAG|dnode endpoint|
-|cluster\_id|NCHAR|TAG|cluster id|
+|role|DOUBLE||role. value range:offline = 0,follower = 100,candidate = 101,leader = 102,error = 103,learner = 104|
+|vgroup\_id|VARCHAR|TAG|vgroup id|
+|database\_name|VARCHAR|TAG|database for the vgroup|
+|dnode\_id|VARCHAR|TAG|dnode id|
+|cluster\_id|VARCHAR|TAG|cluster id|
+
+### taosd\_sql\_req table
+
+`taosd_sql_req` tables contains taosd sql records.
+
+|field|type|is\_tag|comment|
+|:----|:---|:-----|:------|
+|ts|TIMESTAMP||timestamp|
+|count|DOUBLE||sql count|
+|result|VARCHAR|TAG|sql execution result，value range: Success, Failed|
+|username|VARCHAR|TAG|user name who executed the sql|
+|sql\_type|VARCHAR|TAG|sql type，value range:inserted_rows|
+|dnode\_id|VARCHAR|TAG|dnode id|
+|dnode\_ep|VARCHAR|TAG|dnode endpoint|
+|vgroup\_id|VARCHAR|TAG|dnode id|
+|cluster\_id|VARCHAR|TAG|cluster id|
+
+### taos\_sql\_req 表
+
+`taos_sql_req` tables contains taos sql records.
+
+|field|type|is\_tag|comment|
+|:----|:---|:-----|:------|
+|ts|TIMESTAMP||timestamp|
+|count|DOUBLE||sql count|
+|result|VARCHAR|TAG|sql execution result，value range: Success, Failed|
+|username|VARCHAR|TAG|user name who executed the sql|
+|sql\_type|VARCHAR|TAG|sql type，value range:select, insert，delete|
+|cluster\_id|VARCHAR|TAG|cluster id|
+
+### taos\_slow\_sql 表
+
+`taos_slow_sql` ables contains taos slow sql records.
+
+|field|type|is\_tag|comment|
+|:----|:---|:-----|:------|
+|ts|TIMESTAMP||timestamp|
+|count|DOUBLE||sql count|
+|result|VARCHAR|TAG|sql execution result，value range: Success, Failed|
+|username|VARCHAR|TAG|user name who executed the sql|
+|duration|VARCHAR|TAG|sql execution duration，value range:3-10s,10-100s,100-1000s,1000s-|
+|cluster\_id|VARCHAR|TAG|cluster id|
+
 
 ### keeper\_monitor table 
 

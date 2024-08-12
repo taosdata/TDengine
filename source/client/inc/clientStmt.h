@@ -40,6 +40,8 @@ typedef enum {
   STMT_MAX,
 } STMT_STATUS;
 
+#define STMT_TABLE_COLS_NUM 1000 
+
 typedef struct SStmtTableCache {
   STableDataCxt *pDataCtx;
   void          *boundTags;
@@ -57,6 +59,7 @@ typedef struct SStmtBindInfo {
   bool     inExecCache;
   uint64_t tbUid;
   uint64_t tbSuid;
+  int32_t  tbVgId;
   int32_t  sBindRowNum;
   int32_t  sBindLastIdx;
   int8_t   tbType;
@@ -66,7 +69,14 @@ typedef struct SStmtBindInfo {
   char     tbFName[TSDB_TABLE_FNAME_LEN];
   char     stbFName[TSDB_TABLE_FNAME_LEN];
   SName    sname;
+
+  char     statbName[TSDB_TABLE_FNAME_LEN];
 } SStmtBindInfo;
+
+typedef struct SStmtAsyncParam {
+  STableColsData *pTbData;
+  void*           pStmt;
+} SStmtAsyncParam;
 
 typedef struct SStmtExecInfo {
   int32_t        affectedRows;
@@ -77,8 +87,10 @@ typedef struct SStmtExecInfo {
 } SStmtExecInfo;
 
 typedef struct SStmtSQLInfo {
+  bool              stbInterlaceMode;
   STMT_TYPE         type;
   STMT_STATUS       status;
+  uint64_t          suid; 
   uint64_t          runTimes;
   SHashObj         *pTableCache;  // SHash<SStmtTableCache>
   SQuery           *pQuery;
@@ -88,21 +100,60 @@ typedef struct SStmtSQLInfo {
   SStmtQueryResInfo queryRes;
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
+  SBindInfo        *pBindInfo;
+
+  SStbInterlaceInfo siInfo;
 } SStmtSQLInfo;
 
+typedef struct SStmtStatInfo {
+  int64_t ctgGetTbMetaNum;
+  int64_t getCacheTbInfo;
+  int64_t parseSqlNum;
+  int64_t bindDataNum;
+  int64_t setTbNameUs;
+  int64_t bindDataUs1;
+  int64_t bindDataUs2;
+  int64_t bindDataUs3;
+  int64_t bindDataUs4;
+  int64_t addBatchUs;
+  int64_t execWaitUs;
+  int64_t execUseUs;
+} SStmtStatInfo;
+
+typedef struct SStmtQNode {
+  bool                 restoreTbCols;
+  STableColsData       tblData;
+  struct SStmtQNode*   next;
+} SStmtQNode;
+
+typedef struct SStmtQueue {
+  bool        stopQueue;
+  SStmtQNode* head;
+  SStmtQNode* tail;
+  uint64_t    qRemainNum;
+} SStmtQueue;
+
+
 typedef struct STscStmt {
-  STscObj  *taos;
-  SCatalog *pCatalog;
-  int32_t   affectedRows;
-  uint32_t  seqId;
-  uint32_t  seqIds[STMT_MAX];
+  STscObj          *taos;
+  SCatalog         *pCatalog;
+  int32_t           affectedRows;
+  uint32_t          seqId;
+  uint32_t          seqIds[STMT_MAX];
+  bool              bindThreadInUse;
+  TdThread          bindThread;
+  TAOS_STMT_OPTIONS options;
+  bool              stbInterlaceMode;
+  SStmtQueue        queue;
 
-  SStmtSQLInfo  sql;
-  SStmtExecInfo exec;
-  SStmtBindInfo bInfo;
+  SStmtSQLInfo      sql;
+  SStmtExecInfo     exec;
+  SStmtBindInfo     bInfo;
 
-  int64_t reqid;
-  int32_t errCode;
+  int64_t           reqid;
+  int32_t           errCode;
+
+  SStmtStatInfo     stat;
 } STscStmt;
 
 extern char *gStmtStatusStr[];
@@ -154,19 +205,21 @@ extern char *gStmtStatusStr[];
   } while (0)
 
 
+#define STMT_FLOG(param, ...) qFatal("stmt:%p " param, pStmt, __VA_ARGS__)
 #define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
 #define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)
 
 #define STMT_ELOG_E(param) qError("stmt:%p " param, pStmt)
 #define STMT_DLOG_E(param) qDebug("stmt:%p " param, pStmt)
 
-TAOS_STMT  *stmtInit(STscObj *taos, int64_t reqid);
+TAOS_STMT  *stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions);
 int         stmtClose(TAOS_STMT *stmt);
 int         stmtExec(TAOS_STMT *stmt);
 const char *stmtErrstr(TAOS_STMT *stmt);
 int         stmtAffectedRows(TAOS_STMT *stmt);
 int         stmtAffectedRowsOnce(TAOS_STMT *stmt);
 int         stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
+int         stmtSetDbName(TAOS_STMT* stmt, const char* dbName);
 int         stmtSetTbName(TAOS_STMT *stmt, const char *tbName);
 int         stmtSetTbTags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags);
 int         stmtGetTagFields(TAOS_STMT *stmt, int *nums, TAOS_FIELD_E **fields);

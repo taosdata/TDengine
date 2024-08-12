@@ -14,6 +14,9 @@ endi
 if $data(root)[3] != 1 then
   return -1
 endi
+if $data(root)[4] != 1 then
+  return -1
+endi
 
 sql alter user root pass 'taosdata'
 
@@ -21,6 +24,8 @@ sql_error ALTER USER root SYSINFO 0
 sql_error ALTER USER root SYSINFO 1
 sql_error ALTER USER root enable 0
 sql_error ALTER USER root enable 1
+sql_error ALTER USER root createdb 0
+sql_error ALTER USER root createdb 1
 
 #sql_error create database db vgroups 1;
 sql_error GRANT read ON db.* to root;
@@ -53,6 +58,9 @@ endi
 if $data(u1)[3] != 0 then
   return -1
 endi
+if $data(u1)[4] != 0 then
+  return -1
+endi
 
 sql CREATE USER u2 PASS 'taosdata' SYSINFO 1;
 sql select * from information_schema.ins_users
@@ -68,6 +76,9 @@ endi
 if $data(u2)[3] != 1 then
   return -1
 endi
+if $data(u2)[4] != 0 then
+  return -1
+endi
 
 print =============== step2: sysinfo alter
 sql ALTER USER u1 SYSINFO 1
@@ -81,6 +92,9 @@ endi
 if $data(u1)[3] != 1 then
   return -1
 endi
+if $data(u1)[4] != 0 then
+  return -1
+endi
 
 sql ALTER USER u1 SYSINFO 0
 sql select * from information_schema.ins_users
@@ -91,6 +105,9 @@ if $data(u1)[2] != 1 then
   return -1
 endi
 if $data(u1)[3] != 0 then
+  return -1
+endi
+if $data(u1)[4] != 0 then
   return -1
 endi
 
@@ -118,6 +135,9 @@ endi
 if $data(u2)[3] != 1 then
   return -1
 endi
+if $data(u2)[4] != 0 then
+  return -1
+endi
 
 sql ALTER USER u2 enable 1
 sql select * from information_schema.ins_users
@@ -130,15 +150,53 @@ endi
 if $data(u2)[3] != 1 then
   return -1
 endi
+if $data(u2)[4] != 0 then
+  return -1
+endi
 
 sql ALTER USER u2 enable 1
 sql ALTER USER u2 enable 1
+
+
+print =============== step4: createdb alter
+sql ALTER USER u2 createdb 1
+sql select * from information_schema.ins_users
+if $rows != 2 then
+  return -1
+endi
+if $data(u2)[1] != 0 then
+  return -1
+endi
+if $data(u2)[2] != 1 then
+  return -1
+endi
+if $data(u2)[3] != 1 then
+  return -1
+endi
+if $data(u2)[4] != 1 then
+  return -1
+endi
+
+sql ALTER USER u2 createdb 0
+sql select * from information_schema.ins_users
+if $data(u2)[1] != 0 then
+  return -1
+endi
+if $data(u2)[2] != 1 then
+  return -1
+endi
+if $data(u2)[3] != 1 then
+  return -1
+endi
+if $data(u2)[4] != 0 then
+  return -1
+endi
 
 print =============== restart taosd
 system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode1 -s start
 
-print =============== step4: enable privilege
+print =============== step5: enable privilege
 sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
@@ -152,6 +210,25 @@ endi
 if $data(u2)[3] != 1 then
   return -1
 endi
+if $data(u2)[4] != 0 then
+  return -1
+endi
 
+sql_error CREATE USER u100 PASS 'taosdata' SYSINFO -1;
+sql_error CREATE USER u101 PASS 'taosdata' SYSINFO 2;
+sql_error CREATE USER u102 PASS 'taosdata' SYSINFO 20000;
+sql_error CREATE USER u103 PASS 'taosdata' SYSINFO 1000;
+sql_error ALTER USER u1 enable -1
+sql_error ALTER USER u1 enable 2
+sql_error ALTER USER u1 enable 1000
+sql_error ALTER USER u1 enable 10000
+sql_error ALTER USER u1 sysinfo -1
+sql_error ALTER USER u1 sysinfo 2
+sql_error ALTER USER u1 sysinfo 1000
+sql_error ALTER USER u1 sysinfo -20000
+sql_error ALTER USER u1 createdb -1
+sql_error ALTER USER u1 createdb 3
+sql_error ALTER USER u1 createdb 1000
+sql_error ALTER USER u1 createdb 100000
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

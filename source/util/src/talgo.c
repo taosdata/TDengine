@@ -147,10 +147,14 @@ static void tqsortImpl(void *src, int32_t start, int32_t end, int64_t size, cons
   }
 }
 
-void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn) {
+int32_t taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn) {
   char *buf = taosMemoryCalloc(1, size);  // prepare the swap buffer
+  if (NULL == buf) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   tqsortImpl(src, 0, (int32_t)numOfElem - 1, (int32_t)size, param, comparFn, buf);
   taosMemoryFreeClear(buf);
+  return 0;
 }
 
 #define DOSWAP(a, b, size)        \
@@ -324,14 +328,17 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
   }
 }
 
-void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
-                    __ext_compar_fn_t compar, char *buf, bool maxroot) {
+int32_t taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
+                       __ext_compar_fn_t compar, char *buf, bool maxroot) {
   int32_t parent;
   int32_t child;
 
   char *tmp = NULL;
   if (buf == NULL) {
     tmp = taosMemoryMalloc(size);
+    if (NULL == tmp) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   } else {
     tmp = buf;
   }
@@ -378,24 +385,31 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
   if (buf == NULL) {
     taosMemoryFree(tmp);
   }
+
+  return 0;
 }
 
-void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar,
-                  bool maxroot) {
+int32_t taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar,
+                     bool maxroot) {
   int32_t i;
 
   char *buf = taosMemoryCalloc(1, size);
   if (buf == NULL) {
-    return;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   if (base && size > 0) {
     for (i = len / 2 - 1; i >= 0; i--) {
-      taosheapadjust(base, size, i, len - 1, parcompar, compar, buf, maxroot);
+      int32_t code = taosheapadjust(base, size, i, len - 1, parcompar, compar, buf, maxroot);
+      if (code) {
+        taosMemoryFree(buf);
+        return code;
+      }
     }
   }
 
   taosMemoryFree(buf);
+  return 0;
 }
 
 static void taosMerge(void *src, int32_t start, int32_t leftend, int32_t end, int64_t size, const void *param,
@@ -441,7 +455,10 @@ static int32_t taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, c
   // short array sort, instead of merge sort process
   const int32_t THRESHOLD_SIZE = 6;
   char         *buf = taosMemoryCalloc(1, size);  // prepare the swap buffer
-  if (buf == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   for (int32_t start = 0; start < numOfElem - 1; start += THRESHOLD_SIZE) {
     int32_t end = (start + THRESHOLD_SIZE - 1) <= numOfElem - 1 ? (start + THRESHOLD_SIZE - 1) : numOfElem - 1;
     tInsertSort(src, size, start, end, param, comparFn, buf);
@@ -451,7 +468,9 @@ static int32_t taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, c
   if (numOfElem > THRESHOLD_SIZE) {
     int32_t currSize;
     void   *tmp = taosMemoryMalloc(numOfElem * size);
-    if (tmp == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
 
     for (currSize = THRESHOLD_SIZE; currSize <= numOfElem - 1; currSize = 2 * currSize) {
       int32_t leftStart;

@@ -72,6 +72,9 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2
 #define TD_FILE_ACCESS_WRITE_OK 0x4
+
+#define TD_TMP_FILE_PREFIX "tdengine-"
+
 bool taosCheckAccessFile(const char *pathname, int mode);
 
 int32_t taosLockFile(TdFilePtr pFile);
@@ -110,8 +113,6 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size);
 
 bool taosValidFile(TdFilePtr pFile);
-
-int32_t taosGetErrorFile(TdFilePtr pFile);
 
 int32_t taosCompressFile(char *srcFileName, char *destFileName);
 

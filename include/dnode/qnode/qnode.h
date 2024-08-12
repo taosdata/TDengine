@@ -34,9 +34,10 @@ typedef struct {
  * @brief Start one Qnode in Dnode.
  *
  * @param pOption Option of the qnode.
- * @return SQnode* The qnode object.
+ * @param pQnode The qnode object.
+ * @return int32_t The error code.
  */
-SQnode *qndOpen(const SQnodeOpt *pOption);
+int32_t qndOpen(const SQnodeOpt *pOption, SQnode **pQnode);
 
 /**
  * @brief Stop Qnode in Dnode.
@@ -60,7 +61,7 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad);
  * @param pQnode The qnode object.
  * @param pMsg The request message
  */
-int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg);
+int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo* pInfo, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

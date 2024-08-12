@@ -35,7 +35,9 @@ int32_t tsdbFSetRAWWriterOpen(SFSetRAWWriterConfig *config, SFSetRAWWriter **wri
   int32_t lino = 0;
 
   writer[0] = taosMemoryCalloc(1, sizeof(SFSetRAWWriter));
-  if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (writer[0] == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   writer[0]->config[0] = config[0];
 
