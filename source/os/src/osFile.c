@@ -216,7 +216,6 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
 }
 
 int32_t taosRemoveFile(const char *path) {
-  STUB_RAND_IO_ERR(terrno)
   int32_t code = remove(path);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -226,7 +225,6 @@ int32_t taosRemoveFile(const char *path) {
 }
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
-  STUB_RAND_IO_ERR(terrno)
 #ifdef WINDOWS
   bool finished = false;
 
@@ -922,8 +920,6 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
     *mtime = fileStat.st_mtime;
   }
 
-  STUB_RAND_IO_ERR(terrno)
-
   return 0;
 }
 
@@ -987,7 +983,6 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
 }
 
 int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
-  STUB_RAND_IO_ERR(terrno)
   if (NULL == pFile || pFile->fd < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1048,7 +1043,6 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
 }
 
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size) {
-  STUB_RAND_IO_ERR(terrno)
   if (pFileOut == NULL || pFileIn == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1154,7 +1148,6 @@ bool lastErrorIsFileNotExist() { return terrno == TAOS_SYSTEM_ERROR(ENOENT); }
 #endif  // WINDOWS
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
-  STUB_RAND_IO_ERR(NULL)
   FILE *fp = NULL;
 #ifdef WINDOWS
   HANDLE hFile = NULL;
@@ -1252,12 +1245,6 @@ int32_t taosCloseFile(TdFilePtr *ppFile) {
 #endif
   taosMemoryFree(*ppFile);
   *ppFile = NULL;
-
-#if BUILD_WITH_RAND_ERR
-  if (terrno == 0) {
-    STUB_RAND_IO_ERR(terrno)
-  }
-#endif
   return code;
 }
 
@@ -1325,7 +1312,6 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 }
 
 int32_t taosFsyncFile(TdFilePtr pFile) {
-  STUB_RAND_IO_ERR(terrno)
   if (pFile == NULL) {
     return 0;
   }
@@ -1390,7 +1376,6 @@ int32_t taosUmaskFile(int32_t maskVal) {
 }
 
 int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
-  STUB_RAND_IO_ERR(terrno)
   int64_t ret = -1;
   int32_t code = 0;
 
@@ -1465,7 +1450,6 @@ END:
 }
 
 int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
-  STUB_RAND_IO_ERR(terrno)
   if (pFile == NULL || buf == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1616,7 +1600,6 @@ int32_t taosLinkFile(char *src, char *dst) {
 }
 
 FILE *taosOpenCFile(const char *filename, const char *mode) {
-  STUB_RAND_IO_ERR(NULL)
   FILE *f = fopen(filename, mode);
   if (NULL == f) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1646,15 +1629,7 @@ size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *strea
   return fwrite(ptr, size, nitems, stream);
 }
 
-int taosCloseCFile(FILE *f) {
-  int32_t code = fclose(f);
-#if BUILD_WITH_RAND_ERR
-  if (code == 0) {
-    STUB_RAND_IO_ERR(terrno)
-  }
-#endif
-  return code == 0 ? code : TAOS_SYSTEM_ERROR(errno);
-}
+int taosCloseCFile(FILE *f) { return fclose(f); }
 
 int taosSetAutoDelFile(char *path) {
 #ifdef WINDOWS
