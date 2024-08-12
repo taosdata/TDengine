@@ -526,12 +526,13 @@ static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedV
     memcpy(pVal->pTags, pTag, pTag->len);
   }
 
+  (*ppResVal) = pVal;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     freeTableCachedVal(pVal);
   }
-  (*ppResVal) = pVal;
   return code;
 }
 
