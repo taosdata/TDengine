@@ -129,6 +129,8 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
     goto _err;
   }
 
+  *allReady = true;
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) {
@@ -540,8 +542,7 @@ static int32_t doSetDropActionFromId(SMnode *pMnode, STrans *pTrans, SOrphanTask
   }
 
   // The epset of nodeId of this task may have been expired now, let's use the newest epset from mnode.
-  code = setTransAction(pTrans, pReq, sizeof(SVDropStreamTaskReq), TDMT_STREAM_TASK_DROP, &epset, 0,
-                        TSDB_CODE_VND_INVALID_VGROUP_ID);
+  code = setTransAction(pTrans, pReq, sizeof(SVDropStreamTaskReq), TDMT_STREAM_TASK_DROP, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != 0) {
     taosMemoryFree(pReq);
     return code;
@@ -812,9 +813,13 @@ void removeExpiredNodeInfo(const SArray *pNodeSnapshot) {
       }
 
       if (pEntry->nodeId == p->nodeId) {
+        p->hbTimestamp = pEntry->hbTimestamp;
+
         void* px = taosArrayPush(pValidList, p);
         if (px == NULL) {
           mError("failed to put node into list, nodeId:%d", p->nodeId);
+        } else {
+          mDebug("vgId:%d ts:%" PRId64 " HbMsgId:%d is valid", p->nodeId, p->hbTimestamp, p->lastHbMsgId);
         }
         break;
       }
@@ -899,8 +904,9 @@ void removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode) {
 
   ASSERT(taosHashGetSize(pExecNode->pTaskMap) == taosArrayGetSize(pExecNode->pTaskList));
 
-  // 2. remove stream entry in consensus hash table
+  // 2. remove stream entry in consensus hash table and checkpoint-report hash table
   (void) mndClearConsensusCheckpointId(execInfo.pStreamConsensus, pStream->uid);
+  (void) mndClearChkptReportInfo(execInfo.pChkptStreams, pStream->uid);
 
   streamMutexUnlock(&pExecNode->lock);
   destroyStreamTaskIter(pIter);
@@ -968,9 +974,8 @@ int32_t removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot) {
 static int32_t doSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
   SVUpdateCheckpointInfoReq *pReq = taosMemoryCalloc(1, sizeof(SVUpdateCheckpointInfoReq));
   if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to malloc in reset stream, size:%" PRIzu ", code:%s", sizeof(SVUpdateCheckpointInfoReq),
-           tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+           tstrerror(terrno));
     return terrno;
   }
 
@@ -978,12 +983,14 @@ static int32_t doSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamTas
   pReq->taskId = pTask->id.taskId;
   pReq->streamId = pTask->id.streamId;
 
-  SArray **pReqTaskList = (SArray **)taosHashGet(execInfo.pChkptStreams, &pTask->id.streamId, sizeof(pTask->id.streamId));
-  ASSERT(pReqTaskList);
+  SChkptReportInfo *pStreamItem = (SChkptReportInfo*)taosHashGet(execInfo.pChkptStreams, &pTask->id.streamId, sizeof(pTask->id.streamId));
+  if (pStreamItem == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
-  int32_t size = taosArrayGetSize(*pReqTaskList);
+  int32_t size = taosArrayGetSize(pStreamItem->pTaskList);
   for(int32_t i = 0; i < size; ++i) {
-    STaskChkptInfo* pInfo = taosArrayGet(*pReqTaskList, i);
+    STaskChkptInfo* pInfo = taosArrayGet(pStreamItem->pTaskList, i);
     if (pInfo == NULL) {
       continue;
     }
@@ -1058,11 +1065,15 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
   }
 
   mDebug("start to scan checkpoint report info");
+  streamMutexLock(&execInfo.lock);
 
   while ((pIter = taosHashIterate(execInfo.pChkptStreams, pIter)) != NULL) {
-    SArray *pList = *(SArray **)pIter;
+    SChkptReportInfo* px = (SChkptReportInfo *)pIter;
+    if (taosArrayGetSize(px->pTaskList) == 0) {
+      continue;
+    }
 
-    STaskChkptInfo *pInfo = taosArrayGet(pList, 0);
+    STaskChkptInfo *pInfo = taosArrayGet(px->pTaskList, 0);
     if (pInfo == NULL) {
       continue;
     }
@@ -1075,12 +1086,11 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
       if (p == NULL) {
         mError("failed to put stream into drop list:0x%" PRIx64, pInfo->streamId);
       }
-
       continue;
     }
 
     int32_t total = mndGetNumOfStreamTasks(pStream);
-    int32_t existed = (int32_t)taosArrayGetSize(pList);
+    int32_t existed = (int32_t)taosArrayGetSize(px->pTaskList);
 
     if (total == existed) {
       mDebug("stream:0x%" PRIx64 " %s all %d tasks send checkpoint-report, start to update checkpoint-info",
@@ -1088,14 +1098,11 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
 
       bool conflict = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_UPDATE_NAME, false);
       if (!conflict) {
-        code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, pList);
+        code = mndCreateStreamChkptInfoUpdateTrans(pMnode, pStream, px->pTaskList);
         if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {  // remove this entry
-          void* p = taosArrayPush(pDropped, &pInfo->streamId);
-          if (p == NULL) {
-            mError("failed to remove stream:0x%" PRIx64, pInfo->streamId);
-          } else {
-            mDebug("stream:0x%" PRIx64 " removed", pInfo->streamId);
-          }
+          taosArrayClear(px->pTaskList);
+          px->reportChkpt = pInfo->checkpointId;
+          mDebug("stream:0x%" PRIx64 " clear checkpoint-report list", pInfo->streamId);
         } else {
           mDebug("stream:0x%" PRIx64 " not launch chkpt-meta update trans, due to checkpoint not finished yet",
                  pInfo->streamId);
@@ -1129,6 +1136,8 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
     int32_t numOfStreams = taosHashGetSize(execInfo.pChkptStreams);
     mDebug("drop %d stream(s) in checkpoint-report list, remain:%d", size, numOfStreams);
   }
+
+  streamMutexUnlock(&execInfo.lock);
 
   taosArrayDestroy(pDropped);
   return TSDB_CODE_SUCCESS;
@@ -1314,7 +1323,7 @@ int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId) {
   int32_t code = 0;
   int32_t numOfStreams = taosHashGetSize(pHash);
   if (numOfStreams == 0) {
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   code = taosHashRemove(pHash, &streamId, sizeof(streamId));
@@ -1325,6 +1334,35 @@ int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId) {
   }
 
   return code;
+}
+
+int64_t mndClearChkptReportInfo(SHashObj* pHash, int64_t streamId) {
+  int32_t code = 0;
+  int32_t numOfStreams = taosHashGetSize(pHash);
+  if (numOfStreams == 0) {
+    return code;
+  }
+
+  code = taosHashRemove(pHash, &streamId, sizeof(streamId));
+  if (code == 0) {
+    mDebug("drop stream:0x%" PRIx64 " in chkpt-report list, remain:%d", streamId, numOfStreams);
+  } else {
+    mError("failed to remove stream:0x%"PRIx64" in chkpt-report list, remain:%d", streamId, numOfStreams);
+  }
+
+  return code;
+}
+
+int32_t mndResetChkptReportInfo(SHashObj* pHash, int64_t streamId) {
+  SChkptReportInfo* pInfo = taosHashGet(pHash, &streamId, sizeof(streamId));
+  if (pInfo != NULL) {
+    taosArrayClear(pInfo->pTaskList);
+    mDebug("stream:0x%" PRIx64 " checkpoint-report list cleared, prev report checkpointId:%" PRId64, streamId,
+           pInfo->reportChkpt);
+    return 0;
+  }
+
+  return TSDB_CODE_MND_STREAM_NOT_EXIST;
 }
 
 static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {

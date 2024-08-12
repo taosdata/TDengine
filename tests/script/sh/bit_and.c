@@ -27,8 +27,8 @@ DLL_EXPORT int32_t bit_and(SUdfDataBlock* block, SUdfColumn* resultCol) {
 
   for (int32_t i = 0; i < block->numOfRows; ++i) {
     if (udfColDataIsNull(block->udfCols[0], i)) {
-      udfTrace("block:%p, row:%d result is null since col:0 is null", block, i);
       udfColDataSetNull(resultCol, i);
+      udfTrace("block:%p, row:%d result is null since col:0 is null", block, i);
       continue;
     }
 
@@ -38,8 +38,8 @@ DLL_EXPORT int32_t bit_and(SUdfDataBlock* block, SUdfColumn* resultCol) {
     int32_t j = 1;
     for (; j < block->numOfCols; ++j) {
       if (udfColDataIsNull(block->udfCols[j], i)) {
-        udfTrace("block:%p, row:%d result is null since col:%d is null", block, i, j);
         udfColDataSetNull(resultCol, i);
+        udfTrace("block:%p, row:%d result is null since col:%d is null", block, i, j);
         break;
       }
 
@@ -55,7 +55,7 @@ DLL_EXPORT int32_t bit_and(SUdfDataBlock* block, SUdfColumn* resultCol) {
   }
 
   resultData->numOfRows = block->numOfRows;
-  udfTrace("block:%p, processing completed, rows:%d, cols:%d,", block, block->numOfRows, block->numOfCols);
+  udfTrace("block:%p, processing completed", block);
 
   return TSDB_CODE_SUCCESS;
 }

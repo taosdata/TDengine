@@ -211,6 +211,10 @@ int32_t mndProcessResetStatusReq(SRpcMsg *pReq) {
   SStreamTaskResetMsg* pMsg = pReq->pCont;
   mndKillTransImpl(pMnode, pMsg->transId, "");
 
+  streamMutexLock(&execInfo.lock);
+  (void) mndResetChkptReportInfo(execInfo.pChkptStreams, pMsg->streamId);
+  streamMutexUnlock(&execInfo.lock);
+
   code = mndGetStreamObj(pMnode, pMsg->streamId, &pStream);
   if (pStream == NULL || code != 0) {
     code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
@@ -333,7 +337,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
-  mDebug("receive stream-meta hb from vgId:%d, active numOfTasks:%d, msgId:%d", req.vgId, req.numOfTasks, req.msgId);
+  mDebug("receive stream-meta hb from vgId:%d, active numOfTasks:%d, HbMsgId:%d, HbMsgTs:%" PRId64, req.vgId,
+         req.numOfTasks, req.msgId, req.ts);
 
   pFailedChkpt = taosArrayInit(4, sizeof(SFailedCheckpointInfo));
   pOrphanTasks = taosArrayInit(4, sizeof(SOrphanTask));
@@ -354,6 +359,31 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     streamMutexUnlock(&execInfo.lock);
     cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  for(int32_t i = 0; i < taosArrayGetSize(execInfo.pNodeList); ++i) {
+    SNodeEntry* pEntry = taosArrayGet(execInfo.pNodeList, i);
+    if (pEntry == NULL) {
+      continue;
+    }
+
+    if (pEntry->nodeId != req.vgId) {
+      continue;
+    }
+
+    if ((pEntry->lastHbMsgId == req.msgId) && (pEntry->lastHbMsgTs == req.ts)) {
+      mError("vgId:%d HbMsgId:%d already handled, bh msg discard", pEntry->nodeId, req.msgId);
+
+      terrno = TSDB_CODE_INVALID_MSG;
+      doSendHbMsgRsp(terrno, &pReq->info, req.vgId, req.msgId);
+
+      streamMutexUnlock(&execInfo.lock);
+      cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
+      return terrno;
+    } else {
+      pEntry->lastHbMsgId = req.msgId;
+      pEntry->lastHbMsgTs = req.ts;
+    }
   }
 
   int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
@@ -393,6 +423,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       SStreamObj *pStream = NULL;
       code = mndGetStreamObj(pMnode, p->id.streamId, &pStream);
       if (code) {
+        mError("stream obj not exist, failed to handle consensus checkpoint-info req, code:%s", tstrerror(code));
         continue;
       }
 
@@ -426,7 +457,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
         addIntoCheckpointList(pFailedChkpt, &info);
 
         // remove failed trans from pChkptStreams
-        code = taosHashRemove(execInfo.pChkptStreams, &p->id.streamId, sizeof(p->id.streamId));
+        code = mndResetChkptReportInfo(execInfo.pChkptStreams, p->id.streamId);
         if (code) {
           mError("failed to remove stream:0x%"PRIx64" in checkpoint stream list", p->id.streamId);
         }
@@ -484,14 +515,14 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   }
 
   if (pMnode != NULL) {  // make sure that the unit test case can work
-    mndStreamSendUpdateChkptInfoMsg(pMnode);
+    code = mndStreamSendUpdateChkptInfoMsg(pMnode);
   }
 
   streamMutexUnlock(&execInfo.lock);
 
   doSendHbMsgRsp(TSDB_CODE_SUCCESS, &pReq->info, req.vgId, req.msgId);
-
   cleanupAfterProcessHbMsg(&req, pFailedChkpt, pOrphanTasks);
+
   return code;
 }
 

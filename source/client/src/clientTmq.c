@@ -2141,6 +2141,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         taosWUnLockLatch(&tmq->lock);
       }
       setVgIdle(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
+      tmqFreeRspWrapper(pRspWrapper);
       taosFreeQitem(pRspWrapper);
     } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)pRspWrapper;
@@ -2844,6 +2845,7 @@ int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
     pWrapper->epoch = head->epoch;
     (void)memcpy(&pWrapper->msg, pMsg->pData, sizeof(SMqRspHead));
     if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pWrapper->msg) == NULL){
+      tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
       taosFreeQitem(pWrapper);
     }else{
       (void)taosWriteQitem(tmq->mqueue, pWrapper);
