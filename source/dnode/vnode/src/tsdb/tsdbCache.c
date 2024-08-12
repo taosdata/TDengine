@@ -1706,9 +1706,14 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
       if (!remainCols) {
         remainCols = taosArrayInit(num_keys, sizeof(SIdxKey));
-        if (!remainCols) TAOS_RETURN(terrno);
+        if (!remainCols) {
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
       }
-      (void)taosArrayPush(remainCols, &(SIdxKey){i, type, key});
+      if (NULL == taosArrayPush(remainCols, &(SIdxKey){i, type, key})) {
+        taosArrayDestroy(remainCols);
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      };
     }
   }
 

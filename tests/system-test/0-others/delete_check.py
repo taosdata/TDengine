@@ -47,9 +47,9 @@ class TDTestCase:
     def compactDatbase(self):
         # compact database
         tdSql.execute(f"compact database {self.dbname}", show=True)
-        waitSeconds = 20
-        if self.waitTranslation(waitSeconds) == False:
-            tdLog.exit(f"translation can not finish after wait {waitSeconds} seconds")
+        waitSeconds = 60
+        if self.waitCompacts(waitSeconds) == False:
+            tdLog.exit(f"compacts can not finish after wait {waitSeconds} seconds")
             return          
 
     # check tsdb folder empty
@@ -107,6 +107,19 @@ class TDTestCase:
             time.sleep(1)
 
         return False
+
+    def waitCompacts(self, waitSeconds):
+        # wait end
+        for i in range(waitSeconds):
+            sql ="show compacts;"
+            rows = tdSql.query(sql)
+            if rows == 0:
+               return True
+            tdLog.info(f"i={i} wait for translation finish ...")
+            time.sleep(1)
+
+        return False
+
 
     # run
     def run(self):
