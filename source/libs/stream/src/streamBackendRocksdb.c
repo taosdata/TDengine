@@ -247,7 +247,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
 
     } else {
       stError("failed to start stream backend at %s, reason: %s, restart from default state dir:%s", chkp,
-              tstrerror(TAOS_SYSTEM_ERROR(errno)), state);
+              tstrerror(terrno), state);
       code = taosMkDir(state);
       if (code != 0) {
         code = TAOS_SYSTEM_ERROR(errno);
@@ -1452,8 +1452,14 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
-    (void)taosArrayPush(pSnap, &snap);
+    if (taosArrayPush(pSnap, &snap) == NULL) {
+      taskDbUnRefChkp(pTaskDb, pTaskDb->chkpId);
+      taskDbRemoveRef(pTaskDb);
+      code = terrno;
+      break;
+    }
 
+    taskDbRemoveRef(pTaskDb);
     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
   }
   streamMutexUnlock(&pMeta->backendMutex);

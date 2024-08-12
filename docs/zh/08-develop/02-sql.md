@@ -57,7 +57,7 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:create_db_and_table}}
 ```
@@ -90,7 +90,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 
 </TabItem>
 </Tabs>
-> **注意**：如果不使用 `USE power` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 `power.meters`。
+> **注意**：建议采用 `<dbName>.<tableName>` 的格式构造SQL语句，不推荐在应用中采用 `USE DBName` 方式访问。
 
 ## 插入数据
 下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
@@ -133,7 +133,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。 NOW
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:insertData}}
 ```
@@ -207,7 +207,7 @@ rust 连接器还支持使用 **serde** 进行反序列化行为结构体的结�
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:queryData}}
 ```
@@ -282,7 +282,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 ```
 
 </TabItem>
-<TabItem label="Node.js" value="node.js">
+<TabItem label="Node.js" value="node">
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:sqlWithReqid}}
 ```

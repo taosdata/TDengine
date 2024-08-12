@@ -417,7 +417,6 @@ int32_t tqStreamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return code;
   } else {
     tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, pRsp->upstreamTaskId);
-    terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 }
@@ -1245,8 +1244,8 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   // discard the rsp, since it is expired.
   if (req.startTs < pTask->execInfo.created) {
     tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
-           " from task createTs:%" PRId64 ", discard",
-           pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs);
+           " from task createTs:%" PRId64 " < task createTs:%" PRId64 ", discard",
+           pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs, pTask->execInfo.created);
     streamMetaAddFailedTaskSelf(pTask, now);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;

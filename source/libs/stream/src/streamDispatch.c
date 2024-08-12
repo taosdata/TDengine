@@ -1083,7 +1083,7 @@ int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatch
 
 int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet) {
   void*   buf = NULL;
-  int32_t code = -1;
+  int32_t code = 0;
   SRpcMsg msg = {0};
 
   // serialize
@@ -1093,9 +1093,9 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
     goto FAIL;
   }
 
-  code = -1;
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
+    code = terrno;
     goto FAIL;
   }
 
@@ -1117,6 +1117,10 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
 FAIL:
   if (buf) {
     rpcFreeCont(buf);
+  }
+
+  if (code == -1) {
+    code = TSDB_CODE_INVALID_MSG;
   }
 
   return code;

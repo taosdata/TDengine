@@ -20,7 +20,7 @@ public class DruidPoolBuilder {
         dataSource.setMinIdle(poolSize);
         dataSource.setMaxActive(poolSize);
         dataSource.setMaxWait(30000);
-        dataSource.setValidationQuery("select server_status()");
+        dataSource.setValidationQuery("select SERVER_VERSION()");
         return dataSource;
     }
 

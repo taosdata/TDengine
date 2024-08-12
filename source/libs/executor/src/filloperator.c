@@ -393,6 +393,10 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
                             const char* id, SInterval* pInterval, int32_t fillType, int32_t order,
                             SExecTaskInfo* pTaskInfo) {
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pValNode);
+  if (!pColInfo) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
 
   int64_t startKey = (order == TSDB_ORDER_ASC) ? win.skey : win.ekey;
 

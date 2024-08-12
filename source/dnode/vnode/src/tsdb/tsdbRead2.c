@@ -4708,8 +4708,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   pReader->pSchemaMap = tSimpleHashInit(8, taosFastHash);
   if (pReader->pSchemaMap == NULL) {
     tsdbError("failed init schema hash for reader %s", pReader->idStr);
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TSDB_CHECK_NULL(pReader->pSchemaMap, code, lino, _err, terrno);
   }
 
   tSimpleHashSetFreeFp(pReader->pSchemaMap, freeSchemaFunc);
@@ -4724,10 +4723,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   TSDB_CHECK_CODE(code, lino, _err);
 
   pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
-  if (pReader->status.pLDataIterArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
+  TSDB_CHECK_NULL(pReader->status.pLDataIterArray, code, lino, _err, terrno);
 
   pReader->flag = READER_STATUS_SUSPEND;
   pReader->info.execMode = pCond->notLoadData ? READER_EXEC_ROWS : READER_EXEC_DATA;

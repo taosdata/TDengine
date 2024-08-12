@@ -202,7 +202,7 @@ SELECT ... FROM table_name1 LEFT|RIGHT ASOF JOIN table_name2 [ON ...] [JLIMIT jl
 
 表 d1001 电压值大于 220V 且表 d1002 中同一时刻或稍早前最后时刻出现电压大于 220V 的时间及各自的电压值：
 ```sql
-SELECT a.ts, a.voltage, a.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a.ts >= b.ts where a.voltage > 220 and b.voltage > 220 
+SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a.ts >= b.ts where a.voltage > 220 and b.voltage > 220 
 ```
 
 ### Left/Right Window Join
