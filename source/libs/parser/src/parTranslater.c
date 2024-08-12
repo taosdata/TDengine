@@ -10001,7 +10001,7 @@ static int32_t setColumnDefNodePrimaryKey(SColumnDefNode* pNode, bool isPk) {
   return code;
 }
 
-static int32_t addTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
+static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
                                                   SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
   SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
   if (!pSelect->hasInterpFunc ||
@@ -10014,6 +10014,7 @@ static int32_t addTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt
     return code;
   }
   strcpy(pFunc->functionName, "_irowts");
+  strcpy(pFunc->node.userAlias, "_irowts");
   char* defaultName[] = {"_irowts"};
   getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName, sizeof(defaultName));
   code = getFuncInfo(pCxt, pFunc);
@@ -10052,6 +10053,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
     return code;
   }
   strcpy(pFunc->functionName, "_wstart");
+  strcpy(pFunc->node.userAlias, "_irowts");
   char* defaultName[] = {"_wstart", "ts"};
   getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName, sizeof(defaultName));
   code = getFuncInfo(pCxt, pFunc);
@@ -10077,7 +10079,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
   return code;
 }
 
-static int32_t addWstartTsToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt, SNodeList* pCols,
+static int32_t addTsKeyToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt, SNodeList* pCols,
                                               SCMCreateStreamReq* pReq) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
   SHashObj*    pUserAliasSet = NULL;
@@ -10086,7 +10088,7 @@ static int32_t addWstartTsToCreateStreamQuery(STranslateContext* pCxt, SNode* pS
     code = addWstartTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = addTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
+    code = addIrowTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
   }
   taosHashCleanup(pUserAliasSet);
   return code;
@@ -10970,7 +10972,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
     code = addColsToCreateStreamQuery(pCxt, pStmt, pReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = addWstartTsToCreateStreamQuery(pCxt, pStmt->pQuery, pStmt->pCols, pReq);
+    code = addTsKeyToCreateStreamQuery(pCxt, pStmt->pQuery, pStmt->pCols, pReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkStreamQuery(pCxt, pStmt);
