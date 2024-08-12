@@ -1,5 +1,6 @@
 ---
 title: TDengine Inside
+sidebar_label: TDengine Inside
 description: This document describes the internals of TDengine from an architectural perspective.
 ---
 
