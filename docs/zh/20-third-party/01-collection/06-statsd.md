@@ -4,7 +4,7 @@ title: StatsD 直接写入
 description: 使用 StatsD 向 TDengine 写入
 ---
 
-import StatsD from "../../14-reference/_statsd.mdx"
+import StatsD from "../../14-reference/01-components/_statsd.mdx"
 
 StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年来发展迅速，已经变成了一个用于收集应用性能指标的统一的协议。
 
