@@ -95,11 +95,13 @@ if [[ -d ${WORKDIR}/debugSan ]] ;then
     rm -rf  ${WORKDIR}/debugSan
 fi
 
-if [ "$(uname -m)" = "aarch64" ] ;then
-    CMAKE_BUILD_TYPE="-DCMAKE_BUILD_TYPE=Debug"
-else
-    CMAKE_BUILD_TYPE="-DCMAKE_BUILD_TYPE=Release"
-fi
+CMAKE_BUILD_TYPE="-DCMAKE_BUILD_TYPE=Release"
+
+# if [ "$(uname -m)" = "aarch64" ] ;then
+#     CMAKE_BUILD_TYPE="-DCMAKE_BUILD_TYPE=Debug"
+# else
+#     CMAKE_BUILD_TYPE="-DCMAKE_BUILD_TYPE=Release"
+# fi
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugNoSan
 date
