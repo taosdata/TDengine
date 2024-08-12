@@ -20,7 +20,7 @@ import VerifyLinux from "../../14-reference/05-connector/_verify_linux.mdx";
 import VerifyMacOS from "../../14-reference/05-connector/_verify_macos.mdx";
 import VerifyWindows from "../../14-reference/05-connector/_verify_windows.mdx";
 
-TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。
+TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。另外 TDengine 还可以直接调用 taosadapter 提供的 REST API 接口，进行数据写入和查询操作。
 
 ## 连接方式
 
@@ -33,6 +33,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 ![TDengine connection type](connection-type-zh.webp)
 
 无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到什么差别。
+各种连接方式和各语言连接器支持情况请参考：[连接器功能特性](../../reference/connector/#功能特性)
 
 关键不同点在于：
 
@@ -251,7 +252,10 @@ dotnet add package TDengine.Connector
 <TabItem label="C" value="c">
 
 如果已经安装了 TDengine 服务端软件或 TDengine 客户端驱动 taosc， 那么已经安装了 C 连接器，无需额外操作。
-<br/>
+
+</TabItem>
+<TabItem label="REST API" value="rest">
+使用 REST API 方式访问 TDengine，无需安装任何驱动和连接器。
 
 </TabItem>
 </Tabs>
@@ -394,7 +398,10 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 还提供了 `taos_connect_auth()` 函数用于使用 MD5 加密的密码建立与 TDengine 数据库的连接。此函数与 `taos_connect` 功能相同，不同之处在于密码的处理方式，`taos_connect_auth` 需要的是密码的 MD5 加密字符串。
 
     </TabItem>
+<TabItem label="REST API" value="rest">
+使用 REST API 方式访问 TDengine，由应用程序去建立 HTTP 连接，自己控制 HTTP 连接参数。
 
+</TabItem>
 </Tabs>
 
 ### Websocket 连接
@@ -431,6 +438,13 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 {{#include docs/examples/csharp/wsConnect/Program.cs:main}}
 ```
     </TabItem>
+<TabItem label="C" value="c">
+不支持
+</TabItem>    
+<TabItem label="REST API" value="rest">
+不支持
+
+</TabItem>    
 </Tabs>
 
 ### 原生连接
@@ -455,6 +469,9 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 {{#include docs/examples/rust/nativeexample/examples/connect.rs}}
 ```
 </TabItem>
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
 <TabItem label="C#" value="csharp">
 ```csharp 
 {{#include docs/examples/csharp/connect/Program.cs:main}}
@@ -464,6 +481,10 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
     <ConnC />
 </TabItem>
 
+<TabItem label="REST API" value="rest">
+不支持
+
+</TabItem>   
 </Tabs>
 
 ### REST 连接
@@ -485,6 +506,23 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 {{#include docs/examples/go/connect/restexample/main.go}}
 ```
     </TabItem>
+<TabItem label="Rust" value="rust">
+不支持
+</TabItem>
+<TabItem label="Node.js" value="node">
+不支持
+</TabItem>
+<TabItem label="C#" value="csharp">
+不支持
+</TabItem>
+<TabItem label="C" value="c">
+不支持
+</TabItem>
+
+<TabItem label="REST API" value="rest">
+使用 REST API 方式访问 TDengine，由应用程序自主去建立 HTTP 连接。
+
+</TabItem>       
 </Tabs>
 
 
