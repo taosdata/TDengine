@@ -84,6 +84,7 @@ async function test() {
         }
 
         await consumer.seekToBeginning(assignment);
+        console.log("assignment seek to beginning successfully");
         assignment = await consumer.assignment();
         for (let i in assignment) {
             console.log("seek after:", assignment[i]);
