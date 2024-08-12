@@ -16,6 +16,7 @@
         ref="dbForm1"
         :rules="rules"
         :model="db_form"
+        @submit.native.prevent
       >
         <el-form-item :label="$t('data.name')" prop="name">
           <el-input
