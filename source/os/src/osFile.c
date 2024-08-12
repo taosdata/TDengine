@@ -64,7 +64,9 @@ typedef struct TdFile {
 
 #define FILE_WITH_LOCK 1
 
-#define BUILD_WITH_RAND_IO_ERR BUILD_WITH_RAND_ERR
+#ifdef BUILD_WITH_RAND_ERR
+#define BUILD_WITH_RAND_IO_ERR
+#endif
 #define STUB_RAND_IO_ERR(ret)            \
   if (tsEnableRandErr) {                 \
     uint32_t r = taosRand() % 10001;     \
