@@ -2,7 +2,7 @@ import taosrest
 
 client = None
 url="http://localhost:6041"
-reqId = 1
+reqId = 3
 try:
     client = taosrest.RestClient(url=url,
                    user="root",

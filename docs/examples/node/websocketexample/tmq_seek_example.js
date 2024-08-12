@@ -18,11 +18,11 @@ async function createConsumer() {
     ]);
     try {
         return await taos.tmqConnect(configMap);
-    }catch (err) {
+    } catch (err) {
         console.log(err);
         throw err;
     }
-    
+
 }
 // ANCHOR_END: create_consumer 
 
@@ -33,7 +33,7 @@ async function prepare() {
     conf.setDb('power');
     const createDB = `CREATE DATABASE IF NOT EXISTS POWER ${db} KEEP 3650 DURATION 10 BUFFER 16 WAL_LEVEL 1;`;
     const createStable = `CREATE STABLE IF NOT EXISTS ${db}.${stable} (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);`;
-    
+
     let wsSql = await taos.sqlConnect(conf);
     await wsSql.exec(createDB);
     await wsSql.exec(createStable);
@@ -57,9 +57,9 @@ async function subscribe(consumer) {
             for (let [key, value] of res) {
                 console.log(key, value);
             }
-        }        
-    }catch (err) {
-        console.error("Failed to poll data; err.code, ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        }
+    } catch (err) {
+        console.error("Failed to poll data; ErrCode:" + err.code + "; ErrMessage: " + err.message);
         throw err;
     }
 
@@ -76,7 +76,7 @@ async function test() {
         let res = new Map();
         while (res.size == 0) {
             res = await consumer.poll(100);
-        }  
+        }
 
         let assignment = await consumer.assignment();
         await consumer.seekToBeginning(assignment);
