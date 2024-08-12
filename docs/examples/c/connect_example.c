@@ -12,7 +12,7 @@ int main() {
   uint16_t    port = 6030;    // 0 means use the default port
   TAOS       *taos = taos_connect(host, user, passwd, db, port);
   if (taos == NULL) {
-    printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
     taos_cleanup();
     return -1;
   }

@@ -170,7 +170,7 @@ int main() {
   uint16_t    port      = 6030;
   TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    printf("Failed to connect to %s:%hu; ErrCode: 0x%x; ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
     taos_cleanup();
     exit(EXIT_FAILURE);
   }
