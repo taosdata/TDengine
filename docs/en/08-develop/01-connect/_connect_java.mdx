@@ -1,0 +1,15 @@
+```java title="Native Connection"
+{{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java}}
+```
+
+```java title="REST Connection"
+{{#include docs/examples/java/src/main/java/com/taos/example/RESTConnectExample.java:main}}
+```
+
+When using REST connection, the feature of bulk pulling can be enabled if the size of resulting data set is huge.
+
+```java title="Enable Bulk Pulling" {4}
+{{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
+```
+
+More configuration about connection, please refer to [Java Client Library](../../reference/connectors/java)
