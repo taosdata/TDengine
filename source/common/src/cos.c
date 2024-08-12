@@ -947,8 +947,8 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t s3InitEpIndexArray(SArray** pIndexArray) {
-  SArray* indexArray = taosArrayInit(tsS3EpNum, sizeof(int8_t));
+static int32_t s3InitEpIndexArray(SArray **pIndexArray) {
+  SArray *indexArray = taosArrayInit(tsS3EpNum, sizeof(int8_t));
   if (!indexArray) {
     uError("%s: %s", __func__, "out of memory");
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
@@ -958,11 +958,13 @@ static int32_t s3InitEpIndexArray(SArray** pIndexArray) {
     taosArraySet(indexArray, i, &i);
   }
 
-  for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    int8_t j = taosRand() % tsS3EpNum;
-    int8_t tmp = *(int8_t *)taosArrayGet(indexArray, i);
-    taosArraySet(indexArray, i, taosArrayGet(indexArray, j));
-    taosArraySet(indexArray, j, &tmp);
+  if (tsS3EpNum > 1) {
+    for (int8_t i = 0; i < tsS3EpNum; ++i) {
+      int8_t j = taosRand() % tsS3EpNum;
+      int8_t tmp = *(int8_t *)taosArrayGet(indexArray, i);
+      taosArraySet(indexArray, i, taosArrayGet(indexArray, j));
+      taosArraySet(indexArray, j, &tmp);
+    }
   }
 
   *pIndexArray = indexArray;
