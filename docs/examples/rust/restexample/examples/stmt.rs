@@ -2,12 +2,13 @@ use taos::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let taos = TaosBuilder::from_dsn("ws://")?.build().await?;
+    let dsn = "ws://";
+    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     taos.exec("DROP DATABASE IF EXISTS power").await?;
     taos.create_database("power").await?;
     taos.use_database("power").await?;
-    taos.exec("CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)").await?;
+    taos.exec("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))").await?;
 
     let mut stmt = Stmt::init(&taos).await?;
     stmt.prepare("INSERT INTO ? USING meters TAGS(?, ?) VALUES(?, ?, ?, ?)").await?;
@@ -15,8 +16,8 @@ async fn main() -> anyhow::Result<()> {
     const NUM_TABLES: usize = 10;
     const NUM_ROWS: usize = 10;
     for i in 0..NUM_TABLES {
-        let table_name = format!("d{}", i);
-        let tags = vec![Value::VarChar("California.SanFransico".into()), Value::Int(2)];
+        let table_name = format!("d_bind_{}", i);
+        let tags = vec![Value::Int(i as i32), Value::VarChar(format!("location_{}", i).into())];
 
         // set table name and tags for the prepared statement.
         stmt.set_tbname_tags(&table_name, &tags).await?;
@@ -35,9 +36,13 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // execute.
-    let rows = stmt.execute().await?;
-    assert_eq!(rows, NUM_TABLES * NUM_ROWS);
-    
-    println!("execute stmt insert successfully");
+    match stmt.execute().await{
+        Ok(affected_rows) => println!("Successfully inserted {} rows to power.meters.", affected_rows),
+        Err(err) => {
+            eprintln!("Failed to insert to table meters using stmt, dsn: {}; ErrMessage: {}", dsn, err);
+            return Err(err.into());
+        }
+    }
+
     Ok(())
 }

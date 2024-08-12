@@ -57,7 +57,7 @@ public class WsConsumerLoopFull {
 
             // subscribe to the topics
             consumer.subscribe(topics);
-            System.out.println("subscribe topics successfully");
+            System.out.println("subscribe topics successfully.");
             for (int i = 0; i < 50; i++) {
                 // poll data
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
@@ -86,7 +86,7 @@ public class WsConsumerLoopFull {
 
             // subscribe to the topics
             consumer.subscribe(topics);
-            System.out.println("subscribe topics successfully");
+            System.out.println("subscribe topics successfully.");
             Set<TopicPartition> assignment = consumer.assignment();
             System.out.println("now assignment: " + JSON.toJSONString(assignment));
 
@@ -97,7 +97,7 @@ public class WsConsumerLoopFull {
             }
 
             consumer.seekToBeginning(assignment);
-            System.out.println("assignment seek to beginning successfully");
+            System.out.println("assignment seek to beginning successfully.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
@@ -315,26 +315,26 @@ public class WsConsumerLoopFull {
                 System.out.println("Failed to prepare data, ErrMessage: " + ex.getMessage());
                 return;
             }
-            System.out.println("pollDataExample executed successfully");
+            System.out.println("pollDataExample executed successfully.");
         });
 
         try {
             TaosConsumer<ResultBean> consumer = getConsumer();
 
             pollExample(consumer);
-            System.out.println("pollExample executed successfully");
+            System.out.println("pollExample executed successfully.");
             consumer.unsubscribe();
 
             seekExample(consumer);
-            System.out.println("seekExample executed successfully");
+            System.out.println("seekExample executed successfully.");
             consumer.unsubscribe();
 
             commitExample(consumer);
-            System.out.println("commitExample executed successfully");
+            System.out.println("commitExample executed successfully.");
             consumer.unsubscribe();
 
             unsubscribeExample(consumer);
-            System.out.println("unsubscribeExample executed successfully");
+            System.out.println("unsubscribeExample executed successfully.");
 
         } catch (SQLException ex) {
             System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());

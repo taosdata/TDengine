@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
     use taos_query::prelude::*;
     // ANCHOR: create_consumer_dsn    
     let dsn = "ws://localhost:6041".to_string();
-    log::info!("dsn: {}", dsn);
+    println!("dsn: {}", dsn);
     let mut dsn = Dsn::from_str(&dsn)?;
     // ANCHOR_END: create_consumer_dsn
 
@@ -37,20 +37,36 @@ async fn main() -> anyhow::Result<()> {
     // ANCHOR_END: create_topic
 
     // ANCHOR: create_consumer_ac
+    let group_id = "group1".to_string();
+    let client_id = "client1".to_string();
     dsn.params.insert("auto.offset.reset".to_string(), "latest".to_string());
     dsn.params.insert("msg.with.table.name".to_string(), "true".to_string());
     dsn.params.insert("enable.auto.commit".to_string(), "true".to_string());
     dsn.params.insert("auto.commit.interval.ms".to_string(), "1000".to_string());
-    dsn.params.insert("group.id".to_string(), "group1".to_string());
-    dsn.params.insert("client.id".to_string(), "client1".to_string());
+    dsn.params.insert("group.id".to_string(), group_id.clone());
+    dsn.params.insert("client.id".to_string(), client_id.clone());
 
     let builder = TmqBuilder::from_dsn(&dsn)?;
-    let mut consumer = builder.build().await?;
+    let mut consumer = match builder.build().await{
+        Ok(consumer) => {
+            println!("Create consumer successfully, dsn: {}, groupId: {}, clientId: {}.", dsn, group_id, client_id);
+            consumer
+        }
+        Err(err) => {
+            eprintln!("Failed to create consumer, dsn: {}; ErrMessage: {}", dsn, err);
+            return Err(err.into());
+        }
+    };
     // ANCHOR_END: create_consumer_ac
 
-    // ANCHOR: subscribe
-    consumer.subscribe(["topic_meters"]).await?;
-    // ANCHOR_END: subscribe
+    // ANCHOR: consume
+    match consumer.subscribe(["topic_meters"]).await{
+        Ok(_) => println!("subscribe topics successfully."),
+        Err(err) => {
+            eprintln!("Failed to subscribe topic_meters, dsn: {}; ErrMessage: {}", dsn, err);
+            return Err(err.into());
+        }
+    }
 
     #[derive(Debug, serde::Deserialize)]
     #[allow(dead_code)]
@@ -66,8 +82,6 @@ async fn main() -> anyhow::Result<()> {
         // binary/varchar to String
         location: String,
     }
-
-    // ANCHOR: consume
 
     consumer
     .stream()
@@ -85,7 +99,10 @@ async fn main() -> anyhow::Result<()> {
         }
         Ok(())
     })
-    .await?;
+    .await.map_err(|e| {
+        eprintln!("Failed to poll data; ErrMessage: {:?}", e);
+        e
+    })?;
 
     // ANCHOR_END: consume
 
@@ -105,16 +122,25 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
             // commit offset manually when you have processed the message.
-            consumer.commit(offset).await?;
+            match consumer.commit(offset).await{
+                Ok(_) => println!("commit offset manually successfully."),
+                Err(err) => {
+                    eprintln!("Failed to commit offset manually, dsn: {}; ErrMessage: {}", dsn, err);
+                    return Err(err.into());
+                }
+            }
             Ok(())
         })
-        .await?;
+        .await.map_err(|e| {
+            eprintln!("Failed to execute consumer functions. ErrMessage: {:?}", e);
+            e
+        })?;
     // ANCHOR_END: consumer_commit_manually
 
-    // ANCHOR: assignments
+
+    // ANCHOR: seek_offset
     let assignments = consumer.assignments().await.unwrap();
-    log::info!("assignments: {:?}", assignments);
-    // ANCHOR_END: assignments
+    println!("assignments: {:?}", assignments);
 
     // seek offset
     for topic_vec_assignment in assignments {
@@ -125,7 +151,7 @@ async fn main() -> anyhow::Result<()> {
             let current = assignment.current_offset();
             let begin = assignment.begin();
             let end = assignment.end();
-            log::debug!(
+            println!(
                 "topic: {}, vgroup_id: {}, current offset: {} begin {}, end: {}",
                 topic,
                 vgroup_id,
@@ -133,23 +159,24 @@ async fn main() -> anyhow::Result<()> {
                 begin,
                 end
             );
-            // ANCHOR: seek_offset
-            let res = consumer.offset_seek(topic, vgroup_id, end).await;
-            if res.is_err() {
-                log::error!("seek offset error: {:?}", res);
-                let a = consumer.assignments().await.unwrap();
-                log::error!("assignments: {:?}", a);
+
+            match consumer.offset_seek(topic, vgroup_id, begin).await{
+                Ok(_) => (),
+                Err(err) => {
+                    eprintln!("seek example failed; ErrMessage: {}", err);
+                    return Err(err.into());
+                }
             }
-            // ANCHOR_END: seek_offset
         }
 
         let topic_assignment = consumer.topic_assignment(topic).await;
-        log::debug!("topic assignment: {:?}", topic_assignment);
+        println!("topic assignment: {:?}", topic_assignment);
     }
-
+    println!("assignment seek to beginning successfully.");
     // after seek offset
     let assignments = consumer.assignments().await.unwrap();
-    log::info!("after seek offset assignments: {:?}", assignments);
+    println!("after seek offset assignments: {:?}", assignments);
+    // ANCHOR_END: seek_offset
 
     // ANCHOR: unsubscribe
     consumer.unsubscribe().await;
