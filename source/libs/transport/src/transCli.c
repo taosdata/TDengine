@@ -2073,7 +2073,6 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
             code = createBatch(&tBatch, *ppBatchList, pMsg);
             if (code != 0) {
               destroyCmsg(pMsg);
-              cliDestroyBatch(pBatch);
             }
           }
         }
