@@ -180,6 +180,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ANCHOR: unsubscribe
     consumer.unsubscribe().await;
+    println!("consumer unsubscribed successfully.");
     // ANCHOR_END: unsubscribe
 
     tokio::time::sleep(Duration::from_secs(1)).await;

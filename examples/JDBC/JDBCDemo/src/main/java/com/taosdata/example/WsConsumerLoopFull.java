@@ -70,10 +70,10 @@ public class WsConsumerLoopFull {
 
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to poll data, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to poll data", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to poll data; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to poll data, ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to poll data", ex);
         }
 // ANCHOR_END: poll_data_code_piece
@@ -147,7 +147,7 @@ public class WsConsumerLoopFull {
         try {
             // unsubscribe the consumer
             consumer.unsubscribe();
-            System.out.println("unsubscribe consumer successfully.");
+            System.out.println("consumer unsubscribed successfully.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
