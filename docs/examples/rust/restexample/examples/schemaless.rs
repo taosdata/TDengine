@@ -11,7 +11,8 @@ use taos::taos_query;
 async fn main() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "taos=debug");
     pretty_env_logger::init();
-    let dsn = "http://localhost:6041/power".to_string();
+    let host = "localhost";
+    let dsn = format!("ws://{}:6041/power", host);
     log::debug!("dsn: {:?}", &dsn);
 
     let client = TaosBuilder::from_dsn(dsn)?.build().await?;
@@ -30,7 +31,13 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(100u64)
         .build()?;
-    assert_eq!(client.put(&sml_data).await?, ());
+    match client.put(&sml_data).await{
+        Ok(_) => {},
+        Err(err) => {
+            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            return Err(err.into());
+        }
+    }
 
     // SchemalessProtocol::Telnet
     let data = [
@@ -46,7 +53,13 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(200u64)
         .build()?;
-    assert_eq!(client.put(&sml_data).await?, ());
+    match client.put(&sml_data).await{
+        Ok(_) => {},
+        Err(err) => {
+            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            return Err(err.into());
+        }
+    }
 
     // SchemalessProtocol::Json
     let data = [
@@ -71,7 +84,13 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(300u64)
         .build()?;
-    assert_eq!(client.put(&sml_data).await?, ());
+    match client.put(&sml_data).await{
+        Ok(_) => {},
+        Err(err) => {
+            eprintln!("Failed to insert data with schemaless, host: {}; ErrMessage: {}", host, err);
+            return Err(err.into());
+        }
+    }
 
     println!("Inserted data with schemaless successfully.");
     Ok(())

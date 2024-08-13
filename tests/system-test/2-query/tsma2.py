@@ -852,7 +852,7 @@ class TDTestCase:
                 ]
         tdSql.execute('use db')
         for (i, ri, ret) in examples:
-            self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471097)
+            self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471086)
 
         self.create_tsma('tsma1', db, tb, func, '1h')
         self.create_recursive_tsma('tsma1', 'tsma2', db, '1n', tb, func)

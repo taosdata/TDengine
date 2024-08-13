@@ -1,5 +1,6 @@
 ---
-title: TDengine SQL
+title: SQL 手册
+sidebar_label: SQL 手册
 description: 'TDengine SQL 支持的语法规则、主要查询功能、支持的 SQL 查询函数，以及常用技巧等内容'
 ---
 

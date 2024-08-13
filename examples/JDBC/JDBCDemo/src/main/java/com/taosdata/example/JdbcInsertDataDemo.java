@@ -39,7 +39,7 @@ public class JdbcInsertDataDemo {
                     "(NOW + 1a, 10.30000, 218, 0.25000) ";
             int affectedRows = stmt.executeUpdate(insertQuery);
             // you can check affectedRows here
-            System.out.println("inserted into " + affectedRows + " rows to power.meters successfully.");
+            System.out.println("Successfully inserted " + affectedRows + " rows to power.meters.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to insert data to power.meters, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());

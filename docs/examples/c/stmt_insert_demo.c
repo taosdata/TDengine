@@ -64,6 +64,7 @@ typedef struct {
 
 int num_of_sub_table = 10;
 int num_of_row = 10;
+int total_affected = 0;
 /**
  * @brief insert data using stmt API
  *
@@ -72,10 +73,14 @@ int num_of_row = 10;
 void insertData(TAOS *taos) {
   // init
   TAOS_STMT *stmt = taos_stmt_init(taos);
+  if (stmt == NULL) {
+      printf("Failed to init taos_stmt, error: %s\n", taos_stmt_errstr(NULL));
+      exit(EXIT_FAILURE);
+  }
   // prepare
   const char *sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
   int         code = taos_stmt_prepare(stmt, sql, 0);
-  checkErrorCode(stmt, code, "failed to execute taos_stmt_prepare");
+  checkErrorCode(stmt, code, "Failed to execute taos_stmt_prepare");
   for (int i = 1; i <= num_of_sub_table; i++) {
     char table_name[20];
     sprintf(table_name, "d_bind_%d", i);
@@ -99,7 +104,7 @@ void insertData(TAOS *taos) {
     tags[1].is_null = NULL;
     tags[1].num = 1;
     code = taos_stmt_set_tbname_tags(stmt, table_name, tags);
-    checkErrorCode(stmt, code, "failed to set table name and tags\n");
+    checkErrorCode(stmt, code, "Failed to set table name and tags\n");
 
     // insert rows
     TAOS_MULTI_BIND params[4];
@@ -142,25 +147,31 @@ void insertData(TAOS *taos) {
       params[3].buffer = &phase;
       // bind param
       code = taos_stmt_bind_param(stmt, params);
-      checkErrorCode(stmt, code, "failed to bind param");
+      checkErrorCode(stmt, code, "Failed to bind param");
     }
     // add batch
     code = taos_stmt_add_batch(stmt);
-    checkErrorCode(stmt, code, "failed to add batch");
+    checkErrorCode(stmt, code, "Failed to add batch");
     // execute batch
     code = taos_stmt_execute(stmt);
-    checkErrorCode(stmt, code, "failed to exec stmt");
+    checkErrorCode(stmt, code, "Failed to exec stmt");
     // get affected rows
     int affected = taos_stmt_affected_rows_once(stmt);
-    printf("table %s insert %d rows.\n", table_name, affected);
+    total_affected += affected;
   }
+  printf("Successfully inserted %d rows to power.meters.\n", total_affected);
   taos_stmt_close(stmt);
 }
 
 int main() {
-  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 6030);
+  const char *host      = "localhost";
+  const char *user      = "root";
+  const char *password  = "taosdata";
+  uint16_t    port      = 6030;
+  TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    printf("failed to connect to server\n");
+    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    taos_cleanup();
     exit(EXIT_FAILURE);
   }
   // create database and table

@@ -11,13 +11,15 @@ namespace Examples
         {
             try
             {
-                var builder = new ConnectionStringBuilder("protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false;username=root;password=taosdata");
+                var connectionString =
+                    "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false;username=root;password=taosdata";
+                var builder = new ConnectionStringBuilder(connectionString);
                 using (var client = DbDriver.Open(builder))
                 {
-                    CreateDatabaseAndTable(client);
-                    InsertData(client);
-                    QueryData(client);
-                    QueryWithReqId(client);
+                    CreateDatabaseAndTable(client,connectionString);
+                    InsertData(client,connectionString);
+                    QueryData(client,connectionString);
+                    QueryWithReqId(client,connectionString);
                 }
             }
             catch (TDengineError e)
@@ -34,40 +36,40 @@ namespace Examples
             }
         }
 
-        private static void CreateDatabaseAndTable(ITDengineClient client)
+        private static void CreateDatabaseAndTable(ITDengineClient client, string connectionString)
         {
             // ANCHOR: create_db_and_table
             try
             {
                 // create database
                 var affected = client.Exec("CREATE DATABASE IF NOT EXISTS power");
-                Console.WriteLine($"Create database power, affected rows: {affected}");
+                Console.WriteLine($"Create database power successfully, rowsAffected: {affected}");
                 // create table
                 affected = client.Exec(
                     "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
-                Console.WriteLine($"Create table meters, affected rows: {affected}");
+                Console.WriteLine($"Create stable power.meters successfully, rowsAffected: {affected}");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to create db and table; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to create db and table,url:" + connectionString +"; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to create db and table; Err:" + e.Message);
+                Console.WriteLine("Failed to create db and table, url:" + connectionString + "; ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: create_db_and_table
         }
 
-        private static void InsertData(ITDengineClient client)
+        private static void InsertData(ITDengineClient client,string connectionString)
         {
             // ANCHOR: insert_data
             try
             {
-                // insert data
+                // insert data, please make sure the database and table are created before
                 var insertQuery = "INSERT INTO " +
                                   "power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') " +
                                   "VALUES " +
@@ -78,29 +80,29 @@ namespace Examples
                                   "VALUES " +
                                   "(NOW + 1a, 10.30000, 218, 0.25000) ";
                 var affectedRows = client.Exec(insertQuery);
-                Console.WriteLine("insert " + affectedRows + " rows to power.meters successfully.");
+                Console.WriteLine("Successfully inserted " + affectedRows + " rows to power.meters.");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to insert data to power.meters; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to insert data to power.meters, url:" + connectionString + "; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to insert data to power.meters; Err:" + e.Message);
+                Console.WriteLine("Failed to insert data to power.meters, url:" + connectionString + "; ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: insert_data
         }
 
-        private static void QueryData(ITDengineClient client)
+        private static void QueryData(ITDengineClient client,string connectionString)
         {
             // ANCHOR: select_data
             try
             {
-                // query data
+                // query data, make sure the database and table are created before
                 var query = "SELECT ts, current, location FROM power.meters limit 100";
                 using (var rows = client.Query(query))
                 {
@@ -117,27 +119,28 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to query data from power.meters; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to query data from power.meters, url:" + connectionString + "; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to query data from power.meters; Err:" + e.Message);
+                Console.WriteLine("Failed to query data from power.meters, url:" + connectionString + "; ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: select_data
         }
 
-        private static void QueryWithReqId(ITDengineClient client)
+        private static void QueryWithReqId(ITDengineClient client,string connectionString)
         {
             // ANCHOR: query_id
+            var reqId = (long)3;
             try
             {
                 // query data
                 var query = "SELECT ts, current, location FROM power.meters limit 1";
                 // query with request id 3
-                using (var rows = client.Query(query,3))
+                using (var rows = client.Query(query,reqId))
                 {
                     while (rows.Read())
                     {
@@ -152,13 +155,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to execute sql with reqId; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to execute sql with reqId: " + reqId + ", url:" + connectionString + "; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to execute sql with reqId; Err:" + e.Message);
+                Console.WriteLine("Failed to execute sql with reqId: " + reqId + ", url:" + connectionString + "; ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: query_id

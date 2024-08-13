@@ -3,7 +3,8 @@ const taos = require("@tdengine/websocket");
 let db = 'power';
 let stable = 'meters';
 let numOfSubTable = 10;
-let numOfRow = 10;
+let numOfRow = 10;    
+let dsn = 'ws://localhost:6041'
 function getRandomInt(min, max) {
     min = Math.ceil(min);
     max = Math.floor(max);
@@ -11,7 +12,7 @@ function getRandomInt(min, max) {
 }
 
 async function prepare() {
-    let dsn = 'ws://localhost:6041'
+
     let conf = new taos.WSConfig(dsn);
     conf.setUser('root')
     conf.setPwd('taosdata')
@@ -54,11 +55,11 @@ async function prepare() {
             await stmt.bind(bindParams);
             await stmt.batch();
             await stmt.exec();
-            console.log(`d_bind_${i} insert ` + stmt.getLastAffected() + " rows.");
+            console.log("Successfully inserted " + stmt.getLastAffected() + " to power.meters.");
         }
     }
     catch (err) {
-        console.error("Failed to insert to table meters using stmt, ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error("Failed to insert to table meters using stmt, url:" + dsn + "ErrCode:" + err.code + "; ErrMessage: " + err.message);
     }
     finally {
         if (stmt) {
