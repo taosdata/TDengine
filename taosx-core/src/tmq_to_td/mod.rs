@@ -446,6 +446,7 @@ async fn write_meta(
     metrics: &TmqMetrics,
     with_meta_delete: bool,
     with_meta_drop: bool,
+    with_data: bool,
 ) -> Result<()> {
     let cur = metrics.add_messages_of_meta(1);
     let mut json_meta = match meta.as_json_meta().await.context("Fetch json meta error") {
@@ -530,7 +531,7 @@ async fn write_meta(
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
                 metrics.add_write_raw_fails(1);
                 // Print error no matter how we will deal with it, so that we can know what happened.
-                tracing::debug!("Write raw meta: {err}");
+                tracing::debug!("Write raw meta error: {err:#}");
                 let code = *err.code().deref();
                 match code {
                     // Table not exist error codes.
@@ -592,9 +593,18 @@ async fn write_meta(
                         // do nothing
                     }
                     _ => {
-                        Err(err.context("Write raw meta error"))?;
+                        // Fallback to sql method.
+                        tracing::debug!("Fallback to sql method due to: {err:#}.");
+                        let sqls = json_meta.iter().map(ToString::to_string).collect_vec();
+                        taos.exec_many(&sqls)
+                            .in_current_span()
+                            .await
+                            .context("Write raw meta with sql error")?;
                     }
                 }
+            } else {
+                // Write raw meta success, no need to check if with data.
+                return Ok(());
             }
         } else {
             let sqls = json_meta.iter().map(ToString::to_string).collect_vec();
@@ -622,7 +632,10 @@ async fn write_meta(
             }
         }
     }
-    tracing::debug!("End writing meta {cur}");
+    if with_data {
+        bail!("raw bytes contains data blocks, should not write meta only");
+    }
+    tracing::trace!("End writing meta {cur}");
     Ok(())
 }
 type TaosConnection = deadpool::managed::Object<taos::taos_query::Manager<taos::TaosBuilder>>;
@@ -667,6 +680,7 @@ async fn sync_msg(
                 metrics,
                 with_meta_delete,
                 with_meta_drop,
+                false,
             )
             .in_current_span()
             .await;
@@ -726,9 +740,11 @@ async fn sync_msg(
                 metrics,
                 with_meta_delete,
                 with_meta_drop,
+                true,
             )
             .in_current_span()
             .await;
+            let mut meta_skipped = false;
             if let Err(err) = write_meta_result {
                 let msg = format!("{:#}", err);
                 if msg.contains("0xE00") {
@@ -740,8 +756,9 @@ async fn sync_msg(
                     }
                 }
                 tracing::warn!("Ignore error: {}", err);
+                meta_skipped = true;
             }
-            if !actions.is_empty() {
+            if !actions.is_empty() || meta_skipped {
                 if let Err(err) = write_data(
                     &topic,
                     id,
