@@ -579,7 +579,7 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
   rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
   SRowKey               emptyRowKey = {.ts = TSKEY_MIN, .numOfPKs = 0};
   SLastCol              emptyCol = {
-                   .rowKey = emptyRowKey, .colVal = COL_VAL_NONE(cid, col_type), .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_EMPTY};
+                   .rowKey = emptyRowKey, .colVal = COL_VAL_NONE(cid, col_type), .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
   SLastCol *pLastCol = &emptyCol;
 
   SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));

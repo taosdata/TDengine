@@ -920,7 +920,6 @@ typedef enum {
 
 typedef enum {
   TSDB_LAST_CACHE_VALID = 0, // last_cache has valid data
-  TSDB_LAST_CACHE_EMPTY,     // neither last_cache nor tsdb has data
   TSDB_LAST_CACHE_NO_CACHE,  // last_cache has no data, but tsdb may have data
 } ELastCacheStatus;
 
