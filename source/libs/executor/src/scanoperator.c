@@ -509,7 +509,7 @@ static void freeTableCachedVal(void* param) {
   taosMemoryFree(pVal);
 }
 
-static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
+static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedVal** ppResVal) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
@@ -526,12 +526,14 @@ static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
     memcpy(pVal->pTags, pTag, pTag->len);
   }
 
+  (*ppResVal) = pVal;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    return NULL;
+    freeTableCachedVal(pVal);
   }
-  return pVal;
+  return code;
 }
 
 // const void *key, size_t keyLen, void *value
@@ -560,6 +562,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   STableCachedVal val = {0};
   SMetaReader     mr = {0};
   const char*     idStr = pTask->id.str;
+  int32_t         insertRet = TAOS_LRU_STATUS_OK;
 
   // currently only the tbname pseudo column
   if (numOfExpr <= 0) {
@@ -581,18 +584,18 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
       // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
-      if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
         qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
-              pBlock->info.id.uid, tstrerror(terrno), idStr);
+              pBlock->info.id.uid, tstrerror(code), idStr);
 
         // append null value before return to caller, since the caller will ignore this error code and proceed
         doSetNullValue(pBlock, pExpr, numOfExpr);
       } else {
-        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
+        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(code),
                idStr);
       }
       pHandle->api.metaReaderFn.clearReader(&mr);
-      return terrno;
+      return code;
     }
 
     pHandle->api.metaReaderFn.readerReleaseLock(&mr);
@@ -609,34 +612,32 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
       code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
       if (code != TSDB_CODE_SUCCESS) {
-        if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+        if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
           qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
-                pBlock->info.id.uid, tstrerror(terrno), idStr);
+                pBlock->info.id.uid, tstrerror(code), idStr);
           // append null value before return to caller, since the caller will ignore this error code and proceed
           doSetNullValue(pBlock, pExpr, numOfExpr);
         } else {
-          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
+          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(code),
                  idStr);
         }
         pHandle->api.metaReaderFn.clearReader(&mr);
-        return terrno;
+        return code;
       }
 
       pHandle->api.metaReaderFn.readerReleaseLock(&mr);
 
-      STableCachedVal* pVal = createTableCacheVal(&mr);
-      if(!pVal) {
-        return terrno;
-      }
+      STableCachedVal* pVal = NULL;
+      code = createTableCacheVal(&mr, &pVal);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       val = *pVal;
       freeReader = true;
 
-      int32_t ret = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
+      insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
                                        sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
-      if (ret != TAOS_LRU_STATUS_OK) {
-        qError("failed to put meta into lru cache, code:%d, %s", ret, idStr);
-        freeTableCachedVal(pVal);
+      if (insertRet != TAOS_LRU_STATUS_OK) {
+        qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
       }
     } else {
       pCache->cacheHit += 1;
@@ -709,11 +710,14 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
   // restore the rows
   pBlock->info.rows = backupRows;
+
+_end:
+  if (insertRet != TAOS_LRU_STATUS_OK) {
+    freeTableCachedVal(&val);
+  }
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
   }
-
-_end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

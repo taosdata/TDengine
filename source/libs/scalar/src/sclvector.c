@@ -1037,8 +1037,8 @@ int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_
   output->numOfRows = input->numOfRows;
 
   SDataType t = {.type = type};
-  t.bytes = IS_VAR_DATA_TYPE(t.type)? input->columnData->info.bytes:tDataTypes[type].bytes;
-  t.precision = input->columnData->info.precision;
+  t.bytes = (IS_VAR_DATA_TYPE(t.type) && input->columnData) ? input->columnData->info.bytes:tDataTypes[type].bytes;
+  t.precision = (IS_TIMESTAMP_TYPE(t.type) && input->columnData) ? input->columnData->info.precision : TSDB_TIME_PRECISION_MILLI;
 
   int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
   if (code != TSDB_CODE_SUCCESS) {
