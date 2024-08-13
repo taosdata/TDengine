@@ -30,17 +30,11 @@ public class JdbcCreatDBDemo {
             // create database
             int rowsAffected = stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS power");
             // you can check rowsAffected here
-            assert rowsAffected == 0;
-
-            // use database
-            rowsAffected = stmt.executeUpdate("USE power");
-            // you can check rowsAffected here
-            assert rowsAffected == 0;
-
+            System.out.println("Create database power successfully, rowsAffected: " + rowsAffected);
             // create table
-            rowsAffected = stmt.executeUpdate("CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
+            rowsAffected = stmt.executeUpdate("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
             // you can check rowsAffected here
-            assert rowsAffected == 0;
+            System.out.println("Create stable power.meters successfully, rowsAffected: " + rowsAffected);
 
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info

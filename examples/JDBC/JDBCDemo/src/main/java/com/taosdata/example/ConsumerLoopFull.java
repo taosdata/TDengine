@@ -37,13 +37,15 @@ public class ConsumerLoopFull {
         config.setProperty("value.deserializer.encoding", "UTF-8");
 
         try {
-            return new TaosConsumer<>(config);
+            TaosConsumer<ResultBean> consumer= new TaosConsumer<>(config);
+            System.out.println("Create consumer successfully, host: " + config.getProperty("bootstrap.servers") + ", groupId: " + config.getProperty("group.id") + ", clientId: " + config.getProperty("client.id"));
+            return consumer;
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to create native consumer, host: " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create consumer", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to create websocket consumer, host : " + config.getProperty("bootstrap.servers")
+            System.out.println("Failed to create native consumer, host: " + config.getProperty("bootstrap.servers")
                     + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to create consumer", ex);
         }
@@ -57,7 +59,7 @@ public class ConsumerLoopFull {
 
             // subscribe to the topics
             consumer.subscribe(topics);
-            System.out.println("subscribe topics successfully");
+            System.out.println("Subscribe topics successfully.");
             for (int i = 0; i < 50; i++) {
                 // poll data
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
@@ -70,10 +72,10 @@ public class ConsumerLoopFull {
 
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to poll data; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to poll data, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to poll data", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to poll data; ErrMessage: " + ex.getMessage());
+            System.out.println("Failed to poll data, ErrMessage: " + ex.getMessage());
             throw new SQLException("Failed to poll data", ex);
         }
 // ANCHOR_END: poll_data_code_piece
@@ -86,9 +88,9 @@ public class ConsumerLoopFull {
 
             // subscribe to the topics
             consumer.subscribe(topics);
-            System.out.println("subscribe topics successfully");
+            System.out.println("Subscribe topics successfully.");
             Set<TopicPartition> assignment = consumer.assignment();
-            System.out.println("now assignment: " + JSON.toJSONString(assignment));
+            System.out.println("Now assignment: " + JSON.toJSONString(assignment));
 
             ConsumerRecords<ResultBean> records = ConsumerRecords.emptyRecord();
             // make sure we have got some data
@@ -97,14 +99,13 @@ public class ConsumerLoopFull {
             }
 
             consumer.seekToBeginning(assignment);
-            System.out.println("assignment seek to beginning successfully");
-            System.out.println("beginning assignment: " + JSON.toJSONString(assignment));
+            System.out.println("Assignment seek to beginning successfully.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            System.out.println("Seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             throw new SQLException("seek example failed", ex);
         } catch (Exception ex) {
-            System.out.println("seek example failed; ErrMessage: " + ex.getMessage());
+            System.out.println("Seek example failed; ErrMessage: " + ex.getMessage());
             throw new SQLException("seek example failed", ex);
         }
 // ANCHOR_END: consumer_seek
@@ -127,6 +128,7 @@ public class ConsumerLoopFull {
                 if (!records.isEmpty()) {
                     // after processing the data, commit the offset manually
                     consumer.commitSync();
+                    System.out.println("Commit offset manually successfully.");
                 }
             }
         } catch (SQLException ex) {
@@ -147,6 +149,7 @@ public class ConsumerLoopFull {
         try {
             // unsubscribe the consumer
             consumer.unsubscribe();
+            System.out.println("Consumer unsubscribed successfully.");
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
             System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
@@ -158,6 +161,7 @@ public class ConsumerLoopFull {
         finally {
             // close the consumer
             consumer.close();
+            System.out.println("Consumer closed successfully.");
         }
 // ANCHOR_END: unsubscribe_data_code_piece
     }
@@ -313,22 +317,22 @@ public class ConsumerLoopFull {
                 System.out.println("Failed to prepare data, ErrMessage: " + ex.getMessage());
                 return;
             }
-            System.out.println("pollDataExample executed successfully");
+            System.out.println("pollDataExample executed successfully.");
         });
 
         try {
             TaosConsumer<ResultBean> consumer = getConsumer();
 
             pollExample(consumer);
-            System.out.println("pollExample executed successfully");
+            System.out.println("pollExample executed successfully.");
             consumer.unsubscribe();
 
             seekExample(consumer);
-            System.out.println("seekExample executed successfully");
+            System.out.println("seekExample executed successfully.");
             consumer.unsubscribe();
 
             commitExample(consumer);
-            System.out.println("commitExample executed successfully");
+            System.out.println("commitExample executed successfully.");
             consumer.unsubscribe();
 
             unsubscribeExample(consumer);

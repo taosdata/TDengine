@@ -16,6 +16,7 @@ async function createConnect() {
 }
 
 async function test() {
+    let dsn = 'ws://localhost:6041'
     let wsSql = null;
     let wsRows = null;
     let ttl = 0;
@@ -24,9 +25,10 @@ async function test() {
         await wsSql.schemalessInsert(influxdbData, taos.SchemalessProto.InfluxDBLineProtocol, taos.Precision.MILLI_SECONDS, ttl);
         await wsSql.schemalessInsert(telnetData, taos.SchemalessProto.OpenTSDBTelnetLineProtocol, taos.Precision.MILLI_SECONDS, ttl);
         await wsSql.schemalessInsert(jsonData, taos.SchemalessProto.OpenTSDBJsonFormatProtocol, taos.Precision.SECONDS, ttl);
+        console.log("Inserted data with schemaless successfully.")
     }
     catch (err) {
-        console.error("Failed to insert data with schemaless, ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error("Failed to insert data with schemaless, url:"+ dsn +", ErrCode:" + err.code + "; ErrMessage: " + err.message);
     }
     finally {
         if (wsRows) {
