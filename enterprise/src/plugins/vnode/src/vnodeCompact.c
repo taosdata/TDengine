@@ -88,9 +88,10 @@ int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
   code = tSerializeSQueryCompactProgressRsp(pRsp, rspSize, &rsp);
-  if (code) {
+  if (code < 0) {
     goto _exit;
   }
+  code = 0;
 
 _exit:
   rspMsg.info = pMsg->info;

@@ -1,4 +1,0 @@
-#!/bin/sh
-LD_LIBRARY_PATH=.. \
-DYLD_LIBRARY_PATH=.. \
-./lm_read_buffer data/Int32-oneseries-mixedlengths-mixedorder.mseed

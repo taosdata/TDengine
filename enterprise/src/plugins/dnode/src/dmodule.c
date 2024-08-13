@@ -45,6 +45,7 @@ typedef enum {
 } DM_ENG_TYPE;
 
 #define DM_ENG_FVER_MAX DM_ENG_FVER_1
+#define DM_OS_ST_NAME_LEN 64
 
 #define DM_ENGINE_FILE "dnode.info"
 #define DM_ENGINE_FILE_T "dnode.info.t"
@@ -71,6 +72,15 @@ typedef struct {
 #define STR_INT_CMP(s, d, c) (taosStr2Int32(s, 0, 10) c(d))
 #define STR_STR_SIGN ("ia")
 #define STR_STR_COMM ("unit")
+
+#define STR_CASE_STR_CHECK(s, d) \
+  do {                           \
+    (void)strtolower(s, s);      \
+    (void)strtolower(d, d);      \
+    if (STR_STR_CMP(s, d)) {     \
+      DM_ERR_RTN(0);             \
+    }                            \
+  } while (0)
 
 #define DM_ERR_RTN(c) \
   do {                \
@@ -122,7 +132,7 @@ static int32_t dmInitPrerequisites() {
   if (STR_STR_CMP(stName, STR_STR_SIGN)) {
     DM_ERR_RTN(0);
   }
-  if (taosGetOsReleaseName(reName, stName, ver, 64) != 0) {
+  if (taosGetOsReleaseName(reName, stName, ver, DM_OS_ST_NAME_LEN) != 0) {
     int32_t errCode = TAOS_SYSTEM_ERROR(errno);
     if (errCode != 0) code = errCode;
     TAOS_CHECK_GOTO(code, NULL, _exit);
@@ -137,10 +147,10 @@ static int32_t dmInitPrerequisites() {
     }
   } else {
     int32_t size = sizeof(dmOS) / sizeof(dmOS[0]);
+    char    os[DM_OS_ST_NAME_LEN] = {0};
     for (int32_t i = 2; i < size; ++i) {
-      if (STR_CASE_CMP(stName, dmOS[i])) {
-        DM_ERR_RTN(0);
-      }
+      tstrncpy(os, dmOS[i], DM_OS_ST_NAME_LEN);
+      STR_CASE_STR_CHECK(stName, os);
     }
   }
 
@@ -296,7 +306,7 @@ _exit:
     dError("failed to read vars at line %d since %s", lino, tstrerror(code));
   }
   taosMemoryFreeClear(buffer);
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   return code;
 }
 
