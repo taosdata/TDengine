@@ -156,24 +156,17 @@ def UninstallTaos(version, verMode, uninstall):
         print(cmd)
         time.sleep(5)
         if system == "Linux":
-            # 创建一个subprocess.Popen对象，并使用stdin和stdout进行交互
-            process = subprocess.Popen(['rmtaos'],
-                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-            # 向子进程发送输入
-            process.stdin.write("y\n")
-            try:
-                process.stdin.flush()  # 确保输入被发送到子进程
-            except:
-                print("Broken pipe error occurred")
-            process.stdin.write("I confirm that I would like to delete all data, log and configuration files\n")
-            try:
-                process.stdin.flush()  # 确保输入被发送到子进程
-            except:
-                print("Broken pipe error occurred")
-            # 关闭子进程的stdin，防止它无限期等待更多输入
-            process.stdin.close()
-            # 等待子进程结束
-            process.wait()
+            # 启动命令
+            process = subprocess.Popen(['rmtaos'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, text=True)
+
+            # 发送交互输入
+            stdout, stderr = process.communicate(
+                input="y\nI confirm that I would like to delete all data, log and configuration files.\n")
+
+            # 打印输出（可选）
+            print(stdout)
+            print(stderr)
             # 检查目录清除情况
             out = subprocess.getoutput("ls /etc/systemd/system/taos*")
             if "No such file or directory" not in out:
