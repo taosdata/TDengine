@@ -734,6 +734,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "compactPullupInterval", tsCompactPullupInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "randErrorChance", tsRandErrChance, 0, 10000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_SERVER));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
@@ -1427,6 +1428,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "randErrorChance");
   tsRandErrChance = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "randErrorDivisor");
+  tsRandErrDivisor = pItem->i64;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ttlUnit");
   tsTtlUnit = pItem->i32;
 
@@ -1881,6 +1885,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
                                          {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
                                          {"minDiskFreeSize", &tsMinDiskFreeSize},
+                                         {"randErrorDivisor", &tsRandErrDivisor},
 
                                          {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
                                          {"checkpointInterval", &tsStreamCheckpointInterval},
