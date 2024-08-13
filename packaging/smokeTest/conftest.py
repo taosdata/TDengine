@@ -7,7 +7,7 @@ def pytest_addoption(parser):
         "--verMode", default="enterprise", help="community or enterprise"
     )
     parser.addoption(
-        "--taosVersion", default="3.3.2.6", help="the version of taos"
+        "--tVersion", default="3.3.2.6", help="the version of taos"
     )
     parser.addoption(
         "--baseVersion", default="smoking", help="the path of nas"

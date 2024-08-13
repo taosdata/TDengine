@@ -26,7 +26,7 @@ def setup_module(request):
     # setup before module tests
     # bash getAndRunInstaller.sh -m ${verMode} -f server -l false -c x64  -v ${version} -o ${baseVersion} -s ${sourcePath}  -t tar
     verMode = request.config.getoption("--verMode")
-    taosVersion = request.config.getoption("--taosVersion")
+    taosVersion = request.config.getoption("--tVersion")
     baseVersion = request.config.getoption("--baseVersion")
     sourcePath = request.config.getoption("--sourcePath")
     cmd = "bash getAndRunInstaller.sh -m %s -f server -l false -c x64 -v %s -o %s -s %s -t tar" % (
