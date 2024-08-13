@@ -746,7 +746,13 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   int64_t ts = smlParseTSFromJSON(info, tsJson);
   if (unlikely(ts < 0)) {
     char* tmp = cJSON_PrintUnformatted(tsJson);
-    uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %s %" PRId64, info->id, info->msgBuf.buf,tmp, ts);
+    if (tmp == NULL) {
+      uError("cJSON_PrintUnformatted failed since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %" PRId64, info->id, info->msgBuf.buf, ts);
+    } else {
+      uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload %s %s %" PRId64, info->id, info->msgBuf.buf,tmp, ts);
+      taosMemoryFree(tmp);
+    }
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
   SSmlKv kvTs = {0};
