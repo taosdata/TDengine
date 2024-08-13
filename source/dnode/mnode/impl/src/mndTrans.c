@@ -1513,6 +1513,7 @@ static int32_t mndTransExecuteUndoActionsSerial(SMnode *pMnode, STrans *pTrans, 
 bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
   bool    continueExec = true;
   int32_t code = 0;
+  terrno = 0;
 
   int32_t numOfActions = taosArrayGetSize(pTrans->prepareActions);
   if (numOfActions == 0) goto _OVER;
@@ -1523,7 +1524,9 @@ bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf) {
     STransAction *pAction = taosArrayGet(pTrans->prepareActions, action);
     code = mndTransExecSingleAction(pMnode, pTrans, pAction, topHalf);
     if (code != 0) {
-      mError("trans:%d, failed to execute prepare action:%d, numOfActions:%d", pTrans->id, action, numOfActions);
+      terrno = code;
+      mError("trans:%d, failed to execute prepare action:%d, numOfActions:%d, since %s", pTrans->id, action,
+             numOfActions, tstrerror(code));
       return false;
     }
   }
