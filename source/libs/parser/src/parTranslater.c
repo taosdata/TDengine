@@ -14096,6 +14096,9 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
   code = serializeVgroupsCreateTableBatch(pModifyStmt->pVgroupsHashObj, &pBufArray);
   taosHashClear(pModifyStmt->pVgroupsHashObj);
   if (TSDB_CODE_SUCCESS != code) {
+    if (TSDB_CODE_INVALID_MSG_LEN == code) {
+      qError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
+    }
     taosHashCleanup(pModifyStmt->pVgroupsHashObj);
     return code;
   }
