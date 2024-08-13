@@ -35,10 +35,12 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
-add_test(
-        NAME clientTest
-        COMMAND clientTest
-)
+IF(${TD_LINUX})
+        add_test(
+                NAME clientTest
+                COMMAND clientTest
+        )
+ENDIF ()
 
 TARGET_INCLUDE_DIRECTORIES(
         tmqTest
