@@ -2247,7 +2247,7 @@ export function getDataSources(lang) {
                 "required": true,
                 "short_description": "Client id used to connect to mqtt broker.",
                 "description": "Client id used to connect to mqtt broker.",
-                "placeholder": "client_id"
+                "placeholder": "for example: client_id"
               },
               {
                 "name": "keep_alive",
@@ -2627,7 +2627,7 @@ export function getDataSources(lang) {
                 "required": true,
                 "short_description": "Client id used to connect to Kafka broker.",
                 "description": "Client id used to connect to Kafka broker.",
-                "placeholder": "client_id"
+                "placeholder": "for example: client_id"
               },
               {
                 "name": "group",
@@ -2638,7 +2638,7 @@ export function getDataSources(lang) {
                 "required": true,
                 "short_description": "Kafka Group ID。",
                 "description": "Kafka Group ID。",
-                "placeholder": "group_id"
+                "placeholder": "for example: group_id"
               },
               {
                 "name": "fallback_offset",
@@ -6718,7 +6718,7 @@ export function getDataSources(lang) {
                 "required": true,
                 "short_description": "MQTT Broker 客户端 ID。",
                 "description": "MQTT Broker 客户端 ID。",
-                "placeholder": "client_id"
+                "placeholder": "示例：client_id"
               },
               {
                 "name": "keep_alive",
@@ -7110,7 +7110,7 @@ export function getDataSources(lang) {
                 "required": true,
                 "short_description": "Kafka Broker 客户端 ID。",
                 "description": "Kafka Broker 客户端 ID。",
-                "placeholder": "client_id"
+                "placeholder": "示例：client_id"
               },
               {
                 "name": "group",
@@ -7121,7 +7121,7 @@ export function getDataSources(lang) {
                 "required": true,
                 "short_description": "Kafka 消费者组 ID。",
                 "description": "Kafka 消费者组 ID。",
-                "placeholder": "group_id"
+                "placeholder": "示例：group_id"
               },
               {
                 "name": "fallback_offset",
