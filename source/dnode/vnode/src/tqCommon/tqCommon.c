@@ -417,7 +417,6 @@ int32_t tqStreamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return code;
   } else {
     tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, pRsp->upstreamTaskId);
-    terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 }
@@ -553,10 +552,17 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
     return code;
   }
 
-  tqDebug("vgId:%d s-task:%s received the checkpoint-ready msg from task:0x%x (vgId:%d), handle it", vgId,
-          pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    tqDebug("vgId:%d s-task:%s recv invalid the checkpoint-ready msg from task:0x%x (vgId:%d), discard", vgId,
+            pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_INVALID_MSG;
+  } else {
+    tqDebug("vgId:%d s-task:%s received the checkpoint-ready msg from task:0x%x (vgId:%d), handle it", vgId,
+            pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+  }
 
-  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamTaskId, req.downstreamNodeId);
+  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamNodeId, req.downstreamTaskId);
   streamMetaReleaseTask(pMeta, pTask);
   if (code) {
     return code;
@@ -989,7 +995,13 @@ int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg)
     int64_t checkpointId = 0;
 
     streamTaskGetActiveCheckpointInfo(pTask, &transId, &checkpointId);
-    ASSERT(checkpointId == pReq->checkpointId);
+    if (checkpointId != pReq->checkpointId) {
+      tqError("s-task:%s invalid checkpoint-trigger retrieve msg from 0x%" PRIx64 ", current checkpointId:%" PRId64
+              " req:%" PRId64,
+              pTask->id.idStr, pReq->downstreamTaskId, checkpointId, pReq->checkpointId);
+      streamMetaReleaseTask(pMeta, pTask);
+      return TSDB_CODE_INVALID_MSG;
+    }
 
     if (streamTaskAlreadySendTrigger(pTask, pReq->downstreamNodeId)) {
       // re-send the lost checkpoint-trigger msg to downstream task
@@ -1232,8 +1244,8 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   // discard the rsp, since it is expired.
   if (req.startTs < pTask->execInfo.created) {
     tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
-           " from task createTs:%" PRId64 ", discard",
-           pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs);
+           " from task createTs:%" PRId64 " < task createTs:%" PRId64 ", discard",
+           pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs, pTask->execInfo.created);
     streamMetaAddFailedTaskSelf(pTask, now);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;

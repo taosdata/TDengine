@@ -231,6 +231,7 @@ _exit:
 #if 1  // ===================================================
 SMTbCursor *metaOpenTbCursor(void *pVnode) {
   SMTbCursor *pTbCur = NULL;
+  int32_t     code;
 
   pTbCur = (SMTbCursor *)taosMemoryCalloc(1, sizeof(*pTbCur));
   if (pTbCur == NULL) {
@@ -241,7 +242,12 @@ SMTbCursor *metaOpenTbCursor(void *pVnode) {
   // tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
   pTbCur->pMeta = pVnodeObj->pMeta;
   pTbCur->paused = 1;
-  metaResumeTbCursor(pTbCur, 1, 0);
+  code = metaResumeTbCursor(pTbCur, 1, 0);
+  if (code) {
+    terrno = code;
+    taosMemoryFree(pTbCur);
+    return NULL;
+  }
   return pTbCur;
 }
 
@@ -266,28 +272,39 @@ void metaPauseTbCursor(SMTbCursor *pTbCur) {
     pTbCur->paused = 1;
   }
 }
-void metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
+int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
+  int32_t code = 0;
+  int32_t lino;
+
   if (pTbCur->paused) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
 
-    (void)tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
+    code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     if (first) {
-      (void)tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
+      code = tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
+      TSDB_CHECK_CODE(code, lino, _exit);
     } else {
       int c = 1;
-      (void)tdbTbcMoveTo(pTbCur->pDbc, pTbCur->pKey, pTbCur->kLen, &c);
+      code = tdbTbcMoveTo(pTbCur->pDbc, pTbCur->pKey, pTbCur->kLen, &c);
+      TSDB_CHECK_CODE(code, lino, _exit);
       if (c == 0) {
         if (move) tdbTbcMoveToNext(pTbCur->pDbc);
       } else if (c < 0) {
-        (void)tdbTbcMoveToPrev(pTbCur->pDbc);
+        code = tdbTbcMoveToPrev(pTbCur->pDbc);
+        TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        (void)tdbTbcMoveToNext(pTbCur->pDbc);
+        code = tdbTbcMoveToNext(pTbCur->pDbc);
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
     pTbCur->paused = 0;
   }
+
+_exit:
+  return code;
 }
 
 int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
@@ -298,12 +315,14 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
   for (;;) {
     ret = tdbTbcNext((TBC *)pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
     if (ret < 0) {
-      return -1;
+      return ret;
     }
 
     tDecoderClear(&pTbCur->mr.coder);
 
-    (void)metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+    ret = metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+    if (ret) return ret;
+
     if (pTbCur->mr.me.type == jumpTableType) {
       continue;
     }
@@ -355,7 +374,9 @@ _query:
 
   version = ((SUidIdxVal *)pData)[0].version;
 
-  (void)tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
+  if (tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData) != 0) {
+    goto _err;
+  }
 
   SMetaEntry me = {0};
   tDecoderInit(&dc, pData, nData);
@@ -385,7 +406,9 @@ _query:
   }
 
   tDecoderInit(&dc, pData, nData);
-  (void)tDecodeSSchemaWrapperEx(&dc, &schema);
+  if (tDecodeSSchemaWrapperEx(&dc, &schema) != 0) {
+    goto _err;
+  }
   pSchema = tCloneSSchemaWrapper(&schema);
   tDecoderClear(&dc);
 
@@ -588,6 +611,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
 
 int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema **ppTSchema) {
   int32_t code = 0;
+  int32_t lino;
 
   void     *pData = NULL;
   int       nData = 0;
@@ -603,7 +627,8 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       skmDbKey.uid = suid ? suid : uid;
       skmDbKey.sver = INT32_MAX;
 
-      (void)tdbTbcOpen(pMeta->pSkmDb, &pSkmDbC, NULL);
+      code = tdbTbcOpen(pMeta->pSkmDb, &pSkmDbC, NULL);
+      TSDB_CHECK_CODE(code, lino, _exit);
       metaRLock(pMeta);
 
       if (tdbTbcMoveTo(pSkmDbC, &skmDbKey, sizeof(skmDbKey), &c) < 0) {
@@ -1209,6 +1234,9 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
   SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  if (!pCursor) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
   pCursor->pMeta = pMeta;
   pCursor->suid = param->suid;
   pCursor->cid = param->cid;
@@ -1402,6 +1430,11 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
     int32_t len = 0;
     if (metaGetTableTagByUid(pMeta, suid, p->uid, &val, &len, false) == 0) {
       p->pTagVal = taosMemoryMalloc(len);
+      if (!p->pTagVal) {
+        if (isLock) metaULock(pMeta);
+
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
       memcpy(p->pTagVal, val, len);
       tdbFree(val);
     } else {
@@ -1416,6 +1449,9 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
 
 int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 1);
+  if (!pCur) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   // If len > 0 means there already have uids, and we only want the
   // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
@@ -1440,6 +1476,11 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
 
       STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
+      if (!info.pTagVal) {
+        metaCloseCtbCursor(pCur);
+        taosHashCleanup(pSepecifiedUidMap);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       if (taosArrayPush(pUidTagInfo, &info) == NULL) {
         metaCloseCtbCursor(pCur);
@@ -1462,6 +1503,11 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, *index);
       if (pTagInfo->pTagVal == NULL) {
         pTagInfo->pTagVal = taosMemoryMalloc(pCur->vLen);
+        if (!pTagInfo->pTagVal) {
+          metaCloseCtbCursor(pCur);
+          taosHashCleanup(pSepecifiedUidMap);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
       }
     }

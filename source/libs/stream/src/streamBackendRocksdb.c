@@ -247,7 +247,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
 
     } else {
       stError("failed to start stream backend at %s, reason: %s, restart from default state dir:%s", chkp,
-              tstrerror(TAOS_SYSTEM_ERROR(errno)), state);
+              tstrerror(terrno), state);
       code = taosMkDir(state);
       if (code != 0) {
         code = TAOS_SYSTEM_ERROR(errno);
@@ -447,7 +447,7 @@ int32_t rebuildFromRemoteChkp_rsync(const char* key, char* checkpointPath, int64
   cleanDir(defaultPath, key);
   stDebug("clear local default dir before downloading checkpoint data:%s succ", defaultPath);
 
-  code = streamTaskDownloadCheckpointData(key, checkpointPath);
+  code = streamTaskDownloadCheckpointData(key, checkpointPath, checkpointId);
   if (code != 0) {
     stError("failed to download checkpoint data:%s", key);
     return code;
@@ -482,7 +482,7 @@ int32_t rebuildDataFromS3(char* chkpPath, int64_t chkpId) {
 
 int32_t rebuildFromRemoteChkp_s3(const char* key, char* chkpPath, int64_t chkpId, char* defaultPath) {
   int8_t  rename = 0;
-  int32_t code = streamTaskDownloadCheckpointData(key, chkpPath);
+  int32_t code = streamTaskDownloadCheckpointData(key, chkpPath, chkpId);
   if (code != 0) {
     return code;
   }
@@ -683,7 +683,7 @@ static int32_t rebuildFromLocalCheckpoint(const char* pTaskIdStr, const char* ch
              defaultPath);
     }
   } else {
-    code = TSDB_CODE_FAILED;
+    code = terrno;
     stError("%s no valid data for checkpointId:%" PRId64 " in %s", pTaskIdStr, checkpointId, checkpointPath);
   }
 
@@ -763,7 +763,7 @@ int32_t restoreCheckpointData(const char* path, const char* key, int64_t chkptId
     }
 
     if (code != 0) {
-      stError("failed to start stream backend at %s, restart from default defaultPath:%s, reason:%s", checkpointPath,
+      stError("failed to start stream backend at %s, restart from defaultPath:%s, reason:%s", checkpointPath,
               defaultPath, tstrerror(code));
       code = 0;  // reset the error code
     }
@@ -819,10 +819,21 @@ void* streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId) {
 
   uint32_t         dbMemLimit = nextPow2(tsMaxStreamBackendCache) << 20;
   SBackendWrapper* pHandle = taosMemoryCalloc(1, sizeof(SBackendWrapper));
+  if (pHandle == NULL) {
+    goto _EXIT;
+  }
+
   pHandle->list = tdListNew(sizeof(SCfComparator));
+  if (pHandle->list == NULL) {
+    goto _EXIT;
+  }
+
   (void)taosThreadMutexInit(&pHandle->mutex, NULL);
   (void)taosThreadMutexInit(&pHandle->cfMutex, NULL);
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (pHandle->cfInst == NULL) {
+    goto _EXIT;
+  }
 
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
 
@@ -910,6 +921,7 @@ void streamBackendCleanup(void* arg) {
 
   if (pHandle->db) {
     rocksdb_close(pHandle->db);
+    pHandle->db = NULL;
   }
   rocksdb_options_destroy(pHandle->dbOpt);
   rocksdb_env_destroy(pHandle->env);
@@ -1132,6 +1144,8 @@ int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
     int64_t id = *(int64_t*)taosArrayGet(chkpDel, i);
     char    tbuf[256] = {0};
     sprintf(tbuf, "%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, id);
+
+    stInfo("backend remove obsolete checkpoint: %s", tbuf);
     if (taosIsDir(tbuf)) {
       taosRemoveDir(tbuf);
     }
@@ -1438,8 +1452,14 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
-    (void)taosArrayPush(pSnap, &snap);
+    if (taosArrayPush(pSnap, &snap) == NULL) {
+      taskDbUnRefChkp(pTaskDb, pTaskDb->chkpId);
+      taskDbRemoveRef(pTaskDb);
+      code = terrno;
+      break;
+    }
 
+    taskDbRemoveRef(pTaskDb);
     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
   }
   streamMutexUnlock(&pMeta->backendMutex);
@@ -2331,6 +2351,15 @@ void taskDbRemoveRef(void* pTaskDb) {
   (void)taosReleaseRef(taskDbWrapperId, pBackend->refId);
 }
 
+void taskDbSetClearFileFlag(void* pTaskDb) {
+  if (pTaskDb == NULL) {
+    return;
+  }
+
+  STaskDbWrapper* pBackend = pTaskDb;
+  atomic_store_8(&pBackend->removeAllFiles, 1);
+}
+
 void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_env_t* env = rocksdb_create_default_env();
 
@@ -2499,6 +2528,7 @@ STaskDbWrapper* taskDbOpenImpl(const char* key, char* statePath, char* dbPath) {
     }
 
     rocksdb_close(pTaskDb->db);
+    pTaskDb->db = NULL;
 
     if (cfNames != NULL) {
       rocksdb_list_column_families_destroy(cfNames, nCf);
@@ -2573,8 +2603,7 @@ void taskDbDestroy(void* pDb, bool flush) {
   stDebug("succ to destroy stream backend:%p", wrapper);
 
   int8_t nCf = tListLen(ginitDict);
-
-  if (flush) {
+  if (flush &&  wrapper->removeAllFiles == 0) {
     if (wrapper->db && wrapper->pCf) {
       rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
       rocksdb_flushoptions_set_wait(flushOpt, 1);
@@ -2609,6 +2638,7 @@ void taskDbDestroy(void* pDb, bool flush) {
 
   if (wrapper->db) {
     rocksdb_close(wrapper->db);
+    wrapper->db = NULL;
   }
 
   rocksdb_options_destroy(wrapper->dbOpt);
@@ -2636,6 +2666,12 @@ void taskDbDestroy(void* pDb, bool flush) {
   taskDbDestroyChkpOpt(wrapper);
 
   taosMemoryFree(wrapper->idstr);
+
+  if (wrapper->removeAllFiles) {
+    char* err = NULL;
+    stInfo("drop task remove backend dat:%s", wrapper->path);
+    taosRemoveDir(wrapper->path);
+  }
   taosMemoryFree(wrapper->path);
   taosMemoryFree(wrapper);
 

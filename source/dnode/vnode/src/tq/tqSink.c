@@ -54,6 +54,10 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
   SColumnInfoData* pGidCol = taosArrayGet(pDataBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pTbNameCol = taosArrayGet(pDataBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
+  if (pStartTsCol == NULL || pEndTsCol == NULL || pGidCol == NULL || pTbNameCol == NULL) {
+    return terrno;
+  }
+
   tqDebug("s-task:%s build %d rows delete msg for table:%s", pIdStr, totalRows, stbFullName);
 
   for (int32_t row = 0; row < totalRows; row++) {
@@ -297,6 +301,9 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
     } else {
       for (int32_t tagId = UD_TAG_COLUMN_INDEX, step = 1; tagId < size; tagId++, step++) {
         SColumnInfoData* pTagData = taosArrayGet(pDataBlock->pDataBlock, tagId);
+        if (pTagData == NULL) {
+          continue;
+        }
 
         STagVal tagVal = {.cid = pTSchema->numOfCols + step, .type = pTagData->info.type};
         void*   pData = colDataGetData(pTagData, rowId);
@@ -329,6 +336,9 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
     uint64_t gid = pDataBlock->info.id.groupId;
     if (taosArrayGetSize(pDataBlock->pDataBlock) > UD_GROUPID_COLUMN_INDEX) {
       SColumnInfoData* pGpIdColInfo = taosArrayGet(pDataBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
+      if (pGpIdColInfo == NULL) {
+        continue;
+      }
 
       // todo remove this
       void* pGpIdData = colDataGetData(pGpIdColInfo, rowId);
@@ -585,7 +595,7 @@ int32_t buildSubmitMsgImpl(SSubmitReq2* pSubmitReq, int32_t vgId, void** pMsg, i
   int32_t len = 0;
   tEncodeSize(tEncodeSubmitReq, pSubmitReq, len, code);
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   len += sizeof(SSubmitReq2Msg);
 
   pBuf = rpcMallocCont(len);
@@ -656,6 +666,10 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
       // primary timestamp column, for debug purpose
       if (k == 0) {
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
+        if (pColData == NULL) {
+          continue;
+        }
+
         ts = *(int64_t*)colDataGetData(pColData, j);
         tqTrace("s-task:%s sink row %d, col %d ts %" PRId64, id, j, k, ts);
 
@@ -682,6 +696,10 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
         }
       } else {
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
+        if (pColData == NULL) {
+          continue;
+        }
+
         if (colDataIsNull_s(pColData, j)) {
           if (pCol->flags & COL_IS_KEY) {
             qError("ts:%" PRId64 " primary key column should not be null, colId:%" PRIi16 ", colType:%" PRIi8,
@@ -993,6 +1011,10 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       }
 
       SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
+      if (pDataBlock == NULL) {
+        continue;
+      }
+
       if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
         code = doBuildAndSendDeleteMsg(pVnode, stbFullName, pDataBlock, pTask, suid);
       } else if (pDataBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
@@ -1059,6 +1081,10 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       }
 
       SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
+      if (pDataBlock == NULL) {
+        continue;
+      }
+
       if (pDataBlock->info.type == STREAM_CHECKPOINT) {
         continue;
       }
@@ -1110,6 +1136,10 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         }
 
         SSubmitTbData* pExisted = taosArrayGet(submitReq.aSubmitTbData, *index);
+        if (pExisted == NULL) {
+          continue;
+        }
+
         code = doMergeExistedRows(pExisted, &tbData, id);
         if (code != TSDB_CODE_SUCCESS) {
           continue;
@@ -1137,6 +1167,10 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
 bool hasOnlySubmitData(const SArray* pBlocks, int32_t numOfBlocks) {
   for (int32_t i = 0; i < numOfBlocks; ++i) {
     SSDataBlock* p = taosArrayGet(pBlocks, i);
+    if (p == NULL) {
+      continue;
+    }
+
     if (p->info.type == STREAM_DELETE_RESULT || p->info.type == STREAM_CREATE_CHILD_TABLE) {
       return false;
     }
@@ -1196,7 +1230,7 @@ int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* 
     return code;
   }
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
   void*    abuf = POINTER_SHIFT(serializedDeleteReq, sizeof(SMsgHead));
   tEncoderInit(&encoder, abuf, len);

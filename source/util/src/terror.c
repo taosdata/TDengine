@@ -411,6 +411,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_IS_VOTER,         "Vnode already is a vo
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_DIR_ALREADY_EXIST,        "Vnode directory already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_META_DATA_UNSAFE_DELETE,  "Single replica vnode data will lost permanently after this operation, if you make sure this, please use drop dnode <id> unsafe to execute")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ARB_NOT_SYNCED,           "Vgroup peer is not synced")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_WRITE_DISABLED,           "Vnode write is disabled for snapshot")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Same with old param")
 
 
@@ -758,11 +759,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_STAT,              "Invalid tsma state"
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PTR,               "Invalid tsma pointer")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PARA,              "Invalid tsma parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_TB,                "Invalid table to create tsma, only stable or normal table allowed")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_INTERVAL,          "Invalid tsma interval, 1m ~ 1h is allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_INTERVAL,          "Invalid tsma interval, 1m ~ 1y is allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_FUNC_PARAM,        "Invalid tsma func param, only one non-tag column allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_UNSUPPORTED_FUNC,          "Tsma func not supported")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_MUST_BE_DROPPED,           "Tsma must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NAME_TOO_LONG,             "Tsma name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_RECURSIVE_INTERVAL,"Invalid recursive tsma interval")
 
 //rsma
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")

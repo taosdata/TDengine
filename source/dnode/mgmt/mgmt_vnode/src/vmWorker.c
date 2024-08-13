@@ -126,7 +126,7 @@ static void vmProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dGTrace("vgId:%d, msg:%p get from vnode-stream queue", pVnode->vgId, pMsg);
   int32_t code = vnodeProcessStreamMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
-    if (terrno != 0) code = terrno;
+    terrno = code;
     dGError("vgId:%d, msg:%p failed to process stream msg %s since %s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType),
             tstrerror(code));
     vmSendRsp(pMsg, code);

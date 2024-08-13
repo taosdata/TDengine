@@ -636,7 +636,7 @@ bool nodesExprsHasColumn(SNodeList* pList);
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
-void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);

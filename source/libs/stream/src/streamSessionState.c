@@ -64,8 +64,12 @@ int32_t binarySearch(void* keyList, int num, const void* key, __session_compare_
 int64_t getSessionWindowEndkey(void* data, int32_t index) {
   SArray*       pWinInfos = (SArray*)data;
   SRowBuffPos** ppos = taosArrayGet(pWinInfos, index);
-  SSessionKey*  pWin = (SSessionKey*)((*ppos)->pKey);
-  return pWin->win.ekey;
+  if (ppos != NULL) {
+    SSessionKey* pWin = (SSessionKey*)((*ppos)->pKey);
+    return pWin->win.ekey;
+  } else {
+    return 0;
+  }
 }
 
 bool inSessionWindow(SSessionKey* pKey, TSKEY ts, int64_t gap) {

@@ -943,7 +943,7 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
   if (*ppMemDelData == NULL) {
     *ppMemDelData = taosArrayInit(4, sizeof(SDelData));
     if (*ppMemDelData == NULL) {
-      return TSDB_CODE_SUCCESS;
+      return terrno;
     }
   }
 
@@ -957,7 +957,8 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
       if (p->version <= ver) {
         void* px = taosArrayPush(pMemDelData, p);
         if (px == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          taosRUnLockLatch(&pMemTbData->lock);
+          return terrno;
         }
       }
 
@@ -972,7 +973,7 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
       if (p->version <= ver) {
         void* px = taosArrayPush(pMemDelData, p);
         if (px == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          return terrno;
         }
       }
       p = p->pNext;
@@ -1074,8 +1075,12 @@ int32_t doAdjustValidDataIters(SArray* pLDIterList, int32_t numOfFileObj) {
     int32_t inc = numOfFileObj - size;
     for (int32_t k = 0; k < inc; ++k) {
       SLDataIter* pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
-      void*       px = taosArrayPush(pLDIterList, &pIter);
+      if (!pIter) {
+        return terrno;
+      }
+      void* px = taosArrayPush(pLDIterList, &pIter);
       if (px == NULL) {
+        taosMemoryFree(pIter);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }

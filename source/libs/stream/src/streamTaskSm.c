@@ -96,12 +96,6 @@ static int32_t attachWaitedEvent(SStreamTask* pTask, SFutureHandleEventInfo* pEv
   }
 }
 
-static int32_t stopTaskSuccFn(SStreamTask* pTask) {
-  SStreamTaskSM* pSM = pTask->status.pSM;
-  streamFreeTaskState(pTask, pSM->current.state);
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t streamTaskInitStatus(SStreamTask* pTask) {
   pTask->execInfo.checkTs = taosGetTimestampMs();
   stDebug("s-task:%s start init, and check downstream tasks, set the init ts:%" PRId64, pTask->id.idStr,
@@ -164,6 +158,10 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
   int32_t numOfTrans = taosArrayGetSize(streamTaskSMTrans);
   for (int32_t i = 0; i < numOfTrans; ++i) {
     STaskStateTrans* pTrans = taosArrayGet(streamTaskSMTrans, i);
+    if (pTrans == NULL) {
+      continue;
+    }
+
     if (pTrans->state.state == state && pTrans->event == event) {
       return pTrans;
     }
@@ -187,6 +185,9 @@ static int32_t doHandleWaitingEvent(SStreamTaskSM* pSM, const char* pEventName, 
   ASSERT(taosArrayGetSize(pSM->pWaitingEventList) == 1);
 
   SFutureHandleEventInfo* pEvtInfo = taosArrayGet(pSM->pWaitingEventList, 0);
+  if (pEvtInfo == NULL) {
+    return terrno;
+  }
 
   // OK, let's handle the waiting event, since the task has reached the required status now
   if (pSM->current.state == pEvtInfo->status) {
@@ -227,6 +228,10 @@ static int32_t removeEventInWaitingList(SStreamTask* pTask, EStreamTaskEvent eve
   int32_t num = taosArrayGetSize(pSM->pWaitingEventList);
   for (int32_t i = 0; i < num; ++i) {
     SFutureHandleEventInfo* pInfo = taosArrayGet(pSM->pWaitingEventList, i);
+    if (pInfo == NULL) {
+      continue;
+    }
+
     if (pInfo->event == event) {
       taosArrayRemove(pSM->pWaitingEventList, i);
       stDebug("s-task:%s %s event in waiting list not be handled yet, remove it from waiting list, remaining events:%d",
@@ -687,21 +692,21 @@ void doInitStateTransferTable(void) {
   // resume is completed by restore status of state-machine
 
   // stop related event
-  trans = createStateTransform(TASK_STATUS__READY, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, stopTaskSuccFn, NULL);
+  trans = createStateTransform(TASK_STATUS__READY, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, NULL, NULL);
   CHECK_RET_VAL(taosArrayPush(streamTaskSMTrans, &trans));
-  trans = createStateTransform(TASK_STATUS__DROPPING, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, stopTaskSuccFn, NULL);
+  trans = createStateTransform(TASK_STATUS__DROPPING, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, NULL, NULL);
   CHECK_RET_VAL(taosArrayPush(streamTaskSMTrans, &trans));
-  trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, stopTaskSuccFn, NULL);
+  trans = createStateTransform(TASK_STATUS__UNINIT, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, NULL, NULL);
   CHECK_RET_VAL(taosArrayPush(streamTaskSMTrans, &trans));
-  trans = createStateTransform(TASK_STATUS__STOP, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, stopTaskSuccFn, NULL);
+  trans = createStateTransform(TASK_STATUS__STOP, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, NULL, NULL);
   CHECK_RET_VAL(taosArrayPush(streamTaskSMTrans, &trans));
-  trans = createStateTransform(TASK_STATUS__SCAN_HISTORY, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, stopTaskSuccFn, NULL);
+  trans = createStateTransform(TASK_STATUS__SCAN_HISTORY, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, NULL, NULL);
   CHECK_RET_VAL(taosArrayPush(streamTaskSMTrans, &trans));
-  trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, stopTaskSuccFn, NULL);
+  trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, NULL, NULL);
   CHECK_RET_VAL(taosArrayPush(streamTaskSMTrans, &trans));
-  trans = createStateTransform(TASK_STATUS__PAUSE, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, stopTaskSuccFn, NULL);
+  trans = createStateTransform(TASK_STATUS__PAUSE, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, NULL, NULL);
   CHECK_RET_VAL(taosArrayPush(streamTaskSMTrans, &trans));
-  trans = createStateTransform(TASK_STATUS__CK, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, stopTaskSuccFn, NULL);
+  trans = createStateTransform(TASK_STATUS__CK, TASK_STATUS__STOP, TASK_EVENT_STOP, NULL, NULL, NULL);
   CHECK_RET_VAL(taosArrayPush(streamTaskSMTrans, &trans));
 
   // dropping related event
