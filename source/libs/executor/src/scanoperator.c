@@ -553,6 +553,11 @@ static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t 
   }
 }
 
+static void freeTableCachedValObj(STableCachedVal* pVal) {
+  taosMemoryFree((void*)pVal->pName);
+  taosMemoryFree(pVal->pTags);
+}
+
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -638,6 +643,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
                                        sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
       if (insertRet != TAOS_LRU_STATUS_OK) {
         qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
+        taosMemoryFreeClear(pVal);
       }
     } else {
       pCache->cacheHit += 1;
@@ -713,7 +719,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
 _end:
   if (insertRet != TAOS_LRU_STATUS_OK) {
-    freeTableCachedVal(&val);
+    freeTableCachedValObj(&val);
   }
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
