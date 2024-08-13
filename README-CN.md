@@ -49,69 +49,54 @@ TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBench
 
 ## 安装工具
 
-### Ubuntu 18.04 及以上版本 & Debian：
+### Ubuntu 18.04 及以上版本或 Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev
+apt update -y
+apt install -y build-essential cmake git libjansson-dev liblzma-dev libsnappy-dev zlib1g-dev pkg-config
 ```
 
-#### 为 taos-tools 安装编译需要的软件
-
-为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
+### Fedora
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config
+dnf install -y gcc gcc-c++ make cmake git perl zlib-devel xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
 ### CentOS 7.9
 
 ```bash
-sudo yum install epel-release
-sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 gflags git openssl-devel
-sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
+yum install epel-release
+yum install -y gcc gcc-c++ make cmake3 git perl-core
+ln -sf /usr/bin/cmake3 /usr/bin/cmake
+yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
-### CentOS 8/Fedora/Rocky Linux
+### CentOS 8
 
 ```bash
-sudo dnf install -y gcc gcc-c++ gflags make cmake epel-release git openssl-devel
+sed i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS*
+sed i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS*
+yum install -y epel-release
+yum install -y gcc gcc-c++ make cmake git perl
+yum install dnf-plugins-core
+yum config-manager --set-enabled powertools
+yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
-#### 在 CentOS 上构建 taosTools 安装依赖软件
+### Rocky Linux 8
 
-
-#### CentOS 7.9
-
-
-```
-sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
-```
-
-#### CentOS 8/Fedora/Rocky Linux 
-
-```
-sudo yum install -y epel-release
-sudo yum install -y dnf-plugins-core
-sudo yum config-manager --set-enabled powertools
-sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
+```bash
+dnf install -y epel-release
+dnf config-manager --set-enabled powertools
+dnf install -y gcc gcc-c++ make cmake git perl
+dnf install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig
 ```
 
-注意：由于 snappy 缺乏 pkg-config 支持（参考 [链接](https://github.com/google/snappy/pull/86)），会导致 cmake 提示无法发现 libsnappy，实际上工作正常。
-
-若 powertools 安装失败，可以尝试改用：
-```
-sudo yum config-manager --set-enabled powertools
-```
-
-#### CentOS + devtoolset
-
-除上述编译依赖包，需要执行以下命令：
-
-```
-sudo yum install centos-release-scl
-sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
-scl enable devtoolset-9 -- bash
+### Rocky Linux 9
+```bash
+dnf install -y epel-release
+dnf config-manager --enable crb
+dnf install -y gcc gcc-c++ make cmake git perl
 ```
 
 ### macOS
