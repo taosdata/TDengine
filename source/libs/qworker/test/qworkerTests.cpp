@@ -105,7 +105,7 @@ void qwtInitLogFile() {
   qDebugFlag = 159;
   strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
