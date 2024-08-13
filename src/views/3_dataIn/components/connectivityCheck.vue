@@ -65,6 +65,9 @@ export default {
     isView() {
       return this.sourceParent.isViewable;
     },
+    isCopy() {
+      return this.sourceParent.isCopyable;
+    },
     url() {
       return this.$i18n.locale.includes('en') ? "https://tdengine.com/enterprise/?utm_source=oss+&utm_medium=user&utm_campaign=explorer" : "https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer";
     },
@@ -75,7 +78,7 @@ export default {
     }
   },
   mounted() {
-    if (this.isEdit) {
+    if (this.isEdit && !this.isCopy) {
       this.clickCheckBtn()
     }
     if (this.isView) {
