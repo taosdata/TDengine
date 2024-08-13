@@ -4,7 +4,7 @@ sidebar_label: Prometheus
 description: This document describes how to integrate TDengine with Prometheus.
 ---
 
-import Prometheus from "../14-reference/_prometheus.mdx"
+import Prometheus from "../14-reference/01-components/_prometheus.mdx"
 
 Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.
 
@@ -16,7 +16,7 @@ Prometheus data can be stored in TDengine via the `remote_write` interface with 
 
 To write Prometheus data to TDengine requires the following preparations.
 - The TDengine cluster is deployed and functioning properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/components/taosadapter) for details.
 - Prometheus has been installed. Please refer to the [official documentation](https://prometheus.io/docs/prometheus/latest/installation/) for installing Prometheus
 
 ## Configuration steps
