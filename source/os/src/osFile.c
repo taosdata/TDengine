@@ -1148,6 +1148,7 @@ bool lastErrorIsFileNotExist() { return terrno == TAOS_SYSTEM_ERROR(ENOENT); }
 #endif  // WINDOWS
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
+  STUB_RAND_IO_ERR(NULL)
   FILE *fp = NULL;
 #ifdef WINDOWS
   HANDLE hFile = NULL;
@@ -1600,6 +1601,7 @@ int32_t taosLinkFile(char *src, char *dst) {
 }
 
 FILE *taosOpenCFile(const char *filename, const char *mode) {
+  STUB_RAND_IO_ERR(NULL)
   FILE *f = fopen(filename, mode);
   if (NULL == f) {
     terrno = TAOS_SYSTEM_ERROR(errno);
