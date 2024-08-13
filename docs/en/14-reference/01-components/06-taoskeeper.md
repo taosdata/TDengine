@@ -1,6 +1,6 @@
 ---
 sidebar_label: taosKeeper
-title: taosKeeper
+title: taosKeeper Reference Guide
 description: This document describes how to use taosKeeper, a tool for exporting TDengine monitoring metrics.
 ---
 

@@ -1,5 +1,6 @@
 ---
-title: List of supported platforms
+title: Supported Platforms
+sidebar_label: Supported Platforms
 description: This document describes the supported platforms for the TDengine server, client, and client libraries.
 ---
 

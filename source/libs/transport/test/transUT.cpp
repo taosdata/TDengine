@@ -230,7 +230,7 @@ static void initEnv() {
   taosMkDir(path.c_str());
 
   tstrncpy(tsLogDir, path.c_str(), PATH_MAX);
-  if (taosInitLog("taosdlog", 1) != 0) {
+  if (taosInitLog("taosdlog", 1, false) != 0) {
     printf("failed to init log file\n");
   }
 }

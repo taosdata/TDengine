@@ -1,7 +1,5 @@
 ---
-title: TDengine Inside
-sidebar_label: TDengine Inside
-description: This document describes the internals of TDengine from an architectural perspective.
+title: 发布历史
 ---
 
 ```mdx-code-block

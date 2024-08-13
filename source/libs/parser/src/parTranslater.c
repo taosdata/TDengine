@@ -11924,7 +11924,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
         if (checkRecursiveTsmaInterval(pRecursiveTsma->interval, pRecursiveTsma->unit, pInterval->datum.i,
               pInterval->unit, pDbInfo.precision, true)) {
         } else {
-          code = TSDB_CODE_TSMA_INVALID_INTERVAL;
+          code = TSDB_CODE_TSMA_INVALID_RECURSIVE_INTERVAL;
         }
       }
     }

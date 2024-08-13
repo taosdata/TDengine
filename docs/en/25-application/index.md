@@ -1,5 +1,6 @@
 ---
-title: Application Practice
+title: Application Practices
+sidebar_label: Application Practices
 description: This document describes some examples of building systems around TDengine.
 ---
 
