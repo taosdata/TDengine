@@ -2798,6 +2798,8 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
 
   FILTER_SET_FLAG(oinfo.status, FI_STATUS_CLONED);
 
+  (void)memset(info, 0, sizeof(*info));
+
   SFilterGroupCtx *res = NULL;
   SFilterColInfo  *colInfo = NULL;
   int32_t          optr = 0;
@@ -2807,8 +2809,6 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
   if (group == NULL) {
     FLT_ERR_JRET(terrno);
   }
-
-  (void)memset(info, 0, sizeof(*info));
 
   info->colRangeNum = oinfo.colRangeNum;
   info->colRange = oinfo.colRange;
