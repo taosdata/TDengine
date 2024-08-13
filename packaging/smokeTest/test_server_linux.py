@@ -10,7 +10,7 @@ with open("%s/test_server_linux.txt" % current_path) as f:
 
 @pytest.fixture(scope="module")
 def setup_module(request):
-    def run_command(command):
+    def run_cmd(command):
         print("CMD:", command)
         result = subprocess.run(command, capture_output=True, text=True, shell=True)
         print("STDOUT:", result.stdout)
@@ -27,19 +27,12 @@ def setup_module(request):
     sourcePath = request.config.getoption("--sourcePath")
     cmd = "bash getAndRunInstaller.sh -m %s -f server -l false -c x64 -v %s -o %s -s %s -t tar" % (
         verMode, taosVersion, baseVersion, sourcePath)
-    run_command(cmd)
+    run_cmd(cmd)
     cmd = "mkdir -p ../../debug/build/bin/"
-    run_command(cmd)
+    run_cmd(cmd)
     cmd = "cp /usr/bin/taos*  ../../debug/build/bin/"
-    run_command(cmd)
-
-    yield
-
-    # teardown after module tests
-    # python3 versionCheckAndUninstall.py -v ${version} -m ${verMode} -u
-    # cmd = "python3 versionCheckAndUninstall.py -v %s -m %s -u" % (taosVersion, verMode)
-    # run_command(cmd)
-    # UninstallTaos(taosVersion, verMode, True)
+    run_cmd(cmd)
+    return taosVersion, verMode
 
 
 # use pytest fixture to exec case
@@ -79,3 +72,12 @@ class TestServerLinux:
 
         assert run_command[
                    'returncode'] == 0, f"Command '{run_command['command']}' failed with return code {run_command['returncode']}"
+
+    @pytest.mark.uninstall
+    def uninstall_test(self, setup_module):
+        taosVersion, verMode = setup_module
+        # teardown after module tests
+        # python3 versionCheckAndUninstall.py -v ${version} -m ${verMode} -u
+        # cmd = "python3 versionCheckAndUninstall.py -v %s -m %s -u" % (taosVersion, verMode)
+        # run_command(cmd)
+        UninstallTaos(taosVersion, verMode, True)
