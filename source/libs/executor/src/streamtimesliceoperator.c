@@ -256,7 +256,21 @@ _end:
   return code;
 }
 
-static int32_t initTimeSliceFillSup(SStreamInterpFuncPhysiNode* pPhyFillNode, SExprInfo* pExprInfo, int32_t numOfExprs,
+static int32_t initTimeSliceResultBuf(SStreamFillSupporter* pFillSup, SExprSupp* pExpSup) {
+  pFillSup->rowSize = sizeof(TSKEY) + getResultRowSize(pExpSup->pCtx, pFillSup->numOfAllCols);
+  pFillSup->next.key = INT64_MIN;
+  pFillSup->nextNext.key = INT64_MIN;
+  pFillSup->prev.key = INT64_MIN;
+  pFillSup->cur.key = INT64_MIN;
+  pFillSup->next.pRowVal = NULL;
+  pFillSup->nextNext.pRowVal = NULL;
+  pFillSup->prev.pRowVal = NULL;
+  pFillSup->cur.pRowVal = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t initTimeSliceFillSup(SStreamInterpFuncPhysiNode* pPhyFillNode, SExprSupp* pExprSup, int32_t numOfExprs,
                                     SStreamFillSupporter** ppResFillSup) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
@@ -265,7 +279,7 @@ static int32_t initTimeSliceFillSup(SStreamInterpFuncPhysiNode* pPhyFillNode, SE
 
   pFillSup->numOfFillCols = numOfExprs;
   int32_t numOfNotFillCols = 0;
-  pFillSup->pAllColInfo = createFillColInfo(pExprInfo, pFillSup->numOfFillCols, NULL, numOfNotFillCols,
+  pFillSup->pAllColInfo = createFillColInfo(pExprSup->pExprInfo, pFillSup->numOfFillCols, NULL, numOfNotFillCols,
                                             (const SNodeListNode*)(pPhyFillNode->pFillValues));
   QUERY_CHECK_NULL(pFillSup->pAllColInfo, code, lino, _end, terrno);
 
@@ -283,7 +297,7 @@ static int32_t initTimeSliceFillSup(SStreamInterpFuncPhysiNode* pPhyFillNode, SE
   pFillSup->pResMap = tSimpleHashInit(16, hashFn);
   QUERY_CHECK_NULL(pFillSup->pResMap, code, lino, _end, terrno);
 
-  code = initResultBuf(pFillSup);
+  code = initTimeSliceResultBuf(pFillSup, pExprSup);
   QUERY_CHECK_CODE(code, lino, _end);
 
   pFillSup->hasDelete = false;
@@ -572,7 +586,7 @@ static void setPointBuff(SSlicePoint* pPoint, SStreamFillSupporter* pFillSup) {
     pPoint->pLeftRow = pPoint->pRightRow;
   } else {
     setResultRowData(&pPoint->pLeftRow, pPoint->pResPos->pRowBuff);
-    void* pBuff = POINTER_SHIFT(pPoint->pResPos->pRowBuff, pFillSup->rowSize + sizeof(TSKEY));
+    void* pBuff = POINTER_SHIFT(pPoint->pResPos->pRowBuff, pFillSup->rowSize);
     setResultRowData(&pPoint->pRightRow, pBuff);
   }
 }
@@ -1609,7 +1623,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   pInfo->primaryTsIndex = ((SColumnNode*)pInterpPhyNode->pTimeSeries)->slotId;
 
   pInfo->pFillSup = NULL;
-  code = initTimeSliceFillSup(pInterpPhyNode, pExprInfo, numOfExprs, &pInfo->pFillSup);
+  code = initTimeSliceFillSup(pInterpPhyNode, pExpSup, numOfExprs, &pInfo->pFillSup);
   QUERY_CHECK_CODE(code, lino, _error);
 
   int32_t ratio = 1;
@@ -1659,6 +1673,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   pInfo->pFillInfo = initStreamFillInfo(pInfo->pFillSup, pDownRes);
   copyFillValueInfo(pInfo->pFillSup, pInfo->pFillInfo);
+  pInfo->ignoreNull = getIgoreNullRes(pExpSup);
 
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;

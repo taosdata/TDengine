@@ -1166,7 +1166,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
   return pRes;
 }
 
-int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
+static int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
   pFillSup->rowSize = sizeof(SResultCellData) * pFillSup->numOfAllCols;
   for (int i = 0; i < pFillSup->numOfAllCols; i++) {
     SFillColInfo* pCol = &pFillSup->pAllColInfo[i];

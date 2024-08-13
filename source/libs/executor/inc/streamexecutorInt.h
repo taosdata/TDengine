@@ -41,7 +41,6 @@ int32_t saveWinResult(SWinKey* pKey, SRowBuffPos* pPos, SSHashObj* pUpdatedMap);
 void    doBuildDeleteResultImpl(SStateStore* pAPI, SStreamState* pState, SArray* pWins, int32_t* index,
                                 SSDataBlock* pBlock);
 
-int32_t          initResultBuf(SStreamFillSupporter* pFillSup);
 SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
 SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index);
 
