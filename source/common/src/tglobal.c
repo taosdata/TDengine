@@ -850,7 +850,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "rpcQueueMemoryAllowed");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsQueueMemoryAllowed = totalMemoryKB * 1024 * 0.3;
+    tsQueueMemoryAllowed = totalMemoryKB * 1024 * 0.2;
     tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
     pItem->i64 = tsQueueMemoryAllowed;
     pItem->stype = stype;
