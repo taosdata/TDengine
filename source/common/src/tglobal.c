@@ -294,19 +294,20 @@ bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
 int     tsStreamAggCnt = 100000;
 
-char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
-char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
-char   tsS3AccessKeyId[TSDB_FQDN_LEN] = "<accesskeyid>";
-char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
-char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
-char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
+int8_t tsS3EpNum = 0;
+char   tsS3Endpoint[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<endpoint>"};
+char   tsS3AccessKey[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<accesskey>"};
+char   tsS3AccessKeyId[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<accesskeyid>"};
+char   tsS3AccessKeySecret[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<accesskeysecrect>"};
+char   tsS3BucketName[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<bucketname>"};
+char   tsS3AppId[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<appid>"};
 int8_t tsS3Enabled = false;
 int8_t tsS3EnabledCfg = false;
 int8_t tsS3Oss = false;
 int8_t tsS3StreamEnabled = false;
 
 int8_t tsS3Https = true;
-char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
+char   tsS3Hostname[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN] = {"<hostname>"};
 
 int32_t tsS3BlockSize = -1;        // number of tsdb pages (4096)
 int32_t tsS3BlockCacheSize = 16;   // number of blocks
@@ -349,49 +350,89 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
 
-int32_t taosSetS3Cfg(SConfig *pCfg) {
-  SConfigItem *pItem = NULL;
+static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN],
+                              int8_t *pNum) {
+  int32_t code = TSDB_CODE_SUCCESS;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3Accesskey");
-  tstrncpy(tsS3AccessKey, pItem->str, TSDB_FQDN_LEN);
-  if (tsS3AccessKey[0] == '<') {
+  SConfigItem *pItem = NULL;
+  int32_t      num = 0;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, name);
+
+  char *strDup = NULL;
+  if ((strDup = taosStrdup(pItem->str))== NULL){
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  char **slices = strsplit(strDup, ",", &num);
+  if (num > TSDB_MAX_EP_NUM) {
+    code = TSDB_CODE_INVALID_CFG;
+    goto _exit;
+  }
+
+  for (int i = 0; i < num; ++i) {
+    tstrncpy(gVarible[i], slices[i], TSDB_FQDN_LEN);
+  }
+  *pNum = num;
+
+_exit:
+  taosMemoryFreeClear(slices);
+  taosMemoryFreeClear(strDup);
+  TAOS_RETURN(code);
+}
+
+int32_t taosSetS3Cfg(SConfig *pCfg) {
+  int8_t num = 0;
+
+  TAOS_CHECK_RETURN(taosSplitS3Cfg(pCfg, "s3Accesskey", tsS3AccessKey, &num));
+  if (num == 0) TAOS_RETURN(TSDB_CODE_SUCCESS);
+
+  tsS3EpNum = num;
+
+  if (tsS3AccessKey[0][0] == '<') {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
-  char *colon = strchr(tsS3AccessKey, ':');
-  if (!colon) {
-    uError("invalid access key:%s", tsS3AccessKey);
-    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
-  }
-  *colon = '\0';
-  tstrncpy(tsS3AccessKeyId, tsS3AccessKey, TSDB_FQDN_LEN);
-  tstrncpy(tsS3AccessKeySecret, colon + 1, TSDB_FQDN_LEN);
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3Endpoint");
-  tstrncpy(tsS3Endpoint, pItem->str, TSDB_FQDN_LEN);
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3BucketName");
-  tstrncpy(tsS3BucketName, pItem->str, TSDB_FQDN_LEN);
-  char *proto = strstr(tsS3Endpoint, "https://");
-  if (!proto) {
-    tsS3Https = false;
-    tstrncpy(tsS3Hostname, tsS3Endpoint + 7, TSDB_FQDN_LEN);
-  } else {
-    tstrncpy(tsS3Hostname, tsS3Endpoint + 8, TSDB_FQDN_LEN);
+  for (int i = 0; i < tsS3EpNum; ++i) {
+    char *colon = strchr(tsS3AccessKey[i], ':');
+    if (!colon) {
+      uError("invalid access key:%s", tsS3AccessKey[i]);
+      TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+    }
+    *colon = '\0';
+    tstrncpy(tsS3AccessKeyId[i], tsS3AccessKey[i], TSDB_FQDN_LEN);
+    tstrncpy(tsS3AccessKeySecret[i], colon + 1, TSDB_FQDN_LEN);
   }
 
-  char *cos = strstr(tsS3Endpoint, "cos.");
-  if (cos) {
-    char *appid = strrchr(tsS3BucketName, '-');
-    if (!appid) {
-      uError("failed to locate appid in bucket:%s", tsS3BucketName);
-      TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  TAOS_CHECK_RETURN(taosSplitS3Cfg(pCfg, "s3Endpoint", tsS3Endpoint, &num));
+  if (num != tsS3EpNum) TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+
+  TAOS_CHECK_RETURN(taosSplitS3Cfg(pCfg, "s3BucketName", tsS3BucketName, &num));
+  if (num != tsS3EpNum) TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+
+  for (int i = 0; i < tsS3EpNum; ++i) {
+    char *proto = strstr(tsS3Endpoint[i], "https://");
+    if (!proto) {
+      tstrncpy(tsS3Hostname[i], tsS3Endpoint[i] + 7, TSDB_FQDN_LEN);
     } else {
-      tstrncpy(tsS3AppId, appid + 1, TSDB_FQDN_LEN);
+      tstrncpy(tsS3Hostname[i], tsS3Endpoint[i] + 8, TSDB_FQDN_LEN);
+    }
+
+    char *cos = strstr(tsS3Endpoint[i], "cos.");
+    if (cos) {
+      char *appid = strrchr(tsS3BucketName[i], '-');
+      if (!appid) {
+        uError("failed to locate appid in bucket:%s", tsS3BucketName[i]);
+        TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+      } else {
+        tstrncpy(tsS3AppId[i], appid + 1, TSDB_FQDN_LEN);
+      }
     }
   }
-  char *oss = strstr(tsS3Endpoint, "aliyuncs.");
-  if (oss) {
-    tsS3Oss = true;
-  }
-  if (tsS3BucketName[0] != '<') {
+
+  tsS3Https = (strstr(tsS3Endpoint[0], "https://") != NULL);
+  tsS3Oss = (strstr(tsS3Endpoint[0], "aliyuncs.") != NULL);
+
+  if (tsS3BucketName[0][0] != '<') {
 #if defined(USE_COS) || defined(USE_S3)
 #ifdef TD_ENTERPRISE
     /*if (tsDiskCfgNum > 1) */ tsS3Enabled = true;
@@ -775,9 +816,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "resolveFQDNRetryTime", tsResolveFQDNRetryTime, 1, 10240, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey, CFG_SCOPE_SERVER, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER, CFG_DYN_NONE));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey[0], CFG_SCOPE_SERVER, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint[0], CFG_SCOPE_SERVER, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3BucketName", tsS3BucketName[0], CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER));
