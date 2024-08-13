@@ -1,14 +1,14 @@
 import { uuid, hasOwn } from '@/utils/util';
 import { cloneDeep } from 'lodash';
 import { isObject, isArray } from '@/utils/validate';
-import { StaticTemplatePath, IsAliyun } from '@/const';
+import { StaticTemplatePath } from '@/const';
 import { Loading } from 'element-ui';
 import { parsinginZone, decrypt, formatTime } from "@/utils/index";
 import i18n from '@/lang';
 import store from '@/store/modules/app';
 import { cs } from 'date-fns/locale';
 
-const lang = IsAliyun ? 'zh' : 'en';
+const lang = i18n.locale.includes('zh') ? 'zh' : 'en';
 const templateUrlMap = {
   opcua: `template-${lang}.csv`,
   opcda: `template-${lang}.csv`,
@@ -763,7 +763,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
     }
     const { name, description: d1, params, collapsible = false, collapsed = true, short_description: d2 } = group;
     const paramChildren = [];
-    const config = { label: name, field: uuid(), description: d1 ?? d2, children: paramChildren };
+    const config = { label: name, field: id == 'taos' ? name : uuid(), description: d1 ?? d2, children: paramChildren };
     if (collapsible) {
       config.type = 'switch';
       config.defaultValue = collapsed;
@@ -790,6 +790,19 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
             }
           } 
           // if (!currentData.table) return true;
+          if (id == 'taos') {
+            const migrateOptionsFiled = lang == 'zh' ? '迁移模式' : 'Migrate Options';
+            const { mode, schema } = originalData[groupsFieldAfterConnection][migrateOptionsFiled]
+            if (schema == 'only') {
+              return !['start','end','unit','retro','interval','excursion'].includes(name)
+            }
+            if (mode == 'realtime') {
+              return !['start','end','unit'].includes(name)
+            } 
+            if (mode == 'history') {
+              return !['retro','interval','excursion'].includes(name)
+            }
+          }
           if (id.startsWith('opc')) {
             if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
               if (currentData.collect_mode == "subscribe") {
