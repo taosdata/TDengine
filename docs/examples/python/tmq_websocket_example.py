@@ -48,10 +48,10 @@ def prepareMeta():
                 VALUES (NOW + 1a, 10.30000, 218, 0.25000)
             """
         affectedRows = conn.execute(sql)
-        print(f"inserted into {affectedRows} rows to power.meters successfully.")
+        print(f"Inserted into {affectedRows} rows to power.meters successfully.")
 
     except Exception as err:
-        print(f"Failed to prepareMeta {err}")
+        print(f"Failed to prepareMeta ErrMessage:{err}")
         raise err
     finally:
         if conn:
@@ -60,20 +60,25 @@ def prepareMeta():
 
 # ANCHOR: create_consumer
 def create_consumer():
+    host = "localhost"
+    port = 6041
+    groupId = "group1"
+    clientId = "1"  
     try:
         consumer = taosws.Consumer(conf={
             "td.connect.websocket.scheme": "ws",
-            "group.id": "group1",
-            "client.id": "1",
+            "group.id": groupId,
+            "client.id": clientId,
             "auto.offset.reset": "latest",
-            "td.connect.ip": "localhost",
-            "td.connect.port": "6041",
+            "td.connect.ip": host,
+            "td.connect.port": port,
             "enable.auto.commit": "true",
             "auto.commit.interval.ms": "1000",
         })
+        print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}");
         return consumer;
     except Exception as err:
-        print(f"Failed to create websocket consumer, err:{err}");
+        print(f"Failed to create websocket consumer, host: {host}:{port} ; ErrMessage:{err}");
         raise err
 
 
@@ -90,10 +95,10 @@ def seek_offset(consumer):
                 print(
                     f"vg_id: {assign.vg_id()}, offset: {assign.offset()}, begin: {assign.begin()}, end: {assign.end()}")
                 consumer.seek(topic, assign.vg_id(), assign.begin())
-                print("assignment seek to beginning successfully");
+                print("Assignment seek to beginning successfully");
 
     except Exception as err:
-        print(f"seek example failed; err:{err}")
+        print(f"Seek example failed; ErrMessage:{err}")
         raise err
     # ANCHOR_END: assignment
 
@@ -102,16 +107,16 @@ def seek_offset(consumer):
 def subscribe(consumer):
     try:
         consumer.subscribe([topic])
-        print("subscribe topics successfully")
+        print("Subscribe topics successfully")
         for i in range(50):
             records = consumer.poll(timeout=1.0)
             if records:
                 for block in records:
                     for row in block:
-                        print(row)
+                        print(f"data: {row}")
 
     except Exception as err:
-        print(f"Failed to poll data, err:{err}")
+        print(f"Failed to poll data, ErrMessage:{err}")
         raise err
 
 
@@ -125,25 +130,30 @@ def commit_offset(consumer):
             if records:
                 for block in records:
                     for row in block:
-                        print(row)
+                        print(f"data: {row}")
                         
                 #  after processing the data, commit the offset manually        
                 consumer.commit(records)
+                print("Commit offset manually successfully.");
 
     except Exception as err:
-        print(f"Failed to poll data, err:{err}")
+        print(f"Failed to poll data, ErrMessage:{err}")
         raise err
 
 
 # ANCHOR_END: commit_offset
 #
-# ANCHOR: unsubscribe
+
 def unsubscribe(consumer):
+# ANCHOR: unsubscribe    
     try:
         consumer.unsubscribe()
+        print("Consumer unsubscribed successfully.");
     except Exception as err:
-        print("Failed to unsubscribe consumer. err:{err}")
-
+        print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
+    finally:
+        if consumer:
+            consumer.close()    
 
 # ANCHOR_END: unsubscribe
 
@@ -154,10 +164,8 @@ if __name__ == "__main__":
         consumer = create_consumer()
         subscribe(consumer)
         seek_offset(consumer)
-        commit_offset(consumer)
-        unsubscribe(consumer)
+        commit_offset(consumer)      
     except Exception as err:
-        print(f"Failed to stmt consumer. err:{err}")
+        print(f"Failed to stmt consumer. ErrorMessage:{err}")
     finally:
-        if consumer:
-            consumer.close()
+        unsubscribe(consumer);

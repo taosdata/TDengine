@@ -1,5 +1,5 @@
 ---
-sidebar_label: 数据接入
+sidebar_label: 零代码数据写入
 title: 零代码第三方数据接入
 toc_max_heading_level: 4
 ---
@@ -274,3 +274,10 @@ let v3 = data["voltage"].split(",");
 ## 任务管理
 
 在任务列表页面，还可以对任务进行启动、停止、查看、删除、复制等操作，也可以查看各个任务的运行情况，包括写入的记录条数、流量等。
+
+```mdx-code-block
+import DocCardList from '@theme/DocCardList';
+import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
+
+<DocCardList items={useCurrentSidebarCategory().items}/>
+```

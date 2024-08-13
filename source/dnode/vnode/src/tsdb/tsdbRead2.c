@@ -4608,11 +4608,13 @@ static void freeSchemaFunc(void* param) {
 }
 
 static void clearSharedPtr(STsdbReader* p) {
-  p->status.pTableMap = NULL;
-  p->status.uidList.tableUidList = NULL;
-  p->info.pSchema = NULL;
-  p->pReadSnap = NULL;
-  p->pSchemaMap = NULL;
+  if (p) {
+    p->status.pTableMap = NULL;
+    p->status.uidList.tableUidList = NULL;
+    p->info.pSchema = NULL;
+    p->pReadSnap = NULL;
+    p->pSchemaMap = NULL;
+  }
 }
 
 static int32_t setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
@@ -4723,10 +4725,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
   TSDB_CHECK_CODE(code, lino, _err);
 
   pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
-  if (pReader->status.pLDataIterArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
+  TSDB_CHECK_NULL(pReader->status.pLDataIterArray, code, lino, _err, terrno);
 
   pReader->flag = READER_STATUS_SUSPEND;
   pReader->info.execMode = pCond->notLoadData ? READER_EXEC_ROWS : READER_EXEC_DATA;
@@ -5847,11 +5846,11 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   code = tsdbFSCreateRefSnapshotWithoutLock(pTsdb->pFS, &pSnap->pfSetArray);
   if (code) {
     if (pSnap->pNode) {
-      tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
+      (void) tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
     }
 
     if (pSnap->pINode) {
-      tsdbUnrefMemTable(pTsdb->imem, pSnap->pINode, true);
+      (void) tsdbUnrefMemTable(pTsdb->imem, pSnap->pINode, true);
     }
 
     (void) taosThreadMutexUnlock(&pTsdb->mutex);

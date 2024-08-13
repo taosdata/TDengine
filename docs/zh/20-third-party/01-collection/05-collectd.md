@@ -4,7 +4,7 @@ title: collectd 写入
 description: 使用 collected 向 TDengine 写入数据
 ---
 
-import CollectD from "../../14-reference/_collectd.mdx"
+import CollectD from "../../14-reference/01-components/_collectd.mdx"
 
 collectd 是一个用来收集系统性能的守护进程。collectd 提供各种存储方式来存储不同值的机制。它会在系统运行和存储信息时周期性的统计系统的相关统计信息。利用这些信息有助于查找当前系统性能瓶颈和预测系统未来的负载等。
 

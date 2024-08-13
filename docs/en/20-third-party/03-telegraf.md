@@ -4,7 +4,7 @@ sidebar_label: Telegraf
 description: This document describes how to integrate TDengine with Telegraf.
 ---
 
-import Telegraf from "../14-reference/_telegraf.mdx"
+import Telegraf from "../14-reference/01-components/_telegraf.mdx"
 
 Telegraf is a viral, open-source, metrics collection software. Telegraf can collect the operation information of various components without having to write any scripts to collect regularly, reducing the difficulty of data acquisition.
 
@@ -14,7 +14,7 @@ Telegraf's data can be written to TDengine by simply adding the output configura
 
 To write Telegraf data to TDengine requires the following preparations.
 - The TDengine cluster is deployed and functioning properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/components/taosadapter) for details.
 - Telegraf has been installed. Please refer to the [official documentation](https://docs.influxdata.com/telegraf/v1.22/install/) for Telegraf installation.
 - Telegraf collects the running status measurements of current system. You can enable [input plugins](https://docs.influxdata.com/telegraf/v1.22/plugins/) to insert [other formats](https://docs.influxdata.com/telegraf/v1.24/data_formats/input/) data to Telegraf then forward to TDengine.
 

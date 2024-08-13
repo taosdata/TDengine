@@ -21,7 +21,7 @@ public class WSParameterBindingBasicDemo {
         try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
             init(conn);
 
-            String sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
+            String sql = "INSERT INTO ? USING power.meters TAGS(?,?) VALUES (?,?,?,?)";
 
             try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
 
@@ -44,7 +44,7 @@ public class WSParameterBindingBasicDemo {
                     }
                     int [] exeResult = pstmt.executeBatch();
                     // you can check exeResult here
-                    System.out.println("insert " + exeResult.length + " rows.");
+                    System.out.println("Successfully inserted " + exeResult.length + " rows to power.meters.");
                 }
             }
         } catch (SQLException ex) {
@@ -61,7 +61,7 @@ public class WSParameterBindingBasicDemo {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE DATABASE IF NOT EXISTS power");
             stmt.execute("USE power");
-            stmt.execute("CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
+            stmt.execute("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
         }
     }
 }
