@@ -4,7 +4,7 @@ use chrono::DateTime;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let dsn = "taos://localhost:6030";
+    let dsn = "ws://localhost:6041";
     let builder = TaosBuilder::from_dsn(dsn)?;
 
     let taos = builder.build().await?;

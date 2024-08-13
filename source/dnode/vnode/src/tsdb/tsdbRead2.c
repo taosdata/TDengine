@@ -5829,7 +5829,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pIMem = pTsdb->imem;
     pSnap->pINode = taosMemoryMalloc(sizeof(*pSnap->pINode));
     if (pSnap->pINode == NULL) {
-      tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
+      (void) tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
       code = terrno;
 
       (void) taosThreadMutexUnlock(&pTsdb->mutex);
@@ -5846,11 +5846,11 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   code = tsdbFSCreateRefSnapshotWithoutLock(pTsdb->pFS, &pSnap->pfSetArray);
   if (code) {
     if (pSnap->pNode) {
-      tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
+      (void) tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
     }
 
     if (pSnap->pINode) {
-      tsdbUnrefMemTable(pTsdb->imem, pSnap->pINode, true);
+      (void) tsdbUnrefMemTable(pTsdb->imem, pSnap->pINode, true);
     }
 
     (void) taosThreadMutexUnlock(&pTsdb->mutex);

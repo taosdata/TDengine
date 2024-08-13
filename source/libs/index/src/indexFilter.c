@@ -882,11 +882,10 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
   if (ctx->noExec == false) {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       if (node->condType == LOGIC_COND_TYPE_AND) {
-        (void)taosArrayAddAll(output->result, params[m].result);
+        if (taosArrayAddAll(output->result, params[m].result) == NULL) return terrno;
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
-        (void)taosArrayAddAll(output->result, params[m].result);
+        if (taosArrayAddAll(output->result, params[m].result) == NULL) return terrno;
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
-        // taosArrayAddAll(output->result, params[m].result);
       }
       taosArraySort(output->result, uidCompare);
       taosArrayRemoveDuplicate(output->result, uidCompare, NULL);
@@ -894,8 +893,6 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
   } else {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       output->status = sifMergeCond(node->condType, output->status, params[m].status);
-      // taosArrayDestroy(params[m].result);
-      // params[m].result = NULL;
     }
   }
 _return:
@@ -904,10 +901,13 @@ _return:
 }
 
 static EDealRes sifWalkFunction(SNode *pNode, void *context) {
+  SIFCtx        *ctx = context;
   SFunctionNode *node = (SFunctionNode *)pNode;
   SIFParam       output = {.result = taosArrayInit(8, sizeof(uint64_t)), .status = SFLT_COARSE_INDEX};
-
-  SIFCtx *ctx = context;
+  if (output.result == NULL) {
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
   ctx->code = sifExecFunction(node, ctx, &output);
   if (ctx->code != TSDB_CODE_SUCCESS) {
     sifFreeParam(&output);
@@ -921,11 +921,15 @@ static EDealRes sifWalkFunction(SNode *pNode, void *context) {
   return DEAL_RES_CONTINUE;
 }
 static EDealRes sifWalkLogic(SNode *pNode, void *context) {
+  SIFCtx              *ctx = context;
   SLogicConditionNode *node = (SLogicConditionNode *)pNode;
 
   SIFParam output = {.result = taosArrayInit(8, sizeof(uint64_t)), .status = SFLT_COARSE_INDEX};
+  if (output.result == NULL) {
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
 
-  SIFCtx *ctx = context;
   ctx->code = sifExecLogic(node, ctx, &output);
   if (ctx->code) {
     sifFreeParam(&output);
@@ -939,10 +943,14 @@ static EDealRes sifWalkLogic(SNode *pNode, void *context) {
   return DEAL_RES_CONTINUE;
 }
 static EDealRes sifWalkOper(SNode *pNode, void *context) {
+  SIFCtx        *ctx = context;
   SOperatorNode *node = (SOperatorNode *)pNode;
   SIFParam       output = {.result = taosArrayInit(8, sizeof(uint64_t)), .status = SFLT_COARSE_INDEX};
+  if (output.result == NULL) {
+    ctx->code = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
 
-  SIFCtx *ctx = context;
   ctx->code = sifExecOper(node, ctx, &output);
   if (ctx->code) {
     sifFreeParam(&output);
@@ -1018,7 +1026,9 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
       SIF_ERR_RET(TSDB_CODE_APP_ERROR);
     }
     if (res->result != NULL) {
-      (void)taosArrayAddAll(pDst->result, res->result);
+      if (taosArrayAddAll(pDst->result, res->result) == NULL) {
+        SIF_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
     pDst->status = res->status;
 
@@ -1077,7 +1087,11 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
 
   SFilterInfo *filter = NULL;
 
-  SArray  *output = taosArrayInit(8, sizeof(uint64_t));
+  SArray *output = taosArrayInit(8, sizeof(uint64_t));
+  if (output == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   SIFParam param = {.arg = *metaArg, .result = output, .status = SFLT_NOT_INDEX, .api = *pAPI};
   int32_t  code = sifCalculate((SNode *)pFilterNode, &param);
   if (code != 0) {
@@ -1090,7 +1104,12 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
     *status = st;
   }
 
-  (void)taosArrayAddAll(result, param.result);
+
+  if (taosArrayAddAll(result, param.result) == NULL) {
+    sifFreeParam(&param);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   sifFreeParam(&param);
   return TSDB_CODE_SUCCESS;
 }

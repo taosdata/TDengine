@@ -24,7 +24,7 @@ public class ParameterBindingBasicDemo {
 
             init(conn);
 
-            String sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
+            String sql = "INSERT INTO ? USING power.meters TAGS(?,?) VALUES (?,?,?,?)";
 
             try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
 
@@ -65,6 +65,8 @@ public class ParameterBindingBasicDemo {
                 }
                 // execute column
                 pstmt.columnDataExecuteBatch();
+                // you can check exeResult here
+                System.out.println("Successfully inserted " + (numOfSubTable * numOfRow) + " rows to power.meters.");
             }
         } catch (SQLException ex) {
             // handle any errors, please refer to the JDBC specifications for detailed exceptions info
