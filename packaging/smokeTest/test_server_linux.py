@@ -39,7 +39,10 @@ def setup_module(request):
     else:
         cmd = "cp /usr/bin/taos*  ../../debug/build/bin/"
     run_cmd(cmd)
-    return taosVersion, verMode
+
+    yield
+
+    UninstallTaos(taosVersion, verMode, True)
 
 
 # use pytest fixture to exec case
@@ -80,12 +83,3 @@ class TestServerLinux:
 
         assert run_command[
                    'returncode'] == 0, f"Command '{run_command['command']}' failed with return code {run_command['returncode']}"
-
-    @pytest.mark.uninstall
-    def test_uninstall(self, setup_module):
-        taosVersion, verMode = setup_module
-        # teardown after module tests
-        # python3 versionCheckAndUninstall.py -v ${version} -m ${verMode} -u
-        # cmd = "python3 versionCheckAndUninstall.py -v %s -m %s -u" % (taosVersion, verMode)
-        # run_command(cmd)
-        UninstallTaos(taosVersion, verMode, True)
