@@ -309,10 +309,10 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
 
     if (cid < blockCol.cid) {
       const STColumn *tcol = tTSchemaSearchColumn(pTSchema, cid);
-      ASSERT(!tcol || (tcol->type == types[i]));
+
       SBlockCol none = {
           .cid = cid,
-          .type = tcol ? tcol->type : types[i],
+          .type = tcol ? tcol->type : types[i],  // prefer to use the column type from the schema
           .cflag = tcol ? tcol->flags : 0,
           .flag = HAS_NONE,
           .szOrigin = 0,
