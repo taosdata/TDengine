@@ -20,7 +20,7 @@ public class HikariCpBuilder {
         config.setConnectionTimeout(30000); //maximum wait milliseconds for get connection from pool
         config.setMaxLifetime(0);       // maximum life time for each connection
         config.setIdleTimeout(0);       // max idle time for recycle idle connection
-        config.setConnectionTestQuery("select server_status()"); //validation query
+        config.setConnectionTestQuery("select SERVER_VERSION()"); //validation query
 
         HikariDataSource ds = new HikariDataSource(config);
         return ds;

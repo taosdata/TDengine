@@ -38,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
     let dsn = "taos://localhost:6030";
     let builder = TaosBuilder::from_dsn(dsn)?;
 
-    let taos = builder.build()?;
+    let taos = builder.build().await?;
     let db = "tmq";
 
     // prepare database
@@ -61,9 +61,10 @@ async fn main() -> anyhow::Result<()> {
     // subscribe
     let tmq = TmqBuilder::from_dsn("taos://localhost:6030/?group.id=test")?;
 
-    let mut consumer = tmq.build()?;
+    let mut consumer = tmq.build().await?;
     consumer.subscribe(["tmq_meters"]).await?;
 
+    // ANCHOR: consumer_commit_manually   
     consumer
         .stream()
         .try_for_each(|(offset, message)| async {
@@ -78,11 +79,54 @@ async fn main() -> anyhow::Result<()> {
                     println!("** read {} records: {:#?}\n", records.len(), records);
                 }
             }
+            // commit offset manually when you have processed the message.
             consumer.commit(offset).await?;
             Ok(())
         })
         .await?;
+    // ANCHOR_END: consumer_commit_manually
 
+ 
+    // ANCHOR: assignments
+    let assignments = consumer.assignments().await.unwrap();
+    log::info!("assignments: {:?}", assignments);
+    // ANCHOR_END: assignments
+
+    // seek offset
+    for topic_vec_assignment in assignments {
+        let topic = &topic_vec_assignment.0;
+        let vec_assignment = topic_vec_assignment.1;
+        for assignment in vec_assignment {
+            let vgroup_id = assignment.vgroup_id();
+            let current = assignment.current_offset();
+            let begin = assignment.begin();
+            let end = assignment.end();
+            log::debug!(
+                "topic: {}, vgroup_id: {}, current offset: {} begin {}, end: {}",
+                topic,
+                vgroup_id,
+                current,
+                begin,
+                end
+            );
+            // ANCHOR: seek_offset
+            let res = consumer.offset_seek(topic, vgroup_id, end).await;
+            if res.is_err() {
+                log::error!("seek offset error: {:?}", res);
+                let a = consumer.assignments().await.unwrap();
+                log::error!("assignments: {:?}", a);
+            }
+            // ANCHOR_END: seek_offset
+        }
+
+        let topic_assignment = consumer.topic_assignment(topic).await;
+        log::debug!("topic assignment: {:?}", topic_assignment);
+    }
+
+    // after seek offset
+    let assignments = consumer.assignments().await.unwrap();
+    log::info!("after seek offset assignments: {:?}", assignments);
+   
     consumer.unsubscribe().await;
 
     task.await??;
