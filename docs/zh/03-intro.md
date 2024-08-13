@@ -34,15 +34,17 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 
 6. 可视化/BI：TDengine 本身不提供可视化或 BI 的功能。但通过其 RESTful API， 标准的 JDBC、ODBC 接口，TDengine 能够 Grafana、Google Data Studio、Power BI、Tableau 以及国产 BI 工具无缝集成。
 
-7. 集群功能：TDengine 支持集群部署，能够随着业务数据量的增长，通过增加节点线性提升系统处理能力，实现水平扩展。同时，通过多副本技术提供高可用性，并支持 Kubernetes 部署。
+7. 集群功能：TDengine 支持集群部署，能够随着业务数据量的增长，通过增加节点线性提升系统处理能力，实现水平扩展。同时，通过多副本技术提供高可用性，并支持 Kubernetes 部署。同时还提供了多种运维工具，方便系统管理员更好地管理和维护集群的健壮运行。
 
-8. 数据迁移：TDengine 提供了多种便捷的数据导入导出功能，包括脚本文件导入导出、数据文件导入导出、taosdump 工具导入导出等。企业版还支持边云协同、数据同步等场景，兼容多种数据源，如 AVEVA PI System 等。
+8. 数据迁移：TDengine 提供了多种便捷的数据导入导出功能，包括脚本文件导入导出、数据文件导入导出、taosdump 工具导入导出等。
 
 9. 编程连接器：TDengine 提供不同语言的连接器，包括 C/C++、Java、Go、Node.js、Rust、Python、C#、R、PHP 等。这些连接器大多都支持原生连接和 WebSocket 两种连接方式。TDengine 也提供 REST 接口，任何语言的应用程序可以直接通过 HTTP 请求访问数据库。
 
 10. 数据安全：TDengine 提供了丰富的用户管理和权限管理功能以控制不同用户对数据库和表的访问权限，提供了 IP 白名单功能以控制不同帐号只能从特定的服务器接入集群。TDengine 支持系统管理员对不同数据库按需加密，数据加密后对读写完全透明且对性能的影响很小。还提供了审计日志功能以记录系统中的敏感操作。
 
 11. 常用工具：TDengine 还提供了交互式命令行程序（CLI），便于管理集群、检查系统状态、做即时查询。压力测试工具 taosBenchmark，用于测试 TDengine 的性能。TDengine 还提供了图形化管理界面，简化了操作和管理过程。
+
+12. 零代码数据接入：TDengine 企业版提供了丰富的数据接入功能，依托强大的数据接入平台，无需一行代码，只需要做简单的配置即可实现多种数据源的数据接入，目前已经支持的数据源包括：OPC UA, OPC DA, Pi, MQTT, Kafka, InfluxDB, OpenTSDB, MySql, SQL Server, Oracle, Wonderware Historian, MongoDB。
 
 ## TDengine 与典型时序数据库的区别
 
