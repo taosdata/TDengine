@@ -1094,7 +1094,7 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
         FUNCTION_TYPE_LAST_ROW == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
-               FUNCTION_TYPE_IROWTS == pFunc->funcType) {
+               FUNCTION_TYPE_IROWTS == pFunc->funcType) { // todo(@huolinhe): forecast pseudo column
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
@@ -2644,6 +2644,10 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** pp
     return TSDB_CODE_SUCCESS;
   }
   if (0 == LIST_LENGTH(pFunc->pParameterList)) {
+    if (pFunc->funcType == FUNCTION_TYPE_FORECAST_CONFIDENCE_LOW ||
+        pFunc->funcType == FUNCTION_TYPE_FORECAST_CONFIDENCE_HIGH || pFunc->funcType == FUNCTION_TYPE_FORECAST_EXPR) {
+      return TSDB_CODE_SUCCESS;
+    }
     if (!isSelectStmt(pCxt->pCurrStmt) || NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
     }
@@ -3370,8 +3374,16 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
        (QUERY_NODE_FUNCTION == nodeType(*pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)*pNode)->funcType))) {
     return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
   }
-  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     pCxt->existCol = true;
+    return DEAL_RES_CONTINUE;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    qInfo("doCheckAggColCoexist with function name:%s", pFunc->functionName);
+    if (isScanPseudoColumnFunc(*pNode)) {
+      pCxt->existCol = true;
+    }
   }
   return DEAL_RES_CONTINUE;
 }

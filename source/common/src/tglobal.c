@@ -294,6 +294,7 @@ bool    tsFilterScalarMode = false;
 int     tsResolveFQDNRetryTime = 100;  // seconds
 int     tsStreamAggCnt = 100000;
 
+char   tsForecastApiKey[128] = "";
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
 char   tsS3AccessKey[TSDB_FQDN_LEN] = "<accesskey>";
 char   tsS3AccessKeyId[TSDB_FQDN_LEN] = "<accesskeyid>";
@@ -785,6 +786,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
 
+  // forecast API
+  if (cfgAddString(pCfg, "forecastApiKey", tsForecastApiKey, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
+
   // clang-format on
 
   // GRANT_CFG_ADD;
@@ -1246,6 +1250,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsS3UploadDelaySec = cfgGetItem(pCfg, "s3UploadDelaySec")->i32;
 
   tsExperimental = cfgGetItem(pCfg, "experimental")->bval;
+
+  tstrncpy(tsForecastApiKey, cfgGetItem(pCfg, "forecastApiKey")->str, 127);
 
   // GRANT_CFG_GET;
   return 0;

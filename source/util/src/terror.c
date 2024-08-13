@@ -701,6 +701,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR, "Func to_timest
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR, "Func to_timestamp failed for wrong timestamp")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED, "Func to_timestamp failed for unsupported timestamp format")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED,    "Func to_char failed for unsupported format")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FORECAST_API_ERROR, "forecast api initialization error")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")

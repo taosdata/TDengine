@@ -1940,6 +1940,207 @@ static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateUniqueMode(pFunc, pErrBuf, len, false);
 }
 
+/// forecast function
+// forecast(ts, value, num)
+// forecast(ts, value, num, level)
+// forecast(ts, value, num, 'level=80;keep_double=1')
+//
+// Result: VARCHAR(256)
+// Format: timestamp,value
+static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  uInfo("forecast translate: %d params", numOfParams);
+  if (numOfParams < 3) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, "forecast(ts, value, num[, confidence_level])");
+  }
+
+  // first parameter should be timestamp.
+  uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_TIMESTAMP_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast requires 1st parameter to be timestamp");
+  }
+  // second parameter should be value.
+  uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  if (IS_TIMESTAMP_TYPE(valType) || IS_VAR_DATA_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast requires second parameter to be a numeric type");
+  }
+
+  // 3th param should be integer
+  SNode*  pNumNode = nodesListGetNode(pFunc->pParameterList, 2);
+  uint8_t paraType = getSDataTypeFromNode(pNumNode)->type;
+  if (!IS_INTEGER_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  SValueNode* pValue = (SValueNode*)pNumNode;
+  if (pValue->datum.i == 0 && pValue->datum.i >= (1 << 16)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "forecast num(3th) param should be > 0 and < 2^16");
+  }
+  pValue->notReserved = true;
+
+  // param1
+  if (numOfParams > 3) {
+    bool hasLevel = false;
+    bool hasOptionStr = false;
+    for (int i = 3; i < numOfParams; i++) {
+      SNode*      pExtraNode = nodesListGetNode(pFunc->pParameterList, i);
+      uint8_t     extraType = getSDataTypeFromNode(pExtraNode)->type;
+      SValueNode* pExtraValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+      if (IS_INTEGER_TYPE(extraType)) {
+        if (hasLevel) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast confidence_level should be only set once");
+        }
+        hasLevel = true;
+        if (pExtraValue->datum.i < 1 || pExtraValue->datum.i >= 100) {
+          static const char* forecastLevelError = "forecast confidence level should be integer that in range [1,99]";
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, forecastLevelError);
+        }
+      } else if (IS_VAR_DATA_TYPE(extraType)) {
+        if (hasOptionStr) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast option string should be only set once");
+        }
+        hasOptionStr = true;
+        if (pExtraValue->datum.p == NULL) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast option string should not be NULL");
+        }
+      } else {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, "forecast parameter type only allows int/str");
+      }
+      pExtraValue->notReserved = true;
+    }
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[valType].bytes, .type = valType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAnomaly(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  uInfo("anomaly translate: %d params", numOfParams);
+  if (numOfParams < 2) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, "anomaly(ts, value[, confidence_level][, 'option_str'])");
+  }
+
+  // first parameter should be timestamp.
+  uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_TIMESTAMP_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly requires 1st parameter to be timestamp");
+  }
+  // second parameter should be value.
+  uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  if (IS_TIMESTAMP_TYPE(valType) || IS_VAR_DATA_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly requires second parameter to be a numeric type");
+  }
+
+  // param1
+  if (numOfParams > 2) {
+    bool hasLevel = false;
+    bool hasOptionStr = false;
+    for (int i = 2; i < numOfParams; i++) {
+      SNode*      pExtraNode = nodesListGetNode(pFunc->pParameterList, i);
+      uint8_t     extraType = getSDataTypeFromNode(pExtraNode)->type;
+      SValueNode* pExtraValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+      if (IS_INTEGER_TYPE(extraType)) {
+        if (hasLevel) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly confidence_level should be only set once");
+        }
+        hasLevel = true;
+        if (pExtraValue->datum.i < 1 || pExtraValue->datum.i >= 100) {
+          static const char* forecastLevelError = "anomaly confidence level should be integer that in range [1,99]";
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, forecastLevelError);
+        }
+      } else if (IS_VAR_DATA_TYPE(extraType)) {
+        if (hasOptionStr) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly option string should be only set once");
+        }
+        hasOptionStr = true;
+        if (pExtraValue->datum.p == NULL) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly option string should not be NULL");
+        }
+      } else {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly parameter type only allows int/str");
+      }
+      pExtraValue->notReserved = true;
+    }
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[valType].bytes, .type = valType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHistoric(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams < 2) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, "historic(ts, value[, interval][, 'option_str'])");
+  }
+
+  // first parameter should be timestamp.
+  uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  if (!IS_TIMESTAMP_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "historic requires 1st column to be timestamp");
+  }
+  // second parameter should be value.
+  uint8_t valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  if (IS_TIMESTAMP_TYPE(valType) || IS_VAR_DATA_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "historic requires 2nd column to be a numeric type");
+  }
+  // third parameter should be interval.
+  uint8_t intervalType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->type;
+  if (IS_TIMESTAMP_TYPE(valType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, "historic requires 2nd column to be a numeric type");
+  }
+  SValueNode* pIntervalValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+  pIntervalValue->notReserved = true;
+
+  // param1
+  if (numOfParams > 3) {
+    bool hasLevel = false;
+    bool hasOptionStr = false;
+    for (int i = 3; i < numOfParams; i++) {
+      SNode*      pExtraNode = nodesListGetNode(pFunc->pParameterList, i);
+      uint8_t     extraType = getSDataTypeFromNode(pExtraNode)->type;
+      SValueNode* pExtraValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+      if (IS_INTEGER_TYPE(extraType)) {
+        if (hasLevel) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly confidence_level should be only set once");
+        }
+        hasLevel = true;
+        if (pExtraValue->datum.i < 1 || pExtraValue->datum.i >= 100) {
+          static const char* forecastLevelError = "anomaly confidence level should be integer that in range [1,99]";
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, forecastLevelError);
+        }
+      } else if (IS_VAR_DATA_TYPE(extraType)) {
+        if (hasOptionStr) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly option string should be only set once");
+        }
+        hasOptionStr = true;
+        if (pExtraValue->datum.p == NULL) {
+          return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly option string should not be NULL");
+        }
+      } else {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, "anomaly parameter type only allows int/str");
+      }
+      pExtraValue->notReserved = true;
+    }
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[valType].bytes, .type = valType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateForecastLevel(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t translateForecastFull(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  uint8_t resultType = TSDB_DATA_TYPE_VARCHAR;
+  int32_t resultBytes = 256;
+  pFunc->node.resType = (SDataType){.bytes = resultBytes, .type = resultType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static EFuncReturnRows anomalyEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (numOfParams > 2) {
@@ -3215,6 +3416,81 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = diffScalarFunction,
     .finalizeFunc = functionFinalize,
     .estimateReturnRowsFunc = diffEstReturnRows,
+  },
+  {
+    .name = "forecast",
+    .type = FUNCTION_TYPE_FORECAST,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_FILL_FUNC,
+    // .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    //                   FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    // .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC| FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    //    FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |                      FUNC_MGT_FORBID_FILL_FUNC,
+    .translateFunc = translateForecast,
+    .getEnvFunc   = getForecastFuncEnv,
+    .initFunc     = forecastFunctionSetup,
+    .processFunc  = forecastFunction,
+    .sprocessFunc = forecastScalarFunction,
+    .finalizeFunc = forecastFinalize,
+    // .combineFunc  = forecastCombine,
+    // .estimateReturnRowsFunc = forecastEstReturnRows,
+  },
+  {
+    .name = "anomaly",
+    .type = FUNCTION_TYPE_ANOMALY,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_FILL_FUNC,
+    .translateFunc = translateAnomaly,
+    .getEnvFunc   = getForecastFuncEnv,
+    .initFunc     = anomalyFunctionSetup,
+    .processFunc  = anomalyFunction,
+    .finalizeFunc = anomalyFinalize,
+    .estimateReturnRowsFunc = anomalyEstReturnRows,
+  },
+  {
+    .name = "historic",
+    .type = FUNCTION_TYPE_HISTORIC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_FILL_FUNC,
+    .translateFunc = translateHistoric,
+    .getEnvFunc   = getForecastFuncEnv,
+    .initFunc     = historicFunctionSetup,
+    .processFunc  = historicFunction,
+    .finalizeFunc = historicFinalize,
+  },
+
+  // FUNCTION_TYPE_FORECAST_EXPRESSION,
+  // FUNCTION_TYPE_FORECAST_CONFIDENCE_LOW,
+  // FUNCTION_TYPE_FORECAST_CONFIDENCE_HIGH,
+  {
+    .name = "_flow",
+    .type = FUNCTION_TYPE_FORECAST_CONFIDENCE_LOW,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastLevel,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_fhigh",
+    .type = FUNCTION_TYPE_FORECAST_CONFIDENCE_HIGH,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastLevel,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_fexpr",
+    .type = FUNCTION_TYPE_FORECAST_EXPR,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastFull,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
   },
   {
     .name = "statecount",

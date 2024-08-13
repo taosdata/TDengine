@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+EnvironmentFile=-/etc/default/taosd
 ExecStart=/usr/bin/taosd
 ExecStartPre=/usr/local/taos/bin/startPre.sh
 TimeoutStopSec=1000000s

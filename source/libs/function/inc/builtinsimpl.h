@@ -134,6 +134,19 @@ bool    getDiffFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool    diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t diffFunction(SqlFunctionCtx* pCtx);
 
+bool    getForecastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool    forecastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t forecastFunction(SqlFunctionCtx* pCtx);
+int32_t forecastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool    anomalyFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t anomalyFunction(SqlFunctionCtx* pCtx);
+int32_t anomalyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool    historicFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t historicFunction(SqlFunctionCtx* pCtx);
+int32_t historicFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool    derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t derivativeFunction(SqlFunctionCtx* pCtx);
