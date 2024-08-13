@@ -5187,6 +5187,7 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
     resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->info.window.ekey, step);
 
     if (code != TSDB_CODE_SUCCESS) {
+      (void) tsdbReleaseReader(pReader);
       return code;
     }
 
@@ -5213,6 +5214,7 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
     code = doOpenReaderImpl(pReader->innerReader[1]);
     resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->info.window.ekey, step);
     if (code != TSDB_CODE_SUCCESS) {
+      (void) tsdbReleaseReader(pReader);
       return code;
     }
 
@@ -5493,6 +5495,7 @@ int32_t tsdbReaderReset2(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 
   code = initFilesetIterator(&pStatus->fileIter, pReader->pReadSnap->pfSetArray, pReader);
   if (code != TSDB_CODE_SUCCESS) {
+    (void) tsdbReleaseReader(pReader);
     return code;
   }
 
