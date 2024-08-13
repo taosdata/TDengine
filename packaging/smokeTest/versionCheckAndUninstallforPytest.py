@@ -72,7 +72,10 @@ def UninstallTaos(version, verMode, uninstall):
         cmd = "systemctl start taosd".split(' ')
     else:
         cmd = "sudo launchctl start com.tdengine.taosd".split(' ')
-    subprocess.getoutput(cmd)
+    process_out = subprocess.Popen(cmd,
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    print(cmd)
+    time.sleep(5)
 
     # get taosc version info
     version_test_result = False
@@ -149,7 +152,9 @@ def UninstallTaos(version, verMode, uninstall):
             cmd = "systemctl stop taosd"
         else:
             cmd = "sudo launchctl stop com.tdengine.taosd"
-        subprocess.getoutput(cmd)
+        process_out = subprocess.getoutput(cmd)
+        print(cmd)
+        time.sleep(5)
         if system == "Linux":
             # 创建一个subprocess.Popen对象，并使用stdin和stdout进行交互
             process = subprocess.Popen(['rmtaos'],
