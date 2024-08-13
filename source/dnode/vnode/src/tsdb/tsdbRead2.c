@@ -5829,7 +5829,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
       code = terrno;
 
       if (pTsdb->mem && pSnap->pNode) {
-        tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
+        (void) tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
       }
 
       (void) taosThreadMutexUnlock(&pTsdb->mutex);
