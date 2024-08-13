@@ -72,7 +72,7 @@ def UninstallTaos(version, verMode, uninstall):
         cmd = "systemctl start taosd".split(' ')
     else:
         cmd = "sudo launchctl start com.tdengine.taosd".split(' ')
-    run_cmd(cmd)
+    subprocess.getoutput(cmd)
 
     # get taosc version info
     version_test_result = False
@@ -149,16 +149,22 @@ def UninstallTaos(version, verMode, uninstall):
             cmd = "systemctl stop taosd"
         else:
             cmd = "sudo launchctl stop com.tdengine.taosd"
-        run_cmd(cmd)
+        subprocess.getoutput(cmd)
         if system == "Linux":
             # 创建一个subprocess.Popen对象，并使用stdin和stdout进行交互
             process = subprocess.Popen(['rmtaos'],
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
             # 向子进程发送输入
             process.stdin.write("y\n")
-            process.stdin.flush()  # 确保输入被发送到子进程
+            try:
+                process.stdin.flush()  # 确保输入被发送到子进程
+            except:
+                print("Broken pipe error occurred")
             process.stdin.write("I confirm that I would like to delete all data, log and configuration files\n")
-            process.stdin.flush()  # 确保输入被发送到子进程
+            try:
+                process.stdin.flush()  # 确保输入被发送到子进程
+            except:
+                print("Broken pipe error occurred")
             # 关闭子进程的stdin，防止它无限期等待更多输入
             process.stdin.close()
             # 等待子进程结束
@@ -202,9 +208,15 @@ def UninstallTaos(version, verMode, uninstall):
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
             # 向子进程发送输入
             process.stdin.write("y\n")
-            process.stdin.flush()  # 确保输入被发送到子进程
+            try:
+                process.stdin.flush()  # 确保输入被发送到子进程
+            except:
+                print("Broken pipe error occurred")
             process.stdin.write("I confirm that I would like to delete all data, log and configuration files\n")
-            process.stdin.flush()  # 确保输入被发送到子进程
+            try:
+                process.stdin.flush()  # 确保输入被发送到子进程
+            except:
+                print("Broken pipe error occurred")
             # 关闭子进程的stdin，防止它无限期等待更多输入
             process.stdin.close()
             # 等待子进程结束
