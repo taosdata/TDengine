@@ -947,34 +947,6 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t s3InitEpIndexArray(SArray **pIndexArray) {
-  SArray *indexArray = taosArrayInit(tsS3EpNum, sizeof(int8_t));
-  if (!indexArray) {
-    uError("%s: %s", __func__, "out of memory");
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
-  }
-
-  for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    if (taosArrayPush(indexArray, &i) == NULL) {
-      taosArrayDestroy(indexArray);
-      uError("%s: %s", __func__, "out of memory");
-      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
-    }
-  }
-
-  if (tsS3EpNum > 1) {
-    for (int8_t i = 0; i < tsS3EpNum; ++i) {
-      int8_t j = taosRand() % tsS3EpNum;
-      int8_t tmp = *(int8_t *)taosArrayGet(indexArray, i);
-      taosArraySet(indexArray, i, taosArrayGet(indexArray, j));
-      taosArraySet(indexArray, j, &tmp);
-    }
-  }
-
-  *pIndexArray = indexArray;
-  TAOS_RETURN(TSDB_CODE_SUCCESS);
-}
-
 int32_t s3PutObjectFromFile2ByEp(const char *file, const char *object_name, int8_t withcp, int8_t epIndex) {
   int32_t                  code = 0;
   int32_t                  lmtime = 0;
@@ -1039,18 +1011,14 @@ int32_t s3PutObjectFromFile2ByEp(const char *file, const char *object_name, int8
 int32_t s3PutObjectFromFile2(const char *file, const char *object_name, int8_t withcp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SArray *indexArray = NULL;
-  TAOS_CHECK_RETURN(s3InitEpIndexArray(&indexArray));
-
+  int8_t startIndex = taosRand() % tsS3EpNum;
   for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    int8_t epIndex = *(int8_t *)taosArrayGet(indexArray, i);
+    int8_t epIndex = (startIndex + i) % tsS3EpNum;
     code = s3PutObjectFromFile2ByEp(file, object_name, withcp, epIndex);
     if (code == TSDB_CODE_SUCCESS) {
       break;
     }
   }
-
-  taosArrayDestroy(indexArray);
 
   return code;
 }
@@ -1122,18 +1090,14 @@ static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *objec
 int32_t s3PutObjectFromFileOffset(const char *file, const char *object_name, int64_t offset, int64_t size) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SArray *indexArray = NULL;
-  TAOS_CHECK_RETURN(s3InitEpIndexArray(&indexArray));
-
+  int8_t startIndex = taosRand() % tsS3EpNum;
   for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    int8_t epIndex = *(int8_t *)taosArrayGet(indexArray, i);
+    int8_t epIndex = (startIndex + i) % tsS3EpNum;
     code = s3PutObjectFromFileOffsetByEp(file, object_name, offset, size, epIndex);
     if (code == TSDB_CODE_SUCCESS) {
       break;
     }
   }
-
-  taosArrayDestroy(indexArray);
 
   return code;
 }
@@ -1242,20 +1206,14 @@ static SArray *getListByPrefixByEp(const char *prefix, int8_t epIndex) {
 
 static SArray *getListByPrefix(const char *prefix) {
   SArray *objectArray = NULL;
-  SArray *indexArray = NULL;
-  if (s3InitEpIndexArray(&indexArray) != TSDB_CODE_SUCCESS) {
-    return NULL;
-  }
-
+  int8_t  startIndex = taosRand() % tsS3EpNum;
   for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    int8_t epIndex = *(int8_t *)taosArrayGet(indexArray, i);
+    int8_t epIndex = (startIndex + i) % tsS3EpNum;
     objectArray = getListByPrefixByEp(prefix, epIndex);
     if (objectArray) {
       break;
     }
   }
-
-  taosArrayDestroy(indexArray);
 
   return objectArray;
 }
@@ -1291,18 +1249,14 @@ static int32_t s3DeleteObjectsByEp(const char *object_name[], int nobject, int8_
 int32_t s3DeleteObjects(const char *object_name[], int nobject) {
   int32_t code = 0;
 
-  SArray *indexArray = NULL;
-  TAOS_CHECK_RETURN(s3InitEpIndexArray(&indexArray));
-
+  int8_t startIndex = taosRand() % tsS3EpNum;
   for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    int8_t epIndex = *(int8_t *)taosArrayGet(indexArray, i);
+    int8_t epIndex = (startIndex + i) % tsS3EpNum;
     code = s3DeleteObjectsByEp(object_name, nobject, epIndex);
     if (code == TSDB_CODE_SUCCESS) {
       break;
     }
   }
-
-  taosArrayDestroy(indexArray);
 
   return code;
 }
@@ -1394,18 +1348,14 @@ _retry:
 int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
   int32_t code = 0;
 
-  SArray *indexArray = NULL;
-  TAOS_CHECK_RETURN(s3InitEpIndexArray(&indexArray));
-
+  int8_t startIndex = taosRand() % tsS3EpNum;
   for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    int8_t epIndex = *(int8_t *)taosArrayGet(indexArray, i);
+    int8_t epIndex = (startIndex + i) % tsS3EpNum;
     code = s3GetObjectBlockByEp(object_name, offset, size, check, ppBlock, epIndex);
     if (code == TSDB_CODE_SUCCESS) {
       break;
     }
   }
-
-  taosArrayDestroy(indexArray);
 
   return code;
 }
@@ -1458,18 +1408,14 @@ static int32_t s3GetObjectToFileByEp(const char *object_name, const char *fileNa
 int32_t s3GetObjectToFile(const char *object_name, const char *fileName) {
   int32_t code = 0;
 
-  SArray *indexArray = NULL;
-  TAOS_CHECK_RETURN(s3InitEpIndexArray(&indexArray));
-
+  int8_t startIndex = taosRand() % tsS3EpNum;
   for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    int8_t epIndex = *(int8_t *)taosArrayGet(indexArray, i);
+    int8_t epIndex = (startIndex + i) % tsS3EpNum;
     code = s3GetObjectToFileByEp(object_name, fileName, epIndex);
     if (code == TSDB_CODE_SUCCESS) {
       break;
     }
   }
-
-  taosArrayDestroy(indexArray);
 
   return code;
 }
@@ -1531,18 +1477,14 @@ static long s3SizeByEp(const char *object_name, int8_t epIndex) {
 long s3Size(const char *object_name) {
   long size = 0;
 
-  SArray *indexArray = NULL;
-  TAOS_CHECK_RETURN(s3InitEpIndexArray(&indexArray));
-
+  int8_t startIndex = taosRand() % tsS3EpNum;
   for (int8_t i = 0; i < tsS3EpNum; ++i) {
-    int8_t epIndex = *(int8_t *)taosArrayGet(indexArray, i);
+    int8_t epIndex = (startIndex + i) % tsS3EpNum;
     size = s3SizeByEp(object_name, epIndex);
     if (size > 0) {
       break;
     }
   }
-
-  taosArrayDestroy(indexArray);
 
   return size;
 }
