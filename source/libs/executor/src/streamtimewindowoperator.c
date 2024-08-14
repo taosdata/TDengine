@@ -454,6 +454,9 @@ void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
 }
 
 void destroyStreamFinalIntervalOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
@@ -2031,6 +2034,9 @@ void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
 }
 
 void destroyStreamSessionAggOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
@@ -4106,6 +4112,9 @@ _error:
 }
 
 void destroyStreamStateOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamStateAggOperatorInfo* pInfo = (SStreamStateAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);

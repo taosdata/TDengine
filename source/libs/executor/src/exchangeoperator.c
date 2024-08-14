@@ -485,6 +485,9 @@ void freeSourceDataInfo(void* p) {
 }
 
 void doDestroyExchangeOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
   if (pExInfo->pFetchRpcHandles) {
     for (int32_t i = 0; i < pExInfo->pFetchRpcHandles->size; ++i) {
