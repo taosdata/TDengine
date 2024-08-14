@@ -164,7 +164,7 @@ if __name__ == "__main__":
         seek_offset(consumer)
         commit_offset(consumer)
         consumer.unsubscribe()
-        print("Consumer unsubscribed successfully.");
+        print("Consumer unsubscribed successfully.")
     except Exception as err:
         print(f"Failed to execute consumer example, ErrMessage:{err}")
     finally:
