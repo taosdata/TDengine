@@ -2547,16 +2547,23 @@ static void cliSchedMsgToDebug(SCliMsg* pMsg, char* label) {
   return;
 }
 
-static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
+static int32_t cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
-  cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+  if (arg == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   arg->param1 = pMsg;
   arg->param2 = pThrd;
 
-  (void)transDQSched(pThrd->delayQueue, doDelayTask, arg, pCtx->retryNextInterval);
+  cliSchedMsgToDebug(pMsg, transLabel(pThrd->pTransInst));
+  if (transDQSched(pThrd->delayQueue, doDelayTask, arg, pCtx->retryNextInterval) == NULL) {
+    taosMemoryFree(arg);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return 0;
 }
 
 FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
@@ -2731,7 +2738,11 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   pMsg->sent = 0;
-  cliSchedMsgToNextNode(pMsg, pThrd);
+  code = cliSchedMsgToNextNode(pMsg, pThrd);
+  if (code != 0) {
+    pCtx->retryCode = code;
+    return false;
+  }
   return true;
 }
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
