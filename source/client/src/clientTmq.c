@@ -823,15 +823,17 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != 0){
-    return code;
+    goto _return;
   }
   if (pMsg == NULL || param == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
+    goto _return;
   }
+  
   SMqHbRsp rsp = {0};
   code = tDeserializeSMqHbRsp(pMsg->pData, pMsg->len, &rsp);
   if (code != 0) {
-    return code;
+    goto _return;
   }
 
   int64_t refId = (int64_t)param;
@@ -854,10 +856,14 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
     taosWUnLockLatch(&tmq->lock);
     (void)taosReleaseRef(tmqMgmt.rsetId, refId);
   }
+  
   tDestroySMqHbRsp(&rsp);
+
+_return:
+
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
-  return 0;
+  return code;
 }
 
 void tmqSendHbReq(void* param, void* tmrId) {
@@ -1504,7 +1510,12 @@ static void setVgIdle(tmq_t* tmq, char* topicName, int32_t vgId) {
 int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   tmq_t*          tmq = NULL;
   SMqPollCbParam* pParam = (SMqPollCbParam*)param;
-  if (pParam == NULL || pMsg == NULL) {
+  if (pMsg == NULL) {
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+  if (pParam == NULL) {
+    taosMemoryFreeClear(pMsg->pData);
+    taosMemoryFreeClear(pMsg->pEpSet);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   int64_t  refId = pParam->refId;
@@ -1512,6 +1523,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   uint64_t requestId = pParam->requestId;
   tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) {
+    taosMemoryFreeClear(pMsg->pData);
+    taosMemoryFreeClear(pMsg->pEpSet);
     return TSDB_CODE_TMQ_CONSUMER_CLOSED;
   }
 
@@ -2809,7 +2822,10 @@ end:
 }
 
 int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
-  if (param == NULL) return code;
+  if (param == NULL) {
+    goto FAIL;
+  }
+  
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   tmq_t*           tmq = taosAcquireRef(tmqMgmt.rsetId, pParam->refId);
   if (tmq == NULL) {
