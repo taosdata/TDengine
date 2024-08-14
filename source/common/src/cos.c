@@ -650,6 +650,7 @@ static int32_t s3PutObjectFromFileWithoutCp(S3BucketContext *bucket_context, cha
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(EIO), &lino, _exit);
   }
 
+
 upload:
   todoContentLength -= chunk_size * manager.next_etags_pos;
   for (int seq = manager.next_etags_pos + 1; seq <= totalSeq; seq++) {
