@@ -29,7 +29,7 @@ static FORCE_INLINE TSCKSUM taosCalcChecksum(TSCKSUM csi, const uint8_t *stream,
 }
 
 static FORCE_INLINE int32_t taosCalcChecksumAppend(TSCKSUM csi, uint8_t *stream, uint32_t ssize) {
-  if (ssize < sizeof(TSCKSUM)) return -1;
+  if (ssize < sizeof(TSCKSUM)) return TSDB_CODE_INVALID_PARA;
 
   *((TSCKSUM *)(stream + ssize - sizeof(TSCKSUM))) = (*crc32c)(csi, stream, (size_t)(ssize - sizeof(TSCKSUM)));
 
