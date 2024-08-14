@@ -152,6 +152,7 @@ bool    streamTaskIterNextTask(SStreamTaskIter *pIter);
 int32_t streamTaskIterGetCurrent(SStreamTaskIter *pIter, SStreamTask **pTask);
 int32_t mndInitExecInfo();
 void    mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo);
+void    mndInitStreamExecInfoForLeader(SMnode *pMnode);
 int32_t removeExpiredNodeEntryAndTaskInBuf(SArray *pNodeSnapshot);
 void    removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 
