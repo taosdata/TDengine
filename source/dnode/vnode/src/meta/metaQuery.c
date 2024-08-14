@@ -282,7 +282,6 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
     code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
     if (code != 0) {
       metaReaderReleaseLock(&pTbCur->mr);
-      pTbCur->paused = 1;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -1311,7 +1310,8 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   }
 
   TAOS_CHECK_GOTO(metaCreateTagIdxKey(pCursor->suid, pCursor->cid, tagData, nTagData, pCursor->type,
-                             param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey), NULL, END);
+                                      param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey),
+                  NULL, END);
 
   int cmp = 0;
   TAOS_CHECK_GOTO(tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp), 0, END);
