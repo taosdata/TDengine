@@ -271,7 +271,7 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   if (*ppEntry) {  // update
     if (pInfo->suid != (*ppEntry)->info.suid) {
       metaError("meta/cache: suid should be same as the one in cache.");
-      return TSDB_CODE_FAILED;
+      return TSDB_CODE_INVALID_PARA;
     }
     if (pInfo->version > (*ppEntry)->info.version) {
       (*ppEntry)->info.version = pInfo->version;
@@ -543,7 +543,7 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
   STagFilterResEntry** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
   if (NULL == pEntry) {
     metaError("meta/cache: pEntry should not be NULL.");
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   *acquireRes = 1;
@@ -750,7 +750,7 @@ int32_t metaGetCachedTbGroup(void* pVnode, tb_uid_t suid, const uint8_t* pKey, i
   STagFilterResEntry** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
   if (NULL == pEntry) {
     metaDebug("suid %" PRIu64 " not in tb group cache", suid);
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   *pList = taosArrayDup(taosLRUCacheValue(pCache, pHandle), NULL);
