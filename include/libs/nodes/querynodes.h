@@ -170,6 +170,12 @@ typedef struct SNodeListNode {
   SNodeList* pNodeList;
 } SNodeListNode;
 
+typedef enum ETrimType {
+  TRIM_TYPE_LEADING = 1,
+  TRIM_TYPE_TRAILING,
+  TRIM_TYPE_BOTH,
+} ETrimType;
+
 typedef struct SFunctionNode {
   SExprNode  node;  // QUERY_NODE_FUNCTION
   char       functionName[TSDB_FUNC_NAME_LEN];
@@ -181,6 +187,7 @@ typedef struct SFunctionNode {
   int32_t    pkBytes;
   bool       hasOriginalFunc;
   int32_t    originalFuncId;
+  ETrimType  trimType;
 } SFunctionNode;
 
 typedef struct STableNode {
