@@ -2572,7 +2572,7 @@ static int32_t cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
 }
 
 FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
-  if ((pResp == NULL || pResp->info.hasEpSet == 0)) {
+  if ((pResp == NULL || pResp->pCont == NULL || pResp->info.hasEpSet == 0)) {
     return false;
   }
   // rebuild resp msg
@@ -2746,6 +2746,8 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   code = cliSchedMsgToNextNode(pMsg, pThrd);
   if (code != 0) {
     pCtx->retryCode = code;
+    pResp->pCont = NULL;
+    pResp->contLen = 0;
     return false;
   }
   return true;
