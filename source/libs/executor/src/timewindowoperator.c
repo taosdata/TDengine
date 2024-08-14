@@ -1208,6 +1208,9 @@ static void freeItem(void* param) {
 }
 
 void destroyIntervalOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
