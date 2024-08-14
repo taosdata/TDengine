@@ -2776,6 +2776,7 @@ int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
   if (info->groupNum > 0) {
     info->groups = taosMemoryCalloc(info->groupNum, sizeof(*info->groups));
     if (info->groups == NULL) {
+      info->groupNum = 0;
       FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
@@ -2787,6 +2788,7 @@ int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
     }
     pg->unitFlags = taosMemoryCalloc(pg->unitNum, sizeof(*pg->unitFlags));
     if (pg->unitFlags == NULL) {
+      pg->unitNum = 0;
       FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     info->groups[i] = *pg;
