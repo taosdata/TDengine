@@ -2917,24 +2917,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .pMergeFunc   = "max"
   },
   {
-    .name = "stddev_pop",
-    .type = FUNCTION_TYPE_STDDEV,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .translateFunc = translateInNumOutDou,
-    .getEnvFunc   = getStdFuncEnv,
-    .initFunc     = stdFunctionSetup,
-    .processFunc  = stdFunction,
-    .sprocessFunc = stdScalarFunction,
-    .finalizeFunc = stddevFinalize,
-  #ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-  #endif
-    .combineFunc  = stdCombine,
-    .pPartialFunc = "_std_partial",
-    .pStateFunc = "_std_state",
-    .pMergeFunc   = "_stddev_merge"
-  },
-  {
     .name = "stddev",
     .type = FUNCTION_TYPE_STDDEV,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
@@ -2951,24 +2933,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .pPartialFunc = "_std_partial",
     .pStateFunc = "_std_state",
     .pMergeFunc   = "_stddev_merge"
-  },
-  {
-    .name = "var_pop",
-    .type = FUNCTION_TYPE_STDVAR,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .translateFunc = translateInNumOutDou,
-    .getEnvFunc   = getStdFuncEnv,
-    .initFunc     = stdFunctionSetup,
-    .processFunc  = stdFunction,
-    .sprocessFunc = stdScalarFunction,
-    .finalizeFunc = stdvarFinalize,
-  #ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-  #endif
-    .combineFunc  = stdCombine,
-    .pPartialFunc = "_std_partial",
-    .pStateFunc = "_std_state",
-    .pMergeFunc   = "_stdvar_merge"
   },
   {
     .name = "_std_partial",
@@ -2999,22 +2963,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = stdCombine,
     .pPartialFunc = "_std_state_merge",
     .pMergeFunc = "_stddev_merge",
-  },
-  {
-    .name = "_stdvar_merge",
-    .type = FUNCTION_TYPE_STDVAR_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateStdMerge,
-    .getEnvFunc   = getStdFuncEnv,
-    .initFunc     = stdFunctionSetup,
-    .processFunc  = stdFunctionMerge,
-    .finalizeFunc = stdvarFinalize,
-  #ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-  #endif
-    .combineFunc  = stdCombine,
-    .pPartialFunc = "_std_state_merge",
-    .pMergeFunc = "_stdvar_merge",
   },
   {
     .name = "leastsquares",
@@ -3826,96 +3774,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "pi",
-    .type = FUNCTION_TYPE_PI,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translatePi,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = piFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "exp",
-    .type = FUNCTION_TYPE_EXP,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateInNumOutDou,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = expFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "ln",
-    .type = FUNCTION_TYPE_LN,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateInNumOutDou,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = lnFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "mod",
-    .type = FUNCTION_TYPE_MOD,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateIn2NumOutDou,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = modFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "sign",
-    .type = FUNCTION_TYPE_SIGN,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateInOutNum,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = signFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "degrees",
-    .type = FUNCTION_TYPE_DEGREES,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateInNumOutDou,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = degreesFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "radians",
-    .type = FUNCTION_TYPE_RADIANS,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateInNumOutDou,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = radiansFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "truncate",
-    .type = FUNCTION_TYPE_TRUNCATE,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateTrunc,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = truncFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "trunc",
-    .type = FUNCTION_TYPE_TRUNCATE,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateTrunc,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = truncFunction,
-    .finalizeFunc = NULL
-  },
-  {
     .name = "length",
     .type = FUNCTION_TYPE_LENGTH,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
@@ -4006,26 +3864,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "substring",
-    .type = FUNCTION_TYPE_SUBSTR,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateSubstr,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = substrFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "substring_index",
-    .type = FUNCTION_TYPE_SUBSTR_IDX,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateSubstrIdx,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = substrIdxFunction,
-    .finalizeFunc = NULL
-  },
-  {
     .name = "cast",
     .type = FUNCTION_TYPE_CAST,
     .classification = FUNC_MGT_SCALAR_FUNC,
@@ -4033,66 +3871,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = castFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "char",
-    .type = FUNCTION_TYPE_CHAR,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateChar,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = charFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "ascii",
-    .type = FUNCTION_TYPE_ASCII,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateAscii,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = asciiFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "position",
-    .type = FUNCTION_TYPE_POSITION,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translatePosition,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = positionFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "trim",
-    .type = FUNCTION_TYPE_TRIM,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateTrim,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = trimFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "replace",
-    .type = FUNCTION_TYPE_REPLACE,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateReplace,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = replaceFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "repeat",
-    .type = FUNCTION_TYPE_REPEAT,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateRepeat,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = repeatFunction,
     .finalizeFunc = NULL
   },
   {
@@ -4163,46 +3941,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = timezoneFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "weekday",
-    .type = FUNCTION_TYPE_WEEKDAY,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateWeekday,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = weekdayFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "dayofweek",
-    .type = FUNCTION_TYPE_DAYOFWEEK,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateWeekday,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = dayofweekFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "week",
-    .type = FUNCTION_TYPE_WEEK,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateWeek,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = weekFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "weekofyear",
-    .type = FUNCTION_TYPE_WEEKOFYEAR,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateWeekofyear,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = weekofyearFunction,
     .finalizeFunc = NULL
   },
   {
@@ -4711,6 +4449,268 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = groupConstValueFunction,
     .finalizeFunc = groupConstValueFinalize,
+  },
+  {
+    .name = "stddev_pop",
+    .type = FUNCTION_TYPE_STDDEV,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunction,
+    .sprocessFunc = stdScalarFunction,
+    .finalizeFunc = stddevFinalize,
+  #ifdef BUILD_NO_CALL
+    .invertFunc   = stdInvertFunction,
+  #endif
+    .combineFunc  = stdCombine,
+    .pPartialFunc = "_std_partial",
+    .pStateFunc = "_std_state",
+    .pMergeFunc   = "_stddev_merge"
+  },
+  {
+    .name = "var_pop",
+    .type = FUNCTION_TYPE_STDVAR,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunction,
+    .sprocessFunc = stdScalarFunction,
+    .finalizeFunc = stdvarFinalize,
+  #ifdef BUILD_NO_CALL
+    .invertFunc   = stdInvertFunction,
+  #endif
+    .combineFunc  = stdCombine,
+    .pPartialFunc = "_std_partial",
+    .pStateFunc = "_std_state",
+    .pMergeFunc   = "_stdvar_merge"
+  },
+  {
+    .name = "_stdvar_merge",
+    .type = FUNCTION_TYPE_STDVAR_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateStdMerge,
+    .getEnvFunc   = getStdFuncEnv,
+    .initFunc     = stdFunctionSetup,
+    .processFunc  = stdFunctionMerge,
+    .finalizeFunc = stdvarFinalize,
+  #ifdef BUILD_NO_CALL
+    .invertFunc   = stdInvertFunction,
+  #endif
+    .combineFunc  = stdCombine,
+    .pPartialFunc = "_std_state_merge",
+    .pMergeFunc = "_stdvar_merge",
+  },
+  {
+    .name = "pi",
+    .type = FUNCTION_TYPE_PI,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translatePi,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = piFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "exp",
+    .type = FUNCTION_TYPE_EXP,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = expFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "ln",
+    .type = FUNCTION_TYPE_LN,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = lnFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "mod",
+    .type = FUNCTION_TYPE_MOD,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateIn2NumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = modFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sign",
+    .type = FUNCTION_TYPE_SIGN,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInOutNum,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = signFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "degrees",
+    .type = FUNCTION_TYPE_DEGREES,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = degreesFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "radians",
+    .type = FUNCTION_TYPE_RADIANS,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = radiansFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "truncate",
+    .type = FUNCTION_TYPE_TRUNCATE,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateTrunc,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = truncFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "trunc",
+    .type = FUNCTION_TYPE_TRUNCATE,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateTrunc,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = truncFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "substring",
+    .type = FUNCTION_TYPE_SUBSTR,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateSubstr,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = substrFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "substring_index",
+    .type = FUNCTION_TYPE_SUBSTR_IDX,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateSubstrIdx,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = substrIdxFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "char",
+    .type = FUNCTION_TYPE_CHAR,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateChar,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = charFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "ascii",
+    .type = FUNCTION_TYPE_ASCII,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateAscii,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = asciiFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "position",
+    .type = FUNCTION_TYPE_POSITION,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translatePosition,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = positionFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "trim",
+    .type = FUNCTION_TYPE_TRIM,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateTrim,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = trimFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "replace",
+    .type = FUNCTION_TYPE_REPLACE,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateReplace,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = replaceFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "repeat",
+    .type = FUNCTION_TYPE_REPEAT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .translateFunc = translateRepeat,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = repeatFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "weekday",
+    .type = FUNCTION_TYPE_WEEKDAY,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateWeekday,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = weekdayFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "dayofweek",
+    .type = FUNCTION_TYPE_DAYOFWEEK,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateWeekday,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = dayofweekFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "week",
+    .type = FUNCTION_TYPE_WEEK,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateWeek,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = weekFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "weekofyear",
+    .type = FUNCTION_TYPE_WEEKOFYEAR,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateWeekofyear,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = weekofyearFunction,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on
