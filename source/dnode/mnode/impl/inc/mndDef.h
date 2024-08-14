@@ -553,6 +553,8 @@ typedef struct {
   int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
   char     clientId[256];
+  char     user[TSDB_USER_LEN];
+  char     fqdn[TSDB_FQDN_LEN];
   int8_t   updateType;  // used only for update
   int32_t  epoch;
   int32_t  status;
@@ -576,6 +578,8 @@ typedef struct {
   int8_t  autoCommit;
   int32_t autoCommitInterval;
   int32_t resetOffsetCfg;
+  int32_t sessionTimeoutMs;
+  int32_t maxPollIntervalMs;
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
