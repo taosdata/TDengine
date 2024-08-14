@@ -62,9 +62,12 @@ static int DemoQueryData() {
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
     char temp[1024] = {0};
-    rows++;
-    taos_print_row(temp, row, fields, num_fields);
+    if (taos_print_row(temp, row, fields, num_fields) < 0) {
+      printf("Failed to print row\n");
+      break;
+    }
     printf("%s\n", temp);
+    rows++;
   }
   printf("total rows: %d\n", rows);
   taos_free_result(result);
@@ -76,4 +79,6 @@ static int DemoQueryData() {
   // ANCHOR_END: query_data
 }
 
-int main(int argc, char *argv[]) { return DemoQueryData(); }
+int main(int argc, char *argv[]) {
+  return DemoQueryData();
+}

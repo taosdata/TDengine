@@ -48,7 +48,6 @@ static int DemoSmlInsert() {
     return -1;
   }
   taos_free_result(result);
-  printf("Create database power successfully.\n");
 
   // use database
   result = taos_query(taos, "USE power");
@@ -136,4 +135,6 @@ static int DemoSmlInsert() {
   // ANCHOR_END: schemaless
 }
 
-int main(int argc, char *argv[]) { return DemoSmlInsert(); }
+int main(int argc, char *argv[]) {
+  return DemoSmlInsert();
+}

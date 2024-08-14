@@ -132,7 +132,6 @@ static int32_t init_env() {
 
   TAOS_RES* pRes;
   // drop database if exists
-  fprintf(stdout, "Create database.\n");
   pRes = taos_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
   code = taos_errno(pRes);
   if (code != 0) {
@@ -157,7 +156,6 @@ static int32_t init_env() {
   taos_free_result(pRes);
 
   // create super table
-  fprintf(stdout, "Create super table.\n");
   pRes = taos_query(
       pConn,
       "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
@@ -179,7 +177,6 @@ END:
 }
 
 int32_t create_topic() {
-  fprintf(stdout, "Create topic.\n");
   TAOS_RES*   pRes;
   const char* host = "localhost";
   const char* user = "root";
@@ -382,7 +379,6 @@ void manual_commit(tmq_t* tmq) {
       totalRows += msg_process(tmqmsg);
       // commit the message
       int32_t code = tmq_commit_sync(tmq, tmqmsg);
-
       if (code) {
         fprintf(stderr, "Failed to commit message, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
         // free the message
