@@ -71,4 +71,6 @@ static int DemoInsertData() {
   // ANCHOR_END: insert_data
 }
 
-int main(int argc, char *argv[]) { return DemoInsertData(); }
+int main(int argc, char *argv[]) {
+  return DemoInsertData();
+}

@@ -73,4 +73,6 @@ static int DemoCreateDB() {
   // ANCHOR_END: create_db_and_table
 }
 
-int main(int argc, char *argv[]) { return DemoCreateDB(); }
+int main(int argc, char *argv[]) {
+  return DemoCreateDB();
+}
