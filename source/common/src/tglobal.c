@@ -611,7 +611,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfSnodeWriteThreads = tsNumOfCores / 4;
   tsNumOfSnodeWriteThreads = TRANGE(tsNumOfSnodeWriteThreads, 2, 4);
   if (cfgAddInt32(pCfg, "numOfSnodeUniqueThreads", tsNumOfSnodeWriteThreads, 2, 1024, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_SERVER) != 0) return -1;
 
   tsQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
   tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
@@ -1402,7 +1402,7 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
     }
     case 'r': {
       if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
-        tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
+        tsQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
       } else if (strcasecmp("rpcDebugFlag", name) == 0) {
         rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
       }
