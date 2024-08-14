@@ -2,28 +2,39 @@
   <div class="custom-select" 
     ref="myDiv" 
     @click="divClicked">
-    <div
-      @click="showOption"
-      class="custom-input"
+    <template 
+      v-if="String(depth) !== 'undefined'"
     >
-      <el-input
-        autocomplete="off"
-        :readonly="true"
-        :placeholder="$t('datasource.transformer.jsonPlaceholder')"
-        size="small"
-        v-model="expression"
+      <div
+        @click="showOption"
+        class="custom-input"
       >
-        <i slot="suffix" :class="['el-input__icon', isShow ? 'el-icon-arrow-up' : 'el-icon-arrow-down']"></i>
-      </el-input>
-    </div>
-    <ul class="custom-ul" v-if="isShow">
-      <li v-for="proper in allProperties" :key="proper.defaultValue" class="custom-li">
-        <el-checkbox class="my-checkbox" v-model="proper.checked">
-          <span style="width: 200px;">{{ proper.defaultValue }}</span>
-        </el-checkbox>
-        <el-input style="margin-left: 4px; width: 200px" size="mini" :key="proper.defaultValue" v-model="proper.rename"></el-input>
-      </li>
-    </ul>
+        <el-input
+          autocomplete="off"
+          :readonly="true"
+          :placeholder="$t('datasource.transformer.jsonPlaceholder')"
+          size="small"
+          v-model="expression"
+        >
+          <i slot="suffix" :class="['el-input__icon', isShow ? 'el-icon-arrow-up' : 'el-icon-arrow-down']"></i>
+        </el-input>
+      </div>
+      <ul class="custom-ul" v-if="isShow">
+        <li v-for="proper in allProperties" :key="proper.defaultValue" class="custom-li">
+          <el-checkbox class="my-checkbox" v-model="proper.checked">
+            <span style="width: 200px;">{{ proper.defaultValue }}</span>
+          </el-checkbox>
+          <el-input style="margin-left: 4px; width: 200px" size="mini" :key="proper.defaultValue" v-model="proper.rename"></el-input>
+        </li>
+      </ul>
+    </template>
+     <el-input
+      v-else
+      v-model="expression"
+      :placeholder="$t('datasource.transformer.jsonPlaceholder')"
+      size="small"
+    >
+    </el-input>
   </div>
 </template>
 
@@ -44,7 +55,14 @@ export default {
     },
     selectJson: {
       type: Function,
-    }
+    },
+    depth: {
+      type: Number
+    },
+    value: {
+      type: String,
+      default: ''
+    },
   },
   watch: {
     allProperties: {
@@ -57,7 +75,11 @@ export default {
             item.rename ? result.push(`${item.defaultValue}=${item.rename}`) : result.push(item.defaultValue)
           }
         })
-        this.expression = result?.join(',')
+        if (String(this.depth) !== 'undefined') {
+          this.expression = result?.join(',')
+        } else [
+          this.expression = this.value
+        ]
         this.$emit('updateData', this.expression)
       }
     }

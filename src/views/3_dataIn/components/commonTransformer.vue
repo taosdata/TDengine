@@ -172,6 +172,7 @@
                   :allProperties="allProperties"
                   :selectJson="selectJson"
                   @updateData="updateData"
+                  :depth="parseruleForm.depth"
                 />
               </div>
               <div v-else style="display: inline-flex; align-items: start; width: 100%;">
@@ -711,6 +712,7 @@ export default {
       parseruleForm: {
         type: "json",
         expression: "",
+        depth: undefined
       },
       configuredCount: 0,
       parseRules: {
@@ -1114,9 +1116,9 @@ export default {
           topparser = JSON.parse(this.msgForm.msgbody);
         } else {
           let depthObj = {}
-          if (this.parseruleForm.type == 'json') {
+          if (this.parseruleForm.type == 'json' && (this.parseruleForm.depth || this.parseruleForm.depth == 0)) {
             depthObj = {
-              'depth': this.parseruleForm.depth || 0
+              'depth': this.parseruleForm.depth
             }
           }
           let expressionObj = {
@@ -2396,7 +2398,7 @@ export default {
     },
     handleTypeChange() {
       this.parseruleForm.expression = ""
-      this.parseruleForm.depth = ""
+      this.parseruleForm.depth = undefined
     }
   },
   watch: {
