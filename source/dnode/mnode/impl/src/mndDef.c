@@ -349,6 +349,8 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   tlen += taosEncodeFixedI8(buf, pConsumer->autoCommit);
   tlen += taosEncodeFixedI32(buf, pConsumer->autoCommitInterval);
   tlen += taosEncodeFixedI32(buf, pConsumer->resetOffsetCfg);
+  tlen += taosEncodeFixedI32(buf, pConsumer->maxPollIntervalMs);
+  tlen += taosEncodeFixedI32(buf, pConsumer->sessionTimeoutMs);
   tlen += taosEncodeString(buf, pConsumer->user);
   tlen += taosEncodeString(buf, pConsumer->fqdn);
   return tlen;
