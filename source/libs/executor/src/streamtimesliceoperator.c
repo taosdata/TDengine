@@ -54,15 +54,18 @@ void streamTimeSliceReleaseState(SOperatorInfo* pOperator) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
   SStreamTimeSliceOperatorInfo* pInfo = pOperator->info;
-  int32_t                       winSize = taosArrayGetSize(pInfo->historyWins) * sizeof(SWinKey);
-  int32_t                       resSize = winSize + sizeof(TSKEY);
-  char*                         pBuff = taosMemoryCalloc(1, resSize);
+  int32_t                       winNum = taosArrayGetSize(pInfo->historyWins);
+
+  int32_t winSize = winNum * sizeof(SWinKey);
+  int32_t resSize = winSize + sizeof(TSKEY);
+  char*   pBuff = taosMemoryCalloc(1, resSize);
   QUERY_CHECK_NULL(pBuff, code, lino, _end, terrno);
 
-  memcpy(pBuff, pInfo->historyWins->pData, winSize);
+  if (winNum > 0) {
+    memcpy(pBuff, pInfo->historyWins->pData, winSize);
+  }
   memcpy(pBuff + winSize, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
-  qDebug("===stream=== time slice operator relase state. save result count:%d",
-         (int32_t)taosArrayGetSize(pInfo->historyWins));
+  qDebug("===stream=== time slice operator relase state. save result count:%d", winNum);
   pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_TIME_SLICE_OP_STATE_NAME,
                                                      strlen(STREAM_TIME_SLICE_OP_STATE_NAME), pBuff, resSize);
   pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
@@ -168,6 +171,8 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pDelWins);
   tSimpleHashCleanup(pInfo->pDeletedMap);
   clearGroupResInfo(&pInfo->groupResInfo);
+
+  taosArrayDestroy(pInfo->historyWins);
 
   taosMemoryFreeClear(param);
 }
@@ -404,11 +409,11 @@ static void fillNormalRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
   int32_t lino = 0;
   while (hasRemainCalc(pFillInfo) && pBlock->info.rows < pBlock->info.capacity) {
     STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
-    if (inWinRange(&pFillSup->winRange, &st)) {
-      bool res = true;
-      code = fillPointResult(pFillSup, pFillInfo->pResRow, pFillInfo->current, pBlock, &res, true);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+    // if (inWinRange(&pFillSup->winRange, &st)) {
+    bool res = true;
+    code = fillPointResult(pFillSup, pFillInfo->pResRow, pFillInfo->current, pBlock, &res, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+    // }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                      pFillSup->interval.precision);
   }
@@ -905,6 +910,8 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
   if (hasNextWindow(pFillSup)) {
     nextWKey = pFillSup->next.key;
   }
+  TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
+  TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
 
   pFillInfo->needFill = true;
   pFillInfo->pos = FILL_POS_INVALID;
@@ -914,11 +921,9 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
     case TSDB_FILL_SET_VALUE:
     case TSDB_FILL_SET_VALUE_F: {
       if (hasPrevWindow(pFillSup)) {
-        TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
       } else {
-        TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
       }
@@ -927,7 +932,6 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
     } break;
     case TSDB_FILL_PREV: {
       if (hasNextWindow(pFillSup)) {
-        TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         resetFillWindow(&pFillSup->prev);
@@ -935,7 +939,6 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         pFillSup->prev.pRowVal = pFillSup->cur.pRowVal;
       } else {
         ASSERT(hasPrevWindow(pFillSup));
-        TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
       }
@@ -943,7 +946,6 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
     } break;
     case TSDB_FILL_NEXT: {
       if (hasPrevWindow(pFillSup)) {
-        TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
         resetFillWindow(&pFillSup->next);
@@ -951,7 +953,6 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         pFillSup->next.pRowVal = pFillSup->cur.pRowVal;
       } else {
         ASSERT(hasNextWindow(pFillSup));
-        TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         resetFillWindow(&pFillSup->prev);
@@ -970,7 +971,6 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         pFillInfo->pResRow = &pFillSup->prev;
         pFillInfo->pLinearInfo->hasNext = false;
       } else if (hasPrevWindow(pFillSup)) {
-        TSKEY endTs = adustEndTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
         SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
@@ -981,7 +981,6 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
         pFillInfo->pLinearInfo->hasNext = false;
       } else {
         ASSERT(hasNextWindow(pFillSup));
-        TSKEY startTs = adustPrevTsKey(ts, pFillSup->cur.key, &pFillSup->interval);
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
@@ -1205,6 +1204,18 @@ _end:
   }
 }
 
+void getNextResKey(int64_t curGroupId, SArray* pKeyArray, int32_t curIndex, TSKEY* pNextKey) {
+  int32_t nextIndex = curIndex + 1;
+  if (nextIndex < taosArrayGetSize(pKeyArray)) {
+    SWinKey* pKey = (SWinKey*)taosArrayGet(pKeyArray, nextIndex);
+    if (pKey->groupId == curGroupId) {
+      *pNextKey = pKey->ts;
+      return;
+    }
+  }
+  *pNextKey = INT64_MIN;
+}
+
 void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup,
                                  SStreamFillInfo* pFillInfo, SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1235,6 +1246,10 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSuppor
     }
     QUERY_CHECK_CODE(code, lino, _end);
 
+    getNextResKey(pKey->groupId, pGroupResInfo->pRows, pGroupResInfo->index, &pFillInfo->nextRowKey);
+    if (hasNextWindow(pFillSup)) {
+      pFillInfo->nextPointKey = nextPoint.key.ts;
+    }
     setTimeSliceFillRule(pFillSup, pFillInfo, pKey->ts);
     doStreamFillRange(pFillSup, pFillInfo, pBlock);
     releaseOutputBuf(pAggSup->pState, curPoint.pResPos, &pAggSup->stateStore);
@@ -1326,13 +1341,13 @@ static int32_t doDeleteTimeSliceResult(SStreamAggSupporter* pAggSup, SSDataBlock
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
     while (1) {
       TSKEY    ts = tsCalStarts[i];
-      TSKEY    endTs = tsCalEnds[i];
+      TSKEY    endCalTs = tsCalEnds[i];
       uint64_t groupId = groupIds[i];
       SWinKey  key = {.ts = ts, .groupId = groupId};
       SWinKey  nextKey = {.groupId = groupId};
       code = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, &key, &nextKey, NULL, NULL, &winCode);
       QUERY_CHECK_CODE(code, lino, _end);
-      if (key.ts > endTs) {
+      if (key.ts > endCalTs) {
         break;
       }
       (void)tSimpleHashRemove(pUpdatedMap, &key, sizeof(SWinKey));
@@ -1674,6 +1689,9 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   pInfo->pFillInfo = initStreamFillInfo(pInfo->pFillSup, pDownRes);
   copyFillValueInfo(pInfo->pFillSup, pInfo->pFillInfo);
   pInfo->ignoreNull = getIgoreNullRes(pExpSup);
+
+  pInfo->historyWins = taosArrayInit(4, sizeof(SWinKey));
+  QUERY_CHECK_NULL(pInfo->historyWins, code, lino, _error, terrno);
 
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;

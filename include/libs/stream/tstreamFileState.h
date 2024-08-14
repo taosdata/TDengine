@@ -134,7 +134,7 @@ int32_t hashSortFileRemoveFn(SStreamFileState* pFileState, const void* pKey);
 void    clearSearchBuff(SStreamFileState* pFileState);
 int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
                            int32_t* pVLen, int32_t* pWinCode);
-int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** pVal,
+int32_t getHashSortPrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
                            int32_t* pVLen, int32_t* pWinCode);
 int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId);
 void    deleteHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey);

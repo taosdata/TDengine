@@ -10384,9 +10384,23 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     }
   }
 
-  if (pStmt->pOptions->fillHistory && pSelect->hasInterpFunc) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                   "Stream interp unsupported Fill history");
+  if (pSelect->hasInterpFunc) {
+    if (pStmt->pOptions->fillHistory && pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "When trigger was force window close, Stream interp unsupported Fill history");
+    }
+
+    if (pStmt->pOptions->triggerType == STREAM_TRIGGER_WINDOW_CLOSE) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream interp unsupported window close");
+    }
+
+    if ((SRealTableNode*)pSelect->pFromTable && ((SRealTableNode*)pSelect->pFromTable)->pMeta &&
+        TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
+        !hasTbnameFunction(pSelect->pPartitionByList)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Interp for stream on super table must patitioned by table name");
+    }
   }
 
   return TSDB_CODE_SUCCESS;
