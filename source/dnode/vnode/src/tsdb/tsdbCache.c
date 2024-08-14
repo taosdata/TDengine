@@ -1440,11 +1440,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   int lastrowIndex = 0;
 
   if (!slotIds || !lastColIds || !lastSlotIds || !lastrowColIds || !lastrowSlotIds) {
-    taosMemoryFree(slotIds);
-    taosMemoryFree(lastColIds);
-    taosMemoryFree(lastSlotIds);
-    taosMemoryFree(lastrowColIds);
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   for (int i = 0; i < num_keys; ++i) {
