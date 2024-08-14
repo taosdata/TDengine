@@ -337,14 +337,14 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+  bool           loadSMA = false;
 
   SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
   pCost->totalBlocks += 1;
   pCost->totalRows += pBlock->info.rows;
-
-  bool loadSMA = false;
   *status = pTableScanInfo->dataBlockLoadFlag;
+
   if (pOperator->exprSupp.pFilterInfo != NULL) {
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
