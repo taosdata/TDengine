@@ -56,6 +56,8 @@ mod tmq_to_kafka;
 pub mod core_metrics;
 mod extensions;
 
+pub mod global;
+
 // 全局定义的是否开启 agent 压缩的标志位
 pub static AGENT_COMPRESSION: OnceLock<bool> = OnceLock::new();
 
