@@ -223,7 +223,8 @@ export function getDataSources(lang) {
         },
         "groups": [
           {
-            "name": "Migrate Options",
+            "display": "Migrate Options",
+            "name": "migrate_options",
             "display_order": 1,
             "short_description": "How to migrate.",
             "description": "How to migrate.",
@@ -298,7 +299,8 @@ export function getDataSources(lang) {
             ]
           },
           {
-            "name": "What to migrate",
+            "display": "What to migrate",
+            "name": "what_to_migrate",
             "display_order": 2,
             "short_description": "Choose to migrate from stable or tables.",
             "description": "Choose to migrate from stable or tables.",
@@ -328,7 +330,8 @@ export function getDataSources(lang) {
             ]
           },
           {
-            "name": "Range",
+            "diaplay": "Range",
+            "name": "range",
             "display_order": 3,
             "short_description": "Migration time range.",
             "description": "Migration time range.",
@@ -386,7 +389,8 @@ export function getDataSources(lang) {
             ]
           },
           {
-            "name": "Realtime Settings",
+            "display": "Realtime Settings",
+            "name": "realtime_settings",
             "display_order": 4,
             "short_description": "Only available in `realtime` mode.",
             "description": "Only available in `realtime` mode.",
@@ -4700,7 +4704,8 @@ export function getDataSources(lang) {
         },
         "groups": [
           {
-            "name": "迁移模式",
+            "display": "迁移模式",
+            "name": "migrate_options",
             "display_order": 1,
             "short_description": "支持迁移历史数据或近实时数据同步，也可设置是否总是重建表模型。",
             "description": "支持迁移历史数据或近实时数据同步，也可设置是否总是重建表模型。",
@@ -4774,7 +4779,8 @@ export function getDataSources(lang) {
             ]
           },
           {
-            "name": "表",
+            "display": "表",
+            "name": "what_to_migrate",
             "display_order": 2,
             "short_description": "如果不是迁移全部数据，请配置需要迁移的表。",
             "description": "如果不是迁移全部数据，请配置需要迁移的表。",
@@ -4804,7 +4810,8 @@ export function getDataSources(lang) {
             ]
           },
           {
-            "name": "时间范围",
+            "display": "时间范围",
+            "name": "range",
             "display_order": 3,
             "short_description": "迁移时间范围和查询单元。",
             "description": "迁移时间范围和查询单元。",
@@ -4862,7 +4869,8 @@ export function getDataSources(lang) {
             ]
           },
           {
-            "name": "实时同步",
+            "display": "实时同步",
+            "name": "realtime_settings",
             "display_order": 4,
             "short_description": "以下参数仅在实时同步模式（`realtime`）下支持。",
             "description": "以下参数仅在实时同步模式（`realtime`）下支持。",

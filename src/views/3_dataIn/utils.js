@@ -761,9 +761,9 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
     if ((beforeConnectionCheck && !group.connection_option) || (!beforeConnectionCheck && group.connection_option)) {
       return;
     }
-    const { name, description: d1, params, collapsible = false, collapsed = true, short_description: d2 } = group;
+    const { name, description: d1, params, collapsible = false, collapsed = true, short_description: d2, display} = group;
     const paramChildren = [];
-    const config = { label: name, field: id == 'taos' ? name : uuid(), description: d1 ?? d2, children: paramChildren };
+    const config = { label: id == 'taos' ? display: name, field: id == 'taos' ? name : uuid(), description: d1 ?? d2, children: paramChildren, hide: false };
     if (collapsible) {
       config.type = 'switch';
       config.defaultValue = collapsed;
@@ -791,15 +791,18 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
           } 
           // if (!currentData.table) return true;
           if (id == 'taos') {
-            const migrateOptionsFiled = lang == 'zh' ? '迁移模式' : 'Migrate Options';
+            const migrateOptionsFiled = 'migrate_options';
             const { mode, schema } = originalData[groupsFieldAfterConnection][migrateOptionsFiled]
             if (schema == 'only') {
+              config.hide = ['realtime_settings','range'].includes(config.field)
               return !['start','end','unit','retro','interval','excursion'].includes(name)
             }
             if (mode == 'realtime') {
+              config.hide = ['range'].includes(config.field)
               return !['start','end','unit'].includes(name)
             } 
             if (mode == 'history') {
+              config.hide = ['realtime_settings'].includes(config.field)
               return !['retro','interval','excursion'].includes(name)
             }
           }
