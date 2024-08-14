@@ -189,7 +189,7 @@ if __name__ == "__main__":
         try:
             stdout, stderr = command_executor.execute(cmd)
             #if "error" in stderr:
-            # print(stderr)
+            print(stderr)
             lines = stdout.split("\n")
             if lines[-2].endswith("matches.") or lines[-2].endswith("match."): 
                 match_num = int(lines[-2].split(" ")[0])
