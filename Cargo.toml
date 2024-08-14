@@ -5,6 +5,7 @@ members = [
     "taosx-agent",
     "taosx-metrics",
     "crates/arrow-compute-ext",
+    "crates/futures-ext",
 ]
 
 [workspace.dependencies]

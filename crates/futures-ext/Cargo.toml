@@ -1,0 +1,11 @@
+[package]
+name = "futures-ext"
+edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+futures = "0.3.30"
+futures-core = "0.3.30"
+futures-util = "0.3.30"
+pin-project-lite = "0.2.14"

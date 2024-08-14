@@ -45,54 +45,59 @@ impl<'a> LicenseValidator<'a> {
                 }
             };
 
-            if let LicenseKind::Good {
-                cluster_id,
-                connector,
-            } = &kind
-            {
-                let cluster_id = match cluster_id {
-                    Some(id) => id,
-                    None => {
-                        return Ok(LicenseKind::good());
-                    }
-                };
-                let license = match connector {
-                    Some(connector) => connector,
-                    None => {
-                        return Ok(LicenseKind::good());
-                    }
-                };
-                let mut used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}%';", cluster_id, self.from.driver))
-                                .fetch_all(pool)
-                                .await?;
-                used.push(self.from.to_string());
-                let used = used
-                    .into_iter()
-                    .map(|s| {
-                        s.parse::<Dsn>()
-                            .unwrap()
-                            .addresses
-                            .first()
-                            .map(|addr| addr.to_string())
-                            .unwrap_or_else(|| "".to_string())
-                    })
-                    .collect::<std::collections::HashSet<_>>()
-                    .len();
-
-                return Ok(match license.number {
-                    0 => LicenseKind::Connector(anyhow!(
-                        "The current connector {:?} is disabled by license.",
-                        license.r#type
-                    )),
-                    n if n > 0 => {
-                        if used > n as usize {
-                            LicenseKind::Connector(anyhow!("The current connector {:?} reaches connection number limit({n}) by license", license.r#type))
-                        } else {
-                            kind
+            match &kind {
+                LicenseKind::Good {
+                    cluster_id,
+                    connector,
+                } => {
+                    let cluster_id = match cluster_id {
+                        Some(id) => id,
+                        None => {
+                            return Ok(LicenseKind::good());
                         }
-                    }
-                    _ => kind,
-                });
+                    };
+                    let license = match connector {
+                        Some(connector) => connector,
+                        None => {
+                            return Ok(LicenseKind::good());
+                        }
+                    };
+                    let mut used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}%';", cluster_id, self.from.driver))
+                                    .fetch_all(pool)
+                                    .await?;
+                    used.push(self.from.to_string());
+                    let used = used
+                        .into_iter()
+                        .map(|s| {
+                            s.parse::<Dsn>()
+                                .unwrap()
+                                .addresses
+                                .first()
+                                .map(|addr| addr.to_string())
+                                .unwrap_or_else(|| "".to_string())
+                        })
+                        .collect::<std::collections::HashSet<_>>()
+                        .len();
+
+                    return Ok(match license.number {
+                        0 => LicenseKind::Connector(anyhow!(
+                            "The current connector {:?} is disabled by license.",
+                            license.r#type
+                        )),
+                        n if n > 0 => {
+                            if used > n as usize {
+                                LicenseKind::Connector(anyhow!("The current connector {:?} reaches connection number limit({n}) by license", license.r#type))
+                            } else {
+                                kind
+                            }
+                        }
+                        _ => kind,
+                    });
+                }
+                LicenseKind::Connector(_) => {
+                    return Ok(kind);
+                }
+                _ => {}
             }
         }
         Ok(LicenseKind::good())

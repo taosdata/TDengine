@@ -9,6 +9,7 @@ pub struct AdvancedOptions {
     pub read_concurrency: Option<usize>,
     pub write_concurrency: Option<usize>,
     pub batch_size: Option<usize>,
+    /// Batch timeout in milliseconds.
     pub batch_timeout: Option<usize>,
     pub keep_raw_data: Option<bool>,
     pub keep_raw_data_days: Option<usize>,
