@@ -27,7 +27,7 @@ import TabItem from "@theme/TabItem";
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/WSParameterBindingBasicDemo.java:para_bind}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingBasicDemo.java:para_bind}}
 ```
 
 
@@ -76,7 +76,7 @@ import TabItem from "@theme/TabItem";
 <TabItem label="Java" value="java">
 
 ```java
-{{#include examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ParameterBindingBasicDemo.java:para_bind}}
+{{#include docs/examples/java/src/main/java/com/taos/example/ParameterBindingBasicDemo.java:para_bind}}
 ```
 
 这是一个[更详细的参数绑定示例](https://github.com/taosdata/TDengine/blob/main/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/ParameterBindingFullDemo.java)  

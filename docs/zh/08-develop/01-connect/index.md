@@ -544,7 +544,7 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 使用示例如下：
 
 ```java
-{{#include examples/JDBC/connectionPools/src/main/java/com/taosdata/example/HikariDemo.java:connection_pool}}
+{{#include docs/examples/java/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
 ```
 
 > 通过 HikariDataSource.getConnection() 获取连接后，使用完成后需要调用 close() 方法，实际上它并不会关闭连接，只是放回连接池中。
@@ -555,7 +555,7 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 使用示例如下：
 
 ```java
-{{#include examples/JDBC/connectionPools/src/main/java/com/taosdata/example/DruidDemo.java:connection_pool}}
+{{#include docs/examples/java/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
 ```
 
 > 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)。

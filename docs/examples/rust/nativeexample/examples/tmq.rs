@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
             consumer
         }
         Err(err) => {
-            eprintln!("Failed to create consumer, dsn: {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to create websocket consumer, dsn: {}, ErrMessage: {}", dsn, err);
             return Err(err.into());
         }
     };
@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     match consumer.subscribe(["topic_meters"]).await{
         Ok(_) => println!("Subscribe topics successfully."),
         Err(err) => {
-            eprintln!("Failed to subscribe topic_meters, dsn: {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to subscribe topic_meters, ErrMessage: {}", err);
             return Err(err.into());
         }
     }
@@ -100,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
         Ok(())
     })
     .await.map_err(|e| {
-        eprintln!("Failed to execute consumer functions. ErrMessage: {:?}", e);
+        eprintln!("Failed to poll data; ErrMessage: {:?}", e);
         e
     })?;
 
@@ -125,14 +125,14 @@ async fn main() -> anyhow::Result<()> {
             match consumer.commit(offset).await{
                 Ok(_) => println!("Commit offset manually successfully."),
                 Err(err) => {
-                    eprintln!("Failed to commit offset manually, dsn: {}; ErrMessage: {}", dsn, err);
+                    eprintln!("Failed to commit offset manually, ErrMessage: {}", err);
                     return Err(err.into());
                 }
             }
             Ok(())
         })
         .await.map_err(|e| {
-            eprintln!("Failed to execute consumer functions. ErrMessage: {:?}", e);
+            eprintln!("Failed to poll data, ErrMessage: {:?}", e);
             e
         })?;
     // ANCHOR_END: consumer_commit_manually
@@ -140,7 +140,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ANCHOR: seek_offset
     let assignments = consumer.assignments().await.unwrap();
-    println!("Now assignments: {:?}", assignments);
+    println!("assignments: {:?}", assignments);
 
     // seek offset
     for topic_vec_assignment in assignments {
@@ -163,14 +163,14 @@ async fn main() -> anyhow::Result<()> {
             match consumer.offset_seek(topic, vgroup_id, begin).await{
                 Ok(_) => (),
                 Err(err) => {
-                    eprintln!("Seek example failed; ErrMessage: {}", err);
+                    eprintln!("Failed to seek offset, ErrMessage: {}", err);
                     return Err(err.into());
                 }
             }
         }
 
         let topic_assignment = consumer.topic_assignment(topic).await;
-        println!("Topic assignment: {:?}", topic_assignment);
+        println!("topic assignment: {:?}", topic_assignment);
     }
     println!("Assignment seek to beginning successfully.");
     // after seek offset

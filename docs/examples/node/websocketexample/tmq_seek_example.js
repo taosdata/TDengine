@@ -59,7 +59,7 @@ async function subscribe(consumer) {
             }
         }
     } catch (err) {
-        console.error("Failed to poll data; ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error("Failed to poll data, ErrCode: " + err.code + ", ErrMessage: " + err.message);
         throw err;
     }
 
@@ -83,7 +83,7 @@ async function test() {
         console.log("Assignment seek to beginning successfully");
     }
     catch (err) {
-        console.error("Seek example failed, ErrCode:" + err.code + "; ErrMessage: " + err.message);
+        console.error("Failed to execute seek example, ErrCode: " + err.code + ", ErrMessage: " + err.message);
     }
     finally {
         if (consumer) {

@@ -27,11 +27,11 @@ func main() {
 	// prepare database and table
 	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		log.Fatalln("Failed to create db, url: " + taosDSN + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to create database power, ErrMessage: " + err.Error())
 	}
 	_, err = db.Exec("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))")
 	if err != nil {
-		log.Fatalln("Failed to create table, url: " + taosDSN + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to create stable power.meters, ErrMessage: " + err.Error())
 	}
 
 	config := stmt.NewConfig(fmt.Sprintf("ws://%s:6041", host), 0)
@@ -49,11 +49,11 @@ func main() {
 	sql := "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)"
 	stmt, err := connector.Init()
 	if err != nil {
-		log.Fatalln("Failed to init stmt, url: " + taosDSN + "; ErrMessage: " + err.Error())
+		log.Fatalln("Failed to init stmt, sql: " + sql + ", ErrMessage: " + err.Error())
 	}
 	err = stmt.Prepare(sql)
 	if err != nil {
-		log.Fatal("Failed to prepare sql, url: " + taosDSN + "; ErrMessage: " + err.Error())
+		log.Fatal("Failed to prepare sql, sql: " + sql + ", ErrMessage: " + err.Error())
 	}
 	for i := 1; i <= numOfSubTable; i++ {
 		tableName := fmt.Sprintf("d_bind_%d", i)
@@ -63,12 +63,12 @@ func main() {
 		// set tableName
 		err = stmt.SetTableName(tableName)
 		if err != nil {
-			log.Fatal("Failed to set table name, url: " + taosDSN + "; ErrMessage: " + err.Error())
+			log.Fatal("Failed to set table name, tableName: " + tableName + "; ErrMessage: " + err.Error())
 		}
 		// set tags
 		err = stmt.SetTags(tags, tagsType)
 		if err != nil {
-			log.Fatal("Failed to set tags, url: " + taosDSN + "; ErrMessage: " + err.Error())
+			log.Fatal("Failed to set tags, ErrMessage: " + err.Error())
 		}
 		// bind column data
 		current := time.Now()
@@ -80,18 +80,18 @@ func main() {
 			columnData[3] = param.NewParam(1).AddFloat(rand.Float32())
 			err = stmt.BindParam(columnData, columnType)
 			if err != nil {
-				log.Fatal("Failed to bind params, url: " + taosDSN + "; ErrMessage: " + err.Error())
+				log.Fatal("Failed to bind params, ErrMessage: " + err.Error())
 			}
 		}
 		// add batch
 		err = stmt.AddBatch()
 		if err != nil {
-			log.Fatal("Failed to add batch, url: " + taosDSN + "; ErrMessage: " + err.Error())
+			log.Fatal("Failed to add batch, ErrMessage: " + err.Error())
 		}
 		// execute batch
 		err = stmt.Exec()
 		if err != nil {
-			log.Fatal("Failed to exec, url: " + taosDSN + "; ErrMessage: " + err.Error())
+			log.Fatal("Failed to exec, ErrMessage: " + err.Error())
 		}
 		// get affected rows
 		affected := stmt.GetAffectedRows()
@@ -100,6 +100,6 @@ func main() {
 	}
 	err = stmt.Close()
 	if err != nil {
-		log.Fatal("Failed to close stmt, url: " + taosDSN + "; ErrMessage: " + err.Error())
+		log.Fatal("Failed to close stmt, ErrMessage: " + err.Error())
 	}
 }

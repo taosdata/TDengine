@@ -45,14 +45,14 @@ func main() {
 func initEnv(conn *sql.DB) {
 	_, err := conn.Exec("CREATE DATABASE IF NOT EXISTS power")
 	if err != nil {
-		log.Fatal("Create database error: ", err)
+		log.Fatal("Create database power error: ", err)
 	}
 	_, err = conn.Exec("CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))")
 	if err != nil {
-		log.Fatal("Create table error: ", err)
+		log.Fatal("Create stable meters error: ", err)
 	}
 	_, err = conn.Exec("INSERT INTO power.d1001 USING power.meters TAGS (2, 'California.SanFrancisco') VALUES (NOW , 10.2, 219, 0.32)")
 	if err != nil {
-		log.Fatal("Insert data error: ", err)
+		log.Fatal("Insert data to power.meters error: ", err)
 	}
 }

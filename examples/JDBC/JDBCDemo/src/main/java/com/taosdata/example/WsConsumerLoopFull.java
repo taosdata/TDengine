@@ -6,11 +6,13 @@ import com.taosdata.jdbc.tmq.*;
 
 import java.sql.*;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 // ANCHOR: consumer_demo
 public class WsConsumerLoopFull {
@@ -18,7 +20,7 @@ public class WsConsumerLoopFull {
     static private Statement statement;
     static private volatile boolean stopThread = false;
 
-    public static TaosConsumer<ResultBean> getConsumer() throws SQLException {
+    public static TaosConsumer<ResultBean> getConsumer() throws Exception {
 // ANCHOR: create_consumer
         Properties config = new Properties();
         config.setProperty("td.connect.type", "ws");
@@ -36,16 +38,20 @@ public class WsConsumerLoopFull {
 
         try {
             TaosConsumer<ResultBean> consumer= new TaosConsumer<>(config);
-            System.out.println("Create consumer successfully, host: " + config.getProperty("bootstrap.servers") + ", groupId: " + config.getProperty("group.id") + ", clientId: " + config.getProperty("client.id"));
+            System.out.printf("Create consumer successfully, host: %s, groupId: %s, clientId: %s%n",
+                    config.getProperty("bootstrap.servers"),
+                    config.getProperty("group.id"),
+                    config.getProperty("client.id"));
             return consumer;
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to create websocket consumer, host: " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to create consumer", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to create websocket consumer, host: " + config.getProperty("bootstrap.servers")
-                    + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to create consumer", ex);
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to create websocket consumer, host: %s, %sErrMessage: %s%n",
+                    config.getProperty("bootstrap.servers"),
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
+            throw ex;
         }
 // ANCHOR_END: create_consumer
     }
@@ -67,14 +73,14 @@ public class WsConsumerLoopFull {
                     System.out.println("data: " + JSON.toJSONString(bean));
                 }
             }
-
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to poll data, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to poll data", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to poll data, ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to poll data", ex);
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to poll data, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
+            throw ex;
         }
 // ANCHOR_END: poll_data_code_piece
     }
@@ -98,13 +104,14 @@ public class WsConsumerLoopFull {
 
             consumer.seekToBeginning(assignment);
             System.out.println("Assignment seek to beginning successfully.");
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Seek example failed; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("seek example failed", ex);
         } catch (Exception ex) {
-            System.out.println("Seek example failed; ErrMessage: " + ex.getMessage());
-            throw new SQLException("seek example failed", ex);
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to execute seek example, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
+            throw ex;
         }
 // ANCHOR_END: consumer_seek
     }
@@ -129,13 +136,14 @@ public class WsConsumerLoopFull {
                     System.out.println("Commit offset manually successfully.");
                 }
             }
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to execute consumer functions. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to execute consumer functions", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to execute consumer functions. ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to execute consumer functions", ex);
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to execute commit example, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
+            throw ex;
         }
 // ANCHOR_END: commit_code_piece
     }
@@ -148,13 +156,14 @@ public class WsConsumerLoopFull {
             // unsubscribe the consumer
             consumer.unsubscribe();
             System.out.println("Consumer unsubscribed successfully.");
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to unsubscribe consumer. ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to unsubscribe consumer", ex);
         } catch (Exception ex) {
-            System.out.println("Failed to unsubscribe consumer. ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to unsubscribe consumer", ex);
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to unsubscribe consumer, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
+            throw ex;
         }
         finally {
             // close the consumer
@@ -236,9 +245,14 @@ public class WsConsumerLoopFull {
                 i++;
                 Thread.sleep(1);
             }
-        } catch (SQLException ex) {
-            System.out.println("Failed to insert data to power.meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to insert data to power.meters", ex);
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to insert data to power.meters, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
+            throw ex;
         }
     }
 
@@ -248,9 +262,14 @@ public class WsConsumerLoopFull {
             statement.executeUpdate("USE power");
             statement.executeUpdate("CREATE STABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))");
             statement.executeUpdate("CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters");
-        } catch (SQLException ex) {
-            System.out.println("Failed to create db and table, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw new SQLException("Failed to create db and table", ex);
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to create db and table, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
+            throw ex;
         }
     }
 
@@ -309,7 +328,7 @@ public class WsConsumerLoopFull {
             try {
                 prepareData();
             } catch (SQLException ex) {
-                System.out.println("Failed to prepare data, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+                System.out.println("Failed to prepare data, ErrCode:" + ex.getErrorCode() + ", ErrMessage: " + ex.getMessage());
                 return;
             } catch (Exception ex) {
                 System.out.println("Failed to prepare data, ErrMessage: " + ex.getMessage());
@@ -334,8 +353,7 @@ public class WsConsumerLoopFull {
             consumer.unsubscribe();
 
             unsubscribeExample(consumer);
-            System.out.println("unsubscribeExample executed successfully.");
-
+            System.out.println("unsubscribeExample executed successfully");
         } catch (SQLException ex) {
             System.out.println("Failed to poll data from topic_meters, ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
             return;

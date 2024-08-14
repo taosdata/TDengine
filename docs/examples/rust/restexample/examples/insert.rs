@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
     (NOW + 1a, 10.30000, 218, 0.25000) "#).await{
         Ok(affected_rows) => println!("Successfully inserted {} rows to power.meters.", affected_rows),
         Err(err) => {
-            eprintln!("Failed to insert data to power.meters, dsn: {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to insert data to power.meters, ErrMessage: {}", dsn, err);
             return Err(err.into());
         }
     }

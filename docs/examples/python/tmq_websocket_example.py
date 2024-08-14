@@ -78,7 +78,7 @@ def create_consumer():
         print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}");
         return consumer;
     except Exception as err:
-        print(f"Failed to create websocket consumer, host: {host}:{port} ; ErrMessage:{err}");
+        print(f"Failed to create websocket consumer, host: {host}:{port}, ErrMessage:{err}");
         raise err
 
 
@@ -98,7 +98,7 @@ def seek_offset(consumer):
                 print("Assignment seek to beginning successfully");
 
     except Exception as err:
-        print(f"Seek example failed; ErrMessage:{err}")
+        print(f"Failed to execute seek example, ErrMessage:{err}")
         raise err
     # ANCHOR_END: assignment
 
@@ -137,7 +137,7 @@ def commit_offset(consumer):
                 print("Commit offset manually successfully.");
 
     except Exception as err:
-        print(f"Failed to poll data, ErrMessage:{err}")
+        print(f"Failed to execute commit example, ErrMessage:{err}")
         raise err
 
 
@@ -153,7 +153,8 @@ def unsubscribe(consumer):
         print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
     finally:
         if consumer:
-            consumer.close()    
+            consumer.close()
+            print("Consumer closed successfully."); 
 
 # ANCHOR_END: unsubscribe
 
@@ -166,6 +167,6 @@ if __name__ == "__main__":
         seek_offset(consumer)
         commit_offset(consumer)      
     except Exception as err:
-        print(f"Failed to stmt consumer. ErrorMessage:{err}")
+        print(f"Failed to execute consumer example, ErrorMessage:{err}")
     finally:
         unsubscribe(consumer);

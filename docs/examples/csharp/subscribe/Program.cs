@@ -91,14 +91,14 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to create native consumer, host : " + host + "; ErrCode:" + e.Code +
-                                  "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to create native consumer, host: " + host + ", ErrCode:" + e.Code +
+                                  ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to create native consumer, host : " + host + "; ErrMessage: " + e.Message);
+                Console.WriteLine("Failed to create native consumer, host: " + host + ", ErrMessage: " + e.Message);
                 throw;
             }
 
@@ -133,13 +133,13 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to poll data; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to poll data, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to poll data; ErrMessage:" + e.Message);
+                Console.WriteLine("Failed to poll data, ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: subscribe
@@ -163,13 +163,13 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Seek example failed; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to execute seek example, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Seek example failed; ErrMessage: " + e.Message);
+                Console.WriteLine("Failed to execute seek example, ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: seek
@@ -197,13 +197,13 @@ namespace TMQExample
                 catch (TDengineError e)
                 {
                     // handle TDengine error
-                    Console.WriteLine("Failed to execute consumer functions. ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                    Console.WriteLine("Failed to execute commit example, ErrCode:" + e.Code + ", ErrMessage: " + e.Error);
                     throw;
                 }
                 catch (Exception e)
                 {
                     // handle other exceptions
-                    Console.WriteLine("Failed to execute consumer functions. ErrMessage:" + e.Message);
+                    Console.WriteLine("Failed to execute commit example, ErrMessage: " + e.Message);
                     throw;
                 }
             }
@@ -221,13 +221,13 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to unsubscribe consumer. ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to unsubscribe consumer, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to unsubscribe consumer. Err: " + e.Message);
+                Console.WriteLine("Failed to unsubscribe consumer, ErrMessage: " + e.Message);
                 throw;
             }
             finally
