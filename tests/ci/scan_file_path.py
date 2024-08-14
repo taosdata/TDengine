@@ -134,7 +134,7 @@ def input_files(change_files):
         for line in file:
             file_name = line.strip()
             if any(dir_name in file_name for dir_name in scan_dir_list):
-                if (file_name.endswith(".c")  or line.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
+                if (file_name.endswith(".c")  or file_name.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
                     if "enterprise" in file_name:
                         file_name = os.path.join(TD_project_path, file_name)
                     else: 
