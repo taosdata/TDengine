@@ -2891,11 +2891,13 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
 
       if (!pIter->pSkyline) {
         pIter->pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
+        TSDB_CHECK_NULL(pIter->pSkyline, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
 
         uint64_t        uid = pIter->idx.uid;
         STableLoadInfo *pInfo = getTableLoadInfo(pIter->pr, uid);
         if (pInfo->pTombData == NULL) {
           pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
+          TSDB_CHECK_NULL(pInfo->pTombData, code, lino, _err, TSDB_CODE_OUT_OF_MEMORY);
         }
 
         (void)taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData);
@@ -2903,6 +2905,7 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
         size_t delSize = TARRAY_SIZE(pInfo->pTombData);
         if (delSize > 0) {
           code = tsdbBuildDeleteSkyline(pInfo->pTombData, 0, (int32_t)(delSize - 1), pIter->pSkyline);
+          TAOS_CHECK_GOTO(code, &lino, _err);
         }
         pIter->iSkyline = taosArrayGetSize(pIter->pSkyline) - 1;
       }
