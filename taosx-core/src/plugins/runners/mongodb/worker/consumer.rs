@@ -38,7 +38,8 @@ impl Consumer {
         let schema = self.schema.clone();
 
         // write batch to IPC
-        let (tx, rx) = flume::bounded(100);
+        let (tx, rx) = flume::bounded(0);
+        let (ack_tx, ack_rx) = flume::bounded(100);
         let writer_handler = tokio::task::spawn_blocking(move || {
             // IPC writer
             let mut writer = StreamWriter::try_new(stream, &schema)?;
@@ -51,6 +52,7 @@ impl Consumer {
                 tracing::debug!("migrate mongodb write {} rows to ipc", batch.num_rows());
                 row_count += batch.num_rows();
                 batch_count += 1;
+                ack_tx.send(batch.num_rows())?;
             }
 
             tracing::debug!(
@@ -67,6 +69,7 @@ impl Consumer {
             let ack_reader =
                 AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
             for ack in ack_reader {
+                let _ = ack_rx.recv();
                 if !ack.success() {
                     tracing::error!("migrate mongodb write records error: {ack:?}",);
                     if let Some(message) = ack.message() {
