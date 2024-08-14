@@ -280,7 +280,11 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
 
     code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    if (code != 0) {
+      metaReaderReleaseLock(&pTbCur->mr);
+      pTbCur->paused = 1;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
 
     if (first) {
       code = tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
