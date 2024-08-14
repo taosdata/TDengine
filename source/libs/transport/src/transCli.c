@@ -3191,6 +3191,7 @@ _EXIT:
   taosMemoryFree(pSyncMsg);
   return code;
 }
+
 int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
                                  int32_t timeoutMs) {
   int32_t code = 0;
@@ -3358,6 +3359,8 @@ int32_t transAllocHandle(int64_t* refId) {
   *refId = exh->refId;
   return 0;
 }
+
+
 int32_t transFreeConnById(void* shandle, int64_t transpointId) {
   int32_t code = 0;
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
