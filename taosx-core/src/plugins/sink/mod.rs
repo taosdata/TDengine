@@ -602,6 +602,10 @@ async fn consume_lush_record(
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<()> {
+    if unsafe { crate::global::DRY_RUN } {
+        tracing::trace!("consume lush record in dry-run mode");
+        return Ok(());
+    }
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables, _) => {
@@ -922,6 +926,10 @@ async fn consume_lush_record_with_transform(
     table_cache: Arc<TableTagCache>,
     breakpoint_db: BreakpointDb,
 ) -> anyhow::Result<()> {
+    if unsafe { crate::global::DRY_RUN } {
+        tracing::trace!("consume lush record in dry-run mode with transform");
+        return Ok(());
+    }
     let req_id = RequestID::new(data_trace_id.as_u64());
     match record {
         LushMessage::Tables(tables, full_record) => {
@@ -1891,6 +1899,10 @@ async fn consume_point_record(
     data_trace_id: TraceDataId,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
+    if unsafe { crate::global::DRY_RUN } {
+        tracing::trace!("consume point record in dry-run mode");
+        return Ok(0);
+    }
     tracing::trace!("consume point record, opc model config: {:?}", config);
 
     let point_model_config = config.get_point_model_config();
@@ -2689,6 +2701,11 @@ async fn consume_flat_record(
                 if message.len() == 0 {
                     continue;
                 }
+                if unsafe { crate::global::DRY_RUN } {
+                    *count += num_rows;
+                    metrics.add_processed_rows(num_rows as u64);
+                    continue;
+                }
                 let factor = message
                     .iter()
                     .map(|message| message.records.num_rows())
@@ -2706,7 +2723,6 @@ async fn consume_flat_record(
                     )
                     .in_current_span()
                     .await?;
-                    metrics.add_processed_rows(num_rows as u64);
                 } else {
                     *count += flat_write_with_raw_block(
                         pool,
@@ -2721,8 +2737,8 @@ async fn consume_flat_record(
                     )
                     .in_current_span()
                     .await?;
-                    metrics.add_processed_rows(num_rows as u64);
                 }
+                metrics.add_processed_rows(num_rows as u64);
             }
         }
     }

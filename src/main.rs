@@ -177,6 +177,9 @@ struct Global {
 
     /// Max activities per entity.
     max_activities_per_entity: Option<usize>,
+
+    #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN", global = true, hide = true)]
+    dry_run: Option<bool>,
 }
 
 #[derive(Parser, Debug)]
@@ -337,6 +340,7 @@ impl Global {
         update_if_none!(log_keep_days);
         update_if_none!(jobs);
         update_if_none!(otel);
+        update_if_none!(dry_run);
         self
     }
 }
@@ -627,6 +631,12 @@ fn main() -> Result<()> {
     tracing::info!("taosx version: {version}");
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
+
+    if args.global.dry_run.unwrap_or(false) {
+        tracing::info!("dry run mode enabled");
+        unsafe { taosx_core::global::DRY_RUN = true };
+    }
+
     print_effective_config(&level_filter, &args);
     let res = match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
