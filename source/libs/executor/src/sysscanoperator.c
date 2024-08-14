@@ -2081,6 +2081,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     int32_t tempRes = tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
     if (tempRes < 0) {
       code = terrno;
+      taosMemoryFree(buf1);
       return NULL;
     }
 
@@ -2089,6 +2090,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     if (NULL == pMsgSendInfo) {
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(buf1);
       return NULL;
     }
 

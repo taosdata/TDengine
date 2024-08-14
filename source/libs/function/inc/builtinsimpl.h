@@ -96,19 +96,20 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx);
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getAvgInfoSize();
 
-bool    getStddevFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-int32_t stddevFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
-int32_t stddevFunction(SqlFunctionCtx* pCtx);
-int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx);
+bool    getStdFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t stdFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t stdFunction(SqlFunctionCtx* pCtx);
+int32_t stdFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t stddevPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stdvarFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stdPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 #ifdef BUILD_NO_CALL
-int32_t stddevInvertFunction(SqlFunctionCtx* pCtx);
+int32_t stdInvertFunction(SqlFunctionCtx* pCtx);
 #endif
 
-int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
-int32_t getStddevInfoSize();
+int32_t stdCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t getStdInfoSize();
 
 bool    getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
