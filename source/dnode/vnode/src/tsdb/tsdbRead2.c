@@ -2440,20 +2440,23 @@ static bool initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
 
   int32_t code = tMergeTreeOpen2(&pSttBlockReader->mergeTree, &conf, &info);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(info.pKeyRangeList);
     pReader->code = code;
     return false;
   }
 
   code = initMemDataIterator(pScanInfo, pReader);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(info.pKeyRangeList);
     pReader->code = code;
     return false;
   }
 
   code = initDelSkylineIterator(pScanInfo, pReader->info.order, &pReader->cost);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(info.pKeyRangeList);
     pReader->code = code;
-    return code;
+    return false;
   }
 
   if (conf.rspRows) {
