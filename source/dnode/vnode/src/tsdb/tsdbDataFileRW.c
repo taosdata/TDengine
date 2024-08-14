@@ -463,9 +463,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
 
     if (cid < blockCol.cid) {
       const STColumn *tcol = tTSchemaSearchColumn(pTSchema, cid);
-      if (tcol == NULL) {
-        TAOS_CHECK_GOTO(TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER, &lino, _exit);
-      }
+      TSDB_CHECK_NULL(tcol, code,lino,_exit,TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER);
       SBlockCol none = {
           .cid = cid,
           .type = tcol->type,
