@@ -436,30 +436,32 @@ where
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
     );
 
-    // Add layer for printing log to terminal.
-    if atty::is(atty::Stream::Stderr) {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_thread_names(true)
-                .with_writer(std::io::stderr)
-                .with_span_events(span_events)
-                .with_ansi(true)
-                .pretty()
-                .with_filter(env_filter_from(&tracing_level_filter)?)
-                .boxed(),
-        );
-    } else {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_thread_names(true)
-                .with_writer(std::io::stderr)
-                .with_span_events(span_events)
-                .with_ansi(false)
-                .with_filter(env_filter_from(&tracing_level_filter)?)
-                .boxed(),
-        );
+    if cfg!(debug_assertions) {
+        // Add layer for printing log to terminal.
+        if atty::is(atty::Stream::Stderr) {
+            layers.push(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(timer.clone())
+                    .with_thread_names(true)
+                    .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
+                    .with_ansi(true)
+                    .pretty()
+                    .with_filter(env_filter_from(&tracing_level_filter)?)
+                    .boxed(),
+            );
+        } else {
+            layers.push(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(timer.clone())
+                    .with_thread_names(true)
+                    .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
+                    .with_ansi(false)
+                    .with_filter(env_filter_from(&tracing_level_filter)?)
+                    .boxed(),
+            );
+        }
     }
 
     // Create event subscriber
