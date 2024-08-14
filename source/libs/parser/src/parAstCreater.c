@@ -997,6 +997,73 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   return (SNode*)func;
 }
 
+SNode* createPositionFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "position");
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createTrimFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, ETrimType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "trim");
+  func->trimType = type;
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createTrimFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2, ETrimType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "trim");
+  func->trimType = type;
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createSubstrFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "substr");
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
+SNode* createSubstrFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2, SNode* pExpr3) {
+  CHECK_PARSER_STATUS(pCxt);
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  strcpy(func->functionName, "substr");
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr3);
+  CHECK_PARSER_STATUS(pCxt);
+  return (SNode*)func;
+}
+
 SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList) {
   CHECK_PARSER_STATUS(pCxt);
   SNodeListNode* list = NULL;

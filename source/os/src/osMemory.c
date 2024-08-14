@@ -21,9 +21,9 @@
 #endif
 #include "os.h"
 
-int32_t tsRandErrChance = 1;
+int32_t          tsRandErrChance = 1;
+int64_t          tsRandErrDivisor = 10001;
 threadlocal bool tsEnableRandErr = 0;
-
 
 #if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
 
@@ -273,7 +273,7 @@ void *taosMemoryMalloc(int64_t size) {
 
 #ifdef BUILD_WITH_RAND_ERR
   if (tsEnableRandErr) {
-    uint32_t r = taosRand() % 10001;
+    uint32_t r = taosRand() % tsRandErrDivisor;
     if ((r + 1) <= tsRandErrChance) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
@@ -303,7 +303,7 @@ void *taosMemoryCalloc(int64_t num, int64_t size) {
 #else
 #ifdef BUILD_WITH_RAND_ERR
   if (tsEnableRandErr) {
-    uint32_t r = taosRand() % 10001;
+    uint32_t r = taosRand() % tsRandErrDivisor;
     if ((r + 1) <= tsRandErrChance) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
@@ -343,7 +343,7 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
 #else
 #ifdef BUILD_WITH_RAND_ERR
   if (tsEnableRandErr) {
-    uint32_t r = taosRand() % 10001;
+    uint32_t r = taosRand() % tsRandErrDivisor;
     if ((r + 1) <= tsRandErrChance) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
@@ -378,7 +378,7 @@ char *taosStrdup(const char *ptr) {
 #else
 #ifdef BUILD_WITH_RAND_ERR
   if (tsEnableRandErr) {
-    uint32_t r = taosRand() % 10001;
+    uint32_t r = taosRand() % tsRandErrDivisor;
     if ((r + 1) <= tsRandErrChance) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
@@ -444,7 +444,7 @@ void *taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
 #if defined(LINUX)
 #ifdef BUILD_WITH_RAND_ERR
   if (tsEnableRandErr) {
-    uint32_t r = taosRand() % 10001;
+    uint32_t r = taosRand() % tsRandErrDivisor;
     if ((r + 1) <= tsRandErrChance) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
