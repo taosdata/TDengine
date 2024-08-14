@@ -1066,6 +1066,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
       info->fields[type].fields =
           taosMemoryRealloc(info->fields[type].fields, info->fields[type].size * sizeof(SFilterField));
       if (info->fields[type].fields == NULL) {
+        *num = 0;
         fltError("taosMemoryRealloc failed, size:%d", (int32_t)(info->fields[type].size * sizeof(SFilterField)));
         FLT_ERR_RET(terrno);
       }
