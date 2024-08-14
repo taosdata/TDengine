@@ -419,13 +419,8 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
     int32_t nullIndex = 0;
     int32_t dataIndex = 0;
-    for (int16_t i = 0; i < pObj->outputSchema.nCols; i++) {
-      SColLocation *pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
-      if (pos == NULL) {
-        continue;
-      }
-
-      if (nullIndex >= numOfNULL || i < pos->slotId) {
+    for (int32_t i = 0; i < pObj->outputSchema.nCols; i++) {
+      if (nullIndex >= numOfNULL) {
         pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
         pFullSchema[i].colId = i + 1;  // pObj->outputSchema.pSchema[dataIndex].colId;
         pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
@@ -433,14 +428,34 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
         pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
         dataIndex++;
       } else {
-        pFullSchema[i].bytes = 0;
-        pFullSchema[i].colId = pos->colId;
-        pFullSchema[i].flags = COL_SET_NULL;
-        memset(pFullSchema[i].name, 0, TSDB_COL_NAME_LEN);
-        pFullSchema[i].type = pos->type;
-        nullIndex++;
+        SColLocation *pos = NULL;
+        if (nullIndex < taosArrayGetSize(pCreate->fillNullCols)) {
+          pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
+        }
+
+        if (pos == NULL) {
+          mError("invalid null column index, %d", nullIndex);
+          continue;
+        }
+
+        if (i < pos->slotId) {
+          pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
+          pFullSchema[i].colId = i + 1;  // pObj->outputSchema.pSchema[dataIndex].colId;
+          pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
+          strcpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name);
+          pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
+          dataIndex++;
+        } else {
+          pFullSchema[i].bytes = 0;
+          pFullSchema[i].colId = pos->colId;
+          pFullSchema[i].flags = COL_SET_NULL;
+          memset(pFullSchema[i].name, 0, TSDB_COL_NAME_LEN);
+          pFullSchema[i].type = pos->type;
+          nullIndex++;
+        }
       }
     }
+
     taosMemoryFree(pObj->outputSchema.pSchema);
     pObj->outputSchema.pSchema = pFullSchema;
   }
@@ -2549,6 +2564,10 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
+  streamMutexLock(&execInfo.lock);
+  mndInitStreamExecInfo(pMnode, &execInfo);
+  streamMutexUnlock(&execInfo.lock);
+
   mDebug("receive stream task checkpoint-report msg, vgId:%d, s-task:0x%x, checkpointId:%" PRId64
          " checkpointVer:%" PRId64 " transId:%d",
          req.nodeId, req.taskId, req.checkpointId, req.checkpointVer, req.transId);
@@ -2814,6 +2833,12 @@ void mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
 
   addAllStreamTasksIntoBuf(pMnode, pExecInfo);
   pExecInfo->initTaskList = true;
+}
+
+void mndInitStreamExecInfoForLeader(SMnode* pMnode) {
+  execInfo.initTaskList = false;
+  mInfo("init stream execInfo for leader");
+  mndInitStreamExecInfo(pMnode, &execInfo);
 }
 
 void addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo) {

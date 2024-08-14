@@ -332,17 +332,12 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
     goto _return;
   }
 
-  if (NULL == dispatcher->pDataBlocks) {
-    taosMemoryFree(dispatcher);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _return;
-  }
-
   *pHandle = dispatcher;
   return TSDB_CODE_SUCCESS;
 
 _return:
-
-  taosMemoryFree(pManager);
+  if (dispatcher) {
+    dsDestroyDataSinker(dispatcher);
+  }
   return terrno;
 }

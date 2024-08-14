@@ -1,6 +1,6 @@
 ---
 sidebar_label: 连接器
-title: 连接器
+title: 连接器参考手册
 description: 详细介绍各种语言的连接器及 REST API
 ---
 

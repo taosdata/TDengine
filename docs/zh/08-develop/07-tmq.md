@@ -492,7 +492,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 3. 对于每个分配，使用 `tmq_offset_seek` 函数将消费者的偏移量设置到最早的偏移量。
 4. 如果设置偏移量失败，则打印错误信息。
 5. 释放分配信息数组以释放资源。
-6. 调用 `basic_consume_loop` 函数开始新的的消费循环，处理消息。
+6. 调用 `basic_consume_loop` 函数开始新的消费循环，处理消息。
     
 </TabItem>
 <TabItem label="REST API" value="rest">

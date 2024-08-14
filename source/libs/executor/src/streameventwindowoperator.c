@@ -43,6 +43,9 @@ typedef struct SEventWindowInfo {
 } SEventWindowInfo;
 
 void destroyStreamEventOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamEventAggOperatorInfo* pInfo = (SStreamEventAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);

@@ -1,5 +1,5 @@
 ---
-sidebar_label: TDengine 错误码
+sidebar_label: 错误码
 title: TDengine 错误码
 description: TDengine 服务端的错误码列表和详细说明
 ---

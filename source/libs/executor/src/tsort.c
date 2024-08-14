@@ -1917,14 +1917,21 @@ static int32_t getBufIncForNewRow(SSortHandle* pHandle, int32_t dstRowIndex, SSD
 }
 
 static int32_t initMergeSup(SBlkMergeSupport* pSup, SArray* pBlockList, int32_t tsOrder, int32_t tsSlotId, SBlockOrderInfo* pPkOrderInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   memset(pSup, 0, sizeof(SBlkMergeSupport));
 
   int32_t numOfBlocks = taosArrayGetSize(pBlockList);
 
   pSup->aRowIdx = taosMemoryCalloc(numOfBlocks, sizeof(int32_t));
+  QUERY_CHECK_NULL(pSup->aRowIdx, code, lino, _end, terrno);
+
   pSup->aTs = taosMemoryCalloc(numOfBlocks, sizeof(int64_t*));
+  QUERY_CHECK_NULL(pSup->aTs, code, lino, _end, terrno);
+
   pSup->tsOrder = tsOrder;
   pSup->aBlks = taosMemoryCalloc(numOfBlocks, sizeof(SSDataBlock*));
+  QUERY_CHECK_NULL(pSup->aBlks, code, lino, _end, terrno);
 
   for (int32_t i = 0; i < numOfBlocks; ++i) {
     SSDataBlock*     pBlock = taosArrayGetP(pBlockList, i);
@@ -1935,7 +1942,12 @@ static int32_t initMergeSup(SBlkMergeSupport* pSup, SArray* pBlockList, int32_t 
   }
 
   pSup->pPkOrder = pPkOrderInfo;
-  return TSDB_CODE_SUCCESS;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void cleanupMergeSup(SBlkMergeSupport* pSup) {
