@@ -65,6 +65,7 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
   p->id.taskId = taskId;
   p->id.str = taosMemoryMalloc(64);
   if (p->id.str == NULL) {
+    doDestroyTask(p);
     return terrno;
   }
 
@@ -100,6 +101,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
+    nodesDestroyNode((SNode*)pPlan);
     taosMemoryFree(sql);
     return code;
   }
