@@ -3806,6 +3806,9 @@ _end:
 }
 
 static void destroyStreamScanOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
 
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {

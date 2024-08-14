@@ -552,6 +552,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   blockDataCleanup(pInfo->pRes);
 
   pDataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_COLS);
+  QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+
   code = blockDataEnsureCapacity(pDataBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -708,6 +710,8 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   int32_t numOfRows = 0;
 
   dataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TAGS);
+  QUERY_CHECK_NULL(dataBlock, code, lino, _end, terrno);
+
   code = blockDataEnsureCapacity(dataBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1354,6 +1358,8 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
   p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TABLES);
+  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+
   code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
