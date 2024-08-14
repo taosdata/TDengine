@@ -691,8 +691,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfSnodeWriteThreads = tsNumOfCores / 4;
   tsNumOfSnodeWriteThreads = TRANGE(tsNumOfSnodeWriteThreads, 2, 4);
 
-  tsRpcQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
-  tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+  tsQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
+  tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
 
   // clang-format off
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_NONE));
@@ -722,7 +722,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfSnodeSharedThreads", tsNumOfSnodeStreamThreads, 2, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfSnodeUniqueThreads", tsNumOfSnodeWriteThreads, 2, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE));
 
-  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncElectInterval", tsElectInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_NONE));
@@ -958,9 +958,9 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(pCfg, "rpcQueueMemoryAllowed");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsRpcQueueMemoryAllowed = totalMemoryKB * 1024 * 0.1;
-    tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
-    pItem->i64 = tsRpcQueueMemoryAllowed;
+    tsQueueMemoryAllowed = totalMemoryKB * 1024 * 0.1;
+    tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+    pItem->i64 = tsQueueMemoryAllowed;
     pItem->stype = stype;
   }
 
@@ -1357,7 +1357,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfSnodeWriteThreads = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rpcQueueMemoryAllowed");
-  tsRpcQueueMemoryAllowed = pItem->i64;
+  tsQueueMemoryAllowed = pItem->i64;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "simdEnable");
   tsSIMDEnable = (bool)pItem->bval;
