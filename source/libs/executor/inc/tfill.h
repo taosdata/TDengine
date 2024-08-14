@@ -108,6 +108,8 @@ typedef struct SStreamFillInfo {
   TSKEY                  preRowKey;
   TSKEY                  nextRowKey;
   TSKEY                  nextPointKey;
+  TSKEY                  nextNextRowKey;
+  TSKEY                  nextNextPointKey;
   SResultRowData*        pResRow;
   SStreamFillLinearInfo* pLinearInfo;
   bool                   needFill;

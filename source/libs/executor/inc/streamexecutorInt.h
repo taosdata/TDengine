@@ -48,6 +48,7 @@ void    destroyStreamFillSupporter(SStreamFillSupporter* pFillSup);
 bool    hasCurWindow(SStreamFillSupporter* pFillSup);
 bool    hasPrevWindow(SStreamFillSupporter* pFillSup);
 bool    hasNextWindow(SStreamFillSupporter* pFillSup);
+bool    hasNextNextWindow(SStreamFillSupporter* pFillSup);
 void    copyNotFillExpData(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo);
 int32_t setRowCell(SColumnInfoData* pCol, int32_t rowId, const SResultCellData* pCell);
 bool    hasRemainCalc(SStreamFillInfo* pFillInfo);

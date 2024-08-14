@@ -125,6 +125,7 @@ void streamTimeSliceReloadState(SOperatorInfo* pOperator) {
     downstream->fpSet.reloadStreamStateFn(downstream);
   }
   reloadAggSupFromDownStream(downstream, &pInfo->streamAggSup);
+  pInfo->isReloadState = true;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -753,6 +754,16 @@ static int32_t getResultInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillS
       pFillSup->next.pRowVal = pNextPoint->pRightRow->pRowVal;
     }
     pFillSup->next.key = adustEndTsKey(pNextPoint->key.ts, pFillSup->next.key, &pFillSup->interval);
+
+    int32_t nextNextVLen = 0;
+    int32_t tmpWinCode = TSDB_CODE_SUCCESS;
+    SSlicePoint nextNextPoint = {.key.groupId = pNextPoint->key.groupId};
+    code =
+        pAggSup->stateStore.streamStateFillGetNext(pState, &pNextPoint->key, &nextNextPoint.key, NULL, NULL, &tmpWinCode);
+    if (tmpWinCode == TSDB_CODE_SUCCESS) {
+      pFillSup->nextNext.key = nextNextPoint.key.ts;
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
@@ -896,12 +907,14 @@ static void copyCalcRowDeltaData(SResultRowData* pEndRow, SArray* pEndPoins, SFi
   }
 }
 
-static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts) {
-  if (!hasPrevWindow(pFillSup) && !hasNextWindow(pFillSup)) {
+static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts, bool isReloadState) {
+  qDebug("set stream interp fill rule, isReloadState:%d", isReloadState);
+  if (!hasNextWindow(pFillSup) && (!hasPrevWindow(pFillSup) || isReloadState) ) {
     pFillInfo->needFill = false;
     pFillInfo->pos = FILL_POS_START;
     goto _end;
   }
+
   TSKEY prevWKey = INT64_MIN;
   TSKEY nextWKey = INT64_MIN;
   if (hasPrevWindow(pFillSup)) {
@@ -920,7 +933,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
     case TSDB_FILL_NULL_F:
     case TSDB_FILL_SET_VALUE:
     case TSDB_FILL_SET_VALUE_F: {
-      if (hasPrevWindow(pFillSup)) {
+      if (hasPrevWindow(pFillSup) && !isReloadState) {
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
       } else {
@@ -931,7 +944,11 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
       pFillInfo->pResRow->key = ts;
     } break;
     case TSDB_FILL_PREV: {
-      if (hasNextWindow(pFillSup)) {
+      if (hasPrevWindow(pFillSup) && hasNextWindow(pFillSup) && pFillInfo->nextRowKey == pFillInfo->nextPointKey &&
+      (!hasNextNextWindow(pFillSup) || pFillInfo->nextNextRowKey == pFillInfo->nextNextPointKey)  && !isReloadState ) {
+        setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
+        pFillInfo->pos = FILL_POS_END;
+      } else if (hasNextWindow(pFillSup)) {
         setFillKeyInfo(startTs, nextWKey, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_START;
         resetFillWindow(&pFillSup->prev);
@@ -945,7 +962,7 @@ static void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo
       pFillInfo->pResRow = &pFillSup->prev;
     } break;
     case TSDB_FILL_NEXT: {
-      if (hasPrevWindow(pFillSup)) {
+      if (hasPrevWindow(pFillSup) && !isReloadState) {
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;
         resetFillWindow(&pFillSup->next);
@@ -1217,7 +1234,7 @@ void getNextResKey(int64_t curGroupId, SArray* pKeyArray, int32_t curIndex, TSKE
 }
 
 void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup,
-                                 SStreamFillInfo* pFillInfo, SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo) {
+                                 SStreamFillInfo* pFillInfo, SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo, bool isReloadState) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   blockDataCleanup(pBlock);
@@ -1250,7 +1267,11 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSuppor
     if (hasNextWindow(pFillSup)) {
       pFillInfo->nextPointKey = nextPoint.key.ts;
     }
-    setTimeSliceFillRule(pFillSup, pFillInfo, pKey->ts);
+    getNextResKey(pKey->groupId, pGroupResInfo->pRows, pGroupResInfo->index + 1, &pFillInfo->nextNextRowKey);
+    if (hasNextNextWindow(pFillSup)) {
+      pFillInfo->nextNextPointKey = pFillSup->nextNext.key;
+    }
+    setTimeSliceFillRule(pFillSup, pFillInfo, pKey->ts, isReloadState);
     doStreamFillRange(pFillSup, pFillInfo, pBlock);
     releaseOutputBuf(pAggSup->pState, curPoint.pResPos, &pAggSup->stateStore);
     releaseOutputBuf(pAggSup->pState, prevPoint.pResPos, &pAggSup->stateStore);
@@ -1279,7 +1300,7 @@ static int32_t buildTimeSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRe
     goto _end;
   }
 
-  doBuildTimeSlicePointResult(pAggSup, pInfo->pFillSup, pInfo->pFillInfo, pInfo->pRes, &pInfo->groupResInfo);
+  doBuildTimeSlicePointResult(pAggSup, pInfo->pFillSup, pInfo->pFillInfo, pInfo->pRes, &pInfo->groupResInfo, pInfo->isReloadState);
   if (pInfo->pRes->info.rows != 0) {
     printDataBlock(pInfo->pRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
     (*ppRes) = pInfo->pRes;
@@ -1431,6 +1452,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
       goto _end;
     }
 
+    pInfo->isReloadState = false;
     setStreamOperatorCompleted(pOperator);
     resetStreamFillSup(pInfo->pFillSup);
     (*ppRes) = NULL;
@@ -1522,6 +1544,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (!(*ppRes)) {
+    pInfo->isReloadState = false;
     setStreamOperatorCompleted(pOperator);
     resetStreamFillSup(pInfo->pFillSup);
   }
@@ -1696,6 +1719,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;
   }
+  pInfo->isReloadState = false;
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC;
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
