@@ -122,7 +122,7 @@ def scan_files_path(source_file_path):
         for file in files:
             if any(item in root for item in scan_dir_list):
                 file_path = os.path.join(root, file)
-                if (file_path.endswith(".c") or file_name.endswith(".h") or file_path.endswith(".cpp")) and all(item not in file_path for item in scan_skip_file_list):
+                if (file_path.endswith(".c") or file_path.endswith(".h") or file_path.endswith(".cpp")) and all(item not in file_path for item in scan_skip_file_list):
                     all_file_path.append(file_path)
     logger.info("Found %s files" % len(all_file_path))
 
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     #     os.makedirs(scan_result_path)
 
     for file in all_file_path:
-        cmd = f"clang-query-10 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
+        cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
         logger.debug(f"cmd:{cmd}")
         try:
             stdout, stderr = command_executor.execute(cmd)
