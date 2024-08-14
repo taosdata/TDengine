@@ -116,7 +116,7 @@ else
   arch=$cpuType
 fi
 
-taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version`
+taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal -t ver-$version -N ${cusName} -M ${cusEmail} -P ${cusPrompt}`
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.
