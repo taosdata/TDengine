@@ -350,7 +350,13 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
 
-      tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
+      code = tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
+      if (code == -1) {  // fix the invalid return code
+        code = 0;
+      } else if (code != 0) {
+        goto _end;
+      }
+
       if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
         taosArrayClearEx(pRow, freeItem);
         continue;
@@ -427,7 +433,14 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       tb_uid_t uid = pTableList[i].uid;
 
-      tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
+      if ((code = tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype)) != 0) {
+        if (code == -1) {  // fix the invalid return code
+          code = 0;
+        } else if (code != 0) {
+          goto _end;
+        }
+      }
+
       if (TARRAY_SIZE(pRow) <= 0 || COL_VAL_IS_NONE(&((SLastCol*)TARRAY_DATA(pRow))[0].colVal)) {
         taosArrayClearEx(pRow, freeItem);
         continue;

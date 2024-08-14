@@ -1097,7 +1097,8 @@ static int32_t tBlockDataAdjustColData(SBlockData *pBlockData, int32_t nColData)
 _exit:
   return code;
 }
-int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid) {
+int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid,
+                       int32_t *nCidFound) {
   int32_t code = 0;
 
   ASSERT(pId->suid || pId->uid);
@@ -1128,6 +1129,7 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
       if (pTColumn->colId != aCid[iCid]) {
         continue;
       }
+      if (nCidFound) ++(*nCidFound);
 
       tColDataInit(&pBlockData->aColData[iCid], pTColumn->colId, pTColumn->type,
                    (pTColumn->flags & COL_SMA_ON) ? 1 : 0);

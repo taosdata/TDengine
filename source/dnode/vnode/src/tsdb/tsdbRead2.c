@@ -2174,16 +2174,22 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
     return false;
   }
 
-  initMemDataIterator(pScanInfo, pReader);
-  initDelSkylineIterator(pScanInfo, pReader->info.order, &pReader->cost);
+  if ((code = initMemDataIterator(pScanInfo, pReader)) != TSDB_CODE_SUCCESS) {
+    return false;
+  }
+  if ((code = initDelSkylineIterator(pScanInfo, pReader->info.order, &pReader->cost)) != TSDB_CODE_SUCCESS) {
+    return false;
+  }
 
-  code = nextRowFromSttBlocks(pLBlockReader, pScanInfo, &pReader->info.verRange);
+  if ((code = nextRowFromSttBlocks(pLBlockReader, pScanInfo, &pReader->info.verRange)) != TSDB_CODE_SUCCESS) {
+    return false;
+  }
 
   int64_t el = taosGetTimestampUs() - st;
   pReader->cost.initLastBlockReader += (el / 1000.0);
 
   tsdbDebug("init last block reader completed, elapsed time:%" PRId64 "us %s", el, pReader->idStr);
-  return code;
+  return true;
 }
 
 static bool hasDataInLastBlock(SLastBlockReader* pLastBlockReader) { return pLastBlockReader->mergeTree.pIter != NULL; }
@@ -2640,6 +2646,9 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
 
     bool hasDataInLastFile = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
     if (!hasDataInLastFile) {
+      if (terrno != TSDB_CODE_SUCCESS) {
+        return terrno;
+      }
       bool hasNexTable = moveToNextTable(pUidList, pStatus);
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;

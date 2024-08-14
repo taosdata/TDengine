@@ -268,9 +268,14 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
                                           STSchema *pTSchema, int16_t cids[], int32_t ncid) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t nCidFound = 0;
 
-  code = tBlockDataInit(bData, (TABLEID *)record, pTSchema, cids, ncid);
+  code = tBlockDataInit(bData, (TABLEID *)record, pTSchema, cids, ncid, cids ? &nCidFound : NULL);
   TSDB_CHECK_CODE(code, lino, _exit);
+  if ((nCidFound != ncid) && (nCidFound > 0)) {
+    code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   // uid + version + tskey
   code = tRealloc(&reader->config->bufArr[0], record->blockKeySize);
@@ -1141,7 +1146,7 @@ _begin:
   code = tsdbUpdateSkmTb(writer->config->tsdb, tbid, writer->config->skmTb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tBlockDataInit(writer->blockData, writer->ctx->tbid, writer->config->skmTb->pTSchema, NULL, 0);
+  code = tBlockDataInit(writer->blockData, writer->ctx->tbid, writer->config->skmTb->pTSchema, NULL, 0, NULL);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

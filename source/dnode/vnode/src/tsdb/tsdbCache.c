@@ -1226,7 +1226,7 @@ static SLastCol *tsdbCacheLoadCol(STsdb *pTsdb, SCacheRowsReader *pr, int16_t sl
 
 static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SArray *remainCols,
                                     SCacheRowsReader *pr, int8_t ltype) {
-  int32_t               code = 0;
+  int32_t               code = 0, lino = 0;
   rocksdb_writebatch_t *wb = NULL;
   SArray               *pTmpColArray = NULL;
 
@@ -1248,9 +1248,11 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   }
 
   if (ltype) {
-    mergeLastCid(uid, pTsdb, &pTmpColArray, pr, aCols, num_keys, slotIds);
+    code = mergeLastCid(uid, pTsdb, &pTmpColArray, pr, aCols, num_keys, slotIds);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    mergeLastRowCid(uid, pTsdb, &pTmpColArray, pr, aCols, num_keys, slotIds);
+    code = mergeLastRowCid(uid, pTsdb, &pTmpColArray, pr, aCols, num_keys, slotIds);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   SLRUCache *pCache = pTsdb->lruCache;
@@ -1309,6 +1311,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     rocksMayWrite(pTsdb, false, true, false);
   }
 
+_exit:
   taosArrayDestroy(pTmpColArray);
 
   taosMemoryFree(aCols);
@@ -2224,7 +2227,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
 
   code = tMergeTreeOpen2(&iter->mergeTree, &conf);
   if (code != TSDB_CODE_SUCCESS) {
-    return -1;
+    return code;
   }
 
   iter->pMergeTree = &iter->mergeTree;
@@ -2952,11 +2955,19 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
 
       if (!pIter->pSkyline) {
         pIter->pSkyline = taosArrayInit(32, sizeof(TSDBKEY));
+        if (pIter->pSkyline == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _err;
+        }
 
         uint64_t        uid = pIter->idx.uid;
         STableLoadInfo *pInfo = getTableLoadInfo(pIter->pr, uid);
         if (pInfo->pTombData == NULL) {
           pInfo->pTombData = taosArrayInit(4, sizeof(SDelData));
+          if (pInfo->pTombData == NULL) {
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
         }
 
         taosArrayAddAll(pInfo->pTombData, pIter->pMemDelData);
@@ -2964,6 +2975,7 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pI
         size_t delSize = TARRAY_SIZE(pInfo->pTombData);
         if (delSize > 0) {
           code = tsdbBuildDeleteSkyline(pInfo->pTombData, 0, (int32_t)(delSize - 1), pIter->pSkyline);
+          if (code) goto _err;
         }
         pIter->iSkyline = taosArrayGetSize(pIter->pSkyline) - 1;
       }
@@ -3043,6 +3055,7 @@ static int32_t updateTSchema(int32_t sversion, SCacheRowsReader *pReader, uint64
 
 static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCacheRowsReader *pr, int16_t *aCols,
                             int nCols, int16_t *slotIds) {
+  int32_t   code = 0, lino = 0;
   STSchema *pTSchema = pr->pSchema;  // metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
   int16_t   nLastCol = nCols;
   int16_t   noneCol = 0;
@@ -3052,7 +3065,7 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
   SArray   *pColArray = NULL;
   SColVal  *pColVal = &(SColVal){0};
 
-  int32_t code = initLastColArrayPartial(pTSchema, &pColArray, slotIds, nCols);
+  code = initLastColArrayPartial(pTSchema, &pColArray, slotIds, nCols);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -3070,11 +3083,12 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
   TSKEY lastRowTs = TSKEY_MAX;
 
   CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
+  code = nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
+  TSDB_CHECK_CODE(code, lino, _err);
 
   do {
     TSDBROW *pRow = NULL;
-    nextRowIterGet(&iter, &pRow, &ignoreEarlierTs, true, TARRAY_DATA(aColArray), TARRAY_SIZE(aColArray));
+    code = nextRowIterGet(&iter, &pRow, &ignoreEarlierTs, true, TARRAY_DATA(aColArray), TARRAY_SIZE(aColArray));
 
     if (!pRow) {
       break;
@@ -3227,6 +3241,7 @@ _err:
 
 static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCacheRowsReader *pr, int16_t *aCols,
                                int nCols, int16_t *slotIds) {
+  int32_t   code = 0, lino = 0;
   STSchema *pTSchema = pr->pSchema;  // metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
   int16_t   nLastCol = nCols;
   int16_t   noneCol = 0;
@@ -3236,7 +3251,7 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
   SArray   *pColArray = NULL;
   SColVal  *pColVal = &(SColVal){0};
 
-  int32_t code = initLastColArrayPartial(pTSchema, &pColArray, slotIds, nCols);
+  code = initLastColArrayPartial(pTSchema, &pColArray, slotIds, nCols);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -3254,11 +3269,12 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
   TSKEY lastRowTs = TSKEY_MAX;
 
   CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
+  code = nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->info.suid, pr->pLDataIterArray, pr->pReadSnap, pr->lastTs, pr);
+  TSDB_CHECK_CODE(code, lino, _err);
 
   do {
     TSDBROW *pRow = NULL;
-    nextRowIterGet(&iter, &pRow, &ignoreEarlierTs, false, TARRAY_DATA(aColArray), TARRAY_SIZE(aColArray));
+    code = nextRowIterGet(&iter, &pRow, &ignoreEarlierTs, false, TARRAY_DATA(aColArray), TARRAY_SIZE(aColArray));
 
     if (!pRow) {
       break;

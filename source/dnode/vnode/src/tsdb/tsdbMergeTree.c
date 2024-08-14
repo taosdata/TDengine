@@ -847,6 +847,10 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
       if (hasVal) {
         tMergeTreeAddIter(pMTree, pIter);
       } else {
+        if (terrno != TSDB_CODE_SUCCESS) {
+          code = terrno;
+          goto _end;
+        }
         if (!pMTree->ignoreEarlierTs) {
           pMTree->ignoreEarlierTs = pIter->ignoreEarlierTs;
         }
