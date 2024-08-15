@@ -17,7 +17,7 @@ sql insert into t1 values(1648791212000,1,1,1,1.0);
 sql insert into t1 values(1648791215001,2,1,1,1.0);
 
 sql insert into t2 values(1648791212000,31,1,1,1.0);
-sql insert into t2 values(1648791215001,41,1,1,1.0);
+sql insert into t2 values(1648791216001,41,1,1,1.0);
 
 sql create stream streams1 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, _isfilled as a1, interp(a) as a2 from st partition by tbname every(1s) fill(prev);
 
@@ -152,7 +152,7 @@ if $data32 != 31 then
   goto loop0_1
 endi
 
-if $data42 != 41 then
+if $data42 != 31 then
   print ======data42=$data42
   goto loop0_1
 endi
@@ -260,7 +260,7 @@ sql insert into t1 values(1648791212000,1,1,1,1.0);
 sql insert into t1 values(1648791215001,2,1,1,1.0);
 
 sql insert into t2 values(1648791212000,31,1,1,1.0);
-sql insert into t2 values(1648791215001,41,1,1,1.0);
+sql insert into t2 values(1648791216001,41,1,1,1.0);
 
 sql create stream streams2 trigger at_once FILL_HISTORY 1 IGNORE EXPIRED 0 IGNORE UPDATE 0 into  streamt as select _irowts, _isfilled as a1, interp(a) as a2 from st partition by tbname every(1s) fill(next);
 
@@ -395,7 +395,7 @@ if $data32 != 41 then
   goto loop2_1
 endi
 
-if $data42 != 61 then
+if $data42 != 41 then
   print ======data42=$data42
   goto loop2_1
 endi
