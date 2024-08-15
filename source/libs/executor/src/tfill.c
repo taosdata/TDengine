@@ -523,14 +523,14 @@ static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
   return pFillInfo->numOfRows - pFillInfo->index;
 }
 
-void taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
-                        SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t primaryTsSlotId,
-                        int32_t order, const char* id, SExecTaskInfo* pTaskInfo, SFillInfo** ppFillInfo) {
+int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
+                           SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t primaryTsSlotId,
+                           int32_t order, const char* id, SExecTaskInfo* pTaskInfo, SFillInfo** ppFillInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (fillType == TSDB_FILL_NONE) {
     (*ppFillInfo) = NULL;
-    return;
+    return code;
   }
 
   SFillInfo* pFillInfo = taosMemoryCalloc(1, sizeof(SFillInfo));
@@ -572,10 +572,9 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(pFillInfo->next.pRowVal);
     taosArrayDestroy(pFillInfo->prev.pRowVal);
-    terrno = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppFillInfo) = pFillInfo;
+  return code;
 }
 
 void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {

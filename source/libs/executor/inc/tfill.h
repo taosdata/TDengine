@@ -128,9 +128,9 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
                                 int32_t numOfNotFillCols, const struct SNodeListNode* val);
 bool          taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
-void taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
-                        SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
-                        int32_t order, const char* id, SExecTaskInfo* pTaskInfo, SFillInfo** ppFillInfo);
+int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
+                           SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
+                           int32_t order, const char* id, SExecTaskInfo* pTaskInfo, SFillInfo** ppFillInfo);
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
