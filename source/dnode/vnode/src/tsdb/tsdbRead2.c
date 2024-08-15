@@ -2181,15 +2181,13 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
     return false;
   }
 
-  if ((code = nextRowFromSttBlocks(pLBlockReader, pScanInfo, &pReader->info.verRange)) != TSDB_CODE_SUCCESS) {
-    return false;
-  }
+  code = nextRowFromSttBlocks(pLBlockReader, pScanInfo, &pReader->info.verRange);
 
   int64_t el = taosGetTimestampUs() - st;
   pReader->cost.initLastBlockReader += (el / 1000.0);
 
   tsdbDebug("init last block reader completed, elapsed time:%" PRId64 "us %s", el, pReader->idStr);
-  return true;
+  return code;
 }
 
 static bool hasDataInLastBlock(SLastBlockReader* pLastBlockReader) { return pLastBlockReader->mergeTree.pIter != NULL; }
