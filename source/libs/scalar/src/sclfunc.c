@@ -1639,7 +1639,9 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   int32_t          maxCount = 0;
 
   for (int32_t i = 0; i < pInput[1].numOfRows; i++) {
-    maxCount = TMAX(maxCount, *(int32_t *)colDataGetData(pInput[1].columnData, i));
+    int32_t tmpCount = 0;
+    GET_TYPED_DATA(tmpCount, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
+    maxCount = TMAX(maxCount, tmpCount);
   }
   pInputData[0] = pInput[0].columnData;
   pInputData[1] = pInput[1].columnData;
@@ -1663,7 +1665,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
         colDataSetNULL(pOutputData, i);
         continue;
       }
-      int32_t count = *(int32_t *)colDataGetData(pInputData[1], i);
+      int32_t count = 0;
+      GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
       if (count <= 0) {
         varDataSetLen(output, 0);
         SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -1684,7 +1687,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           colDataSetNULL(pOutputData, i);
           continue;
         }
-        int32_t count = *(int32_t *)colDataGetData(pInputData[1], i);
+        int32_t count = 0;
+        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
         if (count <= 0) {
           varDataSetLen(output, 0);
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -1706,7 +1710,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           colDataSetNULL(pOutputData, i);
           continue;
         }
-        int32_t count = *(int32_t *)colDataGetData(pInputData[1], 0);
+        int32_t count = 0;
+        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
         if (count <= 0) {
           varDataSetLen(output, 0);
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
