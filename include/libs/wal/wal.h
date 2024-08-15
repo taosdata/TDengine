@@ -118,11 +118,11 @@ typedef struct SWal {
   SHashObj *pRefHash;  // refId -> SWalRef
   // path
   char path[WAL_PATH_LEN];
-  // reusable write head
-  SWalCkHead writeHead;
 
   stopDnodeFn stopDnode;
 
+  // reusable write head
+  SWalCkHead writeHead;
 } SWal;
 
 typedef struct {
