@@ -26,6 +26,7 @@ typedef struct {
   uint32_t seq;
   int32_t  refSetId;
   TdThread thread;
+  stopDnodeFn stopDnode;
 } SWalMgmt;
 
 static SWalMgmt tsWal = {0, .seq = 1};
@@ -35,7 +36,7 @@ static void     walFreeObj(void *pWal);
 
 int64_t walGetSeq() { return (int64_t)atomic_load_32((volatile int32_t *)&tsWal.seq); }
 
-int32_t walInit() {
+int32_t walInit(stopDnodeFn stopDnode) {
   int8_t old;
   while (1) {
     old = atomic_val_compare_exchange_8(&tsWal.inited, 0, 2);
@@ -56,6 +57,11 @@ int32_t walInit() {
     wInfo("wal module is initialized, rsetId:%d", tsWal.refSetId);
     atomic_store_8(&tsWal.inited, 1);
   }
+
+  if (stopDnode == NULL) {
+    wWarn("failed to set stop dnode call back");
+  }
+  tsWal.stopDnode = stopDnode;
 
   return 0;
 }
@@ -163,6 +169,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     wError("failed to add ref for Wal since %s", tstrerror(terrno));
     goto _err;
   }
+
+  pWal->stopDnode = tsWal.stopDnode;
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,
          pWal->cfg.fsyncPeriod);
