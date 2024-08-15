@@ -237,7 +237,7 @@ function industry_options() {
             -DTD_DATAIN_POSTGRES=false \
             -DTD_DATAIN_ORACLE=false \
             -DTD_DATAIN_MSSQL=false \
-            -DTD_DATAIN_MONGODB=false" \
+            -DTD_DATAIN_MONGODB=false"
     fi
     echo $options
 }
@@ -724,7 +724,7 @@ function make_linux_pkg() {
             fi
             mkdir -p ${output_dir}
             
-            cd ${communityDir}/packaging/deb            
+            cd ${communityDir}/packaging/deb
             ${csudo}./makedeb.sh ${debugDir} ${output_dir} ${version} ${os_arch} ${os_type} ${verMode} stable
             cp ${output_dir}/*.deb ${archiveDir}
         else
