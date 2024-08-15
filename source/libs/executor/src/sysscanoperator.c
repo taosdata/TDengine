@@ -552,6 +552,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   blockDataCleanup(pInfo->pRes);
 
   pDataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_COLS);
+  QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+
   code = blockDataEnsureCapacity(pDataBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -568,7 +570,12 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
   } else {
-    (void)pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    if (code != 0) {
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
 
   if (pInfo->pSchema == NULL) {
@@ -708,6 +715,8 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   int32_t numOfRows = 0;
 
   dataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TAGS);
+  QUERY_CHECK_NULL(dataBlock, code, lino, _end, terrno);
+
   code = blockDataEnsureCapacity(dataBlock, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -782,7 +791,8 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
     QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
   } else {
-    (void)pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
@@ -1354,6 +1364,8 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
   p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TABLES);
+  QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+
   code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -1583,7 +1595,12 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     firstMetaCursor = 1;
   }
   if (!firstMetaCursor) {
-    (void)pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+    code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+    if (code != 0) {
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
 
   blockDataCleanup(pInfo->pRes);
@@ -2075,6 +2092,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     int32_t tempRes = tSerializeSRetrieveTableReq(buf1, contLen, &pInfo->req);
     if (tempRes < 0) {
       code = terrno;
+      taosMemoryFree(buf1);
       return NULL;
     }
 
@@ -2083,6 +2101,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     if (NULL == pMsgSendInfo) {
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
       pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(buf1);
       return NULL;
     }
 

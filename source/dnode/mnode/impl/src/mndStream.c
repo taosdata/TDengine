@@ -2835,6 +2835,12 @@ void mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
   pExecInfo->initTaskList = true;
 }
 
+void mndInitStreamExecInfoForLeader(SMnode* pMnode) {
+  execInfo.initTaskList = false;
+  mInfo("init stream execInfo for leader");
+  mndInitStreamExecInfo(pMnode, &execInfo);
+}
+
 void addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;

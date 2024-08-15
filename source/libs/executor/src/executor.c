@@ -316,7 +316,6 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   qTaskInfo_t pTaskInfo = NULL;
   code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_QUEUE);
   if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
@@ -352,7 +351,6 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
   qTaskInfo_t pTaskInfo = NULL;
   code = qCreateExecTask(readers, vgId, taskId, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
@@ -360,7 +358,6 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
 
   code = qStreamInfoResetTimewindowFilter(pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;

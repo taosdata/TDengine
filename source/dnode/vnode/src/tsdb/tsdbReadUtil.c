@@ -139,7 +139,7 @@ int32_t getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index, STableBlockScan
   int32_t bucketIndex = index / pBuf->numPerBucket;
   char**  pBucket = taosArrayGet(pBuf->pData, bucketIndex);
   if (pBucket == NULL) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_NOT_FOUND;
   }
 
   *pInfo = (STableBlockScanInfo*)((*pBucket) + (index % pBuf->numPerBucket) * sizeof(STableBlockScanInfo));
