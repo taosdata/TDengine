@@ -22,6 +22,10 @@
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#else
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "taos"
+#endif
 #endif
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
@@ -435,11 +439,11 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "%s\ntaos version: %s compatible_version: %s\ngit: %s\ngitOfInternal: %s\nbuild: %s", TD_PRODUCT_NAME,
-           version, compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
+           "%s\n%s version: %s compatible_version: %s\ngit: %s\ngitOfInternal: %s\nbuild: %s", TD_PRODUCT_NAME,
+           CUS_PROMPT, version, compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
 #else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
-           "%s\ntaos version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, version,
+           "%s\n%s version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, CUS_PROMPT, version,
            compatible_version, gitinfo, buildinfo);
 #endif
 
