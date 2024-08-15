@@ -772,7 +772,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
     }
     children.push(config);
     params.forEach(param => {
-      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg, grid_two = false, type_value } = param;
+      const { display, description, short_description, name, hint, placeholder = '', required = false, value, multiple, pattern, patternMsg, grid_two = false, type_value, edit_disabled } = param;
       const paramConfig = {
         label: display,
         description: description ?? short_description,
@@ -844,10 +844,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
           return required;
         },
         disabled: (currentData,b,c,isEdit) => {
-          if (id?.startsWith('kafka') || id?.startsWith('mqtt')) {
-            return isEdit ? ['topics'].includes(name) : false;
-          } 
-          return false
+          return isEdit ? edit_disabled : false
         },
         multiple,
         pattern: pattern || null,

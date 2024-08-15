@@ -53,7 +53,8 @@ export function getDataSources(lang) {
                 },
                 "short_description": "Data offset to start subscribing.",
                 "description": "Data offset to start subscribing.\n- *earliest*: All the data in TDengine, include the new data,\n- *latest*: Subscribe from latest data.\n",
-                "value": "earliest"
+                "value": "earliest",
+                "edit_disabled": true,
               },
               {
                 "name": "group.id",
@@ -62,7 +63,8 @@ export function getDataSources(lang) {
                   "type": "str"
                 },
                 "short_description": "Group ID is a string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.      ",
-                "description": "Group ID is a string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.      \n"
+                "description": "Group ID is a string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.      \n",
+                "edit_disabled": true,
               },
               {
                 "name": "client.id",
@@ -72,7 +74,8 @@ export function getDataSources(lang) {
                 },
                 "short_description": "Client ID is a string used to identify the client, with a maximum length of 192.",
                 "description": "Client ID is a string used to identify the client, with a maximum length of 192.\n",
-                "required": true
+                "required": true,
+                "edit_disabled": true,
               },
               {
                 "name": "timeout",
@@ -2286,7 +2289,8 @@ export function getDataSources(lang) {
                 "required": true,
                 "pattern": "^(?:\\S+::[0-2],)*\\S+::[0-2]$",
                 "patternMsg": "Input format error, please refer to: `<topic name>::<QoS>`, QoS can be 0/1/2, e.g: `topic1::0,topic2::1`",
-                "placeholder": "topic1::0,topic2::1"
+                "placeholder": "topic1::0,topic2::1",
+                "edit_disabled": true,
               }
             ]
           }
@@ -2620,7 +2624,8 @@ export function getDataSources(lang) {
                 "short_description": "Specifies one topic or several topics to consume. e.g. topics=tp1,tp2",
                 "description": "Specifies one topic or several topics to consume. e.g. topics=tp1,tp2\n",
                 "required": true,
-                "placeholder": "tp1,tp2"
+                "placeholder": "tp1,tp2",
+                "edit_disabled": true,
               },
               {
                 "name": "client_id",
@@ -4540,7 +4545,8 @@ export function getDataSources(lang) {
             },
             "short_description": "订阅初始位置定义了拉取数据范围。",
             "description": "订阅初始位置定义了拉取数据范围。\n有以下可选项：\n- *earliest*: 相当于拉取全量数据，包括新增的数据；\n- *latest*: 从最新的数据开始订阅。\n",
-            "value": "earliest"
+            "value": "earliest",
+            "edit_disabled": true,
           }, {
             "name": "group.id",
             "display": "订阅组 ID",
@@ -4548,7 +4554,8 @@ export function getDataSources(lang) {
               "type": "str"
             },
             "short_description": "订阅组 ID 是用于标识一个订阅组的字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。",
-            "description": "订阅组 ID 是用于标识一个订阅组的字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。\n"
+            "description": "订阅组 ID 是用于标识一个订阅组的字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。\n",
+            "edit_disabled": true,
           }, {
             "name": "client.id",
             "display": "客户端 ID",
@@ -4557,7 +4564,8 @@ export function getDataSources(lang) {
             },
             "short_description": "客户端 ID 是一个用于标识客户端的字符串，最大长度为 192。",
             "description": "客户端 ID 是一个用于标识客户端的字符串，最大长度为 192。\n",
-            "required": true
+            "required": true,
+            "edit_disabled": true,
           }, {
             "name": "timeout",
             "display": "超时",
@@ -6761,7 +6769,8 @@ export function getDataSources(lang) {
                 "required": true,
                 "pattern": "^(?:\\S+::[0-2],)*\\S+::[0-2]$",
                 "patternMsg": "输入格式有误，请按照格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，例如： `topic1::0,topic2::1`",
-                "placeholder": "topic1::0,topic2::1"
+                "placeholder": "topic1::0,topic2::1",
+                "edit_disabled": true,
               }
             ]
           }
@@ -7107,7 +7116,8 @@ export function getDataSources(lang) {
                 "short_description": "指定要消费的 Topic。可以配置多个 Topic，Topic 之间使用逗号分隔，例如：`tp1,tp2`。",
                 "description": "指定要消费的 Topic。可以配置多个 Topic，Topic 之间使用逗号分隔，例如：`tp1,tp2`。\n",
                 "required": true,
-                "placeholder": "tp1,tp2"
+                "placeholder": "tp1,tp2",
+                "edit_disabled": true,
               },
               {
                 "name": "client_id",
