@@ -570,8 +570,8 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFi
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(pFillInfo->next.pRowVal);
-    taosArrayDestroy(pFillInfo->prev.pRowVal);
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pFillInfo = taosDestroyFillInfo(pFillInfo);
   }
   (*ppFillInfo) = pFillInfo;
   return code;
