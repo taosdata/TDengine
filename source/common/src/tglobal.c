@@ -592,7 +592,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_SCOPE_CLIENT, CFG_DYN_NONE));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "randErrorChance", tsRandErrChance, 0, 10000, CFG_SCOPE_BOTH, CFG_DYN_NONE));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "randErrorChance", tsRandErrChance, 0, 10000, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorDivisor", tsRandErrDivisor, 1, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "randErrorScope", tsRandErrScope, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH));
 
@@ -1930,6 +1930,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
                                          {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
                                          {"minDiskFreeSize", &tsMinDiskFreeSize},
+                                         {"randErrorChance", &tsRandErrChance},
                                          {"randErrorDivisor", &tsRandErrDivisor},
                                          {"randErrorScope", &tsRandErrScope},
 
@@ -2210,6 +2211,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"queryPlannerTrace", &tsQueryPlannerTrace},
                                          {"queryNodeChunkSize", &tsQueryNodeChunkSize},
                                          {"queryUseNodeAllocator", &tsQueryUseNodeAllocator},
+                                         {"randErrorChance", &tsRandErrChance},
                                          {"randErrorDivisor", &tsRandErrDivisor},
                                          {"randErrorScope", &tsRandErrScope},
                                          {"smlDot2Underline", &tsSmlDot2Underline},
