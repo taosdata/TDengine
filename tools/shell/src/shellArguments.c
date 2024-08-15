@@ -61,7 +61,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
 void shellPrintHelp() {
   char indent[] = "  ";
-  printf("Usage: taos [OPTION...] \r\n\r\n");
+  printf("Usage: %s [OPTION...] \r\n\r\n", CUS_PROMPT);
   printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
   printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
   printf("%s%s%s%s\r\n", indent, "-B,", indent, SHELL_BI_MODE);
