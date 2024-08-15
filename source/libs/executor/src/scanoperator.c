@@ -369,7 +369,12 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   taosMemoryFreeClear(pBlock->pBlockAgg);
 
   // try to filter data block according to current results
-  doDynamicPruneDataBlock(pOperator, pBlockInfo, status);
+  int32_t code = doDynamicPruneDataBlock(pOperator, pBlockInfo, status);
+  if (code != 0) {
+    pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+    return code;
+  }
+
   if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
     qDebug("%s data block skipped due to dynamic prune, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
            GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
