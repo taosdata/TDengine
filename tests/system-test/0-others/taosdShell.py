@@ -88,24 +88,29 @@ class TDTestCase:
                 pid = 0
             return pid
 
-    def checkAndstopPro(self,processName,startAction):
-        i = 1
-        count = 10
+    def checkAndstopPro(self, processName, startAction, count = 10):
         for i in range(count):
             taosdPid=self.get_process_pid(processName)
+            print("taosdPid:",taosdPid)
             if taosdPid != 0  and   taosdPid != ""  :
                 tdLog.info("stop taosd %s ,kill pid :%s "%(startAction,taosdPid))
-                os.system("kill -9 %d"%taosdPid)
-                break
+                for j in range(count):
+                    os.system("kill -9 %d"%taosdPid)
+                    taosdPid=self.get_process_pid(processName)
+                    print("taosdPid2:",taosdPid)
+                    if taosdPid == 0  or   taosdPid == ""  :
+                        tdLog.info("taosd %s is stoped "%startAction)
+                        return
             else:
                 tdLog.info( "wait start taosd ,times: %d "%i)
             time.sleep(1)
-            i+= 1
         else :
             tdLog.exit("taosd %s is not running "%startAction)
 
+
     def taosdCommandStop(self,startAction,taosdCmdRun):
-        processName="taosd"
+        processName= "taosd"
+        count = 10
         if platform.system().lower() == 'windows':
             processName="taosd.exe"
         taosdCmd = taosdCmdRun + startAction
@@ -116,7 +121,7 @@ class TDTestCase:
         else:
             logTime=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
             os.system(f"nohup {taosdCmd}  >  {logTime}.log  2>&1 &  ")
-            self.checkAndstopPro(processName,startAction)
+            self.checkAndstopPro(processName,startAction,count)
             os.system(f"rm -rf  {logTime}.log")
 
 

@@ -178,8 +178,8 @@ class TDTestCase:
             queryparam[0].binary('中文字符')
             rows=self.stmtExe(conn,"select CHAR_LENGTH(?) from log ",queryparam)
             tdLog.debug("assert 4th case %s"%rows)
-            assert rows[0][0] == 12, '4th case is failed'
-            assert rows[1][0] == 12, '4th case is failed'
+            assert rows[0][0] == 4, '4th case is failed'
+            assert rows[1][0] == 4, '4th case is failed'
 
             queryparam=new_bind_params(1)
             queryparam[0].binary('123')
@@ -209,8 +209,8 @@ class TDTestCase:
             queryparam[0].timestamp(1626861392591112)
             rows=self.stmtExe(conn,"select timediff('2021-07-21 17:56:32.590111',?,1a)  from log",queryparam)
             tdLog.debug("assert 7th case %s"%rows)
-            assert rows[0][0] == 1, '7th case is failed'
-            assert rows[1][0] == 1, '7th case is failed'
+            assert rows[0][0] == -1, '7th case is failed'
+            assert rows[1][0] == -1, '7th case is failed'
 
             #query: aggregate Functions
             queryparam=new_bind_params(1)

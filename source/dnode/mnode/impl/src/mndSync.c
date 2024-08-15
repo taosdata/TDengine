@@ -18,6 +18,7 @@
 #include "mndCluster.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndStream.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -381,6 +382,7 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
   mInfo("vgId:1, become leader");
   SMnode *pMnode = pFsm->data;
+  mndInitStreamExecInfoForLeader(pMnode);
 }
 
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {

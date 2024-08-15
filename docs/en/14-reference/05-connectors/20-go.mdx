@@ -1,0 +1,402 @@
+---
+title: TDengine Go Client Library
+sidebar_label: Go
+description: This document describes the TDengine Go client library.
+toc_max_heading_level: 4
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import GoInsert from "../../08-develop/03-insert-data/_go_sql.mdx"
+import GoInfluxLine from "../../08-develop/03-insert-data/_go_line.mdx"
+import GoOpenTSDBTelnet from "../../08-develop/03-insert-data/_go_opts_telnet.mdx"
+import GoOpenTSDBJson from "../../08-develop/03-insert-data/_go_opts_json.mdx"
+import GoQuery from "../../08-develop/04-query-data/_go.mdx"
+import RequestId from "./_request_id.mdx";
+
+`driver-go` is the official Go language client library for TDengine. It implements the [database/sql](https://golang.org/pkg/database/sql/) package, the generic Go language interface to SQL databases. Go developers can use it to develop applications that access TDengine cluster data.
+
+## Connection types
+
+`driver-go` provides 3 connection types.
+
+* **Native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface.
+* **REST connection**, which is implemented through taosAdapter. Some features like schemaless and subscriptions are not supported.
+* **Websocket connection** which is implemented through taosAdapter. The set of features implemented by the WebSocket connection differs slightly from those implemented by the native connection.
+
+For a detailed introduction of the connection types, please refer to: [Establish Connection](../../../develop/connect/#establish-connection)
+
+## Compatibility
+
+Supports minimum Go version 1.14, it is recommended to use the latest Go version
+
+## Supported platforms
+
+Native connections are supported on the same platforms as the TDengine client driver.
+REST connections are supported on all platforms that can run Go.
+
+## Version support
+
+Please refer to [version support list](https://github.com/taosdata/driver-go#remind)
+
+## Handling exceptions
+
+If it is a TDengine error, you can get the error code and error information in the following ways.
+```go
+// import "github.com/taosdata/driver-go/v3/errors"
+    if err != nil {
+        tError, is := err.(*errors.TaosError)
+        if is {
+            fmt.Println("errorCode:", int(tError.Code))
+            fmt.Println("errorMessage:", tError.ErrStr)
+        } else {
+            fmt.Println(err.Error())
+        }
+    }
+```
+
+## TDengine DataType vs. Go DataType
+
+| TDengine DataType | Go Type   |
+|-------------------|-----------|
+| TIMESTAMP         | time.Time |
+| TINYINT           | int8      |
+| SMALLINT          | int16     |
+| INT               | int32     |
+| BIGINT            | int64     |
+| TINYINT UNSIGNED  | uint8     |
+| SMALLINT UNSIGNED | uint16    |
+| INT UNSIGNED      | uint32    |
+| BIGINT UNSIGNED   | uint64    |
+| FLOAT             | float32   |
+| DOUBLE            | float64   |
+| BOOL              | bool      |
+| BINARY            | string    |
+| NCHAR             | string    |
+| JSON              | []byte    |
+
+**Note**: Only TAG supports JSON types
+
+## Installation Steps
+
+### Pre-installation preparation
+
+* Install Go development environment (Go 1.14 and above, GCC 4.8.5 and above)
+* If you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](../#install-client-driver) for specific steps
+
+Configure the environment variables and check the command.
+
+* ```go env```
+* ```gcc -v```
+
+### Install the client library
+
+1. Initialize the project with the `go mod` command.
+
+   ```text
+   go mod init taos-demo
+   ```
+
+2. Introduce taosSql
+
+   ```go
+   import (
+     "database/sql"
+     _ "github.com/taosdata/driver-go/v3/taosSql"
+   )
+   ```
+
+3. Update the dependency packages with `go mod tidy`.
+
+   ```text
+   go mod tidy
+   ```
+
+4. Run the program with `go run taos-demo` or compile the binary with the `go build` command.
+
+  ```text
+  go run taos-demo
+  go build
+  ```
+
+## Establishing a connection
+
+Data source names have a standard format, e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php), but no type prefix (square brackets indicate optionally):
+
+``` text
+[username[:password]@][protocol[(address)]]/[dbname][?param1=value1&...&paramN=valueN]
+```
+
+DSN in full form.
+
+```text
+username:password@protocol(address)/dbname?param=value
+```
+<Tabs defaultValue="rest" groupId="connect">
+<TabItem value="native" label="native connection">
+
+_taosSql_ implements Go's `database/sql/driver` interface via cgo. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver.
+
+Use `taosSql` as `driverName` and use a correct DSN as `dataSourceName`, DSN supports the following parameters.
+
+* cfg specifies the `taos.cfg` directory
+
+For example:
+
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+
+    _ "github.com/taosdata/driver-go/v3/taosSql"
+)
+
+func main() {
+    var taosUri = "root:taosdata@tcp(localhost:6030)/"
+    taos, err := sql.Open("taosSql", taosUri)
+    if err != nil {
+        fmt.Println("failed to connect TDengine, err:", err)
+        return
+    }
+}
+```
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+_taosRestful_ implements Go's `database/sql/driver` interface via `http client`. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver.
+
+Use `taosRestful` as `driverName` and use a correct DSN as `dataSourceName` with the following parameters supported by the DSN.
+
+* `disableCompression` whether to accept compressed data, default is true do not accept compressed data, set to false if transferring data using gzip compression.
+* `readBufferSize` The default size of the buffer for reading data is 4K (4096), which can be adjusted upwards when the query result has a lot of data.
+
+For example:
+
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+
+    _ "github.com/taosdata/driver-go/v3/taosRestful"
+)
+
+func main() {
+    var taosUri = "root:taosdata@http(localhost:6041)/"
+    taos, err := sql.Open("taosRestful", taosUri)
+    if err != nil {
+        fmt.Println("failed to connect TDengine, err:", err)
+        return
+    }
+}
+```
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket connection">
+
+_taosRestful_ implements Go's `database/sql/driver` interface via `http client`. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver (driver-go minimum version 3.0.2).
+
+Use `taosWS` as `driverName` and use a correct DSN as `dataSourceName` with the following parameters supported by the DSN.
+
+* `writeTimeout` The timeout to send data via WebSocket.
+* `readTimeout` The timeout to receive response data via WebSocket.
+
+For example:
+
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+
+    _ "github.com/taosdata/driver-go/v3/taosWS"
+)
+
+func main() {
+    var taosUri = "root:taosdata@ws(localhost:6041)/"
+    taos, err := sql.Open("taosWS", taosUri)
+    if err != nil {
+        fmt.Println("failed to connect TDengine, err:", err)
+        return
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+### Specify the URL and Properties to get the connection
+
+The Go client library does not support this feature
+
+### Priority of configuration parameters
+
+The Go client library does not support this feature
+
+## Usage examples
+
+### Create database and tables
+
+```go
+{{#include docs/examples/go/demo/query/main.go:create_db_and_table}}
+```
+
+### Insert data
+
+```go
+{{#include docs/examples/go/demo/query/main.go:insert_data}}
+```
+
+### Querying data
+
+```go
+{{#include docs/examples/go/demo/query/main.go:query_data}}
+```
+
+### execute SQL with reqId
+
+<RequestId />
+
+```go
+{{#include docs/examples/go/demo/query/main.go:with_reqid}}
+```
+
+### Writing data via parameter binding
+
+<Tabs defaultValue="native" groupId="connect">
+<TabItem value="native" label="native connection">
+
+```go
+{{#include docs/examples/go/demo/stmt/main.go}}
+```
+
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket connection">
+
+```go
+{{#include docs/examples/go/demo/stmtws/main.go}}
+```
+
+</TabItem>
+</Tabs>
+
+
+### Schemaless Writing
+
+<Tabs defaultValue="native" groupId="connect">
+<TabItem value="native" label="native connection">
+
+```go
+{{#include docs/examples/go/demo/sml/main.go}}
+```
+
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket connection">
+
+```go
+{{#include docs/examples/go/demo/smlws/main.go}}
+```
+
+</TabItem>
+</Tabs>
+
+
+### Schemaless with reqId
+
+```go
+func (s *Schemaless) Insert(lines string, protocol int, precision string, ttl int, reqID int64) error
+```
+
+You can get the unique id by `common.GetReqID()`.
+
+### Data Subscription
+
+The TDengine Go client library supports subscription functionality with the following application API.
+
+#### Create a Topic
+
+```go
+{{#include docs/examples/go/demo/consumer/main.go:create_topic}}
+```
+
+#### Create a Consumer
+
+```go
+{{#include docs/examples/go/demo/consumer/main.go:create_consumer}}
+```
+
+#### Subscribe to consume data
+
+```go
+{{#include docs/examples/go/demo/consumer/main.go:poll_data}}
+```
+
+#### Assignment subscription Offset
+
+```go
+{{#include docs/examples/go/demo/consumer/main.go:consumer_seek}}
+```
+
+#### Close subscriptions
+
+```go
+{{#include docs/examples/go/demo/consumer/main.go:consumer_close}}
+```
+
+#### Full Sample Code
+
+<Tabs defaultValue="native" groupId="connect">
+<TabItem value="native" label="native connection">
+
+```go
+{{#include docs/examples/go/demo/consumer/main.go}}
+```
+
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket connection">
+
+```go
+{{#include docs/examples/go/demo/consumerws/main.go}}
+```
+
+</TabItem>
+</Tabs>
+
+### More sample programs
+
+* [sample program](https://github.com/taosdata/driver-go/tree/3.0/examples)
+
+
+## Frequently Asked Questions
+
+1. bind interface in database/sql crashes
+
+   REST does not support parameter binding related interface. It is recommended to use `db.Exec` and `db.Query`.
+
+2. error `[0x217] Database not specified or available` after executing other statements with `use db` statement
+
+   The execution of SQL command in the REST interface is not contextual, so using `use db` statement will not work, see the usage restrictions section above.
+
+3. use `taosSql` without error but use `taosRestful` with error `[0x217] Database not specified or available`
+
+   Because the REST interface is stateless, using the `use db` statement will not take effect. See the usage restrictions section above.
+
+4. `readBufferSize` parameter has no significant effect after being increased
+
+   Increasing `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is smaller, modifying this parameter will not improve performance significantly. If you increase the parameter value too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value based on the actual situation to achieve the best query performance.
+
+5. `disableCompression` parameter is set to `false` when the query efficiency is reduced
+
+   When set `disableCompression` parameter to `false`, the query result will be compressed by `gzip` and then transmitted, so you have to decompress the data by `gzip` after getting it.
+
+6. `go get` command can't get the package, or timeout to get the package
+
+   Set Go proxy `go env -w GOPROXY=https://goproxy.cn,direct`.
+
+## API Reference
+
+Full API see [driver-go documentation](https://pkg.go.dev/github.com/taosdata/driver-go/v3)

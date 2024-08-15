@@ -30,14 +30,14 @@ class TDTestCase:
         tdSql.execute("CREATE STREAM stream_device_alarm2 TRIGGER AT_ONCE DELETE_MARK 30d INTO st_device_alarm2 tags(factory_id varchar(20), device_code varchar(80), var_name varchar(200))\
                     as select _wstart start_time, last(load_time) end_time, first(var_value) var_value, 1 state_flag from st_variable_data\
                     PARTITION BY tbname tname, factory_id, device_code, var_name STATE_WINDOW(case when lower(var_value)=lower(trigger_value) then '1' else '0' end)")
-        time.sleep(2)
+        time.sleep(5)
     
     def insert_data(self):
         try:
             tdSql.execute("insert into aaa values('2024-07-15 14:00:00', '2024-07-15 14:00:00', 'a8')", queryTimes=5, show=True)
             time.sleep(0.01)
             tdSql.execute("insert into aaa values('2024-07-15 14:10:00', '2024-07-15 14:10:00', 'a9')", queryTimes=5, show=True)
-            time.sleep(1)
+            time.sleep(5)
         except Exception as error:
             tdLog.exit(f"insert data failed {error}")
     

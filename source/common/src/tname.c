@@ -169,7 +169,7 @@ void tNameAssign(SName* dst, const SName* src) { memcpy(dst, src, sizeof(SName))
 int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t nameLen) {
   // too long account id or too long db name
   if (nameLen <= 0 || nameLen >= tListLen(dst->dbname)) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dst->type = TSDB_DB_NAME_T;

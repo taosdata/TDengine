@@ -50,3 +50,13 @@ void streamTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* h
 //    stError("vgId:%d failed to reset tmr: %s, try again", vgId, pMsg);
 //  }
 }
+
+int32_t streamCleanBeforeQuitTmr(SStreamTmrInfo* pInfo, SStreamTask* pTask) {
+  pInfo->activeCounter = 0;
+  pInfo->launchChkptId = 0;
+  atomic_store_8(&pInfo->isActive, 0);
+
+  int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+  ASSERT(ref >= 0);
+  return ref;
+}

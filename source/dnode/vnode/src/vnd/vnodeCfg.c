@@ -301,8 +301,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 #if defined(TD_ENTERPRISE)
   if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
     if (tsEncryptKey[0] == 0) {
-      terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-      return -1;
+      return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
       strncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }

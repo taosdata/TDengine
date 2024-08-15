@@ -293,7 +293,7 @@ int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   if (taosThreadCreate(&pMgmt->notifyThread, &thAttr, dmNotifyThreadFp, pMgmt) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to create notify thread since %s", strerror(code));
+    dError("failed to create notify thread since %s", tstrerror(code));
     return code;
   }
 

@@ -431,7 +431,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   SQueryPlan *pPlan = NULL;
   SMqTopicObj topicObj = {0};
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "create-topic");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-topic");
   MND_TMQ_NULL_CHECK(pTrans);
   mndTransSetDbName(pTrans, pDb->name, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
@@ -574,7 +574,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
 
 END:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to create topic:%s since %s", createTopicReq.name, terrstr());
+    mError("failed to create topic:%s since %s", createTopicReq.name, tstrerror(code));
   }
 
   mndReleaseTopic(pMnode, pTopic);
@@ -602,7 +602,7 @@ END:
   return code;
 }
 
-static bool checkTopic(SArray *topics, char *topicName){
+bool checkTopic(SArray *topics, char *topicName){
   int32_t sz = taosArrayGetSize(topics);
   for (int32_t i = 0; i < sz; i++) {
     char *name = taosArrayGetP(topics, i);
@@ -613,7 +613,7 @@ static bool checkTopic(SArray *topics, char *topicName){
   return false;
 }
 
-static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName){
+static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topicName){
   int32_t         code = 0;
   SSdb           *pSdb    = pMnode->pSdb;
   void           *pIter = NULL;
@@ -626,23 +626,12 @@ static int32_t mndDropConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *topi
 
     bool found = checkTopic(pConsumer->assignedTopics, topicName);
     if (found){
-      if (pConsumer->status == MQ_CONSUMER_STATUS_LOST) {
-        MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumer));
-        sdbRelease(pSdb, pConsumer);
-        continue;
-      }
       mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
              topicName, pConsumer->consumerId, pConsumer->cgroup);
       code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
       goto END;
     }
 
-    if (checkTopic(pConsumer->rebNewTopics, topicName) || checkTopic(pConsumer->rebRemovedTopics, topicName))  {
-      code = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-      mError("topic:%s, failed to drop since subscribed by consumer:%" PRId64 ", in consumer group %s (reb new)",
-             topicName, pConsumer->consumerId, pConsumer->cgroup);
-      goto END;
-    }
     sdbRelease(pSdb, pConsumer);
   }
 
@@ -710,7 +699,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       tFreeSMDropTopicReq(&dropReq);
       return 0;
     } else {
-      mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+      mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(code));
       tFreeSMDropTopicReq(&dropReq);
       return code;
     }
@@ -722,9 +711,10 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   mndTransSetDbName(pTrans, pTopic->db, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   mInfo("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
+
   MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
   MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));
-  MND_TMQ_RETURN_CHECK(mndDropConsumerByTopic(pMnode, pTrans, dropReq.name));
+  MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name));
   MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name));
 
   if (pTopic->ntbUid != 0) {
@@ -737,7 +727,7 @@ END:
   mndReleaseTopic(pMnode, pTopic);
   mndTransDrop(pTrans);
   if (code != 0) {
-    mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+    mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(code));
     tFreeSMDropTopicReq(&dropReq);
     return code;
   }

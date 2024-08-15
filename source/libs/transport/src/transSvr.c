@@ -205,7 +205,6 @@ void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   int32_t      code = transAllocBuffer(pBuf, buf);
   if (code < 0) {
     tError("conn %p failed to alloc buffer, since %s", conn, tstrerror(code));
-    // destroyConn(conn, true);
   }
 }
 
@@ -542,6 +541,9 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   buf->len = 2;
   buf->base = taosMemoryCalloc(1, sizeof(char) * buf->len);
+  if (buf->base == NULL) {
+    tError("failed to alloc conn read buffer since %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+  }
 }
 
 void uvOnTimeoutCb(uv_timer_t* handle) {
@@ -1707,7 +1709,7 @@ void transUnrefSrvHandle(void* handle) {
   }
 }
 
-int transReleaseSrvHandle(void* handle) {
+int32_t transReleaseSrvHandle(void* handle) {
   int32_t         code = 0;
   SRpcHandleInfo* info = handle;
   SExHandle*      exh = info->handle;
@@ -1747,7 +1749,7 @@ _return2:
   return code;
 }
 
-int transSendResponse(const STransMsg* msg) {
+int32_t transSendResponse(const STransMsg* msg) {
   int32_t code = 0;
 
   if (msg->info.noResp) {
@@ -1800,7 +1802,7 @@ _return2:
   rpcFreeCont(msg->pCont);
   return code;
 }
-int transRegisterMsg(const STransMsg* msg) {
+int32_t transRegisterMsg(const STransMsg* msg) {
   int32_t code = 0;
 
   SExHandle* exh = msg->info.handle;
@@ -1891,4 +1893,4 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   return code;
 }
 
-int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
+int32_t transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
