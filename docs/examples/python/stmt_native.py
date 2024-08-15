@@ -7,8 +7,8 @@ numOfRow = 10
 
 conn = None
 stmt = None
-host="localhost",        
-port=6030,
+host="localhost"        
+port=6030
 try:
     conn = taos.connect(
         user="root",

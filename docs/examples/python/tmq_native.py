@@ -50,7 +50,7 @@ from taos.tmq import Consumer
 
 def create_consumer():
     host = "localhost"
-    port = 6030
+    port = "6030"
     groupId = "group1"
     clientId = "1"
     try:

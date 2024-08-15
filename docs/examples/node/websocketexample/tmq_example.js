@@ -62,7 +62,7 @@ async function subscribe(consumer) {
             for (let [key, value] of res) {
                 console.log(`data: ${key} ${value}`);
             }
-            consumer.commit();
+            await consumer.commit();
             console.log("Commit offset manually successfully.");
         }
     } catch (err) {
@@ -77,7 +77,7 @@ async function test() {
     let consumer = null;
     try {
         await prepare();
-        let consumer = await createConsumer()
+        consumer = await createConsumer()
         await subscribe(consumer)
         await consumer.unsubscribe();
         console.log("Consumer unsubscribed successfully.");

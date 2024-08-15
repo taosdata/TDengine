@@ -31,7 +31,7 @@ async function prepare() {
     conf.setUser('root');
     conf.setPwd('taosdata');
     conf.setDb('power');
-    const createDB = `CREATE DATABASE IF NOT EXISTS POWER ${db} KEEP 3650 DURATION 10 BUFFER 16 WAL_LEVEL 1;`;
+    const createDB = `CREATE DATABASE IF NOT EXISTS ${db} KEEP 3650 DURATION 10 BUFFER 16 WAL_LEVEL 1;`;
     const createStable = `CREATE STABLE IF NOT EXISTS ${db}.${stable} (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);`;
 
     let wsSql = await taos.sqlConnect(conf);
@@ -45,7 +45,7 @@ async function prepare() {
     for (let i = 0; i < 10; i++) {
         await wsSql.exec(`INSERT INTO d1001 USING ${stable} (location, groupId) TAGS ("California.SanFrancisco", 3) VALUES (NOW, ${10 + i}, ${200 + i}, ${0.32 + i})`);
     }
-    wsSql.Close();
+    await wsSql.close();
 }
 
 // ANCHOR: subscribe 
