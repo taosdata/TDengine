@@ -618,6 +618,9 @@ _error:
 
   if (pOperator) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
 
@@ -1248,6 +1251,9 @@ _error:
   pTaskInfo->code = code;
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   TAOS_RETURN(code);
@@ -1797,6 +1803,9 @@ _error:
   if (pInfo != NULL) destroyStreamPartitionOperatorInfo(pInfo);
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

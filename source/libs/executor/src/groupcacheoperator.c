@@ -1506,6 +1506,9 @@ _error:
 
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && pDownstream != NULL && (*pDownstream) != NULL) {
+      destroyOperator(*pDownstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
