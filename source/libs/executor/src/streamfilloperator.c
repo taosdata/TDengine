@@ -1335,6 +1335,7 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
 
   pFillInfo->delIndex = 0;
   pFillInfo->curGroupId = 0;
+  pFillInfo->hasNext = false;
   return pFillInfo;
 
 _end:

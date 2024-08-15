@@ -841,7 +841,6 @@ typedef struct SStreamTimeSliceOperatorInfo {
   SGroupResInfo         groupResInfo;
   bool                  ignoreNull;
   bool                  isHistoryOp;
-  bool                  isReloadState;
 } SStreamTimeSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
