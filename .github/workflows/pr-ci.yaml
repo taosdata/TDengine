@@ -215,7 +215,7 @@ jobs:
         run: |
           for port in $(seq 10000 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { rpc_port=$port; break; }; done && for port in $(seq $((rpc_port+1)) 65000); do (echo >/dev/tcp/localhost/$port) &>/dev/null || { explorer_port=$port; break; }; done && echo "First available rpc_port: $rpc_port, Second available explorer_port: $explorer_port"
 
-          run_container_id=$(docker run -d -v /data/github/TestNG_taosX/:/data/github/TestNG_taosX/ -v /root/.cache/:/root/.cache/ -v /data/github/TestNG_taosX2/:/data/github/TestNG_taosX2/ -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
+          run_container_id=$(docker run -d -v /data/github/TestNG_taosX/:/data/github/TestNG_taosX/ -v /data/github/TestNG_taosX2/:/data/github/TestNG_taosX2/ -v $ARTIFACT_BASE_DIR/$DIR_PATH:$ARTIFACT_BASE_DIR/$DIR_PATH -v $COVERAGE_BASE_DIR/$DIR_PATH:$COVERAGE_BASE_DIR/$DIR_PATH -p $rpc_port:6055 -p $explorer_port:6060 taosxci:latest)
           echo "container_id: $run_container_id"
           echo "rpc_port: $rpc_port"
           echo "container_id=$run_container_id" >> "$GITHUB_OUTPUT"
@@ -260,7 +260,7 @@ jobs:
 
           # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity --reruns 3 --reruns-delay 2"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry config virtualenvs.in-project true && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file \" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file ; done"
 
           # docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry add pytest-xdist && poetry add pytest-rerunfailures && for file in \$(find tests -name *_test.py); do echo \"poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file --reruns 3 --reruns-delay 2\" && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity \$file --reruns 3 --reruns-delay 2; done"
   generate_report:
