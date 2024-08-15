@@ -1060,7 +1060,7 @@ static bool needAdjustValue(SSlicePoint* pPoint, TSKEY ts, bool isLeft, int32_t 
     case TSDB_FILL_NULL_F:
     case TSDB_FILL_SET_VALUE:
     case TSDB_FILL_SET_VALUE_F: {
-      if (!isLeft && HAS_NON_ROW_DATA(pPoint->pRightRow)) {
+      if (!isLeft && (HAS_NON_ROW_DATA(pPoint->pRightRow) || pPoint->key.ts == ts) ) {
         return true;
       }
     } break;
