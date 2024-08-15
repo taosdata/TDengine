@@ -49,13 +49,14 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
   if (pRunReq == NULL) {
     stError("vgId:%d failed to create msg to start stream task:0x%x exec, type:%d, code:%s", vgId, taskId, execType,
             terrstr());
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   if (streamId != 0) {
-    stDebug("vgId:%d create msg to start stream task:0x%x, exec type:%d", vgId, taskId, execType);
+    stDebug("vgId:%d create msg to for task:0x%x, exec type:%d, %s", vgId, taskId, execType,
+            streamTaskGetExecType(execType));
   } else {
-    stDebug("vgId:%d create msg to exec, type:%d", vgId, execType);
+    stDebug("vgId:%d create msg to exec, type:%d, %s", vgId, execType, streamTaskGetExecType(execType));
   }
 
   pRunReq->head.vgId = vgId;
@@ -106,7 +107,7 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
   int32_t code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK);
   int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
   if (code) {
-    stError("s-task:%s sched task failed, code:%s, ref:%d", pId->idStr, strerror(code), ref);
+    stError("s-task:%s sched task failed, code:%s, ref:%d", pId->idStr, tstrerror(code), ref);
   } else {
     stDebug("trigger to resume s-task:%s after being idled for %dms, ref:%d", pId->idStr, pTask->status.schedIdleTime,
             ref);

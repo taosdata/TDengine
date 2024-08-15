@@ -624,6 +624,9 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
   size_t inc = newCapacity - pHashObj->capacity;
   void  *p = taosMemoryCalloc(inc, sizeof(SHashEntry));
+  if (p == NULL) {
+    return;
+  }
 
   for (int32_t i = 0; i < inc; ++i) {
     pHashObj->hashList[i + pHashObj->capacity] = (void *)((char *)p + i * sizeof(SHashEntry));

@@ -35,24 +35,29 @@ public class ConsumerOffsetSeek {
         config.setProperty("value.deserializer.encoding", "UTF-8");
 
 // ANCHOR: consumer_seek
-String topic = "topic_meters";
-Map<TopicPartition, Long> offset = null;
-try (TaosConsumer<AbsConsumerLoop.ResultBean> consumer = new TaosConsumer<>(config)) {
-    consumer.subscribe(Collections.singletonList(topic));
-    for (int i = 0; i < 10; i++) {
-        if (i == 3) {
-            // Saving consumption position
-            offset = consumer.position(topic);
-        }
-        if (i == 5) {
-            // reset consumption to the previously saved position
-            for (Map.Entry<TopicPartition, Long> entry : offset.entrySet()) {
-                consumer.seek(entry.getKey(), entry.getValue());
+        String topic = "topic_meters";
+        Map<TopicPartition, Long> offset = null;
+        try (TaosConsumer<AbsConsumerLoop.ResultBean> consumer = new TaosConsumer<>(config)) {
+            consumer.subscribe(Collections.singletonList(topic));
+            for (int i = 0; i < 10; i++) {
+                if (i == 3) {
+                    // Saving consumption position
+                    offset = consumer.position(topic);
+                }
+                if (i == 5) {
+                    // reset consumption to the previously saved position
+                    for (Map.Entry<TopicPartition, Long> entry : offset.entrySet()) {
+                        consumer.seek(entry.getKey(), entry.getValue());
+                    }
+                }
+                ConsumerRecords<AbsConsumerLoop.ResultBean> records = consumer.poll(Duration.ofMillis(500));
+                // you can handle data here
             }
+        } catch (SQLException ex) {
+            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
+            System.out.println("Failed to execute consumer functions. server: " + config.getProperty("bootstrap.servers") + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
+            throw new SQLException("Failed to execute consumer functions", ex);
         }
-        ConsumerRecords<AbsConsumerLoop.ResultBean> records = consumer.poll(Duration.ofMillis(500));
-    }
-}
 // ANCHOR_END: consumer_seek
     }
 }

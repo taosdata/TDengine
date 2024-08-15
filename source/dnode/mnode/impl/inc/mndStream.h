@@ -57,6 +57,12 @@ typedef struct SStreamTaskResetMsg {
   int32_t transId;
 } SStreamTaskResetMsg;
 
+typedef struct SChkptReportInfo {
+  SArray* pTaskList;
+  int64_t reportChkpt;
+  int64_t streamId;
+} SChkptReportInfo;
+
 typedef struct SStreamExecInfo {
   bool             initTaskList;
   SArray          *pNodeList;
@@ -66,9 +72,9 @@ typedef struct SStreamExecInfo {
   SArray          *pTaskList;
   TdThreadMutex    lock;
   SHashObj        *pTransferStateStreams;
-  SHashObj        *pChkptStreams;
+  SHashObj        *pChkptStreams;  // use to update the checkpoint info, if all tasks send the checkpoint-report msgs
   SHashObj        *pStreamConsensus;
-  SArray          *pKilledChkptTrans;    // SArray<SStreamTaskResetMsg>
+  SArray          *pKilledChkptTrans;  // SArray<SStreamTaskResetMsg>
 } SStreamExecInfo;
 
 extern SStreamExecInfo         execInfo;
@@ -79,6 +85,8 @@ typedef struct SNodeEntry {
   bool    stageUpdated;  // the stage has been updated due to the leader/follower change or node reboot.
   SEpSet  epset;         // compare the epset to identify the vgroup tranferring between different dnodes.
   int64_t hbTimestamp;   // second
+  int32_t lastHbMsgId;   // latest hb msgId
+  int64_t lastHbMsgTs;
 } SNodeEntry;
 
 typedef struct {
@@ -151,6 +159,8 @@ int32_t mndGetConsensusInfo(SHashObj *pHash, int64_t streamId, int32_t numOfTask
 void    mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo);
 void    mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo);
 int64_t mndClearConsensusCheckpointId(SHashObj* pHash, int64_t streamId);
+int64_t mndClearChkptReportInfo(SHashObj* pHash, int64_t streamId);
+int32_t mndResetChkptReportInfo(SHashObj* pHash, int64_t streamId);
 
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
 int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlock *pBlock, int32_t numOfRows);

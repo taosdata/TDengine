@@ -305,8 +305,12 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
     if (pCheck->ntbUid == tbUid) {
       int32_t sz = taosArrayGetSize(pCheck->colIdList);
       for (int32_t i = 0; i < sz; i++) {
-        int16_t forbidColId = *(int16_t*)taosArrayGet(pCheck->colIdList, i);
-        if (forbidColId == colId) {
+        int16_t* pForbidColId = taosArrayGet(pCheck->colIdList, i);
+        if (pForbidColId == NULL) {
+          continue;
+        }
+
+        if ((*pForbidColId) == colId) {
           taosHashCancelIterate(pTq->pCheckInfo, pIter);
           return -1;
         }
@@ -459,7 +463,7 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, len);
   code = tEncodeMqVgOffset(&encoder, &vgOffset);
   tEncoderClear(&encoder);

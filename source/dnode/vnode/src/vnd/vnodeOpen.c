@@ -403,6 +403,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->msgCb = msgCb;
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
+  pVnode->disableWrite = false;
 
   (void)tsem_init(&pVnode->syncSem, 0, 0);
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);

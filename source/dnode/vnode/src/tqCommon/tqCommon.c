@@ -417,7 +417,6 @@ int32_t tqStreamTaskProcessDispatchRsp(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return code;
   } else {
     tqDebug("vgId:%d failed to handle the dispatch rsp, since find task:0x%x failed", vgId, pRsp->upstreamTaskId);
-    terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 }
@@ -553,10 +552,17 @@ int32_t tqStreamTaskProcessCheckpointReadyMsg(SStreamMeta* pMeta, SRpcMsg* pMsg)
     return code;
   }
 
-  tqDebug("vgId:%d s-task:%s received the checkpoint-ready msg from task:0x%x (vgId:%d), handle it", vgId,
-          pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+    tqDebug("vgId:%d s-task:%s recv invalid the checkpoint-ready msg from task:0x%x (vgId:%d), discard", vgId,
+            pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_INVALID_MSG;
+  } else {
+    tqDebug("vgId:%d s-task:%s received the checkpoint-ready msg from task:0x%x (vgId:%d), handle it", vgId,
+            pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+  }
 
-  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamTaskId, req.downstreamNodeId);
+  code = streamProcessCheckpointReadyMsg(pTask, req.checkpointId, req.downstreamNodeId, req.downstreamTaskId);
   streamMetaReleaseTask(pMeta, pTask);
   if (code) {
     return code;
@@ -990,8 +996,9 @@ int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg)
 
     streamTaskGetActiveCheckpointInfo(pTask, &transId, &checkpointId);
     if (checkpointId != pReq->checkpointId) {
-      tqError("s-task:%s invalid checkpoint-trigger retrieve msg from %x, current checkpointId:%"PRId64" req:%"PRId64,
-          pTask->id.idStr, pReq->downstreamTaskId, checkpointId, pReq->checkpointId);
+      tqError("s-task:%s invalid checkpoint-trigger retrieve msg from 0x%" PRIx64 ", current checkpointId:%" PRId64
+              " req:%" PRId64,
+              pTask->id.idStr, pReq->downstreamTaskId, checkpointId, pReq->checkpointId);
       streamMetaReleaseTask(pMeta, pTask);
       return TSDB_CODE_INVALID_MSG;
     }
@@ -1001,7 +1008,7 @@ int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg)
       tqDebug("s-task:%s re-send checkpoint-trigger to:0x%x, checkpointId:%" PRId64 ", transId:%d", pTask->id.idStr,
               (int32_t)pReq->downstreamTaskId, checkpointId, transId);
       code = streamTaskSendCheckpointTriggerMsg(pTask, pReq->downstreamTaskId, pReq->downstreamNodeId, &pMsg->info,
-                                         TSDB_CODE_SUCCESS);
+                                                TSDB_CODE_SUCCESS);
     } else {  // not send checkpoint-trigger yet, wait
       int32_t recv = 0, total = 0;
       streamTaskGetTriggerRecvStatus(pTask, &recv, &total);
@@ -1043,8 +1050,10 @@ int32_t tqStreamTaskProcessRetrieveTriggerRsp(SStreamMeta* pMeta, SRpcMsg* pMsg)
     return code;
   }
 
-  tqDebug("s-task:%s recv re-send checkpoint-trigger msg from upstream:0x%x, checkpointId:%" PRId64 ", transId:%d",
-          pTask->id.idStr, pRsp->upstreamTaskId, pRsp->checkpointId, pRsp->transId);
+  tqDebug(
+      "s-task:%s recv re-send checkpoint-trigger msg from through retrieve/rsp channel, upstream:0x%x, "
+      "checkpointId:%" PRId64 ", transId:%d",
+      pTask->id.idStr, pRsp->upstreamTaskId, pRsp->checkpointId, pRsp->transId);
 
   code = streamTaskProcessCheckpointTriggerRsp(pTask, pRsp);
   streamMetaReleaseTask(pMeta, pTask);
@@ -1237,8 +1246,8 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   // discard the rsp, since it is expired.
   if (req.startTs < pTask->execInfo.created) {
     tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
-           " from task createTs:%" PRId64 ", discard",
-           pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs);
+           " from task createTs:%" PRId64 " < task createTs:%" PRId64 ", discard",
+           pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs, pTask->execInfo.created);
     streamMetaAddFailedTaskSelf(pTask, now);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
