@@ -1057,7 +1057,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
 
   SBoundColInfo* tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
   if (tags_info->numOfBound <= 0 || tags_info->numOfCols <= 0) {
-    tscWarn("no tags bound in sql, will not bound tags");
+    tscWarn("no tags or cols bound in sql, will not bound tags");
     return TSDB_CODE_SUCCESS;
   }
 
