@@ -2323,106 +2323,256 @@ class TdSuperTable:
         sql = "alter table {}.{} change tag {} {}".format(self._dbName, self._stName, oldTag, newTag)
         dbc.execute(sql)
 
-    def generateQueries(self, dbc: DbConn) -> List[SqlQuery]:
-        ''' Generate queries to test/exercise this super table '''
-        ret = []  # type: List[SqlQuery]
+    # def generateQueries(self, dbc: DbConn) -> List[SqlQuery]:
+    #     ''' Generate queries to test/exercise this super table '''
+    #     ret = []  # type: List[SqlQuery]
 
-        for rTbName in self.getRegTables(dbc):  # regular tables
+    #     for rTbName in self.getRegTables(dbc):  # regular tables
 
-            filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
-                None
-            ])
+    #         filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
+    #             None
+    #         ])
 
-            # Run the query against the regular table first
-            doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
-            if not doAggr:  # don't do aggregate query, just simple one
-                commonExpr = Dice.choice([
-                    '*',
-                    'abs(speed)',
-                    'acos(speed)',
-                    'asin(speed)',
-                    'atan(speed)',
-                    'ceil(speed)',
-                    'cos(speed)',
-                    'cos(speed)',
-                    'floor(speed)',
-                    'log(speed,2)',
-                    'pow(speed,2)',
-                    'round(speed)',
-                    'sin(speed)',
-                    'sqrt(speed)',
-                    'char_length(color)',
-                    'concat(color,color)',
-                    'concat_ws(" ", color,color," ")',
-                    'length(color)',
-                    'lower(color)',
-                    'ltrim(color)',
-                    'substr(color , 2)',
-                    'upper(color)',
-                    'cast(speed as double)',
-                    'cast(ts as bigint)',
-                    # 'TO_ISO8601(color)',
-                    # 'TO_UNIXTIMESTAMP(ts)',
-                    'now()',
-                    'timediff(ts,now)',
-                    'timezone()',
-                    'TIMETRUNCATE(ts,1s)',
-                    'TIMEZONE()',
-                    'TODAY()',
-                    'distinct(color)'
-                ]
-                )
-                ret.append(SqlQuery(  # reg table
-                    "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
-                ret.append(SqlQuery(  # super table
-                    "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
-            else:  # Aggregate query
-                aggExpr = Dice.choice([
-                    'count(*)',
-                    'avg(speed)',
-                    # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
-                    'sum(speed)',
-                    'stddev(speed)',
-                    # SELECTOR functions
-                    'min(speed)',
-                    'max(speed)',
-                    'first(speed)',
-                    'last(speed)',
-                    'top(speed, 50)',  # TODO: not supported?
-                    'bottom(speed, 50)',  # TODO: not supported?
-                    'apercentile(speed, 10)',  # TODO: TD-1316
-                    'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
-                    # Transformation Functions
-                    # 'diff(speed)', # TODO: no supported?!
-                    'spread(speed)',
-                    'elapsed(ts)',
-                    'mode(speed)',
-                    'bottom(speed,1)',
-                    'top(speed,1)',
-                    'tail(speed,1)',
-                    'unique(color)',
-                    'csum(speed)',
-                    'DERIVATIVE(speed,1s,1)',
-                    'diff(speed,1)',
-                    'irate(speed)',
-                    'mavg(speed,3)',
-                    'sample(speed,5)',
-                    'STATECOUNT(speed,"LT",1)',
-                    'STATEDURATION(speed,"LT",1)',
-                    'twa(speed)'
+    #         # Run the query against the regular table first
+    #         doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
+    #         if not doAggr:  # don't do aggregate query, just simple one
+    #             commonExpr = Dice.choice([
+    #                 '*',
+    #                 'abs(speed)',
+    #                 'acos(speed)',
+    #                 'asin(speed)',
+    #                 'atan(speed)',
+    #                 'ceil(speed)',
+    #                 'cos(speed)',
+    #                 'cos(speed)',
+    #                 'floor(speed)',
+    #                 'log(speed,2)',
+    #                 'pow(speed,2)',
+    #                 'round(speed)',
+    #                 'sin(speed)',
+    #                 'sqrt(speed)',
+    #                 'char_length(color)',
+    #                 'concat(color,color)',
+    #                 'concat_ws(" ", color,color," ")',
+    #                 'length(color)',
+    #                 'lower(color)',
+    #                 'ltrim(color)',
+    #                 'substr(color , 2)',
+    #                 'upper(color)',
+    #                 'cast(speed as double)',
+    #                 'cast(ts as bigint)',
+    #                 # 'TO_ISO8601(color)',
+    #                 # 'TO_UNIXTIMESTAMP(ts)',
+    #                 'now()',
+    #                 'timediff(ts,now)',
+    #                 'timezone()',
+    #                 'TIMETRUNCATE(ts,1s)',
+    #                 'TIMEZONE()',
+    #                 'TODAY()',
+    #                 'distinct(color)'
+    #             ]
+    #             )
+    #             ret.append(SqlQuery(  # reg table
+    #                 "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
+    #             ret.append(SqlQuery(  # super table
+    #                 "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
+    #         else:  # Aggregate query
+    #             aggExpr = Dice.choice([
+    #                 'count(*)',
+    #                 'avg(speed)',
+    #                 # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
+    #                 'sum(speed)',
+    #                 'stddev(speed)',
+    #                 # SELECTOR functions
+    #                 'min(speed)',
+    #                 'max(speed)',
+    #                 'first(speed)',
+    #                 'last(speed)',
+    #                 'top(speed, 50)',  # TODO: not supported?
+    #                 'bottom(speed, 50)',  # TODO: not supported?
+    #                 'apercentile(speed, 10)',  # TODO: TD-1316
+    #                 'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
+    #                 # Transformation Functions
+    #                 # 'diff(speed)', # TODO: no supported?!
+    #                 'spread(speed)',
+    #                 'elapsed(ts)',
+    #                 'mode(speed)',
+    #                 'bottom(speed,1)',
+    #                 'top(speed,1)',
+    #                 'tail(speed,1)',
+    #                 'unique(color)',
+    #                 'csum(speed)',
+    #                 'DERIVATIVE(speed,1s,1)',
+    #                 'diff(speed,1)',
+    #                 'irate(speed)',
+    #                 'mavg(speed,3)',
+    #                 'sample(speed,5)',
+    #                 'STATECOUNT(speed,"LT",1)',
+    #                 'STATEDURATION(speed,"LT",1)',
+    #                 'twa(speed)'
 
-                ])  # TODO: add more from 'top'
+    #             ])  # TODO: add more from 'top'
 
-                # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
-                sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
-                if Dice.throw(3) == 0:  # 1 in X chance
-                    partion_expr = Dice.choice(['color', 'tbname'])
-                    sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
-                    Progress.emit(Progress.QUERY_GROUP_BY)
-                    # Logging.info("Executing GROUP-BY query: " + sql)
-                ret.append(SqlQuery(sql))
+    #             # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
+    #             sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
+    #             if Dice.throw(3) == 0:  # 1 in X chance
+    #                 partion_expr = Dice.choice(['color', 'tbname'])
+    #                 sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
+    #                 Progress.emit(Progress.QUERY_GROUP_BY)
+    #                 # Logging.info("Executing GROUP-BY query: " + sql)
+    #             ret.append(SqlQuery(sql))
 
-        return ret
+    #     return ret
+
+    
+
+    """
+        import random
+        from enum import Enum
+
+        class FunctionMap(Enum):
+            NUMERIC = {
+                'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
+                'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+                'strFuncs': [],
+                'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
+                'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
+                'selectFuncs': ['BOTTOM', 'FIRST', 'INTERP', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'SAMPLE', 'TAIL', 'TOP', 'UNIQUE'],
+                'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
+                'castFuncs': ['CAST', 'TO_ISO8601'],
+                'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP']
+            }
+            # ... Similar definitions for TEXT, BINARY, BOOLEAN, TIMESTAMP
+
+        def select_function_from_type(function_map, column_name):
+            # Randomize function categories to vary selection
+            categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
+            random.shuffle(categories)
+
+            for category in categories:
+                if function_map[category]:
+                    func = random.choice(function_map[category])
+                    if func == 'CAST':
+                        cast_type = random.choice(function_map['castTypes'])
+                        return f"{func}({column_name} AS {cast_type})"
+                    return f"{func}({column_name})"
+            return f"COUNT({column_name})"  # Default fallback
+
+        def generate_random_sql_query(columns):
+            select_parts = []
+            for column_name, column_type in columns.items():
+                for fm in FunctionMap:
+                    if column_type in fm.value['types']:
+                        func_expression = select_function_from_type(fm.value, column_name)
+                        select_parts.append(func_expression)
+                        break
+                else:
+                    # If column type is not found, use a generic function
+                    select_parts.append(f"COUNT({column_name})")
+            return f"SELECT {', '.join(select_parts)} FROM your_table_name;"
+
+        # Example usage
+        columns = {
+            'age': 'INT',
+            'name': 'VARCHAR',
+            'created_at': 'TIMESTAMP',
+            'active': 'BOOL'
+        }
+
+        print(generate_random_sql_query(columns))
+    """
+
+    def formatFunc(self, fm, func, colname):
+        if func == 'CAST':
+            cast_type = random.choice(fm['castTypes'])
+            return f"{func}({colname} AS {cast_type})"
+        return f"{func}({colname})"
+
+    def selectFuncsFromType(self, fm, colname, funcCategory):
+        if funcCategory == "nAggFuncs":
+            supportFuncList = ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs']
+        elif funcCategory == "asFuncs":
+            supportFuncList = ['aggFuncs', 'specialFuncs']
+        else:
+            pass
+        funcList = list()
+        for category in supportFuncList:
+            funcList.append(fm[category])
+        selectItems = random.sample(funcList, random.randint(1, len(funcList)))
+        
+            
+        print(FunctionMap)
+        # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
+        colTypes = [member.name for member in FunctionMap]
+        # cateDict = {'NUMERIC': '......', 'TEXT': '......', 'BINARY': '......', 'BOOLEAN': '......', 'TIMESTAMP': '......'...}
+        cateDict = FunctionMap.colTypes[0].value
+        # categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
+        categories = [key for key in cateDict.keys() if "Funcs" in key]
+        # for category in categories:
+        #     if FunctionMap[category]:
+        #         func = random.choice()
+        #         pass
+        '''
+        fm:
+        {
+            'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
+            'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+            'strFuncs': [],
+            'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
+            'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
+            'selectFuncs': ['BOTTOM', 'FIRST', 'INTERP', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'SAMPLE', 'TAIL', 'TOP', 'UNIQUE'],
+            'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
+            'castFuncs': ['CAST', 'TO_ISO8601'],
+            'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP']
+        }
+        '''
+        for category in categories:
+            if fm[category]:
+                func = random.choice(fm[category])
+                if func == 'CAST':
+                    cast_type = random.choice(fm['castTypes'])
+                    return f"{func}({colname} AS {cast_type})"
+                return f"{func}({colname})"
+        return f"COUNT({colname})"  # Default fallback
+
+    def getFuncCategory(self, func):
+        if func in ['mathFuncs', 'strFuncs', 'timeFuncs', 'selectFuncs', 'castFuncs']:
+            return "nAggFuncs"
+        elif func in ['aggFuncs', 'specialFuncs']:
+            return "asFuncs"
+        else:
+            return ""
+
+    def generateRandomSql(self, colDict, tbname):
+        select_parts = []
+        for column_name, column_type in colDict.items():
+            for fm in FunctionMap:
+                if column_type in fm.value['types']:
+                    # colTypes = ['NUMERIC', 'TEXT', 'BINARY', 'BOOLEAN', 'TIMESTAMP'...]
+                    colTypes = [member.name for member in FunctionMap]
+                    # cateDict = {'NUMERIC': '......', 'TEXT': '......', 'BINARY': '......', 'BOOLEAN': '......', 'TIMESTAMP': '......'...}
+                    cateDict = FunctionMap.colTypes[0].value
+                    # categories = ['mathFuncs', 'strFuncs', 'timeFuncs', 'aggFuncs', 'selectFuncs', 'specialFuncs']
+                    categories = [key for key in cateDict.keys() if "Funcs" in key]
+                    # / selectFunc = 'mathFuncs'
+                    selectFunc = random.choice(categories)
+                    funcCategory = self.getFuncCategory(selectFunc)
+                    
+                    
+                    
+                    # / funcs = ['ABS', 'ACOS', 'ASIN'....]
+                    funcs = random.sample(fm.value[selectFunc], random.randint(1, len(fm.value[selectFunc])))
+                    if func == 'CAST':
+                        cast_type = random.choice(FunctionMap['castTypes'])
+                        func_expression = f"{func}({column_name} AS {cast_type})"
+                        select_parts.append(func_expression)
+                    else:
+                        func_expression = f"{func}({column_name})"
+                        select_parts.append(func_expression)
+                    pass
+                    # func_expression = self.selectFuncsFromType(fm.value, column_name)
+                    # select_parts.append(func_expression)
+        return f"SELECT {', '.join(select_parts)} FROM {tbname};"
 
     def generateQueries_n(self, dbc: DbConn, selectItems) -> List[SqlQuery]:
         ''' Generate queries to test/exercise this super table '''
