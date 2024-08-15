@@ -765,7 +765,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   // todo: secure the timerActive and start timer in after lock pTask->lock
   streamMutexLock(&pTask->lock);
   bool shouldStop = streamTaskShouldStop(pTask);
-  streamMutexLock(&pTask->lock);
+  streamMutexUnlock(&pTask->lock);
 
   if (shouldStop) {
     stDebug("s-task:%s in stop/dropping status, not start dispatch monitor tmr", id);
