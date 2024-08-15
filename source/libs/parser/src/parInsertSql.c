@@ -2238,6 +2238,8 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
     if (pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT) {
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
     }
+  } else {
+    return buildInvalidOperationMsg(&pCxt->msg, tstrerror(code));
   }
 
   // just record pTableCxt whose data come from file
