@@ -431,7 +431,8 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   pMeta->expandTaskFn = expandTaskFn;
   pMeta->stage = stage;
   pMeta->role = (vgId == SNODE_HANDLE) ? NODE_ROLE_LEADER : NODE_ROLE_UNINIT;
-  pMeta->updateInfo.transId = -1;
+  pMeta->updateInfo.activeTransId = -1;
+  pMeta->updateInfo.completeTransId = -1;
 
   pMeta->startInfo.completeFn = fn;
   pMeta->pTaskDbUnique = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -890,24 +891,28 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
-  if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
+  int32_t code = 0;
+  code = tdbCommit(pMeta->db, pMeta->txn);
+  if (code != 0) {
     stError("vgId:%d failed to commit stream meta", pMeta->vgId);
-    return -1;
+    return code;
   }
 
-  if (tdbPostCommit(pMeta->db, pMeta->txn) < 0) {
+  code = tdbPostCommit(pMeta->db, pMeta->txn);
+  if (code != 0) {
     stError("vgId:%d failed to do post-commit stream meta", pMeta->vgId);
-    return -1;
+    return code;
   }
 
-  if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
-               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+  code = tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+                  TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  if (code != 0) {
     stError("vgId:%d failed to begin trans", pMeta->vgId);
-    return -1;
+    return code;
   }
 
   stDebug("vgId:%d stream meta file commit completed", pMeta->vgId);
-  return 0;
+  return code;
 }
 
 int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
@@ -1781,12 +1786,56 @@ void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SSt
   }
 }
 
-void streamMetaClearUpdateTaskList(SStreamMeta* pMeta) {
-  taosHashClear(pMeta->updateInfo.pTasks);
-  pMeta->updateInfo.transId = -1;
+void streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta) {
+  STaskUpdateInfo* pInfo = &pMeta->updateInfo;
+
+  taosHashClear(pInfo->pTasks);
+
+  int32_t prev = pInfo->completeTransId;
+  pInfo->completeTransId = pInfo->activeTransId;
+  pInfo->activeTransId = -1;
+  pInfo->completeTs = taosGetTimestampMs();
+
+  stDebug("vgId:%d set the nodeEp update complete, ts:%" PRId64 ", complete transId:%d->%d, reset active transId",
+          pMeta->vgId, pInfo->completeTs, prev, pInfo->completeTransId);
 }
 
-void streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
-  taosHashClear(pMeta->updateInfo.pTasks);
-  pMeta->updateInfo.transId = transId;
+bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
+  STaskUpdateInfo* pInfo = &pMeta->updateInfo;
+
+  if (transId > pInfo->completeTransId) {
+    if (pInfo->activeTransId == -1) {
+      taosHashClear(pInfo->pTasks);
+      pInfo->activeTransId = transId;
+
+      stInfo("vgId:%d set the active epset update transId:%d, prev complete transId:%d", pMeta->vgId, transId,
+             pInfo->completeTransId);
+      return true;
+    } else {
+      if (pInfo->activeTransId == transId) {
+        // do nothing
+        return true;
+      } else if (transId < pInfo->activeTransId) {
+        stError("vgId:%d invalid(out of order)epset update transId:%d, active transId:%d, complete transId:%d, discard",
+                pMeta->vgId, transId, pInfo->activeTransId, pInfo->completeTransId);
+        return false;
+      } else {  // transId > pInfo->activeTransId
+        taosHashClear(pInfo->pTasks);
+        int32_t prev = pInfo->activeTransId;
+        pInfo->activeTransId = transId;
+
+        stInfo("vgId:%d active epset update transId updated from:%d to %d, prev complete transId:%d", pMeta->vgId,
+               transId, prev, pInfo->completeTransId);
+        return true;
+      }
+    }
+  } else if (transId == pInfo->completeTransId) {
+    stError("vgId:%d already handled epset update transId:%d, completeTs:%" PRId64 " ignore", pMeta->vgId, transId,
+            pInfo->completeTs);
+    return false;
+  } else {  // pInfo->completeTransId > transId
+    stError("vgId:%d disorder update nodeEp msg recv, prev completed epset update transId:%d, recv:%d, discard",
+            pMeta->vgId, pInfo->activeTransId, transId);
+    return false;
+  }
 }
