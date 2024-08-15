@@ -23,7 +23,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_CONSUMER_VER_NUMBER   2
+#define MND_CONSUMER_VER_NUMBER   3
 #define MND_CONSUMER_RESERVE_SIZE 64
 
 #define MND_MAX_GROUP_PER_TOPIC           100
@@ -510,7 +510,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   char   *msgStr = pMsg->pCont;
 
   SCMSubscribeReq subscribe = {0};
-  tDeserializeSCMSubscribeReq(msgStr, &subscribe);
+  tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen);
 
   int64_t         consumerId = subscribe.consumerId;
   char           *cgroup = subscribe.cgroup;
@@ -564,6 +564,9 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     pConsumerNew->autoCommit = subscribe.autoCommit;
     pConsumerNew->autoCommitInterval = subscribe.autoCommitInterval;
     pConsumerNew->resetOffsetCfg = subscribe.resetOffsetCfg;
+
+    tstrncpy(pConsumerNew->user, subscribe.user, TSDB_USER_LEN);
+    tstrncpy(pConsumerNew->fqdn, subscribe.fqdn, TSDB_FQDN_LEN);
 
 //  pConsumerNew->updateType = CONSUMER_UPDATE_SUB;   // use insert logic
     taosArrayDestroy(pConsumerNew->assignedTopics);
@@ -1010,6 +1013,21 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)clientId, false);
+
+      // user
+      char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(user, pConsumer->user);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)user, false);
+
+
+      // fqdn
+      char fqdn[TSDB_FQDN_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(fqdn, pConsumer->fqdn);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)fqdn, false);
 
       // status
       char        status[20 + VARSTR_HEADER_SIZE] = {0};

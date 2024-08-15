@@ -1341,7 +1341,8 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
   return 0;
 }
 
-static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t consumerId, const char* topic, const char* cgroup, SArray* vgs, SArray *offsetRows){
+static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t consumerId, const char* user, const char* fqdn,
+                           const char *topic, const char* cgroup, SArray* vgs, SArray *offsetRows){
   int32_t sz = taosArrayGetSize(vgs);
   for (int32_t j = 0; j < sz; j++) {
     SMqVgEp *pVgEp = taosArrayGetP(vgs, j);
@@ -1366,7 +1367,17 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t cons
     
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, *numOfRows, (const char *)consumerIdHex, consumerId == -1);
-    
+
+    char userStr[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+    if (user) STR_TO_VARSTR(userStr, user);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, *numOfRows, userStr, user == NULL);
+
+    char fqdnStr[TSDB_FQDN_LEN + VARSTR_HEADER_SIZE] = {0};
+    if (fqdn) STR_TO_VARSTR(fqdnStr, fqdn);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, *numOfRows, fqdnStr, fqdn == NULL);
+
     mInfo("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic),
            consumerId, varDataVal(cgroup), pVgEp->vgId);
 
@@ -1434,11 +1445,20 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
       if (pIter == NULL) break;
       pConsumerEp = (SMqConsumerEp *)pIter;
 
-      buildResult(pBlock, &numOfRows, pConsumerEp->consumerId, topic, cgroup, pConsumerEp->vgs, pConsumerEp->offsetRows);
+      char          *user = NULL;
+      char          *fqdn = NULL;
+      SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &pConsumerEp->consumerId);
+      if (pConsumer != NULL) {
+        user = pConsumer->user;
+        fqdn = pConsumer->fqdn;
+        sdbRelease(pSdb, pConsumer);
+      }
+
+      buildResult(pBlock, &numOfRows, pConsumerEp->consumerId, user, fqdn, topic, cgroup, pConsumerEp->vgs, pConsumerEp->offsetRows);
     }
 
     // do not show for cleared subscription
-    buildResult(pBlock, &numOfRows, -1, topic, cgroup, pSub->unassignedVgs, pSub->offsetRows);
+    buildResult(pBlock, &numOfRows, -1, NULL, NULL, topic, cgroup, pSub->unassignedVgs, pSub->offsetRows);
 
     pBlock->info.rows = numOfRows;
 
