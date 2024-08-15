@@ -4,8 +4,6 @@ title: 集群维护
 sidebar_label: 集群维护
 ---
 
-## 简介
-
 本节介绍 TDengine Enterprise 中提供的高阶集群维护手段，能够使 TDengine 集群长期运行得更健壮和高效。
 
 ## 节点管理

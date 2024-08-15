@@ -18,7 +18,7 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 |queryPolicy | 查询语句的执行策略，1: 只使用 vnode，不使用 qnode; 2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行; 3: vnode 只运行扫描算子，其余算子均在 qnode 执行 ；缺省值：1 |
 |querySmaOptimize | sma index 的优化策略，0: 表示不使用 sma index，永远从原始数据进行查询; 1: 表示使用 sma index，对符合的语句，直接从预计算的结果进行查询；缺省值：0 |
 |keepColumnName | Last、First、LastRow 函数查询且未指定别名时，自动设置别名为列名（不含函数名），因此 order by 子句如果引用了该列名将自动引用该列对应的函数; 1: 表示自动设置别名为列名(不包含函数名), 0: 表示不自动设置别名; 缺省值: 0 |
-|countAlwaysReturnValue | ount/hyperloglog函数在输入数据为空或者NULL的情况下是否返回值; 0：返回空行，1：返回; 缺省值 1; 该参数设置为 1 时，如果查询中含有 INTERVAL 子句或者该查询使用了TSMA时, 且相应的组或窗口内数据为空或者NULL， 对应的组或窗口将不返回查询结果. 注意此参数客户端和服务端值应保持一致. |
+|countAlwaysReturnValue | count/hyperloglog函数在输入数据为空或者NULL的情况下是否返回值; 0：返回空行，1：返回; 缺省值 1; 该参数设置为 1 时，如果查询中含有 INTERVAL 子句或者该查询使用了TSMA时, 且相应的组或窗口内数据为空或者NULL， 对应的组或窗口将不返回查询结果. 注意此参数客户端和服务端值应保持一致. |
 |multiResultFunctionStarReturnTags | 查询超级表时，last(\*)/last_row(\*)/first(\*) 是否返回标签列；查询普通表、子表时，不受该参数影响; 0：不返回标签列，1：返回标签列 ; 缺省值: 0; 该参数设置为 0 时，last(\*)/last_row(\*)/first(\*) 只返回超级表的普通列；为 1 时，返回超级表的普通列和标签列 |
 |maxTsmaCalcDelay| 查询时客户端可允许的tsma计算延迟, 若tsma的计算延迟大于配置值, 则该TSMA将不会被使用.; 取值范围: 600s - 86400s, 即10分钟-1小时 ; 缺省值：600 秒|
 |tsmaDataDeleteMark |TSMA计算的历史数据中间结果保存时间, 单位为毫秒; 取值范围：>= 3600000, 即大于等于1h; 缺省值: 86400000, 即1d  |

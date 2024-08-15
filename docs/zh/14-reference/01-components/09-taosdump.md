@@ -4,8 +4,6 @@ sidebar_label: taosdump
 toc_max_heading_level: 4
 ---
 
-## 简介
-
 taosdump 是一个支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个运行中的 TDengine 集群中的工具应用程序。
 
 taosdump 可以用数据库、超级表或普通表作为逻辑数据单元进行备份，也可以对数据库、超级
