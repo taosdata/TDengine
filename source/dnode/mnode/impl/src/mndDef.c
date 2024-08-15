@@ -325,6 +325,8 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType,
     pConsumer->resetOffsetCfg = subscribe->resetOffsetCfg;
     pConsumer->maxPollIntervalMs = subscribe->maxPollIntervalMs;
     pConsumer->sessionTimeoutMs = subscribe->sessionTimeoutMs;
+    tstrncpy(pConsumer->user, subscribe->user, TSDB_USER_LEN);
+    tstrncpy(pConsumer->fqdn, subscribe->fqdn, TSDB_FQDN_LEN);
 
     pConsumer->rebNewTopics = taosArrayDup(subscribe->topicNames, topicNameDup);
     if (pConsumer->rebNewTopics == NULL){
@@ -429,6 +431,8 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   tlen += taosEncodeFixedI32(buf, pConsumer->resetOffsetCfg);
   tlen += taosEncodeFixedI32(buf, pConsumer->maxPollIntervalMs);
   tlen += taosEncodeFixedI32(buf, pConsumer->sessionTimeoutMs);
+  tlen += taosEncodeString(buf, pConsumer->user);
+  tlen += taosEncodeString(buf, pConsumer->fqdn);
   return tlen;
 }
 
@@ -503,6 +507,8 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   if (sver > 2){
     buf = taosDecodeFixedI32(buf, &pConsumer->maxPollIntervalMs);
     buf = taosDecodeFixedI32(buf, &pConsumer->sessionTimeoutMs);
+    buf = taosDecodeStringTo(buf, pConsumer->user);
+    buf = taosDecodeStringTo(buf, pConsumer->fqdn);
   } else{
     pConsumer->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
     pConsumer->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
