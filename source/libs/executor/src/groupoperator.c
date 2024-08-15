@@ -561,16 +561,16 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   }
   initBasicInfo(&pInfo->binfo, pResBlock);
 
+  pInfo->pGroupCols = NULL;
+  code = extractColumnInfo(pAggNode->pGroupKeys, &pInfo->pGroupCols);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   int32_t    numOfScalarExpr = 0;
   SExprInfo* pScalarExprInfo = NULL;
   if (pAggNode->pExprs != NULL) {
     code = createExprInfo(pAggNode->pExprs, NULL, &pScalarExprInfo, &numOfScalarExpr);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-
-  pInfo->pGroupCols = NULL;
-  code = extractColumnInfo(pAggNode->pGroupKeys, &pInfo->pGroupCols);
-  QUERY_CHECK_CODE(code, lino, _error);
 
   code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -1165,6 +1165,8 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   SExprInfo* pExprInfo = NULL;
   code = createExprInfo(pPartNode->pTargets, NULL, &pExprInfo, &numOfCols);
   QUERY_CHECK_CODE(code, lino, _error);
+  pOperator->exprSupp.numOfExprs = numOfCols;
+  pOperator->exprSupp.pExprInfo = pExprInfo;
 
   pInfo->pGroupCols = makeColumnArrayFromList(pPartNode->pPartitionKeys);
 
@@ -1230,8 +1232,6 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
 
   setOperatorInfo(pOperator, "PartitionOperator", QUERY_NODE_PHYSICAL_PLAN_PARTITION, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->exprSupp.numOfExprs = numOfCols;
-  pOperator->exprSupp.pExprInfo = pExprInfo;
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashPartition, NULL, destroyPartitionOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

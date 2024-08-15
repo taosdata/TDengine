@@ -764,6 +764,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
       SValueNode* pv = (SValueNode*)nodesListGetNode(pValNode->pNodeList, index);
       QUERY_CHECK_NULL(pv, code, lino, _end, terrno);
       code = nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     if (TSDB_CODE_SUCCESS != code) {
       goto _end;

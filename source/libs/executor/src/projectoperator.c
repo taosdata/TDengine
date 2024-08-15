@@ -474,11 +474,6 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
 
-  int32_t    numOfExpr = 0;
-  SExprInfo* pExprInfo = NULL;
-  code = createExprInfo(pPhyNode->pFuncs, NULL, &pExprInfo, &numOfExpr);
-  TSDB_CHECK_CODE(code, lino, _error);
-
   if (pPhyNode->pExprs != NULL) {
     int32_t    num = 0;
     SExprInfo* pSExpr = NULL;
@@ -503,6 +498,11 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
   code = blockDataEnsureCapacity(pResBlock, numOfRows);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  int32_t    numOfExpr = 0;
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pPhyNode->pFuncs, NULL, &pExprInfo, &numOfExpr);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
