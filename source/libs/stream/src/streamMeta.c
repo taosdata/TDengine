@@ -891,24 +891,28 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
-  if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
+  int32_t code = 0;
+  code = tdbCommit(pMeta->db, pMeta->txn);
+  if (code != 0) {
     stError("vgId:%d failed to commit stream meta", pMeta->vgId);
-    return -1;
+    return code;
   }
 
-  if (tdbPostCommit(pMeta->db, pMeta->txn) < 0) {
+  code = tdbPostCommit(pMeta->db, pMeta->txn);
+  if (code != 0) {
     stError("vgId:%d failed to do post-commit stream meta", pMeta->vgId);
-    return -1;
+    return code;
   }
 
-  if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
-               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+  code = tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+                  TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  if (code != 0) {
     stError("vgId:%d failed to begin trans", pMeta->vgId);
-    return -1;
+    return code;
   }
 
   stDebug("vgId:%d stream meta file commit completed", pMeta->vgId);
-  return 0;
+  return code;
 }
 
 int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
