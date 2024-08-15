@@ -337,13 +337,14 @@ int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, c
   int64_t st = taosGetTimestampUs();
   code = initBlockScanInfoBuf(pBuf, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
+    tSimpleHashCleanup(pTableMap);
     return code;
   }
 
   pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (pUidList->tableUidList == NULL) {
     tSimpleHashCleanup(pTableMap);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   pUidList->currentIndex = 0;
