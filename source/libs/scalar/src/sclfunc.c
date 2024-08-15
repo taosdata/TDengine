@@ -1458,7 +1458,21 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
   }
 
-  outputLen = pInputData[0]->info.bytes + pInputData[0]->info.bytes / pInputData[1]->info.bytes * (pInputData[2]->info.bytes - pInputData[1]->info.bytes);
+  int8_t  orgType = pInputData[0]->info.type;
+  int8_t  fromType = pInputData[1]->info.type;
+  int8_t  toType = pInputData[2]->info.type;
+  int32_t orgLength = pInputData[0]->info.bytes;
+  int32_t fromLength = pInputData[1]->info.bytes;
+  int32_t toLength = pInputData[2]->info.bytes;
+
+  if (orgType == TSDB_DATA_TYPE_VARBINARY && fromType != orgType) {
+    fromLength = fromLength / TSDB_NCHAR_SIZE;
+  }
+  if (orgType == TSDB_DATA_TYPE_NCHAR && toType != orgType) {
+    toLength = toLength * TSDB_NCHAR_SIZE;
+  }
+  outputLen = TMAX(orgLength, orgLength + orgLength / fromLength * (toLength - fromLength));
+
   if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL ||
       GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NULL ||
       GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NULL ||
