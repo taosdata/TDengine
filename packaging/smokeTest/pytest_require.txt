@@ -1,0 +1,3 @@
+pytest-html
+pytest-json-report
+pytest-timeout
