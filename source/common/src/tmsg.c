@@ -3816,7 +3816,8 @@ int32_t tSerializeSDbHbRspImp(SEncoder *pEncoder, const SDbHbRsp *pRsp) {
     if (tEncodeI8(pEncoder, 0) < 0) return -1;
   }
   if (tEncodeI32(pEncoder, pRsp->dbTsmaVersion) < 0) return -1;
-
+  if (tEncodeCStr(pEncoder, pRsp->db) < 0) return -1;
+  if (tEncodeI64(pEncoder, pRsp->dbId) < 0) return -1;
   return 0;
 }
 
@@ -3907,6 +3908,10 @@ int32_t tDeserializeSDbHbRspImp(SDecoder *decoder, SDbHbRsp *pRsp) {
   }
   if (!tDecodeIsEnd(decoder)) {
     if (tDecodeI32(decoder, &pRsp->dbTsmaVersion) < 0) return -1;
+  }
+  if (!tDecodeIsEnd(decoder)) {
+    if (tDecodeCStrTo(decoder, pRsp->db) < 0) return -1;
+    if (tDecodeI64(decoder, &pRsp->dbId) < 0) return -1;
   }
 
   return 0;
