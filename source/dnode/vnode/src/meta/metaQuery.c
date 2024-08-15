@@ -306,7 +306,7 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   }
 
 _exit:
-  if (locked) {
+  if (code != 0 && locked) {
     metaReaderReleaseLock(&pTbCur->mr);
   }
   return code;
