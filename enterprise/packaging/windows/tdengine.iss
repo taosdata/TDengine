@@ -493,8 +493,6 @@ begin
 end;
 
 [UninstallDelete]
-Name: {app}\cfg; Type: filesandordirs
-Name: {app}\log; Type: filesandordirs 
 Name: {app}\driver; Type: filesandordirs 
 Name: {app}\connector; Type: filesandordirs
 Name: {app}\examples; Type: filesandordirs
