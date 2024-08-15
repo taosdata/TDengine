@@ -399,7 +399,8 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 
     </TabItem>
 <TabItem label="REST API" value="rest">
-使用 REST API 方式访问 TDengine，由应用程序去建立 HTTP 连接，自己控制 HTTP 连接参数。
+通过 REST API 方式访问 TDengine 时，应用程序直接与 taosAdapter 建立 HTTP 连接，建议使用连接池来管理连接。
+使用 REST API 的参数具体可以参考：[http-请求格式](../../reference/connector/rest-api/#http-请求格式)
 
 </TabItem>
 </Tabs>
