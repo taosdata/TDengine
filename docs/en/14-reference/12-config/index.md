@@ -1,5 +1,6 @@
 ---
-title: Configuration Parameters
+title: Configuration Parmeters
+sidebar_label: Configurations
 description: This document describes the configuration parameters for the TDengine server and client.
 ---
 
@@ -87,7 +88,7 @@ Ensure that your firewall rules do not block TCP port 6042  on any host in the c
 | Protocol | Default Port | Description                                                                                               | How to configure                                                                               |
 | :------- | :----------- | :-------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
 | TCP      | 6030         | Communication between client and server. In a multi-node cluster, communication between nodes. serverPort |
-| TCP      | 6041         | REST connection between client and server                                                                 | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](../taosadapter/) |
+| TCP      | 6041         | REST connection between client and server                                                                 | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](../components/taosadapter/) |
 | TCP      | 6043         | Service Port of taosKeeper                                                                                | The parameter of taosKeeper                                                                    |
 | TCP      | 6044         | Data access port for StatsD                                                                               | Configurable through taosAdapter parameters.                                                   |
 | UDP      | 6045         | Data access for statsd                                                                                    | Configurable through taosAdapter parameters.                                                   |

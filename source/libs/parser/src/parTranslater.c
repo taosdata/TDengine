@@ -11864,7 +11864,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
         if (checkRecursiveTsmaInterval(pRecursiveTsma->interval, pRecursiveTsma->unit, pInterval->datum.i,
               pInterval->unit, pDbInfo.precision, true)) {
         } else {
-          code = TSDB_CODE_TSMA_INVALID_INTERVAL;
+          code = TSDB_CODE_TSMA_INVALID_RECURSIVE_INTERVAL;
         }
       }
     }
@@ -13177,6 +13177,10 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
   }
+  if (tlen >= TSDB_MAX_MSG_SIZE - sizeof(SMsgHead)) {
+    return TSDB_CODE_INVALID_MSG_LEN;
+  }
+
   tlen += sizeof(SMsgHead);
   void* buf = taosMemoryMalloc(tlen);
   if (NULL == buf) {
@@ -14014,6 +14018,7 @@ int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut
 
     code = serializeVgroupCreateTableBatch(pTbBatch, pBufArray);
     if (TSDB_CODE_SUCCESS != code) {
+      qError("failed to serialize create table batch msg, since:%s", tstrerror(code));
       taosHashCancelIterate(pVgroupHashmap, pTbBatch);
       break;
     }
@@ -14091,6 +14096,9 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
   code = serializeVgroupsCreateTableBatch(pModifyStmt->pVgroupsHashObj, &pBufArray);
   taosHashClear(pModifyStmt->pVgroupsHashObj);
   if (TSDB_CODE_SUCCESS != code) {
+    if (TSDB_CODE_INVALID_MSG_LEN == code) {
+      qError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
+    }
     taosHashCleanup(pModifyStmt->pVgroupsHashObj);
     return code;
   }

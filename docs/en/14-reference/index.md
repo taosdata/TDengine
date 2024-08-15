@@ -1,5 +1,5 @@
 ---
-title: Reference
+title: Reference Manual
 description: This document describes TDengine utilities.
 ---
 

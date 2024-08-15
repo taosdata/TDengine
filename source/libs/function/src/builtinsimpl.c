@@ -4346,7 +4346,7 @@ int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 _exit:
   taosMemoryFree(res);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t spreadCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {

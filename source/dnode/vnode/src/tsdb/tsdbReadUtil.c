@@ -958,6 +958,7 @@ int32_t loadMemTombData(SArray** ppMemDelData, STbData* pMemTbData, STbData* piM
       if (p->version <= ver) {
         void* px = taosArrayPush(pMemDelData, p);
         if (px == NULL) {
+          taosRUnLockLatch(&pMemTbData->lock);
           return terrno;
         }
       }

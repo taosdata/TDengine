@@ -4,7 +4,7 @@ sidebar_label: collectd
 description: This document describes how to integrate TDengine with collectd.
 ---
 
-import CollectD from "../14-reference/_collectd.mdx"
+import CollectD from "../14-reference/01-components/_collectd.mdx"
 
 
 collectd is a daemon used to collect system performance metric data. collectd provides various storage mechanisms to store different values. It periodically counts system performance statistics while the system is running and storing information. You can use this information to help identify current system performance bottlenecks and predict future system load.
@@ -15,7 +15,7 @@ You can write the data collected by collectd to TDengine by simply modifying the
 
 Writing collectd data to the TDengine requires several preparations.
 - The TDengine cluster is deployed and running properly
-- taosAdapter is installed and running, please refer to [taosAdapter's manual](../../reference/taosadapter) for details
+- taosAdapter is installed and running, please refer to [taosAdapter's manual](../../reference/components/taosadapter) for details
 - collectd has been installed. Please refer to the [official documentation](https://collectd.org/download.shtml) to install collectd
 
 ## Configuration steps

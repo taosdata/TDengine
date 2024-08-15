@@ -509,7 +509,7 @@ static void freeTableCachedVal(void* param) {
   taosMemoryFree(pVal);
 }
 
-static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
+static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedVal** ppResVal) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
@@ -526,12 +526,14 @@ static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
     memcpy(pVal->pTags, pTag, pTag->len);
   }
 
+  (*ppResVal) = pVal;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    return NULL;
+    freeTableCachedVal(pVal);
   }
-  return pVal;
+  return code;
 }
 
 // const void *key, size_t keyLen, void *value
@@ -551,6 +553,11 @@ static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t 
   }
 }
 
+static void freeTableCachedValObj(STableCachedVal* pVal) {
+  taosMemoryFree((void*)pVal->pName);
+  taosMemoryFree(pVal->pTags);
+}
+
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -560,6 +567,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   STableCachedVal val = {0};
   SMetaReader     mr = {0};
   const char*     idStr = pTask->id.str;
+  int32_t         insertRet = TAOS_LRU_STATUS_OK;
 
   // currently only the tbname pseudo column
   if (numOfExpr <= 0) {
@@ -581,18 +589,18 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
       // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
-      if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
         qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
-              pBlock->info.id.uid, tstrerror(terrno), idStr);
+              pBlock->info.id.uid, tstrerror(code), idStr);
 
         // append null value before return to caller, since the caller will ignore this error code and proceed
         doSetNullValue(pBlock, pExpr, numOfExpr);
       } else {
-        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
+        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(code),
                idStr);
       }
       pHandle->api.metaReaderFn.clearReader(&mr);
-      return terrno;
+      return code;
     }
 
     pHandle->api.metaReaderFn.readerReleaseLock(&mr);
@@ -609,34 +617,33 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
       code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
       if (code != TSDB_CODE_SUCCESS) {
-        if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+        if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
           qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
-                pBlock->info.id.uid, tstrerror(terrno), idStr);
+                pBlock->info.id.uid, tstrerror(code), idStr);
           // append null value before return to caller, since the caller will ignore this error code and proceed
           doSetNullValue(pBlock, pExpr, numOfExpr);
         } else {
-          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
+          qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(code),
                  idStr);
         }
         pHandle->api.metaReaderFn.clearReader(&mr);
-        return terrno;
+        return code;
       }
 
       pHandle->api.metaReaderFn.readerReleaseLock(&mr);
 
-      STableCachedVal* pVal = createTableCacheVal(&mr);
-      if(!pVal) {
-        return terrno;
-      }
+      STableCachedVal* pVal = NULL;
+      code = createTableCacheVal(&mr, &pVal);
+      QUERY_CHECK_CODE(code, lino, _end);
 
       val = *pVal;
       freeReader = true;
 
-      int32_t ret = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
+      insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
                                        sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
-      if (ret != TAOS_LRU_STATUS_OK) {
-        qError("failed to put meta into lru cache, code:%d, %s", ret, idStr);
-        freeTableCachedVal(pVal);
+      if (insertRet != TAOS_LRU_STATUS_OK) {
+        qError("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
+        taosMemoryFreeClear(pVal);
       }
     } else {
       pCache->cacheHit += 1;
@@ -709,11 +716,14 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
   // restore the rows
   pBlock->info.rows = backupRows;
+
+_end:
+  if (insertRet != TAOS_LRU_STATUS_OK) {
+    freeTableCachedValObj(&val);
+  }
   if (freeReader) {
     pHandle->api.metaReaderFn.clearReader(&mr);
   }
-
-_end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1647,6 +1657,9 @@ bool hasPrimaryKeyCol(SStreamScanInfo* pInfo) { return pInfo->primaryKeyIndex !=
 static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion, void* pVal) {
   SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, uid, ts, ts, maxVersion);
   if (!pPreRes || pPreRes->info.rows == 0) {
+    if (terrno != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    }
     return 0;
   }
 
@@ -1938,6 +1951,9 @@ static int32_t getPreVersionDataBlock(uint64_t uid, TSKEY startTs, TSKEY endTs, 
   printDataBlock(pPreRes, "pre res", taskIdStr);
   blockDataCleanup(pBlock);
   if (!pPreRes) {
+    if (terrno != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    }
     goto _end;
   }
   code = blockDataEnsureCapacity(pBlock, pPreRes->info.rows);
@@ -3370,21 +3386,31 @@ FETCH_NEXT_BLOCK:
       case STREAM_SCAN_FROM_DELETE_DATA: {
         code = generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes, STREAM_PARTITION_DELETE_DATA);
         QUERY_CHECK_CODE(code, lino, _end);
-        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
-        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
-        code = copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
-        QUERY_CHECK_CODE(code, lino, _end);
-        pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
-        (*ppRes) = pInfo->pDeleteDataRes;
-        return code;
+        if (pInfo->pUpdateRes->info.rows > 0) {
+          prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+          pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+          code = copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
+          QUERY_CHECK_CODE(code, lino, _end);
+          pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
+          (*ppRes) = pInfo->pDeleteDataRes;
+          return code;
+        }
+        qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__, lino);
+        blockDataCleanup(pInfo->pUpdateDataRes);
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       } break;
       case STREAM_SCAN_FROM_UPDATERES: {
         code = generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes, STREAM_CLEAR);
         QUERY_CHECK_CODE(code, lino, _end);
-        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
-        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
-        (*ppRes) = pInfo->pUpdateRes;
-        return code;
+        if (pInfo->pUpdateRes->info.rows > 0) {
+          prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+          pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+          (*ppRes) = pInfo->pUpdateRes;
+          return code;
+        }
+        qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__, lino);
+        blockDataCleanup(pInfo->pUpdateDataRes);
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       } break;
       case STREAM_SCAN_FROM_DATAREADER_RANGE:
       case STREAM_SCAN_FROM_DATAREADER_RETRIEVE: {
