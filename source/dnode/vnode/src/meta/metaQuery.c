@@ -275,13 +275,12 @@ void metaPauseTbCursor(SMTbCursor *pTbCur) {
 int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   int32_t code = 0;
   int32_t lino;
-
+  int8_t locked = 0;
   if (pTbCur->paused) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
-
+    locked = 1; 
     code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
     if (code != 0) {
-      metaReaderReleaseLock(&pTbCur->mr);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -307,6 +306,9 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   }
 
 _exit:
+  if (locked) {
+    metaReaderReleaseLock(&pTbCur->mr);
+  }
   return code;
 }
 
@@ -794,6 +796,7 @@ void metaCloseSmaCursor(SMSmaCursor *pSmaCur) {
     if (pSmaCur->pMeta) metaULock(pSmaCur->pMeta);
     if (pSmaCur->pCur) {
       (void)tdbTbcClose(pSmaCur->pCur);
+      pSmaCur->pCur = NULL;
 
       tdbFree(pSmaCur->pKey);
       tdbFree(pSmaCur->pVal);
