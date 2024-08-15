@@ -3696,6 +3696,7 @@ typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
+  int32_t  transId;
 } SVPauseStreamTaskReq, SVResetStreamTaskReq;
 
 typedef struct {
