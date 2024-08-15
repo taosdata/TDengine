@@ -805,6 +805,7 @@ function handleGroups(groups, paramsConfig, beforeConnectionCheck, id) {
               config.hide = ['realtime_settings'].includes(config.field)
               return !['retro','interval','excursion'].includes(name)
             }
+            config.hide = false;
           }
           if (id.startsWith('opc')) {
             if (datasetsData && datasetsData[valueField] === opcGroupShowValue) {
