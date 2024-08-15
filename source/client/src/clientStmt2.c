@@ -978,6 +978,20 @@ static int32_t stmtInitStbInterlaceTableInfo(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+int stmtIsInsert2(TAOS_STMT2* stmt, int* insert) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  STMT_DLOG_E("start is insert");
+
+  if (pStmt->sql.type) {
+    *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
+  } else {
+    *insert = qIsInsertValuesSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
@@ -992,7 +1006,7 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTBNAME));
 
   int32_t insert = 0;
-  STMT_ERR_RET(stmtIsInsert(stmt, &insert));
+  STMT_ERR_RET(stmtIsInsert2(stmt, &insert));
   if (0 == insert) {
     tscError("set tb name not available for none insert statement");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
@@ -1066,7 +1080,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
   return TSDB_CODE_SUCCESS;
 }
 
-int stmtFetchTagFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields) {
+static int stmtFetchTagFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields) {
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
   }
@@ -1088,7 +1102,7 @@ int stmtFetchTagFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fiel
   return TSDB_CODE_SUCCESS;
 }
 
-int stmtFetchColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields) {
+static int stmtFetchColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIELD_E** fields) {
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
   }
@@ -1608,7 +1622,6 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     } else {
       pWrapper->pRequest = pStmt->exec.pRequest;
       pStmt->exec.pRequest->pWrapper = pWrapper;
-      //*ppWrapper = pWrapper;
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = createParseContext(pStmt->exec.pRequest, &pWrapper->pParseCtx, pWrapper);
@@ -1698,20 +1711,6 @@ int stmtAffectedRows(TAOS_STMT* stmt) { return ((STscStmt2*)stmt)->affectedRows;
 
 int stmtAffectedRowsOnce(TAOS_STMT* stmt) { return ((STscStmt2*)stmt)->exec.affectedRows; }
 */
-int stmtIsInsert2(TAOS_STMT2* stmt, int* insert) {
-  STscStmt2* pStmt = (STscStmt2*)stmt;
-
-  STMT_DLOG_E("start is insert");
-
-  if (pStmt->sql.type) {
-    *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
-  } else {
-    *insert = qIsInsertValuesSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int stmtGetTagFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_E** fields) {
   int32_t    code = 0;
   STscStmt2* pStmt = (STscStmt2*)stmt;
