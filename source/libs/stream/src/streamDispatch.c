@@ -762,6 +762,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
   code = sendDispatchMsg(pTask, pTask->msgInfo.pData);
 
+  // todo: secure the timerActive and start timer in after lock pTask->lock
   streamMutexLock(&pTask->lock);
   bool shouldStop = streamTaskShouldStop(pTask);
   streamMutexLock(&pTask->lock);
