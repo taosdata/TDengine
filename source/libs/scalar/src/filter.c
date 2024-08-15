@@ -1066,6 +1066,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
       info->fields[type].fields =
           taosMemoryRealloc(info->fields[type].fields, info->fields[type].size * sizeof(SFilterField));
       if (info->fields[type].fields == NULL) {
+        *num = 0;
         fltError("taosMemoryRealloc failed, size:%d", (int32_t)(info->fields[type].size * sizeof(SFilterField)));
         FLT_ERR_RET(terrno);
       }
@@ -2776,6 +2777,7 @@ int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
   if (info->groupNum > 0) {
     info->groups = taosMemoryCalloc(info->groupNum, sizeof(*info->groups));
     if (info->groups == NULL) {
+      info->groupNum = 0;
       FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
@@ -2787,6 +2789,7 @@ int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray *group) {
     }
     pg->unitFlags = taosMemoryCalloc(pg->unitNum, sizeof(*pg->unitFlags));
     if (pg->unitFlags == NULL) {
+      pg->unitNum = 0;
       FLT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     info->groups[i] = *pg;

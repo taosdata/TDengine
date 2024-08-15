@@ -209,7 +209,7 @@ static int32_t tSimpleHashTableResize(SSHashObj *pHashObj) {
 
 int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t dataLen) {
   if (!pHashObj || !key) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);

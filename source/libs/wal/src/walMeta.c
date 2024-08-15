@@ -818,7 +818,10 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
   int sz = cJSON_GetArraySize(pFiles);
   // deserialize
   SArray* pArray = pWal->fileInfoSet;
-  (void)taosArrayEnsureCap(pArray, sz);
+  if (taosArrayEnsureCap(pArray, sz)) {
+    cJSON_Delete(pRoot);
+    return terrno;
+  }
 
   for (int i = 0; i < sz; i++) {
     pInfoJson = cJSON_GetArrayItem(pFiles, i);
@@ -841,7 +844,10 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
     pField = cJSON_GetObjectItem(pInfoJson, "fileSize");
     if (!pField) goto _err;
     info.fileSize = atoll(cJSON_GetStringValue(pField));
-    (void)taosArrayPush(pArray, &info);
+    if (!taosArrayPush(pArray, &info)) {
+      cJSON_Delete(pRoot);
+      return terrno;
+    }
   }
   pWal->fileInfoSet = pArray;
   pWal->writeCur = sz - 1;
@@ -860,8 +866,8 @@ static int walFindCurMetaVer(SWal* pWal) {
 
   TdDirPtr pDir = taosOpenDir(pWal->path);
   if (pDir == NULL) {
-    wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    return -1;
+    wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, tstrerror(terrno));
+    return terrno;
   }
 
   TdDirEntryPtr pDirEntry;

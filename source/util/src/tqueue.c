@@ -372,7 +372,7 @@ void taosQsetThreadResume(STaosQset *qset) {
 }
 
 int32_t taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle) {
-  if (queue->qset) return -1;
+  if (queue->qset) return TSDB_CODE_INVALID_PARA;
 
   (void)taosThreadMutexLock(&qset->mutex);
 
