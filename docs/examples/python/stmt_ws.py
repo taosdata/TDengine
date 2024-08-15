@@ -13,8 +13,8 @@ port=6041
 try:
     conn = taosws.connect(user="root",
                           password="taosdata",
-                          host="localhost",
-                          port=6041)
+                          host=host,
+                          port=port)
 
     conn.execute("CREATE DATABASE IF NOT EXISTS power")
     conn.execute("USE power")
