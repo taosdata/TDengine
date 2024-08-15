@@ -9,7 +9,7 @@ extern int8_t tsS3EpNum;
 extern char   tsS3Endpoint[][TSDB_FQDN_LEN];
 extern char   tsS3AccessKeyId[][TSDB_FQDN_LEN];
 extern char   tsS3AccessKeySecret[][TSDB_FQDN_LEN];
-extern char   tsS3BucketName[][TSDB_FQDN_LEN];
+extern char   tsS3BucketName[TSDB_FQDN_LEN];
 extern char   tsS3AppId[][TSDB_FQDN_LEN];
 extern char   tsS3Hostname[][TSDB_FQDN_LEN];
 extern int8_t tsS3Https;
@@ -130,13 +130,13 @@ int32_t s3CheckCfg() {
     (void)fprintf(stderr, "put object %s: success.\n\n", objectname[0]);
 
     // list buckets
-    (void)fprintf(stderr, "start to list bucket %s by prefix s3.\n", tsS3BucketName[i]);
-    code = s3ListBucketByEp(tsS3BucketName[i], i);
+    (void)fprintf(stderr, "start to list bucket %s by prefix s3.\n", tsS3BucketName);
+    code = s3ListBucketByEp(tsS3BucketName, i);
     if (code != 0) {
-      (void)fprintf(stderr, "listing bucket %s : failed.\n", tsS3BucketName[i]);
+      (void)fprintf(stderr, "listing bucket %s : failed.\n", tsS3BucketName);
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
-    (void)fprintf(stderr, "listing bucket %s: success.\n\n", tsS3BucketName[i]);
+    (void)fprintf(stderr, "listing bucket %s: success.\n\n", tsS3BucketName);
 
     // test range get
     uint8_t *pBlock = NULL;
@@ -975,7 +975,7 @@ int32_t s3PutObjectFromFile2ByEp(const char *file, const char *object_name, int8
       contentLength;
 
   S3BucketContext bucketContext = {tsS3Hostname[epIndex],
-                                   tsS3BucketName[epIndex],
+                                   tsS3BucketName,
                                    protocolG,
                                    uriStyleG,
                                    tsS3AccessKeyId[epIndex],
@@ -1058,7 +1058,7 @@ static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *objec
       contentLength;
 
   S3BucketContext bucketContext = {tsS3Hostname[epIndex],
-                                   tsS3BucketName[epIndex],
+                                   tsS3BucketName,
                                    protocolG,
                                    uriStyleG,
                                    tsS3AccessKeyId[epIndex],
@@ -1154,7 +1154,7 @@ static void s3FreeObjectKey(void *pItem) {
 
 static SArray *getListByPrefixByEp(const char *prefix, int8_t epIndex) {
   S3BucketContext     bucketContext = {tsS3Hostname[epIndex],
-                                       tsS3BucketName[epIndex],
+                                       tsS3BucketName,
                                        protocolG,
                                        uriStyleG,
                                        tsS3AccessKeyId[epIndex],
@@ -1222,7 +1222,7 @@ static int32_t s3DeleteObjectsByEp(const char *object_name[], int nobject, int8_
   int32_t code = 0;
 
   S3BucketContext   bucketContext = {tsS3Hostname[epIndex],
-                                     tsS3BucketName[epIndex],
+                                     tsS3BucketName,
                                      protocolG,
                                      uriStyleG,
                                      tsS3AccessKeyId[epIndex],
@@ -1298,7 +1298,7 @@ static int32_t s3GetObjectBlockByEp(const char *object_name, int64_t offset, int
   const char *ifMatch = 0, *ifNotMatch = 0;
 
   S3BucketContext    bucketContext = {tsS3Hostname[epIndex],
-                                      tsS3BucketName[epIndex],
+                                      tsS3BucketName,
                                       protocolG,
                                       uriStyleG,
                                       tsS3AccessKeyId[epIndex],
@@ -1371,7 +1371,7 @@ static int32_t s3GetObjectToFileByEp(const char *object_name, const char *fileNa
   const char *ifMatch = 0, *ifNotMatch = 0;
 
   S3BucketContext    bucketContext = {tsS3Hostname[epIndex],
-                                      tsS3BucketName[epIndex],
+                                      tsS3BucketName,
                                       protocolG,
                                       uriStyleG,
                                       tsS3AccessKeyId[epIndex],
@@ -1448,7 +1448,7 @@ static long s3SizeByEp(const char *object_name, int8_t epIndex) {
   int  status = 0;
 
   S3BucketContext bucketContext = {tsS3Hostname[epIndex],
-                                   tsS3BucketName[epIndex],
+                                   tsS3BucketName,
                                    protocolG,
                                    uriStyleG,
                                    tsS3AccessKeyId[epIndex],
