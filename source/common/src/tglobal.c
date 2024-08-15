@@ -612,9 +612,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfSnodeWriteThreads = TRANGE(tsNumOfSnodeWriteThreads, 2, 4);
   if (cfgAddInt32(pCfg, "numOfSnodeUniqueThreads", tsNumOfSnodeWriteThreads, 2, 1024, CFG_SCOPE_SERVER) != 0) return -1;
 
-  tsRpcQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
-  tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
-  if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX,
+  tsQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.1;
+  tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+  if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX,
                   CFG_SCOPE_BOTH) != 0)
     return -1;
 
@@ -849,9 +849,9 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "rpcQueueMemoryAllowed");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsRpcQueueMemoryAllowed = totalMemoryKB * 1024 * 0.1;
-    tsRpcQueueMemoryAllowed = TRANGE(tsRpcQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
-    pItem->i64 = tsRpcQueueMemoryAllowed;
+    tsQueueMemoryAllowed = totalMemoryKB * 1024 * 0.1;
+    tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+    pItem->i64 = tsQueueMemoryAllowed;
     pItem->stype = stype;
   }
 
@@ -1045,7 +1045,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   //  tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchTereads")->i32;
   tsNumOfSnodeStreamThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
   tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
-  tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
+  tsQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
 
   tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "SIMD-builtins")->bval;
   tsTagFilterCache = (bool)cfgGetItem(pCfg, "tagFilterCache")->bval;
@@ -1401,7 +1401,7 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
     }
     case 'r': {
       if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
-        tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
+        tsQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
       } else if (strcasecmp("rpcDebugFlag", name) == 0) {
         rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
       }
