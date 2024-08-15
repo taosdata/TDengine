@@ -974,7 +974,7 @@ int32_t s3PutObjectFromFile2ByEp(const char *file, const char *object_name, int8
   data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =
       contentLength;
 
-  S3BucketContext bucketContext = {0,
+  S3BucketContext bucketContext = {tsS3Hostname[epIndex],
                                    tsS3BucketName[epIndex],
                                    protocolG,
                                    uriStyleG,
@@ -1057,7 +1057,7 @@ static int32_t s3PutObjectFromFileOffsetByEp(const char *file, const char *objec
   data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =
       contentLength;
 
-  S3BucketContext bucketContext = {0,
+  S3BucketContext bucketContext = {tsS3Hostname[epIndex],
                                    tsS3BucketName[epIndex],
                                    protocolG,
                                    uriStyleG,
@@ -1153,7 +1153,7 @@ static void s3FreeObjectKey(void *pItem) {
 }
 
 static SArray *getListByPrefixByEp(const char *prefix, int8_t epIndex) {
-  S3BucketContext     bucketContext = {0,
+  S3BucketContext     bucketContext = {tsS3Hostname[epIndex],
                                        tsS3BucketName[epIndex],
                                        protocolG,
                                        uriStyleG,
@@ -1221,7 +1221,7 @@ static SArray *getListByPrefix(const char *prefix) {
 static int32_t s3DeleteObjectsByEp(const char *object_name[], int nobject, int8_t epIndex) {
   int32_t code = 0;
 
-  S3BucketContext   bucketContext = {0,
+  S3BucketContext   bucketContext = {tsS3Hostname[epIndex],
                                      tsS3BucketName[epIndex],
                                      protocolG,
                                      uriStyleG,
@@ -1297,7 +1297,7 @@ static int32_t s3GetObjectBlockByEp(const char *object_name, int64_t offset, int
   int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
   const char *ifMatch = 0, *ifNotMatch = 0;
 
-  S3BucketContext    bucketContext = {0,
+  S3BucketContext    bucketContext = {tsS3Hostname[epIndex],
                                       tsS3BucketName[epIndex],
                                       protocolG,
                                       uriStyleG,
@@ -1370,7 +1370,7 @@ static int32_t s3GetObjectToFileByEp(const char *object_name, const char *fileNa
   int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
   const char *ifMatch = 0, *ifNotMatch = 0;
 
-  S3BucketContext    bucketContext = {0,
+  S3BucketContext    bucketContext = {tsS3Hostname[epIndex],
                                       tsS3BucketName[epIndex],
                                       protocolG,
                                       uriStyleG,
@@ -1447,7 +1447,7 @@ static long s3SizeByEp(const char *object_name, int8_t epIndex) {
   long size = 0;
   int  status = 0;
 
-  S3BucketContext bucketContext = {0,
+  S3BucketContext bucketContext = {tsS3Hostname[epIndex],
                                    tsS3BucketName[epIndex],
                                    protocolG,
                                    uriStyleG,
