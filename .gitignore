@@ -134,3 +134,6 @@ tags
 .clangd
 *CMakeCache*
 *CMakeFiles*
+packaging/smokeTest/*.html
+packaging/smokeTest/*.json
+

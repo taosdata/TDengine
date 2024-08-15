@@ -51,9 +51,9 @@ def setup_module(get_config):
     cmd = "mkdir -p ../../debug/build/bin/"
     run_cmd(cmd)
     if config["system"] == "Darwin":
-        cmd = "cp /usr/local/bin/taos*  ../../debug/build/bin/"
+        cmd = "sudo cp /usr/local/bin/taos*  ../../debug/build/bin/"
     else:
-        cmd = "cp /usr/bin/taos*  ../../debug/build/bin/"
+        cmd = "sudo cp /usr/bin/taos*  ../../debug/build/bin/"
     run_cmd(cmd)
 
     yield
