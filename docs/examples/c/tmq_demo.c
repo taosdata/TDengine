@@ -41,14 +41,15 @@ typedef struct {
 } ConsumerConfig;
 
 void* prepare_data(void* arg) {
-  const char *host      = "localhost";
-  const char *user      = "root";
-  const char *password  = "taosdata";
-  uint16_t    port      = 6030;
-  int code = 0;
-  TAOS *pConn = taos_connect(host, user, password, NULL, port);
+  const char* host = "localhost";
+  const char* user = "root";
+  const char* password = "taosdata";
+  uint16_t    port = 6030;
+  int         code = 0;
+  TAOS*       pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+            taos_errstr(NULL));
     taos_cleanup();
     return NULL;
   }
@@ -68,7 +69,8 @@ void* prepare_data(void* arg) {
     pRes = taos_query(pConn, buf);
     code = taos_errno(pRes);
     if (code != 0) {
-      fprintf(stderr, "Failed to insert data to power.meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
+      fprintf(stderr, "Failed to insert data to power.meters, ErrCode: 0x%x, ErrMessage: %s.\n", code,
+              taos_errstr(pRes));
     }
     taos_free_result(pRes);
     sleep(1);
@@ -115,21 +117,21 @@ static int32_t msg_process(TAOS_RES* msg) {
 // ANCHOR_END: msg_process
 
 static int32_t init_env() {
-  const char *host      = "localhost";
-  const char *user      = "root";
-  const char *password  = "taosdata";
-  uint16_t    port      = 6030;
-  int code = 0;
-  TAOS *pConn = taos_connect(host, user, password, NULL, port);
+  const char* host = "localhost";
+  const char* user = "root";
+  const char* password = "taosdata";
+  uint16_t    port = 6030;
+  int         code = 0;
+  TAOS*       pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+            taos_errstr(NULL));
     taos_cleanup();
     return -1;
   }
 
   TAOS_RES* pRes;
   // drop database if exists
-  fprintf(stdout, "Create database.\n");
   pRes = taos_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
   code = taos_errno(pRes);
   if (code != 0) {
@@ -154,7 +156,6 @@ static int32_t init_env() {
   taos_free_result(pRes);
 
   // create super table
-  fprintf(stdout, "Create super table.\n");
   pRes = taos_query(
       pConn,
       "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
@@ -176,16 +177,16 @@ END:
 }
 
 int32_t create_topic() {
-  fprintf(stdout, "Create topic.\n");
-  TAOS_RES* pRes;
-  const char *host      = "localhost";
-  const char *user      = "root";
-  const char *password  = "taosdata";
-  uint16_t    port      = 6030;
-  int code = 0;
-  TAOS *pConn = taos_connect(host, user, password, NULL, port);
+  TAOS_RES*   pRes;
+  const char* host = "localhost";
+  const char* user = "root";
+  const char* password = "taosdata";
+  uint16_t    port = 6030;
+  int         code = 0;
+  TAOS*       pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+            taos_errstr(NULL));
     taos_cleanup();
     return -1;
   }
@@ -348,7 +349,8 @@ void consume_repeatly(tmq_t* tmq) {
 
     code = tmq_offset_seek(tmq, topic_name, p->vgId, p->begin);
     if (code != 0) {
-      fprintf(stderr, "Failed to seek assignment %d to beginning %ld, ErrCode: 0x%x, ErrMessage: %s.\n", i, p->begin, code, tmq_err2str(code));
+      fprintf(stderr, "Failed to seek assignment %d to beginning %ld, ErrCode: 0x%x, ErrMessage: %s.\n", i, p->begin,
+              code, tmq_err2str(code));
     } else {
       fprintf(stdout, "Seek assignment %d to beginning %ld successfully.\n", i, p->begin);
     }
@@ -377,7 +379,6 @@ void manual_commit(tmq_t* tmq) {
       totalRows += msg_process(tmqmsg);
       // commit the message
       int32_t code = tmq_commit_sync(tmq, tmqmsg);
-
       if (code) {
         fprintf(stderr, "Failed to commit message, ErrCode: 0x%x, ErrMessage: %s.\n", code, tmq_err2str(code));
         // free the message
@@ -417,25 +418,25 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  ConsumerConfig config = {
-      .enable_auto_commit = "true",
-      .auto_commit_interval_ms = "1000",
-      .group_id = "group1",
-      .client_id = "client1",
-      .td_connect_host = "localhost",
-      .td_connect_port = "6030",
-      .td_connect_user = "root",
-      .td_connect_pass = "taosdata",
-      .auto_offset_reset = "latest"
-  };
+  ConsumerConfig config = {.enable_auto_commit = "true",
+                           .auto_commit_interval_ms = "1000",
+                           .group_id = "group1",
+                           .client_id = "client1",
+                           .td_connect_host = "localhost",
+                           .td_connect_port = "6030",
+                           .td_connect_user = "root",
+                           .td_connect_pass = "taosdata",
+                           .auto_offset_reset = "latest"};
 
   // ANCHOR: create_consumer_2
   tmq_t* tmq = build_consumer(&config);
   if (NULL == tmq) {
-    fprintf(stderr, "Failed to create native consumer, host: %s, groupId: %s, , clientId: %s.\n", config.td_connect_host, config.group_id, config.client_id);
+    fprintf(stderr, "Failed to create native consumer, host: %s, groupId: %s, , clientId: %s.\n",
+            config.td_connect_host, config.group_id, config.client_id);
     return -1;
   } else {
-    fprintf(stdout, "Create consumer successfully, host: %s, groupId: %s, , clientId: %s.\n", config.td_connect_host, config.group_id, config.client_id);
+    fprintf(stdout, "Create consumer successfully, host: %s, groupId: %s, , clientId: %s.\n", config.td_connect_host,
+            config.group_id, config.client_id);
   }
 
   // ANCHOR_END: create_consumer_2

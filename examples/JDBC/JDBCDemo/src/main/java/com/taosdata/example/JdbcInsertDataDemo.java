@@ -40,12 +40,13 @@ public class JdbcInsertDataDemo {
             int affectedRows = stmt.executeUpdate(insertQuery);
             // you can check affectedRows here
             System.out.println("Successfully inserted " + affectedRows + " rows to power.meters.");
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to insert data to power.meters, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw ex;
-        } catch (Exception ex){
-            System.out.println("Failed to insert data to power.meters, url:" + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to insert data to power.meters, %sErrMessage: %s%n",
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
             throw ex;
         }
 // ANCHOR_END: insert_data

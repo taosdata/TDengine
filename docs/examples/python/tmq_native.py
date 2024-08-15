@@ -50,7 +50,7 @@ from taos.tmq import Consumer
 
 def create_consumer():
     host = "localhost"
-    port = 6030
+    port = "6030"
     groupId = "group1"
     clientId = "1"
     try:
@@ -70,7 +70,7 @@ def create_consumer():
         print(f"Create consumer successfully, host: {host}:{port}, groupId: {groupId}, clientId: {clientId}");
         return consumer
     except Exception as err:
-        print(f"Failed to create native consumer, host: {host}:{port} ; ErrMessage:{err}");
+        print(f"Failed to create native consumer, host: {host}:{port}, ErrMessage:{err}");
         raise err
     # ANCHOR_END: create_consumer
 
@@ -123,7 +123,7 @@ def commit_offset(consumer):
                 print("Commit offset manually successfully.");
 
     except Exception as err:
-        print(f"Failed to poll data, ErrMessage:{err}")
+        print(f"Failed to execute commit example, ErrMessage:{err}")
         raise err
     # ANCHOR_END: commit_offset
 
@@ -138,7 +138,7 @@ def seek_offset(consumer):
                 consumer.seek(partition)
                 print(f"Assignment seek to beginning successfully");
     except Exception as err:
-        print(f"Seek example failed; ErrMessage:{err}")
+        print(f"Failed to execute seek example, ErrMessage:{err}")
         raise err
     # ANCHOR_END: assignment
 
@@ -151,7 +151,8 @@ def unsubscribe(consumer):
         print(f"Failed to unsubscribe consumer. ErrMessage:{err}")
     finally:
         if consumer:
-            consumer.close()        
+            consumer.close()
+            print("Consumer closed successfully.");        
     # ANCHOR_END: unsubscribe
 
 if __name__ == "__main__":
@@ -163,9 +164,9 @@ if __name__ == "__main__":
         seek_offset(consumer)
         commit_offset(consumer)
         consumer.unsubscribe()
-        print("Consumer unsubscribed successfully.");
+        print("Consumer unsubscribed successfully.")
     except Exception as err:
-        print(f"Failed to stmt consumer. ErrMessage:{err}")
+        print(f"Failed to execute consumer example, ErrMessage:{err}")
     finally:
         consumer.unsubscribe()
 

@@ -99,7 +99,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 - **安装前准备**
     - 安装 Python。新近版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
     - 安装 [pip](https://pypi.org/project/pip/)。大部分情况下 Python 的安装包都自带了 pip 工具， 如果没有请参考 [pip documentation](https://pip.pypa.io/en/stable/installation/) 安装。
-    - 如果使用原生连接，还需[安装客户端驱动](../#安装客户端驱动)。客户端软件包含了 TDengine 客户端动态链接库(libtaos.so 或 taos.dll) 和 TDengine CLI。
+    - 如果使用原生连接，还需[安装客户端驱动](../connect/#安装客户端驱动-taosc)。客户端软件包含了 TDengine 客户端动态链接库(libtaos.so 或 taos.dll) 和 TDengine CLI。
 
 - **使用 pip 安装**
     - 卸载旧版本
@@ -399,7 +399,8 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 
     </TabItem>
 <TabItem label="REST API" value="rest">
-使用 REST API 方式访问 TDengine，由应用程序去建立 HTTP 连接，自己控制 HTTP 连接参数。
+通过 REST API 方式访问 TDengine 时，应用程序直接与 taosAdapter 建立 HTTP 连接，建议使用连接池来管理连接。
+使用 REST API 的参数具体可以参考：[http-请求格式](../../reference/connector/rest-api/#http-请求格式)
 
 </TabItem>
 </Tabs>
@@ -544,7 +545,7 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 使用示例如下：
 
 ```java
-{{#include examples/JDBC/connectionPools/src/main/java/com/taosdata/example/HikariDemo.java:connection_pool}}
+{{#include docs/examples/java/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
 ```
 
 > 通过 HikariDataSource.getConnection() 获取连接后，使用完成后需要调用 close() 方法，实际上它并不会关闭连接，只是放回连接池中。
@@ -555,7 +556,7 @@ C/C++ 语言连接器使用 `taos_connect()` 函数用于建立与 TDengine 数�
 使用示例如下：
 
 ```java
-{{#include examples/JDBC/connectionPools/src/main/java/com/taosdata/example/DruidDemo.java:connection_pool}}
+{{#include docs/examples/java/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
 ```
 
 > 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)。

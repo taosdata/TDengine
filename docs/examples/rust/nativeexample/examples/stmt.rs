@@ -20,7 +20,13 @@ async fn main() -> anyhow::Result<()> {
         let tags = vec![Value::Int(i as i32), Value::VarChar(format!("location_{}", i).into())];
 
         // set table name and tags for the prepared statement.
-        stmt.set_tbname_tags(&table_name, &tags).await?;
+        match stmt.set_tbname_tags(&table_name, &tags).await{
+            Ok(_) => {},
+            Err(err) => {
+                eprintln!("Failed to set table name and tags, table_name:{}, tags:{:?}, ErrMessage: {}", table_name, tags, err);
+                return Err(err.into());
+            }
+        }
         for j in 0..NUM_ROWS {
             let values = vec![
                 ColumnView::from_millis_timestamp(vec![1648432611249 + j as i64]),
@@ -29,17 +35,29 @@ async fn main() -> anyhow::Result<()> {
                 ColumnView::from_floats(vec![0.31 + j as f32]),
             ];
             // bind values to the prepared statement.    
-            stmt.bind(&values).await?;
+            match stmt.bind(&values).await{
+                Ok(_) => {},
+                Err(err) => {
+                    eprintln!("Failed to bind values, values:{:?}, ErrMessage: {}", values, err);
+                    return Err(err.into());
+                }
+            }
         }
 
-        stmt.add_batch().await?;
+        match stmt.add_batch().await{
+            Ok(_) => {},
+            Err(err) => {
+                eprintln!("Failed to add batch, ErrMessage: {}", err);
+                return Err(err.into());
+            }
+        }
     }
 
     // execute.
     match stmt.execute().await{
         Ok(affected_rows) => println!("Successfully inserted {} rows to power.meters.", affected_rows),
         Err(err) => {
-            eprintln!("Failed to insert to table meters using stmt, dsn: {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to insert to table meters using stmt, ErrMessage: {}", err);
             return Err(err.into());
         }
     }

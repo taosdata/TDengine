@@ -52,13 +52,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to create db and table,url:" + connectionString +"; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to create database power or stable meters, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to create db and table, url:" + connectionString + "; ErrMessage: " + e.Message);
+                Console.WriteLine("Failed to create database power or stable meters, ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: create_db_and_table
@@ -85,13 +85,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to insert data to power.meters, url:" + connectionString + "; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to insert data to power.meters, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to insert data to power.meters, url:" + connectionString + "; ErrMessage: " + e.Message);
+                Console.WriteLine("Failed to insert data to power.meters, ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: insert_data
@@ -100,10 +100,10 @@ namespace Examples
         private static void QueryData(ITDengineClient client,string connectionString)
         {
             // ANCHOR: select_data
+            // query data, make sure the database and table are created before
+            var query = "SELECT ts, current, location FROM power.meters limit 100";
             try
             {
-                // query data, make sure the database and table are created before
-                var query = "SELECT ts, current, location FROM power.meters limit 100";
                 using (var rows = client.Query(query))
                 {
                     while (rows.Read())
@@ -119,13 +119,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to query data from power.meters, url:" + connectionString + "; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to query data from power.meters, sql: " + query + ", ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to query data from power.meters, url:" + connectionString + "; ErrMessage: " + e.Message);
+                Console.WriteLine("Failed to query data from power.meters, sql: " + query + ", ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: select_data
@@ -155,13 +155,13 @@ namespace Examples
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to execute sql with reqId: " + reqId + ", url:" + connectionString + "; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to execute sql with reqId: " + reqId + ", ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to execute sql with reqId: " + reqId + ", url:" + connectionString + "; ErrMessage: " + e.Message);
+                Console.WriteLine("Failed to execute sql with reqId: " + reqId + ", ErrMessage: " + e.Message);
                 throw;
             }
             // ANCHOR_END: query_id

@@ -43,8 +43,7 @@ static int DemoCreateDB() {
   TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
   code = taos_errno(result);
   if (code != 0) {
-    printf("Failed to create database power, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, code,
-           taos_errstr(result));
+    printf("Failed to create database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
     return -1;
@@ -59,8 +58,7 @@ static int DemoCreateDB() {
   result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {
-    printf("Failed to create stable power.meters, Server: %s:%hu, ErrCode: 0x%x, ErrMessage: %s\n.", host, port, code,
-           taos_errstr(result));
+    printf("Failed to create stable power.meters, ErrCode: 0x%x, ErrMessage: %s\n.", code, taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
     return -1;
@@ -75,4 +73,6 @@ static int DemoCreateDB() {
   // ANCHOR_END: create_db_and_table
 }
 
-int main(int argc, char *argv[]) { return DemoCreateDB(); }
+int main(int argc, char *argv[]) {
+  return DemoCreateDB();
+}
