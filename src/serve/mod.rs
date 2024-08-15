@@ -25,6 +25,7 @@ use taosx_core::plugins::transform::sample::DsSampleIn;
 pub use task::check_parser_timestamp_precision;
 use task::*;
 
+use crate::build;
 use crate::serve::controller::agent::{
     Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
     AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
@@ -205,9 +206,9 @@ impl Cli {
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
         } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
-            format!("sqlite:{}/taosx.db", root)
+            format!("sqlite:{}/{}x.db", root, build::CUS_PROMPT)
         } else {
-            "sqlite:taosx.db".to_string()
+            format!("sqlite:{}x.db", build::CUS_PROMPT)
         }
     }
 
