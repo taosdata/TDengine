@@ -1411,6 +1411,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
   rocksdb_writebatch_t *wb = NULL;
   SArray               *pTmpColArray = NULL;
 
+  (void)taosThreadMutexLock(&pTsdb->lruMutex);
   SIdxKey *idxKey = taosArrayGet(remainCols, 0);
   if (idxKey->key.cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
     // ignore 'ts' loaded from cache and load it from tsdb
@@ -1420,6 +1421,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     SLastKey *key = &(SLastKey){.lflag = ltype, .uid = uid, .cid = PRIMARYKEY_TIMESTAMP_COL_ID};
     (void)taosArrayInsert(remainCols, 0, &(SIdxKey){0, *key});
   }
+  (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
 
   int      num_keys = TARRAY_SIZE(remainCols);
   int16_t *slotIds = taosMemoryMalloc(num_keys * sizeof(int16_t));
