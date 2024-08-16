@@ -47,7 +47,7 @@ public class ConsumerLoopFull {
             return consumer;
         } catch (Exception ex) {
             // please refer to the JDBC specifications for detailed exceptions info
-            System.out.printf("Failed to create websocket consumer, host: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+            System.out.printf("Failed to create native consumer, host: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
                     config.getProperty("bootstrap.servers"),
                     config.getProperty("group.id"),
                     config.getProperty("client.id"),
