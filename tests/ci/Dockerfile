@@ -1,20 +1,21 @@
 FROM python:3.8
 COPY sources.list /etc/apt/
 COPY id_ecdsa /root/.ssh/id_ecdsa
-RUN apt-key adv --keyserver keyserver.ubuntu.com  --recv-keys 3B4FE6ACC0B21F32  && apt-key adv --keyserver keyserver.ubuntu.com  --recv-keys 871920D1991BC93C
+RUN apt-key adv --keyserver hkp://pgpkeys.eu --recv-keys 3B4FE6ACC0B21F32  && apt-key adv --keyserver hkp://pgpkeys.eu  --recv-keys 871920D1991BC93C
 RUN apt-get update 
-RUN apt-get install -y locales psmisc sudo tree  libgeos-dev libgflags2.2 libgflags-dev  libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config build-essential valgrind rsync vim  libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping clang-tools-16
+RUN apt-get install -y locales psmisc sudo tree  libgeos-dev libgflags2.2 libgflags-dev  libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config build-essential valgrind rsync vim  libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  iputils-ping clang-tools-16
 RUN sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen  && locale-gen 
 RUN pip3 config set global.index-url http://admin:123456@192.168.0.212:3141/admin/dev/+simple/
 RUN pip3 config set global.trusted-host 192.168.0.212
 RUN pip3 install taospy==2.7.15 taos-ws-py==0.3.1 pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
+RUN wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc 
 RUN add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/'
-RUN apt install -y r-base
+RUN apt install -y r-base r-base-dev -y
 ADD go1.17.6.linux-amd64.tar.gz /usr/local/
 ADD jdk-8u144-linux-x64.tar.gz /usr/local/
 ADD apache-maven-3.8.4-bin.tar.gz /usr/local/
+RUN apt-get update  --fix-missing
 RUN apt-get install wget -y \
   && wget https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \
   && dpkg -i packages-microsoft-prod.deb \
@@ -29,6 +30,7 @@ COPY go /root/go
 ADD cmake-3.21.5-linux-x86_64.tar.gz /usr/local/
 RUN echo " export RUSTUP_DIST_SERVER=\"https://rsproxy.cn\" " >> /root/.bashrc
 RUN echo " export RUSTUP_UPDATE_ROOT=\"https://rsproxy.cn/rustup\" " >> /root/.bashrc
+ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"  RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 RUN curl https://sh.rustup.rs -o /tmp/rustup-init.sh
 RUN sh /tmp/rustup-init.sh -y
 COPY .cargo/config /root/.cargo/config
