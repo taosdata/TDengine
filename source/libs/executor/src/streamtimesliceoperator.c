@@ -1303,11 +1303,6 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSuppor
       if (hasNextWindow(pFillSup)) {
         pFillInfo->nextPointKey = nextPoint.key.ts;
       }
-
-      getNextResKey(pKey->groupId, pGroupResInfo->pRows, pGroupResInfo->index + 1, &pFillInfo->nextNextRowKey);
-      if (hasNextNextWindow(pFillSup)) {
-        pFillInfo->nextNextPointKey = pFillSup->nextNext.key;
-      }
     }
 
     setTimeSliceFillRule(pFillSup, pFillInfo, pKey->ts);

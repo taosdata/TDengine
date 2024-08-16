@@ -33,7 +33,7 @@ $loop_count = 0
 loop4_1:
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 20 then
   return -1
 endi
 
@@ -105,6 +105,13 @@ sql insert into t1 values(1648791215001,20,2,3);
 $loop_count = 0
 loop4_2:
 
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
 print sql select a,b from streamt4_2;
 sql select a,b from streamt4_2;
 
@@ -170,6 +177,13 @@ sql insert into t1 values(1648791215001,20,2,3);
 
 $loop_count = 0
 loop4_3:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
 
 print sql select a,b from streamt4_3;
 sql select a,b from streamt4_3;
@@ -237,6 +251,13 @@ sql insert into t1 values(1648791215001,20,2,3);
 $loop_count = 0
 loop4_4:
 
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
 print sql select a,b from streamt4_4;
 sql select a,b from streamt4_4;
 
@@ -303,6 +324,13 @@ sql insert into t1 values(1648791215001,20,2,3);
 $loop_count = 0
 loop4_5:
 
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
 print sql select a,b from streamt4_5;
 sql select a,b from streamt4_5;
 
@@ -341,6 +369,142 @@ if $data51 != 32 then
   goto loop4_5
 endi
 
+print step5
+print =============== create database
+sql drop database if exists test5;
+sql create database test5 vgroups 4 precision 'us';
+sql use test5;
 
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams5 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt as select interp(a), _isfilled as a1 from t1 every(1s) fill(prev);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791213000001,1,1,1,1.0) (1648791215000001,20,1,1,1.0) (1648791216000000,3,1,1,1.0);
+
+$loop_count = 0
+loop5:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select cast(`_irowts` as bigint) from streamt order by 1;
+sql select cast(`_irowts` as bigint) from streamt order by 1;
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+if $data00 != 1648791214000000 then
+  print ======data00=$data00
+  goto loop5
+endi
+
+if $data10 != 1648791215000000 then
+  print ======data01=$data01
+  goto loop5
+endi
+
+if $data20 != 1648791216000000 then
+  print ======data01=$data01
+  goto loop5
+endi
+
+print step6
+print =============== create database
+sql drop database if exists test6;
+sql create database test6 vgroups 4 precision 'us';
+sql use test6;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams6 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt as select interp(a), _isfilled as a1 from t1 every(1s) fill(next);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791213000001,1,1,1,1.0) (1648791215000001,20,1,1,1.0) (1648791216000000,3,1,1,1.0);
+
+$loop_count = 0
+loop6:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select cast(`_irowts` as bigint) from streamt order by 1;
+sql select cast(`_irowts` as bigint) from streamt order by 1;
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+if $data00 != 1648791214000000 then
+  print ======data00=$data00
+  goto loop6
+endi
+
+if $data10 != 1648791215000000 then
+  print ======data01=$data01
+  goto loop6
+endi
+
+if $data20 != 1648791216000000 then
+  print ======data01=$data01
+  goto loop6
+endi
+
+print step7
+print =============== create database
+sql drop database if exists test7;
+sql create database test7 vgroups 4 precision 'us';
+sql use test7;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams7 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt as select interp(a), _isfilled as a1 from t1 every(1s) fill(linear);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791213000001,1,1,1,1.0) (1648791215000001,20,1,1,1.0) (1648791216000000,3,1,1,1.0);
+
+$loop_count = 0
+loop7:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 300
+
+print sql select cast(`_irowts` as bigint) from streamt order by 1;
+sql select cast(`_irowts` as bigint) from streamt order by 1;
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop7
+endi
+
+if $data00 != 1648791214000000 then
+  print ======data00=$data00
+  goto loop7
+endi
+
+if $data10 != 1648791215000000 then
+  print ======data01=$data01
+  goto loop7
+endi
+
+if $data20 != 1648791216000000 then
+  print ======data01=$data01
+  goto loop7
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
