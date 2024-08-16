@@ -33,7 +33,7 @@ static int DemoInsertData() {
   // connect
   TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
            taos_errstr(NULL));
     taos_cleanup();
     return -1;
@@ -53,7 +53,7 @@ static int DemoInsertData() {
   TAOS_RES *result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {
-    printf("Failed to insert data to power.meters, ErrCode: 0x%x, ErrMessage: %s\n.", code, taos_errstr(result));
+    fprintf(stderr, "Failed to insert data to power.meters, sql: %s, ErrCode: 0x%x, ErrMessage: %s\n.", sql, code, taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
     return -1;
@@ -62,7 +62,7 @@ static int DemoInsertData() {
 
   // you can check affectedRows here
   int rows = taos_affected_rows(result);
-  printf("Successfully inserted %d rows into power.meters.\n", rows);
+  fprintf(stdout, "Successfully inserted %d rows into power.meters.\n", rows);
 
   // close & clean
   taos_close(taos);

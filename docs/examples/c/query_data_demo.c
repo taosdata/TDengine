@@ -33,7 +33,7 @@ static int DemoQueryData() {
   // connect
   TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
            taos_errstr(NULL));
     taos_cleanup();
     return -1;
@@ -44,7 +44,7 @@ static int DemoQueryData() {
   TAOS_RES   *result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {
-    printf("Failed to query data from power.meters, sql: %s, ErrCode: 0x%x, ErrMessage: %s\n.", sql, code,
+    fprintf(stderr, "Failed to query data from power.meters, sql: %s, ErrCode: 0x%x, ErrMessage: %s\n.", sql, code,
            taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
@@ -56,20 +56,15 @@ static int DemoQueryData() {
   int         num_fields = taos_field_count(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
-  printf("fields: %d\n", num_fields);
-  printf("sql: %s, result:\n", sql);
+  fprintf(stdout, "query successfully, got %d fields, the sql is: %s.\n", num_fields, sql);
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
-    char temp[1024] = {0};
-    if (taos_print_row(temp, row, fields, num_fields) < 0) {
-      printf("Failed to print row\n");
-      break;
-    }
-    printf("%s\n", temp);
+    // Add your data processing logic here
+
     rows++;
   }
-  printf("total rows: %d\n", rows);
+  fprintf(stdout, "total rows: %d\n", rows);
   taos_free_result(result);
 
   // close & clean
