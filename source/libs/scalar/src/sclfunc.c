@@ -1325,30 +1325,40 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int32_t outputLen = inputNum * 4 + 2;
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
-  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+  int32_t numOfRows = 0;
+  for (int32_t i = 0; i < inputNum; ++i) {
+    numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
+  }
+  for (int32_t i = 0; i < numOfRows; ++i) {
     char   *output = varDataVal(outputBuf);
     for (int32_t j = 0; j < inputNum; ++j) {
+      int32_t colIdx = (pInput[j].numOfRows == 1) ? 0 : i;
       int32_t num;
       if (colDataIsNull_s(pInput[j].columnData, i)) {
         continue;
       } else if (IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[j]))) {
-        GET_TYPED_DATA(num, int32_t, GET_PARAM_TYPE(&pInput[j]), pInput[j].columnData->pData);
+        GET_TYPED_DATA(num, int32_t, GET_PARAM_TYPE(&pInput[j]), colDataGetData(pInput[j].columnData, colIdx));
         getAsciiChar(num, &output);
       } else if (TSDB_DATA_TYPE_BINARY == GET_PARAM_TYPE(&pInput[j])) {
-        num = taosStr2Int32(varDataVal(pInput[j].columnData->pData), NULL, 10);
+        num = taosStr2Int32(varDataVal(colDataGetData(pInput[j].columnData, colIdx)), NULL, 10);
         getAsciiChar(num, &output);
       } else if (TSDB_DATA_TYPE_NCHAR == GET_PARAM_TYPE(&pInput[j])) {
         char   *convBuf = taosMemoryMalloc(GET_PARAM_BYTES(&pInput[j]));
-        int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(pInput[j].columnData->pData), varDataLen(pInput[j].columnData->pData), convBuf);
+        if (convBuf == NULL) {
+          SCL_ERR_RET(terrno);
+        }
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colDataGetData(pInput[j].columnData, colIdx)), varDataLen(colDataGetData(pInput[j].columnData, colIdx)), convBuf);
         if (len < 0) {
+          taosMemoryFree(convBuf);
           code = TSDB_CODE_SCALAR_CONVERT_ERROR;
           goto _return;
         }
         convBuf[len] = 0;
         num = taosStr2Int32(convBuf, NULL, 10);
         getAsciiChar(num, &output);
+        taosMemoryFree(convBuf);
       } else {
         code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
         goto _return;
