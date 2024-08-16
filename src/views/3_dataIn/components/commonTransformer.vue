@@ -1500,7 +1500,9 @@ export default {
         // this.subrule.subname = value.parser.model.name;
         await this.getSTbaleList(true);
         await this.echoFetchMap();
-        await this.selectJson();
+        if (this.$store.state.app.currentDBType !== 'csv' && !this.$store.state.app.supportSQL) {
+          await this.selectJson();
+        }
         this.$store.commit("app/SET_RESULTTB_SHOW", false);
         this.$store.commit("app/SET_TRANS_RESULT_NAME", "");
       });
@@ -2344,6 +2346,7 @@ export default {
       
       try {
         if (this.parseruleForm.type == 'json') {
+          console.log('selectJson',this.parseruleForm.type);
           this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
         }
       } catch (err) {
