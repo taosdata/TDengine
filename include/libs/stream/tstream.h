@@ -453,8 +453,8 @@ struct SStreamTask {
   SSHashObj*            pNameMap;
   void*                 pBackend;
   int8_t                subtableWithoutMd5;
+  char                  reserve[256];
   char*                 backendPath;
-  char                  reserve[256 - sizeof(char*)];
 };
 
 typedef int32_t (*startComplete_fn_t)(struct SStreamMeta*);

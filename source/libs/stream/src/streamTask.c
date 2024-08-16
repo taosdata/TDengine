@@ -298,7 +298,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
   pTask->outputInfo.pNodeEpsetUpdateList = NULL;
 
-
   if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);
   }
@@ -496,10 +495,13 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   if (pTask->chkInfo.pActiveInfo == NULL) {
     code = streamTaskCreateActiveChkptInfo(&pTask->chkInfo.pActiveInfo);
+    if (code) {
+      stError("s-task:%s failed to create active checkpoint info, code:%s", pTask->id.idStr, tstrerror(code));
+      return code;
+    }
   }
-  code = streamTaskSetBackendPath(pTask);
 
-  return code;
+  return streamTaskSetBackendPath(pTask);
 }
 
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
