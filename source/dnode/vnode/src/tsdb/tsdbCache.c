@@ -541,6 +541,7 @@ static int32_t reallocVarDataVal(SValue *pValue) {
       }
       pValue->pData = p;
       memcpy(pValue->pData, pVal, pValue->nData);
+      taosMemoryFreeClear(pVal);
     } else {
       pValue->pData = NULL;
     }
