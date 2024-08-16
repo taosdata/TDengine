@@ -2886,13 +2886,12 @@ void mndInitStreamExecInfo(SMnode *pMnode, SStreamExecInfo *pExecInfo) {
   pExecInfo->initTaskList = true;
 }
 
-void mndInitStreamExecInfoForLeader(SMnode* pMnode) {
+void mndStreamResetInitTaskListLoadFlag() {
+  mInfo("reset task list buffer init flag for leader");
   execInfo.initTaskList = false;
-  mInfo("init stream execInfo for leader");
-  mndInitStreamExecInfo(pMnode, &execInfo);
 }
 
-void mndInitStreamExecInfoUpdateRole(SMnode* pMnode, int32_t role) {
+void mndUpdateStreamExecInfoRole(SMnode* pMnode, int32_t role) {
   execInfo.switchFromFollower = false;
 
   if (execInfo.role == NODE_ROLE_UNINIT) {
@@ -3017,7 +3016,8 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
   // check if it is conflict with other trans in both sourceDb and targetDb.
   bool conflict = mndStreamTransConflictCheck(pMnode, pTask->streamId, MND_STREAM_DROP_NAME, false);
   if (conflict) {
-    TAOS_RETURN(TSDB_CODE_MND_TRANS_CONFLICT);
+    code = TSDB_CODE_MND_TRANS_CONFLICT;
+    goto _err;
   }
 
   SStreamObj dummyObj = {.uid = pTask->streamId, .sourceDb = "", .targetSTbName = ""};
@@ -3030,8 +3030,7 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq) {
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_DROP_NAME, pTask->streamId);
   if (code) {
-    mndTransDrop(pTrans);
-    return code;
+    goto _err;
   }
 
   // drop all tasks
@@ -3055,7 +3054,7 @@ _err:
   tDestroyDropOrphanTaskMsg(&msg);
   mndTransDrop(pTrans);
 
-  if (code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mDebug("create drop %d orphan tasks trans succ", numOfTasks);
   }
   return code;
