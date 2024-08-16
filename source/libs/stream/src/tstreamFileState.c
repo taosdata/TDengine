@@ -569,10 +569,12 @@ int32_t addRowBuffIfNotExist(SStreamFileState* pFileState, void* pKey, int32_t k
   pFileState->maxTs = TMAX(pFileState->maxTs, pFileState->getTs(pKey));
   SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, keyLen);
   if (pos) {
-    *pVLen = pFileState->rowSize;
-    *pVal = *pos;
-    (*pos)->beUsed = true;
-    (*pos)->beFlushed = false;
+    if (pVal != NULL) {
+      *pVLen = pFileState->rowSize;
+      *pVal = *pos;
+      (*pos)->beUsed = true;
+      (*pos)->beFlushed = false;
+    }
     goto _end;
   }
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
@@ -616,11 +618,17 @@ void deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLe
   qTrace("%s at line %d res:%d", __func__, __LINE__, code_buff);
   int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
   qTrace("%s at line %d res:%d", __func__, __LINE__, code_file);
+  if (pFileState->searchBuff != NULL) {
+    deleteHashSortRowBuff(pFileState, pKey);
+  }
 }
 
 int32_t resetRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
   int32_t code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, keyLen);
   int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
+  if (pFileState->searchBuff != NULL) {
+    deleteHashSortRowBuff(pFileState, pKey);
+  }
   if (code_buff == TSDB_CODE_SUCCESS || code_file == TSDB_CODE_SUCCESS) {
     return TSDB_CODE_SUCCESS;
   }

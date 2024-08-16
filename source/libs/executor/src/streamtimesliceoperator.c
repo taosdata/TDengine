@@ -29,22 +29,8 @@
 
 #define STREAM_TIME_SLICE_OP_STATE_NAME      "StreamTimeSliceHistoryState"
 #define STREAM_TIME_SLICE_OP_CHECKPOINT_NAME "StreamTimeSliceOperator_Checkpoint"
-#define HAS_NON_ROW_DATA(pRowData)           (pRowData->key == INT64_MIN)
-#define HAS_ROW_DATA(pRowData)               (pRowData && pRowData->key != INT64_MIN)
 #define IS_INVALID_WIN_KEY(ts)               ((ts) == INT64_MIN)
 #define SET_WIN_KEY_INVALID(ts)              ((ts) = INT64_MIN)
-
-typedef struct SSliceRowData {
-  TSKEY           key;
-  SResultCellData pRowVal[];
-} SSliceRowData;
-
-typedef struct SSlicePoint {
-  SWinKey        key;
-  SSliceRowData* pLeftRow;
-  SSliceRowData* pRightRow;
-  SRowBuffPos*   pResPos;
-} SSlicePoint;
 
 int32_t saveTimeSliceWinResult(SWinKey* pKey, SSHashObj* pUpdatedMap) {
   return tSimpleHashPut(pUpdatedMap, pKey, sizeof(SWinKey), NULL, 0);
@@ -628,7 +614,7 @@ static int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, 
 
 static void setResultRowData(SSliceRowData** ppRowData, void* pBuff) { (*ppRowData) = (SSliceRowData*)pBuff; }
 
-static void setPointBuff(SSlicePoint* pPoint, SStreamFillSupporter* pFillSup) {
+void setPointBuff(SSlicePoint* pPoint, SStreamFillSupporter* pFillSup) {
   if (pFillSup->type != TSDB_FILL_LINEAR) {
     setResultRowData(&pPoint->pRightRow, pPoint->pResPos->pRowBuff);
     pPoint->pLeftRow = pPoint->pRightRow;
@@ -1344,14 +1330,6 @@ static int32_t buildTimeSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRe
   uint16_t                      opType = pOperator->operatorType;
   SStreamAggSupporter*          pAggSup = &pInfo->streamAggSup;
 
-  doBuildDeleteResultImpl(&pAggSup->stateStore, pAggSup->pState, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
-  if (pInfo->pDelRes->info.rows != 0) {
-    // process the rest of the data
-    printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
-    (*ppRes) = pInfo->pDelRes;
-    goto _end;
-  }
-
   doBuildTimeSlicePointResult(pAggSup, pInfo->pFillSup, pInfo->pFillInfo, pInfo->pRes, &pInfo->groupResInfo);
   if (pInfo->pRes->info.rows != 0) {
     printDataBlock(pInfo->pRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
@@ -1407,16 +1385,16 @@ static int32_t doDeleteTimeSliceResult(SStreamAggSupporter* pAggSup, SSDataBlock
 
   SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*        groupIds = (uint64_t*)pGroupCol->pData;
-  SColumnInfoData* pCalStartCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
-  TSKEY*           tsCalStarts = (TSKEY*)pCalStartCol->pData;
-  SColumnInfoData* pCalEndCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-  TSKEY*           tsCalEnds = (TSKEY*)pCalEndCol->pData;
+  SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY*           tsStarts = (TSKEY*)pStartCol->pData;
+  SColumnInfoData* pEndCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  TSKEY*           tsEnds = (TSKEY*)pEndCol->pData;
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    TSKEY    ts = tsStarts[i];
+    TSKEY    endCalTs = tsEnds[i];
+    uint64_t groupId = groupIds[i];
+    SWinKey  key = {.ts = ts, .groupId = groupId};
     while (1) {
-      TSKEY    ts = tsCalStarts[i];
-      TSKEY    endCalTs = tsCalEnds[i];
-      uint64_t groupId = groupIds[i];
-      SWinKey  key = {.ts = ts, .groupId = groupId};
       SWinKey  nextKey = {.groupId = groupId};
       code = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, &key, &nextKey, NULL, NULL, &winCode);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1424,8 +1402,6 @@ static int32_t doDeleteTimeSliceResult(SStreamAggSupporter* pAggSup, SSDataBlock
         break;
       }
       (void)tSimpleHashRemove(pUpdatedMap, &key, sizeof(SWinKey));
-      void* tmp = taosArrayPush(pDelWins, &key);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
       pAggSup->stateStore.streamStateDel(pAggSup->pState, &key);
       if (winCode != TSDB_CODE_SUCCESS) {
@@ -1526,9 +1502,15 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     setStreamOperatorState(&pInfo->basic, pBlock->info.type);
 
     switch (pBlock->info.type) {
-      case STREAM_DELETE_RESULT: {
+      case STREAM_DELETE_RESULT: 
+      case STREAM_DELETE_DATA: {
         code = doDeleteTimeSliceResult(pAggSup, pBlock, pInfo->pUpdatedMap, pInfo->pDelWins);
         QUERY_CHECK_CODE(code, lino, _end);
+        copyDataBlock(pInfo->pDelRes, pBlock);
+        pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
+        (*ppRes) = pInfo->pDelRes;
+        printDataBlock((*ppRes), getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+        goto _end;
       } break;
       case STREAM_NORMAL:
       case STREAM_INVALID: {
@@ -1560,9 +1542,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     doStreamTimeSliceImpl(pOperator, pBlock);
   }
 
-  if (!pInfo->destHasPrimaryKey) {
-    removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
-  } else {
+  if (pInfo->destHasPrimaryKey) {
     copyIntervalDeleteKey(pInfo->pDeletedMap, pInfo->pDelWins);
   }
 
@@ -1663,6 +1643,44 @@ int32_t getDownstreamRes(SOperatorInfo* downstream, SSDataBlock** ppRes) {
   }
   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_FAILED));
   return TSDB_CODE_FAILED;
+}
+
+int32_t initTimeSliceDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type,
+                                int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic,
+                                SStreamFillSupporter* pFillSup) {
+  SExecTaskInfo* pTaskInfo = downstream->pTaskInfo;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION) {
+    SStreamPartitionOperatorInfo* pScanInfo = downstream->info;
+    pScanInfo->tsColIndex = tsColIndex;
+  }
+
+  if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    code = initTimeSliceDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic, pFillSup);
+    return code;
+  }
+  SStreamScanInfo* pScanInfo = downstream->info;
+  pScanInfo->igCheckUpdate = true;
+  pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
+  pScanInfo->pState = pAggSup->pState;
+  if (!pScanInfo->pUpdateInfo) {
+    code = pAggSup->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark,
+                                              pScanInfo->igCheckUpdate, pScanInfo->pkColType, pScanInfo->pkColLen,
+                                              &pScanInfo->pUpdateInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  pScanInfo->twAggSup = *pTwSup;
+  pScanInfo->pFillSup = pFillSup;
+  pScanInfo->interval = pFillSup->interval;
+  pAggSup->pUpdateInfo = pScanInfo->pUpdateInfo;
+  pBasic->primaryPkIndex = pScanInfo->primaryKeyIndex;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
 }
 
 int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
@@ -1789,13 +1807,12 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   setOperatorStreamStateFn(pOperator, streamTimeSliceReleaseState, streamTimeSliceReloadState);
 
   if (downstream) {
-    if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-      SStreamScanInfo* pScanInfo = downstream->info;
-      pScanInfo->igCheckUpdate = true;
-    }
-    initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup,
-                   &pInfo->basic);
+    code = initTimeSliceDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
+                                   &pInfo->twAggSup, &pInfo->basic, pInfo->pFillSup);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     code = appendDownstream(pOperator, &downstream, 1);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
   (*ppOptInfo) = pOperator;
   return code;

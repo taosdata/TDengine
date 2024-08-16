@@ -2184,8 +2184,38 @@ _end:
   return code;
 }
 
-int32_t getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SInterval* pInterval, TSKEY start, TSKEY end,
-                             int64_t groupId, STimeWindow* pScanRange, STimeWindow* pDelRange) {
+static int32_t setDelRangeEndKey(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, SWinKey* pEndKey, STimeWindow* pScanRange, bool* pRes) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SSlicePoint nextPoint = {.key.groupId = pEndKey->groupId};
+  int32_t     vLen = 0;
+  int32_t     winCode = TSDB_CODE_SUCCESS;
+  code = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, pEndKey, &nextPoint.key, (void**)&nextPoint.pResPos, &vLen, &winCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (winCode == TSDB_CODE_SUCCESS) {
+    setPointBuff(&nextPoint, pFillSup);
+    if (HAS_ROW_DATA(nextPoint.pLeftRow) && pEndKey->ts < nextPoint.pLeftRow->key) {
+      pScanRange->ekey = nextPoint.pLeftRow->key;
+      *pRes = true;
+    } else if (pEndKey->ts < nextPoint.pRightRow->key) {
+      pScanRange->ekey = nextPoint.pRightRow->key;
+      *pRes = true;
+    } else {
+      *pEndKey = nextPoint.key;
+      pScanRange->ekey = TMAX(nextPoint.pRightRow->key, nextPoint.key.ts);
+      *pRes = false;
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SStreamFillSupporter* pFillSup, SInterval* pInterval, TSKEY start, TSKEY end,
+                             int64_t groupId, STimeWindow* pScanRange) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   int32_t        winCode = TSDB_CODE_SUCCESS;
@@ -2193,28 +2223,36 @@ int32_t getTimeSliceWinRange(SStreamAggSupporter* pAggSup, SInterval* pInterval,
   dumyInfo.cur.pageId = -1;
   STimeWindow sWin = getActiveTimeWindow(NULL, &dumyInfo, start, pInterval, TSDB_ORDER_ASC);
   SWinKey     startKey = {.groupId = groupId, .ts = sWin.skey};
-  pDelRange->skey = sWin.skey;
 
   sWin = getActiveTimeWindow(NULL, &dumyInfo, end, pInterval, TSDB_ORDER_ASC);
   SWinKey endKey = {.groupId = groupId, .ts = sWin.ekey};
-  pDelRange->ekey = sWin.ekey;
 
-  SWinKey preKey = {.groupId = groupId};
-  code = pAggSup->stateStore.streamStateFillGetPrev(pAggSup->pState, &startKey, &preKey, NULL, NULL, &winCode);
+  SSlicePoint prevPoint = {.key.groupId = groupId};
+  SSlicePoint nextPoint = {.key.groupId = groupId};
+  int32_t     vLen = 0;
+  code = pAggSup->stateStore.streamStateFillGetPrev(pAggSup->pState, &startKey, &prevPoint.key, (void**)&prevPoint.pResPos, &vLen, &winCode);
   QUERY_CHECK_CODE(code, lino, _end);
   if (winCode == TSDB_CODE_SUCCESS) {
-    pScanRange->skey = preKey.ts;
+    setPointBuff(&prevPoint, pFillSup);
+    if (HAS_ROW_DATA(prevPoint.pRightRow)) {
+      pScanRange->skey = prevPoint.pRightRow->key;
+    } else {
+      pScanRange->skey = prevPoint.pLeftRow->key;
+    }
   } else {
     pScanRange->skey = startKey.ts;
   }
 
-  SWinKey nextKey = {.groupId = groupId};
-  code = pAggSup->stateStore.streamStateFillGetNext(pAggSup->pState, &endKey, &nextKey, NULL, NULL, &winCode);
+  bool res = false;
+  SWinKey curKey = endKey;
+  code = setDelRangeEndKey(pAggSup, pFillSup, &curKey, pScanRange, &res);
   QUERY_CHECK_CODE(code, lino, _end);
-  if (winCode == TSDB_CODE_SUCCESS) {
-    pScanRange->ekey = nextKey.ts;
-  } else {
-    pScanRange->ekey = endKey.ts;
+  if (res == false) {
+    code = setDelRangeEndKey(pAggSup, pFillSup, &curKey, pScanRange, &res);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (res == false) {
+    pScanRange->ekey = TMAX(endKey.ts, pScanRange->ekey);
   }
 
 _end:
@@ -2277,10 +2315,9 @@ static int32_t generateTimeSliceScanRange(SStreamScanInfo* pInfo, SSDataBlock* p
     }
 
     STimeWindow scanRange = {0};
-    STimeWindow delRange = {0};
     ASSERT(mode == STREAM_DELETE_RESULT || mode == STREAM_DELETE_DATA);
-    code = getTimeSliceWinRange(pInfo->windowSup.pStreamAggSup, &pInfo->interval, startData[i], endData[i], groupId,
-                                &scanRange, &delRange);
+    code = getTimeSliceWinRange(pInfo->windowSup.pStreamAggSup, pInfo->pFillSup, &pInfo->interval, startData[i], endData[i], groupId,
+                                &scanRange);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = colDataSetVal(pDestStartCol, i, (const char*)&scanRange.skey, false);
@@ -2293,10 +2330,10 @@ static int32_t generateTimeSliceScanRange(SStreamScanInfo* pInfo, SSDataBlock* p
     code = colDataSetVal(pDestGpCol, i, (const char*)&groupId, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = colDataSetVal(pDestCalStartTsCol, i, (const char*)&delRange.skey, false);
+    code = colDataSetVal(pDestCalStartTsCol, i, (const char*)&scanRange.skey, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = colDataSetVal(pDestCalEndTsCol, i, (const char*)&delRange.ekey, false);
+    code = colDataSetVal(pDestCalEndTsCol, i, (const char*)&scanRange.ekey, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
     pDestBlock->info.rows++;
@@ -4330,6 +4367,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   pInfo->pState = pTaskInfo->streamInfo.pState;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
+  pInfo->pFillSup = NULL;
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);

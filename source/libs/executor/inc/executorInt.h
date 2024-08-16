@@ -454,6 +454,27 @@ typedef struct SSteamOpBasicInfo {
   bool    updateOperatorInfo;
 } SSteamOpBasicInfo;
 
+typedef struct SStreamFillSupporter {
+  int32_t        type;  // fill type
+  SInterval      interval;
+  SResultRowData prev;
+  TSKEY          prevOriginKey;
+  SResultRowData cur;
+  SResultRowData next;
+  TSKEY          nextOriginKey;
+  SResultRowData nextNext;
+  SFillColInfo*  pAllColInfo;  // fill exprs and not fill exprs
+  SExprSupp      notFillExprSup;
+  int32_t        numOfAllCols;  // number of all exprs, including the tags columns
+  int32_t        numOfFillCols;
+  int32_t        numOfNotFillCols;
+  int32_t        rowSize;
+  SSHashObj*     pResMap;
+  bool           hasDelete;
+  SStorageAPI*   pAPI;
+  STimeWindow    winRange;
+} SStreamFillSupporter;
+
 typedef struct SStreamScanInfo {
   SSteamOpBasicInfo basic;
   SExprInfo*        pPseudoExpr;
@@ -494,6 +515,7 @@ typedef struct SStreamScanInfo {
   STimeWindow           updateWin;
   STimeWindowAggSupp    twAggSup;
   SSDataBlock*          pUpdateDataRes;
+  SStreamFillSupporter* pFillSup;
   // status for tmq
   SNodeList* pGroupTags;
   SNode*     pTagCond;
@@ -774,27 +796,6 @@ typedef struct SStreamPartitionOperatorInfo {
   SSDataBlock*          pDelRes;
   SSDataBlock*          pCreateTbRes;
 } SStreamPartitionOperatorInfo;
-
-typedef struct SStreamFillSupporter {
-  int32_t        type;  // fill type
-  SInterval      interval;
-  SResultRowData prev;
-  TSKEY          prevOriginKey;
-  SResultRowData cur;
-  SResultRowData next;
-  TSKEY          nextOriginKey;
-  SResultRowData nextNext;
-  SFillColInfo*  pAllColInfo;  // fill exprs and not fill exprs
-  SExprSupp      notFillExprSup;
-  int32_t        numOfAllCols;  // number of all exprs, including the tags columns
-  int32_t        numOfFillCols;
-  int32_t        numOfNotFillCols;
-  int32_t        rowSize;
-  SSHashObj*     pResMap;
-  bool           hasDelete;
-  SStorageAPI*   pAPI;
-  STimeWindow    winRange;
-} SStreamFillSupporter;
 
 typedef struct SStreamFillOperatorInfo {
   SSteamOpBasicInfo     basic;

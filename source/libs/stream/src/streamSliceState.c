@@ -284,7 +284,6 @@ _end:
 }
 
 void deleteHashSortRowBuff(SStreamFileState* pFileState, const SWinKey* pKey) {
-  deleteRowBuff(pFileState, pKey, sizeof(SWinKey));
   SSHashObj* pSearchBuff = getSearchBuff(pFileState);
   void**     ppBuff = tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
   if (!ppBuff) {

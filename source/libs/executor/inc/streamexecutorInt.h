@@ -27,6 +27,21 @@ extern "C" {
 #define FILL_POS_MID     2
 #define FILL_POS_END     3
 
+#define HAS_NON_ROW_DATA(pRowData)           (pRowData->key == INT64_MIN)
+#define HAS_ROW_DATA(pRowData)               (pRowData && pRowData->key != INT64_MIN)
+
+typedef struct SSliceRowData {
+  TSKEY           key;
+  SResultCellData pRowVal[];
+} SSliceRowData;
+
+typedef struct SSlicePoint {
+  SWinKey        key;
+  SSliceRowData* pLeftRow;
+  SSliceRowData* pRightRow;
+  SRowBuffPos*   pResPos;
+} SSlicePoint;
+
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
@@ -56,6 +71,7 @@ void    destroySPoint(void* ptr);
 void    destroyStreamFillInfo(SStreamFillInfo* pFillInfo);
 int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId, bool* pRes);
 void    resetStreamFillSup(SStreamFillSupporter* pFillSup);
+void    setPointBuff(SSlicePoint* pPoint, SStreamFillSupporter* pFillSup);
 
 int winPosCmprImpl(const void* pKey1, const void* pKey2);
 

@@ -246,10 +246,6 @@ int32_t streamStateFillGetPrev(SStreamState* pState, const SWinKey* pKey, SWinKe
 }
 
 void streamStateFillDel(SStreamState* pState, const SWinKey* key) {
-  if (pState->pFileState) {
-    deleteHashSortRowBuff(pState->pFileState, key);
-    return;
-  }
   int32_t code = streamStateFillDel_rocksdb(pState, key);
   qTrace("%s at line %d res %d", __func__, __LINE__, code);
 }
