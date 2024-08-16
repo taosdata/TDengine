@@ -152,7 +152,7 @@ wgetFile() {
     packagePath="/nas/TDengine/${originversion}/v${versionPath}/${verMode}"
     if [ -f  ${file}  ];then
         echoColor  YD "${file} already exists ,it will delete it and download  it again "
-        rm -rf ${file}
+        # rm -rf ${file}
     fi
 
     if [[ ${sourceP} = 'web' ]];then
