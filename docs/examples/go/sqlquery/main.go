@@ -53,11 +53,11 @@ func main() {
 		"(NOW + 1a, 10.30000, 218, 0.25000) "
 	res, err = db.Exec(insertQuery)
 	if err != nil {
-		log.Fatal("Failed to insert data to power.meters, ErrMessage: " + err.Error())
+		log.Fatalf("Failed to insert data to power.meters, sql: %s, ErrMessage: %s\n", insertQuery, err.Error())
 	}
 	rowsAffected, err = res.RowsAffected()
 	if err != nil {
-		log.Fatal("Failed to get insert rowsAffected, ErrMessage: " + err.Error())
+		log.Fatalf("Failed to get insert rowsAffected, sql: %s, ErrMessage: %s\n", insertQuery, err.Error())
 	}
 	// you can check affectedRows here
 	fmt.Printf("Successfully inserted %d rows to power.meters.\n", rowsAffected)
@@ -67,9 +67,10 @@ func main() {
 	sql := "SELECT ts, current, location FROM power.meters limit 100"
 	rows, err := db.Query(sql)
 	if err != nil {
-		log.Fatal("Failed to query data from power.meters, ErrMessage: " + err.Error())
+		log.Fatalf("Failed to query data from power.meters, sql: %s, ErrMessage: %s\n", sql, err.Error())
 	}
 	for rows.Next() {
+		// Add your data processing logic here
 		var (
 			ts       time.Time
 			current  float32
@@ -77,9 +78,8 @@ func main() {
 		)
 		err = rows.Scan(&ts, &current, &location)
 		if err != nil {
-			log.Fatal("Failed to scan data, sql:" + sql + ", ErrMessage: " + err.Error())
+			log.Fatalf("Failed to scan data, sql: %s, ErrMessage: %s\n", sql, err)
 		}
-		// you can check data here
 		fmt.Printf("ts: %s, current: %f, location: %s\n", ts, current, location)
 	}
 	// ANCHOR_END: select_data
