@@ -2346,7 +2346,6 @@ export default {
       
       try {
         if (this.parseruleForm.type == 'json') {
-          console.log('selectJson',this.parseruleForm.type);
           this.allProperties = extractAllProperties(this.msgForm.msgbody, this.parseruleForm.depth)
         }
       } catch (err) {
