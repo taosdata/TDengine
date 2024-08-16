@@ -21,9 +21,13 @@
 
 int32_t mpDirectAlloc(SMemPool* pPool, SMPSession* pSession, int64_t size, uint32_t alignment, void** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
-  MP_ERR_RET(mpChkQuotaOverflow(pPool, pSession, size));
+  void* res = NULL;
   
-  void* res = alignment ? taosMemMallocAlign(alignment, size) : taosMemMalloc(size);
+  taosRLockLatch(&pPool->cfgLock);
+
+  MP_ERR_JRET(mpChkQuotaOverflow(pPool, pSession, size));
+  
+  res = alignment ? taosMemMallocAlign(alignment, size) : taosMemMalloc(size);
   if (NULL != res) {
     mpUpdateAllocSize(pPool, pSession, size);
   } else {
@@ -35,6 +39,10 @@ int32_t mpDirectAlloc(SMemPool* pPool, SMPSession* pSession, int64_t size, uint3
     code = terrno;
   }
 
+_return:
+
+  taosRUnLockLatch(&pPool->cfgLock);
+  
   *ppRes = res;
   
   MP_RET(code);
@@ -49,17 +57,24 @@ void mpDirectFree(SMemPool* pPool, SMPSession* pSession, void *ptr, int64_t* ori
   if (origSize) {
     *origSize = oSize;
   }
+  
+  taosRLockLatch(&pPool->cfgLock); // tmp test
+
   taosMemFree(ptr);
   
   (void)atomic_sub_fetch_64(&pSession->allocMemSize, oSize);
   (void)atomic_sub_fetch_64(&pSession->pJob->job.allocMemSize, oSize);
   (void)atomic_sub_fetch_64(&pPool->allocMemSize, oSize);
+
+  taosRUnLockLatch(&pPool->cfgLock);
 }
 
 int32_t mpDirectRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t size, int64_t* origSize) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  MP_ERR_RET(mpChkQuotaOverflow(pPool, pSession, size));
+  taosRLockLatch(&pPool->cfgLock);
+
+  MP_ERR_JRET(mpChkQuotaOverflow(pPool, pSession, size - *origSize));
   
   *pPtr = taosMemRealloc(*pPtr, size);
   if (NULL != *pPtr) {
@@ -68,6 +83,15 @@ int32_t mpDirectRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int6
     MP_ERR_RET(terrno);
   }
 
+_return:
+
+  taosRUnLockLatch(&pPool->cfgLock);
+
+  if (code) {
+    mpDirectFree(pPool, pSession, *pPtr, NULL);
+    *pPtr = NULL;
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 

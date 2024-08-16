@@ -46,7 +46,7 @@ char   *taosStrndupi(const char *ptr, int64_t size);
 void    taosMemFree(void *ptr);
 int64_t taosMemSize(void *ptr);
 void    taosPrintBackTrace();
-void    taosMemTrim(int32_t size);
+int32_t taosMemTrim(int32_t size, bool* trimed);
 void   *taosMemMallocAlign(uint32_t alignment, int64_t size);
 
 #define TAOS_MEMSET(_s, _c, _n) ((void)memset(_s, _c, _n))

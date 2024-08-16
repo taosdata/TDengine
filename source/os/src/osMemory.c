@@ -460,12 +460,13 @@ int64_t taosMemSize(void *ptr) {
 #endif
 }
 
-void taosMemTrim(int32_t size) {
+int32_t taosMemTrim(int32_t size, bool* trimed) {
 #if defined(WINDOWS) || defined(DARWIN) || defined(_ALPINE)
   // do nothing
-  return;
+  return TSDB_CODE_SUCCESS;
 #else
-  (void)malloc_trim(size);
+  *trimed = malloc_trim(size);
+  return TSDB_CODE_SUCCESS;
 #endif
 }
 

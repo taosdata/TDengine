@@ -38,6 +38,7 @@ extern "C" {
 #define MP_RETIRE_LOW_THRESHOLD_PERCENT           (0.85)
 #define MP_RETIRE_UNIT_PERCENT               (0.1)
 #define MP_RETIRE_UNIT_MIN_SIZE              (50 * 1048576UL)
+#define MP_CFG_UPDATE_MIN_RESERVE_SIZE       (50 * 1024 * 1048576UL)
 
 
 // FLAGS AREA
@@ -72,6 +73,7 @@ extern "C" {
 
 // CTRL FUNC FLAGS
 #define MP_CTRL_FLAG_PRINT_STAT (1 << 0)
+#define MP_CTRL_FLAG_CHECK_STAT (1 << 1)
 
 
 typedef enum EMPStatLogItem {
@@ -194,7 +196,7 @@ typedef struct SMPSessionChunk {
 typedef struct SMPSession {
   SMPListNode        list;
 
-  int64_t            sessionId;
+  char*              sessionId;
   SMPJob*            pJob;
   SMPCtrlInfo        ctrlInfo;
   int64_t            allocMemSize;
@@ -242,6 +244,7 @@ typedef struct SMPChunkMgmt {
 typedef struct SMemPool {
   char              *name;
   int16_t            slotId;
+  SRWLatch           cfgLock;
   SMemPoolCfg        cfg;
   int64_t            retireThreshold[3];
   int64_t            retireUnit;

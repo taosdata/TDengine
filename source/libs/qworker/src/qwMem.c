@@ -1,13 +1,31 @@
 #include "qwInt.h"
 #include "qworker.h"
 
-int32_t qwGetMemPoolMaxMemSize(int64_t totalSize, int64_t* maxSize) {
+int32_t qwGetMemPoolMaxMemSize(void* pHandle, int64_t* maxSize) {
+  int64_t freeSize = 0;
+  int64_t usedSize = 0;
+  bool needEnd = false;
+
+  taosMemPoolGetUsedSizeBegin(pHandle, &usedSize, &needEnd);
+  int32_t code = taosGetSysAvailMemory(&freeSize);
+  if (needEnd) {
+    taosMemPoolGetUsedSizeEnd(pHandle);
+  }
+  
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("get system avaiable memory size failed, error: 0x%x", code);
+    return code;
+  }
+
+  int64_t totalSize = freeSize + usedSize;
   int64_t reserveSize = TMAX(totalSize * QW_DEFAULT_RESERVE_MEM_PERCENT / 100 / 1048576UL * 1048576UL, QW_MIN_RESERVE_MEM_SIZE);
   int64_t availSize = (totalSize - reserveSize) / 1048576UL * 1048576UL;
   if (availSize < QW_MIN_MEM_POOL_SIZE) {
     qError("too little available query memory, totalAvailable: %" PRId64 ", reserveSize: %" PRId64, totalSize, reserveSize);
     return TSDB_CODE_QRY_TOO_FEW_AVAILBLE_MEM;
   }
+
+  uDebug("new pool maxSize:%" PRId64 ", usedSize:%" PRId64 ", freeSize:%" PRId64, availSize, usedSize, freeSize);
 
   *maxSize = availSize;
 
@@ -108,10 +126,10 @@ int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
 
   ctx->pJobInfo = pJob;
 
-  QW_ERR_JRET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, ppSession, pJob->memInfo));
-
   char id[sizeof(tId) + sizeof(eId)] = {0};
   QW_SET_TEID(id, tId, eId);
+
+  QW_ERR_JRET(taosMemPoolInitSession(gQueryMgmt.memPoolHandle, ppSession, pJob->memInfo));
 
   code = taosHashPut(pJob->pSessions, id, sizeof(id), ppSession, POINTER_BYTES);
   if (TSDB_CODE_SUCCESS != code) {
@@ -136,23 +154,27 @@ void qwRetireJobCb(SMemPoolJob* mpJob, int32_t errCode) {
   }
 
   if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
-    qwRetireJob(pJob);
-
-    qInfo("QID:0x%" PRIx64 " retired directly, errCode: 0x%x", mpJob->jobId, errCode);
+    qInfo("QID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, mpJob->jobId, errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
   } else {
-    qDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x", mpJob->jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode));
+    qDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, mpJob->jobId, atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
   }
 }
 
-void qwLowLevelRetire(int64_t retireSize, int32_t errCode) {
+void qwLowLevelRetire(void* pHandle, int64_t retireSize, int32_t errCode) {
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
   while (pJob) {
+    if (!taosMemPoolNeedRetireJob(pHandle)) {
+      taosHashCancelIterate(gQueryMgmt.pJobInfo, pJob);
+      return;
+    }
+
+    uint64_t jobId = pJob->memInfo->jobId;
     int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
     if (aSize >= retireSize && 0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
       qwRetireJob(pJob);
 
       qDebug("QID:0x%" PRIx64 " job retired cause of low level memory retire, usedSize:%" PRId64 ", retireSize:%" PRId64, 
-          pJob->memInfo->jobId, aSize, retireSize);
+          jobId, aSize, retireSize);
           
       taosHashCancelIterate(gQueryMgmt.pJobInfo, pJob);
       break;
@@ -162,7 +184,7 @@ void qwLowLevelRetire(int64_t retireSize, int32_t errCode) {
   }
 }
 
-void qwMidLevelRetire(int64_t retireSize, int32_t errCode) {
+void qwMidLevelRetire(void* pHandle, int64_t retireSize, int32_t errCode) {
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
   PriorityQueueNode qNode;
   while (NULL != pJob) {
@@ -175,8 +197,13 @@ void qwMidLevelRetire(int64_t retireSize, int32_t errCode) {
   }
 
   PriorityQueueNode* pNode = NULL;
+  uint64_t jobId = 0;
   int64_t retiredSize = 0;
   while (retiredSize < retireSize) {
+    if (!taosMemPoolNeedRetireJob(pHandle)) {
+      break;
+    }
+
     pNode = taosBQTop(gQueryMgmt.retireCtx.pJobQueue);
     if (NULL == pNode) {
       break;
@@ -190,11 +217,12 @@ void qwMidLevelRetire(int64_t retireSize, int32_t errCode) {
 
     if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) && 0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
       int64_t aSize = atomic_load_64(&pJob->memInfo->allocMemSize);
+      jobId = pJob->memInfo->jobId;
 
       qwRetireJob(pJob);
 
       qDebug("QID:0x%" PRIx64 " job retired cause of mid level memory retire, usedSize:%" PRId64 ", retireSize:%" PRId64, 
-          pJob->memInfo->jobId, aSize, retireSize);
+          jobId, aSize, retireSize);
 
       retiredSize += aSize;    
     }
@@ -206,11 +234,11 @@ void qwMidLevelRetire(int64_t retireSize, int32_t errCode) {
 }
 
 
-void qwRetireJobsCb(int64_t retireSize, bool lowLevelRetire, int32_t errCode) {
-  (lowLevelRetire) ? qwLowLevelRetire(retireSize, errCode) : qwMidLevelRetire(retireSize, errCode);
+void qwRetireJobsCb(void* pHandle, int64_t retireSize, bool lowLevelRetire, int32_t errCode) {
+  (lowLevelRetire) ? qwLowLevelRetire(pHandle, retireSize, errCode) : qwMidLevelRetire(pHandle, retireSize, errCode);
 }
 
-int32_t qwGetQueryMemPoolMaxSize(int64_t* pMaxSize, bool* autoMaxSize) {
+int32_t qwGetQueryMemPoolMaxSize(void* pHandle, int64_t* pMaxSize, bool* autoMaxSize) {
   if (tsQueryBufferPoolSize > 0) {
     *pMaxSize = tsQueryBufferPoolSize * 1048576UL;
     *autoMaxSize = false;
@@ -218,14 +246,7 @@ int32_t qwGetQueryMemPoolMaxSize(int64_t* pMaxSize, bool* autoMaxSize) {
     return TSDB_CODE_SUCCESS;
   }
   
-  int64_t memSize = 0;
-  int32_t code = taosGetSysAvailMemory(&memSize);
-  if (TSDB_CODE_SUCCESS != code) {
-    qError("get system avaiable memory size failed, error: 0x%x", code);
-    return code;
-  }
-
-  code = qwGetMemPoolMaxMemSize(memSize, pMaxSize);
+  int32_t code = qwGetMemPoolMaxMemSize(pHandle, pMaxSize);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -244,7 +265,7 @@ void qwCheckUpateCfgCb(void* pHandle, void* cfg) {
   
   int64_t maxSize = 0;
   bool autoMaxSize = false;
-  int32_t code = qwGetQueryMemPoolMaxSize(&maxSize, &autoMaxSize);
+  int32_t code = qwGetQueryMemPoolMaxSize(pHandle, &maxSize, &autoMaxSize);
   if (TSDB_CODE_SUCCESS != code) {
     pCfg->maxSize = 0;
     qError("get query memPool maxSize failed, reset maxSize to %" PRId64, pCfg->maxSize);
@@ -268,6 +289,8 @@ static bool qwJobMemSizeCompFn(void* l, void* r, void* param) {
   return atomic_load_64(&right->memInfo->allocMemSize) < atomic_load_64(&left->memInfo->allocMemSize);
 }
 
+void qwDeleteJobQueueData(void* pData) {}
+
 
 int32_t qwInitQueryPool(void) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -284,7 +307,7 @@ int32_t qwInitQueryPool(void) {
   SMemPoolCfg cfg = {0};
   int64_t maxSize = 0;
   bool autoMaxSize = false;
-  code = qwGetQueryMemPoolMaxSize(&maxSize, &autoMaxSize);
+  code = qwGetQueryMemPoolMaxSize(NULL, &maxSize, &autoMaxSize);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }  
@@ -310,7 +333,7 @@ int32_t qwInitQueryPool(void) {
     return terrno;
   }
 
-  gQueryMgmt.retireCtx.pJobQueue = createBoundedQueue(QW_MAX_RETIRE_JOB_NUM, qwJobMemSizeCompFn, NULL, NULL);
+  gQueryMgmt.retireCtx.pJobQueue = createBoundedQueue(QW_MAX_RETIRE_JOB_NUM, qwJobMemSizeCompFn, qwDeleteJobQueueData, NULL);
   if (NULL == gQueryMgmt.retireCtx.pJobQueue) {
     qError("init job bounded queue failed, error:0x%x", terrno);
     return terrno;

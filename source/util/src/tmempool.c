@@ -171,6 +171,12 @@ int32_t mpUpdateCfg(SMemPool* pPool) {
     MP_ERR_RET((*gMPFps[gMPMgmt.strategy].updateCfgFp)(pPool));
   }
 
+  uDebug("memPool %s cfg updated, autoMaxSize:%d, maxSize:%" PRId64 
+      ", jobQuota:%" PRId64 ", threadNum:%d, retireThreshold:%" PRId64 "-%" PRId64 "-%" PRId64 
+      ", retireUnit:%" PRId64, pPool->name, pPool->cfg.autoMaxSize, pPool->cfg.maxSize,
+      pPool->cfg.jobQuota, pPool->cfg.threadNum, pPool->retireThreshold[0], pPool->retireThreshold[1],
+      pPool->retireThreshold[2], pPool->retireUnit);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -188,7 +194,7 @@ int32_t mpInit(SMemPool* pPool, char* poolName, SMemPoolCfg* cfg) {
   MP_ERR_RET(mpUpdateCfg(pPool));
 
   pPool->ctrlInfo.statFlags = MP_STAT_FLAG_LOG_ALL;
-  pPool->ctrlInfo.funcFlags = MP_CTRL_FLAG_PRINT_STAT;
+  pPool->ctrlInfo.funcFlags = MP_CTRL_FLAG_PRINT_STAT | MP_CTRL_FLAG_CHECK_STAT;
 
   pPool->sessionCache.groupNum = MP_SESSION_CACHE_ALLOC_BATCH_SIZE;
   pPool->sessionCache.nodeSize = sizeof(SMPSession);
@@ -250,6 +256,7 @@ int32_t mpPutRetireMsgToQueue(SMemPool* pPool, bool retireLowLevel) {
 int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) {
   SMPJob* pJob = pSession->pJob;
   int32_t code = TSDB_CODE_SUCCESS;
+  
   int64_t cAllocSize = atomic_add_fetch_64(&pJob->job.allocMemSize, size);
   int64_t quota = atomic_load_64(&pPool->cfg.jobQuota);
   if (quota > 0 && cAllocSize > quota) {
@@ -280,8 +287,9 @@ int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) 
       (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
       (void)atomic_sub_fetch_64(&pPool->allocMemSize, size);
 
-      MP_ERR_RET(mpPutRetireMsgToQueue(pPool, false));
       MP_RET(code);
+    } else {
+      MP_ERR_RET(mpPutRetireMsgToQueue(pPool, false));
     }
     
     return TSDB_CODE_SUCCESS;
@@ -297,8 +305,9 @@ int32_t mpChkQuotaOverflow(SMemPool* pPool, SMPSession* pSession, int64_t size) 
       (void)atomic_sub_fetch_64(&pJob->job.allocMemSize, size);
       (void)atomic_sub_fetch_64(&pPool->allocMemSize, size);
 
-      MP_ERR_RET(mpPutRetireMsgToQueue(pPool, true));
       MP_RET(code);
+    } else {
+      MP_ERR_RET(mpPutRetireMsgToQueue(pPool, true));
     }
   }
 
@@ -354,6 +363,7 @@ int32_t mpRealloc(SMemPool* pPool, SMPSession* pSession, void **pPtr, int64_t si
 
   if (0 == size) {
     mpFree(pPool, pSession, *pPtr, origSize);
+    *pPtr = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -596,6 +606,49 @@ void mpLogStat(SMemPool* pPool, SMPSession* pSession, EMPStatLogItem item, SMPSt
   }
 }
 
+void mpCheckStatDetail(void* poolHandle, void* session, char* detailName) {
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  SMPSession* pSession = (SMPSession*)session;
+  SMPCtrlInfo* pCtrl = NULL;
+  SMPStatDetail* pDetail = NULL;
+
+  if (NULL != session) {
+    pCtrl = &pSession->ctrlInfo;
+    pDetail = &pSession->stat.statDetail;
+    if (MP_GET_FLAG(pCtrl->funcFlags, MP_CTRL_FLAG_CHECK_STAT)) {
+      int64_t allocSize = pDetail->bytes.memMalloc.succ + pDetail->bytes.memCalloc.succ + pDetail->bytes.memRealloc.succ + pDetail->bytes.strdup.succ + pDetail->bytes.strndup.succ;
+      int64_t freeSize = pDetail->bytes.memRealloc.origSucc + pDetail->bytes.memFree.succ;
+
+      if (allocSize != freeSize) {
+        uError("%s Session in JOB:0x%" PRIx64 " stat check failed, allocSize:%" PRId64 ", freeSize:%" PRId64, 
+            detailName, pSession->pJob->job.jobId, allocSize, freeSize);
+        ASSERT(0);
+      } else {
+        uDebug("%s Session in JOB:0x%" PRIx64 " stat check succeed, allocSize:%" PRId64 ", freeSize:%" PRId64, 
+            detailName, pSession->pJob->job.jobId, allocSize, freeSize);
+      }
+    }
+  }
+
+  if (NULL != poolHandle) {
+    pCtrl = &pPool->ctrlInfo;
+    pDetail = &pPool->stat.statDetail;
+    int64_t sessInit = pPool->stat.statSession.initFail + pPool->stat.statSession.initSucc;
+    if (MP_GET_FLAG(pCtrl->funcFlags, MP_CTRL_FLAG_CHECK_STAT) && sessInit == pPool->stat.statSession.destroyNum) {
+      int64_t allocSize = pDetail->bytes.memMalloc.succ + pDetail->bytes.memCalloc.succ + pDetail->bytes.memRealloc.succ + pDetail->bytes.strdup.succ + pDetail->bytes.strndup.succ;
+      int64_t freeSize = pDetail->bytes.memRealloc.origSucc + pDetail->bytes.memFree.succ;
+
+      if (allocSize != freeSize) {
+        uError("%s MemPool %s stat check failed, allocSize:%" PRId64 ", freeSize:%" PRId64, detailName, pPool->name, allocSize, freeSize);
+        ASSERT(0);
+      } else {
+        uDebug("%s MemPool %s stat check succeed, allocSize:%" PRId64 ", freeSize:%" PRId64, detailName, pPool->name, allocSize, freeSize);
+      }
+    }
+  }
+}
+
+
 void mpCheckUpateCfg(void) {
   taosRLockLatch(&gMPMgmt.poolLock);
   int32_t poolNum = taosArrayGetSize(gMPMgmt.poolList);
@@ -618,9 +671,9 @@ void* mpMgmtThreadFunc(void* param) {
     }
 
     if (atomic_load_8(&gMPMgmt.msgQueue.midLevelRetire)) {
-      (*gMPMgmt.msgQueue.pPool->cfg.cb.retireJobsFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->retireUnit), false, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
+      (*gMPMgmt.msgQueue.pPool->cfg.cb.retireJobsFp)(gMPMgmt.msgQueue.pPool, atomic_load_64(&gMPMgmt.msgQueue.pPool->retireUnit), false, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
     } else if (atomic_load_8(&gMPMgmt.msgQueue.lowLevelRetire)) {
-      (*gMPMgmt.msgQueue.pPool->cfg.cb.retireJobsFp)(atomic_load_64(&gMPMgmt.msgQueue.pPool->retireUnit), true, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
+      (*gMPMgmt.msgQueue.pPool->cfg.cb.retireJobsFp)(gMPMgmt.msgQueue.pPool, atomic_load_64(&gMPMgmt.msgQueue.pPool->retireUnit), true, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);
     }
     
     mpCheckUpateCfg();
@@ -733,6 +786,8 @@ int32_t taosMemPoolOpen(char* poolName, SMemPoolCfg* cfg, void** poolHandle) {
   
   taosWUnLockLatch(&gMPMgmt.poolLock);
 
+  uInfo("mempool %s opened", poolName);
+
 _return:
 
   if (TSDB_CODE_SUCCESS != code) {
@@ -766,6 +821,8 @@ void taosMemPoolDestroySession(void* poolHandle, void* session) {
   (void)atomic_add_fetch_64(&pPool->stat.statSession.destroyNum, 1);
 
   taosMemPoolPrintStat(pPool, pSession, "DestroySession");
+
+  mpCheckStatDetail(pPool, pSession, "DestroySession");
 
   TAOS_MEMSET(pSession, 0, sizeof(*pSession));
 
@@ -867,8 +924,17 @@ void *taosMemPoolRealloc(void* poolHandle, void* session, void *ptr, int64_t siz
 
   terrno = mpRealloc(pPool, pSession, &ptr, size, &input.origSize);
 
-  MP_SET_FLAG(input.procFlags, ((ptr || 0 == size) ? MP_STAT_PROC_FLAG_RES_SUCC : MP_STAT_PROC_FLAG_RES_FAIL));
-  mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_REALLOC, &input);
+  if (ptr || 0 == size) {
+    MP_SET_FLAG(input.procFlags, MP_STAT_PROC_FLAG_RES_SUCC);
+    mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_REALLOC, &input);
+  } else {
+    MP_SET_FLAG(input.procFlags, MP_STAT_PROC_FLAG_RES_FAIL);
+    mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_REALLOC, &input);
+
+    input.procFlags = 0;
+    MP_SET_FLAG(input.procFlags, MP_STAT_PROC_FLAG_RES_SUCC);
+    mpLogStat(pPool, pSession, E_MP_STAT_LOG_MEM_FREE, &input);
+  }
 
 _return:
 
@@ -1005,6 +1071,10 @@ _return:
 void taosMemPoolClose(void* poolHandle) {
   SMemPool* pPool = (SMemPool*)poolHandle;
 
+  taosMemPoolPrintStat(poolHandle, NULL, "PoolClose");
+
+  mpCheckStatDetail(pPool, NULL, "PoolClose");
+
   taosMemoryFree(pPool->name);
   mpDestroyCacheGroup(&pPool->sessionCache);
 }
@@ -1050,6 +1120,28 @@ int32_t taosMemPoolCallocJob(uint64_t jobId, void** ppJob) {
   pJob->job.jobId = jobId;
   
   return TSDB_CODE_SUCCESS;
+}
+
+void taosMemPoolGetUsedSizeBegin(void* poolHandle, int64_t* usedSize, bool* needEnd) {
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  if ((atomic_load_64(&pPool->cfg.maxSize) - atomic_load_64(&pPool->allocMemSize)) <= MP_CFG_UPDATE_MIN_RESERVE_SIZE) {
+    *needEnd = true;
+    taosWLockLatch(&pPool->cfgLock);
+  } else {
+    *needEnd = false;
+  }
+
+  *usedSize = atomic_load_64(&pPool->allocMemSize);
+}
+
+void taosMemPoolGetUsedSizeEnd(void* poolHandle) {
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  taosWUnLockLatch(&pPool->cfgLock);
+}
+
+bool taosMemPoolNeedRetireJob(void* poolHandle) {
+  SMemPool* pPool = (SMemPool*)poolHandle;
+  return atomic_load_64(&pPool->allocMemSize) >= atomic_load_64(&pPool->retireThreshold[0]);    
 }
 
 
