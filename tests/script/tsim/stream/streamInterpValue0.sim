@@ -524,11 +524,11 @@ sql create stream streams3_2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 in
 run tsim/stream/checkTaskStatus.sim
 
 
-sql insert into t1 values(1648791212001,0,0,0,0.0) (1648791217001,4,4,4,4.1);
+sql insert into t1 values(1648791210001,0,0,0,0.0) (1648791217001,4,4,4,4.1);
 
 
-print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217000) every(1s) fill(NULL);
-sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217000) every(1s) fill(NULL);
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791211000, 1648791217000) every(1s) fill(NULL);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791211000, 1648791217000) every(1s) fill(NULL);
 
 print $data00 $data01 $data02 $data03 $data04
 print $data10 $data11 $data12 $data13 $data14
@@ -559,13 +559,13 @@ print $data50 $data51 $data52 $data53 $data54
 
 
 # row 0
-if $rows != 5 then
+if $rows != 7 then
   print ======rows=$rows
   goto loop5
 endi
 
-print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217000) every(1s) fill(value, 10,20,30,40);
-sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217000) every(1s) fill(value, 10,20,30,40);
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791211000, 1648791217000) every(1s) fill(value, 10,20,30,40);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791211000, 1648791217000) every(1s) fill(value, 10,20,30,40);
 
 print $data00 $data01 $data02 $data03 $data04
 print $data10 $data11 $data12 $data13 $data14
@@ -596,15 +596,15 @@ print $data50 $data51 $data52 $data53 $data54
 
 
 # row 0
-if $rows != 5 then
+if $rows != 7 then
   print ======rows=$rows
   goto loop5_1
 endi
 
 sql insert into t1 values(1648791213001,1,1,1,1.0) (1648791213009,2,2,2,1.1) (1648791215001,5,5,5,5.1)
 
-print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(NULL);
-sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(NULL);
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791211000, 1648791217001) every(1s) fill(NULL);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791211000, 1648791217001) every(1s) fill(NULL);
 
 print $data00 $data01 $data02 $data03 $data04
 print $data10 $data11 $data12 $data13 $data14
@@ -635,7 +635,7 @@ print $data50 $data51 $data52 $data53 $data54
 
 
 # row 0
-if $rows != 5 then
+if $rows != 7 then
   print ======rows=$rows
   goto loop6
 endi
@@ -666,9 +666,19 @@ if $data41 != NULL then
   goto loop6
 endi
 
+if $data51 != NULL then
+  print ======data51=$data51
+  goto loop6
+endi
 
-print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 10,20,30,40);
-sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791212000, 1648791217001) every(1s) fill(value, 10,20,30,40);
+if $data61 != NULL then
+  print ======data61=$data61
+  goto loop6
+endi
+
+
+print sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791211000, 1648791217001) every(1s) fill(value, 10,20,30,40);
+sql select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 range(1648791211000, 1648791217001) every(1s) fill(value, 10,20,30,40);
 
 print $data00 $data01 $data02 $data03 $data04
 print $data10 $data11 $data12 $data13 $data14
@@ -699,7 +709,7 @@ print $data50 $data51 $data52 $data53 $data54
 
 
 # row 0
-if $rows != 5 then
+if $rows != 7 then
   print ======rows=$rows
   goto loop6_1
 endi
@@ -727,6 +737,16 @@ endi
 
 if $data41 != 10 then
   print ======data41=$data41
+  goto loop6_1
+endi
+
+if $data51 != 10 then
+  print ======data51=$data51
+  goto loop6_1
+endi
+
+if $data61 != 10 then
+  print ======data61=$data61
   goto loop6_1
 endi
 
