@@ -583,8 +583,8 @@ static int32_t getQualifiedRowNumAsc(SExprSupp* pExprSup, SSDataBlock* pBlock, i
     return rowId;
   }
 
-  for (int32_t i = rowId; rowId < pBlock->info.rows; i++) {
-    if (!checkNullRow(pExprSup, pBlock, rowId, ignoreNull)) {
+  for (int32_t i = rowId; i < pBlock->info.rows; i++) {
+    if (!checkNullRow(pExprSup, pBlock, i, ignoreNull)) {
       return i;
     }
   }
@@ -1201,6 +1201,7 @@ static void doStreamTimeSliceImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock)
                                                 TSDB_ORDER_ASC);
     startPos += numOfWin;
     int32_t leftRowId = getQualifiedRowNumDesc(pExprSup, pBlock, tsCols, startPos - 1, pInfo->ignoreNull);
+    ASSERT(leftRowId >= 0);
     left = needAdjustValue(&nextPoint, tsCols[leftRowId], true, pFillSup->type);
     if (left) {
       transBlockToResultRow(pBlock, leftRowId, tsCols[leftRowId], nextPoint.pLeftRow);
@@ -1314,6 +1315,10 @@ void doBuildTimeSlicePointResult(SStreamAggSupporter* pAggSup, SStreamFillSuppor
     releaseOutputBuf(pAggSup->pState, curPoint.pResPos, &pAggSup->stateStore);
     releaseOutputBuf(pAggSup->pState, prevPoint.pResPos, &pAggSup->stateStore);
     releaseOutputBuf(pAggSup->pState, nextPoint.pResPos, &pAggSup->stateStore);
+    if (pBlock->info.rows >= pBlock->info.capacity) {
+      pGroupResInfo->index++;
+      break;
+    }
   }
 
 _end:
@@ -1540,6 +1545,7 @@ static int32_t doStreamTimeSliceNext(SOperatorInfo* pOperator, SSDataBlock** ppR
     }
 
     doStreamTimeSliceImpl(pOperator, pBlock);
+    pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
   }
 
   if (pInfo->destHasPrimaryKey) {

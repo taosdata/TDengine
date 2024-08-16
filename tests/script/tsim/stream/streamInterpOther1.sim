@@ -77,6 +77,8 @@ if $data51 != 32 then
   goto loop4_1
 endi
 
+print step4_2
+
 sql create database test4_2 vgroups 4;
 sql use test4_2;
 
@@ -140,6 +142,8 @@ if $data51 != 32 then
   print ======data51=$data51
   goto loop4_2
 endi
+
+print step4_3
 
 sql create database test4_3 vgroups 4;
 sql use test4_3;
@@ -205,6 +209,8 @@ if $data51 != 32 then
   goto loop4_3
 endi
 
+print step4_4
+
 sql create database test4_4 vgroups 4;
 sql use test4_4;
 
@@ -269,6 +275,8 @@ if $data51 != 32 then
   goto loop4_4
 endi
 
+print step4_5
+
 sql create database test4_5 vgroups 4;
 sql use test4_5;
 
@@ -332,4 +340,7 @@ if $data51 != 32 then
   print ======data51=$data51
   goto loop4_5
 endi
+
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

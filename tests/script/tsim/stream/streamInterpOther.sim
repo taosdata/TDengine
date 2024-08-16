@@ -360,4 +360,249 @@ if $rows != 0 then
   goto loop3
 endi
 
+
+print step4
+print =============== create database
+sql drop database if exists test4;
+sql create database test4 vgroups 4;
+sql use test4;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams4_1 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_1 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(prev);
+sql create stream streams4_2 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_2 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(next);
+sql create stream streams4_3 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_3 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(linear);
+sql create stream streams4_4 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_4 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(NULL);
+sql create stream streams4_5 trigger at_once watermark 10s IGNORE EXPIRED 1 IGNORE UPDATE 0 into  streamt4_5 as select interp(a, 1), _isfilled as a1 from t1 every(1s) fill(value,11);
+
+run tsim/stream/checkTaskStatus.sim
+
+sql insert into t1 values(1648791275000,NULL,0,0,0.0);
+
+sleep 500
+
+sql insert into t1 values(1648791276000,NULL,1,0,0.0) (1648791277000,NULL,2,0,0.0) (1648791275000,NULL,3,0,0.0);
+
+$loop_count = 0
+loop4:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+
+print sql select * from streamt4_1;
+sql select * from streamt4_1;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+print sql select * from streamt4_2;
+sql select * from streamt4_2;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+print sql select * from streamt4_3;
+sql select * from streamt4_3;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+print sql select * from streamt4_4;
+sql select * from streamt4_4;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+print sql select * from streamt4_5;
+sql select * from streamt4_5;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+print step4_2
+
+print sql insert into t1 values(1648791215000,1,0,0,0.0);
+sql insert into t1 values(1648791215000,1,0,0,0.0);
+sleep 500
+
+sql insert into t1 values(1648791216000,2,1,0,0.0) (1648791217000,3,2,0,0.0) (1648791215000,4,3,0,0.0);
+
+$loop_count = 0
+loop5:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+
+print sql select * from streamt4_1;
+sql select * from streamt4_1;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+print sql select * from streamt4_2;
+sql select * from streamt4_2;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+print sql select * from streamt4_3;
+sql select * from streamt4_3;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+print sql select * from streamt4_4;
+sql select * from streamt4_4;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+print sql select * from streamt4_5;
+sql select * from streamt4_5;
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+print step4_3
+
+print sql insert into t1 values(1648791278000,NULL,2,0,0.0) (1648791278001,NULL,2,0,0.0) (1648791279000,1,2,0,0.0) (1648791279001,NULL,2,0,0.0) (1648791280000,NULL,2,0,0.0)(1648791280001,NULL,2,0,0.0)(1648791281000,20,2,0,0.0) (1648791281001,NULL,2,0,0.0)(1648791281002,NULL,2,0,0.0) (1648791282000,NULL,2,0,0.0);
+sql insert into t1 values(1648791278000,NULL,2,0,0.0) (1648791278001,NULL,2,0,0.0) (1648791279000,1,2,0,0.0) (1648791279001,NULL,2,0,0.0) (1648791280000,NULL,2,0,0.0)(1648791280001,NULL,2,0,0.0)(1648791281000,20,2,0,0.0) (1648791281001,NULL,2,0,0.0)(1648791281002,NULL,2,0,0.0) (1648791282000,NULL,2,0,0.0);
+
+$loop_count = 0
+loop6:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+
+print sql select * from streamt4_1;
+sql select * from streamt4_1;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+if $data12 != 1 then
+  print ======data12=$data12
+  goto loop6
+endi
+
+print sql select * from streamt4_2;
+sql select * from streamt4_2;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+if $data12 != 1 then
+  print ======data12=$data12
+  goto loop6
+endi
+
+print sql select * from streamt4_3;
+sql select * from streamt4_3;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+if $data12 != 1 then
+  print ======data12=$data12
+  goto loop6
+endi
+
+print sql select * from streamt4_4;
+sql select * from streamt4_4;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+if $data12 != 1 then
+  print ======data12=$data12
+  goto loop6
+endi
+
+print sql select * from streamt4_5;
+sql select * from streamt4_5;
+
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+print $data20 $data21 $data22 $data23 $data24
+print $data30 $data31 $data32 $data33 $data34
+print $data40 $data41 $data42 $data43 $data44
+print $data50 $data51 $data52 $data53 $data54
+
+if $rows != 3 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+if $data12 != 1 then
+  print ======data12=$data12
+  goto loop6
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
