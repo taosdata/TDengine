@@ -392,7 +392,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
-      QUERY_CHECK_CODE(code, lino, _end);
+      return code;
     } else {
       qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
