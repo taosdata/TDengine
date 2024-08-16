@@ -173,4 +173,4 @@ if __name__ == "__main__":
     except Exception as err:
         print(f"Failed to execute consumer example, topic: {topic}, groupId: {groupId}, clientId: {clientId}, ErrMessage:{err}.")
     finally:
-        unsubscribe(consumer);
+        unsubscribe(consumer)
