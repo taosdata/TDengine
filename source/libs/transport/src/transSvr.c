@@ -12,7 +12,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "taoserror.h"
 #include "transComm.h"
+#include "transLog.h"
+#include "uv.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -74,8 +77,6 @@ typedef struct SSvrMsg {
 typedef struct {
   int64_t       ver;
   SIpWhiteList* pList;
-  // SArray* list;
-
 } SWhiteUserList;
 typedef struct {
   SHashObj* pList;
@@ -139,7 +140,7 @@ static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf)
 static void uvWorkerAsyncCb(uv_async_t* handle);
 static void uvAcceptAsyncCb(uv_async_t* handle);
 static void uvShutDownCb(uv_shutdown_t* req, int status);
-static void uvPrepareCb(uv_prepare_t* handle);
+// static void uvPrepareCb(uv_prepare_t* handle);
 
 static bool uvRecvReleaseReq(SSvrConn* conn, STransMsgHead* pHead);
 
@@ -152,7 +153,7 @@ static void uvWorkAfterTask(uv_work_t* req, int status);
 static void uvWalkCb(uv_handle_t* handle, void* arg);
 static void uvFreeCb(uv_handle_t* handle);
 
-static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg);
+static FORCE_INLINE int32_t uvStartSendRespImpl(SSvrMsg* smsg);
 
 static int  uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSvrMsg* msg);
@@ -570,6 +571,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 
 void uvOnSendCb(uv_write_t* req, int status) {
   SSvrConn* conn = transReqQueueRemove(req);
+  int32_t code = 0;
   if (conn == NULL) return;
 
   if (status == 0) {
@@ -601,10 +603,10 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
           msg = (SSvrMsg*)transQueueGet(&conn->srvMsgs, 0);
           if (msg != NULL) {
-            uvStartSendRespImpl(msg);
+            code = uvStartSendRespImpl(msg);
           }
         } else {
-          uvStartSendRespImpl(msg);
+          code = uvStartSendRespImpl(msg);
         }
       }
     }
@@ -695,23 +697,25 @@ static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   return 0;
 }
 
-static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
+static FORCE_INLINE int32_t uvStartSendRespImpl(SSvrMsg* smsg) {
+  int32_t code = 0;
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken) {
-    return;
+    return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
   uv_buf_t wb;
-  if (uvPrepareSendData(smsg, &wb) < 0) {
-    return;
+  if ((code = uvPrepareSendData(smsg, &wb)) < 0) {
+    return code;
   }
 
   transRefSrvHandle(pConn);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
   (void)uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
+  return 0;
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
-  // impl
+  int32_t code;
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken == true) {
     // persist by
@@ -726,7 +730,11 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   if (!transQueuePush(&pConn->srvMsgs, smsg)) {
     return;
   }
-  uvStartSendRespImpl(smsg);
+  code = uvStartSendRespImpl(smsg);
+  if (code != 0) {
+    tError("conn %p failed to send resp, since %s", pConn, tstrerror(code));
+    transUnrefSrvHandle(pConn);
+  }
   return;
 }
 
@@ -854,52 +862,6 @@ static bool uvRecvReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   }
   return false;
 }
-static void uvPrepareCb(uv_prepare_t* handle) {
-  // prepare callback
-  SWorkThrd*  pThrd = handle->data;
-  SAsyncPool* pool = pThrd->asyncPool;
-
-  for (int i = 0; i < pool->nAsync; i++) {
-    uv_async_t* async = &(pool->asyncs[i]);
-    SAsyncItem* item = async->data;
-
-    queue wq;
-    (void)taosThreadMutexLock(&item->mtx);
-    QUEUE_MOVE(&item->qmsg, &wq);
-    (void)taosThreadMutexUnlock(&item->mtx);
-
-    while (!QUEUE_IS_EMPTY(&wq)) {
-      queue* head = QUEUE_HEAD(&wq);
-      QUEUE_REMOVE(head);
-
-      SSvrMsg* msg = QUEUE_DATA(head, SSvrMsg, q);
-      if (msg == NULL) {
-        tError("unexcept occurred, continue");
-        continue;
-      }
-      // release handle to rpc init
-      if (msg->type == Quit || msg->type == Update) {
-        (*transAsyncHandle[msg->type])(msg, pThrd);
-        continue;
-      } else {
-        STransMsg transMsg = msg->msg;
-
-        SExHandle* exh1 = transMsg.info.handle;
-        int64_t    refId = transMsg.info.refId;
-        SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), refId);
-        if (exh2 == NULL || exh1 != exh2) {
-          tTrace("handle except msg %p, ignore it", exh1);
-          (void)transReleaseExHandle(transGetRefMgt(), refId);
-          destroySmsg(msg);
-          continue;
-        }
-        msg->pConn = exh1->handle;
-        (void)transReleaseExHandle(transGetRefMgt(), refId);
-        (*transAsyncHandle[msg->type])(msg, pThrd);
-      }
-    }
-  }
-}
 
 static void uvWorkDoTask(uv_work_t* req) {
   // doing time-consumeing task
@@ -920,13 +882,17 @@ static void uvWorkAfterTask(uv_work_t* req, int status) {
 }
 
 void uvOnAcceptCb(uv_stream_t* stream, int status) {
-  if (status == -1) {
+  if (status != 0) {
+    tError("failed to accept new connection since: %s", uv_strerror(status));
     return;
   }
   SServerObj* pObj = container_of(stream, SServerObj, server);
 
   uv_tcp_t* cli = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
-  if (cli == NULL) return;
+  if (cli == NULL) {
+    tError("failed to alloc memory for new connection since: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return;
+  };
 
   int err = uv_tcp_init(pObj->loop, cli);
   if (err != 0) {
@@ -946,6 +912,16 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 #endif
 
     uv_write_t* wr = (uv_write_t*)taosMemoryMalloc(sizeof(uv_write_t));
+    if (wr == NULL) {
+      tError("failed to alloc memory for new connection since: %s", tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      if (!uv_is_closing((uv_handle_t*)cli)) {
+        uv_close((uv_handle_t*)cli, uvFreeCb);
+      } else {
+        taosMemoryFree(cli);
+      }
+      return;
+    }
+
     wr->data = cli;
     uv_buf_t buf = uv_buf_init((char*)notify, strlen(notify));
 
@@ -1001,23 +977,28 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  if (uv_accept(q, (uv_stream_t*)(pConn->pTcp)) == 0) {
+  int ret = 0;
+  if ((ret = uv_accept(q, (uv_stream_t*)(pConn->pTcp))) == 0) {
     uv_os_fd_t fd;
-    (void)uv_fileno((const uv_handle_t*)pConn->pTcp, &fd);
+    if ((ret = uv_fileno((const uv_handle_t*)pConn->pTcp, &fd)) != 0) {
+      tError("failed to get fd since %s", uv_strerror(ret));
+      transUnrefSrvHandle(pConn);
+      return;
+    }
     tTrace("conn %p created, fd:%d", pConn, fd);
 
     struct sockaddr peername, sockname;
     int             addrlen = sizeof(peername);
-    if (0 != uv_tcp_getpeername(pConn->pTcp, (struct sockaddr*)&peername, &addrlen)) {
-      tError("conn %p failed to get peer info", pConn);
+    if ((ret = uv_tcp_getpeername(pConn->pTcp, (struct sockaddr*)&peername, &addrlen)) != 0) {
+      tError("conn %p failed to get peer info since %s", pConn, uv_strerror(ret));
       transUnrefSrvHandle(pConn);
       return;
     }
     (void)transSockInfo2Str(&peername, pConn->dst);
 
     addrlen = sizeof(sockname);
-    if (0 != uv_tcp_getsockname(pConn->pTcp, (struct sockaddr*)&sockname, &addrlen)) {
-      tError("conn %p failed to get local info", pConn);
+    if ((ret = uv_tcp_getsockname(pConn->pTcp, (struct sockaddr*)&sockname, &addrlen)) != 0) {
+      tError("conn %p failed to get local info since %s", pConn, uv_strerror(ret));
       transUnrefSrvHandle(pConn);
       return;
     }
@@ -1033,7 +1014,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     (void)uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
 
   } else {
-    tDebug("failed to create new connection");
+    tDebug("failed to create new connection since %s", uv_strerror(ret));
     transUnrefSrvHandle(pConn);
   }
 }
@@ -1048,6 +1029,7 @@ void* transAcceptThread(void* arg) {
 }
 void uvOnPipeConnectionCb(uv_connect_t* connect, int status) {
   if (status != 0) {
+    tError("failed to connect pipe since %s", uv_strerror(status));
     return;
   }
   SWorkThrd* pThrd = container_of(connect, SWorkThrd, connect_req);
@@ -1089,24 +1071,24 @@ static int32_t addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
 
   QUEUE_INIT(&pThrd->msg);
 
-  pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
-  if (pThrd->prepare == NULL) {
-    tError("failed to init prepare");
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
+  // pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
+  // if (pThrd->prepare == NULL) {
+  //   tError("failed to init prepare");
+  //   return TSDB_CODE_OUT_OF_MEMORY;
+  // }
 
-  code = uv_prepare_init(pThrd->loop, pThrd->prepare);
-  if (code != 0) {
-    tError("failed to init prepare since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
+  // code = uv_prepare_init(pThrd->loop, pThrd->prepare);
+  // if (code != 0) {
+  //   tError("failed to init prepare since %s", uv_err_name(code));
+  //   return TSDB_CODE_THIRDPARTY_ERROR;
+  // }
 
-  code = uv_prepare_start(pThrd->prepare, uvPrepareCb);
-  if (code != 0) {
-    tError("failed to start prepare since %s", uv_err_name(code));
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
-  pThrd->prepare->data = pThrd;
+  // code = uv_prepare_start(pThrd->prepare, uvPrepareCb);
+  // if (code != 0) {
+  //   tError("failed to start prepare since %s", uv_err_name(code));
+  //   return TSDB_CODE_THIRDPARTY_ERROR;
+  // }
+  // pThrd->prepare->data = pThrd;
 
   // conn set
   QUEUE_INIT(&pThrd->conn);
@@ -1900,4 +1882,49 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   return code;
 }
 
-int32_t transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
+// static void uvPrepareCb(uv_prepare_t* handle) {
+//   // prepare callback
+//   SWorkThrd*  pThrd = handle->data;
+//   SAsyncPool* pool = pThrd->asyncPool;
+
+//   for (int i = 0; i < pool->nAsync; i++) {
+//     uv_async_t* async = &(pool->asyncs[i]);
+//     SAsyncItem* item = async->data;
+
+//     queue wq;
+//     (void)taosThreadMutexLock(&item->mtx);
+//     QUEUE_MOVE(&item->qmsg, &wq);
+//     (void)taosThreadMutexUnlock(&item->mtx);
+
+//     while (!QUEUE_IS_EMPTY(&wq)) {
+//       queue* head = QUEUE_HEAD(&wq);
+//       QUEUE_REMOVE(head);
+
+//       SSvrMsg* msg = QUEUE_DATA(head, SSvrMsg, q);
+//       if (msg == NULL) {
+//         tError("unexcept occurred, continue");
+//         continue;
+//       }
+//       // release handle to rpc init
+//       if (msg->type == Quit || msg->type == Update) {
+//         (*transAsyncHandle[msg->type])(msg, pThrd);
+//         continue;
+//       } else {
+//         STransMsg transMsg = msg->msg;
+
+//         SExHandle* exh1 = transMsg.info.handle;
+//         int64_t    refId = transMsg.info.refId;
+//         SExHandle* exh2 = transAcquireExHandle(transGetRefMgt(), refId);
+//         if (exh2 == NULL || exh1 != exh2) {
+//           tTrace("handle except msg %p, ignore it", exh1);
+//           (void)transReleaseExHandle(transGetRefMgt(), refId);
+//           destroySmsg(msg);
+//           continue;
+//         }
+//         msg->pConn = exh1->handle;
+//         (void)transReleaseExHandle(transGetRefMgt(), refId);
+//         (*transAsyncHandle[msg->type])(msg, pThrd);
+//       }
+//     }
+//   }
+// }
