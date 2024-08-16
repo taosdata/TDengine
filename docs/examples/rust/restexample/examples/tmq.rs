@@ -167,8 +167,9 @@ async fn main() -> anyhow::Result<()> {
     let assignments = match consumer.assignments().await{
         Some(assignments) => assignments,
         None => {
-            eprintln!("Failed to get assignments.");
-            return Err(anyhow::anyhow!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id));
+            let error_message = format!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id);
+            eprintln!("{}", error_message);
+            return Err(anyhow::anyhow!(error_message));
         }
     };
     println!("assignments: {:?}", assignments);
@@ -209,8 +210,9 @@ async fn main() -> anyhow::Result<()> {
     let assignments = match consumer.assignments().await{
         Some(assignments) => assignments,
         None => {
-            eprintln!("Failed to get assignments.");
-            return Err(anyhow::anyhow!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id));
+            let error_message = format!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id);
+            eprintln!("{}", error_message);
+            return Err(anyhow::anyhow!(error_message));
         }
     };
     println!("After seek offset assignments: {:?}", assignments);
