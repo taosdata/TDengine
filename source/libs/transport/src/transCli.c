@@ -13,6 +13,7 @@
  */
 
 // clang-format off
+#include "taoserror.h"
 #include "transComm.h"
 #include "tmisce.h"
 // clang-format on
@@ -218,8 +219,6 @@ static void cliHandleFreeById(SCliMsg* pMsg, SCliThrd* pThrd);
 
 static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq, cliHandleQuit,   cliHandleRelease,
                                                                    NULL,         cliHandleUpdate, cliHandleFreeById};
-/// static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease,
-/// NULL,cliHandleUpdate};
 
 static FORCE_INLINE void destroyCmsg(void* cmsg);
 
@@ -372,10 +371,8 @@ bool cliConnSendSeqMsg(int64_t refId, SCliConn* conn) {
   return false;
 }
 
-void cliHandleResp(SCliConn* conn) {
+int32_t cliResetTimer(SCliConn* conn) {
   SCliThrd* pThrd = conn->hostThrd;
-  STrans*   pTransInst = pThrd->pTransInst;
-
   if (conn->timer) {
     if (uv_is_active((uv_handle_t*)conn->timer)) {
       tDebug("%s conn %p stop timer", CONN_GET_INST_LABEL(conn), conn);
@@ -385,6 +382,13 @@ void cliHandleResp(SCliConn* conn) {
     conn->timer->data = NULL;
     conn->timer = NULL;
   }
+  return 0;
+}
+void cliHandleResp(SCliConn* conn) {
+  SCliThrd* pThrd = conn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
+
+  cliResetTimer(conn);
 
   STransMsgHead* pHead = NULL;
 
@@ -591,10 +595,7 @@ void cliConnTimeout(uv_timer_t* handle) {
 
   tTrace("%s conn %p conn timeout, ref:%d", CONN_GET_INST_LABEL(conn), conn, T_REF_VAL_GET(conn));
 
-  (void)uv_timer_stop(handle);
-  handle->data = NULL;
-  (void)taosArrayPush(pThrd->timerList, &conn->timer);
-  conn->timer = NULL;
+  cliResetTimer(conn);
 
   cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
   cliHandleFastFail(conn, UV_ECANCELED);
@@ -805,12 +806,8 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   }
 
   SCliThrd* thrd = conn->hostThrd;
-  if (conn->timer != NULL) {
-    (void)uv_timer_stop(conn->timer);
-    (void)taosArrayPush(thrd->timerList, &conn->timer);
-    conn->timer->data = NULL;
-    conn->timer = NULL;
-  }
+
+  cliResetTimer(conn);
   if (T_REF_VAL_GET(conn) > 1) {
     transUnrefCliHandle(conn);
   }
@@ -1051,12 +1048,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     transDQCancel(pThrd->timeoutQueue, conn->task);
     conn->task = NULL;
   }
-  if (conn->timer != NULL) {
-    (void)uv_timer_stop(conn->timer);
-    conn->timer->data = NULL;
-    (void)taosArrayPush(pThrd->timerList, &conn->timer);
-    conn->timer = NULL;
-  }
+  cliResetTimer(conn);
 
   if (clear) {
     if (!uv_is_closing((uv_handle_t*)conn->stream)) {
@@ -1071,12 +1063,8 @@ static void cliDestroy(uv_handle_t* handle) {
   }
   SCliConn* conn = handle->data;
   SCliThrd* pThrd = conn->hostThrd;
-  if (conn->timer != NULL) {
-    (void)uv_timer_stop(conn->timer);
-    (void)taosArrayPush(pThrd->timerList, &conn->timer);
-    conn->timer->data = NULL;
-    conn->timer = NULL;
-  }
+
+  cliResetTimer(conn);
 
   (void)atomic_sub_fetch_32(&pThrd->connCount, 1);
 
@@ -1381,10 +1369,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
 
     uint32_t ipaddr = 0;
     if ((code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, pList->ip, &ipaddr)) != 0) {
-      (void)uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      (void)taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
+      cliResetTimer(conn);
       cliHandleFastFail(conn, code);
       return;
     }
@@ -1417,10 +1402,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
 
     ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      (void)uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      (void)taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
+      cliResetTimer(conn);
 
       cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
       cliHandleFastFail(conn, -1);
@@ -1514,14 +1496,9 @@ void cliConnCb(uv_connect_t* req, int status) {
   SCliThrd* pThrd = pConn->hostThrd;
   bool      timeout = false;
 
-  if (pConn->timer == NULL) {
-    timeout = true;
-  } else {
-    (void)uv_timer_stop(pConn->timer);
-    pConn->timer->data = NULL;
-    (void)taosArrayPush(pThrd->timerList, &pConn->timer);
-    pConn->timer = NULL;
-  }
+  if (pConn->timer == NULL) timeout = true;
+
+  cliResetTimer(pConn);
 
   if (status != 0) {
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, pConn->dstAddr);
@@ -1711,8 +1688,6 @@ FORCE_INLINE bool cliIsEpsetUpdated(int32_t code, STransConnCtx* pCtx) {
 FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* pResp) {
   if (pMsg == NULL) return -1;
 
-  // memset(pResp, 0, sizeof(STransMsg));
-
   if (pResp->code == 0) {
     pResp->code = TSDB_CODE_RPC_BROKEN_LINK;
   }
@@ -1798,7 +1773,11 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
   cliMayCvtFqdnToIp(&pMsg->ctx->epSet, &pThrd->cvtAddr);
   if (!EPSET_IS_VALID(&pMsg->ctx->epSet)) {
+    code = TSDB_CODE_RPC_FQDN_ERROR;
+    tError("%s failed to get ip from fqdn:%s, reason:%s", pTransInst->label, pMsg->ctx->epSet.eps[0].fqdn,
+           tstrerror(code));
     destroyCmsg(pMsg);
+    // notify user
     return;
   }
 
@@ -1857,11 +1836,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     uint32_t ipaddr;
     int32_t  code = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn, &ipaddr);
     if (code != 0) {
-      (void)uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      (void)taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
-
+      cliResetTimer(conn);
       cliHandleExcept(conn, code);
       return;
     }
@@ -1897,10 +1872,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      (void)uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      (void)taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
+      cliResetTimer(conn);
 
       cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, conn->dstAddr);
       cliHandleFastFail(conn, ret);
@@ -2372,6 +2344,7 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
   }
+
   if ((code = transDQCreate(pThrd->loop, &pThrd->delayQueue)) != 0) {
     TAOS_CHECK_GOTO(code, NULL, _end);
   }
