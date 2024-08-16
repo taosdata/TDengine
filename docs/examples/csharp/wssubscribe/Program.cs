@@ -116,11 +116,12 @@ namespace TMQExample
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine($"Failed to create native consumer, " +
-                                  $"host: {_host}, " +
-                                  $"groupId: {_groupId}, " +
-                                  $"clientId: {_clientId}, " +
-                                  $"ErrMessage: {e.Message}");
+                Console.WriteLine(
+                    $"Failed to create native consumer, " +
+                    $"host: {_host}, " +
+                    $"groupId: {_groupId}, " +
+                    $"clientId: {_clientId}, " +
+                    $"ErrMessage: {e.Message}");
                 throw;
             }
 
@@ -191,13 +192,14 @@ namespace TMQExample
                 {
                     consumer.Seek(new TopicPartitionOffset(topicPartition.Topic, topicPartition.Partition, 0));
                 }
+
                 Console.WriteLine("Assignment seek to beginning successfully");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
                 Console.WriteLine(
-                    $"Failed to execute seek example, " +
+                    $"Failed to seek offset, " +
                     $"topic: {_topic}, " +
                     $"groupId: {_groupId}, " +
                     $"clientId: {_clientId}, " +
@@ -209,12 +211,13 @@ namespace TMQExample
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine($"Failed to execute seek example, " +
-                                  $"topic: {_topic}, " +
-                                  $"groupId: {_groupId}, " +
-                                  $"clientId: {_clientId}, " +
-                                  $"offset: 0, " +
-                                  $"ErrMessage: {e.Message}");
+                Console.WriteLine(
+                    $"Failed to seek offset, " +
+                    $"topic: {_topic}, " +
+                    $"groupId: {_groupId}, " +
+                    $"clientId: {_clientId}, " +
+                    $"offset: 0, " +
+                    $"ErrMessage: {e.Message}");
                 throw;
             }
             // ANCHOR_END: seek
@@ -245,7 +248,7 @@ namespace TMQExample
                 {
                     // handle TDengine error
                     Console.WriteLine(
-                        $"Failed to execute commit example, " +
+                        $"Failed to commit offset, " +
                         $"topic: {_topic}, " +
                         $"groupId: {_groupId}, " +
                         $"clientId: {_clientId}, " +
@@ -258,7 +261,7 @@ namespace TMQExample
                 {
                     // handle other exceptions
                     Console.WriteLine(
-                        $"Failed to execute commit example, " +
+                        $"Failed to commit offset, " +
                         $"topic: {_topic}, " +
                         $"groupId: {_groupId}, " +
                         $"clientId: {_clientId}, " +

@@ -130,7 +130,7 @@ func main() {
 		}, 0)
 		if err != nil {
 			log.Fatalf(
-				"Failed to execute seek example, topic: %s, groupId: %s, clientId: %s, partition: %d, offset: %d, ErrMessage: %s\n",
+				"Failed to seek offset, topic: %s, groupId: %s, clientId: %s, partition: %d, offset: %d, ErrMessage: %s\n",
 				topic,
 				groupID,
 				clientID,

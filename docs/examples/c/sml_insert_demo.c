@@ -32,7 +32,7 @@ static int DemoSmlInsert() {
   // connect
   TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
            taos_errstr(NULL));
     taos_cleanup();
     return -1;
@@ -42,7 +42,7 @@ static int DemoSmlInsert() {
   TAOS_RES *result = taos_query(taos, "CREATE DATABASE IF NOT EXISTS power");
   code = taos_errno(result);
   if (code != 0) {
-    printf("Failed to create database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(result));
+    fprintf(stderr, "Failed to create database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
     return -1;
@@ -53,7 +53,7 @@ static int DemoSmlInsert() {
   result = taos_query(taos, "USE power");
   code = taos_errno(result);
   if (code != 0) {
-    printf("Failed to execute use power, ErrCode: 0x%x, ErrMessage: %s\n.", code, taos_errstr(result));
+    fprintf(stderr, "Failed to execute use power, ErrCode: 0x%x, ErrMessage: %s\n.", code, taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
     return -1;
@@ -74,7 +74,7 @@ static int DemoSmlInsert() {
   result = taos_schemaless_insert(taos, lines, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   code = taos_errno(result);
   if (code != 0) {
-    printf("Failed to insert schemaless line data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", line_demo, code,
+    fprintf(stderr, "Failed to insert schemaless line data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", line_demo, code,
            taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
@@ -82,7 +82,7 @@ static int DemoSmlInsert() {
   }
 
   int rows = taos_affected_rows(result);
-  printf("Insert %d rows of schemaless line data successfully.\n", rows);
+  fprintf(stdout, "Insert %d rows of schemaless line data successfully.\n", rows);
   taos_free_result(result);
 
   // opentsdb telnet protocol
@@ -90,7 +90,7 @@ static int DemoSmlInsert() {
   result = taos_schemaless_insert(taos, telnets, 1, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   code = taos_errno(result);
   if (code != 0) {
-    printf("Failed to insert schemaless telnet data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", telnet_demo, code,
+    fprintf(stderr, "Failed to insert schemaless telnet data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", telnet_demo, code,
            taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
@@ -98,15 +98,16 @@ static int DemoSmlInsert() {
   }
 
   rows = taos_affected_rows(result);
-  printf("Insert %d rows of schemaless telnet data successfully.\n", rows);
+  fprintf(stdout, "Insert %d rows of schemaless telnet data successfully.\n", rows);
   taos_free_result(result);
 
   // opentsdb json protocol
   char *jsons[1] = {0};
   // allocate memory for json data. can not use static memory.
-  jsons[0] = malloc(1024);
+  size_t size = 1024;
+  jsons[0] = malloc(size);
   if (jsons[0] == NULL) {
-    printf("Failed to allocate memory\n");
+    fprintf(stderr, "Failed to allocate memory: %zu bytes.\n", size);
     taos_close(taos);
     taos_cleanup();
     return -1;
@@ -116,7 +117,7 @@ static int DemoSmlInsert() {
   code = taos_errno(result);
   if (code != 0) {
     free(jsons[0]);
-    printf("Failed to insert schemaless json data, Server: %s, ErrCode: 0x%x, ErrMessage: %s\n.", json_demo, code,
+    fprintf(stderr, "Failed to insert schemaless json data, Server: %s, ErrCode: 0x%x, ErrMessage: %s\n.", json_demo, code,
            taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
@@ -125,7 +126,7 @@ static int DemoSmlInsert() {
   free(jsons[0]);
 
   rows = taos_affected_rows(result);
-  printf("Insert %d rows of schemaless json data successfully.\n", rows);
+  fprintf(stdout, "Insert %d rows of schemaless json data successfully.\n", rows);
   taos_free_result(result);
 
   // close & clean
