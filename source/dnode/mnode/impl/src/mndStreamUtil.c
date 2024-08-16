@@ -785,6 +785,9 @@ int32_t mndInitExecInfo() {
     return terrno;
   }
 
+  execInfo.role = NODE_ROLE_UNINIT;
+  execInfo.switchFromFollower = false;
+
   taosHashSetFreeFp(execInfo.pTransferStateStreams, freeTaskList);
   taosHashSetFreeFp(execInfo.pChkptStreams, freeTaskList);
   taosHashSetFreeFp(execInfo.pStreamConsensus, freeTaskList);

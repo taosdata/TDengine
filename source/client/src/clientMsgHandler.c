@@ -297,6 +297,9 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (strlen(usedbRsp.db) == 0) {
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+
     if (usedbRsp.errCode != 0) {
       return usedbRsp.errCode;
     } else {
@@ -366,9 +369,15 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
-  if (pMsg == NULL || param == NULL) {
+  if (pMsg == NULL) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
+  if (param == NULL) {
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pMsg->pData);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
   SRequestObj* pRequest = param;
 
   if (code != TSDB_CODE_SUCCESS) {

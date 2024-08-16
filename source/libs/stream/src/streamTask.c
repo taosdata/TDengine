@@ -637,7 +637,7 @@ bool streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
           numOfNodes, p->updateCount, prevTs);
 
   bool updated = false;
-  for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
+  for (int32_t i = 0; i < numOfNodes; ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
     if (pInfo == NULL) {
       continue;

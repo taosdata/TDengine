@@ -2327,13 +2327,24 @@ static int32_t translateReplace(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     }
   }
 
-  uint8_t type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  uint8_t fromType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  uint8_t toType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
   int32_t fromLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->bytes;
   int32_t toLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->bytes;
 
-  int32_t resLen = orgLen + orgLen / fromLen * (toLen - fromLen);
-  pFunc->node.resType = (SDataType){.bytes = resLen, .type = type};
+  int32_t resLen;
+  // Since we don't know the accurate length of result, estimate the maximum length here.
+  // To make the resLen bigger, we should make fromLen smaller and toLen bigger.
+  if (orgType == TSDB_DATA_TYPE_VARBINARY && fromType != orgType) {
+    fromLen = fromLen / TSDB_NCHAR_SIZE;
+  }
+  if (orgType == TSDB_DATA_TYPE_NCHAR && toType != orgType) {
+    toLen = toLen * TSDB_NCHAR_SIZE;
+  }
+  resLen = TMAX(orgLen, orgLen + orgLen / fromLen * (toLen - fromLen));
+  pFunc->node.resType = (SDataType){.bytes = resLen, .type = orgType};
   return TSDB_CODE_SUCCESS;
 }
 
