@@ -1004,6 +1004,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
           pSttDataInfo->numOfRows += numOfRows;
         }
       } else {
+        TAOS_CHECK_GOTO(terrno, NULL, _end);
         if (!pMTree->ignoreEarlierTs) {
           pMTree->ignoreEarlierTs = pIter->ignoreEarlierTs;
         }
