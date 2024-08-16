@@ -568,6 +568,13 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
+enum {
+  RAND_ERR_MEMORY = 1,
+  RAND_ERR_FILE = 2,
+  // RAND_ERR_SCOPE_XXX... = 4,
+  // ...
+};
+
 #define DEFAULT_HANDLE 0
 #define MNODE_HANDLE   1
 #define QNODE_HANDLE   -1

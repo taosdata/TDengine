@@ -5185,7 +5185,10 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
 
   if (pReader->step == EXTERNAL_ROWS_PREV) {
     // prepare for the main scan
-    code = doOpenReaderImpl(pReader);
+    if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
+      code = doOpenReaderImpl(pReader);
+    }
+
     int32_t step = 1;
     resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->info.window.ekey, step);
 
@@ -5213,8 +5216,11 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
 
   if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
     // prepare for the next row scan
+    if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
+      code = doOpenReaderImpl(pReader->innerReader[1]);
+    }
+
     int32_t step = -1;
-    code = doOpenReaderImpl(pReader->innerReader[1]);
     resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->info.window.ekey, step);
     if (code != TSDB_CODE_SUCCESS) {
       (void) tsdbReleaseReader(pReader);

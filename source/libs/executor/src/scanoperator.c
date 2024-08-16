@@ -440,7 +440,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   // try to filter data block according to current results
   code = doDynamicPruneDataBlock(pOperator, pBlockInfo, status);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (code) {
+    pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
     qDebug("%s data block skipped due to dynamic prune, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
