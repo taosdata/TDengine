@@ -205,10 +205,10 @@ fi
 
 newPath ${installPath}
 
-if [ -d ${installPath}/${tdPath} ] ;then
-    echoColor BD "rm -rf ${installPath}/${tdPath}/*"
-    rm -rf ${installPath}/${tdPath}/*
-fi
+#if [ -d ${installPath}/${tdPath} ] ;then
+#    echoColor BD "rm -rf ${installPath}/${tdPath}/*"
+#    rm -rf ${installPath}/${tdPath}/*
+#fi
 
 echoColor G "===== download  installPackage ====="
 cd ${installPath} && wgetFile ${packageName} ${version}  ${sourcePath}
