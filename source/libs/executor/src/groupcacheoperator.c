@@ -73,6 +73,10 @@ static int32_t initGroupColsInfo(SGroupColsInfo* pCols, bool grpColsMayBeNull, S
 }
 
 static void logGroupCacheExecInfo(SGroupCacheOperatorInfo* pGrpCacheOperator) {
+  if (pGrpCacheOperator->downstreamNum <= 0 || NULL == pGrpCacheOperator->execInfo.pDownstreamBlkNum) {
+    return;
+  }
+  
   char* buf = taosMemoryMalloc(pGrpCacheOperator->downstreamNum * 32 + 100);
   if (NULL == buf) {
     return;
@@ -1506,6 +1510,9 @@ _error:
 
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && pDownstream != NULL && (*pDownstream) != NULL) {
+      destroyOperator(*pDownstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;

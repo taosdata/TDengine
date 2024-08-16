@@ -2605,6 +2605,10 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
   }
   tDecoderClear(&decoder);
 
+  streamMutexLock(&execInfo.lock);
+  mndInitStreamExecInfo(pMnode, &execInfo);
+  streamMutexUnlock(&execInfo.lock);
+
   mDebug("receive stream task checkpoint-report msg, vgId:%d, s-task:0x%x, checkpointId:%" PRId64
          " checkpointVer:%" PRId64 " transId:%d",
          req.nodeId, req.taskId, req.checkpointId, req.checkpointVer, req.transId);

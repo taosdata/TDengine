@@ -189,12 +189,12 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
 
   if (pSched == NULL) {
     uError("sched is not ready, msg:%p is dropped", pMsg);
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (atomic_load_8(&pSched->stop)) {
     uError("sched is already stopped, msg:%p is dropped", pMsg);
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if ((ret = tsem_wait(&pSched->emptySem)) != 0) {

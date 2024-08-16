@@ -539,9 +539,10 @@ static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedV
   int32_t          lino = 0;
   STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
   QUERY_CHECK_NULL(pVal, code, lino, _end, terrno);
+
+  pVal->pTags = NULL;
   pVal->pName = taosStrdup(pMetaReader->me.name);
   QUERY_CHECK_NULL(pVal->pName, code, lino, _end, terrno);
-  pVal->pTags = NULL;
 
   // only child table has tag value
   if (pMetaReader->me.type == TSDB_CHILD_TABLE) {
@@ -3831,6 +3832,9 @@ _end:
 }
 
 static void destroyStreamScanOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
 
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {

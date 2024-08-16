@@ -413,9 +413,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
         pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
 
   // persist wal before starting
-  if (walPersist(pVnode->pWal) < 0) {
-    vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), terrstr());
-    return -1;
+  if ((code = walPersist(pVnode->pWal)) < 0) {
+    vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), tstrerror(code));
+    return code;
   }
 
   (void)vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
@@ -556,7 +556,6 @@ int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_DATA_FMT, lino, _exit);
-    return -1;
   }
 
   code = tjsonToObject(pJson, "config", vnodeDecodeConfig, (void *)&pInfo->config);

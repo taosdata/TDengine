@@ -1208,6 +1208,9 @@ static void freeItem(void* param) {
 }
 
 void destroyIntervalOperatorInfo(void* param) {
+  if (param == NULL) {
+    return;
+  }
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
@@ -1227,7 +1230,7 @@ void destroyIntervalOperatorInfo(void* param) {
 }
 
 static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SIntervalAggOperatorInfo* pInfo,
-                                   SExecTaskInfo* pTaskInfo) {
+                                   bool* pRes) {
   // the primary timestamp column
   bool    needed = false;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1295,10 +1298,9 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
   }
-  return needed;
+  *pRes = needed;
+  return code;
 }
 
 int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
@@ -1387,7 +1389,10 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
   QUERY_CHECK_CODE(code, lino, _error);
-  pInfo->timeWindowInterpo = timeWindowinterpNeeded(pSup->pCtx, num, pInfo, pTaskInfo);
+
+  pInfo->timeWindowInterpo = false;
+  code = timeWindowinterpNeeded(pSup->pCtx, num, pInfo, &pInfo->timeWindowInterpo);
+  QUERY_CHECK_CODE(code, lino, _error);
   if (pInfo->timeWindowInterpo) {
     pInfo->binfo.resultRowInfo.openWindow = tdListNew(sizeof(SOpenWindowInfo));
     if (pInfo->binfo.resultRowInfo.openWindow == NULL) {
@@ -1416,6 +1421,9 @@ _error:
   }
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
@@ -1695,6 +1703,9 @@ _error:
 
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
@@ -1735,14 +1746,14 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pSessionNode->window.node.pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
+  initBasicInfo(&pInfo->binfo, pResBlock);
+
   int32_t      numOfCols = 0;
   SExprInfo*   pExprInfo = NULL;
   code = createExprInfo(pSessionNode->window.pFuncs, NULL, &pExprInfo, &numOfCols);
   QUERY_CHECK_CODE(code, lino, _error);
-
-  SSDataBlock* pResBlock = createDataBlockFromDescNode(pSessionNode->window.node.pOutputDataBlockDesc);
-  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
-  initBasicInfo(&pInfo->binfo, pResBlock);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
                     pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
@@ -1791,6 +1802,9 @@ _error:
   if (pInfo != NULL) destroySWindowOperatorInfo(pInfo);
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
@@ -2082,7 +2096,9 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   code = initExecTimeWindowInfo(&iaInfo->twAggSup.timeWindowData, &iaInfo->win);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  iaInfo->timeWindowInterpo = timeWindowinterpNeeded(pSup->pCtx, num, iaInfo, pTaskInfo);
+  iaInfo->timeWindowInterpo = false;
+  code = timeWindowinterpNeeded(pSup->pCtx, num, iaInfo, &iaInfo->timeWindowInterpo);
+  QUERY_CHECK_CODE(code, lino, _error);
   if (iaInfo->timeWindowInterpo) {
     iaInfo->binfo.resultRowInfo.openWindow = tdListNew(sizeof(SOpenWindowInfo));
   }
@@ -2106,6 +2122,9 @@ _error:
   if (miaInfo != NULL) destroyMAIOperatorInfo(miaInfo);
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
@@ -2373,11 +2392,6 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
     goto _error;
   }
 
-  int32_t    num = 0;
-  SExprInfo* pExprInfo = NULL;
-  code = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &pExprInfo, &num);
-  QUERY_CHECK_CODE(code, lino, _error);
-
   SInterval interval = {.interval = pIntervalPhyNode->interval,
                         .sliding = pIntervalPhyNode->sliding,
                         .intervalUnit = pIntervalPhyNode->intervalUnit,
@@ -2401,6 +2415,11 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
+  int32_t    num = 0;
+  SExprInfo* pExprInfo = NULL;
+  code = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &pExprInfo, &num);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   code = initAggSup(pExprSupp, &pIntervalInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
                     pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2413,7 +2432,9 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
   code = initExecTimeWindowInfo(&pIntervalInfo->twAggSup.timeWindowData, &pIntervalInfo->win);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pIntervalInfo->timeWindowInterpo = timeWindowinterpNeeded(pExprSupp->pCtx, num, pIntervalInfo, pTaskInfo);
+  pIntervalInfo->timeWindowInterpo = false;
+  code = timeWindowinterpNeeded(pExprSupp->pCtx, num, pIntervalInfo, &pIntervalInfo->timeWindowInterpo);
+  QUERY_CHECK_CODE(code, lino, _error);
   if (pIntervalInfo->timeWindowInterpo) {
     pIntervalInfo->binfo.resultRowInfo.openWindow = tdListNew(sizeof(SOpenWindowInfo));
     if (pIntervalInfo->binfo.resultRowInfo.openWindow == NULL) {
@@ -2441,6 +2462,9 @@ _error:
 
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;

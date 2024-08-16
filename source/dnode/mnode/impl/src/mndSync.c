@@ -184,7 +184,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   code = mndTransValidate(pMnode, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to validate requested trans since %s", transId, terrstr());
-    code = 0;
+    // code = 0;
     pMeta->code = code;
     goto _OUT;
   }
@@ -192,7 +192,7 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
-    code = 0;
+    // code = 0;
     pMeta->code = code;
     goto _OUT;
   }
@@ -207,7 +207,10 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
 
   if (pTrans->stage == TRN_STAGE_PREPARE) {
     bool continueExec = mndTransPerformPrepareStage(pMnode, pTrans, false);
-    if (!continueExec) goto _OUT;
+    if (!continueExec) {
+      if (terrno != 0) code = terrno;
+      goto _OUT;
+    }
   }
 
   mndTransRefresh(pMnode, pTrans);
