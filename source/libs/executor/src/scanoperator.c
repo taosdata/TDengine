@@ -375,7 +375,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
     pCost->skipBlocks += 1;
     pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
-    QUERY_CHECK_CODE(code, lino, _end);
+    return code;
   } else if (*status == FUNC_DATA_REQUIRED_SMA_LOAD) {
     pCost->loadBlockStatis += 1;
     loadSMA = true;  // mark the operation of load sma;
