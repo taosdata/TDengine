@@ -2,6 +2,10 @@ use std::backtrace::Backtrace;
 use std::path::{Path, PathBuf};
 
 use serve::monitor::MonitorCfg;
+use taosx_core::runners::{
+    ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
+    ENV_TAOSX_PLUGINS_HOME,
+};
 use tracing::debug;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
@@ -175,6 +179,9 @@ struct Global {
 
     /// Max activities per entity.
     max_activities_per_entity: Option<usize>,
+
+    #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN", global = true, hide = true)]
+    dry_run: Option<bool>,
 }
 
 #[derive(Parser, Debug)]
@@ -226,7 +233,7 @@ fn get_default_config_path() -> PathBuf {
 fn get_default_config_path() -> PathBuf {
     std::path::Path::new("/etc")
         .join(build::CUS_PROMPT)
-        .join("taosx.toml")
+        .join(format!("{}x.toml", build::CUS_PROMPT))
 }
 
 #[inline]
@@ -335,6 +342,7 @@ impl Global {
         update_if_none!(log_keep_days);
         update_if_none!(jobs);
         update_if_none!(otel);
+        update_if_none!(dry_run);
         self
     }
 }
@@ -356,7 +364,9 @@ fn build_runtime(
     worker_threads: usize,
 ) -> std::result::Result<tokio::runtime::Runtime, std::io::Error> {
     tokio::runtime::Builder::new_multi_thread()
-        .rng_seed(tokio::runtime::RngSeed::from_bytes(b"taosx rng seed"))
+        .rng_seed(tokio::runtime::RngSeed::from_bytes(
+            format!("{}x rng seed", build::CUS_PROMPT).as_bytes(),
+        ))
         .global_queue_interval(61)
         .max_blocking_threads(4096)
         .disable_lifo_slot()
@@ -370,7 +380,7 @@ fn create_rolling_file_appender(log_dir: &Path) -> RollingFileAppender {
     let max_files = get_log_keep_days() + 1;
     RollingFileAppender::builder()
         .max_log_files(max_files as usize)
-        .filename_prefix("taosx.log")
+        .filename_prefix(format!("{}x.log", build::CUS_PROMPT))
         .rotation(Rotation::DAILY)
         .build(log_dir)
         .expect("failed to initialize rolling file appender")
@@ -436,30 +446,32 @@ where
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
     );
 
-    // Add layer for printing log to terminal.
-    if atty::is(atty::Stream::Stderr) {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_thread_names(true)
-                .with_writer(std::io::stderr)
-                .with_span_events(span_events)
-                .with_ansi(true)
-                .pretty()
-                .with_filter(env_filter_from(&tracing_level_filter)?)
-                .boxed(),
-        );
-    } else {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_thread_names(true)
-                .with_writer(std::io::stderr)
-                .with_span_events(span_events)
-                .with_ansi(false)
-                .with_filter(env_filter_from(&tracing_level_filter)?)
-                .boxed(),
-        );
+    if cfg!(debug_assertions) {
+        // Add layer for printing log to terminal.
+        if atty::is(atty::Stream::Stderr) {
+            layers.push(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(timer.clone())
+                    .with_thread_names(true)
+                    .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
+                    .with_ansi(true)
+                    .pretty()
+                    .with_filter(env_filter_from(&tracing_level_filter)?)
+                    .boxed(),
+            );
+        } else {
+            layers.push(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(timer.clone())
+                    .with_thread_names(true)
+                    .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
+                    .with_ansi(false)
+                    .with_filter(env_filter_from(&tracing_level_filter)?)
+                    .boxed(),
+            );
+        }
     }
 
     // Create event subscriber
@@ -541,8 +553,50 @@ fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
 
 fn get_log_path() -> PathBuf {
     let mut log_path = get_log_dir("");
-    log_path.push("taosx.log");
+    log_path.push(format!("{}x.log", build::CUS_PROMPT));
     log_path
+}
+
+fn get_env_log_dir() -> String {
+    if let Some(dir) = std::env::var(ENV_LOGS_HOME).ok() {
+        return dir;
+    }
+    if let Some(dir) = std::env::var(ENV_TAOSX_LOGS_HOME).ok() {
+        return dir;
+    }
+
+    if cfg!(windows) {
+        "C:\\TDengine\\log".to_string()
+    } else {
+        format!("/var/log/{}", build::CUS_PROMPT)
+    }
+}
+
+fn get_env_data_dir() -> String {
+    if let Some(dir) = std::env::var(ENV_TAOSX_DATA_DIR).ok() {
+        return dir;
+    }
+
+    if cfg!(windows) {
+        "C:\\TDengine\\data\\taosx".to_string()
+    } else {
+        format!("/var/lib/{0}/{0}x", build::CUS_PROMPT)
+    }
+}
+
+fn get_env_plugin_dir() -> String {
+    if let Some(dir) = std::env::var(ENV_PLUGINS_HOME).ok() {
+        return dir;
+    }
+    if let Some(dir) = std::env::var(ENV_TAOSX_PLUGINS_HOME).ok() {
+        return dir;
+    }
+
+    if cfg!(windows) {
+        "C:\\TDengine\\plugins".to_string()
+    } else {
+        format!("/usr/local/{}/plugins", build::CUS_PROMPT)
+    }
 }
 
 #[inline]
@@ -584,9 +638,24 @@ fn main() -> Result<()> {
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
     let args = Args::init()?;
-    set_env_plugins_home_dir(args.global.plugins_home.clone());
-    set_env_data_dir(args.global.data_dir.clone());
-    set_env_log_home_dir(args.global.logs_home.clone());
+    set_env_data_dir(
+        args.global
+            .data_dir
+            .clone()
+            .unwrap_or_else(|| get_env_data_dir()),
+    );
+    set_env_log_home_dir(
+        args.global
+            .logs_home
+            .clone()
+            .unwrap_or_else(|| get_env_log_dir()),
+    );
+    set_env_plugins_home_dir(
+        args.global
+            .plugins_home
+            .clone()
+            .unwrap_or_else(|| get_env_plugin_dir()),
+    );
     set_env_log_keep_days(args.global.log_keep_days.clone());
 
     // Set a panic hook
@@ -607,7 +676,7 @@ fn main() -> Result<()> {
 
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
-    let runtime = build_runtime("taosx", worker_threads)?;
+    let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;
     let log_dir = get_log_dir("");
     let rolling_file_appender = create_rolling_file_appender(&log_dir);
 
@@ -619,9 +688,15 @@ fn main() -> Result<()> {
         init_tracing_layers(&args, span_events, level_filter, rolling_file_appender)?;
         None
     };
-    tracing::info!("taosx version: {version}");
+    tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
+
+    if args.global.dry_run.unwrap_or(false) {
+        tracing::info!("dry run mode enabled");
+        unsafe { taosx_core::global::DRY_RUN = true };
+    }
+
     print_effective_config(&level_filter, &args);
     let res = match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
@@ -636,7 +711,10 @@ fn main() -> Result<()> {
                 let _ = tracing::info_span!("serve").entered();
                 let addr = serve.get_listen_address();
                 let port = addr.split(':').last().unwrap();
-                let scheduler_rt = build_runtime("taosx-server", worker_threads * 2)?;
+                let scheduler_rt = build_runtime(
+                    &format!("{}x-server", build::CUS_PROMPT),
+                    worker_threads * 2,
+                )?;
                 let (
                     agent_integration_channel,
                     agent_rpc_channel,

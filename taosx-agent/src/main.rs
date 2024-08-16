@@ -25,7 +25,10 @@ use twelf::{config, Layer};
 
 use taosx_core::{
     get_data_dir,
-    runners::{get_logs_home_dir, get_plugins_home_dir},
+    runners::{
+        get_logs_home_dir, get_plugins_home_dir, ENV_LOGS_HOME, ENV_PLUGINS_HOME,
+        ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME, ENV_TAOSX_PLUGINS_HOME,
+    },
     utils::{monitor::update_sub_connector_process_metrics, trace::TaosXLayer},
 };
 use taosx_core::{
@@ -204,6 +207,48 @@ fn get_default_config_path() -> PathBuf {
         .join("agent.toml")
 }
 
+fn get_env_log_dir() -> String {
+    if let Some(dir) = std::env::var(ENV_LOGS_HOME).ok() {
+        return dir;
+    }
+    if let Some(dir) = std::env::var(ENV_TAOSX_LOGS_HOME).ok() {
+        return dir;
+    }
+
+    if cfg!(windows) {
+        "C:\\TDengine\\log".to_string()
+    } else {
+        format!("/var/log/{}", build::CUS_PROMPT)
+    }
+}
+
+fn get_env_data_dir() -> String {
+    if let Some(dir) = std::env::var(ENV_TAOSX_DATA_DIR).ok() {
+        return dir;
+    }
+
+    if cfg!(windows) {
+        "C:\\TDengine\\data\\taosx".to_string()
+    } else {
+        format!("/var/lib/{0}/{0}x", build::CUS_PROMPT)
+    }
+}
+
+fn get_env_plugin_dir() -> String {
+    if let Some(dir) = std::env::var(ENV_PLUGINS_HOME).ok() {
+        return dir;
+    }
+    if let Some(dir) = std::env::var(ENV_TAOSX_PLUGINS_HOME).ok() {
+        return dir;
+    }
+
+    if cfg!(windows) {
+        "C:\\TDengine\\plugins".to_string()
+    } else {
+        format!("/usr/local/{}/plugins", build::CUS_PROMPT)
+    }
+}
+
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
         let args = ArgsParser::parse();
@@ -329,7 +374,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                     *task.key(),
                     Utc::now(),
                     taosx_core::LevelFilter::Warn,
-                    "taosx-agent is suspended by SIGINT".to_string(),
+                    format!("{}x-agent is suspended by SIGINT", build::CUS_PROMPT),
                     "waiting".to_string(),
                     None,
                 );
@@ -598,9 +643,13 @@ fn print_effictive_config(log_level: Level, log_path: PathBuf, log_keep_days: i6
 
 fn main() -> anyhow::Result<()> {
     let args = Args::init()?;
-    set_env_plugins_home_dir(args.plugins_home.clone());
-    set_env_data_dir(args.data_dir.clone());
-    set_env_log_home_dir(args.logs_home.clone());
+    set_env_data_dir(args.data_dir.clone().unwrap_or_else(|| get_env_data_dir()));
+    set_env_log_home_dir(args.logs_home.clone().unwrap_or_else(|| get_env_log_dir()));
+    set_env_plugins_home_dir(
+        args.plugins_home
+            .clone()
+            .unwrap_or_else(|| get_env_plugin_dir()),
+    );
     set_env_log_keep_days(args.log_keep_days.clone());
 
     let mut log_path = get_log_dir("");

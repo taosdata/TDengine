@@ -316,7 +316,7 @@ set -e
 commit=$(git rev-parse HEAD | cut -c 1-8)
 echo TDengine version in cloud image is "${VER_NUMBER}"
 mkdir -p ./docker/integrated/release/plugins/
-rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
+rsync -u root@192.168.1.213:/nas/TDengine/${echo "${VER_NUMBER}" | cut -d'.' -f1,2}/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
 tar vxf TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
 cp -r ./TDengine-enterprise-${VER_NUMBER} ./docker/integrated/release/TDengine-enterprise
 rm -rf ./docker/integrated/release/TDengine-enterprise/taosx/
@@ -337,7 +337,7 @@ script = """
 set -e
 echo TDengine version in cloud image is "${VER_NUMBER}"
 mkdir -p ./docker/integrated/release/plugins/
-rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
+rsync -u root@192.168.1.213:/nas/TDengine/$(echo "${VER_NUMBER}" | cut -d'.' -f1,2)/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
 tar vxf TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
 cp -r ./TDengine-enterprise-${VER_NUMBER} ./docker/integrated/release/TDengine-enterprise
 rm -rf ./docker/integrated/release/TDengine-enterprise/taosx/

@@ -1,5 +1,6 @@
 use actix_web::{get, HttpResponse, Responder};
 
+#[cfg(not(target_env = "msvc"))]
 #[get("/debug/pprof/heap")]
 pub(super) async fn handle_get_heap() -> impl Responder {
     let ctl = jemalloc_pprof::PROF_CTL.as_ref();
@@ -20,4 +21,11 @@ pub(super) async fn handle_get_heap() -> impl Responder {
             .body(pprof),
         Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
+}
+
+#[cfg(target_env = "msvc")]
+#[get("/debug/pprof/heap")]
+pub(super) async fn handle_get_heap() -> impl Responder {
+    tracing::warn!("Not supported on Windows");
+    return HttpResponse::Forbidden().finish();
 }

@@ -29,8 +29,7 @@ pub struct Json {
     pub(crate) json: Option<Select>,
     #[serde(default)]
     pub(crate) keep: bool,
-    #[serde(default)]
-    pub(crate) depth: usize,
+    pub(crate) depth: Option<usize>,
 }
 
 #[derive(Debug, Error)]
@@ -166,10 +165,12 @@ impl Parse for Json {
                 schema = select.schema(&schema);
             }
             _ => {
-                let keys = flat_fields(schema.fields(), &String::new(), self.depth);
-                let keys = serde_json::to_string(&keys).context("Fields to json string")?;
-                let select = Select::from_str(&keys).context("Json string to select")?;
-                schema = select.schema(&schema);
+                if let Some(depth) = self.depth {
+                    let keys = flat_fields(schema.fields(), &String::new(), depth);
+                    let keys = serde_json::to_string(&keys).context("Fields to json string")?;
+                    let select = Select::from_str(&keys).context("Json string to select")?;
+                    schema = select.schema(&schema);
+                }
             }
         }
         // dbg!(&schema);
@@ -987,7 +988,8 @@ mod tests {
         let json = parse_json(json_str).unwrap();
         let schema = build_schema_by_json(json).unwrap();
         let keys = flat_fields(schema.fields(), &String::new(), depth);
-        println!("{}", serde_json::to_string(&keys).unwrap());
+        dbg!(keys);
+        // println!("{}", serde_json::to_string(&keys).unwrap());
     }
 
     #[test]
@@ -996,7 +998,7 @@ mod tests {
             // select: None,
             json: Some(serde_json::from_str(&r#"["a1=a::nchar(100)", "b1=b1::int"]"#).unwrap()),
             keep: false,
-            depth: 0,
+            depth: Some(0),
         };
         dbg!(&extract);
 
@@ -1044,7 +1046,7 @@ mod tests {
             // select: None,
             json: None,
             keep: false,
-            depth: 2,
+            depth: Some(2),
         };
 
         let field = Field::new("a1", DataType::Utf8, false);

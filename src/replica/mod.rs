@@ -13,6 +13,8 @@ use itertools::Itertools;
 use serde::Deserialize;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, TaosPool};
 
+use crate::build;
+
 /// Replica ID type.
 type ReplicaId = String;
 
@@ -412,11 +414,11 @@ impl ReplicaConfig {
 
         // start taosx with systemctl
         let status = tokio::process::Command::new("systemctl")
-            .args(["start", "taosx"])
+            .args(["start", &format!("{}x", build::CUS_PROMPT)])
             .status()
             .await?;
         if !status.success() {
-            bail!("start taosx failed");
+            bail!("start {}x failed", build::CUS_PROMPT);
         }
 
         const MAX_PING: usize = 5;
@@ -919,10 +921,11 @@ impl Cli {
     pub async fn run(self, opt_args: super::OptArgs) -> Result<()> {
         let config = &self.config;
         config.assert_server_alive().await?;
-        tracing::info!("taosx server is alive");
+        tracing::info!("{}x server is alive", build::CUS_PROMPT);
         let profile = config.profile().await?;
         tracing::debug!(
-            "taosx version: {} built {}",
+            "{}x version: {} built {}",
+            build::CUS_PROMPT,
             profile.version,
             profile.build_time
         );

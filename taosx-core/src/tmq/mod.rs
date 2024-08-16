@@ -115,20 +115,6 @@ pub(crate) enum StopAtError {
     RowsParseError(#[from] std::num::ParseIntError),
 }
 
-impl StopAt {
-    pub fn to_local_date_time(&self) -> Result<chrono::DateTime<Local>> {
-        let date_time = match self {
-            StopAt::DateTime(dt) => *dt,
-            StopAt::Rows(_) => bail!(
-                "{:?} can't convert to {}",
-                self,
-                std::any::type_name::<chrono::DateTime<Local>>()
-            ),
-        };
-        Ok(date_time)
-    }
-}
-
 impl FromStr for StopAt {
     type Err = StopAtError;
 
@@ -815,35 +801,31 @@ mod tests {
     #[test]
     fn test_stop_at() {
         let now = Local::now().timestamp();
-        let stop_at = StopAt::from_str("now")
-            .unwrap()
-            .to_local_date_time()
-            .unwrap()
-            .timestamp();
-        assert_eq!(now, stop_at);
+        if let StopAt::DateTime(dt) = StopAt::from_str("now").unwrap() {
+            assert_eq!(now, dt.timestamp());
+        } else {
+            panic!("stop_at should be StopAt::DateTime");
+        }
 
         let now = Local::now().timestamp();
-        let stop_at = StopAt::from_str("-1s")
-            .unwrap()
-            .to_local_date_time()
-            .unwrap()
-            .timestamp();
-        assert_eq!(now - 1, stop_at);
+        if let StopAt::DateTime(dt) = StopAt::from_str("-1s").unwrap() {
+            assert_eq!(now - 1, dt.timestamp());
+        } else {
+            panic!("stop_at should be StopAt::DateTime");
+        }
 
         let now = Local::now().timestamp();
-        let stop_at = StopAt::from_str("+1s")
-            .unwrap()
-            .to_local_date_time()
-            .unwrap()
-            .timestamp();
-        assert_eq!(now + 1, stop_at);
+        if let StopAt::DateTime(dt) = StopAt::from_str("+1s").unwrap() {
+            assert_eq!(now + 1, dt.timestamp());
+        } else {
+            panic!("stop_at should be StopAt::DateTime");
+        }
 
-        let stop_at = StopAt::from_str("2021-09-01T00:00:00+08:00")
-            .unwrap()
-            .to_local_date_time()
-            .unwrap()
-            .timestamp();
-        assert_eq!(1630425600, stop_at);
+        if let StopAt::DateTime(dt) = StopAt::from_str("2021-09-01T00:00:00+08:00").unwrap() {
+            assert_eq!(1630425600, dt.timestamp());
+        } else {
+            panic!("stop_at should be StopAt::DateTime");
+        }
 
         let stop_at = StopAt::from_str("1000rows").unwrap();
         assert!(matches!(stop_at, StopAt::Rows(1000)));
@@ -852,13 +834,6 @@ mod tests {
         assert_eq!(
             stop_at.unwrap_err().to_string(),
             "rows parse error: invalid digit found in string"
-        );
-
-        let stop_at = StopAt::Rows(1000).to_local_date_time();
-        assert!(stop_at.is_err());
-        assert_eq!(
-            stop_at.unwrap_err().to_string(),
-            "Rows(1000) can't convert to chrono::datetime::DateTime<chrono::offset::local::Local>"
         );
     }
 
