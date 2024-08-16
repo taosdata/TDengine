@@ -762,18 +762,27 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
   code = sendDispatchMsg(pTask, pTask->msgInfo.pData);
 
-  streamMutexLock(&pTask->msgInfo.lock);
-  if (pTask->msgInfo.inMonitor == 0) {
-    int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-    stDebug("s-task:%s start dispatch monitor tmr in %dms, ref:%d, dispatch code:%s", id, DISPATCH_RETRY_INTERVAL_MS,
-            ref, tstrerror(code));
-    streamStartMonitorDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS);
-    pTask->msgInfo.inMonitor = 1;
-  } else {
-    stDebug("s-task:%s already in dispatch monitor tmr", id);
-  }
+  // todo: secure the timerActive and start timer in after lock pTask->lock
+  streamMutexLock(&pTask->lock);
+  bool shouldStop = streamTaskShouldStop(pTask);
+  streamMutexUnlock(&pTask->lock);
 
-  streamMutexUnlock(&pTask->msgInfo.lock);
+  if (shouldStop) {
+    stDebug("s-task:%s in stop/dropping status, not start dispatch monitor tmr", id);
+  } else {
+    streamMutexLock(&pTask->msgInfo.lock);
+    if (pTask->msgInfo.inMonitor == 0) {
+      int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
+      stDebug("s-task:%s start dispatch monitor tmr in %dms, ref:%d, dispatch code:%s", id, DISPATCH_RETRY_INTERVAL_MS,
+              ref, tstrerror(code));
+      streamStartMonitorDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS);
+      pTask->msgInfo.inMonitor = 1;
+    } else {
+      stDebug("s-task:%s already in dispatch monitor tmr", id);
+    }
+
+    streamMutexUnlock(&pTask->msgInfo.lock);
+  }
 
   // this block can not be deleted until it has been sent to downstream task successfully.
   return TSDB_CODE_SUCCESS;

@@ -895,14 +895,16 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
 
+  SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
+  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
+  pInfo->binfo.pRes = pResBlock;
+
   SExprSupp*   pExpSup = &pOperator->exprSupp;
   int32_t      numOfCols = 0;
   SExprInfo*   pExprInfo = NULL;
   code = createExprInfo(pEventNode->window.pFuncs, NULL, &pExprInfo, &numOfCols);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
-  QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   code = initBasicInfoEx(&pInfo->binfo, pExpSup, pExprInfo, numOfCols, pResBlock, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -986,6 +988,9 @@ _error:
   if (pInfo != NULL) destroyStreamEventOperatorInfo(pInfo);
   if (pOperator != NULL) {
     pOperator->info = NULL;
+    if (pOperator->pDownstream == NULL && downstream != NULL) {
+      destroyOperator(downstream);
+    }
     destroyOperator(pOperator);
   }
   pTaskInfo->code = code;
