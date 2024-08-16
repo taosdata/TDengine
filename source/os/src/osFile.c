@@ -15,6 +15,7 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "osSemaphore.h"
+#include "tdef.h"
 #include "zlib.h"
 
 #ifdef WINDOWS
@@ -65,14 +66,14 @@ typedef struct TdFile {
 #define FILE_WITH_LOCK 1
 
 #ifdef BUILD_WITH_RAND_ERR
-#define STUB_RAND_IO_ERR(ret)                   \
-  if (tsEnableRandErr) {                        \
-    uint32_t r = taosRand() % tsRandErrDivisor; \
-    if ((r + 1) <= tsRandErrChance) {           \
-      errno = EIO;                              \
-      terrno = TAOS_SYSTEM_ERROR(errno);        \
-      return (ret);                             \
-    }                                           \
+#define STUB_RAND_IO_ERR(ret)                                \
+  if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_FILE)) { \
+    uint32_t r = taosRand() % tsRandErrDivisor;              \
+    if ((r + 1) <= tsRandErrChance) {                        \
+      errno = EIO;                                           \
+      terrno = TAOS_SYSTEM_ERROR(errno);                     \
+      return (ret);                                          \
+    }                                                        \
   }
 #else
 #define STUB_RAND_IO_ERR(ret)
