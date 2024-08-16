@@ -18,7 +18,8 @@ osType=$(uname)
 
 for service in "${services[@]}"; do
     if [ "$osType" == "Linux" ]; then
-        ${csudo}systemctl start $service	
+        ${csudo}systemctl start $service
+        sleep 0.5
         if systemctl is-active $service >/dev/null; then
             echo "$service has been started successfully"
         else
