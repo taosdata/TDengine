@@ -6,6 +6,11 @@ namespace TMQExample
 {
     internal class SubscribeDemo
     {
+        private static string _host = "";
+        private static string _groupId = "";
+        private static string _clientId = "";
+        private static string _topic = "";
+
         public static void Main(string[] args)
         {
             try
@@ -68,9 +73,9 @@ namespace TMQExample
         {
             // ANCHOR: create_consumer
             // consumer config
-            var host = "127.0.0.1";
-            var groupId = "group1";
-            var clientId = "client1";
+            _host = "127.0.0.1";
+            _groupId = "group1";
+            _clientId = "client1";
             var cfg = new Dictionary<string, string>()
             {
                 { "td.connect.type", "WebSocket" },
@@ -79,9 +84,9 @@ namespace TMQExample
                 { "msg.with.table.name", "true" },
                 { "enable.auto.commit", "true" },
                 { "auto.commit.interval.ms", "1000" },
-                { "group.id", groupId },
-                { "client.id", clientId },
-                { "td.connect.ip", host },
+                { "group.id", _groupId },
+                { "client.id", _clientId },
+                { "td.connect.ip", _host },
                 { "td.connect.user", "root" },
                 { "td.connect.pass", "taosdata" },
             };
@@ -90,20 +95,32 @@ namespace TMQExample
             {
                 // create consumer
                 consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
-                Console.WriteLine("Create consumer successfully, host: " + host + ", groupId: " + groupId +
-                                  ", clientId: " + clientId);
+                Console.WriteLine(
+                    $"Create consumer successfully, " +
+                    $"host: {_host}, " +
+                    $"groupId: {_groupId}, " +
+                    $"clientId: {_clientId}");
             }
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to create websocket consumer, host: " + host + ", ErrCode: " + e.Code +
-                                  ", ErrMessage: " + e.Error);
+                Console.WriteLine(
+                    $"Failed to create native consumer, " +
+                    $"host: {_host}, " +
+                    $"groupId: {_groupId}, " +
+                    $"clientId: {_clientId}, " +
+                    $"ErrCode: {e.Code}, " +
+                    $"ErrMessage: {e.Error}");
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to create websocket consumer, host: " + host + ", ErrMessage: " + e.Message);
+                Console.WriteLine($"Failed to create native consumer, " +
+                                  $"host: {_host}, " +
+                                  $"groupId: {_groupId}, " +
+                                  $"clientId: {_clientId}, " +
+                                  $"ErrMessage: {e.Message}");
                 throw;
             }
 
@@ -114,10 +131,11 @@ namespace TMQExample
         static void Consume(IConsumer<Dictionary<string, object>> consumer)
         {
             // ANCHOR: subscribe
+            _topic = "topic_meters";
             try
             {
                 // subscribe
-                consumer.Subscribe(new List<string>() { "topic_meters" });
+                consumer.Subscribe(new List<string>() { _topic });
                 Console.WriteLine("Subscribe topics successfully");
                 for (int i = 0; i < 50; i++)
                 {
@@ -138,13 +156,23 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to poll data, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
+                Console.WriteLine(
+                    $"Failed to poll data, " +
+                    $"topic: {_topic}, " +
+                    $"groupId: {_groupId}, " +
+                    $"clientId: {_clientId}, " +
+                    $"ErrCode: {e.Code}, " +
+                    $"ErrMessage: {e.Error}");
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to poll data, ErrMessage: " + e.Message);
+                Console.WriteLine($"Failed to poll data, " +
+                                  $"topic: {_topic}, " +
+                                  $"groupId: {_groupId}, " +
+                                  $"clientId: {_clientId}, " +
+                                  $"ErrMessage: {e.Message}");
                 throw;
             }
             // ANCHOR_END: subscribe
@@ -168,13 +196,25 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to execute seek example, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
+                Console.WriteLine(
+                    $"Failed to execute seek example, " +
+                    $"topic: {_topic}, " +
+                    $"groupId: {_groupId}, " +
+                    $"clientId: {_clientId}, " +
+                    $"offset: 0, " +
+                    $"ErrCode: {e.Code}, " +
+                    $"ErrMessage: {e.Error}");
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to execute seek example, ErrMessage: " + e.Message);
+                Console.WriteLine($"Failed to execute seek example, " +
+                                  $"topic: {_topic}, " +
+                                  $"groupId: {_groupId}, " +
+                                  $"clientId: {_clientId}, " +
+                                  $"offset: 0, " +
+                                  $"ErrMessage: {e.Message}");
                 throw;
             }
             // ANCHOR_END: seek
@@ -185,6 +225,7 @@ namespace TMQExample
             // ANCHOR: commit_offset
             for (int i = 0; i < 5; i++)
             {
+                TopicPartitionOffset topicPartitionOffset = null;
                 try
                 {
                     // consume message with using block to ensure the result is disposed
@@ -192,9 +233,10 @@ namespace TMQExample
                     {
                         if (cr == null) continue;
                         // commit offset
+                        topicPartitionOffset = cr.TopicPartitionOffset;
                         consumer.Commit(new List<TopicPartitionOffset>
                         {
-                            cr.TopicPartitionOffset,
+                            topicPartitionOffset,
                         });
                         Console.WriteLine("Commit offset manually successfully.");
                     }
@@ -202,13 +244,26 @@ namespace TMQExample
                 catch (TDengineError e)
                 {
                     // handle TDengine error
-                    Console.WriteLine("Failed to execute commit example, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
+                    Console.WriteLine(
+                        $"Failed to execute commit example, " +
+                        $"topic: {_topic}, " +
+                        $"groupId: {_groupId}, " +
+                        $"clientId: {_clientId}, " +
+                        $"offset: {topicPartitionOffset}, " +
+                        $"ErrCode: {e.Code}, " +
+                        $"ErrMessage: {e.Error}");
                     throw;
                 }
                 catch (Exception e)
                 {
                     // handle other exceptions
-                    Console.WriteLine("Failed to execute commit example, ErrMessage: " + e.Message);
+                    Console.WriteLine(
+                        $"Failed to execute commit example, " +
+                        $"topic: {_topic}, " +
+                        $"groupId: {_groupId}, " +
+                        $"clientId: {_clientId}, " +
+                        $"offset: {topicPartitionOffset}, " +
+                        $"ErrMessage: {e.Message}");
                     throw;
                 }
             }
@@ -226,13 +281,24 @@ namespace TMQExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to unsubscribe consumer, ErrCode :" + e.Code + ", ErrMessage: " + e.Error);
+                Console.WriteLine(
+                    $"Failed to unsubscribe consumer, " +
+                    $"topic: {_topic}, " +
+                    $"groupId: {_groupId}, " +
+                    $"clientId: {_clientId}, " +
+                    $"ErrCode: {e.Code}, " +
+                    $"ErrMessage: {e.Error}");
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to unsubscribe consumer, ErrMessage: " + e.Message);
+                Console.WriteLine(
+                    $"Failed to execute commit example, " +
+                    $"topic: {_topic}, " +
+                    $"groupId: {_groupId}, " +
+                    $"clientId: {_clientId}, " +
+                    $"ErrMessage: {e.Message}");
                 throw;
             }
             finally
