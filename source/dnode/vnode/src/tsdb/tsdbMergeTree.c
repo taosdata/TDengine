@@ -833,7 +833,8 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   int32_t     code = 0;
   int32_t     iBlockL = pIter->iSttBlk;
   SBlockData *pBlockData = NULL;
-
+  terrno = 0;
+  
   // no qualified last file block in current file, no need to fetch row
   if (pIter->pSttBlk == NULL) {
     return false;
