@@ -19,6 +19,8 @@ public class WsConsumerLoopFull {
     static private Connection connection;
     static private Statement statement;
     static private volatile boolean stopThread = false;
+    static private String groupId = "group1";
+    static private String clientId = "clinet1";
 
     public static TaosConsumer<ResultBean> getConsumer() throws Exception {
 // ANCHOR: create_consumer
@@ -30,7 +32,7 @@ public class WsConsumerLoopFull {
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group1");
-        config.setProperty("client.id", "1");
+        config.setProperty("client.id", "clinet1");
         config.setProperty("td.connect.user", "root");
         config.setProperty("td.connect.pass", "taosdata");
         config.setProperty("value.deserializer", "com.taos.example.WsConsumerLoopFull$ResultDeserializer");
@@ -45,8 +47,10 @@ public class WsConsumerLoopFull {
             return consumer;
         } catch (Exception ex) {
             // please refer to the JDBC specifications for detailed exceptions info
-            System.out.printf("Failed to create websocket consumer, host: %s, %sErrMessage: %s%n",
+            System.out.printf("Failed to create websocket consumer, host: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
                     config.getProperty("bootstrap.servers"),
+                    config.getProperty("group.id"),
+                    config.getProperty("client.id"),
                     ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
                     ex.getMessage());
             // Print stack trace for context in examples. Use logging in production.
@@ -58,9 +62,8 @@ public class WsConsumerLoopFull {
 
     public static void pollExample(TaosConsumer<ResultBean> consumer) throws SQLException {
 // ANCHOR: poll_data_code_piece
+        List<String> topics = Collections.singletonList("topic_meters");
         try {
-            List<String> topics = Collections.singletonList("topic_meters");
-
             // subscribe to the topics
             consumer.subscribe(topics);
             System.out.println("Subscribe topics successfully.");
@@ -69,13 +72,16 @@ public class WsConsumerLoopFull {
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean bean = record.value();
-                    // process the data here
+                    // Add your data processing logic here
                     System.out.println("data: " + JSON.toJSONString(bean));
                 }
             }
         } catch (Exception ex) {
             // please refer to the JDBC specifications for detailed exceptions info
-            System.out.printf("Failed to poll data, %sErrMessage: %s%n",
+            System.out.printf("Failed to poll data, topic: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+                    topics.get(0),
+                    groupId,
+                    clientId,
                     ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
                     ex.getMessage());
             // Print stack trace for context in examples. Use logging in production.
@@ -87,9 +93,8 @@ public class WsConsumerLoopFull {
 
     public static void seekExample(TaosConsumer<ResultBean> consumer) throws SQLException {
 // ANCHOR: consumer_seek
+        List<String> topics = Collections.singletonList("topic_meters");
         try {
-            List<String> topics = Collections.singletonList("topic_meters");
-
             // subscribe to the topics
             consumer.subscribe(topics);
             System.out.println("Subscribe topics successfully.");
@@ -106,7 +111,10 @@ public class WsConsumerLoopFull {
             System.out.println("Assignment seek to beginning successfully.");
         } catch (Exception ex) {
             // please refer to the JDBC specifications for detailed exceptions info
-            System.out.printf("Failed to execute seek example, %sErrMessage: %s%n",
+            System.out.printf("Failed to seek offset, topic: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+                    topics.get(0),
+                    groupId,
+                    clientId,
                     ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
                     ex.getMessage());
             // Print stack trace for context in examples. Use logging in production.
@@ -119,15 +127,14 @@ public class WsConsumerLoopFull {
 
     public static void commitExample(TaosConsumer<ResultBean> consumer) throws SQLException {
 // ANCHOR: commit_code_piece
+        List<String> topics = Collections.singletonList("topic_meters");
         try {
-            List<String> topics = Collections.singletonList("topic_meters");
-
             consumer.subscribe(topics);
             for (int i = 0; i < 50; i++) {
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
                 for (ConsumerRecord<ResultBean> record : records) {
                     ResultBean bean = record.value();
-                    // process your data here
+                    // Add your data processing logic here
                     System.out.println("data: " + JSON.toJSONString(bean));
                 }
                 if (!records.isEmpty()) {
@@ -138,7 +145,10 @@ public class WsConsumerLoopFull {
             }
         } catch (Exception ex) {
             // please refer to the JDBC specifications for detailed exceptions info
-            System.out.printf("Failed to execute commit example, %sErrMessage: %s%n",
+            System.out.printf("Failed to commit offset, topic: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+                    topics.get(0),
+                    groupId,
+                    clientId,
                     ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
                     ex.getMessage());
             // Print stack trace for context in examples. Use logging in production.
@@ -158,7 +168,10 @@ public class WsConsumerLoopFull {
             System.out.println("Consumer unsubscribed successfully.");
         } catch (Exception ex) {
             // please refer to the JDBC specifications for detailed exceptions info
-            System.out.printf("Failed to unsubscribe consumer, %sErrMessage: %s%n",
+            System.out.printf("Failed to unsubscribe consumer, topic: %s, groupId: %s, clientId: %s, %sErrMessage: %s%n",
+                    topics.get(0),
+                    groupId,
+                    clientId,
                     ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
                     ex.getMessage());
             // Print stack trace for context in examples. Use logging in production.
