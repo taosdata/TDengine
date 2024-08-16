@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
     match consumer.subscribe([topic]).await{
         Ok(_) => println!("Subscribe topics successfully."),
         Err(err) => {
-            eprintln!("Failed to subscribe topic_meters, ErrMessage: {:?}", err);
+            eprintln!("Failed to subscribe topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", topic, group_id, client_id, err);
             return Err(err.into());
         }
     }
@@ -164,7 +164,13 @@ async fn main() -> anyhow::Result<()> {
 
 
     // ANCHOR: seek_offset
-    let assignments = consumer.assignments().await.unwrap();
+    let assignments = match consumer.assignments().await{
+        Some(assignments) => assignments,
+        None => {
+            eprintln!("Failed to get assignments.");
+            return Err(anyhow::anyhow!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id));
+        }
+    };
     println!("assignments: {:?}", assignments);
 
     // seek offset
@@ -200,7 +206,13 @@ async fn main() -> anyhow::Result<()> {
     }
     println!("Assignment seek to beginning successfully.");
     // after seek offset
-    let assignments = consumer.assignments().await.unwrap();
+    let assignments = match consumer.assignments().await{
+        Some(assignments) => assignments,
+        None => {
+            eprintln!("Failed to get assignments.");
+            return Err(anyhow::anyhow!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id));
+        }
+    };
     println!("After seek offset assignments: {:?}", assignments);
     // ANCHOR_END: seek_offset
 
