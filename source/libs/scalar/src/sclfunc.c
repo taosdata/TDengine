@@ -2668,8 +2668,8 @@ int32_t weekdayFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam
     }
     struct STm tm;
     TAOS_CHECK_RETURN(taosTs2Tm(timeVal, timePrec, &tm));
-    int32_t ret = startFromZero ?  (tm.tm.tm_wday + 6) % 7 : tm.tm.tm_wday + 1;
-    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char*)&ret, false));
+    int64_t ret = startFromZero ?  (tm.tm.tm_wday + 6) % 7 : tm.tm.tm_wday + 1;
+    colDataSetInt64(pOutput->columnData, i, &ret);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -2778,8 +2778,8 @@ int32_t weekFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     }
     struct STm tm;
     SCL_ERR_RET(taosTs2Tm(timeVal, prec, &tm));
-    int32_t ret = calculateWeekNum(tm.tm, weekMode(mode));
-    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char*)&ret, false));
+    int64_t ret = calculateWeekNum(tm.tm, weekMode(mode));
+    colDataSetInt64(pOutput->columnData, i, &ret);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
