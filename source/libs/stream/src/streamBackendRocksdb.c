@@ -2356,6 +2356,8 @@ void taskDbSetClearFileFlag(void* pTaskDb) {
     return;
   }
 
+  // do not need lock, because it is atomic operation
+
   STaskDbWrapper* pBackend = pTaskDb;
   atomic_store_8(&pBackend->removeAllFiles, 1);
 }
