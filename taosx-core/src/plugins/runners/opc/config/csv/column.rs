@@ -5,6 +5,7 @@ use itertools::Itertools;
 
 use taosx_ipc::prelude::IpcDataType;
 
+#[derive(Debug, Clone)]
 pub struct CsvColumn {
     pub name: String,
     pub index: usize,

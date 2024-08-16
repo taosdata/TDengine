@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::Write;
 
 use anyhow::bail;
@@ -15,18 +16,56 @@ use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::OpcType;
 use crate::utils::files::{get_encode, get_encode_from_buffer};
 
-pub(crate) mod column;
-pub(crate) mod header;
+pub mod column;
+pub mod header;
 
+/// CsvParser is used to parse csv files and generate model config
 pub struct CsvParser {
-    #[allow(dead_code)]
     opc_type: OpcType,
-    #[allow(dead_code)]
+    /// csv files could be file path or utf8 encoded string
     csv_files: Vec<String>,
     model_config: OpcModelConfig,
 }
 
 impl CsvParser {
+    pub fn try_new(opc_type: OpcType, csv_files: Vec<String>) -> anyhow::Result<Self> {
+        if csv_files.is_empty() {
+            bail!("csv_files is empty");
+        }
+
+        Ok(Self {
+            opc_type,
+            csv_files,
+            model_config: OpcModelConfig::new(),
+        })
+    }
+
+    pub async fn get_headers(&self) -> anyhow::Result<HashMap<String, CsvHeader>> {
+        if self.csv_files.is_empty() {
+            bail!("csv_files is empty");
+        }
+
+        let csv_files = self.csv_files.clone();
+
+        let files = Self::open_csv_files(csv_files).await?;
+
+        let mut headers = HashMap::new();
+
+        for (filename, mut rdr) in files {
+            // parse header
+            let header = rdr.headers().await.map_err(|e| {
+                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
+            })?;
+            let csv_header = CsvHeader::try_new(self.opc_type.clone(), header).await?;
+            // check required columns
+            csv_header.check_required_columns()?;
+
+            headers.insert(filename, csv_header);
+        }
+
+        Ok(headers)
+    }
+
     pub async fn is_valid(dsn: &Dsn) -> anyhow::Result<()> {
         let csv_config_files = OPCConfig::parse_csv_config_file(dsn).ok_or(anyhow::anyhow!(
             "csv_config_file not found in the dsn: {}",

@@ -1,11 +1,12 @@
+use anyhow::Context;
+use csv_lib::StringRecord;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::str::FromStr;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
-
-use anyhow::Context;
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 use taos::{Dsn, DsnError};
 use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -17,8 +18,10 @@ use tracing::{instrument, Span};
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::OptionSet;
 
+use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
+use crate::runners::opc::config::csv::header::CsvHeader;
 use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::point_updater::PointsUpdater;
@@ -28,10 +31,69 @@ use crate::{
     Transferred,
 };
 
-use super::get_data_dir;
-
 pub mod config;
 mod point_updater;
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum OpcType {
+    OPCUA,
+    OPCDA,
+    FAKE,
+}
+
+impl OpcType {
+    /// valid dsn driver:
+    /// opcua:// -> OPCUA
+    /// opcda:// -> OPCDA
+    /// fake:// -> FAKE
+    /// opc+ua:// -> OPCUA
+    /// opc+da:// -> OPCDA
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let fake = dsn.params.get("fake").is_some();
+        if fake {
+            return Ok(Self::FAKE);
+        }
+
+        let opc_type = dsn.driver.as_str();
+        let protocol = dsn.protocol.clone();
+        match opc_type {
+            "opcua" => Ok(Self::OPCUA),
+            "opcda" => Ok(Self::OPCDA),
+            "fake" => Ok(Self::FAKE),
+            "opc" => match protocol.as_deref() {
+                Some("ua") => Ok(Self::OPCUA),
+                Some("da") => Ok(Self::OPCDA),
+                _ => anyhow::bail!("unknown opc protocol"),
+            },
+            _ => anyhow::bail!("invalid opc type"),
+        }
+    }
+}
+
+impl FromStr for OpcType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "opcua" => Ok(Self::OPCUA),
+            "opcda" => Ok(Self::OPCDA),
+            "fake" => Ok(Self::FAKE),
+            _ => Err(s.to_string()),
+        }
+    }
+}
+
+impl Display for OpcType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::OPCUA => "opcua",
+            Self::OPCDA => "opcda",
+            Self::FAKE => "fake",
+        };
+        write!(f, "{}", s)
+    }
+}
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -594,9 +656,41 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
     Ok(result)
 }
 
+/// 从 csv_config_files 中获取 csv 文件的 headers
+pub async fn get_csv_headers(dsn: &Dsn) -> anyhow::Result<HashMap<String, CsvHeader>> {
+    let opc_type = OpcType::from_dsn(dsn)?;
+    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in dsn: {}",
+        dsn.to_string()
+    ))?;
+    tracing::debug!("get headers from csv files: {:?}", csv_files);
+
+    let parser = CsvParser::try_new(opc_type, csv_files)?;
+    let headers = parser.get_headers().await?;
+
+    Ok(headers)
+}
+
+/// 为 opc 的 csv_config_file 追加一行点位配置
+pub async fn append_point(dsn: &Dsn, line: String) -> anyhow::Result<()> {
+    // TODO: append point to file
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_get_csv_headers() {
+        let dsn =
+            Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
+
+        let headers = get_csv_headers(&dsn).await.unwrap();
+
+        dbg!(headers);
+    }
 
     #[test]
     fn test_get_temp_file() {
@@ -703,75 +797,9 @@ mod tests {
 
         dbg!(res);
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum OpcType {
-    OPCUA,
-    OPCDA,
-    FAKE,
-}
-
-impl OpcType {
-    /// valid dsn driver:
-    /// opcua:// -> OPCUA
-    /// opcda:// -> OPCDA
-    /// fake:// -> FAKE
-    /// opc+ua:// -> OPCUA
-    /// opc+da:// -> OPCDA
-    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let fake = dsn.params.get("fake").is_some();
-        if fake {
-            return Ok(Self::FAKE);
-        }
-
-        let opc_type = dsn.driver.as_str();
-        let protocol = dsn.protocol.clone();
-        match opc_type {
-            "opcua" => Ok(Self::OPCUA),
-            "opcda" => Ok(Self::OPCDA),
-            "fake" => Ok(Self::FAKE),
-            "opc" => match protocol.as_deref() {
-                Some("ua") => Ok(Self::OPCUA),
-                Some("da") => Ok(Self::OPCDA),
-                _ => anyhow::bail!("unknown opc protocol"),
-            },
-            _ => anyhow::bail!("invalid opc type"),
-        }
-    }
-}
-
-impl FromStr for OpcType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "opcua" => Ok(Self::OPCUA),
-            "opcda" => Ok(Self::OPCDA),
-            "fake" => Ok(Self::FAKE),
-            _ => Err(s.to_string()),
-        }
-    }
-}
-
-impl Display for OpcType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::OPCUA => "opcua",
-            Self::OPCDA => "opcda",
-            Self::FAKE => "fake",
-        };
-        write!(f, "{}", s)
-    }
-}
-
-#[cfg(test)]
-mod opc_type_tests {
-    use super::*;
 
     #[test]
-    fn test_from_dsn() {
+    fn test_opc_type() {
         let dsn = Dsn::from_str("opcua://").unwrap();
         let opc_type = OpcType::from_dsn(&dsn).unwrap();
         assert_eq!(opc_type, OpcType::OPCUA);

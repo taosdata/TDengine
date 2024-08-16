@@ -194,6 +194,26 @@ impl OPCConfig {
             .flatten()
     }
 
+    pub fn parse_csv_config_files(dsn: &Dsn) -> Option<Vec<String>> {
+        dsn.params
+            .get("csv_config_file")
+            .map(|v| {
+                if v.is_empty() {
+                    return None;
+                }
+
+                let csv_files = v
+                    .split(",")
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect_vec();
+
+                Some(csv_files)
+            })
+            .flatten()
+    }
+
     /// 从 dsn 中解析参数 select_all_points 参数
     /// 1. dsn 没有参数，返回 None
     /// 2. dsn 有参数，且合法，true/false，返回 Some(true) or Some(false)

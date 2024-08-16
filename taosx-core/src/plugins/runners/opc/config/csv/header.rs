@@ -5,6 +5,7 @@ use linked_hash_map::LinkedHashMap;
 use crate::runners::opc::config::csv::column::CsvColumn;
 use crate::runners::opc::OpcType;
 
+#[derive(Debug)]
 pub struct CsvHeader {
     opc_type: OpcType,
     columns: Vec<CsvColumn>,
