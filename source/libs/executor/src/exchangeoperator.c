@@ -850,6 +850,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
+  SSDataBlock*       pb = NULL;
 
   char* pNextStart = pRetrieveRsp->data;
   char* pStart = pNextStart;
@@ -874,7 +875,6 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
   }
 
   while (index++ < pRetrieveRsp->numOfBlocks) {
-    SSDataBlock* pb = NULL;
     pStart = pNextStart;
 
     if (taosArrayGetSize(pExchangeInfo->pRecycledBlocks) > 0) {
@@ -902,15 +902,17 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
     if (code != 0) {
       taosMemoryFreeClear(pDataInfo->pRsp);
-      return code;
+      goto _end;
     }
 
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    pb = NULL;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pb);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;

@@ -1976,6 +1976,7 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
 
   code = copyPkVal(&pDstBlock->info, &pDataBlock->info);
   if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pDstBlock);
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
   }
@@ -1991,10 +1992,14 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
       SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
       if (pDst == NULL) {
+        blockDataDestroy(pDstBlock);
+        uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         return terrno;
       }
 
       if (pSrc == NULL) {
+        blockDataDestroy(pDstBlock);
+        uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         return terrno;
       }
 
