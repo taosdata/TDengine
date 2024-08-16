@@ -295,11 +295,11 @@ elif [[ ${packageName} =~ "pkg" ]];then
     echoColor YD  "===== install Package successfully! ====="
 fi  
 
-cd ${installPath}
-
-rm -rf ${installPath}/${packageName}
-if [ ${platform} == "Linux" ]; then
-  rm -rf ${installPath}/${tdPath}/
-fi
+#cd ${installPath}
+#
+#rm -rf ${installPath}/${packageName}
+#if [ ${platform} == "Linux" ]; then
+#  rm -rf ${installPath}/${tdPath}/
+#fi
 echoColor YD  "===== end of shell file ====="
 
