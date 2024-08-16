@@ -315,7 +315,6 @@ void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
     streamStateClose(pTask->pState, remove);
 
     if (remove) taskDbSetClearFileFlag(pTask->pBackend);
-
     taskDbRemoveRef(pTask->pBackend);
     pTask->pBackend = NULL;
     pTask->pState = NULL;
