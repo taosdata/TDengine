@@ -750,6 +750,9 @@ void    streamMetaStartHb(SStreamMeta* pMeta);
 bool    streamMetaTaskInTimer(SStreamMeta* pMeta);
 int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
                                       int64_t endTs, bool ready);
+int32_t streamMetaInitStartInfo(STaskStartInfo* pStartInfo);
+void    streamMetaClearStartInfo(STaskStartInfo* pStartInfo);
+
 int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta);
 int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void    streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs);
@@ -770,7 +773,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
-int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask);
+int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask);
 
 // timer
 int32_t streamTimerGetInstance(tmr_h* pTmr);
