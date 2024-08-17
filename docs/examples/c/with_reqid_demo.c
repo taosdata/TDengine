@@ -57,7 +57,6 @@ static int DemoWithReqId() {
 
   fprintf(stdout, "query successfully, got %d fields, the sql is: %s.\n", num_fields, sql);
 
-
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
     // Add your data processing logic here
