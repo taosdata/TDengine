@@ -314,8 +314,8 @@ int32_t streamMetaInitStartInfo(STaskStartInfo* pStartInfo) {
 }
 
 void streamMetaClearStartInfo(STaskStartInfo* pStartInfo) {
-  taosHashClear(pStartInfo->pReadyTaskSet);
-  taosHashClear(pStartInfo->pFailedTaskSet);
+  taosHashCleanup(pStartInfo->pReadyTaskSet);
+  taosHashCleanup(pStartInfo->pFailedTaskSet);
   pStartInfo->readyTs = 0;
   pStartInfo->elapsedTime = 0;
   pStartInfo->startTs = 0;
