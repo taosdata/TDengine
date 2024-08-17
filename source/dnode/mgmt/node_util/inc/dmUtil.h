@@ -121,6 +121,7 @@ typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef void (*StopDnodeFp)();
 
 typedef struct {
   int32_t        dnodeId;
@@ -159,6 +160,7 @@ typedef struct {
   GetVnodeLoadsFp        getVnodeLoadsLiteFp;
   GetMnodeLoadsFp        getMnodeLoadsFp;
   GetQnodeLoadsFp        getQnodeLoadsFp;
+  StopDnodeFp            stopDnodeFp;
 } SMgmtInputOpt;
 
 typedef struct {
