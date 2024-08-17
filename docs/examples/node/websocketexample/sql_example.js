@@ -13,7 +13,7 @@ async function createConnect() {
         console.log("Connected to " + dsn + " successfully.");
         return conn;
     } catch (err) {
-        console.log("Failed to connect to " + dns + ", ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.log("Failed to connect to " + dsn + ", ErrCode: " + err.code + ", ErrMessage: " + err.message);
         throw err;
     }
 
