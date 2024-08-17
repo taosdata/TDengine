@@ -59,7 +59,7 @@ async function prepare() {
         }
     }
     catch (err) {
-        console.error("Failed to insert to table meters using stmt, ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.error(`Failed to insert to table meters using stmt, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     }
     finally {
         if (stmt) {

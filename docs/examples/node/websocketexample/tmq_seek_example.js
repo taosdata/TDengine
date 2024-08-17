@@ -2,7 +2,11 @@ const taos = require("@tdengine/websocket");
 
 const db = 'power';
 const stable = 'meters';
-const topics = ['power_meters_topic'];
+const topic = 'topic_meters'
+const topics = [topic];
+const groupId = "group1";
+const clientId = "client1";
+
 
 // ANCHOR: create_consumer
 async function createConsumer() {
@@ -19,7 +23,7 @@ async function createConsumer() {
     try {
         return await taos.tmqConnect(configMap);
     } catch (err) {
-        console.log(err);
+        console.error(err);
         throw err;
     }
 
@@ -55,11 +59,12 @@ async function subscribe(consumer) {
         for (let i = 0; i < 50; i++) {
             let res = await consumer.poll(100);
             for (let [key, value] of res) {
+                // Add your data processing logic here
                 console.log(`data: ${key} ${value}`);
             }
         }
     } catch (err) {
-        console.error("Failed to poll data, ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.error(`Failed to poll data, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
         throw err;
     }
 
@@ -83,7 +88,7 @@ async function test() {
         console.log("Assignment seek to beginning successfully");
     }
     catch (err) {
-        console.error("Failed to execute seek example, ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.error(`Failed to seek offset, topic: ${topic}, groupId: ${groupId}, clientId: ${clientId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     }
     finally {
         if (consumer) {

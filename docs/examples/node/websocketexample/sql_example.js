@@ -35,7 +35,7 @@ async function createDbAndTable() {
 
         console.log("Create stable power.meters successfully");
     } catch (err) {
-        console.error("Failed to create database power or stable meters, ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.error(`Failed to create database power or stable meters, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     } finally {
         if (wsSql) {
             await wsSql.close();
@@ -62,7 +62,7 @@ async function insertData() {
         taosResult = await wsSql.exec(insertQuery);
         console.log("Successfully inserted " + taosResult.getAffectRows() + " rows to power.meters.");
     } catch (err) {
-        console.error("Failed to insert data to power.meters, ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.error(`Failed to insert data to power.meters, sql: ${insertQuery}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     } finally {
         if (wsSql) {
             await wsSql.close();
@@ -85,7 +85,7 @@ async function queryData() {
         }
     }
     catch (err) {
-        console.error("Failed to query data from power.meters, sql: " + sql + ", ErrCode:" + err.code + ", ErrMessage: " + err.message);
+        console.error(`Failed to query data from power.meters, sql: ${sql}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     }
     finally {
         if (wsRows) {
@@ -112,7 +112,7 @@ async function sqlWithReqid() {
         }
     }
     catch (err) {
-        console.error("Failed to execute sql with reqId: " + reqId + ", ErrCode: " + err.code + ", ErrMessage: " + err.message);
+        console.error(`Failed to query data from power.meters, reqId: ${reqId}, ErrCode: ${err.code}, ErrMessage: ${err.message}`);
     }
     finally {
         if (wsRows) {
