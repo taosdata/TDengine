@@ -318,18 +318,17 @@ void streamFreeTaskState(SStreamTask* pTask, int8_t remove) {
     taskDbRemoveRef(pTask->pBackend);
     pTask->pBackend = NULL;
     pTask->pState = NULL;
-    if (pTask->backendPath != NULL) {
-      taosMemoryFree(pTask->backendPath);
-      pTask->backendPath = NULL;
-    }
   } else {
     if (remove) {
       if (pTask->backendPath != NULL) {
         taosRemoveDir(pTask->backendPath);
-        taosMemoryFree(pTask->backendPath);
-        pTask->backendPath = NULL;
       }
     }
+  }
+
+  if (pTask->backendPath != NULL) {
+    taosMemoryFree(pTask->backendPath);
+    pTask->backendPath = NULL;
   }
 }
 
