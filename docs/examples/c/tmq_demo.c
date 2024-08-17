@@ -92,7 +92,6 @@ void* prepare_data(void* arg) {
 
 // ANCHOR: msg_process
 int32_t msg_process(TAOS_RES* msg) {
-  char        buf[1024];  // buf to store the row content
   int32_t     rows = 0;
   const char* topicName = tmq_get_topic_name(msg);
   const char* dbName    = tmq_get_db_name(msg);
@@ -371,8 +370,8 @@ void consume_repeatly(tmq_t* tmq) {
 
     code = tmq_offset_seek(tmq, topic_name, p->vgId, p->begin);
     if (code != 0) {
-      fprintf(stderr, "Failed to seek offset, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
-              topic_name, config.group_id, config.client_id, code, tmq_err2str(code));
+      fprintf(stderr, "Failed to seek offset, topic: %s, groupId: %s, clientId: %s, vgId: %d, ErrCode: 0x%x, ErrMessage: %s.\n",
+              topic_name, config.group_id, config.client_id, p->vgId, code, tmq_err2str(code));
       break;
     }
   }
