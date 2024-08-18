@@ -828,16 +828,19 @@ static int32_t findNextValidRow(SLDataIter *pIter, const char *idStr) {
   return code;
 }
 
-bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
+int32_t tLDataIterNextRow(SLDataIter *pIter, const char *idStr, bool* hasNext) {
   int32_t     step = pIter->backward ? -1 : 1;
   int32_t     code = 0;
   int32_t     iBlockL = pIter->iSttBlk;
   SBlockData *pBlockData = NULL;
+  int32_t     lino = 0;
+
+  *hasNext = false;
   terrno = 0;
   
   // no qualified last file block in current file, no need to fetch row
   if (pIter->pSttBlk == NULL) {
-    return false;
+    return code;
   }
 
   code = loadLastBlock(pIter, idStr, &pBlockData);
@@ -850,9 +853,7 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   while (1) {
     bool skipBlock = false;
     code = findNextValidRow(pIter, idStr);
-    if (code) {
-      goto _exit;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     if (pIter->pBlockLoadInfo->checkRemainingRow) {
       skipBlock = true;
@@ -902,7 +903,8 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   pIter->rInfo.row = tsdbRowFromBlockData(pBlockData, pIter->iRow);
 
 _exit:
-  return (code == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL) && (pBlockData != NULL);
+  *hasNext = (code == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL) && (pBlockData != NULL);
+  return code;
 }
 
 // SMergeTree =================================================
@@ -1005,7 +1007,12 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
         goto _end;
       }
 
-      bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
+      bool hasVal = NULL;
+      code = tLDataIterNextRow(pIter, pMTree->idStr, &hasVal);
+      if (code) {
+        goto _end;
+      }
+
       if (hasVal) {
         tMergeTreeAddIter(pMTree, pIter);
 
@@ -1018,7 +1025,6 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
           pSttDataInfo->numOfRows += numOfRows;
         }
       } else {
-        TAOS_CHECK_GOTO(terrno, NULL, _end);
         if (!pMTree->ignoreEarlierTs) {
           pMTree->ignoreEarlierTs = pIter->ignoreEarlierTs;
         }
@@ -1100,8 +1106,9 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
   if (pMTree->pIter) {
     SLDataIter *pIter = pMTree->pIter;
 
-    bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
-    if (!hasVal) {
+    bool hasVal = false;
+    int32_t code = tLDataIterNextRow(pIter, pMTree->idStr, &hasVal);
+    if (!hasVal || (code != 0)) {
       pMTree->pIter = NULL;
     }
 

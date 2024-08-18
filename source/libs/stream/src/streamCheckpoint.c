@@ -1354,7 +1354,7 @@ int32_t deleteCheckpointFile(const char* id, const char* name) {
   return code;
 }
 
-int32_t streamTaskSendRestoreChkptMsg(SStreamTask* pTask) {
+int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
 
   streamMutexLock(&pTask->lock);
