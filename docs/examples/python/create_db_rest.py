@@ -19,7 +19,7 @@ try:
     print(f"Create stable power.meters successfully, rowsAffected: {rowsAffected}");
 
 except Exception as err:
-    print(f"Failed to create db and table, url:{url} ; ErrMessage:{err}") 
+    print(f"Failed to create database power or stable meters, ErrMessage:{err}") 
 finally:
     if conn:
         conn.close()

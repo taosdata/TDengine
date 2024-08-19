@@ -42,13 +42,13 @@ namespace TDengineExample
             catch (TDengineError e)
             {
                 // handle TDengine error
-                Console.WriteLine("Failed to insert data with schemaless; ErrCode:" + e.Code + "; ErrMessage: " + e.Error);
+                Console.WriteLine("Failed to insert data with schemaless, ErrCode: " + e.Code + ", ErrMessage: " + e.Error);
                 throw;
             }
             catch (Exception e)
             {
                 // handle other exceptions
-                Console.WriteLine("Failed to insert data with schemaless; Err:" + e.Message);
+                Console.WriteLine("Failed to insert data with schemaless, ErrMessage:" + e.Message);
                 throw;
             }
         }

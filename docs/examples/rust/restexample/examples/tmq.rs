@@ -3,6 +3,8 @@ use std::str::FromStr;
 use chrono::Local;
 use chrono::DateTime;
 use taos::*;
+use std::thread;
+use tokio::runtime::Runtime;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -53,17 +55,38 @@ async fn main() -> anyhow::Result<()> {
             consumer
         }
         Err(err) => {
-            eprintln!("Failed to create consumer, dsn: {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to create websocket consumer, dsn: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", dsn, group_id, client_id, err);
             return Err(err.into());
         }
     };
     // ANCHOR_END: create_consumer_ac
 
+    thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+
+        rt.block_on(async {
+            let taos_insert = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
+            for i in 0..50 {
+                let insert_sql = format!(r#"INSERT INTO 
+                                    power.d1001 USING power.meters TAGS(2,'California.SanFrancisco')  
+                                    VALUES 
+                                    (NOW, 10.30000, {}, 0.31000)"#, i);
+                if let Err(e) = taos_insert.exec(insert_sql).await {
+                    eprintln!("Failed to execute insert: {:?}", e);
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        });
+
+    }).join().unwrap();
+
+
     // ANCHOR: consume
-    match consumer.subscribe(["topic_meters"]).await{
+    let topic = "topic_meters";
+    match consumer.subscribe([topic]).await{
         Ok(_) => println!("Subscribe topics successfully."),
         Err(err) => {
-            eprintln!("Failed to subscribe topic_meters, dsn: {}; ErrMessage: {}", dsn, err);
+            eprintln!("Failed to subscribe topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", topic, group_id, client_id, err);
             return Err(err.into());
         }
     }
@@ -94,13 +117,14 @@ async fn main() -> anyhow::Result<()> {
         if let Some(data) = message.into_data() {
             while let Some(block) = data.fetch_raw_block().await? {
                 let records: Vec<Record> = block.deserialize().try_collect()?;
+                // Add your data processing logic here
                 println!("** read {} records: {:#?}\n", records.len(), records);
             }
         }
         Ok(())
     })
     .await.map_err(|e| {
-        eprintln!("Failed to poll data; ErrMessage: {:?}", e);
+        eprintln!("Failed to poll data, topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", topic, group_id, client_id, e);
         e
     })?;
 
@@ -110,14 +134,14 @@ async fn main() -> anyhow::Result<()> {
     consumer
         .stream()
         .try_for_each(|(offset, message)| async {
-            let topic = offset.topic();
             // the vgroup id, like partition id in kafka.
             let vgroup_id = offset.vgroup_id();
-            println!("* in vgroup id {vgroup_id} of topic {topic}\n");
+            println!("* in vgroup id {} of topic {}\n", vgroup_id, topic);
 
             if let Some(data) = message.into_data() {
                 while let Some(block) = data.fetch_raw_block().await? {
                     let records: Vec<Record> = block.deserialize().try_collect()?;
+                    // Add your data processing logic here
                     println!("** read {} records: {:#?}\n", records.len(), records);
                 }
             }
@@ -125,21 +149,29 @@ async fn main() -> anyhow::Result<()> {
             match consumer.commit(offset).await{
                 Ok(_) => println!("Commit offset manually successfully."),
                 Err(err) => {
-                    eprintln!("Failed to commit offset manually, dsn: {}; ErrMessage: {}", dsn, err);
+                    eprintln!("Failed to commit offset manually, topic: {}, groupId: {}, clientId: {}, vGroupId: {}, ErrMessage: {:?}", 
+                    topic, group_id, client_id, vgroup_id, err);
                     return Err(err.into());
                 }
             }
             Ok(())
         })
         .await.map_err(|e| {
-            eprintln!("Failed to execute consumer functions. ErrMessage: {:?}", e);
+            eprintln!("Failed to poll data, topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", topic, group_id, client_id, e);
             e
         })?;
     // ANCHOR_END: consumer_commit_manually
 
 
     // ANCHOR: seek_offset
-    let assignments = consumer.assignments().await.unwrap();
+    let assignments = match consumer.assignments().await{
+        Some(assignments) => assignments,
+        None => {
+            let error_message = format!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id);
+            eprintln!("{}", error_message);
+            return Err(anyhow::anyhow!(error_message));
+        }
+    };
     println!("assignments: {:?}", assignments);
 
     // seek offset
@@ -152,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
             let begin = assignment.begin();
             let end = assignment.end();
             println!(
-                "topic: {}, vgroup_id: {}, current offset: {} begin {}, end: {}",
+                "topic: {}, vgroup_id: {}, current offset: {}, begin {}, end: {}",
                 topic,
                 vgroup_id,
                 current,
@@ -163,7 +195,8 @@ async fn main() -> anyhow::Result<()> {
             match consumer.offset_seek(topic, vgroup_id, begin).await{
                 Ok(_) => (),
                 Err(err) => {
-                    eprintln!("seek example failed; ErrMessage: {}", err);
+                    eprintln!("Failed to seek offset, topic: {}, groupId: {}, clientId: {}, vGroupId: {}, begin: {}, ErrMessage: {:?}", 
+                    topic, group_id, client_id, vgroup_id, begin, err);
                     return Err(err.into());
                 }
             }
@@ -174,7 +207,14 @@ async fn main() -> anyhow::Result<()> {
     }
     println!("Assignment seek to beginning successfully.");
     // after seek offset
-    let assignments = consumer.assignments().await.unwrap();
+    let assignments = match consumer.assignments().await{
+        Some(assignments) => assignments,
+        None => {
+            let error_message = format!("Failed to get assignments. topic: {}, groupId: {}, clientId: {}", topic, group_id, client_id);
+            eprintln!("{}", error_message);
+            return Err(anyhow::anyhow!(error_message));
+        }
+    };
     println!("After seek offset assignments: {:?}", assignments);
     // ANCHOR_END: seek_offset
 
