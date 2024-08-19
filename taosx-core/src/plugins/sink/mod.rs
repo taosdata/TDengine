@@ -12,10 +12,11 @@ use std::{
     time::Duration,
 };
 
-use crate::plugins::runners::opc::config::model::ColumnConfig;
-use crate::plugins::runners::opc::config::model::OpcModelConfig;
+use crate::runners::opc::config::model::ColumnConfig;
+use crate::runners::opc::config::model::OpcModelConfig;
 use crate::runners::opc::config::model::TableConfig;
 use crate::runners::opc::config::model::TagConfig;
+
 use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::TraceDataId;
@@ -65,7 +66,6 @@ use taosx_ipc::{
 
 use tracing::{trace, warn};
 
-use crate::runners::opc::config::points::UpdateMode;
 use crate::{
     plugins::transform::WrittenMethod,
     sink::flat::{
@@ -1811,7 +1811,8 @@ mod handle_transform_tests {
 
         let dsn =
             Dsn::from_str("opcua://?csv_config_file=@../tests/opc/opcua-utf8bom.csv").unwrap();
-        let model_config = CsvParser::from_dsn(&dsn).await.unwrap().get_model_config();
+        let parser = CsvParser::from_dsn(&dsn).unwrap();
+        let model_config = parser.parse().await.unwrap();
 
         let transformed_msg = handle_transform(&message, &model_config).unwrap();
 
@@ -1985,7 +1986,6 @@ async fn consume_point_record(
     }
     tracing::trace!("consume point record, opc model config: {:?}", config);
 
-    let point_model_config = config.get_point_model_config();
     let mut point_config_map = config.point_config_map.clone();
     let mut table_config_map = config.table_config_map.clone();
 
@@ -2034,60 +2034,36 @@ async fn consume_point_record(
                 .to_string()
                 .unwrap();
 
-            // point_config
-            let point_config = point_config_map.get(&point_id);
-            if point_config.is_none() {
-                let point_config = match point_model_config.clone() {
-                    None => None,
-                    Some(point_model_config) => match point_model_config.update_mode {
-                        UpdateMode::Append | UpdateMode::Update => {
-                            let index = point_config_map.len();
-
-                            let point_config = config.build_point_config(
-                                index,
-                                point_id.clone(),
-                                Some(value_raw_type.clone()),
-                            )?;
-                            Some(point_config)
-                        }
-                        UpdateMode::None => None,
-                    },
-                };
-
-                match point_config {
-                    None => {
-                        tracing::trace!("cannot get point_config with point_id: {}", point_id);
+            let mapping = config.get_point_mapping(&point_id)?;
+            if mapping.is_none() {
+                tracing::warn!(
+                    "point mapping not found and try to auto generate, point_id: {}",
+                    point_id
+                );
+                let mapping = config
+                    .generate_point_mapping(&point_id, &value_raw_type)
+                    .await;
+                match mapping {
+                    Err(err) => {
+                        tracing::warn!(
+                            "failed to generate point mapping with point_id: {}, cause: {:?}",
+                            point_id,
+                            err
+                        );
                         continue;
                     }
-                    Some(point_config) => {
-                        point_config_map.insert(point_id.clone(), point_config);
+                    Ok((p, t)) => {
+                        tracing::debug!(
+                            "generate point mapping, point config: {:?}, table config: {:?}",
+                            p,
+                            t
+                        );
+                        point_config_map.insert(point_id.clone(), p);
+                        table_config_map.insert(point_id.clone(), t);
                     }
                 }
             }
             let point_config = point_config_map.get(&point_id).unwrap();
-
-            // table_config
-            let table_config = table_config_map.get(&point_id);
-            if table_config.is_none() {
-                let table_config = match point_model_config.clone() {
-                    None => None,
-                    Some(point_model_config) => match point_model_config.update_mode {
-                        UpdateMode::Append | UpdateMode::Update => {
-                            Some(config.build_table_config(Some(value_raw_type.clone()))?)
-                        }
-                        UpdateMode::None => None,
-                    },
-                };
-                match table_config {
-                    None => {
-                        tracing::trace!("cannot get table_config with point_id: {}", point_id);
-                        continue;
-                    }
-                    Some(table_config) => {
-                        table_config_map.insert(point_id.clone(), table_config);
-                    }
-                }
-            }
             let table_config = table_config_map.get(&point_id).unwrap();
 
             // stable_name

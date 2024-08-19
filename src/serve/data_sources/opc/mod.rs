@@ -263,10 +263,13 @@ pub async fn append_point(
 
     match append_point_impl(task_id, point_details, task_store).await {
         Ok(_) => Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish()),
-        Err(err) => Err(Failed {
-            code: Code::FAILED,
-            message: format!("failed to add point: {}", err),
-        }),
+        Err(err) => {
+            tracing::error!("failed to add point: {:#?}", err);
+            Err(Failed {
+                code: Code::FAILED,
+                message: format!("failed to add point: {}", err),
+            })
+        }
     }
 }
 
@@ -290,6 +293,7 @@ async fn append_point_impl(
 
     // Vec<PointDetail> to csv
     let line = PointDetail::to_csv(point, true).await?;
+    tracing::debug!("append opc point to csv, data: \n{}", line);
 
     // append point to csv file
     runners::opc::append_point(&dsn, line).await

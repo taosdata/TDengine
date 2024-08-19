@@ -10,63 +10,91 @@ use crate::runners::opc::config::collect::da::DaNodeConfig;
 use crate::runners::opc::config::collect::ua::UANodeConfig;
 use crate::runners::opc::config::points::UpdateMode;
 use crate::runners::opc::config::OPCConfig;
-use crate::runners::opc::{opc_datasets_by_command, OpcType};
+use crate::runners::opc::{opc_datasets_by_command, opc_datasets_by_csv, OpcType};
 
+#[derive(Debug, Clone)]
+pub enum UpdateBy {
+    Command,
+    Csv(String),
+}
+
+#[derive(Debug)]
 pub struct PointsUpdater {
     opc_config: OPCConfig,
-    opc_config_file: String,
-    mode: UpdateMode,
-    interval: tokio::time::Interval,
+    opc_config_file: String, // 生成 taosx-opc 的配置文件的路径
+    update_by: UpdateBy,
+    update_mode: UpdateMode,
+    update_interval: tokio::time::Interval,
     cancel_token: CancellationToken,
     cur_list: Vec<DataSet>,
 }
 
 impl PointsUpdater {
-    pub fn from_opc_config(
-        config: OPCConfig,
-        config_file: String,
+    pub fn new(
+        opc_config: OPCConfig,
+        update_by: UpdateBy,
+        opc_config_file: String,
         token: CancellationToken,
     ) -> Self {
-        let mode = config
-            .clone()
-            .points
-            .map(|p| p.update_mode.unwrap_or(UpdateMode::None))
-            .unwrap_or(UpdateMode::None);
-        let interval = config
-            .clone()
-            .points
-            .map(|p| p.update_interval.unwrap_or(600))
-            .unwrap_or(600);
-
-        Self {
-            opc_config: config,
-            opc_config_file: config_file,
-            mode,
-            interval: tokio::time::interval(Duration::from_secs(interval as u64)),
-            cancel_token: token,
-            cur_list: Vec::new(),
+        match &update_by {
+            UpdateBy::Command => {
+                let update_mode = opc_config
+                    .clone()
+                    .points
+                    .map(|p| p.update_mode.unwrap_or(UpdateMode::None))
+                    .unwrap_or(UpdateMode::None);
+                let update_interval = opc_config
+                    .clone()
+                    .points
+                    .map(|p| p.update_interval.unwrap_or(600))
+                    .unwrap_or(600);
+                Self {
+                    opc_config,
+                    opc_config_file,
+                    update_by,
+                    update_mode,
+                    update_interval: tokio::time::interval(Duration::from_secs(
+                        update_interval as u64,
+                    )),
+                    cancel_token: token,
+                    cur_list: vec![],
+                }
+            }
+            UpdateBy::Csv(_csv) => Self {
+                opc_config,
+                opc_config_file,
+                update_by,
+                update_mode: UpdateMode::Append,
+                update_interval: tokio::time::interval(Duration::from_secs(60)),
+                cancel_token: token,
+                cur_list: vec![],
+            },
         }
     }
 
     pub async fn run(&mut self) {
-        if self.mode == UpdateMode::None {
+        if self.update_mode == UpdateMode::None {
             return;
         }
 
-        tracing::info!("update points start");
+        tracing::info!("update points thread started");
         loop {
             if self.cancel_token.is_cancelled() {
-                tracing::info!("update points stop");
                 break;
             }
-            self.interval.tick().await;
+            self.update_interval.tick().await;
 
             //  1. 查询所有符合过滤条件的点位，形成点位列表：to_list；
-            let to_list = opc_datasets_by_command(&self.opc_config).await;
+            let to_list = match &self.update_by {
+                UpdateBy::Command => opc_datasets_by_command(&self.opc_config).await,
+                UpdateBy::Csv(csv) => {
+                    opc_datasets_by_csv(self.opc_config.opc_type.clone(), csv.clone()).await
+                }
+            };
             if let Err(e) = to_list {
                 tracing::error!(
                     "failed to get points during points updating, opc config: {:?}, cause: {}",
-                    &self.opc_config,
+                    &self,
                     e.to_string()
                 );
                 continue;
@@ -77,25 +105,13 @@ impl PointsUpdater {
             let add_list = diff(&to_list, &self.cur_list);
             let del_list = diff(&self.cur_list, &to_list);
             tracing::info!(
-                "update points mode: {:?}, add: {}, del: {}",
-                self.mode,
-                format!(
-                    "{:?}",
-                    add_list
-                        .iter()
-                        .map(|ds| ds.id.clone())
-                        .collect::<Vec<String>>()
-                ),
-                format!(
-                    "{:?}",
-                    del_list
-                        .iter()
-                        .map(|ds| ds.id.clone())
-                        .collect::<Vec<String>>()
-                ),
+                "update points mode: {:?}, add list: {:?}, del list: {:?}",
+                self.update_mode,
+                add_list,
+                del_list
             );
 
-            let update_result = match self.mode {
+            let update_result = match self.update_mode {
                 //  3. append 模式下，如果 add_list 为空，则等待进入下次点位检查；如果add_list不为空，将add_list写入配置文件的点位列表；
                 UpdateMode::Append => {
                     if add_list.is_empty() {
@@ -124,12 +140,13 @@ impl PointsUpdater {
                 Err(e) => {
                     tracing::error!(
                         "failed to update points during points updating, opc config: {:?}, cause: {}",
-                        &self.opc_config,
+                        &self,
                         e.to_string()
                     );
                 }
             }
         }
+        tracing::info!("update points thread stopped");
     }
 
     /// Vec<DataSet> -> config_file

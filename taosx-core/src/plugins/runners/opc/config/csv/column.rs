@@ -17,7 +17,7 @@ pub struct CsvColumn {
 }
 
 impl CsvColumn {
-    pub async fn try_new(name: &str, index: usize) -> anyhow::Result<Self> {
+    pub fn try_new(name: &str, index: usize) -> anyhow::Result<Self> {
         let col = match name {
             "point_id" | "tag_name" | "TagName" => Self::default(name, index),
             "enabled" => Self::default(name, index),
