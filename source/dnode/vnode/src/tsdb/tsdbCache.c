@@ -540,7 +540,7 @@ static int32_t reallocVarDataVal(SValue *pValue) {
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
       }
       pValue->pData = p;
-      memcpy(pValue->pData, pVal, pValue->nData);  //
+      memcpy(pValue->pData, pVal, pValue->nData);
       taosMemoryFreeClear(pVal);
     } else {
       pValue->pData = NULL;
@@ -962,7 +962,7 @@ static int32_t tsdbCacheUpdateValue(SValue *pOld, SValue *pNew) {
   *pOld = *pNew;
   if (IS_VAR_DATA_TYPE(pNew->type)) {
     if (nData < pNew->nData) {
-      pOld->pData = taosMemoryCalloc(1, pNew->nData);  //
+      pOld->pData = taosMemoryCalloc(1, pNew->nData);
       if (!pOld->pData) {
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
       }
