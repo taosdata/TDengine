@@ -90,10 +90,10 @@ async fn worker(
     const MAX_WS_RETRIES: usize = 5;
     let mut from = source.get().await?;
     let mut to = target.get().await?;
-    from.exec("select server_status()")
+    from.exec("select server_version()")
         .await
         .map_err(|err| anyhow::format_err!("check source connection error: {err:?}"))?;
-    to.exec("select server_status()")
+    to.exec("select server_version()")
         .await
         .map_err(|err| anyhow::format_err!("check target connection error: {err:?}"))?;
     let smooth_fold = (worker as f64 + 1.0).log2() as u32;
