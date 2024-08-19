@@ -21,7 +21,6 @@
 static SSyncEnv gSyncEnv = {0};
 static int32_t  gNodeRefId = -1;
 static int32_t  gHbDataRefId = -1;
-static void     syncEnvTick(void *param, void *tmrId);
 
 SSyncEnv *syncEnv() { return &gSyncEnv; }
 
@@ -34,13 +33,6 @@ int32_t syncInit() {
   taosSeedRand(seed);
 
   memset(&gSyncEnv, 0, sizeof(SSyncEnv));
-  gSyncEnv.envTickTimerCounter = 0;
-  gSyncEnv.envTickTimerMS = ENV_TICK_TIMER_MS;
-  gSyncEnv.FpEnvTickTimer = syncEnvTick;
-  atomic_store_64(&gSyncEnv.envTickTimerLogicClock, 0);
-  atomic_store_64(&gSyncEnv.envTickTimerLogicClockUser, 0);
-
-  // start tmr thread
   gSyncEnv.pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
 
   gNodeRefId = taosOpenRef(200, (RefFp)syncNodeClose);
@@ -146,41 +138,4 @@ void syncHbTimerDataRelease(SSyncHbTimerData *pData) {
   if (pData) {
     (void)taosReleaseRef(gHbDataRefId, pData->rid);
   }
-}
-
-#if 0
-void syncEnvStartTimer() {
-  taosTmrReset(gSyncEnv.FpEnvTickTimer, gSyncEnv.envTickTimerMS, &gSyncEnv, gSyncEnv.pTimerManager,
-               &gSyncEnv.pEnvTickTimer);
-  atomic_store_64(&gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerLogicClockUser);
-}
-
-void syncEnvStopTimer() {
-  int32_t ret = 0;
-  atomic_add_fetch_64(&gSyncEnv.envTickTimerLogicClockUser, 1);
-  taosTmrStop(gSyncEnv.pEnvTickTimer);
-  gSyncEnv.pEnvTickTimer = NULL;
-  return ret;
-}
-#endif
-
-static void syncEnvTick(void *param, void *tmrId) {
-#if 0
-  SSyncEnv *pSyncEnv = param;
-  if (atomic_load_64(&gSyncEnv.envTickTimerLogicClockUser) <= atomic_load_64(&gSyncEnv.envTickTimerLogicClock)) {
-    gSyncEnv.envTickTimerCounter++;
-    sTrace("syncEnvTick do ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64
-           ", envTickTimerCounter:%" PRIu64 ", envTickTimerMS:%d, tmrId:%p",
-           gSyncEnv.envTickTimerLogicClockUser, gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerCounter,
-           gSyncEnv.envTickTimerMS, tmrId);
-
-    // do something, tick ...
-    taosTmrReset(syncEnvTick, gSyncEnv.envTickTimerMS, pSyncEnv, gSyncEnv.pTimerManager, &gSyncEnv.pEnvTickTimer);
-  } else {
-    sTrace("syncEnvTick pass ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64
-           ", envTickTimerCounter:%" PRIu64 ", envTickTimerMS:%d, tmrId:%p",
-           gSyncEnv.envTickTimerLogicClockUser, gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerCounter,
-           gSyncEnv.envTickTimerMS, tmrId);
-  }
-#endif
 }
