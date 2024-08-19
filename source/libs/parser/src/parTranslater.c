@@ -10385,9 +10385,20 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
   }
 
   if (pSelect->hasInterpFunc) {
-    if (pStmt->pOptions->fillHistory && pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                     "When trigger was force window close, Stream interp unsupported Fill history");
+    if (pStmt->pOptions->triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      if (pStmt->pOptions->fillHistory) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "When trigger was force window close, Stream interp unsupported Fill history");
+      } else if (pSelect->pFill != NULL) {
+        EFillMode mode = ((SFillNode*)(pSelect->pFill))->mode;
+        if (mode == FILL_MODE_NEXT) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                         "When trigger was force window close, Stream interp unsupported Fill(Next)");
+        } else if (mode == FILL_MODE_LINEAR) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                         "When trigger was force window close, Stream interp unsupported Fill(Linear)");
+        }
+      }
     }
 
     if (pStmt->pOptions->triggerType == STREAM_TRIGGER_WINDOW_CLOSE) {
