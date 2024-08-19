@@ -1,11 +1,9 @@
 use actix_web::web::{Data, Json, Query};
 use actix_web::{get, post, HttpResponse, Responder};
-use csv::StringRecord;
 use csv_async::AsyncWriter;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
-use tracing_subscriber::fmt::format;
 use utoipa::*;
 
 use taosx_core::runners::opc::config::csv::column::CsvColumn;
@@ -67,11 +65,11 @@ impl From<CsvColumn> for PointDetail {
             is_timestamp: col.is_timestamp,
             is_expression: col.is_expression,
             choices: match col.name.clone().as_str() {
-                "enable" => Some(vec!["0".to_string(), "1".to_string()]),
+                "enabled" => Some(vec!["0".to_string(), "1".to_string()]),
                 _ => None,
             },
             default_value: match col.name.clone().as_str() {
-                "enable" => Some("1".to_string()),
+                "enabled" => Some("1".to_string()),
                 _ => None,
             },
             description: {
@@ -83,7 +81,7 @@ impl From<CsvColumn> for PointDetail {
                         "tag_name" =>Some("The id of the data point on the OPC DA server".to_string()) ,
                         "stable" =>Some("The id of the data point on the OPC UA server".to_string()) ,
                         "tbname" =>Some("The id of the data point on the OPC UA server".to_string()) ,
-                        "enable" =>Some("Whether to collect data for this point, optional. If the enable column is not configured, a uniform default value of 1 will be used as the value of enable".to_string()) ,
+                        "enabled" =>Some("Whether to collect data for this point, optional. If the enabled column is not configured, a uniform default value of 1 will be used as the value of enabled".to_string()) ,
                         "value_col" =>Some("The column name of the data point's collected value in TDengine. If the value_col is not configured, a uniform default value of val will be used as the value of value_col".to_string()) ,
                         "value_transform" =>Some("The transform function executed in taosX for the data point's collected value, optional. If value_transform is not configured, transform will not be applied uniformly".to_string()) ,
                         "type" =>Some("The data type of the data point's collected value, optional. If the type column is not configured, the original type of the collected value will be used as the data type in TDengine".to_string()) ,
@@ -105,7 +103,7 @@ impl From<CsvColumn> for PointDetail {
                         "tag_name" =>Some("数据点位在 OPC DA 服务器上的 id，必填".to_string()) ,
                         "stable" =>Some("数据点位在 TDengine 对应的超级表".to_string()) ,
                         "tbname" =>Some("数据点位在 TDengine 对应的子表".to_string()) ,
-                        "enable" =>Some("是否采集该点位数据，可选，不配置 enable 列时，使用统一的默认值1作为 enable 的值".to_string()) ,
+                        "enabled" =>Some("是否采集该点位数据，可选，不配置 enabled 列时，使用统一的默认值1作为 enabled 的值".to_string()) ,
                         "value_col" =>Some("数据点位采集值在 TDengine 中对应的列名，可选，不配置 value_col 列时，使用统一的默认值 val 作为 value_col 的值".to_string()) ,
                         "value_transform" =>Some("数据点位采集值在 taosX 中执行的变换函数，可选，不配置 value_transform 列时，统一不进行采集值的 transform".to_string()) ,
                         "type" =>Some("数据点位采集值的数据类型，可选，不配置 type 列时，统一使用采集值的原始类型作为 TDengine 中的数据类型".to_string()) ,
@@ -123,34 +121,41 @@ impl From<CsvColumn> for PointDetail {
 }
 
 impl PointDetail {
-    async fn to_csv(point: Vec<PointDetail>) -> anyhow::Result<String> {
+    /// convert Vec<PointDetail> to csv string
+    async fn to_csv(point: Vec<PointDetail>, with_header: bool) -> anyhow::Result<String> {
+        // sort by index
+        let point = point
+            .iter()
+            .sorted_by(|a, b| a.index.cmp(&b.index))
+            .collect_vec();
+
         let mut writer = AsyncWriter::from_writer(vec![]);
 
-        // TODO: vec to csv
+        if with_header {
+            let mut header = vec![];
+            for p in point.iter() {
+                if p.is_tag {
+                    // example: tag::VARCHAR(200)::name
+                    let tag_type = p
+                        .r#type
+                        .clone()
+                        .ok_or(anyhow::anyhow!("tag type cannot be None"))?
+                        .sql_repr_display();
+                    let tag_header = format!("tag::{}::{}", tag_type, p.name);
+                    header.push(tag_header);
+                } else {
+                    header.push(p.name.clone());
+                }
+            }
+            writer.write_record(header).await?;
+        }
 
-        // let header = point.iter()
-        //     .sorted_by(|a, b| a.index.cmp(&b.index))
-        //     .map(|p| {
-        //         if p.is_tag {
-        //             // example: tag::VARCHAR(200)::name
-        //             let value_type =                     p.r#type.clone();
-        //
-        //             format!("{}::{}::{}",  "tag", .clone().to_string(), p.name)
-        //         }else {
-        //             p.name.clone()
-        //         }
-        //     }).collect_vec();
-        //
-        // writer.write_record(header).await?;
-        //
-        // let line = ;
-        //
-        // writer.write_record(line).await?;
+        let mut line = vec![];
+        for p in point.iter() {
+            line.push(p.value.clone().unwrap_or("".to_string()));
+        }
+        writer.write_record(line).await?;
 
-        // .point
-        // .iter()
-        // .sorted_by(|a, b| a.index.cmp(&b.index))
-        // .map(|p| {})
         Ok(String::from_utf8(writer.into_inner().await?)?)
     }
 }
@@ -204,9 +209,6 @@ async fn get_point_header_impl(
     task_id: i64,
     task_store: Data<TaskControllerRef>,
 ) -> anyhow::Result<Vec<PointDetail>> {
-    // set current dir to DATA_DIR
-    let _ = std::env::set_current_dir(get_data_dir());
-
     // find task detail
     let task = task_store
         .get(task_id)
@@ -217,20 +219,23 @@ async fn get_point_header_impl(
     let dsn = task.from.clone().into_dsn()?;
     tracing::debug!("get point headers for task: {}, from: {:?}", task_id, dsn);
 
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     // get csv header
     let csv_headers = runners::opc::get_csv_headers(&dsn).await?;
 
-    // to points header list
-    let mut points_headers = Vec::new();
+    // to PointDetail list
+    let mut point_details = Vec::new();
     // get headers from the first file
     if let Some((_filename, header)) = csv_headers.iter().next() {
         for column in header.get_columns() {
             let p = PointDetail::from(column.clone());
-            points_headers.push(p);
+            point_details.push(p);
         }
     }
 
-    Ok(points_headers)
+    Ok(point_details)
 }
 
 #[utoipa::path(
@@ -257,7 +262,7 @@ pub async fn append_point(
     let point_details = req.point.clone();
 
     match append_point_impl(task_id, point_details, task_store).await {
-        Ok(point) => Ok::<HttpResponse, Failed>(HttpResponse::Ok().json(point)),
+        Ok(_) => Ok::<HttpResponse, Failed>(HttpResponse::Ok().finish()),
         Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("failed to add point: {}", err),
@@ -270,9 +275,6 @@ async fn append_point_impl(
     point: Vec<PointDetail>,
     task_store: Data<TaskControllerRef>,
 ) -> anyhow::Result<()> {
-    // set current dir to DATA_DIR
-    let _ = std::env::set_current_dir(get_data_dir());
-
     // find task detail
     let task = task_store
         .get(task_id)
@@ -283,7 +285,154 @@ async fn append_point_impl(
     let dsn = task.from.clone().into_dsn()?;
     tracing::debug!("add point for task: {}, from: {:?}", task_id, dsn);
 
-    // Vec<PointDetail> to csv String with header
-    let line = PointDetail::to_csv(point).await?;
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
+    // Vec<PointDetail> to csv
+    let line = PointDetail::to_csv(point, true).await?;
+
+    // append point to csv file
     runners::opc::append_point(&dsn, line).await
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_point_detail_vec_to_csv() {
+        let json = r#"
+[
+  {
+    "index": 0,
+    "name": "No.",
+    "required": false,
+    "value": "1",
+    "is_tag": false,
+    "is_primary_key": false,
+    "is_timestamp": false,
+    "is_expression": false
+  },
+  {
+    "index": 1,
+    "name": "point_id",
+    "required": true,
+    "value": "ns=3;i=1001",
+    "is_tag": false,
+    "is_primary_key": false,
+    "is_timestamp": false,
+    "is_expression": false,
+    "description": "The id of the data point on the OPC UA server",
+    "description_cn": "数据点位在 OPC UA 服务器上的 id，必填"
+  },
+  {
+    "index": 2,
+    "name": "enabled",
+    "required": false,
+    "value": "1",
+    "is_tag": false,
+    "is_primary_key": false,
+    "is_timestamp": false,
+    "is_expression": false
+  },
+  {
+    "index": 3,
+    "name": "stable",
+    "required": true,
+    "value": "opc_{type}",
+    "is_tag": false,
+    "is_primary_key": false,
+    "is_timestamp": false,
+    "is_expression": false,
+    "description": "The id of the data point on the OPC UA server",
+    "description_cn": "数据点位在 TDengine 对应的超级表"
+  },
+  {
+    "index": 4,
+    "name": "tbname",
+    "required": true,
+    "value": "t_{ns}_{id}",
+    "is_tag": false,
+    "is_primary_key": false,
+    "is_timestamp": false,
+    "is_expression": false,
+    "description": "The id of the data point on the OPC UA server",
+    "description_cn": "数据点位在 TDengine 对应的子表"
+  },
+  {
+    "index": 5,
+    "name": "value_col",
+    "required": false,
+    "value": "val",
+    "is_tag": false,
+    "is_primary_key": false,
+    "is_timestamp": false,
+    "is_expression": false,
+    "description": "The column name of the data point's collected value in TDengine. If the value_col is not configured, a uniform default value of val will be used as the value of value_col",
+    "description_cn": "数据点位采集值在 TDengine 中对应的列名，可选，不配置 value_col 列时，使用统一的默认值 val 作为 value_col 的值"
+  },
+  {
+    "index": 6,
+    "name": "quality_col",
+    "required": false,
+    "value": "quality",
+    "is_tag": false,
+    "is_primary_key": false,
+    "is_timestamp": false,
+    "is_expression": false,
+    "description": "The column name of the data point's collected value quality in TDengine, optional. If quality_col is not configured, the quality column will not be added in TDengine",
+    "description_cn": "数据点位采集值质量在 TDengine 中对应的列名，可选，不配置 quality_col 时，统一不在 TDengine 添加 quality 列"
+  },
+  {
+    "index": 7,
+    "name": "ts_col",
+    "required": false,
+    "value": "ts",
+    "is_tag": false,
+    "is_primary_key": true,
+    "is_timestamp": true,
+    "is_expression": false,
+    "description": "The original timestamp of the data point corresponding to the timestamp column in TDengine, optional. If both ts_col and received_ts_col are present, ts_col will be as the timestamp column in TDengine; If only ts_col is present, it will be used as the timestamp column in TDengine",
+    "description_cn": "数据点位的原始时间戳在 TDengine 中对应的时间戳列，可选，ts_col，received_ts_col 按顺序同时存在，使用 ts_col 作 TDengine 中的时间戳列；ts_col 存在，使用 ts_col 作 TDengine 中的时间戳列"
+  },
+  {
+    "index": 8,
+    "name": "received_ts_col",
+    "required": false,
+    "value": "rts",
+    "is_tag": false,
+    "is_primary_key": false,
+    "is_timestamp": true,
+    "is_expression": false,
+    "description": "The timestamp column in TDengine corresponding to the time when the data point's collected value was received, optional. If both received_ts_col and ts_col are present, received_ts_col will be used as the timestamp column in TDengine; If only received_ts_col is present, it will be used as the timestamp column in TDengine",
+    "description_cn": "接收到该点位采集值时的时间戳在 TDengine 中对应的时间戳列，可选，received_ts_col，ts_col 按顺序同时存在，使用 received_ts_col 作 TDengine 中的时间戳列；received_ts_col 存在，使用 received_ts_col 作 TDengine 中的时间戳列"
+  },
+  {
+    "index": 9,
+    "name": "name",
+    "required": false,
+    "type": "varchar(200)",
+    "value": "标签",
+    "is_tag": true,
+    "is_primary_key": false,
+    "is_timestamp": false,
+    "is_expression": false,
+    "description": "Tag column corresponding to the data point in the TDengine.",
+    "description_cn": "数据点位在 TDengine 中对应的 Tag 列"
+  }
+]
+"#;
+        let point = serde_json::from_str::<Vec<PointDetail>>(json).unwrap();
+        let csv = PointDetail::to_csv(point, true).await.unwrap();
+        assert_eq!("No.,point_id,enabled,stable,tbname,value_col,quality_col,ts_col,received_ts_col,tag::varchar(200)::name
+1,ns=3;i=1001,1,opc_{type},t_{ns}_{id},val,quality,ts,rts,标签\n", csv.as_str());
+
+        let point = serde_json::from_str::<Vec<PointDetail>>(json).unwrap();
+        let csv = PointDetail::to_csv(point, false).await.unwrap();
+        assert_eq!(
+            "1,ns=3;i=1001,1,opc_{type},t_{ns}_{id},val,quality,ts,rts,标签\n",
+            csv.as_str()
+        )
+    }
 }

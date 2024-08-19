@@ -1,12 +1,13 @@
-use anyhow::Context;
-use csv_lib::StringRecord;
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::str::FromStr;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc};
+
+use anyhow::Context;
+use csv_async::AsyncReader;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use taos::{Dsn, DsnError};
 use tempfile::NamedTempFile;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -18,7 +19,6 @@ use tracing::{instrument, Span};
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::OptionSet;
 
-use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opc::config::csv::header::CsvHeader;
@@ -30,6 +30,8 @@ use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
     Transferred,
 };
+
+use super::get_data_dir;
 
 pub mod config;
 mod point_updater;
@@ -665,17 +667,76 @@ pub async fn get_csv_headers(dsn: &Dsn) -> anyhow::Result<HashMap<String, CsvHea
     ))?;
     tracing::debug!("get headers from csv files: {:?}", csv_files);
 
+    // parse header from csv files
     let parser = CsvParser::try_new(opc_type, csv_files)?;
-    let headers = parser.get_headers().await?;
+    let headers = parser.get_all_headers().await?;
 
     Ok(headers)
 }
 
 /// 为 opc 的 csv_config_file 追加一行点位配置
-pub async fn append_point(dsn: &Dsn, line: String) -> anyhow::Result<()> {
-    // TODO: append point to file
+pub async fn append_point(dsn: &Dsn, csv_line: String) -> anyhow::Result<()> {
+    let opc_type = OpcType::from_dsn(dsn)?;
+    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+        "csv_config_file not found in dsn: {}",
+        dsn.to_string()
+    ))?;
 
-    Ok(())
+    let csv_cloned = csv_line.clone();
+    let mut rdr = AsyncReader::from_reader(csv_cloned.as_bytes());
+    let headers = rdr.headers().await?;
+    let mut point_id_idx = None;
+    for i in 0..headers.len() {
+        let header = headers
+            .get(i)
+            .ok_or(anyhow::anyhow!("failed to get header at index: {}", i))?;
+        match opc_type {
+            OpcType::OPCUA => {
+                if header == "point_id" {
+                    point_id_idx = Some(i);
+                }
+            }
+            OpcType::OPCDA => {
+                if header == "tag_name" {
+                    point_id_idx = Some(i);
+                }
+            }
+            _ => anyhow::bail!("invalid opc type"),
+        }
+    }
+    let point_id_idx = point_id_idx.ok_or(anyhow::anyhow!(
+        "point id not found in csv line: {}",
+        csv_line
+    ))?;
+
+    let mut records = rdr.records();
+    let record = records.next().await.unwrap()?;
+    let point_id = record
+        .get(point_id_idx)
+        .ok_or(anyhow::anyhow!(
+            "failed to get point id in record: {:?} with index: {}",
+            record,
+            point_id_idx
+        ))?
+        .to_string();
+
+    let parser = CsvParser::from_dsn(dsn).await?;
+    let point_ids = parser.get_point_ids();
+    for p in point_ids {
+        let id = p
+            .split("::")
+            .next()
+            .ok_or(anyhow::anyhow!("failed to get point id from point: {}", p))?;
+        if id == point_id {
+            anyhow::bail!("point id: {} already exists", point_id);
+        }
+    }
+
+    // TODO: 检查提交的点位配置能否通过 CSV 合法性校验
+
+    // 将新增的点位配置，追加到现有的 CSV 点位配置文件中
+    let parser = CsvParser::try_new(opc_type, csv_files)?;
+    parser.append_line(csv_line).await
 }
 
 #[cfg(test)]
