@@ -24,6 +24,7 @@
 #include "mndVgroup.h"
 #include "osMemory.h"
 #include "parser.h"
+#include "taoserror.h"
 #include "tmisce.h"
 #include "tname.h"
 
@@ -878,6 +879,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   mndTransDrop(pTrans);
+
+  if (code == 0) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+   }
 
   SName dbname = {0};
   code = tNameFromString(&dbname, createReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);

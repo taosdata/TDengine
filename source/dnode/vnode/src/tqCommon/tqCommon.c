@@ -131,27 +131,6 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
   return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK);
 }
 
-int32_t tqStreamTaskRestoreCheckpoint(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
-  int32_t vgId = pMeta->vgId;
-  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  if (numOfTasks == 0) {
-    tqDebug("vgId:%d no stream tasks existed to run", vgId);
-    return 0;
-  }
-
-  tqDebug("vgId:%d restore task:0x%" PRIx64 "-0x%x checkpointId", vgId, streamId, taskId);
-  SStreamTask* pTask = NULL;
-  int32_t code = streamMetaAcquireTask(pMeta, streamId, taskId, &pTask);
-  if (pTask == NULL) {
-    tqError("failed to acquire task:0x%x when trying to restore checkpointId", taskId);
-    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
-  }
-
-  code = streamTaskSendRestoreChkptMsg(pTask);
-  streamMetaReleaseTask(pMeta, pTask);
-  return code;
-}
-
 // this is to process request from transaction, always return true.
 int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
   int32_t vgId = pMeta->vgId;

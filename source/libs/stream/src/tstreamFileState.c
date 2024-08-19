@@ -131,21 +131,27 @@ static void streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                       GetTsFun fp, void* pFile, TSKEY delMark, const char* taskId, int64_t checkpointId,
                                       int8_t type) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (memSize <= 0) {
     memSize = DEFAULT_MAX_STREAM_BUFFER_SIZE;
   }
   if (rowSize == 0) {
+    code = TSDB_CODE_INVALID_PARA;
     goto _error;
   }
 
   SStreamFileState* pFileState = taosMemoryCalloc(1, sizeof(SStreamFileState));
-  if (!pFileState) {
-    goto _error;
-  }
+  QUERY_CHECK_NULL(pFileState, code, lino, _error, terrno);
+
   rowSize += selectRowSize;
   pFileState->maxRowCount = TMAX((uint64_t)memSize / rowSize, FLUSH_NUM * 2);
   pFileState->usedBuffs = tdListNew(POINTER_BYTES);
+  QUERY_CHECK_NULL(pFileState->usedBuffs, code, lino, _error, terrno);
+
   pFileState->freeBuffs = tdListNew(POINTER_BYTES);
+  QUERY_CHECK_NULL(pFileState->freeBuffs, code, lino, _error, terrno);
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   int32_t    cap = TMIN(MIN_NUM_OF_ROW_BUFF, pFileState->maxRowCount);
   if (type == STREAM_STATE_BUFF_HASH) {
@@ -171,10 +177,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
     pFileState->cfName = taosStrdup("sess");
     pFileState->stateFunctionGetFn = getSessionRowBuff;
   }
-
-  if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowStateBuff) {
-    goto _error;
-  }
+  QUERY_CHECK_NULL(pFileState->rowStateBuff, code, lino, _error, terrno);
 
   pFileState->keyLen = keySize;
   pFileState->rowSize = rowSize;
@@ -188,6 +191,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   pFileState->flushMark = INT64_MIN;
   pFileState->maxTs = INT64_MIN;
   pFileState->id = taosStrdup(taskId);
+  QUERY_CHECK_NULL(pFileState->id, code, lino, _error, terrno);
 
   // todo(liuyao) optimize
   if (type == STREAM_STATE_BUFF_HASH) {
@@ -198,8 +202,8 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
 
   void*   valBuf = NULL;
   int32_t len = 0;
-  int32_t code = streamDefaultGet_rocksdb(pFileState->pFileStore, STREAM_STATE_INFO_NAME, &valBuf, &len);
-  if (code == TSDB_CODE_SUCCESS) {
+  int32_t tmpRes = streamDefaultGet_rocksdb(pFileState->pFileStore, STREAM_STATE_INFO_NAME, &valBuf, &len);
+  if (tmpRes == TSDB_CODE_SUCCESS) {
     ASSERT(len == sizeof(TSKEY));
     streamFileStateDecode(&pFileState->flushMark, valBuf, len);
     qDebug("===stream===flushMark  read:%" PRId64, pFileState->flushMark);
@@ -208,6 +212,9 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   return pFileState;
 
 _error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   streamFileStateDestroy(pFileState);
   return NULL;
 }

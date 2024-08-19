@@ -1,6 +1,4 @@
-package com.taosdata.example;
-
-import com.taosdata.jdbc.AbstractStatement;
+package com.taos.example;
 
 import java.sql.*;
 import java.util.Properties;
@@ -24,10 +22,11 @@ public class JdbcQueryDemo {
         properties.setProperty("timezone", "UTC-8");
         System.out.println("get connection starting...");
 // ANCHOR: query_data
+        String sql = "SELECT ts, current, location FROM power.meters limit 100";
         try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
              Statement stmt = connection.createStatement();
              // query data, make sure the database and table are created before
-             ResultSet resultSet = stmt.executeQuery("SELECT ts, current, location FROM power.meters limit 100")) {
+             ResultSet resultSet = stmt.executeQuery(sql)) {
 
             Timestamp ts;
             float current;
@@ -41,19 +40,16 @@ public class JdbcQueryDemo {
                 // you can check data here
                 System.out.printf("ts: %s, current: %f, location: %s %n", ts, current, location);
             }
-        } catch (SQLException ex) {
-            // handle any errors, please refer to the JDBC specifications for detailed exceptions info
-            System.out.println("Failed to query data from power.meters, url:" + jdbcUrl + "; ErrCode:" + ex.getErrorCode() + "; ErrMessage: " + ex.getMessage());
-            throw ex;
-        } catch (Exception ex){
-            System.out.println("Failed to query data from power.meters, url:" + jdbcUrl + "; ErrMessage: " + ex.getMessage());
+        } catch (Exception ex) {
+            // please refer to the JDBC specifications for detailed exceptions info
+            System.out.printf("Failed to query data from power.meters, sql: %s, %sErrMessage: %s%n",
+                    sql,
+                    ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+                    ex.getMessage());
+            // Print stack trace for context in examples. Use logging in production.
+            ex.printStackTrace();
             throw ex;
         }
 // ANCHOR_END: query_data
     }
-
-    private static void printResult(ResultSet resultSet) throws SQLException {
-        Util.printResult(resultSet);
-    }
-
 }
