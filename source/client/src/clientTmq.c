@@ -1184,7 +1184,7 @@ void tmqMgmtClose(void) {
   }
 
   if (tmqMgmt.rsetId >= 0) {
-    (void)taosCloseRef(tmqMgmt.rsetId);
+    taosCloseRef(tmqMgmt.rsetId);
     tmqMgmt.rsetId = -1;
   }
 }

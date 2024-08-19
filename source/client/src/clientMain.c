@@ -74,15 +74,11 @@ void taos_cleanup(void) {
 
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
-  if (TSDB_CODE_SUCCESS != taosCloseRef(id)) {
-    tscWarn("failed to close clientReqRefPool");
-  }
+  taosCloseRef(id);
 
   id = clientConnRefPool;
   clientConnRefPool = -1;
-  if (TSDB_CODE_SUCCESS != taosCloseRef(id)) {
-    tscWarn("failed to close clientReqRefPool");
-  }
+  taosCloseRef(id);
 
   nodesDestroyAllocatorSet();
   cleanupAppInfo();

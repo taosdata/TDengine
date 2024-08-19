@@ -75,7 +75,7 @@ void walCleanUp() {
 
   if (old == 1) {
     walStopThread();
-    TAOS_UNUSED(taosCloseRef(tsWal.refSetId));
+    taosCloseRef(tsWal.refSetId);
     wInfo("wal module is cleaned up");
     atomic_store_8(&tsWal.inited, 0);
   }

@@ -31,7 +31,7 @@ int32_t             exchangeObjRefPool = -1;
 
 static void cleanupRefPool() {
   int32_t ref = atomic_val_compare_exchange_32(&exchangeObjRefPool, exchangeObjRefPool, 0);
-  (void)taosCloseRef(ref);
+  taosCloseRef(ref);
 }
 
 static void initRefPool() {
