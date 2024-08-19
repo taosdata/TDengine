@@ -2302,8 +2302,8 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
     pThrd->destroyAhandleFp(pMsg->ctx->ahandle);
   }
 
-  if (pMsg->msg.info.handle !=0) {
-    (void)transReleaseExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle); 
+  if (pMsg->msg.info.handle != 0) {
+    (void)transReleaseExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle);
     (void)transRemoveExHandle(transGetRefMgt(), (int64_t)pMsg->msg.info.handle);
   }
 
@@ -2957,6 +2957,7 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
     transFreeMsg(pReq->pCont);
+    pReq->pCont = NULL;
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
   int32_t   code = 0;
@@ -3008,6 +3009,7 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
 
 _exception:
   transFreeMsg(pReq->pCont);
+  pReq->pCont = NULL;
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return code;
 }
@@ -3053,6 +3055,7 @@ int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* p
 
 _exception:
   transFreeMsg(pReq->pCont);
+  pReq->pCont = NULL;
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return code;
 }
@@ -3061,6 +3064,7 @@ int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
     transFreeMsg(pReq->pCont);
+    pReq->pCont = NULL;
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
   int32_t code = 0;
@@ -3139,6 +3143,7 @@ _RETURN1:
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   taosMemoryFree(pTransRsp);
   taosMemoryFree(pReq->pCont);
+  pReq->pCont = NULL;
   return code;
 }
 int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) {
@@ -3183,6 +3188,7 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
   if (pTransInst == NULL) {
     transFreeMsg(pReq->pCont);
+    pReq->pCont = NULL;
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
 
@@ -3263,6 +3269,7 @@ _RETURN:
   return code;
 _RETURN2:
   transFreeMsg(pReq->pCont);
+  pReq->pCont = NULL;
   taosMemoryFree(pTransMsg);
   (void)transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return code;

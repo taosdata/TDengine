@@ -1,6 +1,63 @@
 
 import random
 from enum import Enum
+class FunctionMap(Enum):
+    # TODO TO_JSON
+    NUMERIC = {
+        'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
+        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
+        'strFuncs': [],
+        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
+        'selectFuncs': ['BOTTOM', 'FIRST', 'INTERP', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'SAMPLE', 'TAIL', 'TOP', 'UNIQUE'],
+        'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
+        'castFuncs': ['CAST', 'TO_ISO8601'],
+        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
+    }
+    TEXT = {
+        'types': ['BINARY', 'VARCHAR', 'NCHAR'],
+        'mathFuncs': [],
+        'strFuncs': ['CHAR_LENGTH', 'CONCAT', 'CONCAT_WS', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'SUBSTR', 'UPPER'],
+        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'specialFuncs': [],
+        'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
+        'castTypes': DataBoundary.ALL_TYPE_UNIT.value
+    }
+    BINARY = {
+        'types': ['VARBINARY'],
+        'mathFuncs': [],
+        'strFuncs': ['LENGTH'],
+        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'specialFuncs': [],
+        'castFuncs': ['TO_ISO8601'],
+        'castTypes': []
+    }
+    BOOLEAN = {
+        'types': ['BOOL'],
+        'mathFuncs': [],
+        'strFuncs': [],
+        'timeFuncs': ['NOW', 'TIMEDIFF'],
+        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
+        'specialFuncs': [],
+        'castFuncs': ['CAST'],
+        'castTypes': []
+    }
+    TIMESTAMP = {
+        'types': ['TIMESTAMP'],
+        'mathFuncs': [],
+        'strFuncs': [],
+        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
+        'aggFuncs': ['ELAPSED', 'SPREAD'],
+        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'UNIQUE'],
+        'specialFuncs': [],
+        'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
+        'castTypes': []
+    }
 
 class DataBoundary(Enum):
     TINYINT_BOUNDARY = [-128, 127]
@@ -51,7 +108,7 @@ class DataBoundary(Enum):
     TIMEZONE_BOUNDARY = [0, 1]
     HISTOGRAM_BOUNDARY = [0, 1]
     IGNORE_NEGATIVE_BOUNDARY = [0, 1]
-    PERCENTILE_BOUNDARY = [1, 10]
+    PERCENTILE_BOUNDARY = [1, 100]
     LEASTSQUARES_BOUNDARY = [1, 10]
     SUBSTR_BOUNDARY = [1, 10]
     TAIL_BOUNDARY = [1, 100]
@@ -66,77 +123,12 @@ class DataBoundary(Enum):
                     'D,d', 'HH24,hh24', 'hh12,HH12, hh, HH', 'MI,mi', 'SS,ss', 'MS,ms', 'US,us', 'NS,ns', 'TZH,tzh']
     ALL_TYPE_UNIT = ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'VARBINARY', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
 
-
-class FunctionMap(Enum):
-    # TODO TO_JSON
-    NUMERIC = {
-        'types': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE'],
-        'mathFuncs': ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'],
-        'strFuncs': [],
-        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMEZONE', 'TODAY'],
-        'aggFuncs': ['APERCENTILE', 'AVG', 'COUNT', 'LEASTSQUARES', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG', 'HISTOGRAM', 'PERCENTILE'],
-        'selectFuncs': ['BOTTOM', 'FIRST', 'INTERP', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'SAMPLE', 'TAIL', 'TOP', 'UNIQUE'],
-        'specialFuncs': ['CSUM', 'DERIVATIVE', 'DIFF', 'IRATE', 'MAVG', 'STATECOUNT', 'STATEDURATION', 'TWA'],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
-        'castFuncs': ['CAST', 'TO_ISO8601'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
-    }
-    TEXT = {
-        'types': ['BINARY', 'VARCHAR', 'NCHAR'],
-        'mathFuncs': [],
-        'strFuncs': ['CHAR_LENGTH', 'CONCAT', 'CONCAT_WS', 'LENGTH', 'LOWER', 'LTRIM', 'RTRIM', 'SUBSTR', 'UPPER'],
-        'timeFuncs': ['NOW', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
-        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
-        'specialFuncs': [],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
-        'castFuncs': ['CAST', 'TO_UNIXTIMESTAMP'],
-        'castTypes': DataBoundary.ALL_TYPE_UNIT.value
-    }
-    BINARY = {
-        'types': ['VARBINARY'],
-        'mathFuncs': [],
-        'strFuncs': ['LENGTH'],
-        'timeFuncs': ['NOW', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
-        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
-        'specialFuncs': [],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
-        'castFuncs': [],
-        'castTypes': []
-    }
-    BOOLEAN = {
-        'types': ['BOOL'],
-        'mathFuncs': [],
-        'strFuncs': [],
-        'timeFuncs': ['NOW'],
-        'aggFuncs': ['COUNT', 'HYPERLOGLOG'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'TAIL', 'UNIQUE'],
-        'specialFuncs': [],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
-        'castFuncs': ['CAST'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
-    }
-    TIMESTAMP = {
-        'types': ['TIMESTAMP'],
-        'mathFuncs': [],
-        'strFuncs': [],
-        'timeFuncs': ['NOW', 'TIMEDIFF', 'TIMETRUNCATE', 'TIMEZONE', 'TODAY'],
-        'aggFuncs': ['ELAPSED', 'SPREAD'],
-        'selectFuncs': ['FIRST', 'LAST', 'LAST_ROW', 'MODE', 'SAMPLE', 'UNIQUE'],
-        'specialFuncs': [],
-        'removeFuncs': ['UNIQUE', 'TIMEDIFF', 'TAIL', 'SAMPLE'],
-        'castFuncs': ['CAST', 'TO_ISO8601', 'TO_CHAR'],
-        'castTypes': ['TINYINT', 'SMALLINT', 'INT', 'BIGINT', 'TINYINT UNSIGNED', 'SMALLINT UNSIGNED', 'INT UNSIGNED', 'BIGINT UNSIGNED', 'FLOAT', 'DOUBLE', 'BINARY', 'VARCHAR', 'NCHAR', 'BOOL', 'TIMESTAMP', 'GEOMETRY(64)']
-    }
-
-
 class SQLLancer:
     def formatTimediff(self, expr1):
         # 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)
         time_unit = random.choice(DataBoundary.TIME_UNIT.value)
-        expr2 = f'{expr1}+{time_unit}'
-        return f"TIMEDIFF({expr1}, {expr2})"
+        expr2 = f'{expr1} + '
+        return f"TIMEDIFF({expr1}, {expr2}, {time_unit})"
 
     def formatTimeTruncate(self, expr):
         time_unit = random.choice(DataBoundary.TIME_UNIT.value)
@@ -144,15 +136,14 @@ class SQLLancer:
         return f'TIMETRUNCATE({expr}, {time_unit}, {use_current_timezone})'
 
     def formatHistogram(self, expr):
-        user_input1 = [f'HISTOGRAM({expr}, "user_input", "[1, 3, 5, 7]", {random.choice([0, 1])})']
-        linear_bin  = [f'HISTOGRAM({expr}, "linear_bin", \'{{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']
-        user_input2 = [f'HISTOGRAM({expr}, "user_input", \'{{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']
-        funcList = user_input1 + linear_bin + user_input2
+        funcList = [f'HISTOGRAM({expr}, "user_input", "[1, 3, 5, 7]", {random.choice([0, 1])})'].extend(
+                   [f'HISTOGRAM({expr}, "linear_bin", \'{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})']).extend(
+                   [f'HISTOGRAM({expr}, "user_input", \'{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}\', {random.choice(DataBoundary.HISTOGRAM_BOUNDARY.value)})'])
         return random.choice(funcList)
 
     def formatPercentile(self, expr):
         rcnt = random.randint(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1])
-        p = random.sample(range(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1]*10), rcnt)
+        p = random.sample(range(DataBoundary.PERCENTILE_BOUNDARY.value[0], DataBoundary.PERCENTILE_BOUNDARY.value[1]), rcnt)
         return f'PERCENTILE({expr},{",".join(map(str, p))})'
 
     def formatStatecount(self, expr):
@@ -186,10 +177,10 @@ class SQLLancer:
         length = random.choice(DataBoundary.SUBSTR_BOUNDARY.value)
         return f'SUBSTR({expr}, {pos}, {length})'
 
-    def formatCast(self, expr, castTypeList):
-        return f'CAST({expr} AS {random.choice(castTypeList)})'
+    def formatCast(self, expr, cast_type):
+        return f'CAST({expr} AS {cast_type})'
 
-    def formatFunc(self, func, colname, castTypeList="nchar", *args, **kwarg):
+    def formatFunc(self, func, colname, cast_type="nchar", *args, **kwarg):
         if func in ['ABS', 'ACOS', 'ASIN', 'ATAN', 'CEIL', 'COS', 'FLOOR', 'LOG', 'POW', 'ROUND', 'SIN', 'SQRT', 'TAN'] + \
                     ['AVG', 'COUNT', 'SPREAD', 'STDDEV', 'SUM', 'HYPERLOGLOG'] + \
                     ['FIRST', 'LAST', 'LAST_ROW', 'MAX', 'MIN', 'MODE', 'UNIQUE'] + \
@@ -229,13 +220,13 @@ class SQLLancer:
         elif func in ['STATEDURATION']:
             return self.formatStateduration(colname)
         elif func in ['CONCAT']:
-            return self.formatConcat(colname, *args)
+            return self.formatConcat(colname, args)
         elif func in ['CONCAT_WS']:
-            return self.formatConcatWs(colname, *args)
+            return self.formatConcatWs(colname, args)
         elif func in ['SUBSTR']:
-            return self.formatSubstr(colname, *args)
+            return self.formatSubstr(colname, args)
         elif func in ['CAST']:
-            return self.formatCast(colname, castTypeList)
+            return self.formatCast(colname, cast_type)
         elif func in ['TO_ISO8601']:
             timezone = random.choice(["+00:00", "-00:00", "+08:00", "-08:00", "+12:00", "-12:00"])
             return f"{func}({colname}, {timezone})"
@@ -264,7 +255,6 @@ class SQLLancer:
             funcStr = self.formatFunc(func, colname, fm["castTypes"])
             print("----funcStr", funcStr)
             funcStrList.append(funcStr)
-        print("-------funcStrList:", funcStrList)
         print("-------funcStr:", ",".join(funcStrList))
         print("----selectItems", selectItems)
 
@@ -464,4 +454,3 @@ sqllancer.generateRandomSql(colDict, tbname)
     #             ret.append(SqlQuery(sql))
 
     #     return ret
-
