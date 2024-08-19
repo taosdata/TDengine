@@ -42,10 +42,6 @@ typedef struct SSyncEnv {
 
   // timer manager
   tmr_h pTimerManager;
-
-  // other resources shared by SyncNodes
-  // ...
-
 } SSyncEnv;
 
 SSyncEnv* syncEnv();

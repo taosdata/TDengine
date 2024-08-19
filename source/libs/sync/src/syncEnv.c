@@ -42,23 +42,25 @@ int32_t syncInit() {
 
   // start tmr thread
   gSyncEnv.pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
-  atomic_store_8(&gSyncEnv.isStart, 1);
 
   gNodeRefId = taosOpenRef(200, (RefFp)syncNodeClose);
   if (gNodeRefId < 0) {
-    sError("failed to init node ref");
+    sError("failed to init node rset");
     syncCleanUp();
     return TSDB_CODE_SYN_WRONG_REF;
   }
+  sDebug("sync node rset is open, rsetId:%d", gNodeRefId);
 
   gHbDataRefId = taosOpenRef(200, (RefFp)syncHbTimerDataFree);
   if (gHbDataRefId < 0) {
-    sError("failed to init hb-data ref");
+    sError("failed to init hbdata rset");
     syncCleanUp();
     return TSDB_CODE_SYN_WRONG_REF;
   }
 
-  sDebug("sync rsetId:%d is open", gNodeRefId);
+  sDebug("sync hbdata rset is open, rsetId:%d", gHbDataRefId);
+
+  atomic_store_8(&gSyncEnv.isStart, 1);
   return 0;
 }
 
@@ -68,32 +70,40 @@ void syncCleanUp() {
   memset(&gSyncEnv, 0, sizeof(SSyncEnv));
 
   if (gNodeRefId != -1) {
-    sDebug("sync rsetId:%d is closed", gNodeRefId);
-    (void)taosCloseRef(gNodeRefId);
+    sDebug("sync node rset is closed, rsetId:%d", gNodeRefId);
+    taosCloseRef(gNodeRefId);
     gNodeRefId = -1;
   }
 
   if (gHbDataRefId != -1) {
-    sDebug("sync rsetId:%d is closed", gHbDataRefId);
-    (void)taosCloseRef(gHbDataRefId);
+    sDebug("sync hbdata rset is closed, rsetId:%d", gHbDataRefId);
+    taosCloseRef(gHbDataRefId);
     gHbDataRefId = -1;
   }
 }
 
 int64_t syncNodeAdd(SSyncNode *pNode) {
   pNode->rid = taosAddRef(gNodeRefId, pNode);
-  if (pNode->rid < 0) return -1;
+  if (pNode->rid < 0) {
+    terrno = TSDB_CODE_SYN_WRONG_REF;
+    return -1;
+  }
 
-  sDebug("vgId:%d, sync rid:%" PRId64 " is added to rsetId:%d", pNode->vgId, pNode->rid, gNodeRefId);
+  sDebug("vgId:%d, sync node refId:%" PRId64 " is added to rsetId:%d", pNode->vgId, pNode->rid, gNodeRefId);
   return pNode->rid;
 }
 
-void syncNodeRemove(int64_t rid) { (void)taosRemoveRef(gNodeRefId, rid); }
+void syncNodeRemove(int64_t rid) {
+  sDebug("sync node refId:%" PRId64 " is removed from rsetId:%d", rid, gNodeRefId);
+  if (rid > 0) {
+    (void)taosRemoveRef(gNodeRefId, rid);
+  }
+}
 
 SSyncNode *syncNodeAcquire(int64_t rid) {
   SSyncNode *pNode = taosAcquireRef(gNodeRefId, rid);
   if (pNode == NULL) {
-    sError("failed to acquire node from refId:%" PRId64, rid);
+    sError("failed to acquire sync node from refId:%" PRId64 ", rsetId:%d", rid, gNodeRefId);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
@@ -101,28 +111,42 @@ SSyncNode *syncNodeAcquire(int64_t rid) {
 }
 
 void syncNodeRelease(SSyncNode *pNode) {
-  if (pNode) (void)taosReleaseRef(gNodeRefId, pNode->rid);
+  if (pNode) {
+    (void)taosReleaseRef(gNodeRefId, pNode->rid);
+  }
 }
 
 int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
   pData->rid = taosAddRef(gHbDataRefId, pData);
-  if (pData->rid < 0) return TSDB_CODE_SYN_WRONG_REF;
+  if (pData->rid < 0) {
+    terrno = TSDB_CODE_SYN_WRONG_REF;
+    return -1;
+  }
+
   return pData->rid;
 }
 
-void syncHbTimerDataRemove(int64_t rid) { (void)taosRemoveRef(gHbDataRefId, rid); }
+void syncHbTimerDataRemove(int64_t rid) {
+  if (rid > 0) {
+    (void)taosRemoveRef(gHbDataRefId, rid);
+  }
+}
 
 SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
   SSyncHbTimerData *pData = taosAcquireRef(gHbDataRefId, rid);
   if (pData == NULL && rid > 0) {
-    sInfo("failed to acquire hb-timer-data from refId:%" PRId64, rid);
+    sInfo("failed to acquire hbdata from refId:%" PRId64 ", rsetId:%d", rid, gHbDataRefId);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
   return pData;
 }
 
-void syncHbTimerDataRelease(SSyncHbTimerData *pData) { (void)taosReleaseRef(gHbDataRefId, pData->rid); }
+void syncHbTimerDataRelease(SSyncHbTimerData *pData) {
+  if (pData) {
+    (void)taosReleaseRef(gHbDataRefId, pData->rid);
+  }
+}
 
 #if 0
 void syncEnvStartTimer() {
