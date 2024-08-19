@@ -15,38 +15,82 @@
 
 #include "tgeosctx.h"
 #include "tdef.h"
+#include "tlockfree.h"
+#include "tlog.h"
 
-static threadlocal SGeosContext tlGeosCtx = {0};
+typedef struct {
+  SGeosContext *pool;
+  int32_t       capacity;
+  int32_t       size;
+  SRWLatch      lock;
+} SGeosContextPool;
 
-SGeosContext* getThreadLocalGeosCtx() { return &tlGeosCtx; }
+static SGeosContextPool sGeosPool = {0};
+
+static threadlocal SGeosContext *tlGeosCtx = NULL;
+
+SGeosContext *getThreadLocalGeosCtx() {
+  if (tlGeosCtx) return tlGeosCtx;
+
+  taosWLockLatch(&sGeosPool.lock);
+  if (sGeosPool.size >= sGeosPool.capacity) {
+    sGeosPool.capacity += 64;
+    void *tmp = taosMemoryRealloc(sGeosPool.pool, sGeosPool.capacity * sizeof(SGeosContext));
+    if (!tmp) {
+      taosWUnLockLatch(&sGeosPool.lock);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    sGeosPool.pool = tmp;
+    TAOS_MEMSET(sGeosPool.pool + sGeosPool.size, 0, (sGeosPool.capacity - sGeosPool.size) * sizeof(SGeosContext));
+  }
+  tlGeosCtx = sGeosPool.pool + sGeosPool.size;
+  ++sGeosPool.size;
+  taosWUnLockLatch(&sGeosPool.lock);
+
+  return tlGeosCtx;
+}
+
+static void destroyGeosCtx(SGeosContext *pCtx) {
+  if (pCtx) {
+    if (pCtx->WKTReader) {
+      GEOSWKTReader_destroy_r(pCtx->handle, pCtx->WKTReader);
+      pCtx->WKTReader = NULL;
+    }
+
+    if (pCtx->WKTWriter) {
+      GEOSWKTWriter_destroy_r(pCtx->handle, pCtx->WKTWriter);
+      pCtx->WKTWriter = NULL;
+    }
+
+    if (pCtx->WKBReader) {
+      GEOSWKBReader_destroy_r(pCtx->handle, pCtx->WKBReader);
+      pCtx->WKBReader = NULL;
+    }
+
+    if (pCtx->WKBWriter) {
+      GEOSWKBWriter_destroy_r(pCtx->handle, pCtx->WKBWriter);
+      pCtx->WKBWriter = NULL;
+    }
+
+    if (pCtx->WKTRegex) {
+      destroyRegexes(pCtx->WKTRegex, pCtx->WKTMatchData);
+      pCtx->WKTRegex = NULL;
+      pCtx->WKTMatchData = NULL;
+    }
+
+    if (pCtx->handle) {
+      GEOS_finish_r(pCtx->handle);
+      pCtx->handle = NULL;
+    }
+  }
+}
 
 void destroyThreadLocalGeosCtx() {
-  if (tlGeosCtx.WKTReader) {
-    GEOSWKTReader_destroy_r(tlGeosCtx.handle, tlGeosCtx.WKTReader);
-    tlGeosCtx.WKTReader = NULL;
+  uInfo("geos ctx is cleaned up");
+  if (!sGeosPool.pool) return;
+  for (int32_t i = 0; i < sGeosPool.size; ++i) {
+    destroyGeosCtx(sGeosPool.pool + i);
   }
-
-  if (tlGeosCtx.WKTWriter) {
-    GEOSWKTWriter_destroy_r(tlGeosCtx.handle, tlGeosCtx.WKTWriter);
-    tlGeosCtx.WKTWriter = NULL;
-  }
-
-  if (tlGeosCtx.WKBReader) {
-    GEOSWKBReader_destroy_r(tlGeosCtx.handle, tlGeosCtx.WKBReader);
-    tlGeosCtx.WKBReader = NULL;
-  }
-
-  if (tlGeosCtx.WKBWriter) {
-    GEOSWKBWriter_destroy_r(tlGeosCtx.handle, tlGeosCtx.WKBWriter);
-    tlGeosCtx.WKBWriter = NULL;
-  }
-
-  if (tlGeosCtx.WKTRegex) {
-    destroyRegexes(tlGeosCtx.WKTRegex, tlGeosCtx.WKTMatchData);
-  }
-
-  if (tlGeosCtx.handle) {
-    GEOS_finish_r(tlGeosCtx.handle);
-    tlGeosCtx.handle = NULL;
-  }
+  taosMemoryFreeClear(sGeosPool.pool);
 }

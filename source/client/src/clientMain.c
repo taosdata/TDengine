@@ -23,6 +23,7 @@
 #include "query.h"
 #include "scheduler.h"
 #include "tdatablock.h"
+#include "tgeosctx.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
@@ -94,6 +95,7 @@ void taos_cleanup(void) {
   tmqMgmtClose();
 
   DestroyRegexCache();
+  destroyThreadLocalGeosCtx();
 
   tscInfo("all local resources released");
   taosCleanupCfg();
