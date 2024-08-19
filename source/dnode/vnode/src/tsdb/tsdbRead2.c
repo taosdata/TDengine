@@ -1826,9 +1826,14 @@ static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SSttBlockReader* pSttB
 
   // avoid the fetch next row replace the referenced stt block in buffer
   doPinSttBlock(pSttBlockReader);
-  bool hasVal = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, pReader->suppInfo.pkSrcSlot, &pReader->info.verRange);
+  code = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, pReader->suppInfo.pkSrcSlot, &pReader->info.verRange);
   doUnpinSttBlock(pSttBlockReader);
-  if (hasVal) {
+
+  if (code) {
+    return code;
+  }
+
+  if (hasDataInSttBlock(pScanInfo)) {
     SRowKey* pNext = getCurrentKeyInSttBlock(pSttBlockReader);
     if (pkCompEx(pSttKey, pNext) != 0) {
       code = doAppendRowFromFileBlock(pReader->resBlockInfo.pResBlock, pReader, fRow->pBlockData, fRow->iRow);
@@ -4097,7 +4102,11 @@ int32_t doMergeRowsInSttBlock(SSttBlockReader* pSttBlockReader, STableBlockScanI
   SRowKey* pRowKey = &pScanInfo->lastProcKey;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  while (nextRowFromSttBlocks(pSttBlockReader, pScanInfo, pkSrcSlot, pVerRange)) {
+  while (1) {
+    code = nextRowFromSttBlocks(pSttBlockReader, pScanInfo, pkSrcSlot, pVerRange);
+    if (code) {
+
+    }
     SRowKey* pNextKey = getCurrentKeyInSttBlock(pSttBlockReader);
 
     int32_t ret = pkCompEx(pRowKey, pNextKey);
