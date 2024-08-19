@@ -452,7 +452,6 @@ typedef struct SVMonitorObj {
   char            strClusterId[TSDB_CLUSTER_ID_LEN];
   char            strDnodeId[TSDB_NODE_ID_LEN];
   char            strVgId[TSDB_VGROUP_ID_LEN];
-  taos_counter_t* insertCounter;
 } SVMonitorObj;
 
 typedef struct {

@@ -1909,7 +1909,12 @@ _exit:
                                    pVnode->monitor.strVgId,
                                    pOriginalMsg->info.conn.user,
                                    "Success"};
-    (void)taos_counter_add(pVnode->monitor.insertCounter, pSubmitRsp->affectedRows, sample_labels);
+    taos_counter_t *counter = taos_collector_registry_get_metric(VNODE_METRIC_SQL_COUNT);
+    if (counter != NULL) {
+      (void)taos_counter_add(counter, pSubmitRsp->affectedRows, sample_labels);
+    } else {
+      vError("vgId:%d, failed to get counter %s", TD_VID(pVnode), VNODE_METRIC_SQL_COUNT);
+    }
   }
 
   if (code == 0) {
