@@ -46,9 +46,11 @@ const char* terrstr();
 char*    taosGetErrMsgReturn();
 char*    taosGetErrMsg();
 int32_t* taosGetErrno();
+int32_t* taosGetErrln();
 int32_t  taosGetErrSize();
 #define terrno                              (*taosGetErrno())
 #define terrMsg                             (taosGetErrMsg())
+#define terrln                              (*taosGetErrln())
 
 #define SET_ERROR_MSG(MSG, ...) \
   snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
@@ -145,6 +147,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_IP_NOT_IN_WHITE_LIST          TAOS_DEF_ERROR_CODE(0, 0x0134)
 #define TSDB_CODE_FAILED_TO_CONNECT_S3          TAOS_DEF_ERROR_CODE(0, 0x0135)
 #define TSDB_CODE_MSG_PREPROCESSED              TAOS_DEF_ERROR_CODE(0, 0x0136) // internal
+#define TSDB_CODE_OUT_OF_BUFFER                 TAOS_DEF_ERROR_CODE(0, 0x0137)
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)
@@ -478,6 +481,7 @@ int32_t  taosGetErrSize();
 //mnode-compact
 #define TSDB_CODE_MND_INVALID_COMPACT_ID        TAOS_DEF_ERROR_CODE(0, 0x04B1)
 #define TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST  TAOS_DEF_ERROR_CODE(0, 0x04B2)
+#define TSDB_CODE_MND_COMPACT_ALREADY_EXIST     TAOS_DEF_ERROR_CODE(0, 0x04B3)
 
 // vnode
 // #define TSDB_CODE_VND_ACTION_IN_PROGRESS     TAOS_DEF_ERROR_CODE(0, 0x0500) // 2.x
@@ -518,6 +522,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_VND_META_DATA_UNSAFE_DELETE   TAOS_DEF_ERROR_CODE(0, 0x0535)
 #define TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST TAOS_DEF_ERROR_CODE(0, 0x0536)
 #define TSDB_CODE_VND_ARB_NOT_SYNCED            TAOS_DEF_ERROR_CODE(0, 0x0537) // internal
+#define TSDB_CODE_VND_WRITE_DISABLED            TAOS_DEF_ERROR_CODE(0, 0x0538) // internal
 
 // tsdb
 #define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)
@@ -918,6 +923,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TMQ_SAME_COMMITTED_VALUE       TAOS_DEF_ERROR_CODE(0, 0x4012)
 #define TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP     TAOS_DEF_ERROR_CODE(0, 0x4013)
 #define TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT         TAOS_DEF_ERROR_CODE(0, 0x4014)
+#define TSDB_CODE_TMQ_NO_TABLE_QUALIFIED         TAOS_DEF_ERROR_CODE(0, 0x4015)
 
 // stream
 #define TSDB_CODE_STREAM_TASK_NOT_EXIST          TAOS_DEF_ERROR_CODE(0, 0x4100)

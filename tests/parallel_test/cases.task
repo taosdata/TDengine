@@ -287,6 +287,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3821.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5130.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -545,6 +546,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py
@@ -724,6 +727,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
@@ -822,6 +826,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
@@ -919,6 +924,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
@@ -1489,10 +1495,12 @@
 ,,y,script,./test.sh -f tmp/monitor.sim
 ,,y,script,./test.sh -f tsim/tagindex/add_index.sim
 ,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
+,,y,script,./test.sh -f tsim/tagindex/indexOverflow.sim
 ,,y,script,./test.sh -f tsim/view/view.sim
 ,,y,script,./test.sh -f tsim/query/cache_last.sim 
 ,,y,script,./test.sh -f tsim/query/const.sim 
 ,,y,script,./test.sh -f tsim/query/nestedJoinView.sim
+
 
 
 #develop test

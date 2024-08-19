@@ -122,7 +122,7 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   mTrace("pullup s3migrate");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
@@ -130,7 +130,7 @@ static void mndPullupS3MigrateDb(SMnode *pMnode) {
   mTrace("pullup trim");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
@@ -452,26 +452,23 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
 static int32_t mndInitWal(SMnode *pMnode) {
   char path[PATH_MAX + 20] = {0};
   snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
-  SWalCfg cfg = {
-      .vgId = 1,
-      .fsyncPeriod = 0,
-      .rollPeriod = -1,
-      .segSize = -1,
-      .retentionPeriod = 0,
-      .retentionSize = 0,
-      .level = TAOS_WAL_FSYNC,
-      .encryptAlgorithm = 0,
-      .encryptKey = {0}
-  };
+  SWalCfg cfg = {.vgId = 1,
+                 .fsyncPeriod = 0,
+                 .rollPeriod = -1,
+                 .segSize = -1,
+                 .retentionPeriod = 0,
+                 .retentionSize = 0,
+                 .level = TAOS_WAL_FSYNC,
+                 .encryptAlgorithm = 0,
+                 .encryptKey = {0}};
 
 #if defined(TD_ENTERPRISE)
-  if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL){
-    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL)? tsiEncryptAlgorithm : 0;
-    if(tsEncryptKey[0] == '\0'){
+  if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
+    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
+    if (tsEncryptKey[0] == '\0') {
       terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       return -1;
-    }
-    else{
+    } else {
       strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
     }
   }

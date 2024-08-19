@@ -1,6 +1,6 @@
 # Contributing to TDengine
 
-TDengine Community Edition is free, open-source software. Its development is led by the TDengine Team, but we welcome contributions from all community members and open-source developers. This document describes how you can contribute, no matter whether you're a user or a developer yourself.
+TDengine OSS is free, open-source software. Its development is led by the TDengine Team, but we welcome contributions from all community members and open-source developers. This document describes how you can contribute, no matter whether you're a user or a developer yourself.
 
 ## Bug reports
 
@@ -22,37 +22,8 @@ Developers are encouraged to submit patches to the project, and all contribution
 	
 3. Fork our repository to your GitHub account and create a branch for your patch.
    **Important:** The `main` branch is for stable versions and cannot accept patches directly. For all code and documentation changes, create your own branch from the development branch `3.0` and not from `main`.
-   Note: For a documentation change, ensure that the branch name starts with `docs/` so that the change can be merged without running tests.
+   Note: For documentation changes, ensure that the branch name starts with `docs/` so that the change can be merged without running tests.
    
 4. Create a pull request to merge your changes into the development branch `3.0`, and our team members will review the request as soon as possible.
 
 If you encounter any difficulties or problems in contributing your code, you can join our [Discord server](https://discord.com/invite/VZdSuUg4pS) and receive assistance from members of the TDengine Team.
-
-## Expressing our thanks
-
-To thank community members for your support, we are offering a free gift to any developer who submits at least one contribution. You can choose one of the following items:
-
-<p align="left">
-  <img
-    src="docs/assets/contributing-cup.jpg"
-    alt=""
-    width="200"
-  />
-  <img
-    src="docs/assets/contributing-notebook.jpg"
-    alt=""
-    width="200"
-  />
-  <img
-    src="docs/assets/contributing-shirt.jpg"
-    alt=""
-    width="200"
-    />
-
-If you would like to claim your gift, send an email to [developer@tdengine.com](mailto:developer@tdengine.com?subject=Claiming&20my%20developer%20gift) including the following information:
-
-- Your GitHub account name
-- Your name and mailing address
-- Your preferred gift
-
-Note: Limit one per person.

@@ -87,7 +87,7 @@ int32_t getJsonValueLen(const char* data) {
 }
 
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
-  if (isNull) {
+  if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
     if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
       pColumnInfoData->varmeta.offset[rowIndex] = -1;  // it is a null value of VAR type.

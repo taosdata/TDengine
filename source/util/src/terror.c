@@ -22,10 +22,12 @@
 #define TAOS_ERROR_C
 
 static threadlocal int32_t tsErrno;
+static threadlocal int32_t tsErrln;
 static threadlocal char tsErrMsgDetail[ERR_MSG_LEN] = {0};
 static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 
 int32_t* taosGetErrno() { return &tsErrno; }
+int32_t* taosGetErrln() { return &tsErrln; }
 char*    taosGetErrMsg() { return tsErrMsgDetail; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
@@ -87,7 +89,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_CFG_NOT_FOUND,                "Config not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_REPEAT_INIT,                  "Repeat initialization")
 TAOS_DEFINE_ERROR(TSDB_CODE_DUP_KEY,                      "Cannot add duplicate keys to hash")
 TAOS_DEFINE_ERROR(TSDB_CODE_NEED_RETRY,                   "Retry needed")
-TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE,      "Out of memory in rpc queue")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE,      "Out of memory in queue")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TIMESTAMP,            "Invalid timestamp format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_DECODE_ERROR,             "Msg decode error")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_ENCODE_ERROR,             "Msg encode error")
@@ -104,6 +106,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration
 TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,         "Not allowed to connect")
 TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_CONNECT_S3,         "Failed to connect to s3 server")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been processed in preprocess")
+TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_BUFFER,                "Out of buffer")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -347,6 +350,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_NOT_EXIST,           "view not exists in db
 //mnode-compact
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn't exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -398,6 +402,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_IS_VOTER,         "Vnode already is a vo
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_DIR_ALREADY_EXIST,        "Vnode directory already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_META_DATA_UNSAFE_DELETE,  "Single replica vnode data will lost permanently after this operation, if you make sure this, please use drop dnode <id> unsafe to execute")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ARB_NOT_SYNCED,           "Vgroup peer is not synced")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_WRITE_DISABLED,           "Vnode write is disabled for snapshot")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Same with old param")
 
 
@@ -674,7 +679,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PK_TYPE,                "primary key column 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PK_OP,              "primary key column can not be added, modified, and dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL,        "Primary key column should not be null")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE,        "Primary key column should not be none")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Tbanme duplicated or not set")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_ERROR,               "Pseudo tag tbname not set")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TBNAME_DUPLICATED,          "Table name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_NAME_DUPLICATED,        "Tag name duplicated")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
@@ -765,7 +770,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_GROUP_OUT_OF_RANGE,         "Group num out of ra
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_SAME_COMMITTED_VALUE,       "Same committed value")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP,     "Replay need only one vgroup if subscribe super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled if subscribe db or stable")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_TABLE_QUALIFIED,              "No table qualified for query")
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXEC_CANCELLED,          "Stream task exec cancelled")

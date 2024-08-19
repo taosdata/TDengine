@@ -69,7 +69,7 @@
     pReq->sql = NULL;            \
   } while (0)
 
-static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas* pMonitorParas) {
+static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas *pMonitorParas) {
   if (tEncodeI8(encoder, pMonitorParas->tsEnableMonitor) < 0) return -1;
   if (tEncodeI32(encoder, pMonitorParas->tsMonitorInterval) < 0) return -1;
   if (tEncodeI32(encoder, pMonitorParas->tsSlowLogScope) < 0) return -1;
@@ -80,7 +80,7 @@ static int32_t tSerializeSMonitorParas(SEncoder *encoder, const SMonitorParas* p
   return 0;
 }
 
-static int32_t tDeserializeSMonitorParas(SDecoder *decoder, SMonitorParas* pMonitorParas){
+static int32_t tDeserializeSMonitorParas(SDecoder *decoder, SMonitorParas *pMonitorParas) {
   if (tDecodeI8(decoder, (int8_t *)&pMonitorParas->tsEnableMonitor) < 0) return -1;
   if (tDecodeI32(decoder, &pMonitorParas->tsMonitorInterval) < 0) return -1;
   if (tDecodeI32(decoder, &pMonitorParas->tsSlowLogScope) < 0) return -1;
@@ -1467,6 +1467,39 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
 void tFreeSStatusReq(SStatusReq *pReq) { taosArrayDestroy(pReq->pVloads); }
 
+int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
+  int32_t  code = 0, lino = 0;
+  int32_t  tlen = 0;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->machineId));
+
+  tEndEncode(&encoder);
+
+  tlen = encoder.pos;
+_exit:
+  tEncoderClear(&encoder);
+  return code < 0 ? code : tlen;
+}
+
+int32_t tDeserializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
+  int32_t  code = 0, lino = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->machineId));
+
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -1577,7 +1610,7 @@ int32_t tDeserializeSStatisReq(void *buf, int32_t bufLen, SStatisReq *pReq) {
     if (tDecodeCStrTo(&decoder, pReq->pCont) < 0) return -1;
   }
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeI8(&decoder, (int8_t*)&pReq->type) < 0) return -1;
+    if (tDecodeI8(&decoder, (int8_t *)&pReq->type) < 0) return -1;
   }
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -3783,7 +3816,8 @@ int32_t tSerializeSDbHbRspImp(SEncoder *pEncoder, const SDbHbRsp *pRsp) {
     if (tEncodeI8(pEncoder, 0) < 0) return -1;
   }
   if (tEncodeI32(pEncoder, pRsp->dbTsmaVersion) < 0) return -1;
-
+  if (tEncodeCStr(pEncoder, pRsp->db) < 0) return -1;
+  if (tEncodeI64(pEncoder, pRsp->dbId) < 0) return -1;
   return 0;
 }
 
@@ -3874,6 +3908,10 @@ int32_t tDeserializeSDbHbRspImp(SDecoder *decoder, SDbHbRsp *pRsp) {
   }
   if (!tDecodeIsEnd(decoder)) {
     if (tDecodeI32(decoder, &pRsp->dbTsmaVersion) < 0) return -1;
+  }
+  if (!tDecodeIsEnd(decoder)) {
+    if (tDecodeCStrTo(decoder, pRsp->db) < 0) return -1;
+    if (tDecodeI64(decoder, &pRsp->dbId) < 0) return -1;
   }
 
   return 0;
@@ -5737,65 +5775,74 @@ _exit:
 }
 
 int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeConfigReq *pReq) {
+  int32_t  tlen;
   SEncoder encoder = {0};
+
   tEncoderInit(&encoder, buf, bufLen);
 
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->vgVersion) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->buffer) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->pageSize) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->pages) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->cacheLastSize) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->daysToKeep2) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->walFsyncPeriod) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
+  TAOS_CHECK_ERRNO(tStartEncode(&encoder));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->vgVersion));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->buffer));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->pageSize));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->pages));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->cacheLastSize));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->daysPerFile));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->daysToKeep0));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->daysToKeep1));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->daysToKeep2));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->walFsyncPeriod));
+  TAOS_CHECK_ERRNO(tEncodeI8(&encoder, pReq->walLevel));
+  TAOS_CHECK_ERRNO(tEncodeI8(&encoder, pReq->strict));
+  TAOS_CHECK_ERRNO(tEncodeI8(&encoder, pReq->cacheLast));
   for (int32_t i = 0; i < 7; ++i) {
-    if (tEncodeI64(&encoder, pReq->reserved[i]) < 0) return -1;
+    TAOS_CHECK_ERRNO(tEncodeI64(&encoder, pReq->reserved[i]));
   }
 
   // 1st modification
-  if (tEncodeI16(&encoder, pReq->sttTrigger) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
+  TAOS_CHECK_ERRNO(tEncodeI16(&encoder, pReq->sttTrigger));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->minRows));
   // 2nd modification
-  if (tEncodeI32(&encoder, pReq->walRetentionPeriod) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->walRetentionPeriod));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->walRetentionSize));
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->keepTimeOffset));
 
-  if (tEncodeI32(&encoder, pReq->s3KeepLocal) < 0) return -1;
-  if (tEncodeI8(&encoder, pReq->s3Compact) < 0) return -1;
+  TAOS_CHECK_ERRNO(tEncodeI32(&encoder, pReq->s3KeepLocal));
+  TAOS_CHECK_ERRNO(tEncodeI8(&encoder, pReq->s3Compact));
 
   tEndEncode(&encoder);
 
-  int32_t tlen = encoder.pos;
+_exit:
+  if (terrno) {
+    uError("%s failed at line %d since %s", __func__, terrln, terrstr());
+    tlen = -1;
+  } else {
+    tlen = encoder.pos;
+  }
   tEncoderClear(&encoder);
   return tlen;
 }
 
 int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeConfigReq *pReq) {
   SDecoder decoder = {0};
+
   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->vgVersion) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->buffer) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->pageSize) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->pages) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->cacheLastSize) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->daysToKeep2) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->walFsyncPeriod) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
+  TAOS_CHECK_ERRNO(tStartDecode(&decoder));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->vgVersion));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->buffer));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->pageSize));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->pages));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->cacheLastSize));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->daysPerFile));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->daysToKeep0));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->daysToKeep1));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->daysToKeep2));
+  TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->walFsyncPeriod));
+  TAOS_CHECK_ERRNO(tDecodeI8(&decoder, &pReq->walLevel));
+  TAOS_CHECK_ERRNO(tDecodeI8(&decoder, &pReq->strict));
+  TAOS_CHECK_ERRNO(tDecodeI8(&decoder, &pReq->cacheLast));
   for (int32_t i = 0; i < 7; ++i) {
-    if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
+    TAOS_CHECK_ERRNO(tDecodeI64(&decoder, &pReq->reserved[i]));
   }
 
   // 1st modification
@@ -5803,8 +5850,8 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     pReq->sttTrigger = -1;
     pReq->minRows = -1;
   } else {
-    if (tDecodeI16(&decoder, &pReq->sttTrigger) < 0) return -1;
-    if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
+    TAOS_CHECK_ERRNO(tDecodeI16(&decoder, &pReq->sttTrigger));
+    TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->minRows));
   }
 
   // 2n modification
@@ -5812,24 +5859,29 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     pReq->walRetentionPeriod = -1;
     pReq->walRetentionSize = -1;
   } else {
-    if (tDecodeI32(&decoder, &pReq->walRetentionPeriod) < 0) return -1;
-    if (tDecodeI32(&decoder, &pReq->walRetentionSize) < 0) return -1;
+    TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->walRetentionPeriod));
+    TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->walRetentionSize));
   }
   pReq->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeI32(&decoder, &pReq->keepTimeOffset) < 0) return -1;
+    TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
 
   pReq->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
   pReq->s3Compact = TSDB_DEFAULT_S3_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeI32(&decoder, &pReq->s3KeepLocal) < 0) return -1;
-    if (tDecodeI8(&decoder, &pReq->s3Compact) < 0) return -1;
+    TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &pReq->s3KeepLocal) < 0);
+    TAOS_CHECK_ERRNO(tDecodeI8(&decoder, &pReq->s3Compact) < 0);
   }
 
   tEndDecode(&decoder);
+
+_exit:
   tDecoderClear(&decoder);
-  return 0;
+  if (terrno) {
+    uError("%s failed at line %d since %s", __func__, terrln, terrstr());
+  }
+  return terrno;
 }
 
 int32_t tSerializeSAlterVnodeReplicaReq(void *buf, int32_t bufLen, SAlterVnodeReplicaReq *pReq) {

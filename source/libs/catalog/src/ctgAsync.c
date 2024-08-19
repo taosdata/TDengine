@@ -2107,6 +2107,11 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask* pTask) {
 
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, pCtx->dbFName, &dbCache));
   if (NULL != dbCache) {
+    if (pTask->subTask) {
+      pMsgCtx->reqType = TDMT_MND_USE_DB;
+      CTG_ERR_JRET(ctgBuildUseDbOutput((SUseDbOutput**)&pMsgCtx->out, dbCache->vgCache.vgInfo));
+    }
+    
     CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res));
 
     ctgReleaseVgInfoToCache(pCtg, dbCache);

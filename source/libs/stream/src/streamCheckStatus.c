@@ -71,13 +71,6 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   }
 
   if (pInfo->stage != stage) {
-    taosThreadMutexLock(&pTask->lock);
-    ETaskStatus status = streamTaskGetStatus(pTask)->state;
-    if (status == TASK_STATUS__CK) {
-      streamTaskSetFailedCheckpointId(pTask);
-    }
-    taosThreadMutexUnlock(&pTask->lock);
-
     return TASK_UPSTREAM_NEW_STAGE;
   } else if (pTask->status.downstreamReady != 1) {
     stDebug("s-task:%s vgId:%d leader:%d, downstream not ready", id, vgId, (pTask->pMeta->role == NODE_ROLE_LEADER));
@@ -273,6 +266,13 @@ int32_t streamTaskSendCheckRsp(const SStreamMeta* pMeta, int32_t vgId, SStreamTa
 int32_t streamTaskStartMonitorCheckRsp(SStreamTask* pTask) {
   STaskCheckInfo* pInfo = &pTask->taskCheckInfo;
   taosThreadMutexLock(&pInfo->checkInfoLock);
+
+  ETaskStatus status = streamTaskGetStatus(pTask)->state;
+  if (status != TASK_STATUS__UNINIT) {
+    stDebug("s-task:%s task not in uninit status, not start monitor check-rsp", pTask->id.idStr);
+    taosThreadMutexUnlock(&pInfo->checkInfoLock);
+    return TSDB_CODE_FAILED;
+  }
 
   int32_t code = streamTaskStartCheckDownstream(pInfo, pTask->id.idStr);
   if (code != TSDB_CODE_SUCCESS) {
@@ -698,29 +698,29 @@ void rspMonitorFn(void* param, void* tmrId) {
 
   if (pStat->state == TASK_STATUS__UNINIT) {
     getCheckRspStatus(pInfo, timeoutDuration, &numOfReady, &numOfFault, &numOfNotRsp, pTimeoutList, pNotReadyList, id);
+
+    numOfNotReady = (int32_t)taosArrayGetSize(pNotReadyList);
+    numOfTimeout = (int32_t)taosArrayGetSize(pTimeoutList);
+
+    // fault tasks detected, not try anymore
+    ASSERT((numOfReady + numOfFault + numOfNotReady + numOfTimeout + numOfNotRsp) == total);
+    if (numOfFault > 0) {
+      int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+      stDebug(
+          "s-task:%s status:%s vgId:%d all rsp. quit from monitor rsp tmr, since vnode-transfer/leader-change/restart "
+          "detected, total:%d, notRsp:%d, notReady:%d, fault:%d, timeout:%d, ready:%d ref:%d",
+          id, pStat->name, vgId, total, numOfNotRsp, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
+
+      streamTaskCompleteCheckRsp(pInfo, false, id);
+      taosThreadMutexUnlock(&pInfo->checkInfoLock);
+      streamMetaReleaseTask(pMeta, pTask);
+
+      taosArrayDestroy(pNotReadyList);
+      taosArrayDestroy(pTimeoutList);
+      return;
+    }
   } else {  // unexpected status
     stError("s-task:%s unexpected task status:%s during waiting for check rsp", id, pStat->name);
-  }
-
-  numOfNotReady = (int32_t)taosArrayGetSize(pNotReadyList);
-  numOfTimeout = (int32_t)taosArrayGetSize(pTimeoutList);
-
-  // fault tasks detected, not try anymore
-  ASSERT((numOfReady + numOfFault + numOfNotReady + numOfTimeout + numOfNotRsp) == total);
-  if (numOfFault > 0) {
-    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-    stDebug(
-        "s-task:%s status:%s vgId:%d all rsp. quit from monitor rsp tmr, since vnode-transfer/leader-change/restart "
-        "detected, total:%d, notRsp:%d, notReady:%d, fault:%d, timeout:%d, ready:%d ref:%d",
-        id, pStat->name, vgId, total, numOfNotRsp, numOfNotReady, numOfFault, numOfTimeout, numOfReady, ref);
-
-    streamTaskCompleteCheckRsp(pInfo, false, id);
-    taosThreadMutexUnlock(&pInfo->checkInfoLock);
-    streamMetaReleaseTask(pMeta, pTask);
-
-    taosArrayDestroy(pNotReadyList);
-    taosArrayDestroy(pTimeoutList);
-    return;
   }
 
   // checking of downstream tasks has been stopped by other threads

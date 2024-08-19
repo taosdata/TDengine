@@ -153,6 +153,7 @@ ${csudo}rm -f ${bin_link_dir}/taosd      || :
 ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
 ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
 ${csudo}rm -f ${bin_link_dir}/taosdemo   || :
+${csudo}rm -f ${bin_link_dir}/taosdump   || :
 ${csudo}rm -f ${bin_link_dir}/set_core   || :
 ${csudo}rm -f ${bin_link_dir}/taoskeeper  || :
 ${csudo}rm -f ${bin_link_dir}/taos-explorer  || :
@@ -164,8 +165,11 @@ ${csudo}rm -f ${inc_link_dir}/taosdef.h  || :
 ${csudo}rm -f ${inc_link_dir}/taoserror.h || :
 ${csudo}rm -f ${inc_link_dir}/tdef.h || :
 ${csudo}rm -f ${inc_link_dir}/taosudf.h || :
+${csudo}rm -f ${inc_link_dir}/taosws.h || :
 ${csudo}rm -f ${lib_link_dir}/libtaos.*   || :
+${csudo}rm -f ${lib_link_dir}/libtaosws.so   || :
 ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
 
 ${csudo}rm -f ${log_link_dir}            || :
 ${csudo}rm -f ${data_link_dir}           || :

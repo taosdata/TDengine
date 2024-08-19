@@ -968,6 +968,8 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       return -1;
     }
 
+    tmemory_barrier();
+
     pPage->pPager = pPager;
 
     TDB_UNLOCK_PAGE(pPage);

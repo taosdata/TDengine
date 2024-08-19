@@ -107,17 +107,17 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   }
   char clusterId[32] = {0};
   if (snprintf(clusterId, sizeof(clusterId), "%" PRId64, pTscObj->pAppInfo->clusterId) < 0){
-    uError("failed to generate clusterId:%" PRId64, pTscObj->pAppInfo->clusterId);
+    tscError("failed to generate clusterId:%" PRId64, pTscObj->pAppInfo->clusterId);
   }
 
   char startTs[32] = {0};
   if (snprintf(startTs, sizeof(startTs), "%" PRId64, pRequest->metric.start/1000) < 0){
-    uError("failed to generate startTs:%" PRId64, pRequest->metric.start/1000);
+    tscError("failed to generate startTs:%" PRId64, pRequest->metric.start/1000);
   }
 
   char requestId[32] = {0};
   if (snprintf(requestId, sizeof(requestId), "%" PRIu64, pRequest->requestId) < 0){
-    uError("failed to generate requestId:%" PRIu64, pRequest->requestId);
+    tscError("failed to generate requestId:%" PRIu64, pRequest->requestId);
   }
   cJSON_AddItemToObject(json, "cluster_id",  cJSON_CreateString(clusterId));
   cJSON_AddItemToObject(json, "start_ts",    cJSON_CreateString(startTs));
@@ -126,8 +126,8 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   cJSON_AddItemToObject(json, "code",         cJSON_CreateNumber(pRequest->code));
   cJSON_AddItemToObject(json, "error_info",   cJSON_CreateString(tstrerror(pRequest->code)));
   cJSON_AddItemToObject(json, "type",         cJSON_CreateNumber(reqType));
-  cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.totalRows));
-  if(strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
+  cJSON_AddItemToObject(json, "rows_num",     cJSON_CreateNumber(pRequest->body.resInfo.numOfRows + pRequest->body.resInfo.totalRows));
+  if(pRequest->sqlstr != NULL && strlen(pRequest->sqlstr) > pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen){
     char tmp = pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen];
     pRequest->sqlstr[pTscObj->pAppInfo->monitorParas.tsSlowLogMaxLen] = '\0';
     cJSON_AddItemToObject(json, "sql",          cJSON_CreateString(pRequest->sqlstr));
@@ -142,7 +142,7 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
 
   char pid[32] = {0};
   if (snprintf(pid, sizeof(pid), "%d", appInfo.pid) < 0){
-    uError("failed to generate pid:%d", appInfo.pid);
+    tscError("failed to generate pid:%d", appInfo.pid);
   }
 
   cJSON_AddItemToObject(json, "process_id",   cJSON_CreateString(pid));
@@ -153,25 +153,18 @@ static void generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_
   }else if(pRequest->pDb != NULL){
     cJSON_AddItemToObject(json, "db", cJSON_CreateString(pRequest->pDb));
   }else{
-    cJSON_AddItemToObject(json, "db", cJSON_CreateString("unknown"));
+    cJSON_AddItemToObject(json, "db", cJSON_CreateString(""));
   }
 
+  char* value = cJSON_PrintUnformatted(json);
+  MonitorSlowLogData data = {0};
+  data.clusterId = pTscObj->pAppInfo->clusterId;
+  data.type = SLOW_LOG_WRITE;
+  data.data = value;
+  if(monitorPutData2MonitorQueue(data) < 0){
+    taosMemoryFree(value);
+  }
 
-  MonitorSlowLogData* slowLogData = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0);
-  if (slowLogData == NULL) {
-    cJSON_Delete(json);
-    tscError("[monitor] failed to allocate slow log data");
-    return;
-  }
-  slowLogData->clusterId = pTscObj->pAppInfo->clusterId;
-  slowLogData->value = cJSON_PrintUnformatted(json);
-  tscDebug("[monitor] write slow log to queue, clusterId:%"PRIx64 " value:%s", slowLogData->clusterId, slowLogData->value);
-  if (taosWriteQitem(monitorQueue, slowLogData) == 0){
-    tsem2_post(&monitorSem);
-  }else{
-    monitorFreeSlowLogData(slowLogData);
-    taosFreeQitem(slowLogData);
-  }
   cJSON_Delete(json);
 }
 
@@ -213,24 +206,24 @@ static void deregisterRequest(SRequestObj *pRequest) {
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
-    if (pRequest->pQuery && pRequest->pQuery->pRoot) {
-      if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
-          (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) {
-        tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-                 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-                 duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-                 pRequest->metric.planCostUs, pRequest->metric.execCostUs);
-        atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
-        reqType = SLOW_LOG_TYPE_INSERT;
-      } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-        tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-                 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-                 duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-                 pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+    if ((pRequest->pQuery && pRequest->pQuery->pRoot &&
+         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
+         (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
+        QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
+      tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+                   "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
+               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+      atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+      reqType = SLOW_LOG_TYPE_INSERT;
+    } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+      tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+                   "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
+               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
-        atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
-        reqType = SLOW_LOG_TYPE_QUERY;
-      } 
+      atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
+      reqType = SLOW_LOG_TYPE_QUERY;
     }
 
     nodesSimReleaseAllocator(pRequest->allocatorRefId);
@@ -625,10 +618,7 @@ void doDestroyRequest(void *p) {
   }
   taosMemoryFree(pRequest->body.interParam);
 
-  if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
-    qDestroyQuery(pRequest->pQuery);
-    nodesSimReleaseAllocator(pRequest->allocatorRefId);
-  }
+  qDestroyQuery(pRequest->pQuery);
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
   taosMemoryFreeClear(pRequest->effectiveUser);
@@ -871,7 +861,13 @@ void taos_init_imp(void) {
   initQueryModuleMsgHandle();
 
   if (taosConvInit() != 0) {
+    tscInitRes = -1;
     tscError("failed to init conv");
+    return;
+  }
+  if (monitorInit() != 0) {
+    tscInitRes = -1;
+    tscError("failed to init monitor");
     return;
   }
 
@@ -898,7 +894,6 @@ void taos_init_imp(void) {
   taosThreadMutexInit(&appInfo.mutex, NULL);
 
   tscCrashReportInit();
-  monitorInit();
 
   tscDebug("client is initialized successfully");
 }

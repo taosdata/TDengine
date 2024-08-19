@@ -534,6 +534,8 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(*pDst, pSrc, sizeof(*pSrc));
+  (*pDst)->vgArray = NULL;
+  
   if (pSrc->vgHash) {
     (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
                                    HASH_ENTRY_LOCK);

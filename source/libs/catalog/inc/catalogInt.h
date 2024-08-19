@@ -107,6 +107,7 @@ enum {
   CTG_OP_UPDATE_TB_TSMA,
   CTG_OP_DROP_TB_TSMA,
   CTG_OP_CLEAR_CACHE,
+  CTG_OP_UPDATE_DB_TSMA_VERSION,
   CTG_OP_MAX
 };
 
@@ -602,6 +603,7 @@ typedef struct SCtgUpdateTbTSMAMsg {
   STableTSMAInfo* pTsma;
   int32_t         dbTsmaVersion;
   uint64_t        dbId;
+  char            dbFName[TSDB_DB_FNAME_LEN];
 } SCtgUpdateTbTSMAMsg;
 
 typedef struct SCtgDropTbTSMAMsg {
@@ -1140,6 +1142,7 @@ uint64_t ctgGetClusterCacheSize(SCatalog *pCtg);
 void     ctgClearHandleMeta(SCatalog* pCtg, int64_t *pClearedSize, int64_t *pCleardNum, bool *roundDone);
 void     ctgClearAllHandleMeta(int64_t *clearedSize, int64_t *clearedNum, bool *roundDone);
 void     ctgProcessTimerEvent(void *param, void *tmrId);
+int32_t  ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo);
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName);
@@ -1165,6 +1168,8 @@ int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, 
                                        void* bInput);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
+int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
+int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId, bool syncOper);
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;

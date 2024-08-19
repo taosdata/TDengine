@@ -361,7 +361,10 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 }
 
 int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
-  taosArrayPush(pSortHandle->pOrderedSource, &pSource);
+  void* px = taosArrayPush(pSortHandle->pOrderedSource, &pSource);
+  if (px == NULL) {
+    taosMemoryFree(pSource);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -863,8 +866,10 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       while (1) {
         if (tsortIsClosed(pHandle) || (pHandle->abortCheckFn && pHandle->abortCheckFn(pHandle->abortCheckParam))) {
           code = terrno = TSDB_CODE_TSC_QUERY_CANCELLED;
+          taosArrayDestroy(pPageIdList);
           return code;
         }
+
         SSDataBlock* pDataBlock = getSortedBlockDataInner(pHandle, &pHandle->cmpParam, numOfRows);
         if (pDataBlock == NULL) {
           break;
@@ -1361,6 +1366,7 @@ static void initRowIdSort(SSortHandle* pHandle) {
 
   taosArrayDestroy(pHandle->pSortInfo);
   pHandle->pSortInfo = pOrderInfoList;
+  pHandle->cmpParam.pPkOrder = (pHandle->bSortPk) ? taosArrayGet(pHandle->pSortInfo, 1) : NULL;
 }
 
 int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsMemSize) {

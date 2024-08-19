@@ -505,7 +505,9 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
     return -1;
   }
 
-  if (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
+  if (pNewCfg->sstTrigger != pOldCfg->sstTrigger &&
+      (pNewCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pNewCfg->sstTrigger > TSDB_MAX_STT_TRIGGER))
+    return -1;
   if (pNewCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pNewCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
   if (pNewCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pNewCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
   if (pNewCfg->minRows > pNewCfg->maxRows) return -1;
@@ -1780,6 +1782,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     pDbCacheInfo->tsmaVersion = htonl(pDbCacheInfo->tsmaVersion);
 
     SDbHbRsp rsp = {0};
+    (void)memcpy(rsp.db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
+    rsp.dbId = pDbCacheInfo->dbId;
 
     if ((0 == strcasecmp(pDbCacheInfo->dbFName, TSDB_INFORMATION_SCHEMA_DB) ||
          (0 == strcasecmp(pDbCacheInfo->dbFName, TSDB_PERFORMANCE_SCHEMA_DB)))) {

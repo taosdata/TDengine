@@ -238,6 +238,9 @@ int32_t remoteChkp_readMetaData(char* path, SArray* list) {
   sprintf(metaPath, "%s%s%s", path, TD_DIRSEP, "META");
 
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_READ);
+  if (pFile == NULL) {
+    return -1;
+  }
 
   char buf[128] = {0};
   if (taosReadFile(pFile, buf, sizeof(buf)) <= 0) {
@@ -245,7 +248,8 @@ int32_t remoteChkp_readMetaData(char* path, SArray* list) {
     taosCloseFile(&pFile);
     return -1;
   }
-  int32_t len = strlen(buf);
+
+  int32_t len = strnlen(buf, tListLen(buf));
   for (int i = 0; i < len; i++) {
     if (buf[i] == '\n') {
       char* item = taosMemoryCalloc(1, i + 1);
@@ -2113,9 +2117,7 @@ void taskDbDestroy(void* pDb, bool flush) {
 
   stDebug("succ to destroy stream backend:%p", wrapper);
 
-  int8_t nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
-
-  if (wrapper == NULL) return;
+  int8_t nCf = tListLen(ginitDict);
 
   if (flush) {
     if (wrapper->db && wrapper->pCf) {
@@ -4219,7 +4221,8 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname, SArray* list) {
 
   static char* chkpMeta = "META";
   memset(dstBuf, 0, len);
-  sprintf(dstDir, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
+  sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, chkpMeta);
+  memcpy(dstDir, dstBuf, strlen(dstBuf));
 
   TdFilePtr pFile = taosOpenFile(dstDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {

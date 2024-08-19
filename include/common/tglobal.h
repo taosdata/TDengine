@@ -86,7 +86,7 @@ extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
-extern int64_t tsRpcQueueMemoryAllowed;
+extern int64_t tsQueueMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
 
 // sync raft
@@ -134,7 +134,6 @@ extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 extern bool     tsMonitorLogProtocol;
-extern int32_t  tsMonitorIntervalForBasic;
 extern bool     tsMonitorForceV2;
 
 // audit
@@ -277,6 +276,7 @@ void   taosSetGlobalDebugFlag(int32_t flag);
 void   taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void   taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 int8_t taosGranted(int8_t type);
+int32_t taosSetSlowLogScope(char *pScope);
 
 #ifdef __cplusplus
 }

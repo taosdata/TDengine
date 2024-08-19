@@ -1,52 +1,69 @@
+from datetime import datetime
+import random
 import taosws
 
-dsn = "taosws://root:taosdata@localhost:6041"
-conn = taosws.connect(dsn)
+numOfSubTable = 10
 
-db = "power"
+numOfRow = 10
 
-conn.execute(f"DROP DATABASE IF EXISTS {db}")
-conn.execute(f"CREATE DATABASE {db}")
+conn = None
+stmt = None
+host="localhost"
+port=6041
+try:
+    conn = taosws.connect(user="root",
+                          password="taosdata",
+                          host=host,
+                          port=port)
 
-# change database.
-conn.execute(f"USE {db}")
+    conn.execute("CREATE DATABASE IF NOT EXISTS power")
+    conn.execute("USE power")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
+    )
 
-# create super table
-conn.execute(
-    "CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)"
-)
+    # ANCHOR: stmt
+    sql = "INSERT INTO ? USING meters (groupid, location) TAGS(?,?) VALUES (?,?,?,?)"
+    stmt = conn.statement()
+    stmt.prepare(sql)
 
-# ANCHOR: stmt
-sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)"
-stmt = conn.statement()
-stmt.prepare(sql)
+    for i in range(numOfSubTable):
+        tbname = f"d_bind_{i}"
 
-tbname = "power.d1001"
+        tags = [
+            taosws.int_to_tag(i),
+            taosws.varchar_to_tag(f"location_{i}"),
+        ]
+        stmt.set_tbname_tags(tbname, tags)
+        current = int(datetime.now().timestamp() * 1000)
+        timestamps = []
+        currents = []
+        voltages = []
+        phases = []
+        for j in range (numOfRow):
+            timestamps.append(current + i)
+            currents.append(random.random() * 30)
+            voltages.append(random.randint(100, 300))
+            phases.append(random.random())
 
-tags = [
-    taosws.varchar_to_tag("California.SanFrancisco"),
-    taosws.int_to_tag(2),
-]
+        stmt.bind_param(
+            [
+                taosws.millis_timestamps_to_column(timestamps),
+                taosws.floats_to_column(currents),
+                taosws.ints_to_column(voltages),
+                taosws.floats_to_column(phases),
+            ]
+        )
 
-stmt.set_tbname_tags(tbname, tags)
-
-stmt.bind_param(
-    [
-        taosws.millis_timestamps_to_column(
-            [1626861392589, 1626861392591, 1626861392592]
-        ),
-        taosws.floats_to_column([10.3, 12.6, 12.3]),
-        taosws.ints_to_column([194, 200, 201]),
-        taosws.floats_to_column([0.31, 0.33, 0.31]),
-    ]
-)
-
-stmt.add_batch()
-rows = stmt.execute()
-
-assert rows == 3
-
-stmt.close()
-# ANCHOR_END: stmt
-
-conn.close()
+        stmt.add_batch()
+        stmt.execute()
+        
+        print(f"Successfully inserted to power.meters.")
+        
+except Exception as err:
+    print(f"Failed to insert to table meters using stmt, ErrMessage:{err}") 
+finally:
+    if stmt:
+        stmt.close()
+    if conn:    
+        conn.close()

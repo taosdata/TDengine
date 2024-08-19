@@ -68,6 +68,10 @@ bool chkRequestKilled(void* param) {
   return killed;
 }
 
+void cleanupAppInfo() {
+  taosHashCleanup(appInfo.pInstMap);
+}
+
 static STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                                 SAppInstInfo* pAppInfo, int connType);
 
@@ -299,7 +303,7 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, biMode);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
 
   return code;
@@ -338,7 +342,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp,
                               atomic_load_8(&pRequest->pTscObj->biMode));
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4);
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1540,6 +1544,9 @@ int32_t doProcessMsgFromServer(void* param) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
     tscError("doProcessMsgFromServer pMsg->info.ahandle == NULL");
+    taosMemoryFree(arg->pEpset);
+    rpcFreeCont(pMsg->pCont);
+    taosMemoryFree(arg);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
   STscObj* pTscObj = NULL;
@@ -1557,6 +1564,11 @@ int32_t doProcessMsgFromServer(void* param) {
       if (pRequest->self != pSendInfo->requestObjRefId) {
         tscError("doProcessMsgFromServer pRequest->self:%" PRId64 " != pSendInfo->requestObjRefId:%" PRId64,
                  pRequest->self, pSendInfo->requestObjRefId);
+        taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+        taosMemoryFree(arg->pEpset);
+        rpcFreeCont(pMsg->pCont);
+        destroySendMsgInfo(pSendInfo);
+        taosMemoryFree(arg);
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
       pTscObj = pRequest->pTscObj;
@@ -2715,7 +2727,11 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
       .cbParam = pRequest,
   };
 
-  schedulerFetchRows(pRequest->body.queryJob, &req);
+  int32_t code = schedulerFetchRows(pRequest->body.queryJob, &req);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
+    pRequest->body.fetchFp(param, pRequest, code);    
+  }
 }
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {

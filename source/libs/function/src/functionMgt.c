@@ -267,6 +267,13 @@ bool fmIsGroupKeyFunc(int32_t funcId) {
   return FUNCTION_TYPE_GROUP_KEY == funcMgtBuiltins[funcId].type;
 }
 
+bool fmisSelectGroupConstValueFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_GROUP_CONST_VALUE == funcMgtBuiltins[funcId].type;
+}
+
 bool fmIsBlockDistFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -417,7 +424,7 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   (*pPartialFunc)->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
   char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
-  taosCreateMD5Hash(name, len);
+  (void)taosHashBinary(name, len);
   strncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
   (*pPartialFunc)->hasPk = pSrcFunc->hasPk;
   (*pPartialFunc)->pkBytes = pSrcFunc->pkBytes;

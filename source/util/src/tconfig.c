@@ -23,6 +23,7 @@
 #include "tlog.h"
 #include "tunit.h"
 #include "tutil.h"
+#include "tglobal.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
@@ -432,6 +433,18 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
   }
 
   switch (pItem->dtype) {
+    case CFG_DTYPE_STRING:{
+      if(strcasecmp(name, "slowLogScope") == 0){
+        char* tmp = taosStrdup(pVal);
+        if(taosSetSlowLogScope(tmp) < 0){
+          terrno = TSDB_CODE_INVALID_CFG;
+          cfgUnLock(pCfg);
+          taosMemoryFree(tmp);
+          return -1;
+        }
+        taosMemoryFree(tmp);
+      }
+    } break;
     case CFG_DTYPE_BOOL: {
       int32_t ival = (int32_t)atoi(pVal);
       if (ival != 0 && ival != 1) {

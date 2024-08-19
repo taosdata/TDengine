@@ -603,7 +603,8 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
 
     pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (pCtx[j].fpSet.finalize) {
-      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
+      if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0 ||
+      strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_const_value") == 0) {
         // for groupkey along with functions that output multiple lines(e.g. Histogram)
         // need to match groupkey result for each output row of that function.
         if (pCtx[j].resultInfo->numOfRes != 0) {
@@ -909,12 +910,21 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return NULL;
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
+    if (pExpr != NULL) {
+      SExprInfo* pExprInfo = &pExpr[i];
+      for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+        if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_VALUE) {
+          taosMemoryFree(pCtx[i].input.pData[j]);
+          taosMemoryFree(pCtx[i].input.pColumnDataAgg[j]);
+        }
+      }
+    }
     for (int32_t j = 0; j < pCtx[i].numOfParams; ++j) {
       taosVariantDestroy(&pCtx[i].param[j].param);
     }
@@ -947,7 +957,7 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, S
 }
 
 void cleanupExprSupp(SExprSupp* pSupp) {
-  destroySqlFunctionCtx(pSupp->pCtx, pSupp->numOfExprs);
+  destroySqlFunctionCtx(pSupp->pCtx, pSupp->pExprInfo, pSupp->numOfExprs);
   if (pSupp->pExprInfo != NULL) {
     destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
     taosMemoryFreeClear(pSupp->pExprInfo);

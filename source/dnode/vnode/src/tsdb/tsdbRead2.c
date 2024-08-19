@@ -927,6 +927,10 @@ static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData
   } else {
     int64_t key = asc ? pReader->info.window.ekey : pReader->info.window.skey;
     endPos = doBinarySearchKey(pBlockData->aTSKEY, pRecord->numRow, pos, key, pReader->info.order);
+    if (endPos == -1) {
+      return endPos;
+    }
+
     endPos = findFirstPos(pBlockData->aTSKEY, pRecord->numRow, endPos, asc);
   }
 
@@ -1755,6 +1759,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (ps == NULL) {
       return terrno;
     }
+    tsdbRowMergerInit(pMerger, ps);
   }
 
   SRowKey minKey = k;
@@ -1838,6 +1843,7 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
     if (ps == NULL) {
       return terrno;
     }
+    tsdbRowMergerInit(pMerger, ps);
   }
 
   bool dataInDataFile = hasDataInFileBlock(pBlockData, pDumpInfo);
@@ -1959,6 +1965,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (ps == NULL) {
       return terrno;
     }
+    tsdbRowMergerInit(pMerger, ps);
   }
 
   SRowKey minKey = k;
@@ -2322,6 +2329,7 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
     if (ps == NULL) {
       return terrno;
     }
+    tsdbRowMergerInit(pMerger, ps);
   }
 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, pKey);
@@ -2733,6 +2741,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
     // only check here, since the iterate data in memory is very fast.
     if (pReader->code != TSDB_CODE_SUCCESS) {
       tsdbWarn("tsdb reader is stopped ASAP, code:%s, %s", tstrerror(pReader->code), pReader->idStr);
+      taosArrayDestroy(pIndexList);
       return pReader->code;
     }
 
@@ -3041,23 +3050,10 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
       if ((!hasDataInSttBlock(pScanInfo)) || (asc && pBlockInfo->lastKey < keyInStt) ||
           (!asc && pBlockInfo->firstKey > keyInStt)) {
-        if (pScanInfo->cleanSttBlocks && hasDataInSttBlock(pScanInfo)) {
-          if (asc) {  // file block is located before the stt block
-            ASSERT(pScanInfo->sttRange.skey.ts > pBlockInfo->lastKey);
-          } else {  // stt block is before the file block
-            ASSERT(pScanInfo->sttRange.ekey.ts < pBlockInfo->firstKey);
-          }
-        }
-
+        // the stt blocks may located in the gap of different data block, but the whole sttRange may overlap with the
+        // data block, so the overlap check is invalid actually.
         buildCleanBlockFromDataFiles(pReader, pScanInfo, pBlockInfo, pBlockIter->index);
       } else {  // clean stt block
-        if (asc) {
-          ASSERT(pScanInfo->sttRange.ekey.ts < pBlockInfo->firstKey);
-        } else {
-          ASSERT(pScanInfo->sttRange.skey.ts > pBlockInfo->lastKey);
-        }
-
-        // return the stt file block
         ASSERT(pReader->info.execMode == READER_EXEC_ROWS && pSttBlockReader->mergeTree.pIter == NULL);
         buildCleanBlockFromSttFiles(pReader, pScanInfo);
         return TSDB_CODE_SUCCESS;

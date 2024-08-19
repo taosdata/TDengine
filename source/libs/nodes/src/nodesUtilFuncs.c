@@ -1061,6 +1061,13 @@ void nodesDestroyNode(SNode* pNode) {
         pStmt->freeStbRowsCxtFunc(pStmt->pStbRowsCxt);
       }
       taosMemoryFreeClear(pStmt->pStbRowsCxt);
+
+      taosMemoryFreeClear(pStmt->pCreateTbInfo);
+
+      if (pStmt->destroyParseFileCxt) {
+        pStmt->destroyParseFileCxt(&pStmt->pParFileCxt);
+      }
+
       taosCloseFile(&pStmt->fp);
       break;
     }
@@ -1093,15 +1100,6 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
       SCreateSubTableFromFileClause* pStmt = (SCreateSubTableFromFileClause*)pNode;
-      if (pStmt->aCreateTbData) {
-        taosArrayDestroy(pStmt->aCreateTbData);
-      }
-      if (pStmt->aTagIndexs) {
-        taosArrayDestroy(pStmt->aTagIndexs);
-      }
-      if (pStmt->fp) {
-        taosCloseFile(&pStmt->fp);
-      }
       nodesDestroyList(pStmt->pSpecificTags);
       break;
     }

@@ -238,14 +238,20 @@ static void resetSlotInfo(tMemBucket *pBucket) {
   }
 }
 
-tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval) {
+tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup) {
   tMemBucket *pBucket = (tMemBucket *)taosMemoryCalloc(1, sizeof(tMemBucket));
   if (pBucket == NULL) {
     return NULL;
   }
 
-  pBucket->numOfSlots = DEFAULT_NUM_OF_SLOT;
-  pBucket->bufPageSize = 16384 * 4;  // 16k per page
+  if (hasWindowOrGroup) {
+    // With window or group by, we need to shrink page size and reduce page num to save memory.
+    pBucket->numOfSlots = DEFAULT_NUM_OF_SLOT / 8 ;  // 128 bucket
+    pBucket->bufPageSize = 4096;  // 4k per page
+  } else {
+    pBucket->numOfSlots = DEFAULT_NUM_OF_SLOT;
+    pBucket->bufPageSize = 16384 * 4;  // 16k per page
+  }
 
   pBucket->type = dataType;
   pBucket->bytes = nElemSize;
@@ -285,7 +291,7 @@ tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval,
     return NULL;
   }
 
-  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 1024, "1", tsTempDir);
+  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * DEFAULT_NUM_OF_SLOT * 4, "1", tsTempDir);
   if (ret != 0) {
     tMemBucketDestroy(pBucket);
     return NULL;

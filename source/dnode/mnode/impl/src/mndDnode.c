@@ -49,6 +49,12 @@ static const char *offlineReason[] = {
     "ttlChangeOnWrite not match",
     "enableWhiteList not match",
     "encryptionKey not match",
+    "monitor not match",
+    "monitor switch not match",
+    "monitor interval not match",
+    "monitor slow log threshold not match",
+    "monitor slow log sql max len not match",
+    "monitor slow log scope not match",
     "unknown",
 };
 
@@ -80,6 +86,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
+static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq);
 static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pRsp);
 static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp);
 
@@ -120,6 +127,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -438,20 +446,20 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
   }
 }
 
-#define CHECK_MONITOR_PARA(para) \
+#define CHECK_MONITOR_PARA(para,err) \
 if (pCfg->monitorParas.para != para) { \
   mError("dnode:%d, para:%d inconsistent with cluster:%d", pDnode->id, pCfg->monitorParas.para, para); \
-  terrno = TSDB_CODE_DNODE_INVALID_MONITOR_PARAS; \
-  return DND_REASON_STATUS_MONITOR_NOT_MATCH;\
+  terrno = err; \
+  return err;\
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const SClusterCfg *pCfg) {
-  CHECK_MONITOR_PARA(tsEnableMonitor);
-  CHECK_MONITOR_PARA(tsMonitorInterval);
-  CHECK_MONITOR_PARA(tsSlowLogThreshold);
-  CHECK_MONITOR_PARA(tsSlowLogThresholdTest);
-  CHECK_MONITOR_PARA(tsSlowLogMaxLen);
-  CHECK_MONITOR_PARA(tsSlowLogScope);
+  CHECK_MONITOR_PARA(tsEnableMonitor, DND_REASON_STATUS_MONITOR_SWITCH_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsMonitorInterval, DND_REASON_STATUS_MONITOR_INTERVAL_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogThreshold, DND_REASON_STATUS_MONITOR_SLOW_LOG_THRESHOLD_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogThresholdTest, DND_REASON_STATUS_MONITOR_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogMaxLen, DND_REASON_STATUS_MONITOR_SLOW_LOG_SQL_MAX_LEN_NOT_MATCH);
+  CHECK_MONITOR_PARA(tsSlowLogScope, DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH);
 
   if (0 != strcasecmp(pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb)) {
     mError("dnode:%d, tsSlowLogExceptDb:%s inconsistent with cluster:%s", pDnode->id, pCfg->monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb);
@@ -557,9 +565,6 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   SStatisReq statisReq = {0};
   int32_t    code = -1;
 
-  char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
-  sprintf(strClusterId, "%" PRId64, pMnode->clusterId);
-
   if (tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return code;
@@ -580,32 +585,78 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
 }
 
 static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-dnode-obj");
+  int32_t       code = 0, lino = 0;
+  SDnodeInfoReq infoReq = {0};
+  int32_t       contLen = 0;
+  void         *pReq = NULL;
+
+  infoReq.dnodeId = pDnode->id;
+  tstrncpy(infoReq.machineId, pDnode->machineId, TSDB_MACHINE_ID_LEN + 1);
+
+  if ((contLen = tSerializeSDnodeInfoReq(NULL, 0, &infoReq)) <= 0) {
+    TAOS_RETURN(contLen ? contLen : TSDB_CODE_OUT_OF_MEMORY);
+  }
+  pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  (void)tSerializeSDnodeInfoReq(pReq, contLen, &infoReq);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPDATE_DNODE_INFO, .pCont = pReq, .contLen = contLen};
+  TAOS_CHECK_EXIT(tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg));
+_exit:
+  if (code < 0) {
+    mError("dnode:%d, failed to update dnode info since %s", pDnode->id, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq) {
+  int32_t       code = 0, lino = 0;
+  SMnode       *pMnode = pReq->info.node;
+  SDnodeInfoReq infoReq = {0};
+  SDnodeObj    *pDnode = NULL;
+  STrans       *pTrans = NULL;
+  SSdbRaw      *pCommitRaw = NULL;
+
+  TAOS_CHECK_EXIT(tDeserializeSDnodeInfoReq(pReq->pCont, pReq->contLen, &infoReq));
+
+  pDnode = mndAcquireDnode(pMnode, infoReq.dnodeId);
+  if (pDnode == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-dnode-obj");
   if (pTrans == NULL) {
-    code = terrno;
-    goto _exit;
+    TAOS_CHECK_EXIT(terrno);
   }
 
   pDnode->updateTime = taosGetTimestampMs();
 
-  SSdbRaw *pCommitRaw = mndDnodeActionEncode(pDnode);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    code = terrno;
-    goto _exit;
+  if ((pCommitRaw = mndDnodeActionEncode(pDnode)) == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, tstrerror(code));
+    TAOS_CHECK_EXIT(code);
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  pCommitRaw = NULL;
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    code = terrno;
-    goto _exit;
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
+    TAOS_CHECK_EXIT(code);
   }
 
 _exit:
+  mndReleaseDnode(pMnode, pDnode);
+  if (code != 0) {
+    mError("dnode:%d, failed to update dnode info at line %d since %s", infoReq.dnodeId, lino, tstrerror(code));
+  }
   mndTransDrop(pTrans);
-  return code;
+  sdbFreeRaw(pCommitRaw);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {

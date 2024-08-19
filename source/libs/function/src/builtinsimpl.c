@@ -1436,6 +1436,9 @@ _stddev_over:
 }
 
 static void stddevTransferInfo(SStddevRes* pInput, SStddevRes* pOutput) {
+  if (IS_NULL_TYPE(pInput->type)) {
+    return;
+  }
   pOutput->type = pInput->type;
   if (IS_SIGNED_NUMERIC_TYPE(pOutput->type)) {
     pOutput->quadraticISum += pInput->quadraticISum;
@@ -1897,7 +1900,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       pResInfo->complete = true;
       return TSDB_CODE_SUCCESS;
     } else {
-      pInfo->pMemBucket = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval);
+      pInfo->pMemBucket = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval, pCtx->hasWindowOrGroup);
     }
   }
 
@@ -6462,7 +6465,7 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
-int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
+int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SGroupKeyInfo*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -6473,13 +6476,13 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
 
   // escape rest of data blocks to avoid first entry to be overwritten.
   if (pInfo->hasResult) {
-    goto _group_key_over;
+    goto _group_value_over;
   }
 
   if (pInputCol->pData == NULL || colDataIsNull_s(pInputCol, startIndex)) {
     pInfo->isNull = true;
     pInfo->hasResult = true;
-    goto _group_key_over;
+    goto _group_value_over;
   }
 
   char* data = colDataGetData(pInputCol, startIndex);
@@ -6491,13 +6494,17 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
   }
   pInfo->hasResult = true;
 
-_group_key_over:
+_group_value_over:
 
   SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
+  return groupConstValueFunction(pCtx);
+}
+
+int32_t groupConstValueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
@@ -6515,6 +6522,10 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pResInfo->numOfRes;
+}
+
+int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock){
+  return groupConstValueFinalize(pCtx, pBlock);
 }
 
 int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {

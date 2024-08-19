@@ -720,20 +720,22 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   stDebug("s-task:0x%x vgId:%d set task status:dropping and start to unregister it", taskId, pMeta->vgId);
 
   while (1) {
-    streamMetaRLock(pMeta);
+    int32_t timerActive = 0;
 
+    streamMetaRLock(pMeta);
     ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask) {
-      if ((*ppTask)->status.timerActive == 0) {
-        streamMetaRUnLock(pMeta);
-        break;
-      }
+      // to make sure check status will not start the check downstream status when we start to check timerActive count.
+      taosThreadMutexLock(&pTask->taskCheckInfo.checkInfoLock);
+      timerActive = (*ppTask)->status.timerActive;
+      taosThreadMutexUnlock(&pTask->taskCheckInfo.checkInfoLock);
+    }
+    streamMetaRUnLock(pMeta);
 
-      taosMsleep(10);
-      stDebug("s-task:%s wait for quit from timer", (*ppTask)->id.idStr);
-      streamMetaRUnLock(pMeta);
+    if (timerActive > 0) {
+      taosMsleep(100);
+      stDebug("s-task:0x%" PRIx64 " wait for quit from timer, timerRef:%d", id.taskId, timerActive);
     } else {
-      streamMetaRUnLock(pMeta);
       break;
     }
   }
@@ -958,6 +960,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
           pMeta->numOfStreamTasks, pMeta->numOfPausedTasks);
 
   taosArrayDestroy(pRecycleList);
+  (void)streamMetaCommit(pMeta);
 }
 
 static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
@@ -1051,15 +1054,19 @@ static int32_t metaHeartbeatToMnodeImpl(SStreamMeta* pMeta) {
       entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
     }
 
-    if ((*pTask)->chkInfo.pActiveInfo->activeId != 0) {
-      entry.checkpointInfo.failed =
-          ((*pTask)->chkInfo.pActiveInfo->failedId >= (*pTask)->chkInfo.pActiveInfo->activeId) ? 1 : 0;
-      entry.checkpointInfo.activeId = (*pTask)->chkInfo.pActiveInfo->activeId;
-      entry.checkpointInfo.activeTransId = (*pTask)->chkInfo.pActiveInfo->transId;
+    SActiveCheckpointInfo* p = (*pTask)->chkInfo.pActiveInfo;
+    if (p->activeId != 0) {
+      entry.checkpointInfo.failed = (p->failedId >= p->activeId) ? 1 : 0;
+      entry.checkpointInfo.activeId = p->activeId;
+      entry.checkpointInfo.activeTransId = p->transId;
 
       if (entry.checkpointInfo.failed) {
-        stInfo("s-task:%s set kill checkpoint trans in hb, transId:%d", (*pTask)->id.idStr,
-               (*pTask)->chkInfo.pActiveInfo->transId);
+        stInfo("s-task:%s set kill checkpoint trans in hb, transId:%d, clear the active checkpointInfo",
+               (*pTask)->id.idStr, p->transId);
+
+        taosThreadMutexLock(&(*pTask)->lock);
+        streamTaskClearCheckInfo((*pTask), true);
+        taosThreadMutexUnlock(&(*pTask)->lock);
       }
     }
 
@@ -1231,6 +1238,15 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   while (streamMetaTaskInTimer(pMeta)) {
     stDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
     taosMsleep(100);
+  }
+
+  streamMetaRLock(pMeta);
+
+  SArray* pTaskList = streamMetaSendMsgBeforeCloseTasks(pMeta);
+  streamMetaRUnLock(pMeta);
+
+  if (pTaskList != NULL) {
+    taosArrayDestroy(pTaskList);
   }
 
   int64_t el = taosGetTimestampMs() - st;
@@ -1529,37 +1545,64 @@ bool streamMetaAllTasksReady(const SStreamMeta* pMeta) {
   return true;
 }
 
-int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, __stream_task_expand_fn expandFn) {
-  int32_t code = 0;
-  int32_t vgId = pMeta->vgId;
+int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, __stream_task_expand_fn fn) {
+  int32_t      code = 0;
+  int32_t      vgId = pMeta->vgId;
+  SStreamTask* pTask = NULL;
+  bool         continueExec = true;
+
   stInfo("vgId:%d start task:0x%x by checking it's downstream status", vgId, taskId);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
+  pTask = streamMetaAcquireTask(pMeta, streamId, taskId);
   if (pTask == NULL) {
-    stError("vgId:%d failed to acquire task:0x%x when starting task", pMeta->vgId, taskId);
-    streamMetaAddFailedTask(pMeta, streamId, taskId);
+    stError("vgId:%d failed to acquire task:0x%x when starting task", vgId, taskId);
+    (void)streamMetaAddFailedTask(pMeta, streamId, taskId);
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
   }
 
   // fill-history task can only be launched by related stream tasks.
   STaskExecStatisInfo* pInfo = &pTask->execInfo;
   if (pTask->info.fillHistory == 1) {
+    stError("s-task:0x%x vgId:%d fill-histroy task, not start here", taskId, vgId);
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
   }
 
+  taosThreadMutexLock(&pTask->lock);
+  SStreamTaskState* pStatus = streamTaskGetStatus(pTask);
+  if (pStatus->state != TASK_STATUS__UNINIT) {
+    stError("s-task:0x%x vgId:%d status:%s not uninit status, not start stream task", taskId, vgId, pStatus->name);
+    continueExec = false;
+  } else {
+    continueExec = true;
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  if (!continueExec) {
+    streamMetaReleaseTask(pMeta, pTask);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
+
   ASSERT(pTask->status.downstreamReady == 0);
+
+  // avoid initialization and destroy running concurrently.
+  taosThreadMutexLock(&pTask->lock);
   if (pTask->pBackend == NULL) {
-    code = expandFn(pTask);
+    code = pMeta->expandTaskFn(pTask);
+    taosThreadMutexUnlock(&pTask->lock);
+
     if (code != TSDB_CODE_SUCCESS) {
       streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
     }
+  } else {
+    taosThreadMutexUnlock(&pTask->lock);
   }
 
   if (code == TSDB_CODE_SUCCESS) {
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_INIT);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s vgId:%d failed to handle event:%d", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT);
+      stError("s-task:%s vgId:%d failed to handle event:%d, code:%s", pTask->id.idStr, pMeta->vgId, TASK_EVENT_INIT,
+              tstrerror(code));
       streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs);
     }
   }

@@ -19,6 +19,7 @@
 #include "scheduler.h"
 #include "trpc.h"
 #include "tglobal.h"
+#include "clientMonitor.h"
 
 typedef struct {
   union {
@@ -253,6 +254,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
           catalogAsyncUpdateTSMA(pCatalog, &pTsma, rsp->dbTsmaVersion);
         }
         taosArrayClear(rsp->pTsmaRsp->pTsmas);
+      } else {
+        catalogAsyncUpdateDbTsmaVersion(pCatalog, rsp->dbTsmaVersion, rsp->db, rsp->dbId);
       }
     }
   }
@@ -546,10 +549,6 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
-  pInst->monitorParas = pRsp.monitorParas;
-  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
-           pInst->clusterId, pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
-
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
@@ -559,6 +558,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     tFreeClientHbBatchRsp(&pRsp);
     return -1;
   }
+
+  pInst->monitorParas = pRsp.monitorParas;
+  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
+           pInst->clusterId, pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
   if (rspNum) {
     tscDebug("hb got %d rsp, %d empty rsp received before", rspNum,

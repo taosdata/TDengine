@@ -263,6 +263,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->outputInfo.tbSink.pTSchema);
     tSimpleHashCleanup(pTask->outputInfo.tbSink.pTblInfo);
+    tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pTagSchema);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
   }
@@ -1024,14 +1025,16 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->pReadyMsgList = taosArrayDestroy(pInfo->pReadyMsgList);
   pInfo->pCheckpointReadyRecvList = taosArrayDestroy(pInfo->pCheckpointReadyRecvList);
 
-  if (pInfo->pChkptTriggerTmr != NULL) {
-    taosTmrStop(pInfo->pChkptTriggerTmr);
-    pInfo->pChkptTriggerTmr = NULL;
+  SStreamTmrInfo* pTriggerTmr = &pInfo->chkptTriggerMsgTmr;
+  if (pTriggerTmr->tmrHandle != NULL) {
+    taosTmrStop(pTriggerTmr->tmrHandle);
+    pTriggerTmr->tmrHandle = NULL;
   }
 
-  if (pInfo->pSendReadyMsgTmr != NULL) {
-    taosTmrStop(pInfo->pSendReadyMsgTmr);
-    pInfo->pSendReadyMsgTmr = NULL;
+  SStreamTmrInfo* pReadyTmr = &pInfo->chkptReadyMsgTmr;
+  if (pReadyTmr->tmrHandle != NULL) {
+    taosTmrStop(pReadyTmr->tmrHandle);
+    pReadyTmr->tmrHandle = NULL;
   }
 
   taosMemoryFree(pInfo);
@@ -1039,10 +1042,10 @@ void streamTaskDestroyActiveChkptInfo(SActiveCheckpointInfo* pInfo) {
 
 void streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo) {
   pInfo->activeId = 0;  // clear the checkpoint id
-  pInfo->failedId = 0;
   pInfo->transId = 0;
   pInfo->allUpstreamTriggerRecv = 0;
   pInfo->dispatchTrigger = false;
+  pInfo->failedId = 0;
 
   taosArrayClear(pInfo->pDispatchTriggerList);
   taosArrayClear(pInfo->pCheckpointReadyRecvList);

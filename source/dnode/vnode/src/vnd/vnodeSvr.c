@@ -517,6 +517,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   void   *pReq;
   int32_t len;
 
+  (void)taosThreadMutexLock(&pVnode->mutex);
+  if (pVnode->disableWrite) {
+    (void)taosThreadMutexUnlock(&pVnode->mutex);
+    vError("vgId:%d write is disabled for snapshot, version:%" PRId64, TD_VID(pVnode), ver);
+    return TSDB_CODE_VND_WRITE_DISABLED;
+  }
+  (void)taosThreadMutexUnlock(&pVnode->mutex);
+
   if (ver <= pVnode->state.applied) {
     vError("vgId:%d, duplicate write request. ver: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), ver,
            pVnode->state.applied);
@@ -1973,6 +1981,9 @@ _exit:
   return code;
 }
 
+extern int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb);
+extern int32_t tsdbEnableBgTask(STsdb *pTsdb);
+
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   bool walChanged = false;
   bool tsdbChanged = false;
@@ -2070,7 +2081,14 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (req.sttTrigger != -1 && req.sttTrigger != pVnode->config.sttTrigger) {
-    pVnode->config.sttTrigger = req.sttTrigger;
+    if (req.sttTrigger > 1 && pVnode->config.sttTrigger > 1) {
+      pVnode->config.sttTrigger = req.sttTrigger;
+    } else {
+      vnodeAWait(&pVnode->commitTask);
+      tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
+      pVnode->config.sttTrigger = req.sttTrigger;
+      tsdbEnableBgTask(pVnode->pTsdb);
+    }
   }
 
   if (req.minRows != -1 && req.minRows != pVnode->config.tsdbCfg.minRows) {

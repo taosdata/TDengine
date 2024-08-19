@@ -233,6 +233,11 @@ static bool isGroupKeyFunc(SExprInfo* pExprInfo) {
   return (functionType == FUNCTION_TYPE_GROUP_KEY);
 }
 
+static bool isSelectGroupConstValueFunc(SExprInfo* pExprInfo) {
+  int32_t functionType = pExprInfo->pExpr->_function.functionType;
+  return (functionType == FUNCTION_TYPE_GROUP_CONST_VALUE);
+}
+
 static bool getIgoreNullRes(SExprSupp* pExprSup) {
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[i];
@@ -296,7 +301,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
       colDataSetVal(pDst, pResBlock->info.rows, (char*)&isFilled, false);
       continue;
     } else if (!isInterpFunc(pExprInfo)) {
-      if (isGroupKeyFunc(pExprInfo)) {
+      if (isGroupKeyFunc(pExprInfo) || isSelectGroupConstValueFunc(pExprInfo)) {
         if (pSrcBlock != NULL) {
           int32_t       srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
           SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
@@ -308,9 +313,17 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
           char* v = colDataGetData(pSrc, index);
           colDataSetVal(pDst, pResBlock->info.rows, v, false);
-        } else {
+        } else if(!isSelectGroupConstValueFunc(pExprInfo)){
           // use stored group key
           SGroupKeys* pkey = pSliceInfo->pPrevGroupKey;
+          if (pkey->isNull == false) {
+            colDataSetVal(pDst, rows, pkey->pData, false);
+          } else {
+            colDataSetNULL(pDst, rows);
+          }
+        } else {
+          int32_t srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
+          SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, srcSlot);
           if (pkey->isNull == false) {
             colDataSetVal(pDst, rows, pkey->pData, false);
           } else {

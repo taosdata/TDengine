@@ -25,7 +25,7 @@ description: Use PowerBI and TDengine to analyze time series data
 
 &emsp;&emsp;[DSN]:&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;Data Source Name, required field, such as "MyTDengine"
 
-Depending on your TDengine server version, download appropriate version of TDengine client package from TDengine website [Download Link](../../get-started/package/), or TDengine explorer if you are using a local TDengine cluster. Install the TDengine client package on same Windows machine where PowerBI is running.
+Depending on your TDengine server version, download appropriate version of TDengine client package from TDengine website [Download Link](https://docs.tdengine.com/get-started/package/), or TDengine explorer if you are using a local TDengine cluster. Install the TDengine client package on same Windows machine where PowerBI is running.
 
 
 &emsp;&emsp;[URL]:&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;&nbsp;taos://localhost:6041
@@ -48,7 +48,7 @@ To better use Power BI to analyze the data stored in TDengine, you need to under
 
 1. Dimention: it's normally category (text) data to describe such information as device, collection point, model. In the supertable template of TDengine, we use tag columns to store the dimention information. You can use SQL like `select distinct tbname, tag1, tag2 from supertable` to get dimentions. 
 
-2. Metric: quantitive (numeric) fileds that can be calculated, like SUM, AVERAGE, MINIMUM. If the collecting frequency is 1 second, then there are 31,536,000 records in one year, it will be too low efficient to import so big data into Power BI. In TDengine, you can use data partition query, window partition query, in combination with pseudo columns related to window, to import downsampled data into Power BI. For more details, please refer to [TDengine Specialized Queries](../../taos-sql/distinguished/)。
+2. Metric: quantitive (numeric) fileds that can be calculated, like SUM, AVERAGE, MINIMUM. If the collecting frequency is 1 second, then there are 31,536,000 records in one year, it will be too low efficient to import so big data into Power BI. In TDengine, you can use data partition query, window partition query, in combination with pseudo columns related to window, to import downsampled data into Power BI. For more details, please refer to [TDengine Specialized Queries](../../reference/taos-sql/distinguished/)。
 
   - Window partition query: for example, thermal meters collect one data per second, but you need to query the average temperature every 10 minutes, you can use window subclause to get the downsampling data you need. The corresponding SQL is like `select tbname, _wstart date，avg(temperature) temp from table interval(10m)`, in which _wstart is a pseudo column indicting the start time of a widow, 10m is the duration of the window, `avg(temperature)` indicates the aggregate value inside a window. 
 

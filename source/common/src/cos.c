@@ -1179,6 +1179,13 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
                                          &getObjectDataCallback};
 
   TS3SizeCBD cbd = {0};
+  int        retryCount = 0;
+  static int maxRetryCount = 5;
+  static int minRetryInterval = 1000;  // ms
+  static int maxRetryInterval = 3000;  // ms
+
+_retry:
+  (void)memset(&cbd, 0, sizeof(cbd));
   cbd.content_length = size;
   cbd.buf_pos = 0;
   do {
@@ -1186,6 +1193,11 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
   } while (S3_status_is_retryable(cbd.status) && should_retry());
 
   if (cbd.status != S3StatusOK) {
+    if (S3StatusErrorSlowDown == cbd.status && retryCount++ < maxRetryCount) {
+      taosMsleep(taosRand() % (maxRetryInterval - minRetryInterval + 1) + minRetryInterval);
+      uInfo("%s: %d/%s(%s) retry get object", __func__, cbd.status, S3_get_status_name(cbd.status), cbd.err_msg);
+      goto _retry;
+    }
     uError("%s: %d/%s(%s)", __func__, cbd.status, S3_get_status_name(cbd.status), cbd.err_msg);
     return TAOS_SYSTEM_ERROR(EIO);
   }
