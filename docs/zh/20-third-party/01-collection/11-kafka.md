@@ -27,20 +27,20 @@ TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送�
 
 ## 安装 Kafka
 
-在任意目录下执行：
+- 在任意目录下执行：
 
-```shell
-curl -O https://downloads.apache.org/kafka/3.4.0/kafka_2.13-3.4.0.tgz
-tar xzf kafka_2.13-3.4.0.tgz -C /opt/
-ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
-```
+    ```shell
+    curl -O https://downloads.apache.org/kafka/3.4.0/kafka_2.13-3.4.0.tgz
+    tar xzf kafka_2.13-3.4.0.tgz -C /opt/
+    ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
+    ```
 
-然后需要把 `$KAFKA_HOME/bin` 目录加入 PATH。
+- 然后需要把 `$KAFKA_HOME/bin` 目录加入 PATH。
 
-```title=".profile"
-export KAFKA_HOME=/opt/kafka
-export PATH=$PATH:$KAFKA_HOME/bin
-```
+    ```title=".profile"
+    export KAFKA_HOME=/opt/kafka
+    export PATH=$PATH:$KAFKA_HOME/bin
+    ```
 
 以上脚本可以追加到当前用户的 profile 文件（~/.profile 或 ~/.bash_profile）
 
