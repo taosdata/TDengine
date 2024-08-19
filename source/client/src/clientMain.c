@@ -91,11 +91,11 @@ void taos_cleanup(void) {
   tscDebug("rpc cleanup");
 
   taosConvDestroy();
+  taosGeosDestroy();
 
   tmqMgmtClose();
 
   DestroyRegexCache();
-  destroyThreadLocalGeosCtx();
 
   tscInfo("all local resources released");
   taosCleanupCfg();

@@ -25,16 +25,19 @@ typedef struct {
   SRWLatch      lock;
 } SGeosContextPool;
 
-static SGeosContextPool sGeosPool = {0};
-
+static SGeosContextPool          sGeosPool = {0};
 static threadlocal SGeosContext *tlGeosCtx = NULL;
 
+SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
+
 SGeosContext *getThreadLocalGeosCtx() {
-  if (tlGeosCtx) return tlGeosCtx;
+  if (tlGeosCtx) {
+    return tlGeosCtx;
+  }
 
   taosWLockLatch(&sGeosPool.lock);
   if (sGeosPool.size >= sGeosPool.capacity) {
-    sGeosPool.capacity += 64;
+    sGeosPool.capacity += 128;
     void *tmp = taosMemoryRealloc(sGeosPool.pool, sGeosPool.capacity * sizeof(SGeosContext));
     if (!tmp) {
       taosWUnLockLatch(&sGeosPool.lock);
@@ -50,6 +53,8 @@ SGeosContext *getThreadLocalGeosCtx() {
 
   return tlGeosCtx;
 }
+
+const char *getGeosErrMsg(int32_t code) { return tlGeosCtx ? tlGeosCtx->errMsg : (code != 0 ? tstrerror(code) : ""); }
 
 static void destroyGeosCtx(SGeosContext *pCtx) {
   if (pCtx) {
@@ -86,8 +91,8 @@ static void destroyGeosCtx(SGeosContext *pCtx) {
   }
 }
 
-void destroyThreadLocalGeosCtx() {
-  uInfo("geos ctx is cleaned up");
+void taosGeosDestroy() {
+  uInfo("geos is cleaned up");
   if (!sGeosPool.pool) return;
   for (int32_t i = 0; i < sGeosPool.size; ++i) {
     destroyGeosCtx(sGeosPool.pool + i);
