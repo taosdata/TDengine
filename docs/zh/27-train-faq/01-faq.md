@@ -270,3 +270,6 @@ TDengine 在写入数据时如果有很严重的乱序写入问题，会严重�
 
 ### 28 修改database的root密码后，Grafana监控插件TDinsight无数据展示
 TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集并存储于TD的log库中，在root密码修改后，需要同步更新taosKeeper和taosAdapter配置文件中对应的密码信息，然后重启taosKeeper和taosAdapter服务（注：若是集群需要重启每个节点上的对应服务）。
+
+### 29 遇到报错 “some vnode/qnode/mnode(s) out of service” 怎么办？
+客户端未配置所有服务端的 FQDN 解析。比如服务端有 3 个节点，客户端只配置了 1 个节点的 FQDN 解析。FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
