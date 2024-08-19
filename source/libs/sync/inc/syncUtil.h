@@ -75,8 +75,6 @@ int32_t     syncUtilElectRandomMS(int32_t min, int32_t max);
 int32_t     syncUtilQuorum(int32_t replicaNum);
 const char* syncStr(ESyncState state);
 void        syncUtilMsgHtoN(void* msg);
-bool        syncUtilUserPreCommit(tmsg_t msgType);
-bool        syncUtilUserRollback(tmsg_t msgType);
 
 void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf);
 

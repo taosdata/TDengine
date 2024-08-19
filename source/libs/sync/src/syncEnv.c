@@ -32,7 +32,7 @@ int32_t syncInit() {
   uint32_t seed = (uint32_t)(taosGetTimestampNs() & 0x00000000FFFFFFFF);
   taosSeedRand(seed);
 
-  memset(&gSyncEnv, 0, sizeof(SSyncEnv));
+  (void)memset(&gSyncEnv, 0, sizeof(SSyncEnv));
   gSyncEnv.pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
 
   gNodeRefId = taosOpenRef(200, (RefFp)syncNodeClose);
@@ -59,7 +59,7 @@ int32_t syncInit() {
 void syncCleanUp() {
   atomic_store_8(&gSyncEnv.isStart, 0);
   taosTmrCleanUp(gSyncEnv.pTimerManager);
-  memset(&gSyncEnv, 0, sizeof(SSyncEnv));
+  (void)memset(&gSyncEnv, 0, sizeof(SSyncEnv));
 
   if (gNodeRefId != -1) {
     sDebug("sync node rset is closed, rsetId:%d", gNodeRefId);
@@ -77,8 +77,7 @@ void syncCleanUp() {
 int64_t syncNodeAdd(SSyncNode *pNode) {
   pNode->rid = taosAddRef(gNodeRefId, pNode);
   if (pNode->rid < 0) {
-    terrno = TSDB_CODE_SYN_WRONG_REF;
-    return -1;
+    return terrno = TSDB_CODE_SYN_WRONG_REF;
   }
 
   sDebug("vgId:%d, sync node refId:%" PRId64 " is added to rsetId:%d", pNode->vgId, pNode->rid, gNodeRefId);
@@ -111,8 +110,7 @@ void syncNodeRelease(SSyncNode *pNode) {
 int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
   pData->rid = taosAddRef(gHbDataRefId, pData);
   if (pData->rid < 0) {
-    terrno = TSDB_CODE_SYN_WRONG_REF;
-    return -1;
+    return terrno = TSDB_CODE_SYN_WRONG_REF;
   }
 
   return pData->rid;
