@@ -519,7 +519,7 @@ void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
     goto _return;
   }
 
-  if (op && pJob->opStatus.op != op) {
+  if (SCH_OP_NULL != op && pJob->opStatus.op != op) {
     SCH_JOB_ELOG("job in operation %s mis-match with expected %s", schGetOpStr(pJob->opStatus.op), schGetOpStr(op));
     goto _return;
   }
@@ -547,9 +547,10 @@ _return:
 
 int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
   if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
+    schPostJobRes(pJob, 0);
     return TSDB_CODE_SCH_IGNORE_ERROR;
   }
-
+  
   schUpdateJobErrCode(pJob, errCode);
 
   int32_t code = atomic_load_32(&pJob->errCode);
