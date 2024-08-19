@@ -1714,14 +1714,19 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
     LRUHandle *h = taosLRUCacheLookup(pCache, &key, ROCKS_KEY_LEN);
     SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
-
-    (void)taosThreadMutexLock(&pTsdb->lruMutex);
     if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
+      (void)taosThreadMutexLock(&pTsdb->lruMutex);
       SLastCol lastCol = *pLastCol;
       for (int8_t j = 0; j < lastCol.rowKey.numOfPKs; j++) {
-        TAOS_CHECK_RETURN(reallocVarDataVal(&lastCol.rowKey.pks[j]));
+        code = reallocVarDataVal(&lastCol.rowKey.pks[j]);
+        if (code != 0) {
+          (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+          TAOS_RETURN(code);
+        }
       }
-      TAOS_CHECK_RETURN(reallocVarData(&lastCol.colVal));
+      code = reallocVarData(&lastCol.colVal);
+      (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+      TAOS_CHECK_RETURN(code);
       if (taosArrayPush(pLastArray, &lastCol) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _exit;
@@ -1758,7 +1763,6 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
         goto _exit;
       }
     }
-    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
 
     if (h) {
       (void)taosLRUCacheRelease(pCache, h, false);
