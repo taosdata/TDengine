@@ -7,7 +7,7 @@ on:
 
 env:
   RELEASE_HOST: 192.168.1.45
-  RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
+  # RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
   # DIR_PATH: ${{ github.event.number }}
@@ -48,7 +48,7 @@ jobs:
           # build taosx and taosx-agent
           # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
           rm -rf ./target/debug/taosx-profraw/
-          export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
+          # export LLVM_PROFILE_FILE="./target/debug/taosx-profraw/taosx-%p-%m.profraw"
           cargo build --target-dir ./target/debug/taosx-build/
       # - name: taosx unit test
       #   run: |
@@ -65,21 +65,21 @@ jobs:
           # build agent
           rm -rf ./target/debug/taosx-agent-profraw/
           # export RUSTFLAGS="-C instrument-coverage --cfg tokio_unstable"
-          export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
+          # export LLVM_PROFILE_FILE="./target/debug/taosx-agent-profraw/taosx-agent-%p-%m.profraw"
           cargo build --package taosx-agent --target-dir ./target/debug/taosx-agent-build/
 
       - name: Copy files
         run: |
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
           cp ./target/debug/taosx-build/debug/taosx ./target/debug/taosx-agent-build/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
-          cp -r ./target/debug/taosx-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH/
-          cp -r ./target/debug/taosx-agent-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH/
-          cd ..
-          tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
-          cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH/
-          rm taosx.tar.gz
-          tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH/
-          rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
+          # cp -r ./target/debug/taosx-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH/
+          # cp -r ./target/debug/taosx-agent-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH/
+          # cd ..
+          # tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
+          # cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH/
+          # rm taosx.tar.gz
+          # tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH/
+          # rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
   
   build_explorer:
     needs: remove_artifacts
